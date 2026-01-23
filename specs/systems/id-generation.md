@@ -242,9 +242,9 @@ Cache current length threshold:
 - [x] Implement length increase fallback
 - [ ] Add collision metrics/logging (deferred)
 
-### Phase 5: Hierarchical IDs (partial - storage integration pending)
+### Phase 5: Hierarchical IDs ✅
 - [x] Implement child counter table ✅ (src/storage/schema.ts migration001)
-- [ ] Implement atomic counter increment (requires storage layer function)
+- [x] Implement atomic counter increment ✅ (getNextChildNumber, getChildCounter, resetChildCounter in storage backends - 13+8 tests)
 - [x] Implement child ID generation (generateChildId)
 - [x] Implement depth limit check (MAX_HIERARCHY_DEPTH = 3)
 

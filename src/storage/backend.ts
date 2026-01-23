@@ -188,6 +188,38 @@ export interface StorageBackend {
   clearDirtyElements(elementIds: string[]): void;
 
   // --------------------------------------------------------------------------
+  // Hierarchical ID Support
+  // --------------------------------------------------------------------------
+
+  /**
+   * Get the next child number for a parent element atomically.
+   *
+   * This method atomically increments the child counter for the given parent
+   * and returns the new value. If no counter exists for the parent, it creates
+   * one starting at 1.
+   *
+   * @param parentId - The ID of the parent element
+   * @returns The next child number (starting from 1)
+   * @throws StorageError on database error
+   */
+  getNextChildNumber(parentId: string): number;
+
+  /**
+   * Get the current child counter for a parent element without incrementing.
+   *
+   * @param parentId - The ID of the parent element
+   * @returns The current child counter, or 0 if no children exist
+   */
+  getChildCounter(parentId: string): number;
+
+  /**
+   * Reset the child counter for a parent element.
+   *
+   * @param parentId - The ID of the parent element
+   */
+  resetChildCounter(parentId: string): void;
+
+  // --------------------------------------------------------------------------
   // Utilities
   // --------------------------------------------------------------------------
 

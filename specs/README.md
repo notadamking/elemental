@@ -178,7 +178,7 @@ Recommended implementation sequence:
 - [x] **systems/storage.md Phase 6**: Dirty tracking ✅ (markDirty, getDirtyElements, clearDirty, clearDirtyElements in BunStorageBackend)
 - [x] **systems/storage.md Phase 7**: Content hashing ✅ (computeContentHashSync in sync/hash.ts, integrated with create/update in elemental-api.ts, hash column in schema)
 - [ ] **systems/id-generation.md Phase 3**: Storage integration (element count query, length caching)
-- [ ] **systems/id-generation.md Phase 5**: Hierarchical ID storage (child counter table ✅, atomic counter increment pending)
+- [x] **systems/id-generation.md Phase 5**: Hierarchical ID storage ✅ (child counter table, atomic counter increment via getNextChildNumber - 13+8 tests)
 
 #### Sync System (Priority: High)
 - [x] **api/sync.md Phase 2**: Full export ✅ (SyncService.export with full/incremental modes, ephemeral filtering, file writing)

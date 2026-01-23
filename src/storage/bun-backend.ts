@@ -415,6 +415,55 @@ export class BunStorageBackend implements StorageBackend {
   }
 
   // --------------------------------------------------------------------------
+  // Hierarchical ID Support
+  // --------------------------------------------------------------------------
+
+  getNextChildNumber(parentId: string): number {
+    try {
+      const db = this.ensureOpen();
+      // Use INSERT OR REPLACE with a subquery to atomically increment
+      // If the row doesn't exist, it will be created with last_child = 1
+      // If it exists, last_child will be incremented
+      db.prepare(`
+        INSERT INTO child_counters (parent_id, last_child)
+        VALUES (?, 1)
+        ON CONFLICT(parent_id) DO UPDATE SET last_child = last_child + 1
+      `).run(parentId);
+
+      // Read back the new value
+      const result = db.prepare(
+        'SELECT last_child FROM child_counters WHERE parent_id = ?'
+      ).get(parentId) as { last_child: number } | undefined;
+
+      return result?.last_child ?? 1;
+    } catch (error) {
+      throw mapStorageError(error, { operation: 'getNextChildNumber', elementId: parentId });
+    }
+  }
+
+  getChildCounter(parentId: string): number {
+    try {
+      const db = this.ensureOpen();
+      const result = db.prepare(
+        'SELECT last_child FROM child_counters WHERE parent_id = ?'
+      ).get(parentId) as { last_child: number } | undefined;
+
+      return result?.last_child ?? 0;
+    } catch (error) {
+      throw mapStorageError(error, { operation: 'getChildCounter', elementId: parentId });
+    }
+  }
+
+  resetChildCounter(parentId: string): void {
+    try {
+      const db = this.ensureOpen();
+      db.prepare('DELETE FROM child_counters WHERE parent_id = ?').run(parentId);
+    } catch (error) {
+      throw mapStorageError(error, { operation: 'resetChildCounter', elementId: parentId });
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Utilities
   // --------------------------------------------------------------------------
 

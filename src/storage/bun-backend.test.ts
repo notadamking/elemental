@@ -686,6 +686,154 @@ describe('Migration Edge Cases', () => {
   });
 });
 
+describe('Hierarchical ID Support', () => {
+  let backend: StorageBackend;
+
+  beforeEach(() => {
+    backend = new BunStorageBackend({ path: ':memory:' });
+    // Initialize the child_counters table (this is part of the schema)
+    backend.exec(`
+      CREATE TABLE IF NOT EXISTS child_counters (
+        parent_id TEXT PRIMARY KEY,
+        last_child INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  describe('getNextChildNumber', () => {
+    it('should return 1 for a new parent', () => {
+      const childNumber = backend.getNextChildNumber('el-abc123');
+      expect(childNumber).toBe(1);
+    });
+
+    it('should increment counter on subsequent calls', () => {
+      expect(backend.getNextChildNumber('el-abc123')).toBe(1);
+      expect(backend.getNextChildNumber('el-abc123')).toBe(2);
+      expect(backend.getNextChildNumber('el-abc123')).toBe(3);
+    });
+
+    it('should track counters independently for different parents', () => {
+      expect(backend.getNextChildNumber('el-parent1')).toBe(1);
+      expect(backend.getNextChildNumber('el-parent2')).toBe(1);
+      expect(backend.getNextChildNumber('el-parent1')).toBe(2);
+      expect(backend.getNextChildNumber('el-parent2')).toBe(2);
+      expect(backend.getNextChildNumber('el-parent3')).toBe(1);
+    });
+
+    it('should handle hierarchical parent IDs', () => {
+      // Root element children
+      expect(backend.getNextChildNumber('el-abc')).toBe(1);
+      expect(backend.getNextChildNumber('el-abc')).toBe(2);
+
+      // Child element children (el-abc.1's children)
+      expect(backend.getNextChildNumber('el-abc.1')).toBe(1);
+      expect(backend.getNextChildNumber('el-abc.1')).toBe(2);
+
+      // Parent counter should be unaffected
+      expect(backend.getNextChildNumber('el-abc')).toBe(3);
+    });
+
+    it('should be atomic (simulated concurrent access)', () => {
+      // Get a batch of child numbers - all should be unique
+      const numbers: number[] = [];
+      for (let i = 0; i < 100; i++) {
+        numbers.push(backend.getNextChildNumber('el-concurrent'));
+      }
+
+      // All numbers should be sequential 1-100
+      expect(numbers).toEqual(Array.from({ length: 100 }, (_, i) => i + 1));
+
+      // No duplicates
+      const unique = new Set(numbers);
+      expect(unique.size).toBe(100);
+    });
+  });
+
+  describe('getChildCounter', () => {
+    it('should return 0 for a parent with no children', () => {
+      const counter = backend.getChildCounter('el-nochildren');
+      expect(counter).toBe(0);
+    });
+
+    it('should return current counter without incrementing', () => {
+      backend.getNextChildNumber('el-abc');
+      backend.getNextChildNumber('el-abc');
+
+      // Should return 2, not increment
+      expect(backend.getChildCounter('el-abc')).toBe(2);
+      expect(backend.getChildCounter('el-abc')).toBe(2);
+      expect(backend.getChildCounter('el-abc')).toBe(2);
+    });
+
+    it('should reflect updates from getNextChildNumber', () => {
+      expect(backend.getChildCounter('el-abc')).toBe(0);
+      backend.getNextChildNumber('el-abc');
+      expect(backend.getChildCounter('el-abc')).toBe(1);
+      backend.getNextChildNumber('el-abc');
+      expect(backend.getChildCounter('el-abc')).toBe(2);
+    });
+  });
+
+  describe('resetChildCounter', () => {
+    it('should reset counter to allow new sequence', () => {
+      backend.getNextChildNumber('el-abc');
+      backend.getNextChildNumber('el-abc');
+      expect(backend.getChildCounter('el-abc')).toBe(2);
+
+      backend.resetChildCounter('el-abc');
+      expect(backend.getChildCounter('el-abc')).toBe(0);
+
+      // New sequence should start at 1
+      expect(backend.getNextChildNumber('el-abc')).toBe(1);
+    });
+
+    it('should not affect other parent counters', () => {
+      backend.getNextChildNumber('el-parent1');
+      backend.getNextChildNumber('el-parent1');
+      backend.getNextChildNumber('el-parent2');
+
+      backend.resetChildCounter('el-parent1');
+
+      expect(backend.getChildCounter('el-parent1')).toBe(0);
+      expect(backend.getChildCounter('el-parent2')).toBe(1);
+    });
+
+    it('should not throw for non-existent parent', () => {
+      expect(() => backend.resetChildCounter('el-nonexistent')).not.toThrow();
+    });
+  });
+
+  describe('Integration with Transactions', () => {
+    it('should work within transactions', () => {
+      const result = backend.transaction(() => {
+        const n1 = backend.getNextChildNumber('el-tx-test');
+        const n2 = backend.getNextChildNumber('el-tx-test');
+        return { n1, n2 };
+      });
+
+      expect(result).toEqual({ n1: 1, n2: 2 });
+      expect(backend.getChildCounter('el-tx-test')).toBe(2);
+    });
+
+    it('should persist counter after transaction commit', () => {
+      backend.transaction(() => {
+        backend.getNextChildNumber('el-commit-test');
+        backend.getNextChildNumber('el-commit-test');
+      });
+
+      // After commit, counter should persist
+      expect(backend.getChildCounter('el-commit-test')).toBe(2);
+      expect(backend.getNextChildNumber('el-commit-test')).toBe(3);
+    });
+  });
+});
+
 // Cleanup after all tests
 afterAll(() => {
   cleanupTestFiles();

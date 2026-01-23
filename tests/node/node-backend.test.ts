@@ -350,4 +350,90 @@ describe('NodeStorageBackend', () => {
       backend.close();
     });
   });
+
+  describe('Hierarchical ID Support', () => {
+    let backend: StorageBackend;
+
+    beforeEach(() => {
+      backend = new NodeStorageBackend({ path: ':memory:' });
+      // Initialize the child_counters table (this is part of the schema)
+      backend.exec(`
+        CREATE TABLE IF NOT EXISTS child_counters (
+          parent_id TEXT PRIMARY KEY,
+          last_child INTEGER NOT NULL DEFAULT 0
+        )
+      `);
+    });
+
+    afterEach(() => {
+      if (backend.isOpen) {
+        backend.close();
+      }
+    });
+
+    describe('getNextChildNumber', () => {
+      it('should return 1 for a new parent', () => {
+        const childNumber = backend.getNextChildNumber('el-abc123');
+        expect(childNumber).toBe(1);
+      });
+
+      it('should increment counter on subsequent calls', () => {
+        expect(backend.getNextChildNumber('el-abc123')).toBe(1);
+        expect(backend.getNextChildNumber('el-abc123')).toBe(2);
+        expect(backend.getNextChildNumber('el-abc123')).toBe(3);
+      });
+
+      it('should track counters independently for different parents', () => {
+        expect(backend.getNextChildNumber('el-parent1')).toBe(1);
+        expect(backend.getNextChildNumber('el-parent2')).toBe(1);
+        expect(backend.getNextChildNumber('el-parent1')).toBe(2);
+        expect(backend.getNextChildNumber('el-parent2')).toBe(2);
+      });
+
+      it('should handle hierarchical parent IDs', () => {
+        // Root element children
+        expect(backend.getNextChildNumber('el-abc')).toBe(1);
+        expect(backend.getNextChildNumber('el-abc')).toBe(2);
+
+        // Child element children (el-abc.1's children)
+        expect(backend.getNextChildNumber('el-abc.1')).toBe(1);
+        expect(backend.getNextChildNumber('el-abc.1')).toBe(2);
+
+        // Parent counter should be unaffected
+        expect(backend.getNextChildNumber('el-abc')).toBe(3);
+      });
+    });
+
+    describe('getChildCounter', () => {
+      it('should return 0 for a parent with no children', () => {
+        const counter = backend.getChildCounter('el-nochildren');
+        expect(counter).toBe(0);
+      });
+
+      it('should return current counter without incrementing', () => {
+        backend.getNextChildNumber('el-abc');
+        backend.getNextChildNumber('el-abc');
+
+        expect(backend.getChildCounter('el-abc')).toBe(2);
+        expect(backend.getChildCounter('el-abc')).toBe(2);
+      });
+    });
+
+    describe('resetChildCounter', () => {
+      it('should reset counter to allow new sequence', () => {
+        backend.getNextChildNumber('el-abc');
+        backend.getNextChildNumber('el-abc');
+        expect(backend.getChildCounter('el-abc')).toBe(2);
+
+        backend.resetChildCounter('el-abc');
+        expect(backend.getChildCounter('el-abc')).toBe(0);
+
+        expect(backend.getNextChildNumber('el-abc')).toBe(1);
+      });
+
+      it('should not throw for non-existent parent', () => {
+        expect(() => backend.resetChildCounter('el-nonexistent')).not.toThrow();
+      });
+    });
+  });
 });
