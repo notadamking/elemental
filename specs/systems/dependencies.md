@@ -1,0 +1,318 @@
+# Dependency System Specification
+
+The dependency system manages relationships between elements, enabling blocking relationships, knowledge graphs, attribution tracking, and message threading. It is fundamental to task orchestration and element interconnection.
+
+## Purpose
+
+The dependency system provides:
+- Blocking relationships for task orchestration
+- Associative links for knowledge graphs
+- Attribution tracking for audit trails
+- Message threading support
+- Cycle detection for integrity
+- Blocked work calculation optimization
+
+## Dependency Structure
+
+Each dependency connects a source element to a target element:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sourceId` | `ElementId` | Element that has the dependency |
+| `targetId` | `ElementId` | Element being depended on |
+| `type` | `DependencyType` | Category of relationship |
+| `createdAt` | `Timestamp` | When dependency was created |
+| `createdBy` | `EntityId` | Who created the dependency |
+| `metadata` | `object` | Type-specific additional data |
+
+## Dependency Types
+
+### Blocking Dependencies
+
+Affect work readiness; tasks cannot proceed until blockers resolve.
+
+| Type | Semantics | Target Requirement |
+|------|-----------|-------------------|
+| `blocks` | Target waits for source to close | Source must close |
+| `parent-child` | Hierarchical containment | Transitive blocking |
+| `awaits` | External gate dependency | Gate must be satisfied |
+
+### Associative Dependencies
+
+Non-blocking; create knowledge graph connections.
+
+| Type | Semantics | Bidirectional |
+|------|-----------|---------------|
+| `relates-to` | Semantic link | Yes |
+| `references` | Citation | No |
+| `supersedes` | Version chain | No |
+| `duplicates` | Deduplication | No |
+| `caused-by` | Audit trail | No |
+| `validates` | Test verification | No |
+
+### Attribution Dependencies
+
+Link elements to entities for tracking.
+
+| Type | Semantics | Target Type |
+|------|-----------|-------------|
+| `authored-by` | Creator | Entity |
+| `assigned-to` | Responsibility | Entity |
+| `approved-by` | Sign-off | Entity |
+
+### Threading Dependencies
+
+Support message conversations.
+
+| Type | Semantics | Target Type |
+|------|-----------|-------------|
+| `replies-to` | Thread parent | Message |
+
+## Blocking Semantics
+
+### Blocked State
+
+An element is blocked if any of:
+- Has `blocks` dependency on non-closed element
+- Has `parent-child` dependency on blocked parent
+- Has `awaits` dependency on unsatisfied gate
+
+### Ready State
+
+A task is ready for work when:
+- Status is `open` or `in_progress`
+- Not blocked by any dependency
+- `scheduledFor` is null or past
+- Not in ephemeral workflow (unless requested)
+
+### Transitive Blocking
+
+`parent-child` creates transitive blocking:
+- If Plan A is blocked, all child Tasks are blocked
+- Blocking propagates down the hierarchy
+- Unblocking propagates up (when all children complete)
+
+## Gate Dependencies
+
+`awaits` dependencies support external gates:
+
+### Gate Types
+
+| Gate Type | Satisfied When |
+|-----------|----------------|
+| `timer` | Current time >= `waitUntil` |
+| `approval` | Required approvals received |
+| `external` | External system confirms |
+| `webhook` | Webhook callback received |
+
+### Awaits Metadata
+
+| Field | Type | Gate Types | Description |
+|-------|------|------------|-------------|
+| `gateType` | `string` | All | Type of gate |
+| `waitUntil` | `Timestamp` | timer | When gate opens |
+| `externalSystem` | `string` | external | System identifier |
+| `externalId` | `string` | external | External reference |
+| `requiredApprovers` | `EntityId[]` | approval | Who must approve |
+| `approvalCount` | `number` | approval | How many needed |
+
+## Validates Metadata
+
+`validates` dependencies track test verification:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `testType` | `string` | e.g., "unit", "integration", "manual" |
+| `result` | `string` | "pass" or "fail" |
+| `details` | `string` | Test output or notes |
+
+## Cycle Detection
+
+Before adding blocking dependencies, verify no cycle would result.
+
+### Algorithm
+
+1. Check if dependency type is blocking
+2. If not blocking, allow (no cycle possible in acyclic graph)
+3. Start from target, traverse all blocking dependencies
+4. If source is reachable, cycle would be created
+5. Reject with `CYCLE_DETECTED` error
+
+### Traversal
+
+Breadth-first search with visited set:
+- Start queue with target
+- Pop element, check if equals source
+- Add all blocking dependency targets to queue
+- Continue until queue empty or source found
+- Depth limit: 100 (configurable)
+
+### Exclusions
+
+`relates-to` is excluded from cycle detection:
+- Bidirectional by design
+- Would always "cycle" (A relates-to B implies B relates-to A)
+- Stored as single dependency, interpreted bidirectionally
+
+## Blocked Cache
+
+Materialized view for fast ready-work queries.
+
+### Structure
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `element_id` | `ElementId` | Blocked element |
+| `blocked_by` | `ElementId` | Blocking element |
+| `reason` | `string` | Human-readable reason |
+
+### Invalidation Triggers
+
+Cache invalidated when:
+- Blocking dependency added/removed
+- Element status changes (especially closing)
+- Gate satisfaction changes
+- Parent blocking state changes
+
+### Rebuild Algorithm
+
+1. Clear cache
+2. For each element with potential blockers:
+   a. Check all `blocks` dependencies
+   b. Check all `parent-child` parents recursively
+   c. Check all `awaits` gates
+3. If blocked, insert into cache with reason
+4. Propagate through `parent-child` children
+
+### Performance
+
+Cache provides ~25x speedup on large datasets:
+- Ready query: Single table scan of non-blocked
+- Without cache: Recursive dependency check per element
+
+## Dependency Storage
+
+### Schema
+
+Dependencies stored in `dependencies` table:
+- Composite primary key: (source_id, target_id, type)
+- Allows multiple dependency types between same elements
+- Indexed on target_id for reverse lookups
+
+### Constraints
+
+- source_id must reference valid element
+- target_id: No foreign key (allows external references)
+- type must be valid DependencyType
+- No self-references (source_id != target_id)
+
+## Operations
+
+### Add Dependency
+
+1. Validate source element exists
+2. Validate dependency type
+3. Check for cycles (if blocking type)
+4. Insert dependency record
+5. Update blocked cache (if blocking type)
+6. Emit `dependency_added` event
+
+### Remove Dependency
+
+1. Validate dependency exists
+2. Delete dependency record
+3. Update blocked cache (if blocking type)
+4. Emit `dependency_removed` event
+
+### Get Dependencies
+
+Query all dependencies where element is source.
+
+### Get Dependents
+
+Query all dependencies where element is target.
+
+### Get Dependency Tree
+
+Recursive traversal building full tree:
+- Element at root
+- Dependencies as children
+- Dependents as separate branch
+- Cycle handling for `relates-to`
+
+## Implementation Methodology
+
+### Bidirectional relates-to
+
+Store as single record:
+- Smaller source_id is always source
+- Query both directions by checking both columns
+- Application layer handles interpretation
+
+### Blocking Check
+
+Function `isBlocked(elementId)`:
+1. Check blocked_cache first (fast path)
+2. If not in cache, compute and cache
+3. Return blocked status and reason
+
+### Ready Work Query
+
+1. Query tasks with status in (open, in_progress)
+2. Left join with blocked_cache
+3. Filter where blocked_cache.element_id is null
+4. Filter where scheduledFor is null or <= now
+5. Order by priority, createdAt
+
+## Implementation Checklist
+
+### Phase 1: Type Definitions
+- [ ] Define `Dependency` interface
+- [ ] Define `DependencyType` union
+- [ ] Define `AwaitsMetadata` interface
+- [ ] Define `ValidatesMetadata` interface
+- [ ] Create type guards
+
+### Phase 2: Core Operations
+- [ ] Implement addDependency
+- [ ] Implement removeDependency
+- [ ] Implement getDependencies
+- [ ] Implement getDependents
+- [ ] Add dependency events
+
+### Phase 3: Cycle Detection
+- [ ] Implement BFS traversal
+- [ ] Implement depth limiting
+- [ ] Handle relates-to exclusion
+- [ ] Add cycle detection to addDependency
+
+### Phase 4: Blocked Cache
+- [ ] Create blocked_cache table
+- [ ] Implement cache invalidation triggers
+- [ ] Implement cache rebuild
+- [ ] Integrate with ready work query
+
+### Phase 5: Gate Dependencies
+- [ ] Implement timer gate checking
+- [ ] Implement approval gate checking
+- [ ] Implement external gate interface
+- [ ] Add gate satisfaction events
+
+### Phase 6: Queries
+- [ ] Implement ready work query
+- [ ] Implement blocked work query
+- [ ] Implement dependency tree
+- [ ] Add filtering options
+
+### Phase 7: CLI Commands
+- [ ] dep add
+- [ ] dep remove
+- [ ] dep list
+- [ ] dep tree
+
+### Phase 8: Testing
+- [ ] Unit tests for cycle detection
+- [ ] Unit tests for blocked calculation
+- [ ] Unit tests for cache invalidation
+- [ ] Integration tests for ready work
+- [ ] Performance tests for large graphs
