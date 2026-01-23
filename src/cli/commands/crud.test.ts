@@ -231,6 +231,14 @@ describe('list command', () => {
   });
 
   test('returns empty list when no tasks exist', async () => {
+    // Initialize the database first by creating and then deleting a task
+    const createOpts = createTestOptions({ title: 'Temp Task' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+    const deleteOpts = createTestOptions();
+    await deleteCommand.handler([taskId], deleteOpts);
+
+    // Now list - should return empty
     const options = createTestOptions();
     const result = await listCommand.handler(['task'], options);
 
@@ -253,6 +261,10 @@ describe('list command', () => {
   });
 
   test('fails with invalid status', async () => {
+    // Initialize the database first
+    const createOpts = createTestOptions({ title: 'Temp' } as GlobalOptions & { title: string });
+    await createCommand.handler(['task'], createOpts);
+
     const options = createTestOptions({ status: 'invalid' } as GlobalOptions & { status: string });
     const result = await listCommand.handler(['task'], options);
 
@@ -261,6 +273,10 @@ describe('list command', () => {
   });
 
   test('fails with invalid priority', async () => {
+    // Initialize the database first
+    const createOpts = createTestOptions({ title: 'Temp' } as GlobalOptions & { title: string });
+    await createCommand.handler(['task'], createOpts);
+
     const options = createTestOptions({ priority: 'abc' } as GlobalOptions & { priority: string });
     const result = await listCommand.handler(['task'], options);
 
@@ -269,6 +285,10 @@ describe('list command', () => {
   });
 
   test('fails with invalid limit', async () => {
+    // Initialize the database first
+    const createOpts = createTestOptions({ title: 'Temp' } as GlobalOptions & { title: string });
+    await createCommand.handler(['task'], createOpts);
+
     const options = createTestOptions({ limit: '-1' } as GlobalOptions & { limit: string });
     const result = await listCommand.handler(['task'], options);
 
@@ -314,6 +334,10 @@ describe('show command', () => {
   });
 
   test('fails for non-existent element', async () => {
+    // Initialize the database first
+    const createOpts = createTestOptions({ title: 'Temp' } as GlobalOptions & { title: string });
+    await createCommand.handler(['task'], createOpts);
+
     const options = createTestOptions();
     const result = await showCommand.handler(['el-nonexistent'], options);
 
@@ -357,11 +381,12 @@ describe('show command', () => {
 // ============================================================================
 
 describe('database path resolution', () => {
-  test('fails gracefully when no database exists', async () => {
-    // Remove the test directory to simulate no workspace
-    rmSync(TEST_DIR, { recursive: true });
+  test('list fails gracefully when database does not exist', async () => {
+    // Point to a database path that doesn't exist
+    const nonExistentDbPath = join(TEST_DIR, 'nonexistent', 'does-not-exist.db');
 
     const options: GlobalOptions = {
+      db: nonExistentDbPath,
       json: false,
       quiet: false,
       verbose: false,
@@ -370,6 +395,61 @@ describe('database path resolution', () => {
     };
 
     const result = await listCommand.handler([], options);
+    expect(result.exitCode).toBe(ExitCode.GENERAL_ERROR);
+    expect(result.error).toContain('No database found');
+  });
+
+  test('show fails gracefully when database does not exist', async () => {
+    // Point to a database path that doesn't exist
+    const nonExistentDbPath = join(TEST_DIR, 'nonexistent', 'does-not-exist.db');
+
+    const options: GlobalOptions = {
+      db: nonExistentDbPath,
+      json: false,
+      quiet: false,
+      verbose: false,
+      help: false,
+      version: false,
+    };
+
+    const result = await showCommand.handler(['el-abc123'], options);
+    expect(result.exitCode).toBe(ExitCode.GENERAL_ERROR);
+    expect(result.error).toContain('No database found');
+  });
+
+  test('update fails gracefully when database does not exist', async () => {
+    // Point to a database path that doesn't exist
+    const nonExistentDbPath = join(TEST_DIR, 'nonexistent', 'does-not-exist.db');
+
+    const options: GlobalOptions = {
+      db: nonExistentDbPath,
+      title: 'Test',
+      json: false,
+      quiet: false,
+      verbose: false,
+      help: false,
+      version: false,
+    };
+
+    const result = await updateCommand.handler(['el-abc123'], options);
+    expect(result.exitCode).toBe(ExitCode.GENERAL_ERROR);
+    expect(result.error).toContain('No database found');
+  });
+
+  test('delete fails gracefully when database does not exist', async () => {
+    // Point to a database path that doesn't exist
+    const nonExistentDbPath = join(TEST_DIR, 'nonexistent', 'does-not-exist.db');
+
+    const options: GlobalOptions = {
+      db: nonExistentDbPath,
+      json: false,
+      quiet: false,
+      verbose: false,
+      help: false,
+      version: false,
+    };
+
+    const result = await deleteCommand.handler(['el-abc123'], options);
     expect(result.exitCode).toBe(ExitCode.GENERAL_ERROR);
     expect(result.error).toContain('No database found');
   });
@@ -612,6 +692,10 @@ describe('update command', () => {
   });
 
   test('fails for non-existent element', async () => {
+    // Initialize the database first
+    const createOpts = createTestOptions({ title: 'Temp' } as GlobalOptions & { title: string });
+    await createCommand.handler(['task'], createOpts);
+
     const options = createTestOptions({ title: 'Test' } as GlobalOptions & { title: string });
     const result = await updateCommand.handler(['el-nonexistent'], options);
 
@@ -751,6 +835,10 @@ describe('delete command', () => {
   });
 
   test('fails for non-existent element', async () => {
+    // Initialize the database first
+    const createOpts = createTestOptions({ title: 'Temp' } as GlobalOptions & { title: string });
+    await createCommand.handler(['task'], createOpts);
+
     const options = createTestOptions();
     const result = await deleteCommand.handler(['el-nonexistent'], options);
 

@@ -32,17 +32,30 @@ const DEFAULT_ACTOR = 'cli-user';
 // ============================================================================
 
 /**
- * Resolves database path from options or default location
+ * Resolves database path from options or default location.
+ *
+ * @param options - Global options that may contain db path
+ * @param requireExists - If true (default), only return path if database file exists.
+ *                        If false, return path even if file doesn't exist (for create operations).
  */
-function resolveDatabasePath(options: GlobalOptions): string | null {
+function resolveDatabasePath(options: GlobalOptions, requireExists: boolean = true): string | null {
   if (options.db) {
+    // When db path is explicitly provided, check if it exists when required
+    if (requireExists && !existsSync(options.db)) {
+      return null;
+    }
     return options.db;
   }
 
   // Look for .elemental directory
   const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
   if (existsSync(elementalDir)) {
-    return join(elementalDir, DEFAULT_DB_NAME);
+    const dbPath = join(elementalDir, DEFAULT_DB_NAME);
+    // For read operations, verify the database actually exists
+    if (requireExists && !existsSync(dbPath)) {
+      return null;
+    }
+    return dbPath;
   }
 
   return null;
@@ -56,10 +69,16 @@ function resolveActor(options: GlobalOptions): EntityId {
 }
 
 /**
- * Creates an API instance from options
+ * Creates an API instance from options.
+ *
+ * @param options - Global options containing db path and other settings
+ * @param createDb - If true, create the database if it doesn't exist. Default is false.
+ *                   When false, returns an error if the database file doesn't exist.
  */
-function createAPI(options: GlobalOptions): { api: ElementalAPI; error?: string } {
-  const dbPath = resolveDatabasePath(options);
+function createAPI(options: GlobalOptions, createDb: boolean = false): { api: ElementalAPI; error?: string } {
+  // For read operations (createDb=false), require the database to exist
+  // For write operations (createDb=true), allow creating a new database
+  const dbPath = resolveDatabasePath(options, !createDb);
   if (!dbPath) {
     return {
       api: null as unknown as ElementalAPI,
@@ -68,6 +87,8 @@ function createAPI(options: GlobalOptions): { api: ElementalAPI; error?: string 
   }
 
   try {
+    // Note: Bun's SQLite doesn't properly support create: false, so we always use create: true
+    // The existence check is handled above in resolveDatabasePath when createDb is false
     const backend = new BunStorageBackend({ path: dbPath, create: true });
     initializeSchema(backend);
     return { api: createElementalAPI(backend) };
@@ -154,7 +175,8 @@ async function createHandler(
     return failure('--title is required for creating a task', ExitCode.INVALID_ARGUMENTS);
   }
 
-  const { api, error } = createAPI(options);
+  // Create command should create the database if it doesn't exist
+  const { api, error } = createAPI(options, true);
   if (error) {
     return failure(error, ExitCode.GENERAL_ERROR);
   }
@@ -695,8 +717,11 @@ async function updateHandler(
       return failure('No updates specified. Use --help for available options.', ExitCode.INVALID_ARGUMENTS);
     }
 
+    // Resolve actor for audit trail
+    const actor = resolveActor(options);
+
     // Apply the update
-    const updated = await api.update<Element>(id as ElementId, updates);
+    const updated = await api.update<Element>(id as ElementId, updates, { actor });
 
     // Format output based on mode
     const mode = getOutputMode(options);
@@ -804,8 +829,11 @@ async function deleteHandler(
       return failure('Messages cannot be deleted (immutable)', ExitCode.VALIDATION);
     }
 
+    // Resolve actor for audit trail
+    const actor = resolveActor(options);
+
     // Perform the soft delete
-    await api.delete(id as ElementId, options.reason);
+    await api.delete(id as ElementId, { actor, reason: options.reason });
 
     // Format output based on mode
     const mode = getOutputMode(options);
