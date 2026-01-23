@@ -231,16 +231,24 @@ On export:
 
 ## Implementation Checklist
 
-### Phase 1: Type Definitions
-- [ ] Define `Workflow` interface extending `Element`
-- [ ] Define `WorkflowStatus` union type
-- [ ] Create type guards for Workflow validation
+### Phase 1: Type Definitions ✅
+- [x] Define `Workflow` interface extending `Element` (src/types/workflow.ts)
+- [x] Define `WorkflowStatus` union type (src/types/workflow.ts)
+- [x] Define `WorkflowId` and `PlaybookId` branded types (src/types/workflow.ts)
+- [x] Create type guards for Workflow validation (src/types/workflow.ts)
+- [x] Create validators for all workflow properties (src/types/workflow.ts)
+- [x] Create `createWorkflow` factory function (src/types/workflow.ts)
+- [x] Implement status transition validation (src/types/workflow.ts)
+- [x] Implement `updateWorkflowStatus` function (src/types/workflow.ts)
+- [x] Implement `squashWorkflow` operation (src/types/workflow.ts)
+- [x] Implement utility functions (filters, sorts, groups) (src/types/workflow.ts)
+- [x] Implement garbage collection helpers (src/types/workflow.ts)
+- [x] Unit tests - 121 tests (src/types/workflow.test.ts)
 
 ### Phase 2: Lifecycle Management
-- [ ] Implement status transition validation
-- [ ] Implement auto-completion detection
-- [ ] Implement auto-failure detection
-- [ ] Create status change event emission
+- [ ] Implement auto-completion detection (requires task service integration)
+- [ ] Implement auto-failure detection (requires task service integration)
+- [ ] Create status change event emission (requires event service integration)
 
 ### Phase 3: Pouring
 - [ ] Implement playbook loading
@@ -252,9 +260,8 @@ On export:
 
 ### Phase 4: Ephemeral Support
 - [ ] Implement ephemeral filtering in export
-- [ ] Implement `burn` operation
-- [ ] Implement `squash` operation
-- [ ] Implement garbage collection
+- [ ] Implement `burn` operation (delete workflow and tasks)
+- [ ] Implement garbage collection service
 
 ### Phase 5: Task Association
 - [ ] Implement task-to-workflow linking
@@ -274,8 +281,8 @@ On export:
 - [ ] Add CLI commands (pour, burn, squash, gc)
 
 ### Phase 8: Testing
-- [ ] Unit tests for status transitions
+- [x] Unit tests for status transitions (src/types/workflow.test.ts)
 - [ ] Unit tests for pouring logic
-- [ ] Unit tests for ephemeral filtering
+- [x] Unit tests for ephemeral filtering (src/types/workflow.test.ts)
 - [ ] Integration tests for full pour flow
 - [ ] E2E tests for workflow lifecycle

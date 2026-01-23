@@ -154,7 +154,7 @@ Recommended implementation sequence:
 - [x] types/channel.md ✅ (Phase 1: Channel interface, ChannelType, ChannelPermissions, Visibility, JoinPolicy, type guards, validators, createGroupChannel/createDirectChannel factories, deterministic naming, membership utilities, filter/sort/grouping utilities, unit tests - 153 tests)
 
 #### Phase 5: Advanced Features
-- [ ] types/workflow.md
+- [x] types/workflow.md ✅ (Phase 1: Workflow interface, WorkflowStatus, WorkflowId/PlaybookId branded types, type guards, validators, createWorkflow factory, updateWorkflowStatus, squashWorkflow, status transitions, utility functions (filters, sorts, groups), GC helpers, unit tests - 121 tests)
 - [ ] types/playbook.md
 - [ ] types/library.md
 - [ ] types/team.md
