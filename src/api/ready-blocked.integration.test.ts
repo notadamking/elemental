@@ -18,13 +18,13 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ElementalAPIImpl } from './elemental-api.js';
-import { BunStorageBackend } from '../storage/bun-backend.js';
-import { initializeSchema } from '../storage/schema.js';
+import { createStorage, initializeSchema } from '../storage/index.js';
 import type { StorageBackend } from '../storage/backend.js';
 import type { Element, ElementId, EntityId, Timestamp } from '../types/element.js';
 import type { Task } from '../types/task.js';
 import { createTask, Priority, TaskStatus } from '../types/task.js';
 import { DependencyType, GateType } from '../types/dependency.js';
+import type { TaskFilter } from './types.js';
 
 // ============================================================================
 // Test Helpers
@@ -59,7 +59,7 @@ describe('Ready/Blocked Work Query Integration', () => {
   let api: ElementalAPIImpl;
 
   beforeEach(() => {
-    backend = new BunStorageBackend({ path: ':memory:' });
+    backend = createStorage({ path: ':memory:' });
     initializeSchema(backend);
     api = new ElementalAPIImpl(backend);
   });
@@ -591,6 +591,402 @@ describe('Ready/Blocked Work Query Integration', () => {
       const blockedTasks = await api.blocked({ priority: Priority.HIGH });
       expect(blockedTasks.map((t) => t.id)).toContain(highPriority.id);
       expect(blockedTasks.map((t) => t.id)).not.toContain(lowPriority.id);
+    });
+
+    it('should filter ready tasks by owner', async () => {
+      const ownedTask = await createTestTask({
+        title: 'Owned Task',
+        owner: 'user:bob' as EntityId
+      });
+      const unownedTask = await createTestTask({ title: 'Unowned Task' });
+
+      await api.create(toCreateInput(ownedTask));
+      await api.create(toCreateInput(unownedTask));
+
+      const readyTasks = await api.ready({ owner: 'user:bob' as EntityId });
+      expect(readyTasks.map((t) => t.id)).toContain(ownedTask.id);
+      expect(readyTasks.map((t) => t.id)).not.toContain(unownedTask.id);
+    });
+
+    it('should filter blocked tasks by assignee', async () => {
+      const blocker = await createTestTask({ title: 'Blocker' });
+      const assignedTask = await createTestTask({
+        title: 'Assigned Blocked Task',
+        assignee: 'user:alice' as EntityId
+      });
+      const unassignedTask = await createTestTask({ title: 'Unassigned Blocked Task' });
+
+      await api.create(toCreateInput(blocker));
+      await api.create(toCreateInput(assignedTask));
+      await api.create(toCreateInput(unassignedTask));
+
+      // Block both tasks
+      await api.addDependency({
+        sourceId: assignedTask.id,
+        targetId: blocker.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: unassignedTask.id,
+        targetId: blocker.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const blockedTasks = await api.blocked({ assignee: 'user:alice' as EntityId });
+      expect(blockedTasks.map((t) => t.id)).toContain(assignedTask.id);
+      expect(blockedTasks.map((t) => t.id)).not.toContain(unassignedTask.id);
+    });
+  });
+
+  // ==========================================================================
+  // Deadline-Based Queries
+  // ==========================================================================
+
+  describe('Deadline-Based Queries', () => {
+    it('should filter ready tasks by hasDeadline=true', async () => {
+      const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const taskWithDeadline = await createTestTask({
+        title: 'Task with Deadline',
+        deadline: deadline as Timestamp,
+      });
+      const taskWithoutDeadline = await createTestTask({ title: 'Task without Deadline' });
+
+      await api.create(toCreateInput(taskWithDeadline));
+      await api.create(toCreateInput(taskWithoutDeadline));
+
+      const readyTasks = await api.ready({ hasDeadline: true });
+      expect(readyTasks.map((t) => t.id)).toContain(taskWithDeadline.id);
+      expect(readyTasks.map((t) => t.id)).not.toContain(taskWithoutDeadline.id);
+    });
+
+    it('should filter ready tasks by hasDeadline=false', async () => {
+      const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const taskWithDeadline = await createTestTask({
+        title: 'Task with Deadline',
+        deadline: deadline as Timestamp,
+      });
+      const taskWithoutDeadline = await createTestTask({ title: 'Task without Deadline' });
+
+      await api.create(toCreateInput(taskWithDeadline));
+      await api.create(toCreateInput(taskWithoutDeadline));
+
+      const readyTasks = await api.ready({ hasDeadline: false });
+      expect(readyTasks.map((t) => t.id)).not.toContain(taskWithDeadline.id);
+      expect(readyTasks.map((t) => t.id)).toContain(taskWithoutDeadline.id);
+    });
+
+    it('should filter ready tasks by deadlineBefore', async () => {
+      const soonDeadline = new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString(); // 1 hour
+      const laterDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+      const cutoffDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+
+      const urgentTask = await createTestTask({
+        title: 'Urgent Task',
+        deadline: soonDeadline as Timestamp,
+      });
+      const laterTask = await createTestTask({
+        title: 'Later Task',
+        deadline: laterDeadline as Timestamp,
+      });
+
+      await api.create(toCreateInput(urgentTask));
+      await api.create(toCreateInput(laterTask));
+
+      const readyTasks = await api.ready({ deadlineBefore: cutoffDeadline as Timestamp });
+      expect(readyTasks.map((t) => t.id)).toContain(urgentTask.id);
+      expect(readyTasks.map((t) => t.id)).not.toContain(laterTask.id);
+    });
+
+    it('should filter blocked tasks by hasDeadline', async () => {
+      const blocker = await createTestTask({ title: 'Blocker' });
+      const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const blockedWithDeadline = await createTestTask({
+        title: 'Blocked with Deadline',
+        deadline: deadline as Timestamp,
+      });
+      const blockedWithoutDeadline = await createTestTask({ title: 'Blocked without Deadline' });
+
+      await api.create(toCreateInput(blocker));
+      await api.create(toCreateInput(blockedWithDeadline));
+      await api.create(toCreateInput(blockedWithoutDeadline));
+
+      // Block both tasks
+      await api.addDependency({
+        sourceId: blockedWithDeadline.id,
+        targetId: blocker.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: blockedWithoutDeadline.id,
+        targetId: blocker.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const blockedTasks = await api.blocked({ hasDeadline: true });
+      expect(blockedTasks.map((t) => t.id)).toContain(blockedWithDeadline.id);
+      expect(blockedTasks.map((t) => t.id)).not.toContain(blockedWithoutDeadline.id);
+    });
+
+    it('should filter blocked tasks by deadlineBefore', async () => {
+      const blocker = await createTestTask({ title: 'Blocker' });
+      const soonDeadline = new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString(); // 1 hour
+      const laterDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+      const cutoffDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+
+      const urgentBlockedTask = await createTestTask({
+        title: 'Urgent Blocked Task',
+        deadline: soonDeadline as Timestamp,
+      });
+      const laterBlockedTask = await createTestTask({
+        title: 'Later Blocked Task',
+        deadline: laterDeadline as Timestamp,
+      });
+
+      await api.create(toCreateInput(blocker));
+      await api.create(toCreateInput(urgentBlockedTask));
+      await api.create(toCreateInput(laterBlockedTask));
+
+      // Block both tasks
+      await api.addDependency({
+        sourceId: urgentBlockedTask.id,
+        targetId: blocker.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: laterBlockedTask.id,
+        targetId: blocker.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const blockedTasks = await api.blocked({ deadlineBefore: cutoffDeadline as Timestamp });
+      expect(blockedTasks.map((t) => t.id)).toContain(urgentBlockedTask.id);
+      expect(blockedTasks.map((t) => t.id)).not.toContain(laterBlockedTask.id);
+    });
+
+    it('should combine deadline filter with other filters', async () => {
+      const soonDeadline = new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString();
+      const cutoffDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      const urgentHighPriority = await createTestTask({
+        title: 'Urgent High Priority',
+        deadline: soonDeadline as Timestamp,
+        priority: Priority.HIGH,
+      });
+      const urgentLowPriority = await createTestTask({
+        title: 'Urgent Low Priority',
+        deadline: soonDeadline as Timestamp,
+        priority: Priority.LOW,
+      });
+
+      await api.create(toCreateInput(urgentHighPriority));
+      await api.create(toCreateInput(urgentLowPriority));
+
+      // Filter by both deadline and priority
+      const readyTasks = await api.ready({
+        deadlineBefore: cutoffDeadline as Timestamp,
+        priority: Priority.HIGH,
+      });
+      expect(readyTasks.map((t) => t.id)).toContain(urgentHighPriority.id);
+      expect(readyTasks.map((t) => t.id)).not.toContain(urgentLowPriority.id);
+    });
+
+    it('should filter tasks with deadlineBefore using list query', async () => {
+      const soonDeadline = new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString();
+      const laterDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const cutoffDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      const urgentTask = await createTestTask({
+        title: 'Urgent Task',
+        deadline: soonDeadline as Timestamp,
+      });
+      const laterTask = await createTestTask({
+        title: 'Later Task',
+        deadline: laterDeadline as Timestamp,
+      });
+
+      await api.create(toCreateInput(urgentTask));
+      await api.create(toCreateInput(laterTask));
+
+      // Use list() instead of ready() to ensure filter works at query level
+      const tasks = await api.list<Task>({
+        type: 'task',
+        deadlineBefore: cutoffDeadline as Timestamp,
+      } as TaskFilter);
+      expect(tasks.map((t) => t.id)).toContain(urgentTask.id);
+      expect(tasks.map((t) => t.id)).not.toContain(laterTask.id);
+    });
+
+    it('should filter tasks with hasDeadline using list query', async () => {
+      const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const taskWithDeadline = await createTestTask({
+        title: 'Task with Deadline',
+        deadline: deadline as Timestamp,
+      });
+      const taskWithoutDeadline = await createTestTask({ title: 'Task without Deadline' });
+
+      await api.create(toCreateInput(taskWithDeadline));
+      await api.create(toCreateInput(taskWithoutDeadline));
+
+      // Filter for tasks with deadline
+      const tasksWithDeadline = await api.list<Task>({
+        type: 'task',
+        hasDeadline: true,
+      } as TaskFilter);
+      expect(tasksWithDeadline.map((t) => t.id)).toContain(taskWithDeadline.id);
+      expect(tasksWithDeadline.map((t) => t.id)).not.toContain(taskWithoutDeadline.id);
+
+      // Filter for tasks without deadline
+      const tasksWithoutDeadline = await api.list<Task>({
+        type: 'task',
+        hasDeadline: false,
+      } as TaskFilter);
+      expect(tasksWithoutDeadline.map((t) => t.id)).not.toContain(taskWithDeadline.id);
+      expect(tasksWithoutDeadline.map((t) => t.id)).toContain(taskWithoutDeadline.id);
+    });
+  });
+
+  // ==========================================================================
+  // Assignment-Based Queries
+  // ==========================================================================
+
+  describe('Assignment-Based Queries', () => {
+    it('should filter tasks by assignee using list query', async () => {
+      const assignedTask = await createTestTask({
+        title: 'Assigned Task',
+        assignee: 'user:alice' as EntityId,
+      });
+      const unassignedTask = await createTestTask({ title: 'Unassigned Task' });
+      const otherAssignedTask = await createTestTask({
+        title: 'Other Assigned Task',
+        assignee: 'user:bob' as EntityId,
+      });
+
+      await api.create(toCreateInput(assignedTask));
+      await api.create(toCreateInput(unassignedTask));
+      await api.create(toCreateInput(otherAssignedTask));
+
+      const tasks = await api.list<Task>({
+        type: 'task',
+        assignee: 'user:alice' as EntityId,
+      } as TaskFilter);
+      expect(tasks.map((t) => t.id)).toContain(assignedTask.id);
+      expect(tasks.map((t) => t.id)).not.toContain(unassignedTask.id);
+      expect(tasks.map((t) => t.id)).not.toContain(otherAssignedTask.id);
+    });
+
+    it('should filter tasks by owner using list query', async () => {
+      const ownedTask = await createTestTask({
+        title: 'Owned Task',
+        owner: 'user:charlie' as EntityId,
+      });
+      const unownedTask = await createTestTask({ title: 'Unowned Task' });
+      const otherOwnedTask = await createTestTask({
+        title: 'Other Owned Task',
+        owner: 'user:dave' as EntityId,
+      });
+
+      await api.create(toCreateInput(ownedTask));
+      await api.create(toCreateInput(unownedTask));
+      await api.create(toCreateInput(otherOwnedTask));
+
+      const tasks = await api.list<Task>({
+        type: 'task',
+        owner: 'user:charlie' as EntityId,
+      } as TaskFilter);
+      expect(tasks.map((t) => t.id)).toContain(ownedTask.id);
+      expect(tasks.map((t) => t.id)).not.toContain(unownedTask.id);
+      expect(tasks.map((t) => t.id)).not.toContain(otherOwnedTask.id);
+    });
+
+    it('should combine assignee and owner filters', async () => {
+      const taskBoth = await createTestTask({
+        title: 'Task with Both',
+        assignee: 'user:alice' as EntityId,
+        owner: 'user:bob' as EntityId,
+      });
+      const taskAssigneeOnly = await createTestTask({
+        title: 'Task Assignee Only',
+        assignee: 'user:alice' as EntityId,
+      });
+      const taskOwnerOnly = await createTestTask({
+        title: 'Task Owner Only',
+        owner: 'user:bob' as EntityId,
+      });
+
+      await api.create(toCreateInput(taskBoth));
+      await api.create(toCreateInput(taskAssigneeOnly));
+      await api.create(toCreateInput(taskOwnerOnly));
+
+      // Filter by both assignee and owner
+      const tasks = await api.list<Task>({
+        type: 'task',
+        assignee: 'user:alice' as EntityId,
+        owner: 'user:bob' as EntityId,
+      } as TaskFilter);
+      expect(tasks.map((t) => t.id)).toContain(taskBoth.id);
+      expect(tasks.map((t) => t.id)).not.toContain(taskAssigneeOnly.id);
+      expect(tasks.map((t) => t.id)).not.toContain(taskOwnerOnly.id);
+    });
+
+    it('should combine assignment filter with status filter', async () => {
+      const openAssigned = await createTestTask({
+        title: 'Open Assigned',
+        assignee: 'user:alice' as EntityId,
+        status: TaskStatus.OPEN,
+      });
+      const closedAssigned = await createTestTask({
+        title: 'Closed Assigned',
+        assignee: 'user:alice' as EntityId,
+        status: TaskStatus.CLOSED,
+      });
+      const openUnassigned = await createTestTask({
+        title: 'Open Unassigned',
+        status: TaskStatus.OPEN,
+      });
+
+      await api.create(toCreateInput(openAssigned));
+      await api.create(toCreateInput(closedAssigned));
+      await api.create(toCreateInput(openUnassigned));
+
+      const tasks = await api.list<Task>({
+        type: 'task',
+        assignee: 'user:alice' as EntityId,
+        status: TaskStatus.OPEN,
+      } as TaskFilter);
+      expect(tasks.map((t) => t.id)).toContain(openAssigned.id);
+      expect(tasks.map((t) => t.id)).not.toContain(closedAssigned.id);
+      expect(tasks.map((t) => t.id)).not.toContain(openUnassigned.id);
+    });
+
+    it('should combine assignment filter with deadline filter', async () => {
+      const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      const assignedWithDeadline = await createTestTask({
+        title: 'Assigned with Deadline',
+        assignee: 'user:alice' as EntityId,
+        deadline: deadline as Timestamp,
+      });
+      const assignedWithoutDeadline = await createTestTask({
+        title: 'Assigned without Deadline',
+        assignee: 'user:alice' as EntityId,
+      });
+      const unassignedWithDeadline = await createTestTask({
+        title: 'Unassigned with Deadline',
+        deadline: deadline as Timestamp,
+      });
+
+      await api.create(toCreateInput(assignedWithDeadline));
+      await api.create(toCreateInput(assignedWithoutDeadline));
+      await api.create(toCreateInput(unassignedWithDeadline));
+
+      const tasks = await api.list<Task>({
+        type: 'task',
+        assignee: 'user:alice' as EntityId,
+        hasDeadline: true,
+      } as TaskFilter);
+      expect(tasks.map((t) => t.id)).toContain(assignedWithDeadline.id);
+      expect(tasks.map((t) => t.id)).not.toContain(assignedWithoutDeadline.id);
+      expect(tasks.map((t) => t.id)).not.toContain(unassignedWithDeadline.id);
     });
   });
 

@@ -216,11 +216,11 @@ Tasks under Plans use hierarchical IDs:
 - [x] Implement tombstone transition logic
 - [x] Create status change event emission ✅ (emits 'closed' event when status changes to closed, 'reopened' event when status changes from closed, 'updated' for other changes - 9 tests)
 
-### Phase 3: Queries
-- [ ] Implement ready work query
-- [ ] Implement blocked work query with reasons
-- [ ] Implement assignment-based queries
-- [ ] Implement deadline-based queries
+### Phase 3: Queries ✅
+- [x] Implement ready work query ✅ (api.ready() with TaskFilter, 31+ integration tests)
+- [x] Implement blocked work query with reasons ✅ (api.blocked() returns BlockedTask[] with blockedBy/blockReason)
+- [x] Implement assignment-based queries ✅ (TaskFilter.assignee, TaskFilter.owner - 6 integration tests)
+- [x] Implement deadline-based queries ✅ (TaskFilter.hasDeadline, TaskFilter.deadlineBefore - 10 integration tests)
 
 ### Phase 4: Hydration ✅
 - [x] Implement Document reference resolution ✅ (hydrateTask method in elemental-api.ts fetches referenced Documents)

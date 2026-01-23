@@ -197,7 +197,7 @@ Recommended implementation sequence:
 #### Type Integration (Priority: Medium)
 - [x] **types/task.md Phase 2**: Automatic blocked status computation ✅ (BlockedCacheService triggers auto_blocked/auto_unblocked events, stores previous_status in blocked_cache for restoration - 20 tests)
 - [x] **types/task.md Phase 2**: Status change event emission ✅ (closed/reopened/updated events - 9 tests)
-- [ ] **types/task.md Phase 3**: Ready/blocked work queries, assignment/deadline queries
+- [x] **types/task.md Phase 3**: Ready/blocked work queries ✅ (api.ready(), api.blocked() - 31 tests), assignment/deadline queries ✅ (TaskFilter.assignee, TaskFilter.owner, TaskFilter.hasDeadline, TaskFilter.deadlineBefore - 16 integration tests)
 - [x] **types/task.md Phase 4**: Hydration ✅ (Document reference resolution, batch hydration for lists, hydrate option in ElementFilter - 18 tests)
 - [x] **types/task.md Phase 5** (partial): Integration with blocked cache ✅ (automatic status transitions via BlockedCacheService callback, auto_blocked/auto_unblocked events)
 - [ ] **types/task.md Phase 5** (pending): Further dependency system integration (dependency-based priority, complexity inheritance)
