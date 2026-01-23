@@ -330,11 +330,11 @@ Convert SQLite errors to Elemental errors:
 - [x] Implement migration runner (src/storage/bun-backend.ts - migrate)
 - [x] Create initial migrations (src/storage/schema.ts - MIGRATIONS with full schema)
 
-### Phase 6: Dirty Tracking
-- [ ] Implement dirty marking
-- [ ] Implement dirty queries
-- [ ] Implement dirty clearing
-- [ ] Integrate with mutations
+### Phase 6: Dirty Tracking ✅
+- [x] Implement dirty marking (src/storage/bun-backend.ts - markDirty)
+- [x] Implement dirty queries (src/storage/bun-backend.ts - getDirtyElements)
+- [x] Implement dirty clearing (src/storage/bun-backend.ts - clearDirty, clearDirtyElements)
+- [x] Integrate with mutations (src/api/elemental-api.ts - marks dirty on create/update/delete)
 
 ### Phase 7: Content Hashing
 - [ ] Implement hash computation

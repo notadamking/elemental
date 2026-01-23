@@ -43,3 +43,6 @@ export {
   type ElementMergeResult,
   type DependencyMergeResult,
 } from './merge.js';
+
+// Sync Service
+export { SyncService, createSyncService } from './service.js';

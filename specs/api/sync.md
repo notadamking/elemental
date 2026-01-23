@@ -341,16 +341,16 @@ Import in transaction:
 - [x] Implement line parser ✅ (parseElement, parseDependency, tryParse variants, batch parsing)
 
 ### Phase 2: Export
-- [ ] Implement full export
-- [ ] Implement incremental export
-- [ ] Implement ephemeral filtering
-- [ ] Implement file writing
+- [x] Implement full export ✅ (SyncService.export with full option)
+- [x] Implement incremental export ✅ (SyncService.export uses dirty tracking)
+- [x] Implement ephemeral filtering ✅ (includeEphemeral option in export)
+- [x] Implement file writing ✅ (async/sync file writing with JSONL format)
 
 ### Phase 3: Import
-- [ ] Implement file reading
-- [ ] Implement parsing
-- [ ] Implement upsert logic
-- [ ] Implement import ordering
+- [x] Implement file reading ✅ (SyncService.import reads from inputDir)
+- [x] Implement parsing ✅ (uses parseElements/parseDependencies with error collection)
+- [x] Implement upsert logic ✅ (merge strategy applied per element)
+- [x] Implement import ordering ✅ (sortElementsForExport ensures entities first)
 
 ### Phase 4: Merge Strategy
 - [x] Implement LWW resolution ✅ (mergeElements with updatedAt comparison)
@@ -360,9 +360,9 @@ Import in transaction:
 - [x] Implement dependencies merge ✅ (mergeDependencies with removal authority)
 
 ### Phase 5: Dirty Tracking
-- [ ] Implement dirty marking
-- [ ] Implement dirty clearing
-- [ ] Integrate with mutations
+- [x] Implement dirty marking ✅ (StorageBackend.markDirty)
+- [x] Implement dirty clearing ✅ (StorageBackend.clearDirty, clearDirtyElements)
+- [x] Integrate with mutations ✅ (API marks elements dirty on create/update/delete)
 
 ### Phase 6: Content Hashing
 - [x] Implement hash computation ✅ (computeContentHash, computeContentHashSync with SHA256)
@@ -384,5 +384,5 @@ Import in transaction:
 ### Phase 9: Testing
 - [x] Unit tests for serialization ✅ (87 tests covering all serialization functions)
 - [x] Unit tests for merge ✅ (LWW, tombstones, status merge, tags merge, dependency merge)
-- [ ] Integration tests for sync
+- [x] Integration tests for sync ✅ (24 tests in service.test.ts covering export/import/round-trip)
 - [x] Conflict resolution tests ✅ (ConflictRecord generation, resolution scenarios)

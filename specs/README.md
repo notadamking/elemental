@@ -162,11 +162,104 @@ Recommended implementation sequence:
 #### Phase 6: Interfaces
 - [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests; Phase 2-7: Full CRUD operations implementation - get/list/create/update/delete, task queries (ready/blocked), dependency operations, search/hydration, history operations, stats, basic export - 54 integration tests)
 - [x] api/configuration.md ✅ (Phase 1-5,7-8: Configuration interface, SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection, defaults, YAML file loading/parsing, environment variable support, access API (getConfig, getValue, setValue, unsetValue), validation with helpful errors, unit tests - 115 tests)
-- [x] api/sync.md ✅ (Phase 1: JSONL serialization/parsing; Phase 4: Merge strategy with LWW, tombstones, status, tags, dependencies; Phase 6: Content hashing with SHA256; Phase 9: Unit tests - 87 tests)
+- [x] api/sync.md ✅ (Phase 1: JSONL serialization/parsing; Phase 2: Full/incremental export; Phase 3: Import with merge; Phase 4: Merge strategy with LWW, tombstones, status, tags, dependencies; Phase 5: Dirty tracking integration; Phase 6: Content hashing with SHA256; Phase 9: Unit tests - 111 tests)
 - [x] api/cli.md ✅ (Phase 1: Framework setup - native arg parsing, output formatting (human/JSON/quiet modes), global flags; Phase 2: Core commands - init, create (tasks), list, show, update, delete (src/cli/commands/crud.ts); Phase 3: Task commands - ready, blocked, close, reopen, assign, defer, undefer (src/cli/commands/task.ts); Phase 4: Dependency commands - dep add, dep remove, dep list, dep tree (src/cli/commands/dep.ts); Phase 7 partial: config command (show/set/unset); Phase 8 partial: help text; Unit tests - 308 tests)
 
 #### Phase 7: Identity
 - [x] systems/identity.md ✅ (Phase 1: Type definitions - IdentityMode, Signature, PublicKey, SignedRequestFields, VerificationStatus, VerificationResult, IdentityConfig; Phase 3-4: Ed25519 crypto - key validation, signature verification, signed data construction, time tolerance, full verification pipeline, shouldAllowRequest; Phase 8: Unit tests - 106 tests)
+
+---
+
+### Remaining Implementation Items
+
+#### Storage & Infrastructure (Priority: High)
+- [ ] **systems/storage.md Phase 3**: Node.js backend (better-sqlite3 adapter, compatibility tests)
+- [ ] **systems/storage.md Phase 4**: Browser backend (sql.js adapter, OPFS integration, WASM loading)
+- [x] **systems/storage.md Phase 6**: Dirty tracking ✅ (markDirty, getDirtyElements, clearDirty, clearDirtyElements in BunStorageBackend)
+- [ ] **systems/storage.md Phase 7**: Content hashing (computation, create/update integration, hash column)
+- [ ] **systems/id-generation.md Phase 3**: Storage integration (element count query, length caching)
+- [ ] **systems/id-generation.md Phase 5**: Hierarchical ID storage (child counter table, atomic counter increment)
+
+#### Sync System (Priority: High)
+- [x] **api/sync.md Phase 2**: Full export ✅ (SyncService.export with full/incremental modes, ephemeral filtering, file writing)
+- [x] **api/sync.md Phase 3**: Import ✅ (SyncService.import with file reading, parsing, merge strategy, import ordering)
+- [x] **api/sync.md Phase 5**: Dirty tracking integration ✅ (markDirty on mutations, clearDirty after export)
+- [ ] **api/sync.md Phase 7**: CLI commands (sync, export, import, status)
+- [ ] **api/sync.md Phase 8**: Browser sync (HTTP endpoints, browser export/import)
+- [ ] **api/query-api.md Phase 7**: Update ElementalAPI export/import to use SyncService
+
+#### Identity & Security (Priority: High)
+- [ ] **systems/identity.md Phase 2**: Soft identity (actor context management, name-based lookup, add actor to all operations)
+- [ ] **systems/identity.md Phase 4**: Verification middleware integration
+- [ ] **systems/identity.md Phase 5**: Key management (registration, update, revocation)
+- [ ] **systems/identity.md Phase 7**: CLI support (--actor flag globally, identity mode config, signature support, whoami command)
+
+#### Type Integration (Priority: Medium)
+- [ ] **types/task.md Phase 2**: Automatic blocked status computation, status change event emission
+- [ ] **types/task.md Phase 3-4**: Ready/blocked work queries, assignment/deadline queries, hydration (Document reference resolution, batch hydration)
+- [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system
+- [ ] **types/entity.md Phase 2-3**: Name uniqueness validation (storage-level), name-based lookup, entity listing queries
+- [ ] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API
+- [ ] **types/entity.md Phase 5**: Entity update, deactivation, search/filter, assignment queries
+- [ ] **types/document.md Phase 3-4**: Version table schema integration, getDocumentVersion/getDocumentHistory (storage layer)
+- [ ] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child)
+
+#### Collection Type Integration (Priority: Medium)
+- [ ] **types/plan.md Phase 2-4**: Status change events, task-to-plan linking, hierarchical ID generation, progress calculation
+- [ ] **types/plan.md Phase 5**: Bulk operations (close, defer, reassign, tag)
+- [ ] **types/plan.md Phase 6**: Plan listing, tasks-in-plan query, progress in results
+- [ ] **types/workflow.md Phase 2-3**: Auto-completion/failure detection, pouring (playbook loading, variable resolution, condition evaluation, task creation, dependency wiring)
+- [ ] **types/workflow.md Phase 4-5**: Ephemeral support (filtering, burn, GC), task-to-workflow linking
+- [ ] **types/workflow.md Phase 6**: Workflow queries (listing, tasks-in-workflow, ready tasks)
+- [ ] **types/playbook.md Phase 5**: Inheritance (playbook loading, chain resolution, variable/step merging)
+- [ ] **types/playbook.md Phase 6**: YAML support (schema, parser, file discovery)
+- [ ] **types/playbook.md Phase 7**: Pour-time validation, validation CLI command
+- [ ] **types/channel.md Phase 2-4**: Find-or-create logic, name uniqueness, membership operations (add, remove, leave), membership events
+- [ ] **types/channel.md Phase 6**: Message integration (sender membership validation, direct message helper, auto-create direct channels)
+- [ ] **types/message.md Phase 3-5**: Channel membership validation, Document reference validation, thread integrity, content/attachments hydration
+- [ ] **types/library.md Phase 2-5**: Library deletion, document association (add, remove, multi-membership, listing), hierarchy (nesting, cycle detection, queries), root listing, statistics
+- [ ] **types/team.md Phase 2-6**: Team deletion, membership events, task integration (team as assignee, tasks-for-team, claim mechanism), metrics
+
+#### Events & Audit (Priority: Medium)
+- [ ] **systems/events.md Phase 3**: Tag operations integration, membership operations integration
+- [ ] **systems/events.md Phase 6**: Reconstruction (point-in-time state, timeline generation, reconstruction API)
+- [ ] **systems/events.md Phase 7**: CLI integration (events in show command, history command, timeline formatting)
+- [ ] **systems/dependencies.md Phase 5**: Gate satisfaction events (API to mark gates as satisfied)
+
+#### CLI Commands (Priority: Medium)
+- [ ] **api/cli.md Phase 5**: Collection commands (plan create/list/show/close, workflow pour/list/show/burn/squash/gc, playbook list/show/validate/create, channel create/join/leave/list/members, library create/list/add/remove, team create/add/remove/list/members)
+- [ ] **api/cli.md Phase 6**: Sync commands (sync, import, export, status)
+- [ ] **api/cli.md Phase 7**: Admin commands (stats, doctor, migrate)
+- [ ] **api/cli.md Phase 8**: Shell completion, command aliases
+- [ ] **api/configuration.md Phase 6**: CLI commands (config show, set, unset, edit) - wire up to existing implementation
+- [ ] **types/task.md Phase 5**: CLI commands for task operations
+- [ ] **types/entity.md Phase 6**: CLI commands (register, list, whoami)
+- [ ] **types/message.md Phase 7**: CLI commands (send, thread)
+
+#### Error Handling & Validation (Priority: Low)
+- [ ] **api/errors.md Phase 3**: Field validation integration, status validation integration
+- [ ] **api/errors.md Phase 4**: SQLite error mapping
+- [ ] **api/errors.md Phase 5**: CLI formatting (standard, verbose, quiet modes)
+- [ ] **api/errors.md Phase 6**: Documentation (common causes, resolutions, examples)
+
+#### Testing & Performance (Priority: Low)
+- [ ] **systems/storage.md Phase 8**: Cross-runtime compatibility tests
+- [ ] **systems/dependencies.md Phase 8**: Performance tests for large dependency graphs
+- [ ] **api/query-api.md Phase 5**: Optimize batch fetching
+- [ ] **api/query-api.md Phase 8**: Performance tests for queries
+- [ ] **types/task.md Phase 6**: Unit tests for ready/blocked computation with dependencies, integration tests for hydration, E2E tests for task lifecycle
+- [ ] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows
+- [ ] **types/document.md Phase 7**: Integration tests for history queries, E2E tests for Document lifecycle
+- [ ] **types/entity.md Phase 7**: Integration tests for uniqueness, E2E tests for entity lifecycle
+- [ ] **types/plan.md Phase 8**: Unit tests for status transitions, progress calculation; integration tests; E2E tests
+- [ ] **types/workflow.md Phase 8**: Unit tests for pouring logic; integration tests for full pour flow; E2E tests
+- [ ] **types/playbook.md Phase 9**: Unit tests for inheritance; integration tests for full pour; E2E tests
+- [ ] **types/channel.md Phase 9**: Integration tests for membership; E2E tests for messaging flow
+- [ ] **types/library.md Phase 7**: Unit tests for association/hierarchy; integration tests; E2E tests
+- [ ] **types/team.md Phase 8**: Integration tests for task assignment; E2E tests for team workflows
+- [ ] **api/sync.md Phase 9**: Integration tests for sync
+- [ ] **api/configuration.md Phase 8**: Integration tests for CLI
+- [ ] **api/errors.md Phase 7**: Integration tests for propagation, CLI output tests
 
 ---
 
