@@ -203,7 +203,8 @@ Recommended implementation sequence:
 - [x] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API ✅ (systems/identity.ts)
 - [x] **types/entity.md Phase 5** (partial): Entity update ✅ (updateEntity in src/types/entity.ts - publicKey, tags, metadata; 11 tests)
 - [x] **types/entity.md Phase 5** (partial): Entity deactivation ✅ (deactivateEntity, reactivateEntity, isEntityActive, filterActiveEntities - 25 tests)
-- [ ] **types/entity.md Phase 5**: Entity search/filter, assignment queries
+- [x] **types/entity.md Phase 5** (partial): Entity search/filter ✅ (filterByCreator, filterWithPublicKey, filterByTag, sortByName, groupByEntityType, searchByName, findByName, countByEntityType - 30 tests)
+- [ ] **types/entity.md Phase 5**: Entity assignment queries
 - [ ] **types/document.md Phase 3-4**: Version table schema integration, getDocumentVersion/getDocumentHistory (storage layer)
 - [ ] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child)
 

@@ -616,3 +616,177 @@ export function filterByEntityType<T extends Entity>(
 ): T[] {
   return entities.filter((e) => e.entityType === entityType);
 }
+
+// ============================================================================
+// Search and Filter Functions
+// ============================================================================
+
+/**
+ * Filter entities by creator
+ */
+export function filterByCreator<T extends Entity>(entities: T[], createdBy: EntityId): T[] {
+  return entities.filter((e) => e.createdBy === createdBy);
+}
+
+/**
+ * Filter entities that have a public key (cryptographic identity)
+ */
+export function filterWithPublicKey<T extends Entity>(entities: T[]): T[] {
+  return entities.filter(hasCryptographicIdentity);
+}
+
+/**
+ * Filter entities that do not have a public key (soft identity only)
+ */
+export function filterWithoutPublicKey<T extends Entity>(entities: T[]): T[] {
+  return entities.filter((e) => !hasCryptographicIdentity(e));
+}
+
+/**
+ * Filter entities by tag (must have the tag)
+ */
+export function filterByTag<T extends Entity>(entities: T[], tag: string): T[] {
+  return entities.filter((e) => e.tags.includes(tag));
+}
+
+/**
+ * Filter entities by any of the specified tags
+ */
+export function filterByAnyTag<T extends Entity>(entities: T[], tags: string[]): T[] {
+  return entities.filter((e) => tags.some((tag) => e.tags.includes(tag)));
+}
+
+/**
+ * Filter entities by all specified tags
+ */
+export function filterByAllTags<T extends Entity>(entities: T[], tags: string[]): T[] {
+  return entities.filter((e) => tags.every((tag) => e.tags.includes(tag)));
+}
+
+// ============================================================================
+// Sort Functions
+// ============================================================================
+
+/**
+ * Sort entities by name alphabetically
+ */
+export function sortByName<T extends Entity>(entities: T[], ascending = true): T[] {
+  const sorted = [...entities].sort((a, b) => a.name.localeCompare(b.name));
+  return ascending ? sorted : sorted.reverse();
+}
+
+/**
+ * Sort entities by creation date
+ */
+export function sortByCreationDate<T extends Entity>(entities: T[], ascending = false): T[] {
+  const sorted = [...entities].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return ascending ? sorted : sorted.reverse();
+}
+
+/**
+ * Sort entities by update date
+ */
+export function sortByUpdateDate<T extends Entity>(entities: T[], ascending = false): T[] {
+  const sorted = [...entities].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+  return ascending ? sorted : sorted.reverse();
+}
+
+/**
+ * Sort entities by entity type
+ */
+export function sortByEntityType<T extends Entity>(entities: T[]): T[] {
+  const typeOrder = { agent: 0, human: 1, system: 2 };
+  return [...entities].sort((a, b) =>
+    (typeOrder[a.entityType as keyof typeof typeOrder] ?? 3) -
+    (typeOrder[b.entityType as keyof typeof typeOrder] ?? 3)
+  );
+}
+
+// ============================================================================
+// Group Functions
+// ============================================================================
+
+/**
+ * Group entities by their entity type
+ */
+export function groupByEntityType<T extends Entity>(entities: T[]): Map<EntityTypeValue, T[]> {
+  const groups = new Map<EntityTypeValue, T[]>();
+  for (const entity of entities) {
+    const existing = groups.get(entity.entityType) ?? [];
+    groups.set(entity.entityType, [...existing, entity]);
+  }
+  return groups;
+}
+
+/**
+ * Group entities by creator
+ */
+export function groupByCreator<T extends Entity>(entities: T[]): Map<EntityId, T[]> {
+  const groups = new Map<EntityId, T[]>();
+  for (const entity of entities) {
+    const existing = groups.get(entity.createdBy) ?? [];
+    groups.set(entity.createdBy, [...existing, entity]);
+  }
+  return groups;
+}
+
+// ============================================================================
+// Search Functions
+// ============================================================================
+
+/**
+ * Search entities by name (case-insensitive substring match)
+ */
+export function searchByName<T extends Entity>(entities: T[], query: string): T[] {
+  const lowerQuery = query.toLowerCase();
+  return entities.filter((e) => e.name.toLowerCase().includes(lowerQuery));
+}
+
+/**
+ * Find entity by exact name
+ */
+export function findByName<T extends Entity>(entities: T[], name: string): T | undefined {
+  return entities.find((e) => e.name === name);
+}
+
+/**
+ * Find entity by ID
+ */
+export function findById<T extends Entity>(entities: T[], id: EntityId | string): T | undefined {
+  return entities.find((e) => e.id === id);
+}
+
+/**
+ * Check if a name is unique among entities
+ */
+export function isNameUnique(entities: Entity[], name: string, excludeId?: EntityId | string): boolean {
+  return !entities.some((e) => e.name === name && e.id !== excludeId);
+}
+
+/**
+ * Get unique tags from a list of entities
+ */
+export function getUniqueTags(entities: Entity[]): string[] {
+  const tagSet = new Set<string>();
+  for (const entity of entities) {
+    for (const tag of entity.tags) {
+      tagSet.add(tag);
+    }
+  }
+  return Array.from(tagSet).sort();
+}
+
+/**
+ * Count entities by type
+ */
+export function countByEntityType(entities: Entity[]): Record<EntityTypeValue, number> {
+  const counts: Record<EntityTypeValue, number> = {
+    agent: 0,
+    human: 0,
+    system: 0,
+  };
+  for (const entity of entities) {
+    counts[entity.entityType]++;
+  }
+  return counts;
+}

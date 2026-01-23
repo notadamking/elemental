@@ -28,6 +28,24 @@ import {
   getEntityDisplayName,
   entitiesHaveSameName,
   filterByEntityType,
+  filterByCreator,
+  filterWithPublicKey,
+  filterWithoutPublicKey,
+  filterByTag,
+  filterByAnyTag,
+  filterByAllTags,
+  sortByName,
+  sortByCreationDate,
+  sortByUpdateDate,
+  sortByEntityType,
+  groupByEntityType,
+  groupByCreator,
+  searchByName,
+  findByName,
+  findById,
+  isNameUnique,
+  getUniqueTags,
+  countByEntityType,
 } from './entity.js';
 import { ElementId, EntityId, ElementType, Timestamp } from './element.js';
 import { ValidationError } from '../errors/error.js';
@@ -1073,5 +1091,345 @@ describe('filterDeactivatedEntities', () => {
 
     const deactivated = filterDeactivatedEntities(entities);
     expect(deactivated).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Search and Filter Tests
+// ============================================================================
+
+describe('filterByCreator', () => {
+  test('filters entities by creator', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', createdBy: 'el-admin' as EntityId }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', createdBy: 'el-user' as EntityId }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'e3', createdBy: 'el-admin' as EntityId }),
+    ];
+
+    const filtered = filterByCreator(entities, 'el-admin' as EntityId);
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((e) => e.name)).toEqual(['e1', 'e3']);
+  });
+
+  test('returns empty when no matches', () => {
+    const entities = [createTestEntity({ createdBy: 'el-user' as EntityId })];
+    expect(filterByCreator(entities, 'el-admin' as EntityId)).toHaveLength(0);
+  });
+});
+
+describe('filterWithPublicKey', () => {
+  test('filters entities with public keys', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'with-key', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'no-key' }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'also-with-key', publicKey: VALID_PUBLIC_KEY }),
+    ];
+
+    const filtered = filterWithPublicKey(entities);
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((e) => e.name)).toEqual(['with-key', 'also-with-key']);
+  });
+});
+
+describe('filterWithoutPublicKey', () => {
+  test('filters entities without public keys', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'with-key', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'no-key' }),
+    ];
+
+    const filtered = filterWithoutPublicKey(entities);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].name).toBe('no-key');
+  });
+});
+
+describe('filterByTag', () => {
+  test('filters entities by tag', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', tags: ['frontend', 'team-a'] }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', tags: ['backend'] }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'e3', tags: ['frontend', 'team-b'] }),
+    ];
+
+    const filtered = filterByTag(entities, 'frontend');
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((e) => e.name)).toEqual(['e1', 'e3']);
+  });
+});
+
+describe('filterByAnyTag', () => {
+  test('filters entities by any of the tags', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', tags: ['frontend'] }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', tags: ['backend'] }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'e3', tags: ['devops'] }),
+    ];
+
+    const filtered = filterByAnyTag(entities, ['frontend', 'backend']);
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((e) => e.name)).toEqual(['e1', 'e2']);
+  });
+});
+
+describe('filterByAllTags', () => {
+  test('filters entities with all specified tags', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', tags: ['frontend', 'senior'] }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', tags: ['frontend'] }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'e3', tags: ['frontend', 'senior', 'lead'] }),
+    ];
+
+    const filtered = filterByAllTags(entities, ['frontend', 'senior']);
+    expect(filtered).toHaveLength(2);
+    expect(filtered.map((e) => e.name)).toEqual(['e1', 'e3']);
+  });
+});
+
+// ============================================================================
+// Sort Tests
+// ============================================================================
+
+describe('sortByName', () => {
+  test('sorts entities by name ascending', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'charlie' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'alice' }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'bob' }),
+    ];
+
+    const sorted = sortByName(entities, true);
+    expect(sorted.map((e) => e.name)).toEqual(['alice', 'bob', 'charlie']);
+  });
+
+  test('sorts entities by name descending', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'alice' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'charlie' }),
+    ];
+
+    const sorted = sortByName(entities, false);
+    expect(sorted.map((e) => e.name)).toEqual(['charlie', 'alice']);
+  });
+
+  test('does not mutate original array', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'bob' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'alice' }),
+    ];
+
+    sortByName(entities, true);
+    expect(entities[0].name).toBe('bob');
+  });
+});
+
+describe('sortByCreationDate', () => {
+  test('sorts entities by creation date descending by default', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', createdAt: '2020-01-01T00:00:00.000Z' as any }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', createdAt: '2020-03-01T00:00:00.000Z' as any }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'e3', createdAt: '2020-02-01T00:00:00.000Z' as any }),
+    ];
+
+    const sorted = sortByCreationDate(entities);
+    expect(sorted.map((e) => e.name)).toEqual(['e2', 'e3', 'e1']);
+  });
+
+  test('sorts entities by creation date ascending', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', createdAt: '2020-03-01T00:00:00.000Z' as any }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', createdAt: '2020-01-01T00:00:00.000Z' as any }),
+    ];
+
+    const sorted = sortByCreationDate(entities, true);
+    expect(sorted.map((e) => e.name)).toEqual(['e2', 'e1']);
+  });
+});
+
+describe('sortByUpdateDate', () => {
+  test('sorts entities by update date descending by default', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', updatedAt: '2020-01-01T00:00:00.000Z' as any }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', updatedAt: '2020-02-01T00:00:00.000Z' as any }),
+    ];
+
+    const sorted = sortByUpdateDate(entities);
+    expect(sorted.map((e) => e.name)).toEqual(['e2', 'e1']);
+  });
+});
+
+describe('sortByEntityType', () => {
+  test('sorts entities by type: agent, human, system', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'sys', entityType: EntityTypeValue.SYSTEM }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'human', entityType: EntityTypeValue.HUMAN }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'agent', entityType: EntityTypeValue.AGENT }),
+    ];
+
+    const sorted = sortByEntityType(entities);
+    expect(sorted.map((e) => e.entityType)).toEqual(['agent', 'human', 'system']);
+  });
+});
+
+// ============================================================================
+// Group Tests
+// ============================================================================
+
+describe('groupByEntityType', () => {
+  test('groups entities by type', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'agent1', entityType: EntityTypeValue.AGENT }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'human1', entityType: EntityTypeValue.HUMAN }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'agent2', entityType: EntityTypeValue.AGENT }),
+    ];
+
+    const groups = groupByEntityType(entities);
+    expect(groups.get(EntityTypeValue.AGENT)?.length).toBe(2);
+    expect(groups.get(EntityTypeValue.HUMAN)?.length).toBe(1);
+    expect(groups.get(EntityTypeValue.SYSTEM)).toBeUndefined();
+  });
+});
+
+describe('groupByCreator', () => {
+  test('groups entities by creator', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'e1', createdBy: 'el-admin' as EntityId }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'e2', createdBy: 'el-user' as EntityId }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'e3', createdBy: 'el-admin' as EntityId }),
+    ];
+
+    const groups = groupByCreator(entities);
+    expect(groups.get('el-admin' as EntityId)?.length).toBe(2);
+    expect(groups.get('el-user' as EntityId)?.length).toBe(1);
+  });
+});
+
+// ============================================================================
+// Search Tests
+// ============================================================================
+
+describe('searchByName', () => {
+  test('searches entities by name substring', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'alice-agent' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'bob-human' }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'alice-backup' }),
+    ];
+
+    const found = searchByName(entities, 'alice');
+    expect(found).toHaveLength(2);
+    expect(found.map((e) => e.name)).toEqual(['alice-agent', 'alice-backup']);
+  });
+
+  test('is case-insensitive', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'ALICE' }),
+    ];
+
+    const found = searchByName(entities, 'alice');
+    expect(found).toHaveLength(2);
+  });
+
+  test('returns empty for no matches', () => {
+    const entities = [createTestEntity({ name: 'bob' })];
+    expect(searchByName(entities, 'alice')).toHaveLength(0);
+  });
+});
+
+describe('findByName', () => {
+  test('finds entity by exact name', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'alice' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'bob' }),
+    ];
+
+    const found = findByName(entities, 'alice');
+    expect(found).toBeDefined();
+    expect(found!.name).toBe('alice');
+  });
+
+  test('returns undefined for no match', () => {
+    const entities = [createTestEntity({ name: 'bob' })];
+    expect(findByName(entities, 'alice')).toBeUndefined();
+  });
+});
+
+describe('findById', () => {
+  test('finds entity by ID', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'alice' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'bob' }),
+    ];
+
+    const found = findById(entities, 'el-2');
+    expect(found).toBeDefined();
+    expect(found!.name).toBe('bob');
+  });
+
+  test('returns undefined for no match', () => {
+    const entities = [createTestEntity({ id: 'el-1' as ElementId })];
+    expect(findById(entities, 'el-999')).toBeUndefined();
+  });
+});
+
+describe('isNameUnique', () => {
+  test('returns true when name is unique', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'alice' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'bob' }),
+    ];
+
+    expect(isNameUnique(entities, 'charlie')).toBe(true);
+  });
+
+  test('returns false when name exists', () => {
+    const entities = [createTestEntity({ name: 'alice' })];
+    expect(isNameUnique(entities, 'alice')).toBe(false);
+  });
+
+  test('excludes entity with given ID', () => {
+    const entities = [createTestEntity({ id: 'el-1' as ElementId, name: 'alice' })];
+    expect(isNameUnique(entities, 'alice', 'el-1')).toBe(true);
+  });
+});
+
+describe('getUniqueTags', () => {
+  test('returns unique sorted tags', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, tags: ['frontend', 'react'] }),
+      createTestEntity({ id: 'el-2' as ElementId, tags: ['backend', 'frontend'] }),
+      createTestEntity({ id: 'el-3' as ElementId, tags: ['devops'] }),
+    ];
+
+    const tags = getUniqueTags(entities);
+    expect(tags).toEqual(['backend', 'devops', 'frontend', 'react']);
+  });
+
+  test('returns empty array for entities without tags', () => {
+    const entities = [createTestEntity({ tags: [] })];
+    expect(getUniqueTags(entities)).toEqual([]);
+  });
+});
+
+describe('countByEntityType', () => {
+  test('counts entities by type', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, entityType: EntityTypeValue.AGENT }),
+      createTestEntity({ id: 'el-2' as ElementId, entityType: EntityTypeValue.AGENT }),
+      createTestEntity({ id: 'el-3' as ElementId, entityType: EntityTypeValue.HUMAN }),
+    ];
+
+    const counts = countByEntityType(entities);
+    expect(counts.agent).toBe(2);
+    expect(counts.human).toBe(1);
+    expect(counts.system).toBe(0);
+  });
+
+  test('returns zeros for empty array', () => {
+    const counts = countByEntityType([]);
+    expect(counts.agent).toBe(0);
+    expect(counts.human).toBe(0);
+    expect(counts.system).toBe(0);
   });
 });

@@ -265,10 +265,10 @@ When enabled:
 - [x] Create key format validation (`isValidPublicKey`, `validatePublicKey`)
 - [x] Unit tests for public key validation
 
-### Phase 5: Entity Operations
+### Phase 5: Entity Operations ✅
 - [x] Implement entity update (metadata only) ✅ (updateEntity in src/types/entity.ts - updates publicKey, tags, metadata; 11 tests)
 - [x] Implement entity deactivation ✅ (deactivateEntity, reactivateEntity, isEntityActive, isEntityDeactivated, getDeactivationDetails, filterActiveEntities, filterDeactivatedEntities - 25 tests)
-- [ ] Add entity search/filter
+- [x] Add entity search/filter ✅ (filterByCreator, filterWithPublicKey, filterByTag, filterByAnyTag, filterByAllTags, sortByName, sortByCreationDate, sortByUpdateDate, sortByEntityType, groupByEntityType, groupByCreator, searchByName, findByName, findById, isNameUnique, getUniqueTags, countByEntityType - 30 tests)
 - [ ] Implement entity assignment queries
 
 ### Phase 6: Integration
