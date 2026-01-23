@@ -232,7 +232,7 @@ Recommended implementation sequence:
 - [ ] **api/cli.md Phase 7**: Admin commands (stats, doctor, migrate)
 - [ ] **api/cli.md Phase 8**: Shell completion, command aliases
 - [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset implemented in src/cli/commands/config.ts; edit pending)
-- [ ] **types/task.md Phase 5**: CLI commands for task operations
+- [x] **types/task.md Phase 5**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests in task.test.ts)
 - [ ] **types/entity.md Phase 6**: CLI commands (register, list, whoami)
 - [ ] **types/message.md Phase 7**: CLI commands (send, thread)
 

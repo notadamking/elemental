@@ -231,7 +231,7 @@ Tasks under Plans use hierarchical IDs:
 - [ ] Integrate with dependency system
 - [ ] Integrate with blocked cache
 - [ ] Integrate with event system
-- [ ] Add CLI commands for task operations
+- [x] Add CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)
 
 ### Phase 6: Testing
 - [x] Unit tests for status transitions
