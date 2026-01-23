@@ -291,9 +291,9 @@ Preserve context through layers:
 - [x] Create conflict factories
 - [x] Create storage factories
 
-### Phase 3: Validation Errors (Partial)
-- [ ] Implement field validation (validation logic that uses errors)
-- [ ] Implement status validation (validation logic that uses errors)
+### Phase 3: Validation Errors ✅
+- [x] Implement field validation ✅ (validateTitle, validatePriority, validateComplexity, etc. in types/*.ts)
+- [x] Implement status validation ✅ (validateStatusTransition, validateTaskStatus, etc. in types/*.ts)
 - [x] Create validation error factory
 
 ### Phase 4: Storage Mapping ✅
