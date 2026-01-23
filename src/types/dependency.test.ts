@@ -721,7 +721,7 @@ describe('validateTestResult', () => {
 describe('validateAwaitsMetadata', () => {
   test('validates timer metadata', () => {
     const metadata = {
-      gateType: 'timer',
+      gateType: 'timer' as const,
       waitUntil: '2025-01-22T15:00:00.000Z',
     };
     expect(validateAwaitsMetadata(metadata)).toEqual(metadata);
@@ -729,8 +729,8 @@ describe('validateAwaitsMetadata', () => {
 
   test('validates approval metadata', () => {
     const metadata = {
-      gateType: 'approval',
-      requiredApprovers: ['el-user1'],
+      gateType: 'approval' as const,
+      requiredApprovers: ['el-user1' as EntityId],
       approvalCount: 1,
     };
     expect(validateAwaitsMetadata(metadata)).toEqual(metadata);
@@ -738,7 +738,7 @@ describe('validateAwaitsMetadata', () => {
 
   test('validates external metadata', () => {
     const metadata = {
-      gateType: 'external',
+      gateType: 'external' as const,
       externalSystem: 'jira',
       externalId: 'PROJ-123',
     };
@@ -747,7 +747,7 @@ describe('validateAwaitsMetadata', () => {
 
   test('validates webhook metadata', () => {
     const metadata = {
-      gateType: 'webhook',
+      gateType: 'webhook' as const,
       webhookUrl: 'https://example.com',
     };
     expect(validateAwaitsMetadata(metadata)).toEqual(metadata);
@@ -812,8 +812,8 @@ describe('validateAwaitsMetadata', () => {
 describe('validateValidatesMetadata', () => {
   test('validates correct metadata', () => {
     const metadata = {
-      testType: 'unit',
-      result: 'pass',
+      testType: 'unit' as const,
+      result: 'pass' as const,
       details: 'All tests passed',
     };
     expect(validateValidatesMetadata(metadata)).toEqual(metadata);
@@ -848,7 +848,7 @@ describe('validateValidatesMetadata', () => {
 
 describe('validateElementId', () => {
   test('returns valid element ID', () => {
-    expect(validateElementId('el-abc123', 'sourceId')).toBe('el-abc123');
+    expect(validateElementId('el-abc123', 'sourceId')).toBe('el-abc123' as ElementId);
   });
 
   test('throws for non-string', () => {
@@ -868,7 +868,7 @@ describe('validateElementId', () => {
 
 describe('validateEntityId', () => {
   test('returns valid entity ID', () => {
-    expect(validateEntityId('el-system1', 'createdBy')).toBe('el-system1');
+    expect(validateEntityId('el-system1', 'createdBy')).toBe('el-system1' as EntityId);
   });
 
   test('throws for non-string', () => {
@@ -972,10 +972,10 @@ describe('createDependency', () => {
 
     const dep = createDependency(input);
 
-    expect(dep.sourceId).toBe('el-source1');
-    expect(dep.targetId).toBe('el-target1');
+    expect(dep.sourceId).toBe('el-source1' as ElementId);
+    expect(dep.targetId).toBe('el-target1' as ElementId);
     expect(dep.type).toBe('blocks');
-    expect(dep.createdBy).toBe('el-user1');
+    expect(dep.createdBy).toBe('el-user1' as EntityId);
     expect(dep.metadata).toEqual({});
     expect(dep.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
@@ -1098,8 +1098,8 @@ describe('createAwaitsDependency', () => {
     });
 
     expect(dep.type).toBe(DependencyType.AWAITS);
-    expect((dep.metadata as TimerGateMetadata).gateType).toBe('timer');
-    expect((dep.metadata as TimerGateMetadata).waitUntil).toBe('2025-01-22T18:00:00.000Z');
+    expect((dep.metadata as unknown as TimerGateMetadata).gateType).toBe(GateType.TIMER);
+    expect((dep.metadata as unknown as TimerGateMetadata).waitUntil).toBe('2025-01-22T18:00:00.000Z');
   });
 
   test('creates approval gate dependency', () => {
@@ -1115,8 +1115,8 @@ describe('createAwaitsDependency', () => {
     });
 
     expect(dep.type).toBe(DependencyType.AWAITS);
-    expect((dep.metadata as ApprovalGateMetadata).gateType).toBe('approval');
-    expect((dep.metadata as ApprovalGateMetadata).requiredApprovers).toEqual(['el-manager1']);
+    expect((dep.metadata as unknown as ApprovalGateMetadata).gateType).toBe(GateType.APPROVAL);
+    expect((dep.metadata as unknown as ApprovalGateMetadata).requiredApprovers).toEqual(['el-manager1' as EntityId]);
   });
 
   test('creates external gate dependency', () => {
@@ -1132,8 +1132,8 @@ describe('createAwaitsDependency', () => {
     });
 
     expect(dep.type).toBe(DependencyType.AWAITS);
-    expect((dep.metadata as ExternalGateMetadata).gateType).toBe('external');
-    expect((dep.metadata as ExternalGateMetadata).externalSystem).toBe('jira');
+    expect((dep.metadata as unknown as ExternalGateMetadata).gateType).toBe(GateType.EXTERNAL);
+    expect((dep.metadata as unknown as ExternalGateMetadata).externalSystem).toBe('jira');
   });
 
   test('creates webhook gate dependency', () => {
@@ -1149,7 +1149,7 @@ describe('createAwaitsDependency', () => {
     });
 
     expect(dep.type).toBe(DependencyType.AWAITS);
-    expect((dep.metadata as WebhookGateMetadata).gateType).toBe('webhook');
+    expect((dep.metadata as unknown as WebhookGateMetadata).gateType).toBe(GateType.WEBHOOK);
   });
 
   test('throws for invalid metadata', () => {
@@ -1178,9 +1178,9 @@ describe('createValidatesDependency', () => {
     });
 
     expect(dep.type).toBe(DependencyType.VALIDATES);
-    expect((dep.metadata as ValidatesMetadata).testType).toBe('unit');
-    expect((dep.metadata as ValidatesMetadata).result).toBe('pass');
-    expect((dep.metadata as ValidatesMetadata).details).toBe('All 42 tests passed');
+    expect((dep.metadata as unknown as ValidatesMetadata).testType).toBe(TestType.UNIT);
+    expect((dep.metadata as unknown as ValidatesMetadata).result).toBe(TestResult.PASS);
+    expect((dep.metadata as unknown as ValidatesMetadata).details).toBe('All 42 tests passed');
   });
 
   test('creates validates dependency with fail result', () => {
@@ -1196,7 +1196,7 @@ describe('createValidatesDependency', () => {
     });
 
     expect(dep.type).toBe(DependencyType.VALIDATES);
-    expect((dep.metadata as ValidatesMetadata).result).toBe('fail');
+    expect((dep.metadata as unknown as ValidatesMetadata).result).toBe(TestResult.FAIL);
   });
 
   test('throws for invalid metadata', () => {
@@ -1443,7 +1443,7 @@ describe('filterBySource', () => {
   test('filters by source element', () => {
     const fromA = filterBySource(dependencies, 'el-a' as ElementId);
     expect(fromA).toHaveLength(2);
-    fromA.forEach((d) => expect(d.sourceId).toBe('el-a'));
+    fromA.forEach((d) => expect(d.sourceId).toBe('el-a' as ElementId));
   });
 });
 
@@ -1457,7 +1457,7 @@ describe('filterByTarget', () => {
   test('filters by target element', () => {
     const toX = filterByTarget(dependencies, 'el-x' as ElementId);
     expect(toX).toHaveLength(2);
-    toX.forEach((d) => expect(d.targetId).toBe('el-x'));
+    toX.forEach((d) => expect(d.targetId).toBe('el-x' as ElementId));
   });
 });
 
@@ -1532,20 +1532,20 @@ describe('describeDependency', () => {
 describe('normalizeRelatesToDependency', () => {
   test('keeps order when source < target', () => {
     const result = normalizeRelatesToDependency('el-aaa' as ElementId, 'el-bbb' as ElementId);
-    expect(result.sourceId).toBe('el-aaa');
-    expect(result.targetId).toBe('el-bbb');
+    expect(result.sourceId).toBe('el-aaa' as ElementId);
+    expect(result.targetId).toBe('el-bbb' as ElementId);
   });
 
   test('swaps order when source > target', () => {
     const result = normalizeRelatesToDependency('el-zzz' as ElementId, 'el-aaa' as ElementId);
-    expect(result.sourceId).toBe('el-aaa');
-    expect(result.targetId).toBe('el-zzz');
+    expect(result.sourceId).toBe('el-aaa' as ElementId);
+    expect(result.targetId).toBe('el-zzz' as ElementId);
   });
 
   test('keeps order when source = target', () => {
     const result = normalizeRelatesToDependency('el-same' as ElementId, 'el-same' as ElementId);
-    expect(result.sourceId).toBe('el-same');
-    expect(result.targetId).toBe('el-same');
+    expect(result.sourceId).toBe('el-same' as ElementId);
+    expect(result.targetId).toBe('el-same' as ElementId);
   });
 });
 
@@ -1605,7 +1605,7 @@ describe('Edge Cases', () => {
       type: DependencyType.BLOCKS,
       createdBy: 'el-user1' as EntityId,
     });
-    expect(dep.sourceId).toBe(longId);
+    expect(dep.sourceId).toBe(longId as ElementId);
   });
 
   test('dependency metadata with nested objects', () => {

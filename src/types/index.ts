@@ -13,6 +13,45 @@ export * from './message.js';
 export * from './playbook.js';
 export * from './workflow.js';
 
+// Library exports - exclude duplicates
+// Note: hasDescription is also in channel.js but with a different implementation for channels
+export {
+  // Library type and interfaces
+  Library,
+  HydratedLibrary,
+  LibraryId,
+  // Constants
+  MIN_LIBRARY_NAME_LENGTH,
+  MAX_LIBRARY_NAME_LENGTH,
+  // Validation
+  isValidLibraryName,
+  validateLibraryName,
+  isValidLibraryId,
+  validateLibraryId,
+  // Type guards
+  isLibrary,
+  validateLibrary,
+  // Factory functions
+  createLibrary,
+  CreateLibraryInput,
+  updateLibrary,
+  UpdateLibraryInput,
+  // Utility functions (note: some may conflict with channel.js)
+  hasDescription as libraryHasDescription,
+  getLibraryDisplayName,
+  filterByCreator as filterLibrariesByCreator,
+  filterWithDescription as filterLibrariesWithDescription,
+  filterWithoutDescription as filterLibrariesWithoutDescription,
+  sortByName as sortLibrariesByName,
+  sortByCreationDate as sortLibrariesByCreationDate,
+  sortByUpdateDate as sortLibrariesByUpdateDate,
+  groupByCreator as groupLibrariesByCreator,
+  searchByName as searchLibrariesByName,
+  findByName as findLibraryByName,
+  findById as findLibraryById,
+  isNameUnique as isLibraryNameUnique,
+} from './library.js';
+
 // Channel exports - exclude duplicates that are already exported from message.js
 // ChannelId, isValidChannelId, validateChannelId are in both message.js and channel.js
 // sortByCreatedAtDesc is in both message.js and channel.js (different implementations)

@@ -322,7 +322,7 @@ describe('isValidChannelId', () => {
 
 describe('validateChannelId', () => {
   test('returns valid channel ID', () => {
-    expect(validateChannelId('el-abc123')).toBe('el-abc123');
+    expect(validateChannelId('el-abc123')).toBe('el-abc123' as ChannelId);
   });
 
   test('throws for non-string', () => {
@@ -360,7 +360,7 @@ describe('isValidMemberId', () => {
 
 describe('validateMemberId', () => {
   test('returns valid member ID', () => {
-    expect(validateMemberId('el-user01', 'members[0]')).toBe('el-user01');
+    expect(validateMemberId('el-user01', 'members[0]')).toBe('el-user01' as EntityId);
   });
 
   test('throws with field name in error', () => {
@@ -400,7 +400,7 @@ describe('validateDescriptionRef', () => {
   });
 
   test('returns valid document ID', () => {
-    expect(validateDescriptionRef('el-doc001')).toBe('el-doc001');
+    expect(validateDescriptionRef('el-doc001')).toBe('el-doc001' as DocumentId);
   });
 
   test('throws for invalid format', () => {
@@ -435,7 +435,7 @@ describe('isValidMembers', () => {
 
 describe('validateMembers', () => {
   test('returns valid members array', () => {
-    expect(validateMembers(['el-user01'])).toEqual(['el-user01']);
+    expect(validateMembers(['el-user01'])).toEqual(['el-user01' as EntityId]);
   });
 
   test('throws for non-array', () => {
@@ -507,7 +507,7 @@ describe('validateChannelPermissions', () => {
     const result = validateChannelPermissions(permissions);
     expect(result.visibility).toBe('public');
     expect(result.joinPolicy).toBe('open');
-    expect(result.modifyMembers).toEqual(['el-user01']);
+    expect(result.modifyMembers).toEqual(['el-user01' as EntityId]);
   });
 
   test('throws for non-object', () => {
@@ -668,7 +668,7 @@ describe('generateDirectChannelName', () => {
 describe('parseDirectChannelName', () => {
   test('parses valid direct channel name', () => {
     const result = parseDirectChannelName('el-user01:el-user02');
-    expect(result).toEqual(['el-user01', 'el-user02']);
+    expect(result).toEqual(['el-user01' as EntityId, 'el-user02' as EntityId]);
   });
 
   test('returns null for invalid format', () => {
@@ -700,12 +700,12 @@ describe('createGroupChannel', () => {
     expect(channel.type).toBe(ElementType.CHANNEL);
     expect(channel.channelType).toBe(ChannelTypeValue.GROUP);
     expect(channel.name).toBe('test-channel');
-    expect(channel.createdBy).toBe('el-user01');
-    expect(channel.members).toContain('el-user01');
-    expect(channel.members).toContain('el-user02');
+    expect(channel.createdBy).toBe('el-user01' as EntityId);
+    expect(channel.members).toContain('el-user01' as EntityId);
+    expect(channel.members).toContain('el-user02' as EntityId);
     expect(channel.permissions.visibility).toBe(VisibilityValue.PRIVATE);
     expect(channel.permissions.joinPolicy).toBe(JoinPolicyValue.INVITE_ONLY);
-    expect(channel.permissions.modifyMembers).toContain('el-user01');
+    expect(channel.permissions.modifyMembers).toContain('el-user01' as EntityId);
     expect(channel.id).toMatch(/^el-[0-9a-z]{3,8}$/);
   });
 
@@ -716,7 +716,7 @@ describe('createGroupChannel', () => {
       members: ['el-user02' as EntityId],
     });
 
-    expect(channel.members).toContain('el-user01');
+    expect(channel.members).toContain('el-user01' as EntityId);
   });
 
   test('does not duplicate creator in members', async () => {
@@ -732,7 +732,7 @@ describe('createGroupChannel', () => {
   test('automatically includes creator in modifyMembers', async () => {
     const channel = await createGroupChannel(validInput);
 
-    expect(channel.permissions.modifyMembers).toContain('el-user01');
+    expect(channel.permissions.modifyMembers).toContain('el-user01' as EntityId);
   });
 
   test('creates channel with custom visibility', async () => {
@@ -759,7 +759,7 @@ describe('createGroupChannel', () => {
       descriptionRef: 'el-doc001' as DocumentId,
     });
 
-    expect(channel.descriptionRef).toBe('el-doc001');
+    expect(channel.descriptionRef).toBe('el-doc001' as DocumentId);
   });
 
   test('creates channel with tags and metadata', async () => {
@@ -822,8 +822,8 @@ describe('createDirectChannel', () => {
     expect(channel.channelType).toBe(ChannelTypeValue.DIRECT);
     expect(channel.name).toBe('el-user01:el-user02');
     expect(channel.members).toHaveLength(2);
-    expect(channel.members).toContain('el-user01');
-    expect(channel.members).toContain('el-user02');
+    expect(channel.members).toContain('el-user01' as EntityId);
+    expect(channel.members).toContain('el-user02' as EntityId);
     expect(channel.permissions.visibility).toBe(VisibilityValue.PRIVATE);
     expect(channel.permissions.joinPolicy).toBe(JoinPolicyValue.INVITE_ONLY);
     expect(channel.permissions.modifyMembers).toHaveLength(0);
@@ -871,7 +871,7 @@ describe('createDirectChannel', () => {
       descriptionRef: 'el-doc001' as DocumentId,
     });
 
-    expect(channel.descriptionRef).toBe('el-doc001');
+    expect(channel.descriptionRef).toBe('el-doc001' as DocumentId);
   });
 
   test('creates channel with tags and metadata', async () => {
@@ -1101,7 +1101,7 @@ describe('filterByChannelType', () => {
   test('filters by channel type', () => {
     const groups = filterByChannelType(channels, ChannelTypeValue.GROUP);
     expect(groups).toHaveLength(2);
-    expect(groups.map((c) => c.id)).toEqual(['el-chan01', 'el-chan03']);
+    expect(groups.map((c) => c.id)).toEqual(['el-chan01' as ChannelId, 'el-chan03' as ChannelId]);
   });
 });
 
@@ -1114,7 +1114,7 @@ describe('filterDirectChannels', () => {
   test('filters direct channels', () => {
     const direct = filterDirectChannels(channels);
     expect(direct).toHaveLength(1);
-    expect(direct[0].id).toBe('el-chan02');
+    expect(direct[0].id).toBe('el-chan02' as ChannelId);
   });
 });
 
@@ -1127,7 +1127,7 @@ describe('filterGroupChannels', () => {
   test('filters group channels', () => {
     const groups = filterGroupChannels(channels);
     expect(groups).toHaveLength(1);
-    expect(groups[0].id).toBe('el-chan01');
+    expect(groups[0].id).toBe('el-chan01' as ChannelId);
   });
 });
 
@@ -1150,7 +1150,7 @@ describe('filterByMember', () => {
   test('filters channels by member', () => {
     const result = filterByMember(channels, 'el-user01' as EntityId);
     expect(result).toHaveLength(2);
-    expect(result.map((c) => c.id)).toEqual(['el-chan01', 'el-chan03']);
+    expect(result.map((c) => c.id)).toEqual(['el-chan01' as ChannelId, 'el-chan03' as ChannelId]);
   });
 
   test('returns empty for non-member', () => {
@@ -1182,7 +1182,7 @@ describe('filterByVisibility', () => {
   test('filters by visibility', () => {
     const publicChannels = filterByVisibility(channels, VisibilityValue.PUBLIC);
     expect(publicChannels).toHaveLength(2);
-    expect(publicChannels.map((c) => c.id)).toEqual(['el-chan01', 'el-chan03']);
+    expect(publicChannels.map((c) => c.id)).toEqual(['el-chan01' as ChannelId, 'el-chan03' as ChannelId]);
   });
 });
 
@@ -1202,7 +1202,7 @@ describe('filterPublicChannels', () => {
   test('filters public channels', () => {
     const result = filterPublicChannels(channels);
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('el-chan01');
+    expect(result[0].id).toBe('el-chan01' as ChannelId);
   });
 });
 
@@ -1222,7 +1222,7 @@ describe('filterPrivateChannels', () => {
   test('filters private channels', () => {
     const result = filterPrivateChannels(channels);
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('el-chan02');
+    expect(result[0].id).toBe('el-chan02' as ChannelId);
   });
 });
 
@@ -1272,7 +1272,7 @@ describe('sortByMemberCount', () => {
 
   test('sorts by member count descending', () => {
     const sorted = sortByMemberCount(channels);
-    expect(sorted.map((c) => c.id)).toEqual(['el-chan02', 'el-chan03', 'el-chan01']);
+    expect(sorted.map((c) => c.id)).toEqual(['el-chan02' as ChannelId, 'el-chan03' as ChannelId, 'el-chan01' as ChannelId]);
   });
 });
 
@@ -1294,7 +1294,7 @@ describe('sortByCreatedAtDesc', () => {
 
   test('sorts by creation time descending', () => {
     const sorted = sortByCreatedAtDesc(channels);
-    expect(sorted.map((c) => c.id)).toEqual(['el-chan02', 'el-chan03', 'el-chan01']);
+    expect(sorted.map((c) => c.id)).toEqual(['el-chan02' as ChannelId, 'el-chan03' as ChannelId, 'el-chan01' as ChannelId]);
   });
 });
 
@@ -1328,10 +1328,10 @@ describe('groupByVisibility', () => {
 
     expect(groups.size).toBe(2);
     expect(groups.get(VisibilityValue.PUBLIC)?.map((c) => c.id)).toEqual([
-      'el-chan01',
-      'el-chan03',
+      'el-chan01' as ChannelId,
+      'el-chan03' as ChannelId,
     ]);
-    expect(groups.get(VisibilityValue.PRIVATE)?.map((c) => c.id)).toEqual(['el-chan02']);
+    expect(groups.get(VisibilityValue.PRIVATE)?.map((c) => c.id)).toEqual(['el-chan02' as ChannelId]);
   });
 
   test('handles empty input', () => {
@@ -1352,10 +1352,10 @@ describe('groupByChannelType', () => {
 
     expect(groups.size).toBe(2);
     expect(groups.get(ChannelTypeValue.GROUP)?.map((c) => c.id)).toEqual([
-      'el-chan01',
-      'el-chan03',
+      'el-chan01' as ChannelId,
+      'el-chan03' as ChannelId,
     ]);
-    expect(groups.get(ChannelTypeValue.DIRECT)?.map((c) => c.id)).toEqual(['el-chan02']);
+    expect(groups.get(ChannelTypeValue.DIRECT)?.map((c) => c.id)).toEqual(['el-chan02' as ChannelId]);
   });
 });
 
@@ -1382,7 +1382,7 @@ describe('findDirectChannel', () => {
       'el-user01' as EntityId,
       'el-user02' as EntityId
     );
-    expect(result?.id).toBe('el-chan02');
+    expect(result?.id).toBe('el-chan02' as ChannelId);
   });
 
   test('finds channel regardless of entity order', () => {
@@ -1391,7 +1391,7 @@ describe('findDirectChannel', () => {
       'el-user02' as EntityId,
       'el-user01' as EntityId
     );
-    expect(result?.id).toBe('el-chan02');
+    expect(result?.id).toBe('el-chan02' as ChannelId);
   });
 
   test('returns undefined for non-existent direct channel', () => {
@@ -1427,7 +1427,7 @@ describe('getDirectChannelsForEntity', () => {
   test('gets all direct channels for an entity', () => {
     const result = getDirectChannelsForEntity(channels, 'el-user01' as EntityId);
     expect(result).toHaveLength(2);
-    expect(result.map((c) => c.id)).toEqual(['el-chan02', 'el-chan03']);
+    expect(result.map((c) => c.id)).toEqual(['el-chan02' as ChannelId, 'el-chan03' as ChannelId]);
   });
 
   test('returns empty for entity with no direct channels', () => {

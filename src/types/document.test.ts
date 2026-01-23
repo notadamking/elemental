@@ -319,7 +319,7 @@ describe('validatePreviousVersionId', () => {
   });
 
   test('returns valid ID for version > 1', () => {
-    expect(validatePreviousVersionId('el-abc123', 2)).toBe('el-abc123');
+    expect(validatePreviousVersionId('el-abc123', 2)).toBe('el-abc123' as DocumentId);
   });
 
   test('throws for null with version > 1', () => {

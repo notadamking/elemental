@@ -457,7 +457,7 @@ describe('validateEvent', () => {
 
   test('throws for missing elementId', () => {
     const event = createTestEvent();
-    delete (event as Record<string, unknown>).elementId;
+    delete (event as unknown as Record<string, unknown>).elementId;
     expect(() => validateEvent(event)).toThrow(ValidationError);
     try {
       validateEvent(event);
@@ -474,7 +474,7 @@ describe('validateEvent', () => {
 
   test('throws for missing actor', () => {
     const event = createTestEvent();
-    (event as Record<string, unknown>).actor = '';
+    (event as unknown as Record<string, unknown>).actor = '';
     expect(() => validateEvent(event)).toThrow(ValidationError);
     try {
       validateEvent(event);

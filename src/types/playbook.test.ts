@@ -792,7 +792,7 @@ describe('Playbook ID Validation', () => {
 
   describe('validatePlaybookId', () => {
     test('returns valid ID', () => {
-      expect(validatePlaybookId('el-abc123')).toBe('el-abc123');
+      expect(validatePlaybookId('el-abc123')).toBe('el-abc123' as PlaybookId);
     });
 
     test('throws for invalid ID', () => {

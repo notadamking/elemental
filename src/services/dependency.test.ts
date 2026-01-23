@@ -162,8 +162,8 @@ describe('DependencyService', () => {
       });
 
       // Should be normalized: smaller ID as source
-      expect(dep.sourceId).toBe('el-aaa');
-      expect(dep.targetId).toBe('el-zzz');
+      expect(dep.sourceId).toBe('el-aaa' as ElementId);
+      expect(dep.targetId).toBe('el-zzz' as ElementId);
     });
 
     test('prevents duplicate relates-to in either direction', () => {
@@ -543,8 +543,8 @@ describe('DependencyService', () => {
 
       expect(dep).toBeDefined();
       // The returned dependency should have normalized order
-      expect(dep!.sourceId).toBe('el-aaa');
-      expect(dep!.targetId).toBe('el-zzz');
+      expect(dep!.sourceId).toBe('el-aaa' as ElementId);
+      expect(dep!.targetId).toBe('el-zzz' as ElementId);
     });
   });
 

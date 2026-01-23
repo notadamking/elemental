@@ -93,7 +93,7 @@ describe('isValidChannelId', () => {
 
 describe('validateChannelId', () => {
   test('returns valid channel ID', () => {
-    expect(validateChannelId('el-abc123')).toBe('el-abc123');
+    expect(validateChannelId('el-abc123')).toBe('el-abc123' as ChannelId);
   });
 
   test('throws for non-string', () => {
@@ -135,7 +135,7 @@ describe('isValidMessageId', () => {
 
 describe('validateMessageId', () => {
   test('returns valid message ID', () => {
-    expect(validateMessageId('el-msg123')).toBe('el-msg123');
+    expect(validateMessageId('el-msg123')).toBe('el-msg123' as MessageId);
   });
 
   test('throws for invalid input', () => {
@@ -163,7 +163,7 @@ describe('isValidMessageDocumentId', () => {
 
 describe('validateMessageDocumentId', () => {
   test('returns valid document ID', () => {
-    expect(validateMessageDocumentId('el-doc123', 'contentRef')).toBe('el-doc123');
+    expect(validateMessageDocumentId('el-doc123', 'contentRef')).toBe('el-doc123' as DocumentId);
   });
 
   test('throws with field name in error', () => {
@@ -196,7 +196,7 @@ describe('isValidMessageSenderId', () => {
 
 describe('validateMessageSenderId', () => {
   test('returns valid entity ID', () => {
-    expect(validateMessageSenderId('el-user123', 'sender')).toBe('el-user123');
+    expect(validateMessageSenderId('el-user123', 'sender')).toBe('el-user123' as EntityId);
   });
 
   test('throws with field name in error', () => {
@@ -235,7 +235,7 @@ describe('validateThreadId', () => {
   });
 
   test('returns valid message ID', () => {
-    expect(validateThreadId('el-msg123')).toBe('el-msg123');
+    expect(validateThreadId('el-msg123')).toBe('el-msg123' as MessageId);
   });
 
   test('throws for invalid message ID', () => {
@@ -279,7 +279,7 @@ describe('isValidAttachments', () => {
 
 describe('validateAttachments', () => {
   test('returns valid attachments array', () => {
-    expect(validateAttachments(['el-doc123'])).toEqual(['el-doc123']);
+    expect(validateAttachments(['el-doc123'])).toEqual(['el-doc123' as DocumentId]);
   });
 
   test('returns empty array for empty input', () => {
@@ -450,10 +450,10 @@ describe('createMessage', () => {
     const msg = await createMessage(validInput);
 
     expect(msg.type).toBe(ElementType.MESSAGE);
-    expect(msg.channelId).toBe('el-chan01');
-    expect(msg.sender).toBe('el-sender1');
-    expect(msg.contentRef).toBe('el-doc001');
-    expect(msg.createdBy).toBe('el-sender1'); // createdBy equals sender
+    expect(msg.channelId).toBe('el-chan01' as ChannelId);
+    expect(msg.sender).toBe('el-sender1' as EntityId);
+    expect(msg.contentRef).toBe('el-doc001' as DocumentId);
+    expect(msg.createdBy).toBe('el-sender1' as EntityId); // createdBy equals sender
     expect(msg.attachments).toEqual([]);
     expect(msg.threadId).toBe(null);
     expect(msg.tags).toEqual([]);
@@ -467,7 +467,7 @@ describe('createMessage', () => {
       attachments: ['el-att001' as DocumentId, 'el-att002' as DocumentId],
     });
 
-    expect(msg.attachments).toEqual(['el-att001', 'el-att002']);
+    expect(msg.attachments).toEqual(['el-att001' as DocumentId, 'el-att002' as DocumentId]);
   });
 
   test('creates message with threadId (reply)', async () => {
@@ -476,7 +476,7 @@ describe('createMessage', () => {
       threadId: 'el-parent1' as MessageId,
     });
 
-    expect(msg.threadId).toBe('el-parent1');
+    expect(msg.threadId).toBe('el-parent1' as MessageId);
   });
 
   test('creates message with optional fields', async () => {
@@ -721,7 +721,7 @@ describe('filterByChannel', () => {
   test('filters messages by channel', () => {
     const filtered = filterByChannel(messages, 'el-chan01' as ChannelId);
     expect(filtered).toHaveLength(2);
-    expect(filtered.map((m) => m.id)).toEqual(['el-msg001', 'el-msg003']);
+    expect(filtered.map((m) => m.id)).toEqual(['el-msg001' as MessageId, 'el-msg003' as MessageId]);
   });
 
   test('returns empty array for non-matching channel', () => {
@@ -743,7 +743,7 @@ describe('filterBySender', () => {
   test('filters messages by sender', () => {
     const filtered = filterBySender(messages, 'el-user01' as EntityId);
     expect(filtered).toHaveLength(2);
-    expect(filtered.map((m) => m.id)).toEqual(['el-msg001', 'el-msg003']);
+    expect(filtered.map((m) => m.id)).toEqual(['el-msg001' as MessageId, 'el-msg003' as MessageId]);
   });
 
   test('returns empty array for non-matching sender', () => {
@@ -771,7 +771,7 @@ describe('filterByThread', () => {
   test('filters replies to a specific thread', () => {
     const filtered = filterByThread(messages, 'el-msg001' as MessageId);
     expect(filtered).toHaveLength(2);
-    expect(filtered.map((m) => m.id)).toEqual(['el-msg002', 'el-msg003']);
+    expect(filtered.map((m) => m.id)).toEqual(['el-msg002' as MessageId, 'el-msg003' as MessageId]);
   });
 
   test('returns empty array for thread with no replies', () => {
@@ -792,7 +792,7 @@ describe('filterRootMessages', () => {
   test('filters only root messages', () => {
     const filtered = filterRootMessages(messages);
     expect(filtered).toHaveLength(2);
-    expect(filtered.map((m) => m.id)).toEqual(['el-msg001', 'el-msg003']);
+    expect(filtered.map((m) => m.id)).toEqual(['el-msg001' as MessageId, 'el-msg003' as MessageId]);
   });
 });
 
@@ -813,7 +813,7 @@ describe('filterReplies', () => {
   test('filters only reply messages', () => {
     const filtered = filterReplies(messages);
     expect(filtered).toHaveLength(2);
-    expect(filtered.map((m) => m.id)).toEqual(['el-msg002', 'el-msg004']);
+    expect(filtered.map((m) => m.id)).toEqual(['el-msg002' as MessageId, 'el-msg004' as MessageId]);
   });
 });
 
@@ -839,7 +839,7 @@ describe('sortByCreatedAt', () => {
 
   test('sorts messages by creation time (oldest first)', () => {
     const sorted = sortByCreatedAt(messages);
-    expect(sorted.map((m) => m.id)).toEqual(['el-msg001', 'el-msg002', 'el-msg003']);
+    expect(sorted.map((m) => m.id)).toEqual(['el-msg001' as MessageId, 'el-msg002' as MessageId, 'el-msg003' as MessageId]);
   });
 
   test('does not modify original array', () => {
@@ -867,7 +867,7 @@ describe('sortByCreatedAtDesc', () => {
 
   test('sorts messages by creation time (newest first)', () => {
     const sorted = sortByCreatedAtDesc(messages);
-    expect(sorted.map((m) => m.id)).toEqual(['el-msg003', 'el-msg002', 'el-msg001']);
+    expect(sorted.map((m) => m.id)).toEqual(['el-msg003' as MessageId, 'el-msg002' as MessageId, 'el-msg001' as MessageId]);
   });
 });
 
@@ -902,13 +902,13 @@ describe('getThreadMessages', () => {
   test('returns root and all replies sorted by creation time', () => {
     const thread = getThreadMessages(messages, 'el-root01' as MessageId);
     expect(thread).toHaveLength(3);
-    expect(thread.map((m) => m.id)).toEqual(['el-root01', 'el-reply1', 'el-reply2']);
+    expect(thread.map((m) => m.id)).toEqual(['el-root01' as MessageId, 'el-reply1' as MessageId, 'el-reply2' as MessageId]);
   });
 
   test('returns only root when no replies exist', () => {
     const thread = getThreadMessages(messages, 'el-other1' as MessageId);
     expect(thread).toHaveLength(1);
-    expect(thread[0].id).toBe('el-other1');
+    expect(thread[0].id).toBe('el-other1' as MessageId);
   });
 
   test('returns empty array for non-existent thread', () => {
@@ -933,11 +933,11 @@ describe('groupByChannel', () => {
 
     expect(groups.size).toBe(2);
     expect(groups.get('el-chan01' as ChannelId)?.map((m) => m.id)).toEqual([
-      'el-msg001',
-      'el-msg003',
+      'el-msg001' as MessageId,
+      'el-msg003' as MessageId,
     ]);
     expect(groups.get('el-chan02' as ChannelId)?.map((m) => m.id)).toEqual([
-      'el-msg002',
+      'el-msg002' as MessageId,
     ]);
   });
 
@@ -959,11 +959,11 @@ describe('groupBySender', () => {
 
     expect(groups.size).toBe(2);
     expect(groups.get('el-user01' as EntityId)?.map((m) => m.id)).toEqual([
-      'el-msg001',
-      'el-msg003',
+      'el-msg001' as MessageId,
+      'el-msg003' as MessageId,
     ]);
     expect(groups.get('el-user02' as EntityId)?.map((m) => m.id)).toEqual([
-      'el-msg002',
+      'el-msg002' as MessageId,
     ]);
   });
 });

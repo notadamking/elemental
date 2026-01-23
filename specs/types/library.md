@@ -202,31 +202,42 @@ Multiple `parent-child` dependencies:
 ## Implementation Checklist
 
 ### Phase 1: Type Definitions
-- [ ] Define `Library` interface extending `Element`
-- [ ] Create type guards for Library validation
+- [x] Define `Library` interface extending `Element`
+- [x] Create type guards for Library validation (isLibrary, validateLibrary)
+- [x] Define `HydratedLibrary` interface with hydrated fields
+- [x] Define `LibraryId` branded type
+- [x] Define validation constants (MIN/MAX_LIBRARY_NAME_LENGTH)
+- [x] Implement name validation (isValidLibraryName, validateLibraryName)
+- [x] Implement ID validation (isValidLibraryId, validateLibraryId)
 
 ### Phase 2: Basic Operations
-- [ ] Implement library creation
-- [ ] Implement library update (name, description)
+- [x] Implement library creation (createLibrary factory)
+- [x] Implement library update (updateLibrary with name, descriptionRef)
+- [x] Implement utility functions (hasDescription, getLibraryDisplayName)
+- [x] Implement filter functions (filterByCreator, filterWithDescription, filterWithoutDescription)
+- [x] Implement sort functions (sortByName, sortByCreationDate, sortByUpdateDate)
+- [x] Implement grouping functions (groupByCreator)
+- [x] Implement search functions (searchByName, findByName, findById)
+- [x] Implement uniqueness check (isNameUnique)
 - [ ] Implement library deletion (with orphan handling)
 
 ### Phase 3: Document Association
-- [ ] Implement add document to library
-- [ ] Implement remove document from library
-- [ ] Implement multi-membership
+- [ ] Implement add document to library (via dependency system)
+- [ ] Implement remove document from library (via dependency system)
+- [ ] Implement multi-membership (via multiple parent-child dependencies)
 - [ ] Implement document listing
 
 ### Phase 4: Hierarchy
-- [ ] Implement library nesting
-- [ ] Implement cycle detection
+- [ ] Implement library nesting (via parent-child dependency)
+- [ ] Implement cycle detection (leverage existing dependency cycle detection)
 - [ ] Implement descendant queries
 - [ ] Implement ancestor queries
 
 ### Phase 5: Queries
 - [ ] Implement root library listing
-- [ ] Implement library search
+- [ ] Implement library search within hierarchy
 - [ ] Implement document search within library
-- [ ] Implement statistics calculation
+- [ ] Implement statistics calculation (document count, sub-library count)
 
 ### Phase 6: CLI Commands
 - [ ] library create
@@ -235,7 +246,11 @@ Multiple `parent-child` dependencies:
 - [ ] library remove (document)
 
 ### Phase 7: Testing
-- [ ] Unit tests for association
-- [ ] Unit tests for hierarchy
-- [ ] Integration tests for multi-membership
+- [x] Unit tests for type definitions (94 tests)
+- [x] Unit tests for validation functions
+- [x] Unit tests for factory functions
+- [x] Unit tests for utility functions
+- [ ] Unit tests for association (Phase 3)
+- [ ] Unit tests for hierarchy (Phase 4)
+- [ ] Integration tests for multi-membership (Phase 3)
 - [ ] E2E tests for library organization

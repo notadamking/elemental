@@ -172,7 +172,7 @@ describe('isValidWorkflowId', () => {
 
 describe('validateWorkflowId', () => {
   test('returns valid ID', () => {
-    expect(validateWorkflowId('el-abc123')).toBe('el-abc123');
+    expect(validateWorkflowId('el-abc123')).toBe('el-abc123' as WorkflowId);
   });
 
   test('throws ValidationError for invalid ID', () => {
@@ -201,7 +201,7 @@ describe('isValidPlaybookId', () => {
 
 describe('validatePlaybookId', () => {
   test('returns valid ID', () => {
-    expect(validatePlaybookId('el-playbook1')).toBe('el-playbook1');
+    expect(validatePlaybookId('el-playbook1')).toBe('el-playbook1' as PlaybookId);
   });
 
   test('throws ValidationError for invalid ID', () => {
@@ -578,7 +578,7 @@ describe('createWorkflow', () => {
     expect(workflow.status).toBe(WorkflowStatus.PENDING);
     expect(workflow.ephemeral).toBe(false);
     expect(workflow.variables).toEqual({});
-    expect(workflow.createdBy).toBe('el-user1');
+    expect(workflow.createdBy).toBe('el-user1' as EntityId);
     expect(workflow.tags).toEqual([]);
     expect(workflow.metadata).toEqual({});
     expect(workflow.id).toMatch(/^el-[a-z0-9]+$/);
@@ -602,8 +602,8 @@ describe('createWorkflow', () => {
     expect(workflow.title).toBe('Full Workflow');
     expect(workflow.status).toBe(WorkflowStatus.RUNNING);
     expect(workflow.ephemeral).toBe(true);
-    expect(workflow.playbookId).toBe('el-playbook1');
-    expect(workflow.descriptionRef).toBe('el-doc1');
+    expect(workflow.playbookId).toBe('el-playbook1' as PlaybookId);
+    expect(workflow.descriptionRef).toBe('el-doc1' as DocumentId);
     expect(workflow.variables).toEqual({ env: 'staging', version: 2 });
     expect(workflow.tags).toEqual(['urgent', 'deploy']);
     expect(workflow.metadata).toEqual({ source: 'api' });
@@ -995,9 +995,9 @@ describe('sortWorkflowsByCreatedAtDesc', () => {
 
   test('sorts by creation date (newest first)', () => {
     const sorted = sortWorkflowsByCreatedAtDesc(workflows);
-    expect(sorted[0].id).toBe('el-2');
-    expect(sorted[1].id).toBe('el-3');
-    expect(sorted[2].id).toBe('el-1');
+    expect(sorted[0].id).toBe('el-2' as WorkflowId);
+    expect(sorted[1].id).toBe('el-3' as WorkflowId);
+    expect(sorted[2].id).toBe('el-1' as WorkflowId);
   });
 });
 
@@ -1010,9 +1010,9 @@ describe('sortWorkflowsByCreatedAtAsc', () => {
 
   test('sorts by creation date (oldest first)', () => {
     const sorted = sortWorkflowsByCreatedAtAsc(workflows);
-    expect(sorted[0].id).toBe('el-1');
-    expect(sorted[1].id).toBe('el-3');
-    expect(sorted[2].id).toBe('el-2');
+    expect(sorted[0].id).toBe('el-1' as WorkflowId);
+    expect(sorted[1].id).toBe('el-3' as WorkflowId);
+    expect(sorted[2].id).toBe('el-2' as WorkflowId);
   });
 });
 
@@ -1025,9 +1025,9 @@ describe('sortByStartedAt', () => {
 
   test('sorts by start time (earliest first, unstarted last)', () => {
     const sorted = sortByStartedAt(workflows);
-    expect(sorted[0].id).toBe('el-3');
-    expect(sorted[1].id).toBe('el-1');
-    expect(sorted[2].id).toBe('el-2'); // Unstarted last
+    expect(sorted[0].id).toBe('el-3' as WorkflowId);
+    expect(sorted[1].id).toBe('el-1' as WorkflowId);
+    expect(sorted[2].id).toBe('el-2' as WorkflowId); // Unstarted last
   });
 });
 
@@ -1112,7 +1112,7 @@ describe('filterEligibleForGarbageCollection', () => {
   test('filters workflows eligible for GC', () => {
     const eligible = filterEligibleForGarbageCollection(workflows);
     expect(eligible).toHaveLength(2);
-    expect(eligible.map((w) => w.id)).toEqual(['el-1', 'el-4']);
+    expect(eligible.map((w) => w.id)).toEqual(['el-1' as WorkflowId, 'el-4' as WorkflowId]);
   });
 });
 
@@ -1146,7 +1146,7 @@ describe('filterGarbageCollectionByAge', () => {
     const maxAge = 1.5 * 60 * 60 * 1000; // 1.5 hours
     const filtered = filterGarbageCollectionByAge(workflows, maxAge);
     expect(filtered).toHaveLength(1);
-    expect(filtered[0].id).toBe('el-2');
+    expect(filtered[0].id).toBe('el-2' as WorkflowId);
   });
 
   test('filters by age (45 minutes threshold)', () => {
@@ -1224,7 +1224,7 @@ describe('Edge Cases', () => {
 
     const updated = updateWorkflowStatus(workflow, { status: WorkflowStatus.RUNNING });
 
-    expect(updated.playbookId).toBe('el-playbook1');
+    expect(updated.playbookId).toBe('el-playbook1' as PlaybookId);
     expect(updated.ephemeral).toBe(true);
     expect(updated.variables).toEqual({ key: 'value' });
     expect(updated.tags).toEqual(['tag1']);
