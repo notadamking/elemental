@@ -267,8 +267,8 @@ Event and mutation in same transaction:
 - [x] Implement event creation (createEvent in types/event.ts, recording in elemental-api.ts)
 - [x] Integrate with element mutations (create, update, delete all record events)
 - [x] Integrate with dependency operations (dependency_added/dependency_removed events recorded in elemental-api.ts addDependency/removeDependency)
-- [ ] Integrate with tag operations (tag changes tracked via element update events, not separate tag_added/removed events)
-- [ ] Integrate with membership operations (requires Channel/Team integration)
+- [x] Integrate with tag operations ✅ (tag changes tracked via element update events - old/new values include tags array, no separate tag_added/removed events needed)
+- [ ] Integrate with membership operations (requires Channel/Team integration - blocked on collection type implementation)
 
 ### Phase 4: Value Capture ✅
 - [x] Implement old value extraction (full element captured in update/delete events)

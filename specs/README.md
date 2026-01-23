@@ -221,7 +221,8 @@ Recommended implementation sequence:
 - [ ] **types/team.md Phase 2-6**: Team deletion, membership events, task integration (team as assignee, tasks-for-team, claim mechanism), metrics
 
 #### Events & Audit (Priority: Medium)
-- [ ] **systems/events.md Phase 3**: Tag operations integration, membership operations integration
+- [x] **systems/events.md Phase 3 (partial)**: Tag operations integration ✅ (tracked via update events)
+- [ ] **systems/events.md Phase 3**: Membership operations integration (blocked on collection types)
 - [ ] **systems/events.md Phase 6**: Reconstruction (point-in-time state, timeline generation, reconstruction API)
 - [ ] **systems/events.md Phase 7**: CLI integration (events in show command, history command, timeline formatting)
 - [ ] **systems/dependencies.md Phase 5**: Gate satisfaction events (API to mark gates as satisfied)
