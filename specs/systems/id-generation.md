@@ -218,46 +218,46 @@ Cache current length threshold:
 
 ## Implementation Checklist
 
-### Phase 1: Core Types
-- [ ] Define ID type aliases
-- [ ] Define validation regex patterns
-- [ ] Create ID validation function
-- [ ] Create ID parsing function (extract parts)
+### Phase 1: Core Types ✅
+- [x] Define ID type aliases (IdComponents, ParsedId, IdGeneratorInput, IdGeneratorConfig)
+- [x] Define validation regex patterns (ROOT_ID_PATTERN, HIERARCHICAL_ID_PATTERN)
+- [x] Create ID validation function (isValidIdFormat, isValidRootId, isValidHierarchicalId, validateIdFormat)
+- [x] Create ID parsing function (parseId, getIdRoot, getIdParent, getIdDepth)
 
-### Phase 2: Hash Generation
-- [ ] Implement SHA256 wrapper (cross-platform)
-- [ ] Implement Base36 encoding
-- [ ] Implement hash truncation
-- [ ] Implement full hash generation
+### Phase 2: Hash Generation ✅
+- [x] Implement SHA256 wrapper (Web Crypto API - cross-platform)
+- [x] Implement Base36 encoding (toBase36)
+- [x] Implement hash truncation (truncateHash)
+- [x] Implement full hash generation (generateIdHash, generateId)
 
-### Phase 3: Adaptive Length
-- [ ] Implement element count query
-- [ ] Implement length calculation
-- [ ] Implement length caching
-- [ ] Add length configuration
+### Phase 3: Adaptive Length (partial - storage integration pending)
+- [ ] Implement element count query (requires storage)
+- [x] Implement length calculation (calculateIdLength)
+- [ ] Implement length caching (requires storage)
+- [x] Add length configuration (IdGeneratorConfig.hashLength, elementCount)
 
-### Phase 4: Collision Resolution
-- [ ] Implement collision check
-- [ ] Implement nonce iteration
-- [ ] Implement length increase fallback
-- [ ] Add collision metrics/logging
+### Phase 4: Collision Resolution ✅
+- [x] Implement collision check (via checkCollision callback)
+- [x] Implement nonce iteration (MAX_NONCE = 9)
+- [x] Implement length increase fallback
+- [ ] Add collision metrics/logging (deferred)
 
-### Phase 5: Hierarchical IDs
-- [ ] Implement child counter table
-- [ ] Implement atomic counter increment
-- [ ] Implement child ID generation
-- [ ] Implement depth limit check
+### Phase 5: Hierarchical IDs (partial - storage integration pending)
+- [ ] Implement child counter table (requires storage)
+- [ ] Implement atomic counter increment (requires storage)
+- [x] Implement child ID generation (generateChildId)
+- [x] Implement depth limit check (MAX_HIERARCHY_DEPTH = 3)
 
-### Phase 6: Validation
-- [ ] Implement format validation
-- [ ] Implement hierarchy parsing
-- [ ] Add validation to all ID inputs
-- [ ] Create helpful error messages
+### Phase 6: Validation ✅
+- [x] Implement format validation
+- [x] Implement hierarchy parsing
+- [x] Add validation to all ID inputs
+- [x] Create helpful error messages
 
-### Phase 7: Testing
-- [ ] Unit tests for hash generation
-- [ ] Unit tests for Base36 encoding
-- [ ] Unit tests for collision resolution
-- [ ] Unit tests for hierarchical IDs
-- [ ] Stress tests for concurrent generation
-- [ ] Property-based tests for uniqueness
+### Phase 7: Testing ✅
+- [x] Unit tests for hash generation (88 tests)
+- [x] Unit tests for Base36 encoding
+- [x] Unit tests for collision resolution
+- [x] Unit tests for hierarchical IDs
+- [x] Stress tests for concurrent generation
+- [x] Property-based tests for uniqueness

@@ -7,3 +7,6 @@ export * from './errors/index.js';
 
 // Export types
 export * from './types/index.js';
+
+// Export ID generation
+export * from './id/index.js';
