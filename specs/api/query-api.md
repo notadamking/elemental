@@ -418,42 +418,42 @@ Optional caching for:
 - [x] Define type guards and validation helpers (isSortDirection, isConflictStrategy, isValidElementFilter, etc.)
 - [x] Unit tests for Phase 1 (110 tests in src/api/types.test.ts)
 
-### Phase 2: CRUD Operations
-- [ ] Implement get with hydration
-- [ ] Implement list with filtering
-- [ ] Implement create with validation
-- [ ] Implement update with restrictions
-- [ ] Implement delete (soft)
+### Phase 2: CRUD Operations ✅
+- [x] Implement get with hydration (src/api/elemental-api.ts)
+- [x] Implement list with filtering (src/api/elemental-api.ts)
+- [x] Implement create with validation (src/api/elemental-api.ts)
+- [x] Implement update with restrictions (src/api/elemental-api.ts)
+- [x] Implement delete (soft) (src/api/elemental-api.ts)
 
-### Phase 3: Task Operations
-- [ ] Implement ready query
-- [ ] Implement blocked query
-- [ ] Integrate with blocked cache
+### Phase 3: Task Operations ✅
+- [x] Implement ready query (src/api/elemental-api.ts)
+- [x] Implement blocked query (src/api/elemental-api.ts)
+- [x] Integrate with blocked cache (src/api/elemental-api.ts)
 
-### Phase 4: Dependency Operations
-- [ ] Implement addDependency
-- [ ] Implement removeDependency
-- [ ] Implement getDependencies
-- [ ] Implement getDependents
-- [ ] Implement getDependencyTree
+### Phase 4: Dependency Operations ✅
+- [x] Implement addDependency (src/api/elemental-api.ts)
+- [x] Implement removeDependency (src/api/elemental-api.ts)
+- [x] Implement getDependencies (src/api/elemental-api.ts)
+- [x] Implement getDependents (src/api/elemental-api.ts)
+- [x] Implement getDependencyTree (src/api/elemental-api.ts)
 
-### Phase 5: Search and Hydration
-- [ ] Implement search
-- [ ] Implement hydration
+### Phase 5: Search and Hydration ✅
+- [x] Implement search (src/api/elemental-api.ts)
+- [x] Implement hydration (src/api/elemental-api.ts)
 - [ ] Optimize batch fetching
 
-### Phase 6: History Operations
-- [ ] Implement getEvents
-- [ ] Implement getDocumentVersion
-- [ ] Implement getDocumentHistory
+### Phase 6: History Operations ✅
+- [x] Implement getEvents (src/api/elemental-api.ts)
+- [x] Implement getDocumentVersion (src/api/elemental-api.ts)
+- [x] Implement getDocumentHistory (src/api/elemental-api.ts)
 
-### Phase 7: Sync and Stats
-- [ ] Implement export
-- [ ] Implement import
-- [ ] Implement stats
+### Phase 7: Sync and Stats (partial)
+- [x] Implement export (basic JSONL, src/api/elemental-api.ts)
+- [ ] Implement import (placeholder only)
+- [x] Implement stats (src/api/elemental-api.ts)
 
-### Phase 8: Testing
+### Phase 8: Testing ✅
 - [x] Unit tests for interface definitions (110 tests)
-- [ ] Unit tests for each operation
-- [ ] Integration tests for workflows
+- [x] Unit tests for each operation (54 tests in src/api/elemental-api.test.ts)
+- [x] Integration tests for workflows (included in elemental-api.test.ts)
 - [ ] Performance tests for queries

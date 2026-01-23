@@ -160,7 +160,7 @@ Recommended implementation sequence:
 - [x] types/team.md ✅ (Phase 1-4: Team interface, HydratedTeam, TeamId branded type, type guards, validators, createTeam/updateTeam factories, membership operations (addMember, removeMember, isMember), utility functions (filters, sorts, grouping, search, uniqueness, team comparison), unit tests - 141 tests)
 
 #### Phase 6: Interfaces
-- [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests)
+- [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests; Phase 2-7: Full CRUD operations implementation - get/list/create/update/delete, task queries (ready/blocked), dependency operations, search/hydration, history operations, stats, basic export - 54 integration tests)
 - [x] api/configuration.md ✅ (Phase 1-5,7-8: Configuration interface, SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection, defaults, YAML file loading/parsing, environment variable support, access API (getConfig, getValue, setValue, unsetValue), validation with helpful errors, unit tests - 115 tests)
 - [x] api/sync.md ✅ (Phase 1: JSONL serialization/parsing; Phase 4: Merge strategy with LWW, tombstones, status, tags, dependencies; Phase 6: Content hashing with SHA256; Phase 9: Unit tests - 87 tests)
 - [x] api/cli.md ✅ (Phase 1: Framework setup - native arg parsing, output formatting (human/JSON/quiet modes), global flags; Phase 2 partial: init command; Phase 7 partial: config command (show/set/unset); Phase 8 partial: help text; Unit tests - 155 tests)
