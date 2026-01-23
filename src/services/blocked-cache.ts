@@ -324,6 +324,17 @@ export class BlockedCacheService {
   }
 
   /**
+   * Check if element is a plan
+   */
+  isPlan(elementId: ElementId): boolean {
+    const row = this.db.queryOne<ElementRow>(
+      'SELECT type FROM elements WHERE id = ?',
+      [elementId]
+    );
+    return row?.type === 'plan';
+  }
+
+  /**
    * Check if an awaits gate is satisfied
    *
    * @param metadata - The awaits dependency metadata
@@ -405,8 +416,10 @@ export class BlockedCacheService {
               reason: `Blocked by parent ${targetId} (parent is blocked)`,
             };
           }
-          // Also check if parent itself is not completed (hierarchy blocking)
-          if (!this.isTargetCompleted(targetId)) {
+          // For task-task hierarchy: child is blocked until parent completes
+          // For task-plan hierarchy: tasks in a plan are NOT blocked by the plan's status
+          // Plans are collections, not blocking parents
+          if (!this.isPlan(targetId) && !this.isTargetCompleted(targetId)) {
             return {
               elementId,
               blockedBy: targetId,

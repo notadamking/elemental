@@ -7,7 +7,7 @@
  */
 
 import type { Element, ElementId, ElementType, EntityId, Timestamp } from '../types/element.js';
-import type { Task, TaskStatus, Priority, Complexity, TaskTypeValue } from '../types/task.js';
+import type { Task, TaskStatus, Priority, Complexity, TaskTypeValue, CreateTaskInput } from '../types/task.js';
 import type { Document, DocumentId } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter } from '../types/event.js';
@@ -235,6 +235,26 @@ export interface UpdateOptions extends OperationOptions {
 export interface DeleteOptions extends OperationOptions {
   /** Reason for deletion (stored in audit trail) */
   reason?: string;
+}
+
+// ============================================================================
+// Plan Task Association Types
+// ============================================================================
+
+/**
+ * Options for adding a task to a plan
+ */
+export interface AddTaskToPlanOptions extends OperationOptions {
+  /** Use hierarchical ID (el-planid.n) - only valid for newly created tasks */
+  useHierarchicalId?: boolean;
+}
+
+/**
+ * Options for creating a task within a plan
+ */
+export interface CreateTaskInPlanOptions extends OperationOptions {
+  /** Use hierarchical ID (el-planid.n) - default true */
+  useHierarchicalId?: boolean;
 }
 
 // ============================================================================
@@ -489,6 +509,74 @@ export interface ElementalAPI {
    * @returns The entity if found, null otherwise
    */
   lookupEntityByName(name: string): Promise<Element | null>;
+
+  // --------------------------------------------------------------------------
+  // Task Operations
+  // --------------------------------------------------------------------------
+
+  // --------------------------------------------------------------------------
+  // Plan Operations
+  // --------------------------------------------------------------------------
+
+  /**
+   * Add an existing task to a plan.
+   * Creates a parent-child dependency from the task to the plan.
+   *
+   * @param taskId - The task to add
+   * @param planId - The plan to add the task to
+   * @param options - Operation options
+   * @returns The created dependency
+   * @throws NotFoundError if task or plan doesn't exist
+   * @throws ConstraintError if task is already in a plan
+   */
+  addTaskToPlan(
+    taskId: ElementId,
+    planId: ElementId,
+    options?: AddTaskToPlanOptions
+  ): Promise<Dependency>;
+
+  /**
+   * Remove a task from a plan.
+   * Removes the parent-child dependency.
+   *
+   * @param taskId - The task to remove
+   * @param planId - The plan to remove the task from
+   * @param actor - Optional actor for audit trail
+   * @throws NotFoundError if task-plan relationship doesn't exist
+   */
+  removeTaskFromPlan(
+    taskId: ElementId,
+    planId: ElementId,
+    actor?: EntityId
+  ): Promise<void>;
+
+  /**
+   * Get all tasks in a plan.
+   * Returns tasks with parent-child dependency to the plan.
+   *
+   * @param planId - The plan ID
+   * @param filter - Optional task filter constraints
+   * @returns Array of tasks in the plan
+   * @throws NotFoundError if plan doesn't exist
+   */
+  getTasksInPlan(planId: ElementId, filter?: TaskFilter): Promise<Task[]>;
+
+  /**
+   * Create a new task directly in a plan.
+   * Automatically creates the task with a hierarchical ID and parent-child dependency.
+   *
+   * @param planId - The plan to create the task in
+   * @param taskInput - Task creation input (without ID - it will be generated)
+   * @param options - Operation options
+   * @returns The created task with hierarchical ID
+   * @throws NotFoundError if plan doesn't exist
+   * @throws ConstraintError if plan is not in draft or active status
+   */
+  createTaskInPlan<T extends Task = Task>(
+    planId: ElementId,
+    taskInput: Omit<CreateTaskInput, 'id'>,
+    options?: CreateTaskInPlanOptions
+  ): Promise<T>;
 
   // --------------------------------------------------------------------------
   // Task Operations

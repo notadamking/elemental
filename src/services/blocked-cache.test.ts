@@ -437,19 +437,34 @@ describe('BlockedCacheService', () => {
         expect(result?.reason).toContain('parent is blocked');
       });
 
-      test('returns blocked when parent is not completed', () => {
+      test('returns blocked when parent task is not completed', () => {
+        // Parent-child between tasks: child blocked until parent completes
+        const parentTask = 'el-parent-task' as ElementId;
+        createTestElement(parentTask, 'task', 'open');
         createTestElement(task1, 'task', 'open');
-        createTestElement(plan1, 'plan', 'active');
-        createTestDependency(task1, plan1, DependencyType.PARENT_CHILD);
+        createTestDependency(task1, parentTask, DependencyType.PARENT_CHILD);
 
         const result = service.computeBlockingState(task1);
         expect(result).not.toBeNull();
         expect(result?.reason).toContain('parent not completed');
       });
 
-      test('returns null when parent is completed', () => {
+      test('returns null when parent task is completed', () => {
+        // Parent-child between tasks: child unblocked when parent completes
+        const parentTask = 'el-parent-task' as ElementId;
+        createTestElement(parentTask, 'task', 'closed');
         createTestElement(task1, 'task', 'open');
-        createTestElement(plan1, 'plan', 'completed');
+        createTestDependency(task1, parentTask, DependencyType.PARENT_CHILD);
+
+        const result = service.computeBlockingState(task1);
+        expect(result).toBeNull();
+      });
+
+      test('returns null when parent is a plan (plans are collections, not blockers)', () => {
+        // Parent-child between task and plan: task NOT blocked by plan status
+        // Plans are collections of tasks, not blocking parents
+        createTestElement(task1, 'task', 'open');
+        createTestElement(plan1, 'plan', 'active');
         createTestDependency(task1, plan1, DependencyType.PARENT_CHILD);
 
         const result = service.computeBlockingState(task1);

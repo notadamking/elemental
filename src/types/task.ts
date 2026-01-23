@@ -9,6 +9,7 @@ import { ValidationError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
 import {
   Element,
+  ElementId,
   EntityId,
   ElementType,
   Timestamp,
@@ -600,6 +601,8 @@ export interface CreateTaskInput {
   title: string;
   /** Reference to the entity that created this task */
   createdBy: EntityId;
+  /** Optional: Pre-generated ID (e.g., hierarchical ID) */
+  id?: ElementId;
   /** Optional: Reference to description Document */
   descriptionRef?: DocumentId;
   /** Optional: Reference to technical design Document */
@@ -668,8 +671,8 @@ export async function createTask(
 
   const now = createTimestamp();
 
-  // Generate ID using title
-  const id = await generateId({ identifier: title, createdBy: input.createdBy }, config);
+  // Use provided ID or generate one using title
+  const id = input.id ?? await generateId({ identifier: title, createdBy: input.createdBy }, config);
 
   const task: Task = {
     id,

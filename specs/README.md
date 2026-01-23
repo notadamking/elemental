@@ -213,7 +213,8 @@ Recommended implementation sequence:
 
 #### Collection Type Integration (Priority: Medium)
 - [x] **types/plan.md Phase 2** (partial): Status change events ✅ (closed/reopened events for completed/cancelled transitions - 12 tests)
-- [ ] **types/plan.md Phase 3-4**: task-to-plan linking, hierarchical ID generation, progress calculation
+- [x] **types/plan.md Phase 3**: Task-to-plan linking ✅ (addTaskToPlan, removeTaskFromPlan, getTasksInPlan, createTaskInPlan API methods, hierarchical ID generation - 31 integration tests)
+- [ ] **types/plan.md Phase 4**: Progress calculation (completion percentage, weighted progress)
 - [ ] **types/plan.md Phase 5**: Bulk operations (close, defer, reassign, tag)
 - [ ] **types/plan.md Phase 6**: Plan listing, tasks-in-plan query, progress in results
 - [ ] **types/workflow.md Phase 2-3**: Auto-completion/failure detection, pouring (playbook loading, variable resolution, condition evaluation, task creation, dependency wiring)

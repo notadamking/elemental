@@ -83,6 +83,10 @@ export const ConstraintErrorCode = {
   MAX_DEPTH_EXCEEDED: 'MAX_DEPTH_EXCEEDED',
   /** Must be channel member */
   MEMBER_REQUIRED: 'MEMBER_REQUIRED',
+  /** Element type mismatch */
+  TYPE_MISMATCH: 'TYPE_MISMATCH',
+  /** Task is already in a plan */
+  ALREADY_IN_PLAN: 'ALREADY_IN_PLAN',
 } as const;
 
 export type ConstraintErrorCode = typeof ConstraintErrorCode[keyof typeof ConstraintErrorCode];
@@ -178,6 +182,8 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.INVALID_PARENT]: 400,
   [ErrorCode.MAX_DEPTH_EXCEEDED]: 400,
   [ErrorCode.MEMBER_REQUIRED]: 403,
+  [ErrorCode.TYPE_MISMATCH]: 400,
+  [ErrorCode.ALREADY_IN_PLAN]: 409,
 
   // Storage errors -> 500/503
   [ErrorCode.DATABASE_ERROR]: 500,

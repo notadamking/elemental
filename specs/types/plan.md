@@ -211,10 +211,10 @@ When creating task under plan:
 - [x] Implement auto-completion detection (canAutoComplete)
 - [x] Create status change event emission ✅ (emits 'closed' event when status changes to completed/cancelled, 'reopened' event when status changes from completed/cancelled - 12 tests)
 
-### Phase 3: Task Association
-- [ ] Implement task-to-plan linking
-- [ ] Implement hierarchical ID generation
-- [ ] Add task removal from plan
+### Phase 3: Task Association ✅
+- [x] Implement task-to-plan linking (`addTaskToPlan`, `removeTaskFromPlan`, `getTasksInPlan` API methods)
+- [x] Implement hierarchical ID generation (`createTaskInPlan` generates IDs like `el-planid.1`)
+- [x] Add task removal from plan (31 integration tests)
 
 ### Phase 4: Progress Tracking
 - [ ] Implement progress calculation

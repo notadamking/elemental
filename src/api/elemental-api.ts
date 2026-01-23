@@ -16,7 +16,7 @@ import { createTimestamp } from '../types/element.js';
 import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
 import { isPlan, PlanStatus as PlanStatusEnum } from '../types/plan.js';
 import { createEvent, LifecycleEventType } from '../types/event.js';
-import { NotFoundError, ConflictError, ConstraintError } from '../errors/error.js';
+import { NotFoundError, ConflictError, ConstraintError, ValidationError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { SyncService } from '../sync/service.js';
@@ -39,8 +39,14 @@ import type {
   ElementCountByType,
   UpdateOptions,
   DeleteOptions,
+  AddTaskToPlanOptions,
+  CreateTaskInPlanOptions,
 } from './types.js';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type ApprovalResult } from './types.js';
+import type { Plan } from '../types/plan.js';
+import { generateChildId } from '../id/generator.js';
+import type { CreateTaskInput } from '../types/task.js';
+import { createTask } from '../types/task.js';
 
 // ============================================================================
 // Database Row Types
@@ -860,6 +866,227 @@ export class ElementalAPIImpl implements ElementalAPI {
     const tags = tagRows.map((r) => r.tag);
 
     return deserializeElement<Element>(row, tags);
+  }
+
+  // --------------------------------------------------------------------------
+  // Plan Operations
+  // --------------------------------------------------------------------------
+
+  async addTaskToPlan(
+    taskId: ElementId,
+    planId: ElementId,
+    options?: AddTaskToPlanOptions
+  ): Promise<Dependency> {
+    // Verify task exists and is a task
+    const task = await this.get<Task>(taskId);
+    if (!task) {
+      throw new NotFoundError(
+        `Task not found: ${taskId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: taskId }
+      );
+    }
+    if (task.type !== 'task') {
+      throw new ConstraintError(
+        `Element is not a task: ${taskId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: taskId, actualType: task.type, expectedType: 'task' }
+      );
+    }
+
+    // Verify plan exists and is a plan
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Check if task is already in any plan
+    const existingParentDeps = await this.getDependencies(taskId, ['parent-child']);
+    if (existingParentDeps.length > 0) {
+      const existingPlanId = existingParentDeps[0].targetId;
+      throw new ConstraintError(
+        `Task is already in plan: ${existingPlanId}`,
+        ErrorCode.ALREADY_IN_PLAN,
+        { taskId, existingPlanId }
+      );
+    }
+
+    // Resolve actor
+    const actor = options?.actor ?? task.createdBy;
+
+    // Create parent-child dependency from task to plan
+    const dependency = await this.addDependency({
+      sourceId: taskId,
+      targetId: planId,
+      type: 'parent-child',
+      actor,
+    });
+
+    return dependency;
+  }
+
+  async removeTaskFromPlan(
+    taskId: ElementId,
+    planId: ElementId,
+    actor?: EntityId
+  ): Promise<void> {
+    // Check if the task-plan relationship exists
+    const existingDeps = await this.getDependencies(taskId, ['parent-child']);
+    const hasRelation = existingDeps.some((d) => d.targetId === planId);
+
+    if (!hasRelation) {
+      throw new NotFoundError(
+        `Task ${taskId} is not in plan ${planId}`,
+        ErrorCode.DEPENDENCY_NOT_FOUND,
+        { taskId, planId }
+      );
+    }
+
+    // Remove the parent-child dependency
+    await this.removeDependency(taskId, planId, 'parent-child', actor);
+  }
+
+  async getTasksInPlan(planId: ElementId, filter?: TaskFilter): Promise<Task[]> {
+    // Verify plan exists
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Get all elements that have parent-child dependency to this plan
+    const dependents = await this.getDependents(planId, ['parent-child']);
+
+    // If no dependents, return empty array
+    if (dependents.length === 0) {
+      return [];
+    }
+
+    // Fetch tasks by their IDs
+    const taskIds = dependents.map((d) => d.sourceId);
+    const tasks: Task[] = [];
+
+    for (const taskId of taskIds) {
+      const task = await this.get<Task>(taskId);
+      if (task && task.type === 'task') {
+        tasks.push(task);
+      }
+    }
+
+    // Apply filters if provided
+    let filteredTasks = tasks;
+
+    if (filter?.status) {
+      const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+      filteredTasks = filteredTasks.filter((t) => statuses.includes(t.status));
+    }
+
+    if (filter?.priority) {
+      const priorities = Array.isArray(filter.priority) ? filter.priority : [filter.priority];
+      filteredTasks = filteredTasks.filter((t) => priorities.includes(t.priority));
+    }
+
+    if (filter?.assignee) {
+      filteredTasks = filteredTasks.filter((t) => t.assignee === filter.assignee);
+    }
+
+    if (filter?.owner) {
+      filteredTasks = filteredTasks.filter((t) => t.owner === filter.owner);
+    }
+
+    if (filter?.tags && filter.tags.length > 0) {
+      filteredTasks = filteredTasks.filter((t) =>
+        filter.tags!.every((tag) => t.tags.includes(tag))
+      );
+    }
+
+    if (filter?.includeDeleted !== true) {
+      filteredTasks = filteredTasks.filter((t) => t.status !== 'tombstone');
+    }
+
+    return filteredTasks;
+  }
+
+  async createTaskInPlan<T extends Task = Task>(
+    planId: ElementId,
+    taskInput: Omit<CreateTaskInput, 'id'>,
+    options?: CreateTaskInPlanOptions
+  ): Promise<T> {
+    // Verify plan exists
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Check plan is in valid status for adding tasks
+    if (plan.status !== PlanStatusEnum.DRAFT && plan.status !== PlanStatusEnum.ACTIVE) {
+      throw new ValidationError(
+        `Cannot add tasks to plan in status: ${plan.status}`,
+        ErrorCode.INVALID_STATUS,
+        { planId, status: plan.status, allowedStatuses: ['draft', 'active'] }
+      );
+    }
+
+    // Generate hierarchical ID if requested (default: true)
+    const useHierarchical = options?.useHierarchicalId !== false;
+    let taskId: ElementId | undefined;
+
+    if (useHierarchical) {
+      // Get next child number atomically
+      const childNumber = this.backend.getNextChildNumber(planId);
+      taskId = generateChildId(planId, childNumber);
+    }
+
+    // Create a properly-formed task using the createTask factory
+    const taskElement = await createTask({
+      ...taskInput,
+      id: taskId,
+    });
+
+    const task = await this.create<T>(taskElement as unknown as Record<string, unknown> & { type: ElementType; createdBy: EntityId });
+
+    // Create parent-child dependency
+    const actor = options?.actor ?? taskInput.createdBy;
+    await this.addDependency({
+      sourceId: task.id,
+      targetId: planId,
+      type: 'parent-child',
+      actor,
+    });
+
+    return task;
   }
 
   // --------------------------------------------------------------------------
