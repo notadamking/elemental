@@ -89,6 +89,8 @@ export type ConstraintErrorCode = typeof ConstraintErrorCode[keyof typeof Constr
 export const StorageErrorCode = {
   /** SQLite error */
   DATABASE_ERROR: 'DATABASE_ERROR',
+  /** Database is busy/locked */
+  DATABASE_BUSY: 'DATABASE_BUSY',
   /** JSONL export failed */
   EXPORT_FAILED: 'EXPORT_FAILED',
   /** JSONL import failed */
@@ -148,8 +150,9 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.MAX_DEPTH_EXCEEDED]: 400,
   [ErrorCode.MEMBER_REQUIRED]: 403,
 
-  // Storage errors -> 500
+  // Storage errors -> 500/503
   [ErrorCode.DATABASE_ERROR]: 500,
+  [ErrorCode.DATABASE_BUSY]: 503,
   [ErrorCode.EXPORT_FAILED]: 500,
   [ErrorCode.IMPORT_FAILED]: 500,
   [ErrorCode.MIGRATION_FAILED]: 500,

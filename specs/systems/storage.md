@@ -302,11 +302,11 @@ Convert SQLite errors to Elemental errors:
 
 ## Implementation Checklist
 
-### Phase 1: Interface Definition
-- [ ] Define StorageBackend interface
-- [ ] Define transaction interface
-- [ ] Define query result types
-- [ ] Create error type mapping
+### Phase 1: Interface Definition ✅
+- [x] Define StorageBackend interface (src/storage/backend.ts)
+- [x] Define transaction interface (src/storage/types.ts)
+- [x] Define query result types (src/storage/types.ts)
+- [x] Create error type mapping (src/storage/errors.ts, DATABASE_BUSY code added)
 
 ### Phase 2: Bun Backend
 - [ ] Implement Bun SQLite adapter
