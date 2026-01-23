@@ -56,8 +56,13 @@ import {
   isActorContext,
   createSystemActorContext,
   createActorContext,
+  createVerificationMiddleware,
+  createSoftModeContext,
+  createVerifiedContext,
   type ActorContext,
   type ActorResolutionOptions,
+  type MiddlewareContext,
+  type SignableRequest,
 } from './identity.js';
 import { ValidationError, IdentityError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
@@ -1390,5 +1395,224 @@ describe('Phase 2: Soft Identity Integration', () => {
     });
     expect(charlieResult.valid).toBe(false);
     expect(charlieResult.entityExists).toBe(false);
+  });
+});
+
+// ============================================================================
+// Verification Middleware Tests
+// ============================================================================
+
+describe('createVerificationMiddleware', () => {
+  // Helper to create a lookup function for tests
+  const createLookup = (entities: Record<string, { publicKey?: string }>) => {
+    return async (actor: string) => entities[actor] ?? null;
+  };
+
+  describe('soft mode', () => {
+    test('allows requests without signature', async () => {
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({}),
+        config: { mode: IdentityMode.SOFT },
+      });
+
+      const result = await middleware({});
+
+      expect(result.allowed).toBe(true);
+      expect(result.context.verified).toBe(false);
+      expect(result.context.mode).toBe(IdentityMode.SOFT);
+    });
+
+    test('extracts actor from signed request', async () => {
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({}),
+        config: { mode: IdentityMode.SOFT },
+      });
+
+      const result = await middleware({
+        signedRequest: {
+          actor: 'alice',
+          signature: VALID_SIGNATURE,
+          signedAt: VALID_TIMESTAMP,
+        },
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(result.context.actor).toBe('alice');
+      expect(result.context.verified).toBe(false);
+    });
+  });
+
+  describe('cryptographic mode', () => {
+    test('rejects requests without signature', async () => {
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({}),
+        config: { mode: IdentityMode.CRYPTOGRAPHIC },
+      });
+
+      const result = await middleware({});
+
+      expect(result.allowed).toBe(false);
+      expect(result.error).toContain('Signature required');
+      expect(result.context.mode).toBe(IdentityMode.CRYPTOGRAPHIC);
+    });
+
+    test('rejects requests with invalid signature', async () => {
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({
+          alice: { publicKey: testKeypair.publicKey },
+        }),
+        config: { mode: IdentityMode.CRYPTOGRAPHIC },
+      });
+
+      const result = await middleware({
+        signedRequest: {
+          actor: 'alice',
+          signature: VALID_SIGNATURE, // Wrong signature
+          signedAt: new Date().toISOString() as Timestamp,
+        },
+        body: 'test body',
+      });
+
+      expect(result.allowed).toBe(false);
+      expect(result.context.verified).toBe(false);
+    });
+
+    test('allows requests with valid signature', async () => {
+      const now = new Date();
+      const timestamp = now.toISOString() as Timestamp;
+      const body = { action: 'test' };
+      const requestHash = await hashRequestBody(body);
+
+      const signedData = constructSignedData({
+        actor: 'alice',
+        signedAt: timestamp,
+        requestHash,
+      });
+
+      const signature = await signEd25519(testKeypair.privateKey, signedData);
+
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({
+          alice: { publicKey: testKeypair.publicKey },
+        }),
+        config: { mode: IdentityMode.CRYPTOGRAPHIC },
+        now,
+      });
+
+      const result = await middleware({
+        signedRequest: {
+          actor: 'alice',
+          signature,
+          signedAt: timestamp,
+        },
+        body,
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(result.context.verified).toBe(true);
+      expect(result.context.actor).toBe('alice');
+    });
+  });
+
+  describe('hybrid mode', () => {
+    test('allows requests without signature', async () => {
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({}),
+        config: { mode: IdentityMode.HYBRID },
+      });
+
+      const result = await middleware({});
+
+      expect(result.allowed).toBe(true);
+      expect(result.context.verified).toBe(false);
+      expect(result.context.mode).toBe(IdentityMode.HYBRID);
+    });
+
+    test('allows requests with valid signature', async () => {
+      const now = new Date();
+      const timestamp = now.toISOString() as Timestamp;
+      const body = { action: 'test' };
+      const requestHash = await hashRequestBody(body);
+
+      const signedData = constructSignedData({
+        actor: 'alice',
+        signedAt: timestamp,
+        requestHash,
+      });
+
+      const signature = await signEd25519(testKeypair.privateKey, signedData);
+
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({
+          alice: { publicKey: testKeypair.publicKey },
+        }),
+        config: { mode: IdentityMode.HYBRID },
+        now,
+      });
+
+      const result = await middleware({
+        signedRequest: {
+          actor: 'alice',
+          signature,
+          signedAt: timestamp,
+        },
+        body,
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(result.context.verified).toBe(true);
+      expect(result.context.actor).toBe('alice');
+    });
+
+    test('rejects requests with invalid signature', async () => {
+      const middleware = createVerificationMiddleware({
+        lookupEntity: createLookup({
+          alice: { publicKey: testKeypair.publicKey },
+        }),
+        config: { mode: IdentityMode.HYBRID },
+      });
+
+      const result = await middleware({
+        signedRequest: {
+          actor: 'alice',
+          signature: VALID_SIGNATURE, // Wrong signature
+          signedAt: new Date().toISOString() as Timestamp,
+        },
+        body: 'test',
+      });
+
+      expect(result.allowed).toBe(false);
+      expect(result.context.verified).toBe(false);
+    });
+  });
+});
+
+describe('createSoftModeContext', () => {
+  test('creates context without actor', () => {
+    const context = createSoftModeContext();
+
+    expect(context.verified).toBe(false);
+    expect(context.mode).toBe(IdentityMode.SOFT);
+    expect(context.actor).toBeUndefined();
+  });
+
+  test('creates context with actor', () => {
+    const context = createSoftModeContext('alice');
+
+    expect(context.verified).toBe(false);
+    expect(context.mode).toBe(IdentityMode.SOFT);
+    expect(context.actor).toBe('alice');
+  });
+});
+
+describe('createVerifiedContext', () => {
+  test('creates verified context', () => {
+    const verificationResult = verificationSuccess('alice', 1000);
+    const context = createVerifiedContext('alice', verificationResult);
+
+    expect(context.verified).toBe(true);
+    expect(context.mode).toBe(IdentityMode.CRYPTOGRAPHIC);
+    expect(context.actor).toBe('alice');
+    expect(context.verificationResult).toBe(verificationResult);
   });
 });

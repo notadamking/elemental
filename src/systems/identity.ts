@@ -1152,3 +1152,191 @@ export function createActorContext(
     verified: false,
   };
 }
+
+// ============================================================================
+// Verification Middleware (Phase 4)
+// ============================================================================
+
+/**
+ * Middleware context for request verification
+ */
+export interface MiddlewareContext {
+  /** The actor making the request (if authenticated) */
+  actor?: string;
+  /** Whether the request was verified cryptographically */
+  verified: boolean;
+  /** The verification result (if verification was attempted) */
+  verificationResult?: VerificationResult;
+  /** The identity mode used */
+  mode: IdentityMode;
+}
+
+/**
+ * Request object that may contain signed fields
+ */
+export interface SignableRequest {
+  /** Optional signed request fields for cryptographic verification */
+  signedRequest?: SignedRequestFields;
+  /** The request body (used to compute hash for verification) */
+  body?: string | object;
+}
+
+/**
+ * Middleware result
+ */
+export interface MiddlewareResult {
+  /** Whether the request is allowed to proceed */
+  allowed: boolean;
+  /** The middleware context with authentication info */
+  context: MiddlewareContext;
+  /** Error message if not allowed */
+  error?: string;
+}
+
+/**
+ * Options for verification middleware
+ */
+export interface VerificationMiddlewareOptions {
+  /** Identity configuration */
+  config?: Partial<IdentityConfig>;
+  /** Function to look up entity by actor name */
+  lookupEntity: EntityLookup;
+  /** Current time (for testing) */
+  now?: Date;
+}
+
+/**
+ * Creates a verification middleware function
+ *
+ * The middleware:
+ * 1. Checks identity mode from config
+ * 2. In soft mode: allows all requests, extracts actor if provided
+ * 3. In cryptographic mode: requires valid signature
+ * 4. In hybrid mode: allows unsigned or validly signed requests
+ *
+ * @param options - Middleware options
+ * @returns A middleware function that verifies requests
+ *
+ * @example
+ * ```typescript
+ * const middleware = createVerificationMiddleware({
+ *   lookupEntity: (actor) => api.lookupEntityByName(actor),
+ *   config: { mode: IdentityMode.CRYPTOGRAPHIC }
+ * });
+ *
+ * const result = await middleware(request);
+ * if (!result.allowed) {
+ *   throw new Error(result.error);
+ * }
+ * // Use result.context.actor for the verified actor
+ * ```
+ */
+export function createVerificationMiddleware(
+  options: VerificationMiddlewareOptions
+): (request: SignableRequest) => Promise<MiddlewareResult> {
+  const config = createIdentityConfig(options.config);
+
+  return async (request: SignableRequest): Promise<MiddlewareResult> => {
+    const { signedRequest, body } = request;
+    const mode = config.mode;
+
+    // Case 1: Soft mode - always allow, extract actor if provided
+    if (mode === IdentityMode.SOFT) {
+      return {
+        allowed: true,
+        context: {
+          actor: signedRequest?.actor,
+          verified: false,
+          mode,
+        },
+      };
+    }
+
+    // Case 2: No signed request provided
+    if (!signedRequest) {
+      if (mode === IdentityMode.CRYPTOGRAPHIC) {
+        return {
+          allowed: false,
+          context: {
+            verified: false,
+            mode,
+          },
+          error: 'Signature required in cryptographic mode',
+        };
+      }
+
+      // Hybrid mode: allow unsigned requests
+      return {
+        allowed: true,
+        context: {
+          verified: false,
+          mode,
+        },
+      };
+    }
+
+    // Case 3: Signed request provided - verify it
+    // Compute request hash
+    let requestHash: string;
+    try {
+      requestHash = await hashRequestBody(body ?? '');
+    } catch {
+      return {
+        allowed: false,
+        context: {
+          verified: false,
+          mode,
+        },
+        error: 'Failed to compute request hash',
+      };
+    }
+
+    // Perform verification
+    const verificationResult = await verifySignature({
+      signedRequest,
+      requestHash,
+      lookupEntity: options.lookupEntity,
+      config,
+      now: options.now,
+    });
+
+    // Check if request should be allowed
+    const allowed = shouldAllowRequest(mode, verificationResult);
+
+    return {
+      allowed,
+      context: {
+        actor: verificationResult.status === VerificationStatus.VALID
+          ? verificationResult.actor
+          : signedRequest.actor,
+        verified: verificationResult.status === VerificationStatus.VALID,
+        verificationResult,
+        mode,
+      },
+      error: allowed ? undefined : verificationResult.error ?? 'Verification failed',
+    };
+  };
+}
+
+/**
+ * Creates middleware context for an unsigned request in soft mode
+ */
+export function createSoftModeContext(actor?: string): MiddlewareContext {
+  return {
+    actor,
+    verified: false,
+    mode: IdentityMode.SOFT,
+  };
+}
+
+/**
+ * Creates middleware context for a verified request
+ */
+export function createVerifiedContext(actor: string, verificationResult: VerificationResult): MiddlewareContext {
+  return {
+    actor,
+    verified: true,
+    verificationResult,
+    mode: IdentityMode.CRYPTOGRAPHIC,
+  };
+}

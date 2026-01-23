@@ -190,7 +190,7 @@ Recommended implementation sequence:
 
 #### Identity & Security (Priority: High)
 - [x] **systems/identity.md Phase 2**: Soft identity (actor context management, name-based lookup, add actor to all operations) ✅ (ActorContext, resolveActor, validateSoftActor, lookupEntityByName, actor param)
-- [ ] **systems/identity.md Phase 4**: Verification middleware integration
+- [x] **systems/identity.md Phase 4**: Verification middleware integration ✅ (createVerificationMiddleware - 11 tests)
 - [ ] **systems/identity.md Phase 5**: Key management (registration, update, revocation)
 - [x] **systems/identity.md Phase 7**: CLI support ✅ (--actor global flag, identity mode config via el identity mode, whoami command showing actor/source/mode/verification - 39 tests)
 
