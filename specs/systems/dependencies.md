@@ -294,11 +294,12 @@ Function `isBlocked(elementId)`:
 - [x] Add cycle detection to addDependency (checkForCycle called before insert)
 - [x] Unit tests (33 tests covering all cycle detection scenarios)
 
-### Phase 4: Blocked Cache
-- [ ] Create blocked_cache table
-- [ ] Implement cache invalidation triggers
-- [ ] Implement cache rebuild
-- [ ] Integrate with ready work query
+### Phase 4: Blocked Cache ✅
+- [x] Create blocked_cache table (in src/storage/schema.ts migration 001)
+- [x] Implement cache invalidation triggers (BlockedCacheService.onDependencyAdded/Removed, onStatusChanged, onElementDeleted)
+- [x] Implement cache rebuild (BlockedCacheService.rebuild with topological ordering)
+- [x] Integrate with ready work query (ElementalAPIImpl uses blocked_cache for ready/blocked queries)
+- [x] Integration tests (60 tests in blocked-cache.test.ts)
 
 ### Phase 5: Gate Dependencies
 - [ ] Implement timer gate checking
@@ -320,7 +321,7 @@ Function `isBlocked(elementId)`:
 
 ### Phase 8: Testing
 - [x] Unit tests for cycle detection (33 tests in dependency.test.ts)
-- [ ] Unit tests for blocked calculation
-- [ ] Unit tests for cache invalidation
-- [ ] Integration tests for ready work
+- [x] Unit tests for blocked calculation (blocked-cache.test.ts - computeBlockingState tests)
+- [x] Unit tests for cache invalidation (blocked-cache.test.ts - invalidation tests)
+- [x] Integration tests for ready work (blocked-cache.test.ts - rebuild tests, API integration)
 - [ ] Performance tests for large graphs

@@ -16,6 +16,7 @@ import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
 import { createEvent } from '../types/event.js';
 import { NotFoundError, ConflictError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
+import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import type {
   ElementalAPI,
   ElementFilter,
@@ -279,7 +280,11 @@ function buildTaskWhereClause(
  * Implementation of the ElementalAPI interface
  */
 export class ElementalAPIImpl implements ElementalAPI {
-  constructor(private backend: StorageBackend) {}
+  private blockedCache: BlockedCacheService;
+
+  constructor(private backend: StorageBackend) {
+    this.blockedCache = createBlockedCacheService(backend);
+  }
 
   // --------------------------------------------------------------------------
   // CRUD Operations
@@ -556,6 +561,15 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Mark as dirty for sync
     this.backend.markDirty(id);
 
+    // Check if status changed and update blocked cache
+    const existingData = existing as Record<string, unknown>;
+    const updatedData = updated as unknown as Record<string, unknown>;
+    const oldStatus = existingData.status as string | undefined;
+    const newStatus = updatedData.status as string | undefined;
+    if (oldStatus !== newStatus && newStatus !== undefined) {
+      this.blockedCache.onStatusChanged(id, oldStatus ?? null, newStatus);
+    }
+
     return updated;
   }
 
@@ -621,6 +635,9 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Mark as dirty for sync
     this.backend.markDirty(id);
+
+    // Update blocked cache - deletion unblocks dependents
+    this.blockedCache.onElementDeleted(id);
   }
 
   // --------------------------------------------------------------------------
@@ -737,29 +754,26 @@ export class ElementalAPIImpl implements ElementalAPI {
     };
 
     // Insert dependency
-    this.backend.transaction((tx) => {
-      tx.run(
-        `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          dependency.sourceId,
-          dependency.targetId,
-          dependency.type,
-          dependency.createdAt,
-          dependency.createdBy,
-          dependency.metadata ? JSON.stringify(dependency.metadata) : null,
-        ]
-      );
+    this.backend.run(
+      `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        dependency.sourceId,
+        dependency.targetId,
+        dependency.type,
+        dependency.createdAt,
+        dependency.createdBy,
+        dependency.metadata ? JSON.stringify(dependency.metadata) : null,
+      ]
+    );
 
-      // Update blocked cache if this is a blocking dependency type
-      if (dep.type === 'blocks' || dep.type === 'parent-child' || dep.type === 'awaits') {
-        tx.run(
-          `INSERT OR REPLACE INTO blocked_cache (element_id, blocked_by, reason)
-           VALUES (?, ?, ?)`,
-          [dep.sourceId, dep.targetId, `Blocked by ${dep.type} dependency`]
-        );
-      }
-    });
+    // Update blocked cache using the service (handles transitive blocking, gate satisfaction, etc.)
+    this.blockedCache.onDependencyAdded(
+      dep.sourceId,
+      dep.targetId,
+      dep.type,
+      dep.metadata
+    );
 
     // Mark source as dirty
     this.backend.markDirty(dep.sourceId);
@@ -786,22 +800,13 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     // Remove dependency
-    this.backend.transaction((tx) => {
-      tx.run(
-        'DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
-        [sourceId, targetId, type]
-      );
+    this.backend.run(
+      'DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
+      [sourceId, targetId, type]
+    );
 
-      // Update blocked cache - check if still blocked by other dependencies
-      const otherBlockers = tx.queryOne<CountRow>(
-        `SELECT COUNT(*) as count FROM dependencies
-         WHERE source_id = ? AND type IN ('blocks', 'parent-child', 'awaits')`,
-        [sourceId]
-      );
-      if (!otherBlockers || otherBlockers.count === 0) {
-        tx.run('DELETE FROM blocked_cache WHERE element_id = ?', [sourceId]);
-      }
-    });
+    // Update blocked cache using the service (recomputes blocking state)
+    this.blockedCache.onDependencyRemoved(sourceId, targetId, type);
 
     // Mark source as dirty
     this.backend.markDirty(sourceId);
@@ -1223,6 +1228,24 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     return hydrated;
+  }
+
+  // --------------------------------------------------------------------------
+  // Cache Management (Internal)
+  // --------------------------------------------------------------------------
+
+  /**
+   * Rebuild the blocked cache from scratch.
+   *
+   * Use this for:
+   * - Initial population after migration
+   * - Recovery from cache corruption
+   * - Periodic consistency checks
+   *
+   * @returns Statistics about the rebuild
+   */
+  rebuildBlockedCache(): { elementsChecked: number; elementsBlocked: number; durationMs: number } {
+    return this.blockedCache.rebuild();
   }
 }
 
