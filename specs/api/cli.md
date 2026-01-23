@@ -393,11 +393,12 @@ User-friendly errors:
 - [ ] Implement library commands
 - [ ] Implement team commands
 
-### Phase 6: Sync Commands
-- [ ] Implement sync
-- [ ] Implement import
-- [ ] Implement export
-- [ ] Implement status
+### Phase 6: Sync Commands ✅
+- [x] Implement export (src/cli/commands/sync.ts, --output, --full, --include-ephemeral)
+- [x] Implement import (src/cli/commands/sync.ts, --input, --dry-run, --force)
+- [x] Implement status (src/cli/commands/sync.ts, dirty count, total count, sync dir status)
+- [x] Implement sync parent command (subcommands: export, import, status)
+- [x] Unit tests (src/cli/commands/sync.test.ts - 46 tests)
 
 ### Phase 7: Admin Commands (Partial)
 - [x] Implement config (src/cli/commands/config.ts - show, set, unset subcommands)
@@ -409,4 +410,4 @@ User-friendly errors:
 - [ ] Add shell completion
 - [ ] Add aliases
 - [x] Write help text (src/cli/commands/help.ts)
-- [x] Test all implemented commands (308 tests)
+- [x] Test all implemented commands (354 tests)

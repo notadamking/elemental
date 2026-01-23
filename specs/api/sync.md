@@ -370,10 +370,10 @@ Import in transaction:
 - [x] Integrate with merge ✅ (used in mergeElements for conflict detection)
 
 ### Phase 7: CLI Commands
-- [ ] Implement sync
-- [ ] Implement export
-- [ ] Implement import
-- [ ] Implement status
+- [x] Implement export ✅ (el export with --output, --full, --include-ephemeral options)
+- [x] Implement import ✅ (el import with --input, --dry-run, --force options)
+- [x] Implement status ✅ (el status showing dirty count, total count, sync dir status)
+- [x] Unit tests ✅ (46 tests in sync.test.ts)
 
 ### Phase 8: Browser Sync
 - [ ] Implement HTTP endpoints

@@ -208,6 +208,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
     undeferCommand,
   } = await import('./commands/task.js');
   const { depCommand } = await import('./commands/dep.js');
+  const { syncCommand, exportCommand, importCommand, statusCommand } = await import('./commands/sync.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -230,6 +231,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
 
   // Dependency commands
   registerCommand(depCommand);
+
+  // Sync commands
+  registerCommand(syncCommand);
+  registerCommand(exportCommand);
+  registerCommand(importCommand);
+  registerCommand(statusCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

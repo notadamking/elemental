@@ -162,8 +162,8 @@ Recommended implementation sequence:
 #### Phase 6: Interfaces
 - [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests; Phase 2-7: Full CRUD operations implementation - get/list/create/update/delete, task queries (ready/blocked), dependency operations, search/hydration, history operations, stats, basic export - 54 integration tests)
 - [x] api/configuration.md ✅ (Phase 1-5,7-8: Configuration interface, SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection, defaults, YAML file loading/parsing, environment variable support, access API (getConfig, getValue, setValue, unsetValue), validation with helpful errors, unit tests - 115 tests)
-- [x] api/sync.md ✅ (Phase 1: JSONL serialization/parsing; Phase 2: Full/incremental export; Phase 3: Import with merge; Phase 4: Merge strategy with LWW, tombstones, status, tags, dependencies; Phase 5: Dirty tracking integration; Phase 6: Content hashing with SHA256; Phase 9: Unit tests - 111 tests)
-- [x] api/cli.md ✅ (Phase 1: Framework setup - native arg parsing, output formatting (human/JSON/quiet modes), global flags; Phase 2: Core commands - init, create (tasks), list, show, update, delete (src/cli/commands/crud.ts); Phase 3: Task commands - ready, blocked, close, reopen, assign, defer, undefer (src/cli/commands/task.ts); Phase 4: Dependency commands - dep add, dep remove, dep list, dep tree (src/cli/commands/dep.ts); Phase 7 partial: config command (show/set/unset); Phase 8 partial: help text; Unit tests - 308 tests)
+- [x] api/sync.md ✅ (Phase 1: JSONL serialization/parsing; Phase 2: Full/incremental export; Phase 3: Import with merge; Phase 4: Merge strategy with LWW, tombstones, status, tags, dependencies; Phase 5: Dirty tracking integration; Phase 6: Content hashing with SHA256; Phase 7: CLI commands - export, import, status with options; Phase 9: Unit tests - 157 tests)
+- [x] api/cli.md ✅ (Phase 1: Framework setup - native arg parsing, output formatting (human/JSON/quiet modes), global flags; Phase 2: Core commands - init, create (tasks), list, show, update, delete (src/cli/commands/crud.ts); Phase 3: Task commands - ready, blocked, close, reopen, assign, defer, undefer (src/cli/commands/task.ts); Phase 4: Dependency commands - dep add, dep remove, dep list, dep tree (src/cli/commands/dep.ts); Phase 6: Sync commands - export, import, status (src/cli/commands/sync.ts); Phase 7 partial: config command (show/set/unset); Phase 8 partial: help text; Unit tests - 354 tests)
 
 #### Phase 7: Identity
 - [x] systems/identity.md ✅ (Phase 1: Type definitions - IdentityMode, Signature, PublicKey, SignedRequestFields, VerificationStatus, VerificationResult, IdentityConfig; Phase 3-4: Ed25519 crypto - key validation, signature verification, signed data construction, time tolerance, full verification pipeline, shouldAllowRequest; Phase 8: Unit tests - 106 tests)
@@ -184,7 +184,7 @@ Recommended implementation sequence:
 - [x] **api/sync.md Phase 2**: Full export ✅ (SyncService.export with full/incremental modes, ephemeral filtering, file writing)
 - [x] **api/sync.md Phase 3**: Import ✅ (SyncService.import with file reading, parsing, merge strategy, import ordering)
 - [x] **api/sync.md Phase 5**: Dirty tracking integration ✅ (markDirty on mutations, clearDirty after export)
-- [ ] **api/sync.md Phase 7**: CLI commands (sync, export, import, status)
+- [x] **api/sync.md Phase 7**: CLI commands ✅ (el export, el import, el status with full option support)
 - [ ] **api/sync.md Phase 8**: Browser sync (HTTP endpoints, browser export/import)
 - [ ] **api/query-api.md Phase 7**: Update ElementalAPI export/import to use SyncService
 
@@ -228,7 +228,7 @@ Recommended implementation sequence:
 
 #### CLI Commands (Priority: Medium)
 - [ ] **api/cli.md Phase 5**: Collection commands (plan create/list/show/close, workflow pour/list/show/burn/squash/gc, playbook list/show/validate/create, channel create/join/leave/list/members, library create/list/add/remove, team create/add/remove/list/members)
-- [ ] **api/cli.md Phase 6**: Sync commands (sync, import, export, status)
+- [x] **api/cli.md Phase 6**: Sync commands ✅ (export, import, status - 46 tests)
 - [ ] **api/cli.md Phase 7**: Admin commands (stats, doctor, migrate)
 - [ ] **api/cli.md Phase 8**: Shell completion, command aliases
 - [ ] **api/configuration.md Phase 6**: CLI commands (config show, set, unset, edit) - wire up to existing implementation
