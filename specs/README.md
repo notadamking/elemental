@@ -162,7 +162,7 @@ Recommended implementation sequence:
 #### Phase 6: Interfaces
 - [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests)
 - [x] api/configuration.md ✅ (Phase 1-5,7-8: Configuration interface, SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection, defaults, YAML file loading/parsing, environment variable support, access API (getConfig, getValue, setValue, unsetValue), validation with helpful errors, unit tests - 115 tests)
-- [ ] api/sync.md
+- [x] api/sync.md ✅ (Phase 1: JSONL serialization/parsing; Phase 4: Merge strategy with LWW, tombstones, status, tags, dependencies; Phase 6: Content hashing with SHA256; Phase 9: Unit tests - 87 tests)
 - [ ] api/cli.md
 
 #### Phase 7: Identity

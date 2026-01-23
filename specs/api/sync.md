@@ -335,10 +335,10 @@ Import in transaction:
 ## Implementation Checklist
 
 ### Phase 1: JSONL Format
-- [ ] Define serialization format
-- [ ] Implement element serializer
-- [ ] Implement dependency serializer
-- [ ] Implement line parser
+- [x] Define serialization format ✅ (SerializedElement, SerializedDependency types)
+- [x] Implement element serializer ✅ (serializeElement, serializeElements)
+- [x] Implement dependency serializer ✅ (serializeDependency, serializeDependencies)
+- [x] Implement line parser ✅ (parseElement, parseDependency, tryParse variants, batch parsing)
 
 ### Phase 2: Export
 - [ ] Implement full export
@@ -353,11 +353,11 @@ Import in transaction:
 - [ ] Implement import ordering
 
 ### Phase 4: Merge Strategy
-- [ ] Implement LWW resolution
-- [ ] Implement tombstone handling
-- [ ] Implement status merge
-- [ ] Implement tags merge
-- [ ] Implement dependencies merge
+- [x] Implement LWW resolution ✅ (mergeElements with updatedAt comparison)
+- [x] Implement tombstone handling ✅ (getTombstoneStatus, fresh vs expired handling)
+- [x] Implement status merge ✅ (closed status wins over open)
+- [x] Implement tags merge ✅ (mergeTags with set union)
+- [x] Implement dependencies merge ✅ (mergeDependencies with removal authority)
 
 ### Phase 5: Dirty Tracking
 - [ ] Implement dirty marking
@@ -365,9 +365,9 @@ Import in transaction:
 - [ ] Integrate with mutations
 
 ### Phase 6: Content Hashing
-- [ ] Implement hash computation
-- [ ] Implement comparison
-- [ ] Integrate with merge
+- [x] Implement hash computation ✅ (computeContentHash, computeContentHashSync with SHA256)
+- [x] Implement comparison ✅ (hasSameContentHash, matchesContentHash)
+- [x] Integrate with merge ✅ (used in mergeElements for conflict detection)
 
 ### Phase 7: CLI Commands
 - [ ] Implement sync
@@ -382,7 +382,7 @@ Import in transaction:
 - [ ] Test cross-platform
 
 ### Phase 9: Testing
-- [ ] Unit tests for serialization
-- [ ] Unit tests for merge
+- [x] Unit tests for serialization ✅ (87 tests covering all serialization functions)
+- [x] Unit tests for merge ✅ (LWW, tombstones, status merge, tags merge, dependency merge)
 - [ ] Integration tests for sync
-- [ ] Conflict resolution tests
+- [x] Conflict resolution tests ✅ (ConflictRecord generation, resolution scenarios)
