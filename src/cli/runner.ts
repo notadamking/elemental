@@ -84,9 +84,10 @@ function resolveCommand(commandPath: string[]): {
  */
 export async function run(argv: string[]): Promise<number> {
   // First pass: parse for global options and command path
+  // Use non-strict mode to skip unknown options (command-specific options)
   let parsed;
   try {
-    parsed = parseArgs(argv);
+    parsed = parseArgs(argv, [], { strict: false });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`Error: ${message}`);
@@ -109,8 +110,16 @@ export async function run(argv: string[]): Promise<number> {
     return outputResult(result, options);
   }
 
-  // No command specified
+  // No command specified - validate there are no unknown options with strict parsing
   if (commandPath.length === 0) {
+    try {
+      // Re-parse with strict mode to catch unknown options
+      parseArgs(argv, [], { strict: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Error: ${message}`);
+      return ExitCode.INVALID_ARGUMENTS;
+    }
     const help = await import('./commands/help.js').then(m => m.helpCommand);
     const result = await help.handler([], { ...options });
     return outputResult(result, options);
@@ -209,6 +218,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   } = await import('./commands/task.js');
   const { depCommand } = await import('./commands/dep.js');
   const { syncCommand, exportCommand, importCommand, statusCommand } = await import('./commands/sync.js');
+  const { identityCommand, whoamiCommand } = await import('./commands/identity.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -237,6 +247,10 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(exportCommand);
   registerCommand(importCommand);
   registerCommand(statusCommand);
+
+  // Identity commands
+  registerCommand(identityCommand);
+  registerCommand(whoamiCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

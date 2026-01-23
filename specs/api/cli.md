@@ -400,6 +400,12 @@ User-friendly errors:
 - [x] Implement sync parent command (subcommands: export, import, status)
 - [x] Unit tests (src/cli/commands/sync.test.ts - 46 tests)
 
+### Phase 6.5: Identity Commands ✅
+- [x] Implement whoami (src/cli/commands/identity.ts - shows actor, source, mode, verification)
+- [x] Implement identity command (parent command with subcommands)
+- [x] Implement identity mode subcommand (show/set identity mode)
+- [x] Unit tests (src/cli/commands/identity.test.ts - 39 tests)
+
 ### Phase 7: Admin Commands (Partial)
 - [x] Implement config (src/cli/commands/config.ts - show, set, unset subcommands)
 - [ ] Implement stats
@@ -410,4 +416,4 @@ User-friendly errors:
 - [ ] Add shell completion
 - [ ] Add aliases
 - [x] Write help text (src/cli/commands/help.ts)
-- [x] Test all implemented commands (354 tests)
+- [x] Test all implemented commands (393 tests)

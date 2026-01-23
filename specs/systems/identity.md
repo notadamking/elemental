@@ -288,10 +288,11 @@ Allow runtime mode switching:
 - [ ] Document configuration
 
 ### Phase 7: CLI Support
-- [ ] Add --actor flag globally
-- [ ] Add identity mode to config
+- [x] Add --actor flag globally (src/cli/parser.ts - global flag definition)
+- [x] Add identity mode to config (el identity mode, el identity mode <mode>)
 - [ ] Add signature for cryptographic mode
-- [ ] Add whoami command
+- [x] Add whoami command (el whoami - shows actor, source, mode, verification status)
+- [x] Unit tests for CLI identity commands (39 tests)
 
 ### Phase 8: Testing
 - [x] Unit tests for signature verification (106 tests)
