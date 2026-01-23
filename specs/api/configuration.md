@@ -349,7 +349,7 @@ Optional: Watch config file:
 - [x] Unit tests for loading (115 tests in config.test.ts)
 - [x] Unit tests for precedence (CLI > Environment > File > Defaults)
 - [x] Unit tests for validation (field validation, configuration validation)
-- [ ] Integration tests for CLI (pending)
+- [x] Integration tests for CLI (20 tests in src/cli/commands/config.test.ts)
 
 ### Known Issues
 - [ ] **config.test.ts:888** - "gets nested values" test fails when running in a workspace with a config.yaml that overrides defaults. The test expects `sync.autoExport` to be `true` (default) but the project's `.elemental/config.yaml` sets it to `false`. The test should use `configPath` to point to a non-existent file or use defaults-only mode.
