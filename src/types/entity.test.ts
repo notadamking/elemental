@@ -17,6 +17,13 @@ import {
   CreateEntityInput,
   updateEntity,
   UpdateEntityInput,
+  deactivateEntity,
+  reactivateEntity,
+  isEntityActive,
+  isEntityDeactivated,
+  getDeactivationDetails,
+  filterActiveEntities,
+  filterDeactivatedEntities,
   hasCryptographicIdentity,
   getEntityDisplayName,
   entitiesHaveSameName,
@@ -778,5 +785,293 @@ describe('Edge cases - name validation errors', () => {
       createdBy: 'el-system1' as EntityId,
     });
     expect(entity.name).toBe(maxName);
+  });
+});
+
+// ============================================================================
+// Entity Deactivation Tests
+// ============================================================================
+
+describe('deactivateEntity', () => {
+  test('sets metadata.active to false', () => {
+    const entity = createTestEntity();
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+
+    expect(deactivated.metadata.active).toBe(false);
+  });
+
+  test('sets deactivatedAt timestamp', () => {
+    const entity = createTestEntity();
+    const before = new Date().toISOString();
+
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+
+    const after = new Date().toISOString();
+    expect(deactivated.metadata.deactivatedAt as string >= before).toBe(true);
+    expect(deactivated.metadata.deactivatedAt as string <= after).toBe(true);
+  });
+
+  test('sets deactivatedBy reference', () => {
+    const entity = createTestEntity();
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+
+    expect(deactivated.metadata.deactivatedBy).toBe('el-admin');
+  });
+
+  test('sets deactivationReason when provided', () => {
+    const entity = createTestEntity();
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+      reason: 'User left the organization',
+    });
+
+    expect(deactivated.metadata.deactivationReason).toBe('User left the organization');
+  });
+
+  test('does not set deactivationReason when not provided', () => {
+    const entity = createTestEntity();
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+
+    expect(deactivated.metadata.deactivationReason).toBeUndefined();
+  });
+
+  test('preserves existing metadata', () => {
+    const entity = createTestEntity({
+      metadata: { displayName: 'Test User', customField: 'value' },
+    });
+
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+
+    expect(deactivated.metadata.displayName).toBe('Test User');
+    expect(deactivated.metadata.customField).toBe('value');
+  });
+
+  test('updates updatedAt timestamp', () => {
+    const entity = createTestEntity({
+      updatedAt: '2020-01-01T00:00:00.000Z' as any,
+    });
+    const before = new Date().toISOString();
+
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+
+    const after = new Date().toISOString();
+    expect(deactivated.updatedAt >= before).toBe(true);
+    expect(deactivated.updatedAt <= after).toBe(true);
+  });
+
+  test('preserves immutable fields', () => {
+    const entity = createTestEntity({
+      name: 'original-name',
+      entityType: EntityTypeValue.HUMAN,
+    });
+
+    const deactivated = deactivateEntity(entity, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+
+    expect(deactivated.name).toBe('original-name');
+    expect(deactivated.entityType).toBe(EntityTypeValue.HUMAN);
+    expect(deactivated.id).toBe(entity.id);
+  });
+});
+
+describe('reactivateEntity', () => {
+  test('sets metadata.active to true', () => {
+    const deactivated = createTestEntity({
+      metadata: { active: false, deactivatedAt: '2020-01-01T00:00:00.000Z' },
+    });
+
+    const reactivated = reactivateEntity(deactivated, 'el-admin' as EntityId);
+
+    expect(reactivated.metadata.active).toBe(true);
+  });
+
+  test('removes deactivation metadata', () => {
+    const deactivated = createTestEntity({
+      metadata: {
+        active: false,
+        deactivatedAt: '2020-01-01T00:00:00.000Z',
+        deactivatedBy: 'el-old-admin',
+        deactivationReason: 'Old reason',
+      },
+    });
+
+    const reactivated = reactivateEntity(deactivated, 'el-admin' as EntityId);
+
+    expect(reactivated.metadata.deactivatedAt).toBeUndefined();
+    expect(reactivated.metadata.deactivatedBy).toBeUndefined();
+    expect(reactivated.metadata.deactivationReason).toBeUndefined();
+  });
+
+  test('sets reactivatedAt and reactivatedBy', () => {
+    const deactivated = createTestEntity({
+      metadata: { active: false },
+    });
+    const before = new Date().toISOString();
+
+    const reactivated = reactivateEntity(deactivated, 'el-admin' as EntityId);
+
+    const after = new Date().toISOString();
+    expect(reactivated.metadata.reactivatedAt as string >= before).toBe(true);
+    expect(reactivated.metadata.reactivatedAt as string <= after).toBe(true);
+    expect(reactivated.metadata.reactivatedBy).toBe('el-admin');
+  });
+
+  test('preserves other metadata', () => {
+    const deactivated = createTestEntity({
+      metadata: {
+        active: false,
+        displayName: 'Test User',
+        customField: 'value',
+      },
+    });
+
+    const reactivated = reactivateEntity(deactivated, 'el-admin' as EntityId);
+
+    expect(reactivated.metadata.displayName).toBe('Test User');
+    expect(reactivated.metadata.customField).toBe('value');
+  });
+});
+
+describe('isEntityActive', () => {
+  test('returns true for entity with no active flag', () => {
+    const entity = createTestEntity();
+    expect(isEntityActive(entity)).toBe(true);
+  });
+
+  test('returns true for entity with active: true', () => {
+    const entity = createTestEntity({
+      metadata: { active: true },
+    });
+    expect(isEntityActive(entity)).toBe(true);
+  });
+
+  test('returns false for entity with active: false', () => {
+    const entity = createTestEntity({
+      metadata: { active: false },
+    });
+    expect(isEntityActive(entity)).toBe(false);
+  });
+});
+
+describe('isEntityDeactivated', () => {
+  test('returns false for active entity', () => {
+    const entity = createTestEntity();
+    expect(isEntityDeactivated(entity)).toBe(false);
+  });
+
+  test('returns true for deactivated entity', () => {
+    const entity = createTestEntity({
+      metadata: { active: false },
+    });
+    expect(isEntityDeactivated(entity)).toBe(true);
+  });
+});
+
+describe('getDeactivationDetails', () => {
+  test('returns null for active entity', () => {
+    const entity = createTestEntity();
+    expect(getDeactivationDetails(entity)).toBeNull();
+  });
+
+  test('returns details for deactivated entity', () => {
+    const entity = createTestEntity({
+      metadata: {
+        active: false,
+        deactivatedAt: '2020-01-01T00:00:00.000Z',
+        deactivatedBy: 'el-admin',
+        deactivationReason: 'Test reason',
+      },
+    });
+
+    const details = getDeactivationDetails(entity);
+    expect(details).not.toBeNull();
+    expect(details!.deactivatedAt).toBe('2020-01-01T00:00:00.000Z');
+    expect(details!.deactivatedBy).toBe('el-admin');
+    expect(details!.reason).toBe('Test reason');
+  });
+
+  test('returns partial details when not all fields present', () => {
+    const entity = createTestEntity({
+      metadata: {
+        active: false,
+        deactivatedAt: '2020-01-01T00:00:00.000Z',
+      },
+    });
+
+    const details = getDeactivationDetails(entity);
+    expect(details).not.toBeNull();
+    expect(details!.deactivatedAt).toBe('2020-01-01T00:00:00.000Z');
+    expect(details!.deactivatedBy).toBeUndefined();
+    expect(details!.reason).toBeUndefined();
+  });
+});
+
+describe('filterActiveEntities', () => {
+  test('returns only active entities', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'active-1' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'inactive-1', metadata: { active: false } }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'active-2' }),
+      createTestEntity({ id: 'el-4' as ElementId, name: 'inactive-2', metadata: { active: false } }),
+    ];
+
+    const active = filterActiveEntities(entities);
+    expect(active).toHaveLength(2);
+    expect(active.map((e) => e.name)).toEqual(['active-1', 'active-2']);
+  });
+
+  test('returns all when none deactivated', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'active-1' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'active-2' }),
+    ];
+
+    const active = filterActiveEntities(entities);
+    expect(active).toHaveLength(2);
+  });
+
+  test('returns empty when all deactivated', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'inactive-1', metadata: { active: false } }),
+    ];
+
+    const active = filterActiveEntities(entities);
+    expect(active).toHaveLength(0);
+  });
+});
+
+describe('filterDeactivatedEntities', () => {
+  test('returns only deactivated entities', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'active-1' }),
+      createTestEntity({ id: 'el-2' as ElementId, name: 'inactive-1', metadata: { active: false } }),
+      createTestEntity({ id: 'el-3' as ElementId, name: 'active-2' }),
+    ];
+
+    const deactivated = filterDeactivatedEntities(entities);
+    expect(deactivated).toHaveLength(1);
+    expect(deactivated[0].name).toBe('inactive-1');
+  });
+
+  test('returns empty when none deactivated', () => {
+    const entities = [
+      createTestEntity({ id: 'el-1' as ElementId, name: 'active-1' }),
+    ];
+
+    const deactivated = filterDeactivatedEntities(entities);
+    expect(deactivated).toHaveLength(0);
   });
 });

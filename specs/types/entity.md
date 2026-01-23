@@ -267,7 +267,7 @@ When enabled:
 
 ### Phase 5: Entity Operations
 - [x] Implement entity update (metadata only) ✅ (updateEntity in src/types/entity.ts - updates publicKey, tags, metadata; 11 tests)
-- [ ] Implement entity deactivation
+- [x] Implement entity deactivation ✅ (deactivateEntity, reactivateEntity, isEntityActive, isEntityDeactivated, getDeactivationDetails, filterActiveEntities, filterDeactivatedEntities - 25 tests)
 - [ ] Add entity search/filter
 - [ ] Implement entity assignment queries
 

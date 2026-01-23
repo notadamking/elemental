@@ -446,6 +446,140 @@ export function updateEntity(entity: Entity, input: UpdateEntityInput): Entity {
 }
 
 // ============================================================================
+// Entity Deactivation
+// ============================================================================
+
+/**
+ * Input for deactivating an entity
+ */
+export interface DeactivateEntityInput {
+  /** Reason for deactivation */
+  reason?: string;
+  /** Entity performing the deactivation */
+  deactivatedBy: EntityId;
+}
+
+/**
+ * Deactivates an entity by marking it as inactive in metadata
+ *
+ * Deactivated entities:
+ * - Have metadata.active = false
+ * - Have metadata.deactivatedAt timestamp
+ * - Have metadata.deactivatedBy reference
+ * - Have optional metadata.deactivationReason
+ * - Are preserved in the system for historical references
+ * - Should be filtered from active entity listings
+ *
+ * @param entity - The entity to deactivate
+ * @param input - Deactivation input
+ * @returns The deactivated entity
+ */
+export function deactivateEntity(entity: Entity, input: DeactivateEntityInput): Entity {
+  const now = createTimestamp();
+
+  return {
+    ...entity,
+    updatedAt: now,
+    metadata: {
+      ...entity.metadata,
+      active: false,
+      deactivatedAt: now,
+      deactivatedBy: input.deactivatedBy,
+      ...(input.reason && { deactivationReason: input.reason }),
+    },
+  };
+}
+
+/**
+ * Reactivates a previously deactivated entity
+ *
+ * @param entity - The entity to reactivate
+ * @param reactivatedBy - Entity performing the reactivation
+ * @returns The reactivated entity
+ */
+export function reactivateEntity(entity: Entity, reactivatedBy: EntityId): Entity {
+  const now = createTimestamp();
+
+  // Remove deactivation metadata
+  const { active, deactivatedAt, deactivatedBy, deactivationReason, ...restMetadata } = entity.metadata as {
+    active?: boolean;
+    deactivatedAt?: string;
+    deactivatedBy?: string;
+    deactivationReason?: string;
+    [key: string]: unknown;
+  };
+
+  return {
+    ...entity,
+    updatedAt: now,
+    metadata: {
+      ...restMetadata,
+      active: true,
+      reactivatedAt: now,
+      reactivatedBy,
+    },
+  };
+}
+
+/**
+ * Checks if an entity is active (not deactivated)
+ */
+export function isEntityActive(entity: Entity): boolean {
+  // Entity is active if metadata.active is not explicitly false
+  if (entity.metadata && typeof entity.metadata.active === 'boolean') {
+    return entity.metadata.active;
+  }
+  // Default to active if not explicitly deactivated
+  return true;
+}
+
+/**
+ * Checks if an entity is deactivated
+ */
+export function isEntityDeactivated(entity: Entity): boolean {
+  return !isEntityActive(entity);
+}
+
+/**
+ * Gets deactivation details from an entity
+ */
+export function getDeactivationDetails(entity: Entity): {
+  deactivatedAt?: string;
+  deactivatedBy?: string;
+  reason?: string;
+} | null {
+  if (isEntityActive(entity)) {
+    return null;
+  }
+
+  const metadata = entity.metadata as {
+    deactivatedAt?: string;
+    deactivatedBy?: string;
+    deactivationReason?: string;
+  };
+
+  return {
+    deactivatedAt: metadata.deactivatedAt,
+    deactivatedBy: metadata.deactivatedBy,
+    reason: metadata.deactivationReason,
+  };
+}
+
+/**
+ * Filter active entities from a list
+ */
+export function filterActiveEntities<T extends Entity>(entities: T[]): T[] {
+  return entities.filter(isEntityActive);
+}
+
+/**
+ * Filter deactivated entities from a list
+ */
+export function filterDeactivatedEntities<T extends Entity>(entities: T[]): T[] {
+  return entities.filter(isEntityDeactivated);
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 
