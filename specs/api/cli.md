@@ -353,14 +353,15 @@ User-friendly errors:
 
 ## Implementation Checklist
 
-### Phase 1: Framework Setup
-- [ ] Select CLI framework
-- [ ] Configure argument parsing
-- [ ] Setup output formatting
-- [ ] Implement global flags
+### Phase 1: Framework Setup ✅
+- [x] Select CLI framework (native Bun/Node arg parsing, no external deps)
+- [x] Configure argument parsing (src/cli/parser.ts)
+- [x] Setup output formatting (src/cli/formatter.ts - human, JSON, quiet modes)
+- [x] Implement global flags (--db, --actor, --json, -q/--quiet, -v/--verbose, -h/--help, -V/--version)
+- [x] Unit tests (155 tests)
 
-### Phase 2: Core Commands
-- [ ] Implement init
+### Phase 2: Core Commands (Partial)
+- [x] Implement init (src/cli/commands/init.ts)
 - [ ] Implement create (all types)
 - [ ] Implement list
 - [ ] Implement show
@@ -395,8 +396,8 @@ User-friendly errors:
 - [ ] Implement export
 - [ ] Implement status
 
-### Phase 7: Admin Commands
-- [ ] Implement config
+### Phase 7: Admin Commands (Partial)
+- [x] Implement config (src/cli/commands/config.ts - show, set, unset subcommands)
 - [ ] Implement stats
 - [ ] Implement doctor
 - [ ] Implement migrate
@@ -404,5 +405,5 @@ User-friendly errors:
 ### Phase 8: Polish
 - [ ] Add shell completion
 - [ ] Add aliases
-- [ ] Write help text
-- [ ] Test all commands
+- [x] Write help text (src/cli/commands/help.ts)
+- [x] Test all implemented commands (155 tests)
