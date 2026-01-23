@@ -208,7 +208,7 @@ Recommended implementation sequence:
 - [x] **types/entity.md Phase 5** (partial): Entity deactivation ✅ (deactivateEntity, reactivateEntity, isEntityActive, filterActiveEntities - 25 tests)
 - [x] **types/entity.md Phase 5** (partial): Entity search/filter ✅ (filterByCreator, filterWithPublicKey, filterByTag, sortByName, groupByEntityType, searchByName, findByName, countByEntityType - 30 tests)
 - [x] **types/entity.md Phase 5**: Entity assignment queries ✅ (getAssignedTo, getCreatedBy, getRelatedTo, countAssignmentsByEntity, getTopAssignees, hasAssignments, getUnassigned, getEntityAssignmentStats - 21 tests)
-- [ ] **types/document.md Phase 3-4**: Version table schema integration, getDocumentVersion/getDocumentHistory (storage layer)
+- [x] **types/document.md Phase 3-4**: Version table schema integration ✅ (schema migration 1), getDocumentVersion/getDocumentHistory ✅ (API implementation - 19 integration tests)
 - [ ] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child)
 
 #### Collection Type Integration (Priority: Medium)
@@ -260,7 +260,8 @@ Recommended implementation sequence:
 - [ ] **types/task.md Phase 6**: Unit tests for ready/blocked computation with dependencies, E2E tests for task lifecycle
 - [x] **types/task.md Phase 6** (partial): Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
 - [ ] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows
-- [ ] **types/document.md Phase 7**: Integration tests for history queries, E2E tests for Document lifecycle
+- [x] **types/document.md Phase 7** (partial): Integration tests for history queries ✅ (document-version.integration.test.ts - 19 tests)
+- [ ] **types/document.md Phase 7**: E2E tests for Document lifecycle
 - [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests), signature verification tests ✅ (148 tests)
 - [ ] **types/entity.md Phase 7**: E2E tests for entity lifecycle
 - [ ] **types/plan.md Phase 8**: Unit tests for status transitions, progress calculation; integration tests; E2E tests

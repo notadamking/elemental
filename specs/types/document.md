@@ -219,15 +219,15 @@ Forward query is more efficient for full history.
 - [x] Implement JSON validation
 - [x] Add content size validation (10 MB max)
 
-### Phase 3: Versioning (Partial - Type Layer Only)
-- [ ] Implement version table schema (storage layer)
-- [x] Implement version creation on update (type layer)
-- [x] Implement version number increment
-- [x] Implement previousVersionId linking
+### Phase 3: Versioning ✅
+- [x] Implement version table schema (storage layer) ✅ (document_versions table in schema migration 1)
+- [x] Implement version creation on update (API layer) ✅ (update method saves to document_versions before updating)
+- [x] Implement version number increment ✅ (auto-increments on each update)
+- [x] Implement previousVersionId linking ✅ (links to document ID)
 
-### Phase 4: History Queries
-- [ ] Implement getDocumentVersion (storage layer)
-- [ ] Implement getDocumentHistory (storage layer)
+### Phase 4: History Queries ✅
+- [x] Implement getDocumentVersion (storage layer) ✅ (queries document_versions table)
+- [x] Implement getDocumentHistory (storage layer) ✅ (queries all versions in descending order)
 - [ ] Add version filtering to list queries
 
 ### Phase 5: Content Type Operations
@@ -245,5 +245,5 @@ Forward query is more efficient for full history.
 - [x] Unit tests for content validation
 - [x] Unit tests for versioning logic
 - [x] Property-based tests for content types and versions
-- [ ] Integration tests for history queries (requires storage layer)
+- [x] Integration tests for history queries ✅ (document-version.integration.test.ts - 19 tests)
 - [ ] E2E tests for Document lifecycle

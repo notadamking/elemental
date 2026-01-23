@@ -9,6 +9,7 @@ import type { StorageBackend } from '../storage/backend.js';
 import type { Element, ElementId, EntityId, ElementType, Timestamp } from '../types/element.js';
 import type { Task, HydratedTask, TaskStatus } from '../types/task.js';
 import type { Document, DocumentId } from '../types/document.js';
+import { isDocument } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter, EventType } from '../types/event.js';
 import { createTimestamp } from '../types/element.js';
@@ -634,7 +635,7 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Apply updates
     const now = createTimestamp();
-    const updated: T = {
+    let updated: T = {
       ...existing,
       ...updates,
       id: existing.id, // Cannot change ID
@@ -644,11 +645,40 @@ export class ElementalAPIImpl implements ElementalAPI {
       updatedAt: now,
     };
 
+    // For documents, auto-increment version and link to previous version
+    if (isDocument(existing)) {
+      const doc = existing as Document;
+      updated = {
+        ...updated,
+        version: doc.version + 1,
+        previousVersionId: doc.id as unknown as DocumentId,
+      } as T;
+    }
+
     // Serialize for storage
     const serialized = serializeElement(updated);
 
     // Update in a transaction
     this.backend.transaction((tx) => {
+      // For documents, save current version to version history before updating
+      if (isDocument(existing)) {
+        const doc = existing as Document;
+        // Serialize the current document data for version storage
+        const versionData = JSON.stringify({
+          contentType: doc.contentType,
+          content: doc.content,
+          version: doc.version,
+          previousVersionId: doc.previousVersionId,
+          createdBy: doc.createdBy,
+          tags: doc.tags,
+          metadata: doc.metadata,
+        });
+        tx.run(
+          `INSERT INTO document_versions (id, version, data, created_at) VALUES (?, ?, ?, ?)`,
+          [doc.id, doc.version, versionData, doc.updatedAt]
+        );
+      }
+
       // Update the element
       tx.run(
         `UPDATE elements SET data = ?, content_hash = ?, updated_at = ?, deleted_at = ?
