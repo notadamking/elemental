@@ -52,6 +52,61 @@ export {
   isNameUnique as isLibraryNameUnique,
 } from './library.js';
 
+// Team exports - exclude duplicates
+export {
+  // Team type and interfaces
+  Team,
+  HydratedTeam,
+  TeamId,
+  // Constants
+  MIN_TEAM_NAME_LENGTH,
+  MAX_TEAM_NAME_LENGTH,
+  MAX_TEAM_MEMBERS,
+  // Validation
+  isValidTeamName,
+  validateTeamName,
+  isValidTeamId,
+  validateTeamId,
+  isValidMembers as isValidTeamMembers,
+  validateMembers as validateTeamMembers,
+  // Type guards
+  isTeam,
+  validateTeam,
+  // Factory functions
+  createTeam,
+  CreateTeamInput,
+  updateTeam,
+  UpdateTeamInput,
+  // Membership operations
+  MembershipError,
+  addMember as addTeamMember,
+  removeMember as removeTeamMember,
+  isMember as isTeamMember,
+  getMemberCount as getTeamMemberCount,
+  // Utility functions (note: some may conflict with other modules)
+  hasDescription as teamHasDescription,
+  getTeamDisplayName,
+  filterByCreator as filterTeamsByCreator,
+  filterWithDescription as filterTeamsWithDescription,
+  filterWithoutDescription as filterTeamsWithoutDescription,
+  filterByMember as filterTeamsByMember,
+  filterWithMembers as filterTeamsWithMembers,
+  filterEmpty as filterEmptyTeams,
+  sortByName as sortTeamsByName,
+  sortByMemberCount as sortTeamsByMemberCount,
+  sortByCreationDate as sortTeamsByCreationDate,
+  sortByUpdateDate as sortTeamsByUpdateDate,
+  groupByCreator as groupTeamsByCreator,
+  searchByName as searchTeamsByName,
+  findByName as findTeamByName,
+  findById as findTeamById,
+  isNameUnique as isTeamNameUnique,
+  getTeamsForEntity,
+  getAllMembers as getAllTeamMembers,
+  haveCommonMembers as teamsHaveCommonMembers,
+  getCommonMembers as getTeamsCommonMembers,
+} from './team.js';
+
 // Channel exports - exclude duplicates that are already exported from message.js
 // ChannelId, isValidChannelId, validateChannelId are in both message.js and channel.js
 // sortByCreatedAtDesc is in both message.js and channel.js (different implementations)

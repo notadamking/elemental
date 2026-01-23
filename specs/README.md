@@ -157,7 +157,7 @@ Recommended implementation sequence:
 - [x] types/workflow.md ✅ (Phase 1: Workflow interface, WorkflowStatus, WorkflowId/PlaybookId branded types, type guards, validators, createWorkflow factory, updateWorkflowStatus, squashWorkflow, status transitions, utility functions (filters, sorts, groups), GC helpers, unit tests - 121 tests)
 - [x] types/playbook.md ✅ (Phase 1-4: Playbook interface, PlaybookStep, PlaybookVariable, VariableType, PlaybookId branded type, type guards, validators, createPlaybook/updatePlaybook factories, variable resolution system (resolveVariables, getVariableNames), condition system (parseCondition, evaluateCondition, isTruthy), substitution system (substituteVariables, extractVariableNames, hasVariables, filterStepsByConditions), utility functions (filters, sorts, grouping), unit tests - 230 tests)
 - [x] types/library.md ✅ (Phase 1-2: Library interface, HydratedLibrary, LibraryId branded type, type guards, validators, createLibrary factory, updateLibrary, utility functions (filters, sorts, grouping, search, uniqueness), unit tests - 94 tests)
-- [ ] types/team.md
+- [x] types/team.md ✅ (Phase 1-4: Team interface, HydratedTeam, TeamId branded type, type guards, validators, createTeam/updateTeam factories, membership operations (addMember, removeMember, isMember), utility functions (filters, sorts, grouping, search, uniqueness, team comparison), unit tests - 141 tests)
 
 #### Phase 6: Interfaces
 - [ ] api/query-api.md
