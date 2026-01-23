@@ -258,10 +258,10 @@ When enabled:
 - [x] Add entity listing queries ✅ (api.list({ type: 'entity' }) - 3 tests in soft-identity.integration.test.ts)
 - [x] Implement `whoami` functionality ✅ (src/cli/commands/identity.ts - whoamiCommand)
 
-### Phase 4: Cryptographic Identity (Partial ✅)
+### Phase 4: Cryptographic Identity ✅
 - [x] Add public key storage (field defined, validation implemented)
-- [ ] Implement Ed25519 signature verification (systems/identity.md)
-- [ ] Add signature validation to API
+- [x] Implement Ed25519 signature verification ✅ (verifyEd25519Signature in systems/identity.ts)
+- [x] Add signature validation to API ✅ (createVerificationMiddleware in systems/identity.ts)
 - [x] Create key format validation (`isValidPublicKey`, `validatePublicKey`)
 - [x] Unit tests for public key validation
 
@@ -280,7 +280,7 @@ When enabled:
 
 ### Phase 7: Testing (Partial ✅)
 - [x] Unit tests for name validation
-- [ ] Unit tests for signature verification
+- [x] Unit tests for signature verification ✅ (148 tests in systems/identity.test.ts)
 - [x] Integration tests for uniqueness ✅ (6 tests in soft-identity.integration.test.ts)
 - [ ] E2E tests for entity lifecycle
 - [x] Property-based tests for name generation

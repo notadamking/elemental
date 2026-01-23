@@ -200,7 +200,7 @@ Recommended implementation sequence:
 - [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system
 - [x] **types/entity.md Phase 2**: Name uniqueness validation ✅ (storage-level check in create(), DUPLICATE_NAME error)
 - [x] **types/entity.md Phase 3**: Entity listing queries ✅ (name-based lookup, whoami, api.list({ type: 'entity' }))
-- [ ] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API
+- [x] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API ✅ (systems/identity.ts)
 - [ ] **types/entity.md Phase 5**: Entity update, deactivation, search/filter, assignment queries
 - [ ] **types/document.md Phase 3-4**: Version table schema integration, getDocumentVersion/getDocumentHistory (storage layer)
 - [ ] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child)
@@ -253,7 +253,7 @@ Recommended implementation sequence:
 - [ ] **types/task.md Phase 6**: Unit tests for ready/blocked computation with dependencies, integration tests for hydration, E2E tests for task lifecycle
 - [ ] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows
 - [ ] **types/document.md Phase 7**: Integration tests for history queries, E2E tests for Document lifecycle
-- [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests in soft-identity.integration.test.ts)
+- [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests), signature verification tests ✅ (148 tests)
 - [ ] **types/entity.md Phase 7**: E2E tests for entity lifecycle
 - [ ] **types/plan.md Phase 8**: Unit tests for status transitions, progress calculation; integration tests; E2E tests
 - [ ] **types/workflow.md Phase 8**: Unit tests for pouring logic; integration tests for full pour flow; E2E tests
