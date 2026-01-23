@@ -262,6 +262,64 @@ export interface CreateTaskInPlanOptions extends OperationOptions {
 }
 
 // ============================================================================
+// Plan Bulk Operations Types
+// ============================================================================
+
+/**
+ * Options for bulk close operation
+ */
+export interface BulkCloseOptions extends OperationOptions {
+  /** Reason for closing all tasks */
+  closeReason?: string;
+  /** Only close tasks matching this filter */
+  filter?: TaskFilter;
+}
+
+/**
+ * Options for bulk defer operation
+ */
+export interface BulkDeferOptions extends OperationOptions {
+  /** Only defer tasks matching this filter */
+  filter?: TaskFilter;
+}
+
+/**
+ * Options for bulk reassign operation
+ */
+export interface BulkReassignOptions extends OperationOptions {
+  /** Only reassign tasks matching this filter */
+  filter?: TaskFilter;
+}
+
+/**
+ * Options for bulk tag operation
+ */
+export interface BulkTagOptions extends OperationOptions {
+  /** Tags to add to all tasks */
+  addTags?: string[];
+  /** Tags to remove from all tasks */
+  removeTags?: string[];
+  /** Only tag tasks matching this filter */
+  filter?: TaskFilter;
+}
+
+/**
+ * Result of a bulk operation on plan tasks
+ */
+export interface BulkOperationResult {
+  /** Number of tasks successfully updated */
+  updated: number;
+  /** Number of tasks skipped (didn't match filter or status) */
+  skipped: number;
+  /** IDs of tasks that were updated */
+  updatedIds: ElementId[];
+  /** IDs of tasks that were skipped */
+  skippedIds: ElementId[];
+  /** Errors encountered during the operation */
+  errors: Array<{ taskId: ElementId; message: string }>;
+}
+
+// ============================================================================
 // Sync Types
 // ============================================================================
 
@@ -591,6 +649,57 @@ export interface ElementalAPI {
     taskInput: Omit<CreateTaskInput, 'id'>,
     options?: CreateTaskInPlanOptions
   ): Promise<T>;
+
+  // --------------------------------------------------------------------------
+  // Plan Bulk Operations
+  // --------------------------------------------------------------------------
+
+  /**
+   * Close all tasks in a plan.
+   * Only closes tasks that are not already closed or tombstoned.
+   *
+   * @param planId - The plan containing the tasks
+   * @param options - Bulk operation options including optional filter and close reason
+   * @returns Result with counts of updated/skipped tasks
+   * @throws NotFoundError if plan doesn't exist
+   */
+  bulkClosePlanTasks(planId: ElementId, options?: BulkCloseOptions): Promise<BulkOperationResult>;
+
+  /**
+   * Defer all tasks in a plan.
+   * Only defers tasks that are in open, in_progress, or blocked status.
+   *
+   * @param planId - The plan containing the tasks
+   * @param options - Bulk operation options including optional filter
+   * @returns Result with counts of updated/skipped tasks
+   * @throws NotFoundError if plan doesn't exist
+   */
+  bulkDeferPlanTasks(planId: ElementId, options?: BulkDeferOptions): Promise<BulkOperationResult>;
+
+  /**
+   * Reassign all tasks in a plan to a new entity.
+   *
+   * @param planId - The plan containing the tasks
+   * @param newAssignee - The entity to assign all tasks to (undefined to unassign)
+   * @param options - Bulk operation options including optional filter
+   * @returns Result with counts of updated/skipped tasks
+   * @throws NotFoundError if plan doesn't exist
+   */
+  bulkReassignPlanTasks(
+    planId: ElementId,
+    newAssignee: EntityId | undefined,
+    options?: BulkReassignOptions
+  ): Promise<BulkOperationResult>;
+
+  /**
+   * Add or remove tags from all tasks in a plan.
+   *
+   * @param planId - The plan containing the tasks
+   * @param options - Options including tags to add/remove and optional filter
+   * @returns Result with counts of updated/skipped tasks
+   * @throws NotFoundError if plan doesn't exist
+   */
+  bulkTagPlanTasks(planId: ElementId, options: BulkTagOptions): Promise<BulkOperationResult>;
 
   // --------------------------------------------------------------------------
   // Task Operations

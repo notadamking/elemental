@@ -41,6 +41,11 @@ import type {
   DeleteOptions,
   AddTaskToPlanOptions,
   CreateTaskInPlanOptions,
+  BulkCloseOptions,
+  BulkDeferOptions,
+  BulkReassignOptions,
+  BulkTagOptions,
+  BulkOperationResult,
 } from './types.js';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type ApprovalResult } from './types.js';
 import type { Plan } from '../types/plan.js';
@@ -1128,6 +1133,294 @@ export class ElementalAPIImpl implements ElementalAPI {
     });
 
     return task;
+  }
+
+  // --------------------------------------------------------------------------
+  // Plan Bulk Operations
+  // --------------------------------------------------------------------------
+
+  async bulkClosePlanTasks(
+    planId: ElementId,
+    options?: BulkCloseOptions
+  ): Promise<BulkOperationResult> {
+    // Verify plan exists
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Get all tasks in the plan
+    const tasks = await this.getTasksInPlan(planId, options?.filter);
+
+    const result: BulkOperationResult = {
+      updated: 0,
+      skipped: 0,
+      updatedIds: [],
+      skippedIds: [],
+      errors: [],
+    };
+
+    const actor = options?.actor ?? plan.createdBy;
+    const closeReason = options?.closeReason;
+
+    for (const task of tasks) {
+      // Skip tasks that are already closed or tombstoned
+      if (task.status === TaskStatusEnum.CLOSED || task.status === TaskStatusEnum.TOMBSTONE) {
+        result.skipped++;
+        result.skippedIds.push(task.id);
+        continue;
+      }
+
+      try {
+        // Update task status to closed
+        const updates: Partial<Task> = {
+          status: TaskStatusEnum.CLOSED,
+          closedAt: createTimestamp(),
+        };
+        if (closeReason) {
+          updates.closeReason = closeReason;
+        }
+
+        await this.update<Task>(task.id, updates, { actor });
+        result.updated++;
+        result.updatedIds.push(task.id);
+      } catch (error) {
+        result.errors.push({
+          taskId: task.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return result;
+  }
+
+  async bulkDeferPlanTasks(
+    planId: ElementId,
+    options?: BulkDeferOptions
+  ): Promise<BulkOperationResult> {
+    // Verify plan exists
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Get all tasks in the plan
+    const tasks = await this.getTasksInPlan(planId, options?.filter);
+
+    const result: BulkOperationResult = {
+      updated: 0,
+      skipped: 0,
+      updatedIds: [],
+      skippedIds: [],
+      errors: [],
+    };
+
+    const actor = options?.actor ?? plan.createdBy;
+
+    // Valid statuses for defer transition
+    const deferableStatuses: TaskStatus[] = [TaskStatusEnum.OPEN, TaskStatusEnum.IN_PROGRESS, TaskStatusEnum.BLOCKED];
+
+    for (const task of tasks) {
+      // Skip tasks that can't be deferred
+      if (!deferableStatuses.includes(task.status)) {
+        result.skipped++;
+        result.skippedIds.push(task.id);
+        continue;
+      }
+
+      try {
+        await this.update<Task>(task.id, { status: TaskStatusEnum.DEFERRED }, { actor });
+        result.updated++;
+        result.updatedIds.push(task.id);
+      } catch (error) {
+        result.errors.push({
+          taskId: task.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return result;
+  }
+
+  async bulkReassignPlanTasks(
+    planId: ElementId,
+    newAssignee: EntityId | undefined,
+    options?: BulkReassignOptions
+  ): Promise<BulkOperationResult> {
+    // Verify plan exists
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Get all tasks in the plan
+    const tasks = await this.getTasksInPlan(planId, options?.filter);
+
+    const result: BulkOperationResult = {
+      updated: 0,
+      skipped: 0,
+      updatedIds: [],
+      skippedIds: [],
+      errors: [],
+    };
+
+    const actor = options?.actor ?? plan.createdBy;
+
+    for (const task of tasks) {
+      // Skip tasks that already have the same assignee
+      if (task.assignee === newAssignee) {
+        result.skipped++;
+        result.skippedIds.push(task.id);
+        continue;
+      }
+
+      // Skip tombstone tasks
+      if (task.status === TaskStatusEnum.TOMBSTONE) {
+        result.skipped++;
+        result.skippedIds.push(task.id);
+        continue;
+      }
+
+      try {
+        await this.update<Task>(task.id, { assignee: newAssignee }, { actor });
+        result.updated++;
+        result.updatedIds.push(task.id);
+      } catch (error) {
+        result.errors.push({
+          taskId: task.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return result;
+  }
+
+  async bulkTagPlanTasks(
+    planId: ElementId,
+    options: BulkTagOptions
+  ): Promise<BulkOperationResult> {
+    // Verify plan exists
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Validate that at least one tag operation is specified
+    if ((!options.addTags || options.addTags.length === 0) &&
+        (!options.removeTags || options.removeTags.length === 0)) {
+      throw new ValidationError(
+        'At least one of addTags or removeTags must be specified',
+        ErrorCode.INVALID_INPUT,
+        { addTags: options.addTags, removeTags: options.removeTags }
+      );
+    }
+
+    // Get all tasks in the plan
+    const tasks = await this.getTasksInPlan(planId, options?.filter);
+
+    const result: BulkOperationResult = {
+      updated: 0,
+      skipped: 0,
+      updatedIds: [],
+      skippedIds: [],
+      errors: [],
+    };
+
+    const actor = options?.actor ?? plan.createdBy;
+    const tagsToAdd = options.addTags ?? [];
+    const tagsToRemove = new Set(options.removeTags ?? []);
+
+    for (const task of tasks) {
+      // Skip tombstone tasks
+      if (task.status === TaskStatusEnum.TOMBSTONE) {
+        result.skipped++;
+        result.skippedIds.push(task.id);
+        continue;
+      }
+
+      // Calculate new tags
+      const existingTags = new Set(task.tags);
+
+      // Remove tags first
+      for (const tag of tagsToRemove) {
+        existingTags.delete(tag);
+      }
+
+      // Then add tags
+      for (const tag of tagsToAdd) {
+        existingTags.add(tag);
+      }
+
+      const newTags = Array.from(existingTags).sort();
+      const oldTags = [...task.tags].sort();
+
+      // Skip if tags haven't changed
+      if (newTags.length === oldTags.length && newTags.every((t, i) => t === oldTags[i])) {
+        result.skipped++;
+        result.skippedIds.push(task.id);
+        continue;
+      }
+
+      try {
+        await this.update<Task>(task.id, { tags: newTags }, { actor });
+        result.updated++;
+        result.updatedIds.push(task.id);
+      } catch (error) {
+        result.errors.push({
+          taskId: task.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return result;
   }
 
   // --------------------------------------------------------------------------

@@ -215,7 +215,7 @@ Recommended implementation sequence:
 - [x] **types/plan.md Phase 2** (partial): Status change events ✅ (closed/reopened events for completed/cancelled transitions - 12 tests)
 - [x] **types/plan.md Phase 3**: Task-to-plan linking ✅ (addTaskToPlan, removeTaskFromPlan, getTasksInPlan, createTaskInPlan API methods, hierarchical ID generation - 31 integration tests)
 - [x] **types/plan.md Phase 4** (partial): Progress calculation ✅ (`getPlanProgress` API method, `calculatePlanProgress` utility - 12 integration tests); remaining: progress caching (optional), weighted progress (optional)
-- [ ] **types/plan.md Phase 5**: Bulk operations (close, defer, reassign, tag)
+- [x] **types/plan.md Phase 5**: Bulk operations ✅ (`bulkClosePlanTasks`, `bulkDeferPlanTasks`, `bulkReassignPlanTasks`, `bulkTagPlanTasks` API methods with filter support - 39 integration tests)
 - [ ] **types/plan.md Phase 6**: Plan listing, tasks-in-plan query, progress in results
 - [ ] **types/workflow.md Phase 2-3**: Auto-completion/failure detection, pouring (playbook loading, variable resolution, condition evaluation, task creation, dependency wiring)
 - [ ] **types/workflow.md Phase 4-5**: Ephemeral support (filtering, burn, GC), task-to-workflow linking

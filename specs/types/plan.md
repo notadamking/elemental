@@ -221,11 +221,12 @@ When creating task under plan:
 - [ ] Add progress caching (optional)
 - [ ] Implement weighted progress (optional)
 
-### Phase 5: Bulk Operations
-- [ ] Implement bulk close
-- [ ] Implement bulk defer
-- [ ] Implement bulk reassign
-- [ ] Implement bulk tag
+### Phase 5: Bulk Operations ✅
+- [x] Implement bulk close (`bulkClosePlanTasks` API method - closes all non-closed/tombstone tasks with optional filter and close reason)
+- [x] Implement bulk defer (`bulkDeferPlanTasks` API method - defers open/in_progress/blocked tasks with optional filter)
+- [x] Implement bulk reassign (`bulkReassignPlanTasks` API method - reassigns tasks to new entity or unassigns with optional filter)
+- [x] Implement bulk tag (`bulkTagPlanTasks` API method - adds/removes tags from tasks with optional filter)
+- [x] Integration tests (39 tests in plan-bulk-operations.integration.test.ts)
 
 ### Phase 6: Queries
 - [ ] Implement plan listing
