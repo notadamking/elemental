@@ -230,7 +230,8 @@ Recommended implementation sequence:
 #### CLI Commands (Priority: Medium)
 - [ ] **api/cli.md Phase 5**: Collection commands (plan create/list/show/close, workflow pour/list/show/burn/squash/gc, playbook list/show/validate/create, channel create/join/leave/list/members, library create/list/add/remove, team create/add/remove/list/members)
 - [x] **api/cli.md Phase 6**: Sync commands ✅ (export, import, status - 46 tests)
-- [ ] **api/cli.md Phase 7**: Admin commands (stats, doctor, migrate)
+- [x] **api/cli.md Phase 7 (partial)**: stats command ✅ (workspace statistics, 11 tests)
+- [ ] **api/cli.md Phase 7**: Admin commands (doctor, migrate)
 - [ ] **api/cli.md Phase 8**: Shell completion, command aliases
 - [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset implemented in src/cli/commands/config.ts; edit pending)
 - [x] **types/task.md Phase 5 (partial)**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)

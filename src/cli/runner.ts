@@ -219,6 +219,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { depCommand } = await import('./commands/dep.js');
   const { syncCommand, exportCommand, importCommand, statusCommand } = await import('./commands/sync.js');
   const { identityCommand, whoamiCommand } = await import('./commands/identity.js');
+  const { statsCommand } = await import('./commands/stats.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -251,6 +252,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   // Identity commands
   registerCommand(identityCommand);
   registerCommand(whoamiCommand);
+
+  // Admin commands
+  registerCommand(statsCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

@@ -20,3 +20,4 @@ export { configCommand } from './commands/config.js';
 export { helpCommand, versionCommand, getCommandHelp } from './commands/help.js';
 export { createCommand, listCommand, showCommand } from './commands/crud.js';
 export { depCommand, depAddCommand, depRemoveCommand, depListCommand, depTreeCommand } from './commands/dep.js';
+export { statsCommand } from './commands/stats.js';

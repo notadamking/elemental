@@ -408,7 +408,7 @@ User-friendly errors:
 
 ### Phase 7: Admin Commands (Partial)
 - [x] Implement config (src/cli/commands/config.ts - show, set, unset subcommands)
-- [ ] Implement stats
+- [x] Implement stats (src/cli/commands/stats.ts - workspace statistics, 11 tests)
 - [ ] Implement doctor
 - [ ] Implement migrate
 
