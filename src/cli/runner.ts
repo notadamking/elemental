@@ -207,6 +207,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
     deferCommand,
     undeferCommand,
   } = await import('./commands/task.js');
+  const { depCommand } = await import('./commands/dep.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -224,6 +225,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(assignCommand);
   registerCommand(deferCommand);
   registerCommand(undeferCommand);
+
+  // Dependency commands
+  registerCommand(depCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

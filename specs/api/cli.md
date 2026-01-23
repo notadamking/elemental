@@ -378,11 +378,12 @@ User-friendly errors:
 - [x] Implement undefer (src/cli/commands/task.ts)
 - [x] Unit tests (src/cli/commands/task.test.ts - 58 tests)
 
-### Phase 4: Dependency Commands
-- [ ] Implement dep add
-- [ ] Implement dep remove
-- [ ] Implement dep list
-- [ ] Implement dep tree
+### Phase 4: Dependency Commands ✅
+- [x] Implement dep add (src/cli/commands/dep.ts, --type required, --metadata optional)
+- [x] Implement dep remove (src/cli/commands/dep.ts, --type required)
+- [x] Implement dep list (src/cli/commands/dep.ts, --type filter, --direction out/in/both)
+- [x] Implement dep tree (src/cli/commands/dep.ts, --depth limit, ASCII tree output)
+- [x] Unit tests (src/cli/commands/dep.test.ts - 44 tests)
 
 ### Phase 5: Collection Commands
 - [ ] Implement plan commands
@@ -408,4 +409,4 @@ User-friendly errors:
 - [ ] Add shell completion
 - [ ] Add aliases
 - [x] Write help text (src/cli/commands/help.ts)
-- [x] Test all implemented commands (182 tests)
+- [x] Test all implemented commands (284 tests)
