@@ -753,19 +753,48 @@ export class ElementalAPIImpl implements ElementalAPI {
       metadata: dep.metadata ?? {},
     };
 
-    // Insert dependency
-    this.backend.run(
-      `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        dependency.sourceId,
-        dependency.targetId,
-        dependency.type,
-        dependency.createdAt,
-        dependency.createdBy,
-        dependency.metadata ? JSON.stringify(dependency.metadata) : null,
-      ]
-    );
+    // Insert dependency and record event in a transaction
+    this.backend.transaction((tx) => {
+      // Insert dependency
+      tx.run(
+        `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          dependency.sourceId,
+          dependency.targetId,
+          dependency.type,
+          dependency.createdAt,
+          dependency.createdBy,
+          dependency.metadata ? JSON.stringify(dependency.metadata) : null,
+        ]
+      );
+
+      // Record dependency_added event
+      const event = createEvent({
+        elementId: dependency.sourceId,
+        eventType: 'dependency_added' as EventType,
+        actor: dependency.createdBy,
+        oldValue: null,
+        newValue: {
+          sourceId: dependency.sourceId,
+          targetId: dependency.targetId,
+          type: dependency.type,
+          metadata: dependency.metadata,
+        },
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          event.elementId,
+          event.eventType,
+          event.actor,
+          null,
+          JSON.stringify(event.newValue),
+          event.createdAt,
+        ]
+      );
+    });
 
     // Update blocked cache using the service (handles transitive blocking, gate satisfaction, etc.)
     this.blockedCache.onDependencyAdded(
@@ -784,9 +813,10 @@ export class ElementalAPIImpl implements ElementalAPI {
   async removeDependency(
     sourceId: ElementId,
     targetId: ElementId,
-    type: DependencyType
+    type: DependencyType,
+    actor?: EntityId
   ): Promise<void> {
-    // Check dependency exists
+    // Check dependency exists and capture for event
     const existing = this.backend.queryOne<DependencyRow>(
       'SELECT * FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
       [sourceId, targetId, type]
@@ -799,11 +829,43 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     }
 
-    // Remove dependency
-    this.backend.run(
-      'DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
-      [sourceId, targetId, type]
-    );
+    // Get actor for event - use provided actor or fall back to the dependency creator
+    const eventActor = actor ?? (existing.created_by as EntityId);
+
+    // Remove dependency and record event in a transaction
+    this.backend.transaction((tx) => {
+      // Remove dependency
+      tx.run(
+        'DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
+        [sourceId, targetId, type]
+      );
+
+      // Record dependency_removed event
+      const event = createEvent({
+        elementId: sourceId,
+        eventType: 'dependency_removed' as EventType,
+        actor: eventActor,
+        oldValue: {
+          sourceId: existing.source_id,
+          targetId: existing.target_id,
+          type: existing.type,
+          metadata: existing.metadata ? JSON.parse(existing.metadata) : {},
+        },
+        newValue: null,
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          event.elementId,
+          event.eventType,
+          event.actor,
+          JSON.stringify(event.oldValue),
+          null,
+          event.createdAt,
+        ]
+      );
+    });
 
     // Update blocked cache using the service (recomputes blocking state)
     this.blockedCache.onDependencyRemoved(sourceId, targetId, type);

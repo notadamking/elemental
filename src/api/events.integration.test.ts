@@ -563,26 +563,354 @@ describe('Events System Integration', () => {
   // --------------------------------------------------------------------------
 
   describe('Dependency Events', () => {
-    it('should be queryable alongside element events', async () => {
-      const task1 = await createTestTask({ title: 'Task 1' });
-      const task2 = await createTestTask({ title: 'Task 2' });
+    describe('dependency_added Events', () => {
+      it('should record a dependency_added event when adding a dependency', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
 
-      await api.create(toCreateInput(task1));
-      await api.create(toCreateInput(task2));
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
 
-      // Add dependency
-      await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
-        type: 'blocks',
+        // Add dependency
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        // Query events on the source element
+        const events = await api.getEvents(task1.id);
+        const depAddedEvents = events.filter((e) => e.eventType === EventType.DEPENDENCY_ADDED);
+
+        expect(depAddedEvents.length).toBe(1);
+        expect(depAddedEvents[0].elementId).toBe(task1.id);
       });
 
-      // Both tasks should have events
-      const events1 = await api.getEvents(task1.id);
-      const events2 = await api.getEvents(task2.id);
+      it('should capture dependency details in newValue', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
 
-      expect(events1.length).toBeGreaterThanOrEqual(1);
-      expect(events2.length).toBeGreaterThanOrEqual(1);
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+          metadata: { reason: 'depends on completion' },
+        });
+
+        const events = await api.getEvents(task1.id);
+        const depAddedEvent = events.find((e) => e.eventType === EventType.DEPENDENCY_ADDED);
+
+        expect(depAddedEvent).toBeDefined();
+        expect(depAddedEvent!.oldValue).toBeNull();
+
+        const newValue = depAddedEvent!.newValue as Record<string, unknown>;
+        expect(newValue.sourceId).toBe(task1.id);
+        expect(newValue.targetId).toBe(task2.id);
+        expect(newValue.type).toBe('blocks');
+        expect(newValue.metadata).toEqual({ reason: 'depends on completion' });
+      });
+
+      it('should use source element createdBy as the actor', async () => {
+        const task1 = await createTestTask({ title: 'Task 1', createdBy: mockEntityId });
+        const task2 = await createTestTask({ title: 'Task 2', createdBy: mockEntityId2 });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        const events = await api.getEvents(task1.id);
+        const depAddedEvent = events.find((e) => e.eventType === EventType.DEPENDENCY_ADDED);
+
+        // Actor should be the source element's creator
+        expect(depAddedEvent!.actor).toBe(mockEntityId);
+      });
+
+      it('should record events for different dependency types', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+        const task3 = await createTestTask({ title: 'Task 3' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+        await api.create(toCreateInput(task3));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task3.id,
+          type: 'relates-to',
+        });
+
+        const events = await api.getEvents(task1.id);
+        const depAddedEvents = events.filter((e) => e.eventType === EventType.DEPENDENCY_ADDED);
+
+        expect(depAddedEvents.length).toBe(2);
+      });
+    });
+
+    describe('dependency_removed Events', () => {
+      it('should record a dependency_removed event when removing a dependency', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        // Remove dependency
+        await api.removeDependency(task1.id, task2.id, 'blocks');
+
+        const events = await api.getEvents(task1.id);
+        const depRemovedEvents = events.filter((e) => e.eventType === EventType.DEPENDENCY_REMOVED);
+
+        expect(depRemovedEvents.length).toBe(1);
+        expect(depRemovedEvents[0].elementId).toBe(task1.id);
+      });
+
+      it('should capture dependency details in oldValue', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+          metadata: { reason: 'depends on completion' },
+        });
+
+        await api.removeDependency(task1.id, task2.id, 'blocks');
+
+        const events = await api.getEvents(task1.id);
+        const depRemovedEvent = events.find((e) => e.eventType === EventType.DEPENDENCY_REMOVED);
+
+        expect(depRemovedEvent).toBeDefined();
+        expect(depRemovedEvent!.newValue).toBeNull();
+
+        const oldValue = depRemovedEvent!.oldValue as Record<string, unknown>;
+        expect(oldValue.sourceId).toBe(task1.id);
+        expect(oldValue.targetId).toBe(task2.id);
+        expect(oldValue.type).toBe('blocks');
+        expect(oldValue.metadata).toEqual({ reason: 'depends on completion' });
+      });
+
+      it('should use provided actor when specified', async () => {
+        const task1 = await createTestTask({ title: 'Task 1', createdBy: mockEntityId });
+        const task2 = await createTestTask({ title: 'Task 2', createdBy: mockEntityId2 });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        // Remove with a different actor specified
+        await api.removeDependency(task1.id, task2.id, 'blocks', mockEntityId2);
+
+        const events = await api.getEvents(task1.id);
+        const depRemovedEvent = events.find((e) => e.eventType === EventType.DEPENDENCY_REMOVED);
+
+        expect(depRemovedEvent!.actor).toBe(mockEntityId2);
+      });
+
+      it('should fall back to dependency creator when no actor specified', async () => {
+        const task1 = await createTestTask({ title: 'Task 1', createdBy: mockEntityId });
+        const task2 = await createTestTask({ title: 'Task 2', createdBy: mockEntityId2 });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        // Remove without specifying actor
+        await api.removeDependency(task1.id, task2.id, 'blocks');
+
+        const events = await api.getEvents(task1.id);
+        const depRemovedEvent = events.find((e) => e.eventType === EventType.DEPENDENCY_REMOVED);
+
+        // Should use the dependency creator (source element's creator)
+        expect(depRemovedEvent!.actor).toBe(mockEntityId);
+      });
+    });
+
+    describe('Filtering Dependency Events', () => {
+      it('should filter events by dependency_added type', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        // Update the task
+        await api.update<Task>(task1.id, { title: 'Updated Task 1' } as Partial<Task>);
+
+        // Add dependency
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        // Filter only dependency_added events
+        const depEvents = await api.getEvents(task1.id, {
+          eventType: EventType.DEPENDENCY_ADDED,
+        });
+
+        expect(depEvents.length).toBe(1);
+        expect(depEvents[0].eventType).toBe(EventType.DEPENDENCY_ADDED);
+      });
+
+      it('should filter events by dependency_removed type', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        await api.removeDependency(task1.id, task2.id, 'blocks');
+
+        // Filter only dependency_removed events
+        const depEvents = await api.getEvents(task1.id, {
+          eventType: EventType.DEPENDENCY_REMOVED,
+        });
+
+        expect(depEvents.length).toBe(1);
+        expect(depEvents[0].eventType).toBe(EventType.DEPENDENCY_REMOVED);
+      });
+
+      it('should include dependency events in combined event type filter', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        await api.removeDependency(task1.id, task2.id, 'blocks');
+
+        // Filter both dependency event types
+        const depEvents = await api.getEvents(task1.id, {
+          eventType: [EventType.DEPENDENCY_ADDED, EventType.DEPENDENCY_REMOVED],
+        });
+
+        expect(depEvents.length).toBe(2);
+      });
+    });
+
+    describe('Dependency Event Ordering', () => {
+      it('should maintain chronological order with other events', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await delay(5);
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        await delay(5);
+        await api.update<Task>(task1.id, { title: 'Updated Task 1' } as Partial<Task>);
+
+        await delay(5);
+        await api.removeDependency(task1.id, task2.id, 'blocks');
+
+        const events = await api.getEvents(task1.id);
+
+        // Events should be in descending order (most recent first)
+        // Expected order: dependency_removed, updated, dependency_added, created
+        expect(events[0].eventType).toBe(EventType.DEPENDENCY_REMOVED);
+        expect(events[1].eventType).toBe(EventType.UPDATED);
+        expect(events[2].eventType).toBe(EventType.DEPENDENCY_ADDED);
+        expect(events[3].eventType).toBe(EventType.CREATED);
+      });
+    });
+
+    describe('Transaction Atomicity', () => {
+      it('should record dependency_added event atomically with dependency creation', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        // Both dependency and event should exist
+        const deps = await api.getDependencies(task1.id, ['blocks']);
+        const events = await api.getEvents(task1.id, { eventType: EventType.DEPENDENCY_ADDED });
+
+        expect(deps.length).toBe(1);
+        expect(events.length).toBe(1);
+      });
+
+      it('should record dependency_removed event atomically with dependency deletion', async () => {
+        const task1 = await createTestTask({ title: 'Task 1' });
+        const task2 = await createTestTask({ title: 'Task 2' });
+
+        await api.create(toCreateInput(task1));
+        await api.create(toCreateInput(task2));
+
+        await api.addDependency({
+          sourceId: task1.id,
+          targetId: task2.id,
+          type: 'blocks',
+        });
+
+        await api.removeDependency(task1.id, task2.id, 'blocks');
+
+        // Dependency should be gone but event should exist
+        const deps = await api.getDependencies(task1.id, ['blocks']);
+        const events = await api.getEvents(task1.id, { eventType: EventType.DEPENDENCY_REMOVED });
+
+        expect(deps.length).toBe(0);
+        expect(events.length).toBe(1);
+      });
     });
   });
 

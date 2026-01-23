@@ -475,12 +475,14 @@ export interface ElementalAPI {
    * @param sourceId - Source element
    * @param targetId - Target element
    * @param type - Dependency type
+   * @param actor - Optional actor for the event (defaults to dependency creator)
    * @throws NotFoundError if dependency doesn't exist
    */
   removeDependency(
     sourceId: ElementId,
     targetId: ElementId,
-    type: DependencyType
+    type: DependencyType,
+    actor?: EntityId
   ): Promise<void>;
 
   /**

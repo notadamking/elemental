@@ -266,7 +266,7 @@ Event and mutation in same transaction:
 ### Phase 3: Recording ✅
 - [x] Implement event creation (createEvent in types/event.ts, recording in elemental-api.ts)
 - [x] Integrate with element mutations (create, update, delete all record events)
-- [ ] Integrate with dependency operations (partial - blocked cache updated but no dependency_added/removed events yet)
+- [x] Integrate with dependency operations (dependency_added/dependency_removed events recorded in elemental-api.ts addDependency/removeDependency)
 - [ ] Integrate with tag operations (tag changes tracked via element update events, not separate tag_added/removed events)
 - [ ] Integrate with membership operations (requires Channel/Team integration)
 
@@ -295,5 +295,5 @@ Event and mutation in same transaction:
 ### Phase 8: Testing ✅
 - [x] Unit tests for event recording (129 tests in event.test.ts)
 - [x] Unit tests for value capture (computeChangedFields tests)
-- [x] Integration tests for full flow (40 tests in events.integration.test.ts)
+- [x] Integration tests for full flow (53 tests in events.integration.test.ts - includes dependency event tests)
 - [x] Performance tests for high-volume (smoke tests in events.integration.test.ts)
