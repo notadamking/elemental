@@ -160,7 +160,7 @@ Recommended implementation sequence:
 - [x] types/team.md ✅ (Phase 1-4: Team interface, HydratedTeam, TeamId branded type, type guards, validators, createTeam/updateTeam factories, membership operations (addMember, removeMember, isMember), utility functions (filters, sorts, grouping, search, uniqueness, team comparison), unit tests - 141 tests)
 
 #### Phase 6: Interfaces
-- [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests; Phase 2-7: Full CRUD operations implementation - get/list/create/update/delete, task queries (ready/blocked), dependency operations, search/hydration, history operations, stats, basic export - 54 integration tests)
+- [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests; Phase 2-7: Full CRUD operations implementation - get/list/create/update/delete, task queries (ready/blocked), dependency operations, search/hydration, history operations, stats, export/import via SyncService - 70 integration tests)
 - [x] api/configuration.md ✅ (Phase 1-5,7-8: Configuration interface, SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection, defaults, YAML file loading/parsing, environment variable support, access API (getConfig, getValue, setValue, unsetValue), validation with helpful errors, unit tests - 115 tests)
 - [x] api/sync.md ✅ (Phase 1: JSONL serialization/parsing; Phase 2: Full/incremental export; Phase 3: Import with merge; Phase 4: Merge strategy with LWW, tombstones, status, tags, dependencies; Phase 5: Dirty tracking integration; Phase 6: Content hashing with SHA256; Phase 7: CLI commands - export, import, status with options; Phase 9: Unit tests - 157 tests)
 - [x] api/cli.md ✅ (Phase 1: Framework setup - native arg parsing, output formatting (human/JSON/quiet modes), global flags; Phase 2: Core commands - init, create (tasks), list, show, update, delete (src/cli/commands/crud.ts); Phase 3: Task commands - ready, blocked, close, reopen, assign, defer, undefer (src/cli/commands/task.ts); Phase 4: Dependency commands - dep add, dep remove, dep list, dep tree (src/cli/commands/dep.ts); Phase 6: Sync commands - export, import, status (src/cli/commands/sync.ts); Phase 6.5: Identity commands - whoami, identity mode (src/cli/commands/identity.ts); Phase 7 partial: config command (show/set/unset); Phase 8 partial: help text; Unit tests - 393 tests)
@@ -186,7 +186,7 @@ Recommended implementation sequence:
 - [x] **api/sync.md Phase 5**: Dirty tracking integration ✅ (markDirty on mutations, clearDirty after export)
 - [x] **api/sync.md Phase 7**: CLI commands ✅ (el export, el import, el status with full option support)
 - [ ] **api/sync.md Phase 8**: Browser sync (HTTP endpoints, browser export/import)
-- [ ] **api/query-api.md Phase 7**: Update ElementalAPI export/import to use SyncService
+- [x] **api/query-api.md Phase 7**: Update ElementalAPI export/import to use SyncService ✅ (export via SyncService.exportToString, import via SyncService.importFromStrings with element/dependency separation, merge strategy, dry-run, force, round-trip tests)
 
 #### Identity & Security (Priority: High)
 - [x] **systems/identity.md Phase 2**: Soft identity (actor context management, name-based lookup, add actor to all operations) ✅ (ActorContext, resolveActor, validateSoftActor, lookupEntityByName, actor param)

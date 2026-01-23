@@ -76,7 +76,7 @@ describe('create command', () => {
       type: 'bug',
       assignee: 'dev-1',
       tag: ['urgent', 'frontend'],
-    } as GlobalOptions & Record<string, unknown>);
+    });
     const result = await createCommand.handler(['task'], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);

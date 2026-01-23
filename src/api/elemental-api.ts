@@ -17,6 +17,7 @@ import { createEvent } from '../types/event.js';
 import { NotFoundError, ConflictError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
+import { SyncService } from '../sync/service.js';
 import type {
   ElementalAPI,
   ElementFilter,
@@ -283,9 +284,11 @@ function buildTaskWhereClause(
  */
 export class ElementalAPIImpl implements ElementalAPI {
   private blockedCache: BlockedCacheService;
+  private syncService: SyncService;
 
   constructor(private backend: StorageBackend) {
     this.blockedCache = createBlockedCacheService(backend);
+    this.syncService = new SyncService(backend);
   }
 
   // --------------------------------------------------------------------------
@@ -1205,35 +1208,26 @@ export class ElementalAPIImpl implements ElementalAPI {
   // --------------------------------------------------------------------------
 
   async export(options?: ExportOptions): Promise<string | void> {
-    // TODO: Implement full export functionality
-    // This is a placeholder that exports basic JSONL
-    const filter: ElementFilter = {
-      type: options?.types,
-      includeDeleted: options?.includeDeleted ?? false,
-    };
+    // Use SyncService for export functionality
+    const { elements, dependencies } = this.syncService.exportToString({
+      includeEphemeral: false, // API export excludes ephemeral by default
+      includeDependencies: options?.includeDependencies ?? true,
+    });
 
-    const elements = await this.list<Element>(filter);
-    const lines = elements.map((e) => JSON.stringify(e));
-
-    if (options?.includeDependencies) {
-      const deps = this.backend.query<DependencyRow>('SELECT * FROM dependencies');
-      for (const dep of deps) {
-        lines.push(JSON.stringify({
-          _type: 'dependency',
-          sourceId: dep.source_id,
-          targetId: dep.target_id,
-          type: dep.type,
-          createdAt: dep.created_at,
-          createdBy: dep.created_by,
-          metadata: dep.metadata ? JSON.parse(dep.metadata) : undefined,
-        }));
-      }
+    // Build combined JSONL string
+    let jsonl = elements;
+    if (options?.includeDependencies !== false && dependencies) {
+      jsonl = jsonl + (jsonl && dependencies ? '\n' : '') + dependencies;
     }
 
-    const jsonl = lines.join('\n');
-
     if (options?.outputPath) {
-      // TODO: Write to file
+      // Write to file using SyncService's file-based export
+      const result = await this.syncService.export({
+        outputDir: options.outputPath,
+        full: true,
+        includeEphemeral: false,
+      });
+      // Return void for file-based export
       return;
     }
 
@@ -1241,16 +1235,105 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   async import(options: ImportOptions): Promise<ImportResult> {
-    // TODO: Implement full import functionality
-    // This is a placeholder
+    // Use SyncService for import functionality
+    let elementsContent = '';
+    let dependenciesContent = '';
+
+    // Handle input data - either from file path or raw data string
+    if (options.data) {
+      // Parse raw JSONL data - separate elements from dependencies
+      // Elements have `id` and `type`, dependencies have `sourceId` and `targetId`
+      const lines = options.data.split('\n').filter((line) => line.trim());
+      const elementLines: string[] = [];
+      const dependencyLines: string[] = [];
+
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.sourceId && parsed.targetId) {
+            // This is a dependency
+            dependencyLines.push(line);
+          } else if (parsed.id) {
+            // This is an element
+            elementLines.push(line);
+          }
+        } catch {
+          // Invalid JSON - add to elements to let SyncService report the error
+          elementLines.push(line);
+        }
+      }
+
+      elementsContent = elementLines.join('\n');
+      dependenciesContent = dependencyLines.join('\n');
+    } else if (options.inputPath) {
+      // Use file-based import via SyncService
+      const syncResult = await this.syncService.import({
+        inputDir: options.inputPath,
+        dryRun: options.dryRun ?? false,
+        force: options.conflictStrategy === 'overwrite',
+      });
+
+      // Convert SyncService result to API ImportResult format
+      return this.convertSyncImportResult(syncResult, options.dryRun ?? false);
+    }
+
+    // For raw data import, use SyncService's string-based import
+    const syncResult = this.syncService.importFromStrings(
+      elementsContent,
+      dependenciesContent,
+      {
+        dryRun: options.dryRun ?? false,
+        force: options.conflictStrategy === 'overwrite',
+      }
+    );
+
+    return this.convertSyncImportResult(syncResult, options.dryRun ?? false);
+  }
+
+  /**
+   * Convert SyncService ImportResult to API ImportResult format
+   */
+  private convertSyncImportResult(
+    syncResult: {
+      elementsImported: number;
+      elementsSkipped?: number;
+      dependenciesImported: number;
+      dependenciesSkipped?: number;
+      conflicts: Array<{
+        elementId: ElementId;
+        resolution: string;
+        localHash?: string;
+        remoteHash?: string;
+      }>;
+      errors: Array<{
+        line: number;
+        file: string;
+        message: string;
+        content?: string;
+      }>;
+    },
+    dryRun: boolean
+  ): ImportResult {
+    // Convert conflicts to API format
+    const conflicts = syncResult.conflicts.map((c) => ({
+      elementId: c.elementId,
+      conflictType: 'exists' as const,
+      details: `Resolved via ${c.resolution}`,
+    }));
+
+    // Convert errors to string format
+    const errors = syncResult.errors.map((e) =>
+      `${e.file}:${e.line}: ${e.message}${e.content ? ` (${e.content.substring(0, 50)}...)` : ''}`
+    );
+
     return {
-      success: true,
-      elementsImported: 0,
-      dependenciesImported: 0,
-      eventsImported: 0,
-      conflicts: [],
-      errors: [],
-      dryRun: options.dryRun ?? false,
+      success: syncResult.errors.length === 0,
+      elementsImported: syncResult.elementsImported,
+      dependenciesImported: syncResult.dependenciesImported,
+      eventsImported: 0, // Events are not imported via sync
+      conflicts,
+      errors,
+      dryRun,
     };
   }
 

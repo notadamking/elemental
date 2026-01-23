@@ -42,6 +42,8 @@ export interface GlobalOptions {
   help: boolean;
   /** Show version */
   version: boolean;
+  /** Allow additional command-specific options */
+  [key: string]: unknown;
 }
 
 /**

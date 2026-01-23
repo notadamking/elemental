@@ -769,7 +769,7 @@ describe('ElementalAPI', () => {
   });
 
   // --------------------------------------------------------------------------
-  // Export/Import Tests (Placeholder)
+  // Export Tests
   // --------------------------------------------------------------------------
 
   describe('export()', () => {
@@ -781,13 +781,369 @@ describe('ElementalAPI', () => {
       expect(typeof jsonl).toBe('string');
       expect(jsonl).toContain(task.id);
     });
+
+    it('should export multiple elements', async () => {
+      const task1 = await createTestTask({ title: 'Task 1' });
+      const task2 = await createTestTask({ title: 'Task 2' });
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+
+      const jsonl = await api.export();
+      expect(jsonl).toContain(task1.id);
+      expect(jsonl).toContain(task2.id);
+    });
+
+    it('should export elements with dependencies', async () => {
+      const task1 = await createTestTask({ title: 'Task 1' });
+      const task2 = await createTestTask({ title: 'Task 2' });
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.addDependency({
+        sourceId: task1.id,
+        targetId: task2.id,
+        type: 'blocks',
+      });
+
+      const jsonl = await api.export({ includeDependencies: true });
+      expect(jsonl).toContain(task1.id);
+      expect(jsonl).toContain(task2.id);
+      // Dependencies should be included
+      const lines = jsonl!.split('\n').filter(Boolean);
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should export element with tags', async () => {
+      const task = await createTestTask({ tags: ['urgent', 'bug'] });
+      await api.create(toCreateInput(task));
+
+      const jsonl = await api.export();
+      expect(jsonl).toContain('urgent');
+      expect(jsonl).toContain('bug');
+    });
+
+    it('should export element with metadata', async () => {
+      const task = await createTestTask({ metadata: { custom: 'value' } });
+      await api.create(toCreateInput(task));
+
+      const jsonl = await api.export();
+      expect(jsonl).toContain('custom');
+      expect(jsonl).toContain('value');
+    });
+
+    it('should return empty string when no elements', async () => {
+      const jsonl = await api.export();
+      expect(jsonl).toBe('');
+    });
   });
 
+  // --------------------------------------------------------------------------
+  // Import Tests
+  // --------------------------------------------------------------------------
+
   describe('import()', () => {
-    it('should return import result', async () => {
-      const result = await api.import({ inputPath: '/tmp/test.jsonl' });
+    it('should import elements from raw JSONL data', async () => {
+      // Create JSONL data for a task
+      const now = new Date().toISOString();
+      const taskData = {
+        id: 'test-import-1',
+        type: 'task',
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'user:test',
+        tags: [],
+        metadata: {},
+        title: 'Imported Task',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+
+      const result = await api.import({ data: JSON.stringify(taskData) });
       expect(result.success).toBe(true);
+      expect(result.elementsImported).toBe(1);
       expect(result.dryRun).toBe(false);
+    });
+
+    it('should support dry run mode', async () => {
+      const now = new Date().toISOString();
+      const taskData = {
+        id: 'test-import-dryrun',
+        type: 'task',
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'user:test',
+        tags: [],
+        metadata: {},
+        title: 'Dry Run Task',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+
+      const result = await api.import({ data: JSON.stringify(taskData), dryRun: true });
+      expect(result.success).toBe(true);
+      expect(result.dryRun).toBe(true);
+      expect(result.elementsImported).toBe(1);
+
+      // Element should NOT be in database
+      const element = await api.get(taskData.id as ElementId);
+      expect(element).toBeNull();
+    });
+
+    it('should import multiple elements', async () => {
+      const now = new Date().toISOString();
+      const task1 = {
+        id: 'test-import-multi-1',
+        type: 'task',
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'user:test',
+        tags: [],
+        metadata: {},
+        title: 'Task 1',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+      const task2 = {
+        id: 'test-import-multi-2',
+        type: 'task',
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'user:test',
+        tags: [],
+        metadata: {},
+        title: 'Task 2',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+
+      const jsonl = [JSON.stringify(task1), JSON.stringify(task2)].join('\n');
+      const result = await api.import({ data: jsonl });
+
+      expect(result.success).toBe(true);
+      expect(result.elementsImported).toBe(2);
+    });
+
+    it('should handle import with tags', async () => {
+      const now = new Date().toISOString();
+      const taskData = {
+        id: 'test-import-tags',
+        type: 'task',
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'user:test',
+        tags: ['urgent', 'bug'],
+        metadata: {},
+        title: 'Tagged Task',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+
+      const result = await api.import({ data: JSON.stringify(taskData) });
+      expect(result.success).toBe(true);
+
+      // Verify tags were imported
+      const element = await api.get<Task>(taskData.id as ElementId);
+      expect(element?.tags).toContain('urgent');
+      expect(element?.tags).toContain('bug');
+    });
+
+    it('should handle invalid JSONL data', async () => {
+      const result = await api.import({ data: 'not valid json' });
+      expect(result.success).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('should handle empty data', async () => {
+      const result = await api.import({ data: '' });
+      expect(result.success).toBe(true);
+      expect(result.elementsImported).toBe(0);
+    });
+
+    it('should merge existing element with LWW strategy', async () => {
+      // Create an element first
+      const task = await createTestTask({ title: 'Original Title' });
+      await api.create(toCreateInput(task));
+
+      // Import an update with later timestamp
+      const later = new Date(Date.now() + 10000).toISOString();
+      const updatedData = {
+        id: task.id,
+        type: 'task',
+        createdAt: task.createdAt,
+        updatedAt: later,
+        createdBy: task.createdBy,
+        tags: [],
+        metadata: {},
+        title: 'Updated Title',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+
+      const result = await api.import({ data: JSON.stringify(updatedData) });
+      expect(result.success).toBe(true);
+      expect(result.elementsImported).toBe(1);
+
+      // Verify the update was applied
+      const element = await api.get<Task>(task.id);
+      expect(element?.title).toBe('Updated Title');
+    });
+
+    it('should skip element when local is newer', async () => {
+      // Create an element with a recent timestamp
+      const task = await createTestTask({ title: 'Local Title' });
+      await api.create(toCreateInput(task));
+
+      // Import an older version
+      const earlier = new Date(Date.now() - 100000).toISOString();
+      const oldData = {
+        id: task.id,
+        type: 'task',
+        createdAt: earlier,
+        updatedAt: earlier,
+        createdBy: task.createdBy,
+        tags: [],
+        metadata: {},
+        title: 'Old Title',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+
+      const result = await api.import({ data: JSON.stringify(oldData) });
+      expect(result.success).toBe(true);
+
+      // Verify local version was kept
+      const element = await api.get<Task>(task.id);
+      expect(element?.title).toBe('Local Title');
+    });
+
+    it('should force overwrite with overwrite strategy', async () => {
+      // Create an element first
+      const task = await createTestTask({ title: 'Original Title' });
+      await api.create(toCreateInput(task));
+
+      // Import an older version with force
+      const earlier = new Date(Date.now() - 100000).toISOString();
+      const oldData = {
+        id: task.id,
+        type: 'task',
+        createdAt: earlier,
+        updatedAt: earlier,
+        createdBy: task.createdBy,
+        tags: [],
+        metadata: {},
+        title: 'Forced Title',
+        status: 'open',
+        priority: 3,
+        complexity: 3,
+        taskType: 'task',
+      };
+
+      const result = await api.import({
+        data: JSON.stringify(oldData),
+        conflictStrategy: 'overwrite',
+      });
+      expect(result.success).toBe(true);
+      expect(result.elementsImported).toBe(1);
+
+      // Verify force overwrite was applied
+      const element = await api.get<Task>(task.id);
+      expect(element?.title).toBe('Forced Title');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Round-trip Export/Import Tests
+  // --------------------------------------------------------------------------
+
+  describe('export/import round-trip', () => {
+    it('should round-trip a single task', async () => {
+      // Create a task
+      const task = await createTestTask({ title: 'Round Trip Task' });
+      await api.create(toCreateInput(task));
+
+      // Export
+      const jsonl = await api.export();
+
+      // Create a new database and import
+      const backend2 = new BunStorageBackend({ path: ':memory:' });
+      initializeSchema(backend2);
+      const api2 = new ElementalAPIImpl(backend2);
+
+      const result = await api2.import({ data: jsonl! });
+      expect(result.success).toBe(true);
+      expect(result.elementsImported).toBe(1);
+
+      // Verify the element exists in new database
+      const imported = await api2.get<Task>(task.id);
+      expect(imported).not.toBeNull();
+      expect(imported?.title).toBe('Round Trip Task');
+
+      backend2.close();
+    });
+
+    it('should round-trip elements with dependencies', async () => {
+      // Create tasks with dependency
+      const task1 = await createTestTask({ title: 'Task 1' });
+      const task2 = await createTestTask({ title: 'Task 2' });
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.addDependency({
+        sourceId: task1.id,
+        targetId: task2.id,
+        type: 'blocks',
+      });
+
+      // Export
+      const jsonl = await api.export({ includeDependencies: true });
+
+      // Create a new database and import
+      const backend2 = new BunStorageBackend({ path: ':memory:' });
+      initializeSchema(backend2);
+      const api2 = new ElementalAPIImpl(backend2);
+
+      const result = await api2.import({ data: jsonl! });
+      expect(result.success).toBe(true);
+      expect(result.elementsImported).toBe(2);
+
+      // Verify both elements exist
+      const imported1 = await api2.get<Task>(task1.id);
+      const imported2 = await api2.get<Task>(task2.id);
+      expect(imported1).not.toBeNull();
+      expect(imported2).not.toBeNull();
+
+      backend2.close();
+    });
+
+    it('should round-trip elements with tags', async () => {
+      const task = await createTestTask({ tags: ['round-trip', 'test'] });
+      await api.create(toCreateInput(task));
+
+      const jsonl = await api.export();
+
+      const backend2 = new BunStorageBackend({ path: ':memory:' });
+      initializeSchema(backend2);
+      const api2 = new ElementalAPIImpl(backend2);
+
+      await api2.import({ data: jsonl! });
+
+      const imported = await api2.get<Task>(task.id);
+      expect(imported?.tags).toContain('round-trip');
+      expect(imported?.tags).toContain('test');
+
+      backend2.close();
     });
   });
 });

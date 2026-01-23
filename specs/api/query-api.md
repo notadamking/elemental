@@ -447,13 +447,13 @@ Optional caching for:
 - [x] Implement getDocumentVersion (src/api/elemental-api.ts)
 - [x] Implement getDocumentHistory (src/api/elemental-api.ts)
 
-### Phase 7: Sync and Stats (partial)
-- [x] Implement export (basic JSONL, src/api/elemental-api.ts)
-- [ ] Implement import (placeholder only)
+### Phase 7: Sync and Stats ✅
+- [x] Implement export (via SyncService, src/api/elemental-api.ts)
+- [x] Implement import (via SyncService with element/dependency separation, merge strategy, dry-run support)
 - [x] Implement stats (src/api/elemental-api.ts)
 
 ### Phase 8: Testing ✅
 - [x] Unit tests for interface definitions (110 tests)
-- [x] Unit tests for each operation (54 tests in src/api/elemental-api.test.ts)
+- [x] Unit tests for each operation (70 tests in src/api/elemental-api.test.ts including export/import)
 - [x] Integration tests for workflows (included in elemental-api.test.ts)
 - [ ] Performance tests for queries
