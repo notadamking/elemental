@@ -406,17 +406,17 @@ User-friendly errors:
 - [x] Implement identity mode subcommand (show/set identity mode)
 - [x] Unit tests (src/cli/commands/identity.test.ts - 39 tests)
 
-### Phase 7: Admin Commands (Partial)
+### Phase 7: Admin Commands ✅
 - [x] Implement config (src/cli/commands/config.ts - show, set, unset subcommands)
 - [x] Implement stats (src/cli/commands/stats.ts - workspace statistics, 11 tests)
-- [ ] Implement doctor
-- [ ] Implement migrate
+- [x] Implement doctor (src/cli/commands/admin.ts - health checks, schema validation, integrity checks, 31 tests)
+- [x] Implement migrate (src/cli/commands/admin.ts - schema migration with dry-run support)
 
 ### Phase 8: Polish
 - [ ] Add shell completion
 - [ ] Add aliases
 - [x] Write help text (src/cli/commands/help.ts)
-- [x] Test all implemented commands (400+ tests)
+- [x] Test all implemented commands (431+ tests)
 
 ### Known Issues
 - [x] **crud.test.ts:373** - "fails gracefully when no database exists" test fixed ✅ - Added database existence check in `resolveDatabasePath()` and `createAPI()`. Read operations (list, show, update, delete) now properly return GENERAL_ERROR when database doesn't exist. Write operations (create) still create the database if needed.
