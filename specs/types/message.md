@@ -175,24 +175,34 @@ To fetch a thread:
 ## Implementation Checklist
 
 ### Phase 1: Type Definitions
-- [ ] Define `Message` interface extending `Element`
-- [ ] Define `HydratedMessage` interface
-- [ ] Create type guards for Message validation
+- [x] Define `Message` interface extending `Element`
+- [x] Define `HydratedMessage` interface
+- [x] Create type guards for Message validation
+- [x] Define MessageId, ChannelId branded types
+- [x] Implement createMessage factory function
+- [x] Implement validation functions (isValidChannelId, validateChannelId, isValidMessageId, validateMessageId, isValidThreadId, validateThreadId, isValidAttachments, validateAttachments)
+- [x] Implement utility functions (isRootMessage, isReply, hasAttachments, getAttachmentCount, isSentBy, isInChannel, isInThread)
+- [x] Implement filter functions (filterByChannel, filterBySender, filterByThread, filterRootMessages, filterReplies)
+- [x] Implement sort functions (sortByCreatedAt, sortByCreatedAtDesc)
+- [x] Implement grouping functions (groupByChannel, groupBySender, getThreadMessages)
+- [x] Unit tests - 109 tests covering all Phase 1 functionality
 
 ### Phase 2: Immutability
-- [ ] Implement update rejection for messages
-- [ ] Implement delete rejection for messages
-- [ ] Add immutability tests
+- [x] Implement update rejection for messages (rejectMessageUpdate)
+- [x] Implement delete rejection for messages (rejectMessageDelete)
+- [x] Implement MessageImmutableError class
+- [x] Implement verifyImmutabilityConstraint function
+- [x] Add immutability tests
 
 ### Phase 3: Validation
-- [ ] Validate channel membership on send
-- [ ] Validate Document references
-- [ ] Validate thread parent in same channel
+- [ ] Validate channel membership on send (requires Channel type)
+- [ ] Validate Document references (requires storage layer)
+- [ ] Validate thread parent in same channel (requires storage layer)
 
 ### Phase 4: Threading
-- [ ] Implement thread query
-- [ ] Implement `replies-to` dependency creation
-- [ ] Add thread integrity constraints
+- [x] Implement thread query (getThreadMessages utility)
+- [ ] Implement `replies-to` dependency creation (requires DependencyService integration)
+- [ ] Add thread integrity constraints (requires storage layer)
 
 ### Phase 5: Hydration
 - [ ] Implement content hydration
@@ -200,10 +210,10 @@ To fetch a thread:
 - [ ] Add batch hydration for message lists
 
 ### Phase 6: Queries
-- [ ] Implement channel message listing
-- [ ] Implement thread listing
-- [ ] Implement sender-based queries
-- [ ] Add pagination support
+- [x] Implement channel message listing (filterByChannel utility)
+- [x] Implement thread listing (filterByThread, getThreadMessages utilities)
+- [x] Implement sender-based queries (filterBySender utility)
+- [ ] Add pagination support (requires storage layer)
 
 ### Phase 7: Integration
 - [ ] Integrate with Channel system
@@ -211,7 +221,7 @@ To fetch a thread:
 - [ ] Add CLI commands (send, thread)
 
 ### Phase 8: Testing
-- [ ] Unit tests for immutability enforcement
-- [ ] Unit tests for validation
+- [x] Unit tests for immutability enforcement
+- [x] Unit tests for validation
 - [ ] Integration tests for threading
 - [ ] E2E tests for message flows

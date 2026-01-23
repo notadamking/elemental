@@ -150,7 +150,7 @@ Recommended implementation sequence:
 
 #### Phase 4: Collections
 - [x] types/plan.md ✅ (Phase 1: Plan interface, PlanStatus, type guards, validators, createPlan factory, updatePlanStatus, status transitions, progress calculation, canAutoComplete, filter/sort utilities, unit tests - 103 tests)
-- [ ] types/message.md
+- [x] types/message.md ✅ (Phase 1: Message interface, HydratedMessage, MessageId/ChannelId branded types, type guards, validators, createMessage factory, immutability enforcement, threading utilities, filter/sort/grouping utilities, unit tests - 109 tests; Phase 2: Immutability enforcement complete)
 - [ ] types/channel.md
 
 #### Phase 5: Advanced Features

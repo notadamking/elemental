@@ -9,3 +9,4 @@ export * from './task.js';
 export * from './event.js';
 export * from './dependency.js';
 export * from './plan.js';
+export * from './message.js';
