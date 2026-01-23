@@ -178,7 +178,7 @@ Recommended implementation sequence:
 - [x] **systems/storage.md Phase 6**: Dirty tracking ✅ (markDirty, getDirtyElements, clearDirty, clearDirtyElements in BunStorageBackend)
 - [x] **systems/storage.md Phase 7**: Content hashing ✅ (computeContentHashSync in sync/hash.ts, integrated with create/update in elemental-api.ts, hash column in schema)
 - [ ] **systems/id-generation.md Phase 3**: Storage integration (element count query, length caching)
-- [ ] **systems/id-generation.md Phase 5**: Hierarchical ID storage (child counter table, atomic counter increment)
+- [ ] **systems/id-generation.md Phase 5**: Hierarchical ID storage (child counter table ✅, atomic counter increment pending)
 
 #### Sync System (Priority: High)
 - [x] **api/sync.md Phase 2**: Full export ✅ (SyncService.export with full/incremental modes, ephemeral filtering, file writing)
@@ -198,7 +198,7 @@ Recommended implementation sequence:
 - [ ] **types/task.md Phase 2**: Automatic blocked status computation, status change event emission
 - [ ] **types/task.md Phase 3-4**: Ready/blocked work queries, assignment/deadline queries, hydration (Document reference resolution, batch hydration)
 - [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system
-- [ ] **types/entity.md Phase 2-3**: Name uniqueness validation (storage-level), name-based lookup, entity listing queries
+- [ ] **types/entity.md Phase 2-3**: Name uniqueness validation (storage-level), entity listing queries (name-based lookup ✅, whoami ✅)
 - [ ] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API
 - [ ] **types/entity.md Phase 5**: Entity update, deactivation, search/filter, assignment queries
 - [ ] **types/document.md Phase 3-4**: Version table schema integration, getDocumentVersion/getDocumentHistory (storage layer)
@@ -236,7 +236,7 @@ Recommended implementation sequence:
 - [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset implemented in src/cli/commands/config.ts; edit pending)
 - [x] **types/task.md Phase 5 (partial)**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)
 - [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system (pending)
-- [ ] **types/entity.md Phase 6**: CLI commands (register, list, whoami)
+- [ ] **types/entity.md Phase 6**: CLI commands (register, list pending; whoami ✅)
 - [ ] **types/message.md Phase 7**: CLI commands (send, thread)
 
 #### Error Handling & Validation (Priority: Low)

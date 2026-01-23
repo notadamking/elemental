@@ -252,11 +252,11 @@ When enabled:
 - [ ] Create name conflict error handling (storage-level)
 - [x] Unit tests for name validation
 
-### Phase 3: Soft Identity
+### Phase 3: Soft Identity (Partial ✅)
 - [x] Implement entity registration (`createEntity`)
-- [ ] Implement name-based lookup (requires storage)
+- [x] Implement name-based lookup ✅ (src/api/elemental-api.ts - lookupEntityByName)
 - [ ] Add entity listing queries (requires query API)
-- [ ] Implement `whoami` functionality (requires CLI)
+- [x] Implement `whoami` functionality ✅ (src/cli/commands/identity.ts - whoamiCommand)
 
 ### Phase 4: Cryptographic Identity (Partial ✅)
 - [x] Add public key storage (field defined, validation implemented)
@@ -276,7 +276,7 @@ When enabled:
 - [ ] Integrate with Message sender validation
 - [ ] Integrate with Channel membership
 - [ ] Integrate with Team membership
-- [ ] Add CLI commands (register, list, whoami)
+- [ ] Add CLI commands (register, list pending; whoami ✅ in src/cli/commands/identity.ts)
 
 ### Phase 7: Testing
 - [x] Unit tests for name validation
