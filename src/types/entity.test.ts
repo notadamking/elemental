@@ -15,6 +15,8 @@ import {
   validateEntity,
   createEntity,
   CreateEntityInput,
+  updateEntity,
+  UpdateEntityInput,
   hasCryptographicIdentity,
   getEntityDisplayName,
   entitiesHaveSameName,
@@ -427,6 +429,167 @@ describe('createEntity', () => {
     expect(entity.createdAt >= before).toBe(true);
     expect(entity.createdAt <= after).toBe(true);
     expect(entity.createdAt).toBe(entity.updatedAt);
+  });
+});
+
+describe('updateEntity', () => {
+  test('updates metadata by merging', () => {
+    const entity = createTestEntity({
+      metadata: { existing: 'value', toKeep: 123 }
+    });
+
+    const updated = updateEntity(entity, {
+      metadata: { newField: 'added', existing: 'updated' }
+    });
+
+    expect(updated.metadata).toEqual({
+      existing: 'updated',
+      toKeep: 123,
+      newField: 'added'
+    });
+  });
+
+  test('updates tags by replacing', () => {
+    const entity = createTestEntity({
+      tags: ['old-tag', 'another-old']
+    });
+
+    const updated = updateEntity(entity, {
+      tags: ['new-tag', 'fresh-tag']
+    });
+
+    expect(updated.tags).toEqual(['new-tag', 'fresh-tag']);
+  });
+
+  test('adds public key to entity without one', () => {
+    const entity = createTestEntity();
+    expect(entity.publicKey).toBeUndefined();
+
+    const updated = updateEntity(entity, {
+      publicKey: VALID_PUBLIC_KEY
+    });
+
+    expect(updated.publicKey).toBe(VALID_PUBLIC_KEY);
+  });
+
+  test('updates public key on entity that has one', () => {
+    const entity = createTestEntity({
+      publicKey: VALID_PUBLIC_KEY
+    });
+    const newKey = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=';
+
+    const updated = updateEntity(entity, {
+      publicKey: newKey
+    });
+
+    expect(updated.publicKey).toBe(newKey);
+  });
+
+  test('validates public key format', () => {
+    const entity = createTestEntity();
+
+    expect(() => updateEntity(entity, {
+      publicKey: 'invalid-key'
+    })).toThrow(ValidationError);
+  });
+
+  test('updates updatedAt timestamp', () => {
+    const entity = createTestEntity({
+      updatedAt: '2020-01-01T00:00:00.000Z' as any
+    });
+    const before = new Date().toISOString();
+
+    const updated = updateEntity(entity, {
+      metadata: { changed: true }
+    });
+
+    const after = new Date().toISOString();
+    expect(updated.updatedAt >= before).toBe(true);
+    expect(updated.updatedAt <= after).toBe(true);
+  });
+
+  test('preserves immutable fields', () => {
+    const entity = createTestEntity({
+      name: 'original-name',
+      entityType: EntityTypeValue.AGENT,
+      createdAt: '2020-01-01T00:00:00.000Z' as any,
+      createdBy: 'el-original' as EntityId,
+    });
+
+    const updated = updateEntity(entity, {
+      tags: ['new-tag'],
+      metadata: { updated: true }
+    });
+
+    // Immutable fields should be preserved
+    expect(updated.name).toBe('original-name');
+    expect(updated.entityType).toBe(EntityTypeValue.AGENT);
+    expect(updated.createdAt).toBe('2020-01-01T00:00:00.000Z');
+    expect(updated.createdBy).toBe('el-original' as EntityId);
+    expect(updated.id).toBe(entity.id);
+    expect(updated.type).toBe(ElementType.ENTITY);
+  });
+
+  test('preserves existing values when not updating', () => {
+    const entity = createTestEntity({
+      tags: ['keep-me'],
+      metadata: { preserve: 'this' },
+      publicKey: VALID_PUBLIC_KEY
+    });
+
+    // Update with empty input
+    const updated = updateEntity(entity, {});
+
+    expect(updated.tags).toEqual(['keep-me']);
+    expect(updated.metadata).toEqual({ preserve: 'this' });
+    expect(updated.publicKey).toBe(VALID_PUBLIC_KEY);
+  });
+
+  test('can clear tags by setting to empty array', () => {
+    const entity = createTestEntity({
+      tags: ['tag1', 'tag2', 'tag3']
+    });
+
+    const updated = updateEntity(entity, {
+      tags: []
+    });
+
+    expect(updated.tags).toEqual([]);
+  });
+
+  test('handles multiple updates at once', () => {
+    const entity = createTestEntity({
+      tags: ['old'],
+      metadata: { old: 'data' }
+    });
+
+    const updated = updateEntity(entity, {
+      tags: ['new-tag1', 'new-tag2'],
+      metadata: { new: 'data', extra: 123 },
+      publicKey: VALID_PUBLIC_KEY
+    });
+
+    expect(updated.tags).toEqual(['new-tag1', 'new-tag2']);
+    expect(updated.metadata).toEqual({ old: 'data', new: 'data', extra: 123 });
+    expect(updated.publicKey).toBe(VALID_PUBLIC_KEY);
+  });
+
+  test('does not mutate original entity', () => {
+    const entity = createTestEntity({
+      tags: ['original'],
+      metadata: { original: true }
+    });
+    const originalTags = [...entity.tags];
+    const originalMetadata = { ...entity.metadata };
+
+    updateEntity(entity, {
+      tags: ['modified'],
+      metadata: { modified: true }
+    });
+
+    // Original entity should be unchanged
+    expect(entity.tags).toEqual(originalTags);
+    expect(entity.metadata).toEqual(originalMetadata);
   });
 });
 

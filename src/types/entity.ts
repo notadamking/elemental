@@ -8,7 +8,7 @@
 
 import { ValidationError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
-import { Element, ElementId, EntityId, ElementType, createTimestamp } from './element.js';
+import { Element, EntityId, ElementType, createTimestamp } from './element.js';
 import { generateId, type IdGeneratorConfig } from '../id/generator.js';
 
 // ============================================================================
@@ -390,6 +390,59 @@ export async function createEntity(
   };
 
   return entity;
+}
+
+/**
+ * Input for updating an existing entity
+ * Note: name cannot be updated as it's the unique identifier
+ */
+export interface UpdateEntityInput {
+  /** Optional new Ed25519 public key, base64 encoded */
+  publicKey?: string;
+  /** Optional tags to merge or replace */
+  tags?: string[];
+  /** Optional metadata to merge */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Updates an existing Entity with new metadata
+ *
+ * Can update:
+ * - publicKey: Add or update cryptographic identity
+ * - tags: Replace tags
+ * - metadata: Merge with existing metadata
+ *
+ * Cannot update:
+ * - name: Unique identifier (immutable)
+ * - entityType: Classification (immutable after creation)
+ *
+ * @param entity - The existing entity to update
+ * @param input - Update input
+ * @returns The updated Entity
+ */
+export function updateEntity(entity: Entity, input: UpdateEntityInput): Entity {
+  // Validate public key if provided
+  if (input.publicKey !== undefined) {
+    validatePublicKey(input.publicKey);
+  }
+
+  const now = createTimestamp();
+
+  // Build the updated entity
+  const updated: Entity = {
+    ...entity,
+    updatedAt: now,
+    tags: input.tags !== undefined ? input.tags : entity.tags,
+    metadata: input.metadata !== undefined
+      ? { ...entity.metadata, ...input.metadata }
+      : entity.metadata,
+    ...(input.publicKey !== undefined && { publicKey: input.publicKey }),
+    // If publicKey is explicitly undefined, keep existing
+    // If publicKey is explicitly null, we would need to handle key removal
+  };
+
+  return updated;
 }
 
 // ============================================================================

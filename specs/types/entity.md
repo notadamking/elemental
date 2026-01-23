@@ -266,7 +266,7 @@ When enabled:
 - [x] Unit tests for public key validation
 
 ### Phase 5: Entity Operations
-- [ ] Implement entity update (metadata only)
+- [x] Implement entity update (metadata only) ✅ (updateEntity in src/types/entity.ts - updates publicKey, tags, metadata; 11 tests)
 - [ ] Implement entity deactivation
 - [ ] Add entity search/filter
 - [ ] Implement entity assignment queries
