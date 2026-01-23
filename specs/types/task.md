@@ -222,10 +222,10 @@ Tasks under Plans use hierarchical IDs:
 - [ ] Implement assignment-based queries
 - [ ] Implement deadline-based queries
 
-### Phase 4: Hydration
-- [ ] Implement Document reference resolution
-- [ ] Implement batch hydration for lists
-- [ ] Add hydration options to query API
+### Phase 4: Hydration ✅
+- [x] Implement Document reference resolution ✅ (hydrateTask method in elemental-api.ts fetches referenced Documents)
+- [x] Implement batch hydration for lists ✅ (hydrateTasks + batchFetchDocuments for efficient bulk operations)
+- [x] Add hydration options to query API ✅ (hydrate option in ElementFilter, supports list/listPaginated - 18 tests)
 
 ### Phase 5: Integration
 - [ ] Integrate with dependency system
@@ -236,5 +236,5 @@ Tasks under Plans use hierarchical IDs:
 ### Phase 6: Testing
 - [x] Unit tests for status transitions
 - [ ] Unit tests for ready/blocked computation (with dependencies)
-- [ ] Integration tests for hydration
+- [x] Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
 - [ ] E2E tests for task lifecycle

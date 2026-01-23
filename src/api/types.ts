@@ -68,6 +68,8 @@ export interface ElementFilter extends PaginationOptions, SortOptions {
   updatedBefore?: Timestamp;
   /** Include soft-deleted elements (tombstones) */
   includeDeleted?: boolean;
+  /** Hydration options for resolving document references */
+  hydrate?: HydrationOptions;
 }
 
 /**

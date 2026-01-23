@@ -505,12 +505,28 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     }
 
+    // Apply hydration if requested and items are tasks
+    let finalItems: T[] = filteredItems;
+    if (effectiveFilter.hydrate) {
+      const tasks = filteredItems.filter((item): item is Task & T => isTask(item));
+      if (tasks.length > 0) {
+        const hydratedTasks = this.hydrateTasks(tasks, effectiveFilter.hydrate);
+        // Create a map for efficient lookup
+        const hydratedMap = new Map(hydratedTasks.map((t) => [t.id, t]));
+        // Replace tasks with hydrated versions, keeping non-tasks as-is
+        finalItems = filteredItems.map((item) => {
+          const hydrated = hydratedMap.get(item.id);
+          return hydrated ? (hydrated as unknown as T) : item;
+        });
+      }
+    }
+
     return {
-      items: filteredItems,
+      items: finalItems,
       total,
       offset,
       limit,
-      hasMore: offset + filteredItems.length < total,
+      hasMore: offset + finalItems.length < total,
     };
   }
 
@@ -1547,6 +1563,86 @@ export class ElementalAPIImpl implements ElementalAPI {
         hydrated.design = doc.content;
       }
     }
+
+    return hydrated;
+  }
+
+  /**
+   * Batch fetch documents by their IDs.
+   * Returns a map of document ID to document for efficient lookup.
+   */
+  private batchFetchDocuments(documentIds: ElementId[]): Map<ElementId, Document> {
+    if (documentIds.length === 0) {
+      return new Map();
+    }
+
+    // Deduplicate IDs
+    const uniqueIds = [...new Set(documentIds)];
+
+    // Build query with placeholders
+    const placeholders = uniqueIds.map(() => '?').join(', ');
+    const sql = `SELECT * FROM elements WHERE id IN (${placeholders}) AND type = 'document'`;
+
+    const rows = this.backend.query<ElementRow>(sql, uniqueIds);
+
+    // Convert to map
+    const documentMap = new Map<ElementId, Document>();
+    for (const row of rows) {
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [row.id]
+      );
+      const tags = tagRows.map((r) => r.tag);
+      const doc = deserializeElement<Document>(row, tags);
+      documentMap.set(doc.id, doc);
+    }
+
+    return documentMap;
+  }
+
+  /**
+   * Batch hydrate tasks with their document references.
+   * Collects all document IDs, fetches them in a single query, then populates.
+   */
+  private hydrateTasks(tasks: Task[], options: HydrationOptions): HydratedTask[] {
+    if (tasks.length === 0) {
+      return [];
+    }
+
+    // Collect all document IDs to fetch
+    const documentIds: ElementId[] = [];
+    for (const task of tasks) {
+      if (options.description && task.descriptionRef) {
+        documentIds.push(task.descriptionRef as unknown as ElementId);
+      }
+      if (options.design && task.designRef) {
+        documentIds.push(task.designRef as unknown as ElementId);
+      }
+    }
+
+    // Batch fetch all documents
+    const documentMap = this.batchFetchDocuments(documentIds);
+
+    // Hydrate each task
+    const hydrated: HydratedTask[] = tasks.map((task) => {
+      const result: HydratedTask = { ...task };
+
+      if (options.description && task.descriptionRef) {
+        const doc = documentMap.get(task.descriptionRef as unknown as ElementId);
+        if (doc) {
+          result.description = doc.content;
+        }
+      }
+
+      if (options.design && task.designRef) {
+        const doc = documentMap.get(task.designRef as unknown as ElementId);
+        if (doc) {
+          result.design = doc.content;
+        }
+      }
+
+      return result;
+    });
 
     return hydrated;
   }

@@ -197,7 +197,8 @@ Recommended implementation sequence:
 #### Type Integration (Priority: Medium)
 - [x] **types/task.md Phase 2**: Automatic blocked status computation ✅ (BlockedCacheService triggers auto_blocked/auto_unblocked events, stores previous_status in blocked_cache for restoration - 20 tests)
 - [x] **types/task.md Phase 2**: Status change event emission ✅ (closed/reopened/updated events - 9 tests)
-- [ ] **types/task.md Phase 3-4**: Ready/blocked work queries, assignment/deadline queries, hydration (Document reference resolution, batch hydration)
+- [ ] **types/task.md Phase 3**: Ready/blocked work queries, assignment/deadline queries
+- [x] **types/task.md Phase 4**: Hydration ✅ (Document reference resolution, batch hydration for lists, hydrate option in ElementFilter - 18 tests)
 - [x] **types/task.md Phase 5** (partial): Integration with blocked cache ✅ (automatic status transitions via BlockedCacheService callback, auto_blocked/auto_unblocked events)
 - [ ] **types/task.md Phase 5** (pending): Further dependency system integration (dependency-based priority, complexity inheritance)
 - [x] **types/entity.md Phase 2**: Name uniqueness validation ✅ (storage-level check in create(), DUPLICATE_NAME error)
@@ -256,7 +257,8 @@ Recommended implementation sequence:
 - [ ] **systems/dependencies.md Phase 8**: Performance tests for large dependency graphs
 - [ ] **api/query-api.md Phase 5**: Optimize batch fetching
 - [ ] **api/query-api.md Phase 8**: Performance tests for queries
-- [ ] **types/task.md Phase 6**: Unit tests for ready/blocked computation with dependencies, integration tests for hydration, E2E tests for task lifecycle
+- [ ] **types/task.md Phase 6**: Unit tests for ready/blocked computation with dependencies, E2E tests for task lifecycle
+- [x] **types/task.md Phase 6** (partial): Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
 - [ ] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows
 - [ ] **types/document.md Phase 7**: Integration tests for history queries, E2E tests for Document lifecycle
 - [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests), signature verification tests ✅ (148 tests)
