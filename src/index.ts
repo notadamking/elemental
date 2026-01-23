@@ -4,3 +4,6 @@
 
 // Export error handling
 export * from './errors/index.js';
+
+// Export types
+export * from './types/index.js';
