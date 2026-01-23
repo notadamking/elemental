@@ -45,6 +45,8 @@ export const NotFoundErrorCode = {
   CHANNEL_NOT_FOUND: 'CHANNEL_NOT_FOUND',
   /** Playbook not found */
   PLAYBOOK_NOT_FOUND: 'PLAYBOOK_NOT_FOUND',
+  /** Dependency not found */
+  DEPENDENCY_NOT_FOUND: 'DEPENDENCY_NOT_FOUND',
 } as const;
 
 export type NotFoundErrorCode = typeof NotFoundErrorCode[keyof typeof NotFoundErrorCode];
@@ -61,6 +63,8 @@ export const ConflictErrorCode = {
   CYCLE_DETECTED: 'CYCLE_DETECTED',
   /** Merge conflict during sync */
   SYNC_CONFLICT: 'SYNC_CONFLICT',
+  /** Dependency already exists */
+  DUPLICATE_DEPENDENCY: 'DUPLICATE_DEPENDENCY',
 } as const;
 
 export type ConflictErrorCode = typeof ConflictErrorCode[keyof typeof ConflictErrorCode];
@@ -136,12 +140,14 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.DOCUMENT_NOT_FOUND]: 404,
   [ErrorCode.CHANNEL_NOT_FOUND]: 404,
   [ErrorCode.PLAYBOOK_NOT_FOUND]: 404,
+  [ErrorCode.DEPENDENCY_NOT_FOUND]: 404,
 
   // Conflict errors -> 409
   [ErrorCode.ALREADY_EXISTS]: 409,
   [ErrorCode.DUPLICATE_NAME]: 409,
   [ErrorCode.CYCLE_DETECTED]: 409,
   [ErrorCode.SYNC_CONFLICT]: 409,
+  [ErrorCode.DUPLICATE_DEPENDENCY]: 409,
 
   // Constraint errors -> 400/403/409
   [ErrorCode.IMMUTABLE]: 403,

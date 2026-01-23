@@ -277,12 +277,15 @@ Function `isBlocked(elementId)`:
 - [x] Create utility functions (isBlockingDependency, filterByType, describeDependency, etc.)
 - [x] Unit tests (175 tests)
 
-### Phase 2: Core Operations
-- [ ] Implement addDependency
-- [ ] Implement removeDependency
-- [ ] Implement getDependencies
-- [ ] Implement getDependents
-- [ ] Add dependency events
+### Phase 2: Core Operations ✅
+- [x] Implement addDependency (DependencyService.addDependency)
+- [x] Implement removeDependency (DependencyService.removeDependency)
+- [x] Implement getDependencies (DependencyService.getDependencies, getRelatedTo, getDependenciesForMany)
+- [x] Implement getDependents (DependencyService.getDependents)
+- [x] Add dependency events (createDependencyAddedEvent, createDependencyRemovedEvent)
+- [x] Additional utilities: exists, getDependency, countDependencies, countDependents
+- [x] Bulk operations: removeAllDependencies, removeAllDependents
+- [x] Unit tests (67 tests)
 
 ### Phase 3: Cycle Detection
 - [ ] Implement BFS traversal

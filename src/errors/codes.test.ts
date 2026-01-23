@@ -32,6 +32,7 @@ describe('ErrorCode', () => {
       expect(NotFoundErrorCode.DOCUMENT_NOT_FOUND).toBe('DOCUMENT_NOT_FOUND');
       expect(NotFoundErrorCode.CHANNEL_NOT_FOUND).toBe('CHANNEL_NOT_FOUND');
       expect(NotFoundErrorCode.PLAYBOOK_NOT_FOUND).toBe('PLAYBOOK_NOT_FOUND');
+      expect(NotFoundErrorCode.DEPENDENCY_NOT_FOUND).toBe('DEPENDENCY_NOT_FOUND');
     });
 
     it('should define all conflict error codes', () => {
@@ -39,6 +40,7 @@ describe('ErrorCode', () => {
       expect(ConflictErrorCode.DUPLICATE_NAME).toBe('DUPLICATE_NAME');
       expect(ConflictErrorCode.CYCLE_DETECTED).toBe('CYCLE_DETECTED');
       expect(ConflictErrorCode.SYNC_CONFLICT).toBe('SYNC_CONFLICT');
+      expect(ConflictErrorCode.DUPLICATE_DEPENDENCY).toBe('DUPLICATE_DEPENDENCY');
     });
 
     it('should define all constraint error codes', () => {
@@ -102,6 +104,7 @@ describe('ErrorHttpStatus', () => {
     expect(ErrorHttpStatus[ErrorCode.DOCUMENT_NOT_FOUND]).toBe(404);
     expect(ErrorHttpStatus[ErrorCode.CHANNEL_NOT_FOUND]).toBe(404);
     expect(ErrorHttpStatus[ErrorCode.PLAYBOOK_NOT_FOUND]).toBe(404);
+    expect(ErrorHttpStatus[ErrorCode.DEPENDENCY_NOT_FOUND]).toBe(404);
   });
 
   it('should map conflict errors to 409', () => {
@@ -109,6 +112,7 @@ describe('ErrorHttpStatus', () => {
     expect(ErrorHttpStatus[ErrorCode.DUPLICATE_NAME]).toBe(409);
     expect(ErrorHttpStatus[ErrorCode.CYCLE_DETECTED]).toBe(409);
     expect(ErrorHttpStatus[ErrorCode.SYNC_CONFLICT]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.DUPLICATE_DEPENDENCY]).toBe(409);
   });
 
   it('should map constraint errors appropriately', () => {
@@ -158,6 +162,7 @@ describe('getExitCode', () => {
     expect(getExitCode(ErrorCode.DOCUMENT_NOT_FOUND)).toBe(ErrorExitCode.NOT_FOUND);
     expect(getExitCode(ErrorCode.CHANNEL_NOT_FOUND)).toBe(ErrorExitCode.NOT_FOUND);
     expect(getExitCode(ErrorCode.PLAYBOOK_NOT_FOUND)).toBe(ErrorExitCode.NOT_FOUND);
+    expect(getExitCode(ErrorCode.DEPENDENCY_NOT_FOUND)).toBe(ErrorExitCode.NOT_FOUND);
   });
 
   it('should return PERMISSION for permission-related constraint errors', () => {
@@ -177,6 +182,7 @@ describe('getExitCode', () => {
     expect(getExitCode(ErrorCode.DUPLICATE_NAME)).toBe(ErrorExitCode.GENERAL_ERROR);
     expect(getExitCode(ErrorCode.CYCLE_DETECTED)).toBe(ErrorExitCode.GENERAL_ERROR);
     expect(getExitCode(ErrorCode.SYNC_CONFLICT)).toBe(ErrorExitCode.GENERAL_ERROR);
+    expect(getExitCode(ErrorCode.DUPLICATE_DEPENDENCY)).toBe(ErrorExitCode.GENERAL_ERROR);
     expect(getExitCode(ErrorCode.HAS_DEPENDENTS)).toBe(ErrorExitCode.GENERAL_ERROR);
     expect(getExitCode(ErrorCode.INVALID_PARENT)).toBe(ErrorExitCode.GENERAL_ERROR);
     expect(getExitCode(ErrorCode.MAX_DEPTH_EXCEEDED)).toBe(ErrorExitCode.GENERAL_ERROR);
