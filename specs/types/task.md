@@ -196,18 +196,25 @@ Tasks under Plans use hierarchical IDs:
 
 ## Implementation Checklist
 
-### Phase 1: Type Definitions
-- [ ] Define `Task` interface extending `Element`
-- [ ] Define `HydratedTask` interface
-- [ ] Define `TaskStatus` union type
-- [ ] Define `Priority` and `Complexity` types
-- [ ] Create type guards for Task validation
+### Phase 1: Type Definitions ✅
+- [x] Define `Task` interface extending `Element`
+- [x] Define `HydratedTask` interface
+- [x] Define `TaskStatus` union type
+- [x] Define `Priority` and `Complexity` types
+- [x] Define `TaskTypeValue` (bug, feature, task, chore)
+- [x] Create type guards for Task validation (`isTask`, `validateTask`)
+- [x] Create factory function (`createTask`)
+- [x] Implement status transition validation (`isValidStatusTransition`, `validateStatusTransition`)
+- [x] Implement `updateTaskStatus` function
+- [x] Implement `softDeleteTask` function (tombstone transition)
+- [x] Create utility functions (`isReadyForWork`, `isBlocked`, `isClosed`, etc.)
+- [x] Unit tests for all Phase 1 functionality (135 tests)
 
 ### Phase 2: Lifecycle Management
-- [ ] Implement status transition validation
-- [ ] Implement automatic blocked status computation
-- [ ] Implement tombstone transition logic
-- [ ] Create status change event emission
+- [x] Implement status transition validation
+- [ ] Implement automatic blocked status computation (depends on dependency system)
+- [x] Implement tombstone transition logic
+- [ ] Create status change event emission (depends on event system)
 
 ### Phase 3: Queries
 - [ ] Implement ready work query
@@ -227,7 +234,7 @@ Tasks under Plans use hierarchical IDs:
 - [ ] Add CLI commands for task operations
 
 ### Phase 6: Testing
-- [ ] Unit tests for status transitions
-- [ ] Unit tests for ready/blocked computation
+- [x] Unit tests for status transitions
+- [ ] Unit tests for ready/blocked computation (with dependencies)
 - [ ] Integration tests for hydration
 - [ ] E2E tests for task lifecycle
