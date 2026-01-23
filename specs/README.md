@@ -146,7 +146,7 @@ Recommended implementation sequence:
 - [x] systems/events.md ✅ (Phase 1: Event interface, EventType unions, EventFilter, type guards, validators, createEvent factory, utility functions, unit tests - 129 tests)
 
 #### Phase 3: Dependencies
-- [ ] systems/dependencies.md (Phase 1 ✅: Type definitions, validators, factories, utilities, unit tests - 175 tests; Phase 2 ✅: DependencyService CRUD operations, event helpers, unit tests - 67 tests)
+- [x] systems/dependencies.md ✅ (Phase 1: Type definitions, validators, factories, utilities - 175 tests; Phase 2: DependencyService CRUD operations, event helpers - 67 tests; Phase 3: Cycle detection with BFS traversal, depth limiting, relates-to exclusion - 33 tests. Total: 100 tests)
 
 #### Phase 4: Collections
 - [ ] types/plan.md

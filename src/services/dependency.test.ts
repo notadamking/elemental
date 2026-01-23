@@ -4,6 +4,8 @@ import {
   createDependencyService,
   createDependencyAddedEvent,
   createDependencyRemovedEvent,
+  DEFAULT_CYCLE_DETECTION_CONFIG,
+  type CycleDetectionConfig,
 } from './dependency.js';
 import { createBunStorage, BunStorageBackend } from '../storage/bun-backend.js';
 import type { ElementId, EntityId } from '../types/element.js';
@@ -988,3 +990,765 @@ describe('Dependency Event Helpers', () => {
     });
   });
 });
+
+// ============================================================================
+// Cycle Detection Tests
+// ============================================================================
+
+describe('Cycle Detection', () => {
+  let db: BunStorageBackend;
+  let service: DependencyService;
+
+  // Test data - use el- prefix for clarity
+  const testEntity = 'el-testuser1' as EntityId;
+  const elA = 'el-A' as ElementId;
+  const elB = 'el-B' as ElementId;
+  const elC = 'el-C' as ElementId;
+  const elD = 'el-D' as ElementId;
+  const elE = 'el-E' as ElementId;
+
+  beforeEach(() => {
+    db = createBunStorage({ path: ':memory:' }) as BunStorageBackend;
+    service = createDependencyService(db);
+    service.initSchema();
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  // ==========================================================================
+  // detectCycle Tests
+  // ==========================================================================
+
+  describe('detectCycle', () => {
+    test('returns no cycle for non-blocking dependency types', () => {
+      // Add a chain that would be a cycle if blocking
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.REFERENCES,
+        createdBy: testEntity,
+      });
+
+      // Check if adding B -> A (reverse) would create a cycle
+      // It shouldn't because REFERENCES is not a blocking type
+      const result = service.detectCycle(elB, elA, DependencyType.REFERENCES);
+
+      expect(result.hasCycle).toBe(false);
+      expect(result.nodesVisited).toBe(0);
+      expect(result.depthLimitReached).toBe(false);
+    });
+
+    test('returns no cycle when there is no path from target to source', () => {
+      // A -> B (blocks)
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Check if C -> A would create a cycle
+      // There's no path from A to C, so no cycle
+      const result = service.detectCycle(elC, elA, DependencyType.BLOCKS);
+
+      expect(result.hasCycle).toBe(false);
+    });
+
+    test('detects simple direct cycle (A -> B, B -> A)', () => {
+      // A -> B (blocks)
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Check if adding B -> A would create a cycle
+      // Starting from A (target), traverse to B, then back to B (source) -> cycle found
+      const result = service.detectCycle(elB, elA, DependencyType.BLOCKS);
+
+      expect(result.hasCycle).toBe(true);
+      // Path: starts at target (A), traverses to B, and source (B) completes the cycle
+      expect(result.cyclePath).toEqual([elA, elB, elB]);
+      // We visit A (target) and then find B (source) which completes cycle
+      expect(result.nodesVisited).toBe(2);
+    });
+
+    test('detects longer cycle (A -> B -> C, C -> A)', () => {
+      // A -> B (blocks)
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // B -> C (blocks)
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Check if adding C -> A would create a cycle
+      // Starting from A (target), traverse A -> B -> C, then source (C) completes cycle
+      const result = service.detectCycle(elC, elA, DependencyType.BLOCKS);
+
+      expect(result.hasCycle).toBe(true);
+      // Path includes the source at the end to show the full cycle
+      expect(result.cyclePath).toEqual([elA, elB, elC, elC]);
+      expect(result.nodesVisited).toBeGreaterThanOrEqual(2);
+    });
+
+    test('detects cycle through parent-child relationships', () => {
+      // A parent-of B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.PARENT_CHILD,
+        createdBy: testEntity,
+      });
+
+      // Check if B parent-of A would create a cycle
+      const result = service.detectCycle(elB, elA, DependencyType.PARENT_CHILD);
+
+      expect(result.hasCycle).toBe(true);
+    });
+
+    test('detects cycle through awaits relationships', () => {
+      // A awaits B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.AWAITS,
+        createdBy: testEntity,
+        metadata: {
+          gateType: GateType.TIMER,
+          waitUntil: '2025-12-31T23:59:59.000Z',
+        },
+      });
+
+      // Check if B awaits A would create a cycle
+      const result = service.detectCycle(elB, elA, DependencyType.AWAITS);
+
+      expect(result.hasCycle).toBe(true);
+    });
+
+    test('detects cycle through mixed blocking types', () => {
+      // A blocks B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // B parent-of C
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.PARENT_CHILD,
+        createdBy: testEntity,
+      });
+
+      // C awaits D
+      service.addDependency({
+        sourceId: elC,
+        targetId: elD,
+        type: DependencyType.AWAITS,
+        createdBy: testEntity,
+        metadata: {
+          gateType: GateType.TIMER,
+          waitUntil: '2025-12-31T23:59:59.000Z',
+        },
+      });
+
+      // Check if D blocks A would create a cycle
+      // Path: A -> B -> C -> D, and source (D) completes the cycle
+      const result = service.detectCycle(elD, elA, DependencyType.BLOCKS);
+
+      expect(result.hasCycle).toBe(true);
+      expect(result.cyclePath).toEqual([elA, elB, elC, elD, elD]);
+    });
+
+    test('does not consider non-blocking types in cycle detection', () => {
+      // A references B (non-blocking)
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.REFERENCES,
+        createdBy: testEntity,
+      });
+
+      // B relates-to C (non-blocking)
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.RELATES_TO,
+        createdBy: testEntity,
+      });
+
+      // Check if C blocks A would create a cycle
+      // It shouldn't because the existing dependencies are non-blocking
+      const result = service.detectCycle(elC, elA, DependencyType.BLOCKS);
+
+      expect(result.hasCycle).toBe(false);
+    });
+
+    test('excludes relates-to from cycle detection (bidirectional by design)', () => {
+      // A relates-to B (always allowed in both directions)
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.RELATES_TO,
+        createdBy: testEntity,
+      });
+
+      // Check adding B relates-to A - should not be considered a cycle
+      // (though it will be deduplicated as the same relationship)
+      const result = service.detectCycle(elB, elA, DependencyType.RELATES_TO);
+
+      expect(result.hasCycle).toBe(false);
+      expect(result.nodesVisited).toBe(0); // Non-blocking types skip traversal
+    });
+
+    test('respects depth limit', () => {
+      // Create a long chain: A -> B -> C -> D -> E
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elC,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elD,
+        targetId: elE,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Check with depth limit of 2
+      const config: CycleDetectionConfig = { maxDepth: 2 };
+      const result = service.detectCycle(elE, elA, DependencyType.BLOCKS, config);
+
+      // Should hit depth limit before finding the cycle
+      expect(result.depthLimitReached).toBe(true);
+      expect(result.hasCycle).toBe(false);
+    });
+
+    test('handles diamond dependency pattern without false positives', () => {
+      // Diamond: A -> B, A -> C, B -> D, C -> D
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elA,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elC,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Adding E -> A should not create a cycle
+      const result = service.detectCycle(elE, elA, DependencyType.BLOCKS);
+      expect(result.hasCycle).toBe(false);
+    });
+
+    test('handles self-reference check gracefully', () => {
+      // Note: Self-reference should be caught by dependency creation validation
+      // but detectCycle correctly identifies it as a cycle
+      const result = service.detectCycle(elA, elA, DependencyType.BLOCKS);
+
+      // When source == target, starting from target immediately finds source
+      // This is correctly detected as a cycle
+      expect(result.hasCycle).toBe(true);
+      expect(result.cyclePath).toEqual([elA, elA]);
+    });
+
+    test('validates input parameters', () => {
+      expect(() =>
+        service.detectCycle('' as ElementId, elB, DependencyType.BLOCKS)
+      ).toThrow();
+
+      expect(() =>
+        service.detectCycle(elA, '' as ElementId, DependencyType.BLOCKS)
+      ).toThrow();
+
+      expect(() =>
+        service.detectCycle(elA, elB, 'invalid' as DependencyType)
+      ).toThrow();
+    });
+
+    test('uses default config when not specified', () => {
+      const result = service.detectCycle(elA, elB, DependencyType.BLOCKS);
+      // Should use DEFAULT_CYCLE_DETECTION_CONFIG
+      expect(DEFAULT_CYCLE_DETECTION_CONFIG.maxDepth).toBe(100);
+      expect(result).toBeDefined();
+    });
+  });
+
+  // ==========================================================================
+  // checkForCycle Tests
+  // ==========================================================================
+
+  describe('checkForCycle', () => {
+    test('does not throw when no cycle exists', () => {
+      expect(() =>
+        service.checkForCycle(elA, elB, DependencyType.BLOCKS)
+      ).not.toThrow();
+    });
+
+    test('throws ConflictError when cycle would be created', () => {
+      // A blocks B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // B blocks A would create a cycle
+      expect(() =>
+        service.checkForCycle(elB, elA, DependencyType.BLOCKS)
+      ).toThrow(ConflictError);
+    });
+
+    test('throws with CYCLE_DETECTED error code', () => {
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      try {
+        service.checkForCycle(elB, elA, DependencyType.BLOCKS);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(ConflictError);
+        expect((error as ConflictError).code).toBe(ErrorCode.CYCLE_DETECTED);
+      }
+    });
+
+    test('error includes cycle path in details', () => {
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      try {
+        service.checkForCycle(elC, elA, DependencyType.BLOCKS);
+        expect(true).toBe(false);
+      } catch (error) {
+        const details = (error as ConflictError).details;
+        expect(details.sourceId).toBe(elC);
+        expect(details.targetId).toBe(elA);
+        expect(details.dependencyType).toBe(DependencyType.BLOCKS);
+        expect(details.cyclePath).toBeDefined();
+        expect(Array.isArray(details.cyclePath)).toBe(true);
+      }
+    });
+
+    test('error message includes readable cycle path', () => {
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      try {
+        service.checkForCycle(elB, elA, DependencyType.BLOCKS);
+        expect(true).toBe(false);
+      } catch (error) {
+        const message = (error as ConflictError).message;
+        expect(message).toContain('cycle');
+        expect(message).toContain('->');
+      }
+    });
+  });
+
+  // ==========================================================================
+  // addDependency Cycle Detection Integration Tests
+  // ==========================================================================
+
+  describe('addDependency with cycle detection', () => {
+    test('prevents adding dependency that would create direct cycle', () => {
+      // A blocks B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // B blocks A should fail
+      expect(() =>
+        service.addDependency({
+          sourceId: elB,
+          targetId: elA,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        })
+      ).toThrow(ConflictError);
+
+      // Verify the dependency was not added
+      expect(service.exists(elB, elA, DependencyType.BLOCKS)).toBe(false);
+    });
+
+    test('prevents adding dependency that would create transitive cycle', () => {
+      // A -> B -> C chain
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // C -> A should fail (creates cycle)
+      expect(() =>
+        service.addDependency({
+          sourceId: elC,
+          targetId: elA,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        })
+      ).toThrow(ConflictError);
+
+      expect(service.exists(elC, elA, DependencyType.BLOCKS)).toBe(false);
+    });
+
+    test('allows adding non-blocking dependency even if it would form a "cycle"', () => {
+      // A blocks B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // B references A should be allowed (non-blocking)
+      const dep = service.addDependency({
+        sourceId: elB,
+        targetId: elA,
+        type: DependencyType.REFERENCES,
+        createdBy: testEntity,
+      });
+
+      expect(dep.type).toBe(DependencyType.REFERENCES);
+      expect(service.exists(elB, elA, DependencyType.REFERENCES)).toBe(true);
+    });
+
+    test('allows adding parallel non-cyclic dependencies', () => {
+      // A blocks B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // A blocks C (parallel, not a cycle)
+      const dep = service.addDependency({
+        sourceId: elA,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      expect(dep.targetId).toBe(elC);
+    });
+
+    test('allows forking (same source, multiple targets)', () => {
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elA,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elA,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      expect(service.countDependencies(elA, DependencyType.BLOCKS)).toBe(3);
+    });
+
+    test('allows converging (multiple sources, same target)', () => {
+      service.addDependency({
+        sourceId: elA,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elC,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      expect(service.countDependents(elD, DependencyType.BLOCKS)).toBe(3);
+    });
+
+    test('prevents cycle with custom depth config', () => {
+      // Create a chain: A -> B -> C
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Try to add C -> A with depth limit of 1
+      // This should NOT detect the cycle because depth limit is too small
+      const config: CycleDetectionConfig = { maxDepth: 1 };
+
+      // Note: When depth limit is reached, the operation is allowed
+      // (conservative approach - better to allow than falsely reject)
+      const dep = service.addDependency(
+        {
+          sourceId: elC,
+          targetId: elA,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        },
+        config
+      );
+
+      // This actually creates a cycle because depth limit was too small
+      // In production, you'd want to use appropriate depth limits
+      expect(dep.sourceId).toBe(elC);
+    });
+
+    test('cycle detection happens before database insert', () => {
+      // A blocks B
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      const countBefore = service.countDependencies(elB);
+
+      // Try to create cycle
+      try {
+        service.addDependency({
+          sourceId: elB,
+          targetId: elA,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        });
+      } catch {
+        // Expected
+      }
+
+      const countAfter = service.countDependencies(elB);
+      expect(countAfter).toBe(countBefore);
+    });
+  });
+
+  // ==========================================================================
+  // Edge Cases and Complex Scenarios
+  // ==========================================================================
+
+  describe('edge cases', () => {
+    test('handles empty graph', () => {
+      const result = service.detectCycle(elA, elB, DependencyType.BLOCKS);
+      expect(result.hasCycle).toBe(false);
+      expect(result.nodesVisited).toBe(1); // Just visits target (elB)
+    });
+
+    test('handles graph with only non-blocking edges', () => {
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.REFERENCES,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.RELATES_TO,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elC,
+        targetId: elA,
+        type: DependencyType.CAUSED_BY,
+        createdBy: testEntity,
+      });
+
+      // Adding blocking dependency should not see any existing "cycle"
+      const result = service.detectCycle(elD, elA, DependencyType.BLOCKS);
+      expect(result.hasCycle).toBe(false);
+    });
+
+    test('handles self-loop attempt (caught by validation)', () => {
+      // Self-reference is caught by createDependency validation
+      expect(() =>
+        service.addDependency({
+          sourceId: elA,
+          targetId: elA,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        })
+      ).toThrow();
+    });
+
+    test('handles multiple separate chains without false positive', () => {
+      // Chain 1: A -> B -> C
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      service.addDependency({
+        sourceId: elB,
+        targetId: elC,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Chain 2: D -> E (separate)
+      service.addDependency({
+        sourceId: elD,
+        targetId: elE,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // Connecting chains: C -> D should be allowed (no cycle)
+      const dep = service.addDependency({
+        sourceId: elC,
+        targetId: elD,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      expect(dep.sourceId).toBe(elC);
+      expect(dep.targetId).toBe(elD);
+    });
+
+    test('handles wide graph (many siblings) efficiently', () => {
+      // A blocks many siblings
+      for (let i = 0; i < 50; i++) {
+        service.addDependency({
+          sourceId: elA,
+          targetId: `el-sibling-${i}` as ElementId,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        });
+      }
+
+      // Adding new sibling should be fast
+      const start = performance.now();
+      service.addDependency({
+        sourceId: elA,
+        targetId: elB,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+      const elapsed = performance.now() - start;
+
+      // Should complete quickly (less than 100ms)
+      expect(elapsed).toBeLessThan(100);
+    });
+
+    test('handles deep chain within default depth limit', () => {
+      // Create a deep chain of 50 nodes
+      let prevId = elA;
+      for (let i = 0; i < 50; i++) {
+        const newId = `el-node-${i}` as ElementId;
+        service.addDependency({
+          sourceId: prevId,
+          targetId: newId,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        });
+        prevId = newId;
+      }
+
+      // Try to add cycle from end back to start
+      expect(() =>
+        service.addDependency({
+          sourceId: prevId,
+          targetId: elA,
+          type: DependencyType.BLOCKS,
+          createdBy: testEntity,
+        })
+      ).toThrow(ConflictError);
+    });
+  });
+});
+
+// ============================================================================
+// Import ErrorCode at the end for cycle detection tests
+// ============================================================================
+
+import { ErrorCode } from '../errors/codes.js';

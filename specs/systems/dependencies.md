@@ -287,11 +287,12 @@ Function `isBlocked(elementId)`:
 - [x] Bulk operations: removeAllDependencies, removeAllDependents
 - [x] Unit tests (67 tests)
 
-### Phase 3: Cycle Detection
-- [ ] Implement BFS traversal
-- [ ] Implement depth limiting
-- [ ] Handle relates-to exclusion
-- [ ] Add cycle detection to addDependency
+### Phase 3: Cycle Detection ✅
+- [x] Implement BFS traversal (detectCycle method using breadth-first search)
+- [x] Implement depth limiting (configurable maxDepth, default 100)
+- [x] Handle relates-to exclusion (non-blocking types skip cycle detection)
+- [x] Add cycle detection to addDependency (checkForCycle called before insert)
+- [x] Unit tests (33 tests covering all cycle detection scenarios)
 
 ### Phase 4: Blocked Cache
 - [ ] Create blocked_cache table
@@ -318,7 +319,7 @@ Function `isBlocked(elementId)`:
 - [ ] dep tree
 
 ### Phase 8: Testing
-- [ ] Unit tests for cycle detection
+- [x] Unit tests for cycle detection (33 tests in dependency.test.ts)
 - [ ] Unit tests for blocked calculation
 - [ ] Unit tests for cache invalidation
 - [ ] Integration tests for ready work

@@ -22,6 +22,7 @@ import {
   validateEntityId,
   DependencyType as DT,
   normalizeRelatesToDependency,
+  participatesInCycleDetection,
 } from '../types/dependency.js';
 import type { ElementId, EntityId } from '../types/element.js';
 import { type EventWithoutId, EventType, createEvent } from '../types/event.js';
@@ -42,6 +43,39 @@ interface DependencyRow extends Row {
   created_at: string;
   created_by: string;
   metadata: string | null;
+}
+
+// ============================================================================
+// Cycle Detection Types and Constants
+// ============================================================================
+
+/**
+ * Configuration for cycle detection
+ */
+export interface CycleDetectionConfig {
+  /** Maximum depth to traverse (default: 100) */
+  maxDepth: number;
+}
+
+/**
+ * Default cycle detection configuration
+ */
+export const DEFAULT_CYCLE_DETECTION_CONFIG: CycleDetectionConfig = {
+  maxDepth: 100,
+};
+
+/**
+ * Result of cycle detection check
+ */
+export interface CycleDetectionResult {
+  /** Whether a cycle would be created */
+  hasCycle: boolean;
+  /** Path that forms the cycle (if detected) */
+  cyclePath?: ElementId[];
+  /** Number of nodes visited during detection */
+  nodesVisited: number;
+  /** Whether depth limit was reached */
+  depthLimitReached: boolean;
 }
 
 // ============================================================================
@@ -95,11 +129,15 @@ export class DependencyService {
    * Add a new dependency between elements
    *
    * @param input - Dependency creation input
+   * @param cycleConfig - Optional configuration for cycle detection
    * @returns The created dependency
    * @throws ValidationError if input is invalid
-   * @throws ConflictError if dependency already exists
+   * @throws ConflictError if dependency already exists or would create a cycle
    */
-  addDependency(input: CreateDependencyInput): Dependency {
+  addDependency(
+    input: CreateDependencyInput,
+    cycleConfig?: CycleDetectionConfig
+  ): Dependency {
     // Create and validate the dependency
     const dependency = createDependency(input);
 
@@ -111,6 +149,9 @@ export class DependencyService {
       sourceId = normalized.sourceId;
       targetId = normalized.targetId;
     }
+
+    // Check for cycles before inserting (for blocking dependency types)
+    this.checkForCycle(sourceId, targetId, dependency.type, cycleConfig);
 
     // Serialize metadata
     const metadataJson =
@@ -488,6 +529,149 @@ export class DependencyService {
 
     const result = this.db.queryOne<{ count: number }>(sql, params);
     return result?.count ?? 0;
+  }
+
+  // --------------------------------------------------------------------------
+  // Cycle Detection
+  // --------------------------------------------------------------------------
+
+  /**
+   * Check if adding a dependency would create a cycle
+   *
+   * Uses BFS traversal from target to check if source is reachable
+   * through existing blocking dependencies. Only blocking dependency
+   * types participate in cycle detection (blocks, parent-child, awaits).
+   *
+   * The relates-to type is excluded because it's bidirectional by design.
+   *
+   * @param sourceId - The source element of the proposed dependency
+   * @param targetId - The target element of the proposed dependency
+   * @param type - The type of dependency being added
+   * @param config - Optional configuration for cycle detection
+   * @returns CycleDetectionResult with cycle status and details
+   */
+  detectCycle(
+    sourceId: ElementId,
+    targetId: ElementId,
+    type: DependencyType,
+    config: CycleDetectionConfig = DEFAULT_CYCLE_DETECTION_CONFIG
+  ): CycleDetectionResult {
+    validateElementId(sourceId, 'sourceId');
+    validateElementId(targetId, 'targetId');
+    validateDependencyType(type);
+
+    // Non-blocking types don't participate in cycle detection
+    if (!participatesInCycleDetection(type)) {
+      return {
+        hasCycle: false,
+        nodesVisited: 0,
+        depthLimitReached: false,
+      };
+    }
+
+    // BFS from target to see if we can reach source
+    const visited = new Set<string>();
+    const queue: { elementId: ElementId; depth: number; path: ElementId[] }[] = [
+      { elementId: targetId, depth: 0, path: [targetId] },
+    ];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+
+      // Check depth limit
+      if (current.depth >= config.maxDepth) {
+        return {
+          hasCycle: false,
+          nodesVisited: visited.size,
+          depthLimitReached: true,
+        };
+      }
+
+      // Skip already visited nodes
+      if (visited.has(current.elementId)) {
+        continue;
+      }
+      visited.add(current.elementId);
+
+      // Found the source - cycle detected!
+      if (current.elementId === sourceId) {
+        return {
+          hasCycle: true,
+          cyclePath: [...current.path, sourceId],
+          nodesVisited: visited.size,
+          depthLimitReached: false,
+        };
+      }
+
+      // Get all blocking dependencies from this element
+      const blockingDeps = this.getBlockingDependenciesFrom(current.elementId);
+      for (const dep of blockingDeps) {
+        if (!visited.has(dep.targetId)) {
+          queue.push({
+            elementId: dep.targetId,
+            depth: current.depth + 1,
+            path: [...current.path, dep.targetId],
+          });
+        }
+      }
+    }
+
+    return {
+      hasCycle: false,
+      nodesVisited: visited.size,
+      depthLimitReached: false,
+    };
+  }
+
+  /**
+   * Check if adding a dependency would create a cycle and throw if so
+   *
+   * @param sourceId - The source element of the proposed dependency
+   * @param targetId - The target element of the proposed dependency
+   * @param type - The type of dependency being added
+   * @param config - Optional configuration for cycle detection
+   * @throws ConflictError if a cycle would be created
+   */
+  checkForCycle(
+    sourceId: ElementId,
+    targetId: ElementId,
+    type: DependencyType,
+    config?: CycleDetectionConfig
+  ): void {
+    const result = this.detectCycle(sourceId, targetId, type, config);
+
+    if (result.hasCycle) {
+      const cyclePath = result.cyclePath?.join(' -> ') ?? `${targetId} -> ... -> ${sourceId}`;
+      throw new ConflictError(
+        `Adding dependency would create a cycle: ${cyclePath}`,
+        ErrorCode.CYCLE_DETECTED,
+        {
+          sourceId,
+          targetId,
+          dependencyType: type,
+          cyclePath: result.cyclePath,
+        }
+      );
+    }
+  }
+
+  /**
+   * Get all blocking dependencies from an element
+   * (internal helper for cycle detection)
+   */
+  private getBlockingDependenciesFrom(elementId: ElementId): Dependency[] {
+    const sql = `SELECT source_id, target_id, type, created_at, created_by, metadata
+                 FROM dependencies
+                 WHERE source_id = ? AND type IN (?, ?, ?)
+                 ORDER BY created_at`;
+
+    const rows = this.db.query<DependencyRow>(sql, [
+      elementId,
+      DT.BLOCKS,
+      DT.PARENT_CHILD,
+      DT.AWAITS,
+    ]);
+    return rows.map((row) => this.rowToDependency(row));
   }
 
   // --------------------------------------------------------------------------
