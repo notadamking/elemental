@@ -13,7 +13,7 @@ import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter, EventType } from '../types/event.js';
 import { createTimestamp } from '../types/element.js';
 import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
-import { createEvent } from '../types/event.js';
+import { createEvent, LifecycleEventType } from '../types/event.js';
 import { NotFoundError, ConflictError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
@@ -566,10 +566,27 @@ export class ElementalAPIImpl implements ElementalAPI {
         }
       }
 
-      // Record update event with the resolved actor
+      // Determine the appropriate event type based on status changes
+      const existingData = existing as Record<string, unknown>;
+      const updatedData = updated as unknown as Record<string, unknown>;
+      const oldStatus = existingData.status as string | undefined;
+      const newStatus = updatedData.status as string | undefined;
+
+      let eventType: EventType = LifecycleEventType.UPDATED;
+      if (oldStatus !== newStatus && newStatus !== undefined) {
+        if (newStatus === TaskStatusEnum.CLOSED) {
+          // Transitioning TO closed status
+          eventType = LifecycleEventType.CLOSED;
+        } else if (oldStatus === TaskStatusEnum.CLOSED) {
+          // Transitioning FROM closed status (reopening)
+          eventType = LifecycleEventType.REOPENED;
+        }
+      }
+
+      // Record the event with the determined type
       const event = createEvent({
         elementId: id,
-        eventType: 'updated' as EventType,
+        eventType,
         actor,
         oldValue: existing as unknown as Record<string, unknown>,
         newValue: updated as unknown as Record<string, unknown>,
@@ -592,12 +609,12 @@ export class ElementalAPIImpl implements ElementalAPI {
     this.backend.markDirty(id);
 
     // Check if status changed and update blocked cache
-    const existingData = existing as Record<string, unknown>;
-    const updatedData = updated as unknown as Record<string, unknown>;
-    const oldStatus = existingData.status as string | undefined;
-    const newStatus = updatedData.status as string | undefined;
-    if (oldStatus !== newStatus && newStatus !== undefined) {
-      this.blockedCache.onStatusChanged(id, oldStatus ?? null, newStatus);
+    const existingDataPost = existing as Record<string, unknown>;
+    const updatedDataPost = updated as unknown as Record<string, unknown>;
+    const oldStatusPost = existingDataPost.status as string | undefined;
+    const newStatusPost = updatedDataPost.status as string | undefined;
+    if (oldStatusPost !== newStatusPost && newStatusPost !== undefined) {
+      this.blockedCache.onStatusChanged(id, oldStatusPost ?? null, newStatusPost);
     }
 
     return updated;

@@ -204,13 +204,15 @@ describe('Soft Identity Integration', () => {
       await api.update<Task>(task.id, { status: TaskStatus.CLOSED }, { actor: actor2 });
 
       const events = await api.getEvents(task.id);
+      // One update event (IN_PROGRESS) and one closed event (CLOSED)
       const updateEvents = events.filter((e) => e.eventType === 'updated');
+      const closedEvents = events.filter((e) => e.eventType === 'closed');
 
-      expect(updateEvents.length).toBe(2);
+      expect(updateEvents.length).toBe(1);
+      expect(closedEvents.length).toBe(1);
       // Check both actors are present (order may vary)
-      const actors = updateEvents.map((e) => e.actor);
-      expect(actors).toContain(actor1);
-      expect(actors).toContain(actor2);
+      expect(updateEvents[0].actor).toBe(actor1);
+      expect(closedEvents[0].actor).toBe(actor2);
     });
   });
 

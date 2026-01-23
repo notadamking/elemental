@@ -214,7 +214,7 @@ Tasks under Plans use hierarchical IDs:
 - [x] Implement status transition validation
 - [ ] Implement automatic blocked status computation (depends on dependency system)
 - [x] Implement tombstone transition logic
-- [ ] Create status change event emission (depends on event system)
+- [x] Create status change event emission ✅ (emits 'closed' event when status changes to closed, 'reopened' event when status changes from closed, 'updated' for other changes - 9 tests)
 
 ### Phase 3: Queries
 - [ ] Implement ready work query

@@ -195,7 +195,8 @@ Recommended implementation sequence:
 - [x] **systems/identity.md Phase 7**: CLI support ✅ (--actor global flag, identity mode config via el identity mode, whoami command showing actor/source/mode/verification - 39 tests)
 
 #### Type Integration (Priority: Medium)
-- [ ] **types/task.md Phase 2**: Automatic blocked status computation, status change event emission
+- [ ] **types/task.md Phase 2** (partial): Automatic blocked status computation
+- [x] **types/task.md Phase 2** (partial): Status change event emission ✅ (closed/reopened/updated events - 9 tests)
 - [ ] **types/task.md Phase 3-4**: Ready/blocked work queries, assignment/deadline queries, hydration (Document reference resolution, batch hydration)
 - [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system
 - [x] **types/entity.md Phase 2**: Name uniqueness validation ✅ (storage-level check in create(), DUPLICATE_NAME error)
