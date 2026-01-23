@@ -231,7 +231,7 @@ Recommended implementation sequence:
 - [x] **api/cli.md Phase 6**: Sync commands ✅ (export, import, status - 46 tests)
 - [ ] **api/cli.md Phase 7**: Admin commands (stats, doctor, migrate)
 - [ ] **api/cli.md Phase 8**: Shell completion, command aliases
-- [ ] **api/configuration.md Phase 6**: CLI commands (config show, set, unset, edit) - wire up to existing implementation
+- [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset implemented in src/cli/commands/config.ts; edit pending)
 - [ ] **types/task.md Phase 5**: CLI commands for task operations
 - [ ] **types/entity.md Phase 6**: CLI commands (register, list, whoami)
 - [ ] **types/message.md Phase 7**: CLI commands (send, thread)

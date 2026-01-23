@@ -333,11 +333,11 @@ Optional: Watch config file:
 - [x] Implement setValue (setValue with file update)
 - [x] Implement unsetValue (unsetValue)
 
-### Phase 6: CLI Commands
-- [ ] Implement config show
-- [ ] Implement config set
-- [ ] Implement config unset
-- [ ] Implement config edit
+### Phase 6: CLI Commands ✅
+- [x] Implement config show (src/cli/commands/config.ts)
+- [x] Implement config set (src/cli/commands/config.ts)
+- [x] Implement config unset (src/cli/commands/config.ts)
+- [ ] Implement config edit (opens editor - not yet implemented)
 
 ### Phase 7: Validation ✅
 - [x] Implement type validation (isValidActor, isValidDatabase, etc.)
@@ -349,4 +349,7 @@ Optional: Watch config file:
 - [x] Unit tests for loading (115 tests in config.test.ts)
 - [x] Unit tests for precedence (CLI > Environment > File > Defaults)
 - [x] Unit tests for validation (field validation, configuration validation)
-- [ ] Integration tests for CLI
+- [ ] Integration tests for CLI (pending)
+
+### Known Issues
+- [ ] **config.test.ts:888** - "gets nested values" test fails when running in a workspace with a config.yaml that overrides defaults. The test expects `sync.autoExport` to be `true` (default) but the project's `.elemental/config.yaml` sets it to `false`. The test should use `configPath` to point to a non-existent file or use defaults-only mode.
