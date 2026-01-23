@@ -148,7 +148,7 @@ export async function run(argv: string[]): Promise<number> {
     // Execute command
     const result = await command.handler(
       resolvedArgs,
-      { ...fullParsed.options, ...fullParsed.commandOptions } as GlobalOptions
+      { ...fullParsed.options, ...fullParsed.commandOptions }
     );
 
     return outputResult(result, fullParsed.options);
@@ -197,11 +197,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { initCommand } = await import('./commands/init.js');
   const { configCommand } = await import('./commands/config.js');
   const { helpCommand, versionCommand } = await import('./commands/help.js');
+  const { createCommand, listCommand, showCommand } = await import('./commands/crud.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
   registerCommand(helpCommand);
   registerCommand(versionCommand);
+  registerCommand(createCommand);
+  registerCommand(listCommand);
+  registerCommand(showCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

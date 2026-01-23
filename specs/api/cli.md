@@ -362,9 +362,9 @@ User-friendly errors:
 
 ### Phase 2: Core Commands (Partial)
 - [x] Implement init (src/cli/commands/init.ts)
-- [ ] Implement create (all types)
-- [ ] Implement list
-- [ ] Implement show
+- [x] Implement create (tasks only - src/cli/commands/crud.ts, 27 tests)
+- [x] Implement list (src/cli/commands/crud.ts)
+- [x] Implement show (src/cli/commands/crud.ts)
 - [ ] Implement update
 - [ ] Implement delete
 
@@ -406,4 +406,4 @@ User-friendly errors:
 - [ ] Add shell completion
 - [ ] Add aliases
 - [x] Write help text (src/cli/commands/help.ts)
-- [x] Test all implemented commands (155 tests)
+- [x] Test all implemented commands (182 tests)
