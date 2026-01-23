@@ -219,7 +219,7 @@ describe('Events System Integration', () => {
         const task = await createTestTask({ title: 'Task to Delete' });
         await api.create(toCreateInput(task));
 
-        await api.delete(task.id, 'No longer needed');
+        await api.delete(task.id, { reason: 'No longer needed' });
 
         const events = await api.getEvents(task.id);
         const deleteEvent = events.find((e) => e.eventType === EventType.DELETED);
@@ -233,7 +233,7 @@ describe('Events System Integration', () => {
         const task = await createTestTask();
         await api.create(toCreateInput(task));
 
-        await api.delete(task.id, 'Duplicate task');
+        await api.delete(task.id, { reason: 'Duplicate task' });
 
         const events = await api.getEvents(task.id);
         const deleteEvent = events.find((e) => e.eventType === EventType.DELETED);

@@ -33,6 +33,8 @@ import type {
   ExportOptions,
   SystemStats,
   ElementCountByType,
+  UpdateOptions,
+  DeleteOptions,
 } from './types.js';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './types.js';
 
@@ -482,7 +484,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     return element;
   }
 
-  async update<T extends Element>(id: ElementId, updates: Partial<T>): Promise<T> {
+  async update<T extends Element>(id: ElementId, updates: Partial<T>, options?: UpdateOptions): Promise<T> {
     // Get the existing element
     const existing = await this.get<T>(id);
     if (!existing) {
@@ -501,6 +503,9 @@ export class ElementalAPIImpl implements ElementalAPI {
         { elementId: id, type: 'message' }
       );
     }
+
+    // Resolve actor - use provided actor or fall back to element's creator
+    const actor = options?.actor ?? existing.createdBy;
 
     // Apply updates
     const now = createTimestamp();
@@ -536,11 +541,11 @@ export class ElementalAPIImpl implements ElementalAPI {
         }
       }
 
-      // Record update event
+      // Record update event with the resolved actor
       const event = createEvent({
         elementId: id,
         eventType: 'updated' as EventType,
-        actor: existing.createdBy, // TODO: Should accept actor parameter
+        actor,
         oldValue: existing as unknown as Record<string, unknown>,
         newValue: updated as unknown as Record<string, unknown>,
       });
@@ -573,7 +578,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     return updated;
   }
 
-  async delete(id: ElementId, reason?: string): Promise<void> {
+  async delete(id: ElementId, options?: DeleteOptions): Promise<void> {
     // Get the existing element
     const existing = await this.get<Element>(id);
     if (!existing) {
@@ -593,6 +598,10 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     }
 
+    // Resolve actor - use provided actor or fall back to element's creator
+    const actor = options?.actor ?? existing.createdBy;
+    const reason = options?.reason;
+
     const now = createTimestamp();
 
     // Soft delete by setting deleted_at and updating status to tombstone
@@ -611,11 +620,11 @@ export class ElementalAPIImpl implements ElementalAPI {
         [JSON.stringify(data), now, now, id]
       );
 
-      // Record delete event
+      // Record delete event with the resolved actor
       const event = createEvent({
         elementId: id,
         eventType: 'deleted' as EventType,
-        actor: existing.createdBy, // TODO: Should accept actor parameter
+        actor,
         oldValue: existing as unknown as Record<string, unknown>,
         newValue: null,
       });
@@ -638,6 +647,34 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Update blocked cache - deletion unblocks dependents
     this.blockedCache.onElementDeleted(id);
+  }
+
+  // --------------------------------------------------------------------------
+  // Entity Operations
+  // --------------------------------------------------------------------------
+
+  async lookupEntityByName(name: string): Promise<Element | null> {
+    // Query for entity with matching name in data JSON
+    const row = this.backend.queryOne<ElementRow>(
+      `SELECT * FROM elements
+       WHERE type = 'entity'
+       AND JSON_EXTRACT(data, '$.name') = ?
+       AND deleted_at IS NULL`,
+      [name]
+    );
+
+    if (!row) {
+      return null;
+    }
+
+    // Get tags for this element
+    const tagRows = this.backend.query<TagRow>(
+      'SELECT tag FROM tags WHERE element_id = ?',
+      [row.id]
+    );
+    const tags = tagRows.map((r) => r.tag);
+
+    return deserializeElement<Element>(row, tags);
   }
 
   // --------------------------------------------------------------------------
@@ -743,13 +780,16 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // TODO: Check for cycles (for blocking dependency types)
 
+    // Resolve actor - use provided actor or fall back to source element's creator
+    const actor = dep.actor ?? source.createdBy;
+
     const now = createTimestamp();
     const dependency: Dependency = {
       sourceId: dep.sourceId,
       targetId: dep.targetId,
       type: dep.type,
       createdAt: now,
-      createdBy: source.createdBy, // TODO: Should accept actor parameter
+      createdBy: actor,
       metadata: dep.metadata ?? {},
     };
 

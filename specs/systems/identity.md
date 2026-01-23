@@ -259,10 +259,10 @@ Allow runtime mode switching:
 - [x] Create configuration types (IdentityConfig, DEFAULT_IDENTITY_CONFIG)
 
 ### Phase 2: Soft Identity
-- [ ] Implement actor context management
-- [ ] Implement name-based lookup
-- [ ] Add actor to all operations
-- [ ] Test soft mode flows
+- [x] Implement actor context management (ActorContext, ActorSource, resolveActor, validateSoftActor)
+- [x] Implement name-based lookup (lookupEntityByName in ElementalAPI)
+- [x] Add actor to all operations (update, delete, addDependency via options parameter)
+- [x] Test soft mode flows (18 integration tests)
 
 ### Phase 3: Cryptographic Infrastructure
 - [x] Select Ed25519 library per platform (Web Crypto API with Bun)

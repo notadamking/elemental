@@ -770,7 +770,7 @@ describe('Ready/Blocked Work Query Integration', () => {
       expect(blockedTasks.map((t) => t.id)).toContain(blocked.id);
 
       // Soft delete the blocker
-      await api.delete(blocker.id, 'No longer needed');
+      await api.delete(blocker.id, { reason: 'No longer needed' });
 
       // Should now be unblocked (tombstone doesn't block)
       blockedTasks = await api.blocked();

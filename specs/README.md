@@ -166,7 +166,7 @@ Recommended implementation sequence:
 - [x] api/cli.md ✅ (Phase 1: Framework setup - native arg parsing, output formatting (human/JSON/quiet modes), global flags; Phase 2: Core commands - init, create (tasks), list, show, update, delete (src/cli/commands/crud.ts); Phase 3: Task commands - ready, blocked, close, reopen, assign, defer, undefer (src/cli/commands/task.ts); Phase 4: Dependency commands - dep add, dep remove, dep list, dep tree (src/cli/commands/dep.ts); Phase 6: Sync commands - export, import, status (src/cli/commands/sync.ts); Phase 7 partial: config command (show/set/unset); Phase 8 partial: help text; Unit tests - 354 tests)
 
 #### Phase 7: Identity
-- [x] systems/identity.md ✅ (Phase 1: Type definitions - IdentityMode, Signature, PublicKey, SignedRequestFields, VerificationStatus, VerificationResult, IdentityConfig; Phase 3-4: Ed25519 crypto - key validation, signature verification, signed data construction, time tolerance, full verification pipeline, shouldAllowRequest; Phase 8: Unit tests - 106 tests)
+- [x] systems/identity.md ✅ (Phase 1: Type definitions - IdentityMode, Signature, PublicKey, SignedRequestFields, VerificationStatus, VerificationResult, IdentityConfig; Phase 2: Soft identity - ActorContext, ActorSource, resolveActor, validateSoftActor, lookupEntityByName, actor param on update/delete/addDependency - 18 integration tests; Phase 3-4: Ed25519 crypto - key validation, signature verification, signed data construction, time tolerance, full verification pipeline, shouldAllowRequest; Phase 8: Unit tests - 137 tests)
 
 ---
 
@@ -189,7 +189,7 @@ Recommended implementation sequence:
 - [ ] **api/query-api.md Phase 7**: Update ElementalAPI export/import to use SyncService
 
 #### Identity & Security (Priority: High)
-- [ ] **systems/identity.md Phase 2**: Soft identity (actor context management, name-based lookup, add actor to all operations)
+- [x] **systems/identity.md Phase 2**: Soft identity (actor context management, name-based lookup, add actor to all operations) ✅ (ActorContext, resolveActor, validateSoftActor, lookupEntityByName, actor param)
 - [ ] **systems/identity.md Phase 4**: Verification middleware integration
 - [ ] **systems/identity.md Phase 5**: Key management (registration, update, revocation)
 - [ ] **systems/identity.md Phase 7**: CLI support (--actor flag globally, identity mode config, signature support, whoami command)

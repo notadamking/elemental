@@ -913,3 +913,242 @@ export function createIdentityConfig(
     ...partial,
   };
 }
+
+// ============================================================================
+// Actor Context Management (Phase 2: Soft Identity)
+// ============================================================================
+
+/**
+ * Sources from which actor identity can be determined
+ */
+export const ActorSource = {
+  /** Explicitly provided in the operation */
+  EXPLICIT: 'explicit',
+  /** From CLI --actor flag */
+  CLI_FLAG: 'cli_flag',
+  /** From configuration file */
+  CONFIG: 'config',
+  /** From element's createdBy field (fallback) */
+  ELEMENT: 'element',
+  /** System-generated operations */
+  SYSTEM: 'system',
+} as const;
+
+export type ActorSource = (typeof ActorSource)[keyof typeof ActorSource];
+
+/**
+ * Actor context for tracking who is performing an operation
+ */
+export interface ActorContext {
+  /** The actor's entity ID or name */
+  readonly actor: string;
+  /** Where the actor identity came from */
+  readonly source: ActorSource;
+  /** Whether the actor has been verified (always false in soft mode) */
+  readonly verified: boolean;
+  /** Optional entity ID if the actor was looked up and exists */
+  readonly entityId?: string;
+}
+
+/**
+ * Options for resolving actor context
+ */
+export interface ActorResolutionOptions {
+  /** Explicitly provided actor (highest priority) */
+  explicitActor?: string;
+  /** Actor from CLI flag */
+  cliActor?: string;
+  /** Actor from configuration */
+  configActor?: string;
+  /** Fallback actor from element's createdBy (lowest priority) */
+  elementCreatedBy?: string;
+  /** Identity configuration */
+  config?: Partial<IdentityConfig>;
+  /** Function to look up entity by name */
+  lookupEntity?: EntityLookup;
+}
+
+/**
+ * Result of actor validation
+ */
+export interface ActorValidationResult {
+  /** Whether the actor is valid */
+  valid: boolean;
+  /** The resolved actor context if valid */
+  context?: ActorContext;
+  /** Error message if invalid */
+  error?: string;
+  /** Whether the actor entity exists (only checked in soft mode with lookupEntity) */
+  entityExists?: boolean;
+}
+
+/**
+ * Resolves actor context from multiple sources
+ *
+ * Priority order (highest to lowest):
+ * 1. Explicit actor (provided in operation)
+ * 2. CLI actor (--actor flag)
+ * 3. Config actor (default actor in config)
+ * 4. Element's createdBy (fallback for updates/deletes)
+ *
+ * @param options - Resolution options with actor sources
+ * @returns The resolved actor context
+ * @throws ValidationError if no actor can be resolved
+ */
+export function resolveActor(options: ActorResolutionOptions): ActorContext {
+  // Try each source in priority order
+  if (options.explicitActor) {
+    return {
+      actor: options.explicitActor,
+      source: ActorSource.EXPLICIT,
+      verified: false,
+    };
+  }
+
+  if (options.cliActor) {
+    return {
+      actor: options.cliActor,
+      source: ActorSource.CLI_FLAG,
+      verified: false,
+    };
+  }
+
+  if (options.configActor) {
+    return {
+      actor: options.configActor,
+      source: ActorSource.CONFIG,
+      verified: false,
+    };
+  }
+
+  if (options.elementCreatedBy) {
+    return {
+      actor: options.elementCreatedBy,
+      source: ActorSource.ELEMENT,
+      verified: false,
+    };
+  }
+
+  // No actor could be resolved
+  throw new ValidationError(
+    'No actor could be resolved. Provide an actor explicitly, via CLI flag (--actor), or in configuration.',
+    ErrorCode.MISSING_REQUIRED_FIELD,
+    { field: 'actor' }
+  );
+}
+
+/**
+ * Validates an actor in soft identity mode
+ *
+ * In soft mode:
+ * - Accepts any non-empty string as actor
+ * - Optionally checks if entity exists (if lookupEntity provided and allowUnregisteredActors is false)
+ * - Always returns verified: false
+ *
+ * @param actor - The actor name/ID to validate
+ * @param options - Validation options
+ * @returns Validation result with context if valid
+ */
+export async function validateSoftActor(
+  actor: string,
+  options?: {
+    lookupEntity?: EntityLookup;
+    config?: Partial<IdentityConfig>;
+  }
+): Promise<ActorValidationResult> {
+  const config = { ...DEFAULT_IDENTITY_CONFIG, ...options?.config };
+
+  // Basic validation - must be non-empty string
+  if (!actor || typeof actor !== 'string' || actor.trim().length === 0) {
+    return {
+      valid: false,
+      error: 'Actor must be a non-empty string',
+    };
+  }
+
+  // In soft mode with unregistered actors allowed, skip lookup
+  if (config.mode === IdentityMode.SOFT && config.allowUnregisteredActors) {
+    return {
+      valid: true,
+      context: {
+        actor,
+        source: ActorSource.EXPLICIT,
+        verified: false,
+      },
+    };
+  }
+
+  // If lookupEntity is provided and unregistered actors not allowed, verify entity exists
+  if (options?.lookupEntity && !config.allowUnregisteredActors) {
+    const entity = await options.lookupEntity(actor);
+    if (!entity) {
+      return {
+        valid: false,
+        error: `Actor '${actor}' not found and unregistered actors are not allowed`,
+        entityExists: false,
+      };
+    }
+    return {
+      valid: true,
+      context: {
+        actor,
+        source: ActorSource.EXPLICIT,
+        verified: false,
+        entityId: actor, // In soft mode, actor name is used as ID reference
+      },
+      entityExists: true,
+    };
+  }
+
+  // Default: accept the actor
+  return {
+    valid: true,
+    context: {
+      actor,
+      source: ActorSource.EXPLICIT,
+      verified: false,
+    },
+  };
+}
+
+/**
+ * Type guard for ActorContext
+ */
+export function isActorContext(value: unknown): value is ActorContext {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.actor === 'string' &&
+    typeof obj.source === 'string' &&
+    Object.values(ActorSource).includes(obj.source as ActorSource) &&
+    typeof obj.verified === 'boolean'
+  );
+}
+
+/**
+ * Creates an actor context for system operations
+ */
+export function createSystemActorContext(): ActorContext {
+  return {
+    actor: 'system',
+    source: ActorSource.SYSTEM,
+    verified: true, // System is always trusted
+  };
+}
+
+/**
+ * Creates an actor context from an explicit actor string
+ */
+export function createActorContext(
+  actor: string,
+  source: ActorSource = ActorSource.EXPLICIT
+): ActorContext {
+  return {
+    actor,
+    source,
+    verified: false,
+  };
+}

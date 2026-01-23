@@ -186,6 +186,35 @@ export interface DependencyInput {
   type: DependencyType;
   /** Type-specific metadata */
   metadata?: Record<string, unknown>;
+  /** Actor creating the dependency (optional, falls back to source element's createdBy) */
+  actor?: EntityId;
+}
+
+// ============================================================================
+// Operation Options with Actor Support
+// ============================================================================
+
+/**
+ * Options for operations that support actor specification
+ */
+export interface OperationOptions {
+  /** Actor performing the operation (for audit trail) */
+  actor?: EntityId;
+}
+
+/**
+ * Options for update operations
+ */
+export interface UpdateOptions extends OperationOptions {
+  // Future: add more update-specific options
+}
+
+/**
+ * Options for delete operations
+ */
+export interface DeleteOptions extends OperationOptions {
+  /** Reason for deletion (stored in audit trail) */
+  reason?: string;
 }
 
 // ============================================================================
@@ -412,21 +441,34 @@ export interface ElementalAPI {
    *
    * @param id - Element identifier
    * @param updates - Fields to update
+   * @param options - Operation options including actor
    * @returns The updated element
    * @throws NotFoundError if element doesn't exist
    * @throws ConstraintError if element is immutable (e.g., Message)
    */
-  update<T extends Element>(id: ElementId, updates: Partial<T>): Promise<T>;
+  update<T extends Element>(id: ElementId, updates: Partial<T>, options?: UpdateOptions): Promise<T>;
 
   /**
    * Soft-delete an element.
    *
    * @param id - Element identifier
-   * @param reason - Optional deletion reason
+   * @param options - Delete options including reason and actor
    * @throws NotFoundError if element doesn't exist
    * @throws ConstraintError if element is immutable
    */
-  delete(id: ElementId, reason?: string): Promise<void>;
+  delete(id: ElementId, options?: DeleteOptions): Promise<void>;
+
+  // --------------------------------------------------------------------------
+  // Entity Operations
+  // --------------------------------------------------------------------------
+
+  /**
+   * Look up an entity by name.
+   *
+   * @param name - Entity name to look up
+   * @returns The entity if found, null otherwise
+   */
+  lookupEntityByName(name: string): Promise<Element | null>;
 
   // --------------------------------------------------------------------------
   // Task Operations

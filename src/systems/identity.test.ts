@@ -49,6 +49,15 @@ import {
   hashRequestBody,
   createSignedRequest,
   createIdentityConfig,
+  // Phase 2: Actor Context Management
+  ActorSource,
+  resolveActor,
+  validateSoftActor,
+  isActorContext,
+  createSystemActorContext,
+  createActorContext,
+  type ActorContext,
+  type ActorResolutionOptions,
 } from './identity.js';
 import { ValidationError, IdentityError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
@@ -1016,5 +1025,370 @@ describe('Edge cases', () => {
     const constructed = constructSignedData(original);
     const parsed = parseSignedData(constructed);
     expect(parsed).toEqual(original);
+  });
+});
+
+// ============================================================================
+// Phase 2: Actor Context Management Tests
+// ============================================================================
+
+describe('ActorSource', () => {
+  test('contains all expected sources', () => {
+    expect(ActorSource.EXPLICIT).toBe('explicit');
+    expect(ActorSource.CLI_FLAG).toBe('cli_flag');
+    expect(ActorSource.CONFIG).toBe('config');
+    expect(ActorSource.ELEMENT).toBe('element');
+    expect(ActorSource.SYSTEM).toBe('system');
+  });
+
+  test('has exactly 5 sources', () => {
+    expect(Object.keys(ActorSource)).toHaveLength(5);
+  });
+});
+
+describe('resolveActor', () => {
+  test('prioritizes explicit actor over all others', () => {
+    const options: ActorResolutionOptions = {
+      explicitActor: 'explicit-actor',
+      cliActor: 'cli-actor',
+      configActor: 'config-actor',
+      elementCreatedBy: 'element-actor',
+    };
+
+    const result = resolveActor(options);
+
+    expect(result.actor).toBe('explicit-actor');
+    expect(result.source).toBe(ActorSource.EXPLICIT);
+    expect(result.verified).toBe(false);
+  });
+
+  test('uses CLI actor when explicit not provided', () => {
+    const options: ActorResolutionOptions = {
+      cliActor: 'cli-actor',
+      configActor: 'config-actor',
+      elementCreatedBy: 'element-actor',
+    };
+
+    const result = resolveActor(options);
+
+    expect(result.actor).toBe('cli-actor');
+    expect(result.source).toBe(ActorSource.CLI_FLAG);
+    expect(result.verified).toBe(false);
+  });
+
+  test('uses config actor when CLI not provided', () => {
+    const options: ActorResolutionOptions = {
+      configActor: 'config-actor',
+      elementCreatedBy: 'element-actor',
+    };
+
+    const result = resolveActor(options);
+
+    expect(result.actor).toBe('config-actor');
+    expect(result.source).toBe(ActorSource.CONFIG);
+    expect(result.verified).toBe(false);
+  });
+
+  test('uses element createdBy as fallback', () => {
+    const options: ActorResolutionOptions = {
+      elementCreatedBy: 'element-actor',
+    };
+
+    const result = resolveActor(options);
+
+    expect(result.actor).toBe('element-actor');
+    expect(result.source).toBe(ActorSource.ELEMENT);
+    expect(result.verified).toBe(false);
+  });
+
+  test('throws ValidationError when no actor can be resolved', () => {
+    expect(() => resolveActor({})).toThrow(ValidationError);
+
+    try {
+      resolveActor({});
+    } catch (e) {
+      const err = e as ValidationError;
+      expect(err.message).toContain('No actor could be resolved');
+      expect(err.details.field).toBe('actor');
+    }
+  });
+
+  test('skips empty string sources', () => {
+    const options: ActorResolutionOptions = {
+      explicitActor: '', // Empty string should be falsy
+      cliActor: 'cli-actor',
+    };
+
+    const result = resolveActor(options);
+
+    expect(result.actor).toBe('cli-actor');
+    expect(result.source).toBe(ActorSource.CLI_FLAG);
+  });
+});
+
+describe('validateSoftActor', () => {
+  test('accepts any non-empty string in soft mode with unregistered actors allowed', async () => {
+    const result = await validateSoftActor('any-actor-name', {
+      config: { mode: IdentityMode.SOFT, allowUnregisteredActors: true, timeTolerance: DEFAULT_TIME_TOLERANCE },
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.context?.actor).toBe('any-actor-name');
+    expect(result.context?.source).toBe(ActorSource.EXPLICIT);
+    expect(result.context?.verified).toBe(false);
+  });
+
+  test('accepts actor with default config (soft mode, unregistered allowed)', async () => {
+    const result = await validateSoftActor('test-actor');
+
+    expect(result.valid).toBe(true);
+    expect(result.context?.actor).toBe('test-actor');
+  });
+
+  test('rejects empty string', async () => {
+    const result = await validateSoftActor('');
+
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('non-empty');
+  });
+
+  test('rejects whitespace-only string', async () => {
+    const result = await validateSoftActor('   ');
+
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('non-empty');
+  });
+
+  test('rejects non-string values', async () => {
+    // @ts-expect-error Testing invalid input
+    const result = await validateSoftActor(123);
+
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('non-empty');
+  });
+
+  test('validates entity existence when lookupEntity provided and unregistered not allowed', async () => {
+    const mockLookup = async (name: string) => {
+      if (name === 'existing-actor') {
+        return { publicKey: undefined };
+      }
+      return null;
+    };
+
+    // Existing actor should be valid
+    const resultExisting = await validateSoftActor('existing-actor', {
+      lookupEntity: mockLookup,
+      config: { mode: IdentityMode.SOFT, allowUnregisteredActors: false, timeTolerance: DEFAULT_TIME_TOLERANCE },
+    });
+    expect(resultExisting.valid).toBe(true);
+    expect(resultExisting.entityExists).toBe(true);
+    expect(resultExisting.context?.entityId).toBe('existing-actor');
+
+    // Non-existing actor should be invalid
+    const resultNonExisting = await validateSoftActor('non-existing-actor', {
+      lookupEntity: mockLookup,
+      config: { mode: IdentityMode.SOFT, allowUnregisteredActors: false, timeTolerance: DEFAULT_TIME_TOLERANCE },
+    });
+    expect(resultNonExisting.valid).toBe(false);
+    expect(resultNonExisting.entityExists).toBe(false);
+    expect(resultNonExisting.error).toContain('not found');
+    expect(resultNonExisting.error).toContain('unregistered actors are not allowed');
+  });
+
+  test('accepts unregistered actors when allowUnregisteredActors is true', async () => {
+    const mockLookup = async () => null; // Always returns not found
+
+    const result = await validateSoftActor('unregistered-actor', {
+      lookupEntity: mockLookup,
+      config: { mode: IdentityMode.SOFT, allowUnregisteredActors: true, timeTolerance: DEFAULT_TIME_TOLERANCE },
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.context?.actor).toBe('unregistered-actor');
+  });
+});
+
+describe('isActorContext', () => {
+  test('accepts valid actor context', () => {
+    const context: ActorContext = {
+      actor: 'test-actor',
+      source: ActorSource.EXPLICIT,
+      verified: false,
+    };
+
+    expect(isActorContext(context)).toBe(true);
+  });
+
+  test('accepts actor context with entityId', () => {
+    const context: ActorContext = {
+      actor: 'test-actor',
+      source: ActorSource.EXPLICIT,
+      verified: false,
+      entityId: 'entity-123',
+    };
+
+    expect(isActorContext(context)).toBe(true);
+  });
+
+  test('rejects non-objects', () => {
+    expect(isActorContext(null)).toBe(false);
+    expect(isActorContext(undefined)).toBe(false);
+    expect(isActorContext('string')).toBe(false);
+    expect(isActorContext(123)).toBe(false);
+  });
+
+  test('rejects objects missing required fields', () => {
+    expect(isActorContext({})).toBe(false);
+    expect(isActorContext({ actor: 'test' })).toBe(false);
+    expect(isActorContext({ actor: 'test', source: 'explicit' })).toBe(false);
+  });
+
+  test('rejects objects with invalid source', () => {
+    expect(isActorContext({ actor: 'test', source: 'invalid-source', verified: false })).toBe(false);
+  });
+
+  test('rejects objects with non-boolean verified', () => {
+    expect(isActorContext({ actor: 'test', source: 'explicit', verified: 'false' })).toBe(false);
+  });
+});
+
+describe('createSystemActorContext', () => {
+  test('creates system actor context', () => {
+    const context = createSystemActorContext();
+
+    expect(context.actor).toBe('system');
+    expect(context.source).toBe(ActorSource.SYSTEM);
+    expect(context.verified).toBe(true); // System is always verified/trusted
+  });
+
+  test('returns valid ActorContext', () => {
+    const context = createSystemActorContext();
+    expect(isActorContext(context)).toBe(true);
+  });
+});
+
+describe('createActorContext', () => {
+  test('creates actor context with default source (EXPLICIT)', () => {
+    const context = createActorContext('my-actor');
+
+    expect(context.actor).toBe('my-actor');
+    expect(context.source).toBe(ActorSource.EXPLICIT);
+    expect(context.verified).toBe(false);
+  });
+
+  test('creates actor context with custom source', () => {
+    const context = createActorContext('cli-actor', ActorSource.CLI_FLAG);
+
+    expect(context.actor).toBe('cli-actor');
+    expect(context.source).toBe(ActorSource.CLI_FLAG);
+    expect(context.verified).toBe(false);
+  });
+
+  test('creates actor context with CONFIG source', () => {
+    const context = createActorContext('config-actor', ActorSource.CONFIG);
+
+    expect(context.actor).toBe('config-actor');
+    expect(context.source).toBe(ActorSource.CONFIG);
+    expect(context.verified).toBe(false);
+  });
+
+  test('creates actor context with ELEMENT source', () => {
+    const context = createActorContext('element-actor', ActorSource.ELEMENT);
+
+    expect(context.actor).toBe('element-actor');
+    expect(context.source).toBe(ActorSource.ELEMENT);
+    expect(context.verified).toBe(false);
+  });
+
+  test('returns valid ActorContext', () => {
+    const context = createActorContext('test-actor');
+    expect(isActorContext(context)).toBe(true);
+  });
+});
+
+describe('Phase 2: Soft Identity Integration', () => {
+  test('complete soft identity flow: resolve and validate', async () => {
+    // 1. Resolve actor from multiple sources (simulating CLI with --actor flag)
+    const context = resolveActor({
+      cliActor: 'alice',
+      configActor: 'default-user',
+    });
+
+    expect(context.actor).toBe('alice');
+    expect(context.source).toBe(ActorSource.CLI_FLAG);
+
+    // 2. Validate the actor in soft mode
+    const validation = await validateSoftActor(context.actor, {
+      config: DEFAULT_IDENTITY_CONFIG,
+    });
+
+    expect(validation.valid).toBe(true);
+    expect(validation.context?.actor).toBe('alice');
+  });
+
+  test('fallback chain: explicit -> CLI -> config -> element', async () => {
+    // Test complete fallback chain
+    const sources: ActorResolutionOptions[] = [
+      { explicitActor: 'explicit' },
+      { cliActor: 'cli' },
+      { configActor: 'config' },
+      { elementCreatedBy: 'element' },
+    ];
+
+    const expectedSources: ActorSource[] = [
+      ActorSource.EXPLICIT,
+      ActorSource.CLI_FLAG,
+      ActorSource.CONFIG,
+      ActorSource.ELEMENT,
+    ];
+
+    const expectedActors = ['explicit', 'cli', 'config', 'element'];
+
+    for (let i = 0; i < sources.length; i++) {
+      const context = resolveActor(sources[i]);
+      expect(context.actor).toBe(expectedActors[i]);
+      expect(context.source).toBe(expectedSources[i]);
+    }
+  });
+
+  test('entity existence check with lookup function', async () => {
+    // Simulate entity store
+    const entityStore = new Map<string, { publicKey?: string }>([
+      ['alice', { publicKey: undefined }],
+      ['bob', { publicKey: VALID_PUBLIC_KEY }],
+    ]);
+
+    const lookupEntity = async (name: string) => entityStore.get(name) ?? null;
+
+    // Config that requires registered actors
+    const strictConfig = {
+      mode: IdentityMode.SOFT as const,
+      allowUnregisteredActors: false,
+      timeTolerance: DEFAULT_TIME_TOLERANCE,
+    };
+
+    // Alice exists without public key
+    const aliceResult = await validateSoftActor('alice', {
+      lookupEntity,
+      config: strictConfig,
+    });
+    expect(aliceResult.valid).toBe(true);
+    expect(aliceResult.entityExists).toBe(true);
+
+    // Bob exists with public key
+    const bobResult = await validateSoftActor('bob', {
+      lookupEntity,
+      config: strictConfig,
+    });
+    expect(bobResult.valid).toBe(true);
+    expect(bobResult.entityExists).toBe(true);
+
+    // Charlie doesn't exist
+    const charlieResult = await validateSoftActor('charlie', {
+      lookupEntity,
+      config: strictConfig,
+    });
+    expect(charlieResult.valid).toBe(false);
+    expect(charlieResult.entityExists).toBe(false);
   });
 });

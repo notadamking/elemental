@@ -400,7 +400,7 @@ describe('ElementalAPI', () => {
       const task = await createTestTask();
       await api.create(toCreateInput(task));
 
-      await api.delete(task.id, 'No longer needed');
+      await api.delete(task.id, { reason: 'No longer needed' });
 
       const events = await api.getEvents(task.id);
       const deleteEvents = events.filter((e) => e.eventType === 'deleted');
