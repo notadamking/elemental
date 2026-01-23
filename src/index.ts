@@ -10,3 +10,6 @@ export * from './types/index.js';
 
 // Export ID generation
 export * from './id/index.js';
+
+// Export API types
+export * from './api/index.js';

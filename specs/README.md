@@ -160,7 +160,7 @@ Recommended implementation sequence:
 - [x] types/team.md ✅ (Phase 1-4: Team interface, HydratedTeam, TeamId branded type, type guards, validators, createTeam/updateTeam factories, membership operations (addMember, removeMember, isMember), utility functions (filters, sorts, grouping, search, uniqueness, team comparison), unit tests - 141 tests)
 
 #### Phase 6: Interfaces
-- [ ] api/query-api.md
+- [x] api/query-api.md ✅ (Phase 1: Interface definitions, filter types, return types, type guards, validation helpers, unit tests - 110 tests)
 - [ ] api/configuration.md
 - [ ] api/sync.md
 - [ ] api/cli.md

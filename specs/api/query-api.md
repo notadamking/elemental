@@ -410,11 +410,13 @@ Optional caching for:
 
 ## Implementation Checklist
 
-### Phase 1: Interface Definition
-- [ ] Define ElementalAPI interface
-- [ ] Define all parameter types
-- [ ] Define all return types
-- [ ] Define filter interfaces
+### Phase 1: Interface Definition ✅
+- [x] Define ElementalAPI interface (src/api/types.ts)
+- [x] Define all parameter types (ElementFilter, TaskFilter, GetOptions, DependencyInput, ExportOptions, ImportOptions)
+- [x] Define all return types (BlockedTask, DependencyTree, DependencyTreeNode, ListResult, ImportResult, SystemStats)
+- [x] Define filter interfaces (ElementFilter, TaskFilter with pagination and sorting)
+- [x] Define type guards and validation helpers (isSortDirection, isConflictStrategy, isValidElementFilter, etc.)
+- [x] Unit tests for Phase 1 (110 tests in src/api/types.test.ts)
 
 ### Phase 2: CRUD Operations
 - [ ] Implement get with hydration
@@ -451,6 +453,7 @@ Optional caching for:
 - [ ] Implement stats
 
 ### Phase 8: Testing
+- [x] Unit tests for interface definitions (110 tests)
 - [ ] Unit tests for each operation
 - [ ] Integration tests for workflows
 - [ ] Performance tests for queries
