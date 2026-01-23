@@ -238,28 +238,32 @@ When enabled:
 
 ## Implementation Checklist
 
-### Phase 1: Type Definitions
-- [ ] Define `Entity` interface extending `Element`
-- [ ] Define `EntityType` union type
-- [ ] Create type guards for Entity validation
+### Phase 1: Type Definitions ✅
+- [x] Define `Entity` interface extending `Element`
+- [x] Define `EntityType` union type (`EntityTypeValue`)
+- [x] Create type guards for Entity validation (`isEntity`, `validateEntity`)
+- [x] Factory function (`createEntity`)
+- [x] Unit tests for type definitions
 
-### Phase 2: Name Management
-- [ ] Implement name uniqueness validation
-- [ ] Implement name format validation
-- [ ] Add reserved name checking
-- [ ] Create name conflict error handling
+### Phase 2: Name Management (Partial ✅)
+- [ ] Implement name uniqueness validation (storage-level)
+- [x] Implement name format validation (`isValidEntityName`, `validateEntityName`)
+- [x] Add reserved name checking (`isReservedName`, `RESERVED_NAMES`)
+- [ ] Create name conflict error handling (storage-level)
+- [x] Unit tests for name validation
 
 ### Phase 3: Soft Identity
-- [ ] Implement entity registration
-- [ ] Implement name-based lookup
-- [ ] Add entity listing queries
-- [ ] Implement `whoami` functionality
+- [x] Implement entity registration (`createEntity`)
+- [ ] Implement name-based lookup (requires storage)
+- [ ] Add entity listing queries (requires query API)
+- [ ] Implement `whoami` functionality (requires CLI)
 
-### Phase 4: Cryptographic Identity
-- [ ] Add public key storage
-- [ ] Implement Ed25519 signature verification
+### Phase 4: Cryptographic Identity (Partial ✅)
+- [x] Add public key storage (field defined, validation implemented)
+- [ ] Implement Ed25519 signature verification (systems/identity.md)
 - [ ] Add signature validation to API
-- [ ] Create key format validation
+- [x] Create key format validation (`isValidPublicKey`, `validatePublicKey`)
+- [x] Unit tests for public key validation
 
 ### Phase 5: Entity Operations
 - [ ] Implement entity update (metadata only)
@@ -275,7 +279,8 @@ When enabled:
 - [ ] Add CLI commands (register, list, whoami)
 
 ### Phase 7: Testing
-- [ ] Unit tests for name validation
+- [x] Unit tests for name validation
 - [ ] Unit tests for signature verification
 - [ ] Integration tests for uniqueness
 - [ ] E2E tests for entity lifecycle
+- [x] Property-based tests for name generation

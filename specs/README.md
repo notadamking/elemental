@@ -140,7 +140,7 @@ Recommended implementation sequence:
 - [x] api/errors.md ✅ (core error types, codes, factories, type guards, unit tests)
 
 #### Phase 2: Core Types
-- [ ] types/entity.md
+- [x] types/entity.md ✅ (Phase 1: Entity interface, EntityTypeValue, type guards, validators, createEntity factory, unit tests)
 - [ ] types/document.md
 - [ ] types/task.md
 - [ ] systems/events.md
