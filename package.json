@@ -20,5 +20,8 @@
     "tasks",
     "workflows"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.8.2"
+  }
 }

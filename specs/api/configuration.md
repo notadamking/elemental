@@ -305,33 +305,33 @@ Optional: Watch config file:
 
 ## Implementation Checklist
 
-### Phase 1: Type Definitions
-- [ ] Define Configuration interface
-- [ ] Define all sub-interfaces
-- [ ] Define validation types
+### Phase 1: Type Definitions ✅
+- [x] Define Configuration interface (src/config/types.ts)
+- [x] Define all sub-interfaces (SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection)
+- [x] Define validation types (ConfigValidationResult, TrackedConfiguration)
 
-### Phase 2: Defaults
-- [ ] Define default values
-- [ ] Create defaults object
-- [ ] Implement deep merge
+### Phase 2: Defaults ✅
+- [x] Define default values (src/config/defaults.ts)
+- [x] Create defaults object (DEFAULT_CONFIG, getDefaultConfig)
+- [x] Implement deep merge (src/config/merge.ts)
 
-### Phase 3: File Loading
-- [ ] Implement YAML parsing
-- [ ] Implement file discovery
-- [ ] Implement merge logic
-- [ ] Add validation on load
+### Phase 3: File Loading ✅
+- [x] Implement YAML parsing (parseYamlConfig, convertYamlToConfig)
+- [x] Implement file discovery (discoverConfigFile, findElementalDir)
+- [x] Implement merge logic (mergeConfiguration, mergeConfigurations)
+- [x] Add validation on load (validateConfiguration)
 
-### Phase 4: Environment Variables
-- [ ] Implement env var mapping
-- [ ] Implement type parsing
-- [ ] Implement boolean parsing
-- [ ] Implement duration parsing
+### Phase 4: Environment Variables ✅
+- [x] Implement env var mapping (EnvVars constants, loadEnvConfig)
+- [x] Implement type parsing (parseEnvDuration)
+- [x] Implement boolean parsing (parseEnvBoolean, isEnvBoolean)
+- [x] Implement duration parsing (parseDuration, parseDurationValue, tryParseDuration)
 
-### Phase 5: Access API
-- [ ] Implement getConfig
-- [ ] Implement getValue
-- [ ] Implement setValue
-- [ ] Implement unsetValue
+### Phase 5: Access API ✅
+- [x] Implement getConfig (src/config/config.ts)
+- [x] Implement getValue (getValueFromConfig, getValue)
+- [x] Implement setValue (setValue with file update)
+- [x] Implement unsetValue (unsetValue)
 
 ### Phase 6: CLI Commands
 - [ ] Implement config show
@@ -339,14 +339,14 @@ Optional: Watch config file:
 - [ ] Implement config unset
 - [ ] Implement config edit
 
-### Phase 7: Validation
-- [ ] Implement type validation
-- [ ] Implement range validation
-- [ ] Implement cross-field validation
-- [ ] Add helpful error messages
+### Phase 7: Validation ✅
+- [x] Implement type validation (isValidActor, isValidDatabase, etc.)
+- [x] Implement range validation (validateDurationRange)
+- [x] Implement cross-field validation (tombstone.ttl >= tombstone.minTtl)
+- [x] Add helpful error messages (detailed ValidationError with field info)
 
-### Phase 8: Testing
-- [ ] Unit tests for loading
-- [ ] Unit tests for precedence
-- [ ] Unit tests for validation
+### Phase 8: Testing ✅
+- [x] Unit tests for loading (115 tests in config.test.ts)
+- [x] Unit tests for precedence (CLI > Environment > File > Defaults)
+- [x] Unit tests for validation (field validation, configuration validation)
 - [ ] Integration tests for CLI
