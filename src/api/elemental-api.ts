@@ -14,7 +14,7 @@ import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter, EventType } from '../types/event.js';
 import { createTimestamp } from '../types/element.js';
 import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
-import { isPlan, PlanStatus as PlanStatusEnum } from '../types/plan.js';
+import { isPlan, PlanStatus as PlanStatusEnum, calculatePlanProgress, type PlanProgress } from '../types/plan.js';
 import { createEvent, LifecycleEventType } from '../types/event.js';
 import { NotFoundError, ConflictError, ConstraintError, ValidationError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
@@ -1026,6 +1026,47 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     return filteredTasks;
+  }
+
+  async getPlanProgress(planId: ElementId): Promise<PlanProgress> {
+    // Verify plan exists
+    const plan = await this.get<Plan>(planId);
+    if (!plan) {
+      throw new NotFoundError(
+        `Plan not found: ${planId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: planId }
+      );
+    }
+    if (plan.type !== 'plan') {
+      throw new ConstraintError(
+        `Element is not a plan: ${planId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: planId, actualType: plan.type, expectedType: 'plan' }
+      );
+    }
+
+    // Get all tasks in the plan (excluding tombstones)
+    const tasks = await this.getTasksInPlan(planId, { includeDeleted: false });
+
+    // Count tasks by status
+    const statusCounts: Record<string, number> = {
+      open: 0,
+      in_progress: 0,
+      blocked: 0,
+      closed: 0,
+      deferred: 0,
+      tombstone: 0,
+    };
+
+    for (const task of tasks) {
+      if (task.status in statusCounts) {
+        statusCounts[task.status]++;
+      }
+    }
+
+    // Use the calculatePlanProgress utility
+    return calculatePlanProgress(statusCounts as Record<import('../types/task.js').TaskStatus, number>);
   }
 
   async createTaskInPlan<T extends Task = Task>(

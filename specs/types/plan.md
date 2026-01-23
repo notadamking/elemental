@@ -216,8 +216,8 @@ When creating task under plan:
 - [x] Implement hierarchical ID generation (`createTaskInPlan` generates IDs like `el-planid.1`)
 - [x] Add task removal from plan (31 integration tests)
 
-### Phase 4: Progress Tracking
-- [ ] Implement progress calculation
+### Phase 4: Progress Tracking ✅
+- [x] Implement progress calculation (`getPlanProgress` API method, `calculatePlanProgress` utility - 12 integration tests)
 - [ ] Add progress caching (optional)
 - [ ] Implement weighted progress (optional)
 

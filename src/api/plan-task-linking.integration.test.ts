@@ -575,4 +575,230 @@ describe('Plan-Task Linking', () => {
       expect(task2.id).toBe(`${plan.id}.2` as ElementId);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // getPlanProgress Tests
+  // --------------------------------------------------------------------------
+
+  describe('getPlanProgress()', () => {
+    it('should return zero progress for empty plan', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      expect(progress.totalTasks).toBe(0);
+      expect(progress.completedTasks).toBe(0);
+      expect(progress.inProgressTasks).toBe(0);
+      expect(progress.blockedTasks).toBe(0);
+      expect(progress.remainingTasks).toBe(0);
+      expect(progress.completionPercentage).toBe(0);
+    });
+
+    it('should count tasks by status', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      // Create tasks with different statuses
+      const openTask = await createTestTask({ title: 'Open Task', status: TaskStatus.OPEN });
+      const inProgressTask = await createTestTask({ title: 'In Progress Task', status: TaskStatus.IN_PROGRESS });
+      const closedTask = await createTestTask({ title: 'Closed Task', status: TaskStatus.CLOSED });
+      const deferredTask = await createTestTask({ title: 'Deferred Task', status: TaskStatus.DEFERRED });
+
+      await api.create(toCreateInput(openTask));
+      await api.create(toCreateInput(inProgressTask));
+      await api.create(toCreateInput(closedTask));
+      await api.create(toCreateInput(deferredTask));
+
+      // Add all to plan
+      await api.addTaskToPlan(openTask.id, plan.id);
+      await api.addTaskToPlan(inProgressTask.id, plan.id);
+      await api.addTaskToPlan(closedTask.id, plan.id);
+      await api.addTaskToPlan(deferredTask.id, plan.id);
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      expect(progress.totalTasks).toBe(4);
+      expect(progress.completedTasks).toBe(1); // closed
+      expect(progress.inProgressTasks).toBe(1);
+      expect(progress.blockedTasks).toBe(0);
+      expect(progress.remainingTasks).toBe(2); // open + deferred
+      expect(progress.completionPercentage).toBe(25); // 1/4 = 25%
+    });
+
+    it('should calculate completion percentage correctly', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      // Create 3 tasks, all closed
+      const task1 = await createTestTask({ title: 'Task 1', status: TaskStatus.CLOSED });
+      const task2 = await createTestTask({ title: 'Task 2', status: TaskStatus.CLOSED });
+      const task3 = await createTestTask({ title: 'Task 3', status: TaskStatus.OPEN });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.create(toCreateInput(task3));
+
+      await api.addTaskToPlan(task1.id, plan.id);
+      await api.addTaskToPlan(task2.id, plan.id);
+      await api.addTaskToPlan(task3.id, plan.id);
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      expect(progress.totalTasks).toBe(3);
+      expect(progress.completedTasks).toBe(2);
+      expect(progress.completionPercentage).toBe(67); // Math.round(2/3 * 100) = 67
+    });
+
+    it('should report 100% completion when all tasks are closed', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      const task1 = await createTestTask({ title: 'Task 1', status: TaskStatus.CLOSED });
+      const task2 = await createTestTask({ title: 'Task 2', status: TaskStatus.CLOSED });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+
+      await api.addTaskToPlan(task1.id, plan.id);
+      await api.addTaskToPlan(task2.id, plan.id);
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      expect(progress.totalTasks).toBe(2);
+      expect(progress.completedTasks).toBe(2);
+      expect(progress.remainingTasks).toBe(0);
+      expect(progress.completionPercentage).toBe(100);
+    });
+
+    it('should track blocked tasks', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      const blocker = await createTestTask({ title: 'Blocker' });
+      const blockedTask = await createTestTask({ title: 'Blocked Task', status: TaskStatus.BLOCKED });
+
+      await api.create(toCreateInput(blocker));
+      await api.create(toCreateInput(blockedTask));
+      await api.addTaskToPlan(blockedTask.id, plan.id);
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      expect(progress.totalTasks).toBe(1);
+      expect(progress.blockedTasks).toBe(1);
+      expect(progress.completionPercentage).toBe(0);
+    });
+
+    it('should throw NotFoundError for non-existent plan', async () => {
+      await expect(
+        api.getPlanProgress('el-nonexistent' as ElementId)
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw ConstraintError when element is not a plan', async () => {
+      const task = await createTestTask();
+      await api.create(toCreateInput(task));
+
+      await expect(
+        api.getPlanProgress(task.id)
+      ).rejects.toThrow(ConstraintError);
+    });
+
+    it('should exclude tombstone tasks from progress', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      const activeTask = await createTestTask({ title: 'Active Task', status: TaskStatus.OPEN });
+      const tombstoneTask = await createTestTask({ title: 'Tombstone Task', status: TaskStatus.OPEN });
+
+      await api.create(toCreateInput(activeTask));
+      await api.create(toCreateInput(tombstoneTask));
+
+      await api.addTaskToPlan(activeTask.id, plan.id);
+      await api.addTaskToPlan(tombstoneTask.id, plan.id);
+
+      // Soft delete one task
+      await api.delete(tombstoneTask.id);
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      // Only the active task should be counted
+      expect(progress.totalTasks).toBe(1);
+    });
+
+    it('should work with tasks created via createTaskInPlan', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      await api.createTaskInPlan(plan.id, {
+        createdBy: mockEntityId,
+        title: 'Subtask 1',
+      });
+
+      await api.createTaskInPlan(plan.id, {
+        createdBy: mockEntityId,
+        title: 'Subtask 2',
+      });
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      expect(progress.totalTasks).toBe(2);
+      expect(progress.remainingTasks).toBe(2); // Both are open by default
+      expect(progress.completionPercentage).toBe(0);
+    });
+
+    it('should update progress when task status changes', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      const task = await api.createTaskInPlan(plan.id, {
+        createdBy: mockEntityId,
+        title: 'Task',
+      });
+
+      // Initially should be 0% complete
+      let progress = await api.getPlanProgress(plan.id);
+      expect(progress.completionPercentage).toBe(0);
+
+      // Update task to closed
+      await api.update<Task>(task.id, { status: TaskStatus.CLOSED });
+
+      // Now should be 100% complete
+      progress = await api.getPlanProgress(plan.id);
+      expect(progress.completionPercentage).toBe(100);
+    });
+
+    it('should handle mixed status plan with multiple task types', async () => {
+      const plan = await createTestPlan();
+      await api.create(toCreateInput(plan));
+
+      // Create 10 tasks with various statuses
+      const tasks = [
+        await createTestTask({ title: 'Task 1', status: TaskStatus.CLOSED }),
+        await createTestTask({ title: 'Task 2', status: TaskStatus.CLOSED }),
+        await createTestTask({ title: 'Task 3', status: TaskStatus.CLOSED }),
+        await createTestTask({ title: 'Task 4', status: TaskStatus.IN_PROGRESS }),
+        await createTestTask({ title: 'Task 5', status: TaskStatus.IN_PROGRESS }),
+        await createTestTask({ title: 'Task 6', status: TaskStatus.BLOCKED }),
+        await createTestTask({ title: 'Task 7', status: TaskStatus.OPEN }),
+        await createTestTask({ title: 'Task 8', status: TaskStatus.OPEN }),
+        await createTestTask({ title: 'Task 9', status: TaskStatus.DEFERRED }),
+        await createTestTask({ title: 'Task 10', status: TaskStatus.DEFERRED }),
+      ];
+
+      for (const task of tasks) {
+        await api.create(toCreateInput(task));
+        await api.addTaskToPlan(task.id, plan.id);
+      }
+
+      const progress = await api.getPlanProgress(plan.id);
+
+      expect(progress.totalTasks).toBe(10);
+      expect(progress.completedTasks).toBe(3);
+      expect(progress.inProgressTasks).toBe(2);
+      expect(progress.blockedTasks).toBe(1);
+      expect(progress.remainingTasks).toBe(4); // 2 open + 2 deferred
+      expect(progress.completionPercentage).toBe(30); // 3/10 = 30%
+    });
+  });
 });

@@ -11,6 +11,10 @@ import type { Task, TaskStatus, Priority, Complexity, TaskTypeValue, CreateTaskI
 import type { Document, DocumentId } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter } from '../types/event.js';
+import type { PlanProgress } from '../types/plan.js';
+
+// Re-export PlanProgress for API consumers
+export type { PlanProgress };
 
 // ============================================================================
 // Pagination and Sorting
@@ -560,6 +564,16 @@ export interface ElementalAPI {
    * @throws NotFoundError if plan doesn't exist
    */
   getTasksInPlan(planId: ElementId, filter?: TaskFilter): Promise<Task[]>;
+
+  /**
+   * Get progress metrics for a plan.
+   * Computes task status counts and completion percentage.
+   *
+   * @param planId - The plan ID
+   * @returns Progress metrics for the plan
+   * @throws NotFoundError if plan doesn't exist
+   */
+  getPlanProgress(planId: ElementId): Promise<PlanProgress>;
 
   /**
    * Create a new task directly in a plan.
