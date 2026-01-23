@@ -18,6 +18,7 @@ import { NotFoundError, ConflictError, ConstraintError } from '../errors/error.j
 import { ErrorCode } from '../errors/codes.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { SyncService } from '../sync/service.js';
+import { computeContentHashSync } from '../sync/hash.js';
 import type {
   ElementalAPI,
   ElementFilter,
@@ -105,6 +106,7 @@ function serializeElement(element: Element): {
   id: string;
   type: string;
   data: string;
+  content_hash: string;
   created_at: string;
   updated_at: string;
   created_by: string;
@@ -123,10 +125,14 @@ function serializeElement(element: Element): {
   // Check for deletedAt (tombstone status)
   const deletedAt = 'deletedAt' in element ? (element as { deletedAt?: string }).deletedAt : null;
 
+  // Compute content hash for conflict detection
+  const { hash: contentHash } = computeContentHashSync(element);
+
   return {
     id,
     type,
     data,
+    content_hash: contentHash,
     created_at: createdAt,
     updated_at: updatedAt,
     created_by: createdBy,
@@ -436,12 +442,13 @@ export class ElementalAPIImpl implements ElementalAPI {
     this.backend.transaction((tx) => {
       // Insert the element
       tx.run(
-        `INSERT INTO elements (id, type, data, created_at, updated_at, created_by, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO elements (id, type, data, content_hash, created_at, updated_at, created_by, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           serialized.id,
           serialized.type,
           serialized.data,
+          serialized.content_hash,
           serialized.created_at,
           serialized.updated_at,
           serialized.created_by,
@@ -529,9 +536,9 @@ export class ElementalAPIImpl implements ElementalAPI {
     this.backend.transaction((tx) => {
       // Update the element
       tx.run(
-        `UPDATE elements SET data = ?, updated_at = ?, deleted_at = ?
+        `UPDATE elements SET data = ?, content_hash = ?, updated_at = ?, deleted_at = ?
          WHERE id = ?`,
-        [serialized.data, serialized.updated_at, serialized.deleted_at, id]
+        [serialized.data, serialized.content_hash, serialized.updated_at, serialized.deleted_at, id]
       );
 
       // Update tags if they changed

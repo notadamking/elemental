@@ -176,7 +176,7 @@ Recommended implementation sequence:
 - [ ] **systems/storage.md Phase 3**: Node.js backend (better-sqlite3 adapter, compatibility tests)
 - [ ] **systems/storage.md Phase 4**: Browser backend (sql.js adapter, OPFS integration, WASM loading)
 - [x] **systems/storage.md Phase 6**: Dirty tracking ✅ (markDirty, getDirtyElements, clearDirty, clearDirtyElements in BunStorageBackend)
-- [ ] **systems/storage.md Phase 7**: Content hashing (computation, create/update integration, hash column)
+- [x] **systems/storage.md Phase 7**: Content hashing ✅ (computeContentHashSync in sync/hash.ts, integrated with create/update in elemental-api.ts, hash column in schema)
 - [ ] **systems/id-generation.md Phase 3**: Storage integration (element count query, length caching)
 - [ ] **systems/id-generation.md Phase 5**: Hierarchical ID storage (child counter table, atomic counter increment)
 

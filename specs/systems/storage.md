@@ -336,10 +336,10 @@ Convert SQLite errors to Elemental errors:
 - [x] Implement dirty clearing (src/storage/bun-backend.ts - clearDirty, clearDirtyElements)
 - [x] Integrate with mutations (src/api/elemental-api.ts - marks dirty on create/update/delete)
 
-### Phase 7: Content Hashing
-- [ ] Implement hash computation
-- [ ] Integrate with create/update
-- [ ] Add hash column to schema
+### Phase 7: Content Hashing ✅
+- [x] Implement hash computation (src/sync/hash.ts - computeContentHashSync)
+- [x] Integrate with create/update (src/api/elemental-api.ts - serializeElement)
+- [x] Add hash column to schema (content_hash column with index in migration 1)
 
 ### Phase 8: Testing
 - [x] Unit tests per backend (src/storage/bun-backend.test.ts)

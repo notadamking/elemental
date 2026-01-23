@@ -417,3 +417,6 @@ User-friendly errors:
 - [ ] Add aliases
 - [x] Write help text (src/cli/commands/help.ts)
 - [x] Test all implemented commands (393 tests)
+
+### Known Issues
+- [ ] **crud.test.ts:373** - "fails gracefully when no database exists" test fails - `listCommand.handler` returns success (0) instead of GENERAL_ERROR (1) when database doesn't exist. The command should detect missing database and return an error.

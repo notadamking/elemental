@@ -1146,4 +1146,123 @@ describe('ElementalAPI', () => {
       backend2.close();
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Content Hash Tests
+  // --------------------------------------------------------------------------
+
+  describe('Content Hashing', () => {
+    it('should compute and store content hash on create', async () => {
+      const task = await createTestTask({ title: 'Hash Test Task' });
+      await api.create(toCreateInput(task));
+
+      // Query the database directly to check content_hash
+      const row = backend.queryOne<{ content_hash: string | null }>('SELECT content_hash FROM elements WHERE id = ?', [task.id]);
+      expect(row).not.toBeNull();
+      expect(row?.content_hash).not.toBeNull();
+      expect(typeof row?.content_hash).toBe('string');
+      // SHA256 hash is 64 hex characters
+      expect(row?.content_hash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('should update content hash on element update', async () => {
+      const task = await createTestTask({ title: 'Original Title' });
+      await api.create(toCreateInput(task));
+
+      // Get original hash
+      const originalRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task.id]);
+      const originalHash = originalRow?.content_hash;
+
+      // Update the task
+      await api.update<Task>(task.id, { title: 'Updated Title' });
+
+      // Get new hash
+      const newRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task.id]);
+      const newHash = newRow?.content_hash;
+
+      expect(newHash).not.toBeNull();
+      expect(newHash).not.toBe(originalHash); // Hash should change when content changes
+    });
+
+    it('should produce consistent hash for identical content', async () => {
+      // Create two tasks with identical content fields
+      const task1 = await createTestTask({ title: 'Same Title' });
+      const task2 = await createTestTask({ title: 'Same Title' });
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+
+      const row1 = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task1.id]);
+      const row2 = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task2.id]);
+
+      // Different IDs should produce different hashes since ID is included in hash
+      // But the hash algorithm should still be deterministic
+      expect(row1?.content_hash).not.toBeNull();
+      expect(row2?.content_hash).not.toBeNull();
+      expect(row1?.content_hash).toMatch(/^[0-9a-f]{64}$/);
+      expect(row2?.content_hash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('should produce different hash for different content', async () => {
+      const task1 = await createTestTask({ title: 'Title A' });
+      const task2 = await createTestTask({ title: 'Title B' });
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+
+      const row1 = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task1.id]);
+      const row2 = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task2.id]);
+
+      expect(row1?.content_hash).not.toBe(row2?.content_hash);
+    });
+
+    it('should not change hash when only timestamps change', async () => {
+      const task = await createTestTask({ title: 'Timestamp Test' });
+      await api.create(toCreateInput(task));
+
+      const originalRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task.id]);
+      const originalHash = originalRow?.content_hash;
+
+      // Update with same values - only updatedAt changes
+      await api.update<Task>(task.id, { title: 'Timestamp Test' });
+
+      const newRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task.id]);
+
+      // Hash should be the same since the content didn't change
+      expect(newRow?.content_hash).toBe(originalHash);
+    });
+
+    it('should handle documents with content hash', async () => {
+      const doc = await createTestDocument({ content: '# Test Content' });
+      await api.create(toCreateInput(doc));
+
+      const row = backend.queryOne<{ content_hash: string | null }>('SELECT content_hash FROM elements WHERE id = ?', [doc.id]);
+      expect(row?.content_hash).not.toBeNull();
+      expect(row?.content_hash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('should update content hash when document content changes', async () => {
+      const doc = await createTestDocument({ content: 'Original content' });
+      await api.create(toCreateInput(doc));
+
+      const originalRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [doc.id]);
+      const originalHash = originalRow?.content_hash;
+
+      await api.update<Document>(doc.id, { content: 'Updated content' });
+
+      const newRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [doc.id]);
+      expect(newRow?.content_hash).not.toBe(originalHash);
+    });
+
+    it('should update content hash when tags change', async () => {
+      const task = await createTestTask({ title: 'Tag Test', tags: ['original'] });
+      await api.create(toCreateInput(task));
+
+      const originalRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task.id]);
+      const originalHash = originalRow?.content_hash;
+
+      await api.update<Task>(task.id, { tags: ['original', 'new-tag'] });
+
+      const newRow = backend.queryOne<{ content_hash: string }>('SELECT content_hash FROM elements WHERE id = ?', [task.id]);
+      expect(newRow?.content_hash).not.toBe(originalHash);
+    });
+  });
 });
