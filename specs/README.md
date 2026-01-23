@@ -131,6 +131,10 @@ Specifications may include status indicators:
 
 ### Implementation Checklist
 
+> **Note:** Active task tracking has moved to elemental's task system.
+> Run `bun ./dist/bin/el.js ready` to see current tasks.
+> This checklist is preserved for historical reference and as a guide for what has been completed.
+
 Recommended implementation sequence:
 
 #### Phase 1: Foundation
