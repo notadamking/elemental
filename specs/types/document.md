@@ -203,32 +203,37 @@ Forward query is more efficient for full history.
 
 ## Implementation Checklist
 
-### Phase 1: Type Definitions
-- [ ] Define `Document` interface extending `Element`
-- [ ] Define `ContentType` union type
-- [ ] Create type guards for Document validation
+### Phase 1: Type Definitions ✅
+- [x] Define `Document` interface extending `Element`
+- [x] Define `ContentType` union type
+- [x] Create type guards for Document validation
+- [x] Define `DocumentId` branded type
+- [x] Define `CreateDocumentInput` interface
+- [x] Implement `createDocument` factory function
+- [x] Implement `updateDocumentContent` function
+- [x] Implement utility functions (isFirstVersion, hasVersionHistory, etc.)
 
-### Phase 2: Content Validation
-- [ ] Implement text validation (passthrough)
-- [ ] Implement markdown validation (passthrough)
-- [ ] Implement JSON validation
-- [ ] Add content size validation
+### Phase 2: Content Validation ✅
+- [x] Implement text validation (passthrough)
+- [x] Implement markdown validation (passthrough)
+- [x] Implement JSON validation
+- [x] Add content size validation (10 MB max)
 
-### Phase 3: Versioning
-- [ ] Implement version table schema
-- [ ] Implement version creation on update
-- [ ] Implement version number increment
-- [ ] Implement previousVersionId linking
+### Phase 3: Versioning (Partial - Type Layer Only)
+- [ ] Implement version table schema (storage layer)
+- [x] Implement version creation on update (type layer)
+- [x] Implement version number increment
+- [x] Implement previousVersionId linking
 
 ### Phase 4: History Queries
-- [ ] Implement getDocumentVersion
-- [ ] Implement getDocumentHistory
+- [ ] Implement getDocumentVersion (storage layer)
+- [ ] Implement getDocumentHistory (storage layer)
 - [ ] Add version filtering to list queries
 
 ### Phase 5: Content Type Operations
-- [ ] Add content type filtering
+- [x] Add content type filtering (`filterByContentType`)
 - [ ] Implement content type migration (optional)
-- [ ] Add content type constraints
+- [x] Add content type constraints (JSON validation)
 
 ### Phase 6: Integration
 - [ ] Integrate with Task (description, design)
@@ -236,8 +241,9 @@ Forward query is more efficient for full history.
 - [ ] Integrate with Library (parent-child)
 - [ ] Add CLI commands for Document operations
 
-### Phase 7: Testing
-- [ ] Unit tests for content validation
-- [ ] Unit tests for versioning logic
-- [ ] Integration tests for history queries
+### Phase 7: Testing ✅
+- [x] Unit tests for content validation
+- [x] Unit tests for versioning logic
+- [x] Property-based tests for content types and versions
+- [ ] Integration tests for history queries (requires storage layer)
 - [ ] E2E tests for Document lifecycle
