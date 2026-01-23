@@ -136,7 +136,7 @@ Recommended implementation sequence:
 #### Phase 1: Foundation
 - [x] types/element.md ✅ (Element type, validation, type guards, utilities, unit tests)
 - [x] systems/id-generation.md ✅ (ID validation, parsing, SHA256/Base36 hashing, adaptive length, collision resolution, hierarchical IDs, unit tests)
-- [ ] systems/storage.md (Phase 1 ✅: StorageBackend interface, Transaction interface, query result types, error mapping, unit tests)
+- [ ] systems/storage.md (Phase 1 ✅: Interface definitions; Phase 2 ✅: Bun backend with integration tests)
 - [x] api/errors.md ✅ (core error types, codes, factories, type guards, unit tests)
 
 #### Phase 2: Core Types

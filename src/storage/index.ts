@@ -47,3 +47,6 @@ export {
   connectionError,
   migrationError,
 } from './errors.js';
+
+// Bun backend implementation
+export { BunStorageBackend, createBunStorage } from './bun-backend.js';
