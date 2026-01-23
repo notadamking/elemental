@@ -276,10 +276,10 @@ Allow runtime mode switching:
 - [x] Implement full verification pipeline (verifySignature, shouldAllowRequest)
 - [x] Add verification middleware ✅ (createVerificationMiddleware in src/systems/identity.ts - 11 tests)
 
-### Phase 5: Key Management
-- [ ] Implement key registration
-- [ ] Implement key update (signed)
-- [ ] Implement key revocation (future)
+### Phase 5: Key Management ✅
+- [x] Implement key registration ✅ (createEntity with publicKey validation, entity register --public-key CLI)
+- [x] Implement key update (signed) ✅ (rotateEntityKey with signature verification, constructKeyRotationMessage, validateKeyRotationInput, prepareKeyRotation - 20 tests)
+- [ ] Implement key revocation (future/optional)
 
 ### Phase 6: Configuration
 - [x] Add identity mode config (IdentityConfig type)

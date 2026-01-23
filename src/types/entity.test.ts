@@ -618,6 +618,258 @@ describe('updateEntity', () => {
   });
 });
 
+// ============================================================================
+// Key Rotation Tests
+// ============================================================================
+
+import {
+  rotateEntityKey,
+  constructKeyRotationMessage,
+  validateKeyRotationInput,
+  prepareKeyRotation,
+  DEFAULT_MAX_SIGNATURE_AGE,
+  type KeyRotationInput,
+} from './entity.js';
+
+const SECOND_VALID_PUBLIC_KEY = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=';
+
+describe('constructKeyRotationMessage', () => {
+  test('constructs correct message format', () => {
+    const message = constructKeyRotationMessage(
+      'el-test123' as ElementId,
+      SECOND_VALID_PUBLIC_KEY,
+      '2024-01-15T12:00:00.000Z'
+    );
+    expect(message).toBe(`rotate-key:el-test123:${SECOND_VALID_PUBLIC_KEY}:2024-01-15T12:00:00.000Z`);
+  });
+});
+
+describe('validateKeyRotationInput', () => {
+  const validInput: KeyRotationInput = {
+    newPublicKey: SECOND_VALID_PUBLIC_KEY,
+    signature: 'dGVzdC1zaWduYXR1cmU=',
+    signedAt: '2024-01-15T12:00:00.000Z',
+  };
+
+  test('validates correct input', () => {
+    const result = validateKeyRotationInput(validInput);
+    expect(result.newPublicKey).toBe(SECOND_VALID_PUBLIC_KEY);
+    expect(result.signature).toBe('dGVzdC1zaWduYXR1cmU=');
+    expect(result.signedAt).toBe('2024-01-15T12:00:00.000Z');
+  });
+
+  test('throws for non-object input', () => {
+    expect(() => validateKeyRotationInput(null)).toThrow(ValidationError);
+    expect(() => validateKeyRotationInput('string')).toThrow(ValidationError);
+  });
+
+  test('throws for missing newPublicKey', () => {
+    expect(() => validateKeyRotationInput({ ...validInput, newPublicKey: undefined })).toThrow(ValidationError);
+  });
+
+  test('throws for invalid newPublicKey format', () => {
+    expect(() => validateKeyRotationInput({ ...validInput, newPublicKey: 'invalid' })).toThrow(ValidationError);
+  });
+
+  test('throws for missing signature', () => {
+    expect(() => validateKeyRotationInput({ ...validInput, signature: undefined })).toThrow(ValidationError);
+    expect(() => validateKeyRotationInput({ ...validInput, signature: '' })).toThrow(ValidationError);
+  });
+
+  test('throws for missing signedAt', () => {
+    expect(() => validateKeyRotationInput({ ...validInput, signedAt: undefined })).toThrow(ValidationError);
+    expect(() => validateKeyRotationInput({ ...validInput, signedAt: '' })).toThrow(ValidationError);
+  });
+
+  test('throws for invalid timestamp format', () => {
+    expect(() => validateKeyRotationInput({ ...validInput, signedAt: 'invalid-date' })).toThrow(ValidationError);
+  });
+});
+
+describe('prepareKeyRotation', () => {
+  test('returns message and timestamp', () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = prepareKeyRotation(entity, SECOND_VALID_PUBLIC_KEY);
+
+    expect(result.message).toContain('rotate-key:');
+    expect(result.message).toContain(entity.id);
+    expect(result.message).toContain(SECOND_VALID_PUBLIC_KEY);
+    expect(result.timestamp).toBeDefined();
+    expect(() => new Date(result.timestamp)).not.toThrow();
+  });
+});
+
+describe('rotateEntityKey', () => {
+  // Mock signature verifier
+  const createMockVerifier = (shouldPass: boolean) => {
+    return async (_message: string, _signature: string, _publicKey: string): Promise<boolean> => {
+      return shouldPass;
+    };
+  };
+
+  const validRotationInput: KeyRotationInput = {
+    newPublicKey: SECOND_VALID_PUBLIC_KEY,
+    signature: 'dGVzdC1zaWduYXR1cmU=',
+    signedAt: new Date().toISOString(),
+  };
+
+  test('fails when entity has no public key', async () => {
+    const entity = createTestEntity(); // No public key
+    const result = await rotateEntityKey(entity, validRotationInput, createMockVerifier(true));
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('NO_CURRENT_KEY');
+  });
+
+  test('fails when new public key is invalid', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await rotateEntityKey(
+      entity,
+      { ...validRotationInput, newPublicKey: 'invalid' },
+      createMockVerifier(true)
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_NEW_KEY');
+  });
+
+  test('fails when signature is expired', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const oldTimestamp = new Date(Date.now() - DEFAULT_MAX_SIGNATURE_AGE - 60000).toISOString();
+    const result = await rotateEntityKey(
+      entity,
+      { ...validRotationInput, signedAt: oldTimestamp },
+      createMockVerifier(true),
+      { maxSignatureAge: DEFAULT_MAX_SIGNATURE_AGE }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('SIGNATURE_EXPIRED');
+  });
+
+  test('fails when signature timestamp is in future', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const futureTimestamp = new Date(Date.now() + 120000).toISOString(); // 2 minutes in future
+    const result = await rotateEntityKey(
+      entity,
+      { ...validRotationInput, signedAt: futureTimestamp },
+      createMockVerifier(true)
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_SIGNATURE');
+  });
+
+  test('fails when signature verification fails', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await rotateEntityKey(
+      entity,
+      validRotationInput,
+      createMockVerifier(false),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_SIGNATURE');
+  });
+
+  test('fails when verifier throws', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const throwingVerifier = async () => { throw new Error('Crypto error'); };
+    const result = await rotateEntityKey(
+      entity,
+      validRotationInput,
+      throwingVerifier,
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_SIGNATURE');
+    expect(result.error).toContain('Crypto error');
+  });
+
+  test('succeeds with valid signature', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await rotateEntityKey(
+      entity,
+      validRotationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.entity).toBeDefined();
+    expect(result.entity?.publicKey).toBe(SECOND_VALID_PUBLIC_KEY);
+  });
+
+  test('records rotation metadata', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await rotateEntityKey(
+      entity,
+      validRotationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.entity?.metadata.keyRotatedAt).toBeDefined();
+    expect(result.entity?.metadata.previousKeyHash).toBeDefined();
+    expect(result.entity?.metadata.previousKeyHash).toContain('...');
+  });
+
+  test('updates updatedAt timestamp', async () => {
+    const entity = createTestEntity({
+      publicKey: VALID_PUBLIC_KEY,
+      updatedAt: '2020-01-01T00:00:00.000Z' as any,
+    });
+    const before = new Date().toISOString();
+
+    const result = await rotateEntityKey(
+      entity,
+      validRotationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    const after = new Date().toISOString();
+    expect(result.entity?.updatedAt >= before).toBe(true);
+    expect(result.entity?.updatedAt <= after).toBe(true);
+  });
+
+  test('preserves existing metadata', async () => {
+    const entity = createTestEntity({
+      publicKey: VALID_PUBLIC_KEY,
+      metadata: { customField: 'preserved', existing: true },
+    });
+
+    const result = await rotateEntityKey(
+      entity,
+      validRotationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.entity?.metadata.customField).toBe('preserved');
+    expect(result.entity?.metadata.existing).toBe(true);
+    expect(result.entity?.metadata.keyRotatedAt).toBeDefined();
+  });
+
+  test('respects custom maxSignatureAge', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const recentTimestamp = new Date(Date.now() - 1000).toISOString(); // 1 second ago
+
+    const result = await rotateEntityKey(
+      entity,
+      { ...validRotationInput, signedAt: recentTimestamp },
+      createMockVerifier(true),
+      { maxSignatureAge: 500 } // 500ms - signature should be expired
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('SIGNATURE_EXPIRED');
+  });
+});
+
 describe('hasCryptographicIdentity', () => {
   test('returns true for entity with public key', () => {
     const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
