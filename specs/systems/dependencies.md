@@ -266,12 +266,16 @@ Function `isBlocked(elementId)`:
 
 ## Implementation Checklist
 
-### Phase 1: Type Definitions
-- [ ] Define `Dependency` interface
-- [ ] Define `DependencyType` union
-- [ ] Define `AwaitsMetadata` interface
-- [ ] Define `ValidatesMetadata` interface
-- [ ] Create type guards
+### Phase 1: Type Definitions ✅
+- [x] Define `Dependency` interface
+- [x] Define `DependencyType` union (blocking, associative, attribution, threading)
+- [x] Define `AwaitsMetadata` interface (timer, approval, external, webhook gates)
+- [x] Define `ValidatesMetadata` interface
+- [x] Create type guards (isValidDependencyType, isDependency, isValidAwaitsMetadata, etc.)
+- [x] Create validators (validateDependency, validateAwaitsMetadata, etc.)
+- [x] Create factory functions (createDependency, createAwaitsDependency, createValidatesDependency)
+- [x] Create utility functions (isBlockingDependency, filterByType, describeDependency, etc.)
+- [x] Unit tests (175 tests)
 
 ### Phase 2: Core Operations
 - [ ] Implement addDependency
