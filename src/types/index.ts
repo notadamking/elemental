@@ -10,6 +10,7 @@ export * from './event.js';
 export * from './dependency.js';
 export * from './plan.js';
 export * from './message.js';
+export * from './playbook.js';
 export * from './workflow.js';
 
 // Channel exports - exclude duplicates that are already exported from message.js

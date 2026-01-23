@@ -21,6 +21,11 @@ import {
 } from './element.js';
 import { generateId, type IdGeneratorConfig } from '../id/generator.js';
 import { DocumentId } from './document.js';
+import { type PlaybookId, isValidPlaybookId, validatePlaybookId } from './playbook.js';
+
+// Re-export PlaybookId (type) and validators from playbook.js for backwards compatibility
+export type { PlaybookId };
+export { isValidPlaybookId, validatePlaybookId };
 
 // ============================================================================
 // Branded Types
@@ -31,12 +36,6 @@ import { DocumentId } from './document.js';
  */
 declare const WorkflowIdBrand: unique symbol;
 export type WorkflowId = ElementId & { readonly [WorkflowIdBrand]: typeof WorkflowIdBrand };
-
-/**
- * Branded type for Playbook IDs (forward reference)
- */
-declare const PlaybookIdBrand: unique symbol;
-export type PlaybookId = ElementId & { readonly [PlaybookIdBrand]: typeof PlaybookIdBrand };
 
 // ============================================================================
 // Workflow Status
@@ -181,29 +180,6 @@ export function validateWorkflowId(value: unknown): WorkflowId {
 }
 
 /**
- * Validates a playbook ID
- */
-export function isValidPlaybookId(value: unknown): value is PlaybookId {
-  if (typeof value !== 'string') return false;
-  // Basic ID format check
-  return /^el-[a-z0-9]+(\.[0-9]+)*$/i.test(value);
-}
-
-/**
- * Validates playbook ID and throws if invalid
- */
-export function validatePlaybookId(value: unknown): PlaybookId {
-  if (!isValidPlaybookId(value)) {
-    throw new ValidationError(
-      `Invalid playbook ID: ${value}`,
-      ErrorCode.INVALID_ID,
-      { field: 'playbookId', value, expected: 'el-{hash} format' }
-    );
-  }
-  return value;
-}
-
-/**
  * Validates a workflow status value
  */
 export function isValidWorkflowStatus(value: unknown): value is WorkflowStatus {
@@ -303,9 +279,9 @@ export function validateWorkflowOptionalText(
 }
 
 /**
- * Validates variables object
+ * Validates workflow variables object (key-value pairs)
  */
-export function isValidVariables(value: unknown): value is Record<string, unknown> {
+export function isValidWorkflowVariables(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
   }
@@ -320,9 +296,9 @@ export function isValidVariables(value: unknown): value is Record<string, unknow
 }
 
 /**
- * Validates variables and throws if invalid
+ * Validates workflow variables and throws if invalid
  */
-export function validateVariables(value: unknown): Record<string, unknown> {
+export function validateWorkflowVariables(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new ValidationError(
       'Variables must be a plain object',
@@ -399,7 +375,7 @@ export function isWorkflow(value: unknown): value is Workflow {
   if (!isValidWorkflowTitle(obj.title)) return false;
   if (!isValidWorkflowStatus(obj.status)) return false;
   if (typeof obj.ephemeral !== 'boolean') return false;
-  if (!isValidVariables(obj.variables)) return false;
+  if (!isValidWorkflowVariables(obj.variables)) return false;
 
   // Check optional properties have correct types when present
   if (obj.descriptionRef !== undefined && typeof obj.descriptionRef !== 'string') return false;
@@ -491,7 +467,7 @@ export function validateWorkflow(value: unknown): Workflow {
     );
   }
 
-  validateVariables(obj.variables);
+  validateWorkflowVariables(obj.variables);
 
   // Validate optional text fields
   validateWorkflowOptionalText(obj.failureReason, 'failureReason', MAX_FAILURE_REASON_LENGTH);
@@ -548,7 +524,7 @@ export async function createWorkflow(
     : WorkflowStatus.PENDING;
   const ephemeral = input.ephemeral ?? false;
   const variables = input.variables !== undefined
-    ? validateVariables(input.variables)
+    ? validateWorkflowVariables(input.variables)
     : {};
 
   // Validate tags and metadata

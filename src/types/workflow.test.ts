@@ -20,8 +20,8 @@ import {
   isValidWorkflowTitle,
   validateWorkflowTitle,
   validateWorkflowOptionalText,
-  isValidVariables,
-  validateVariables,
+  isValidWorkflowVariables,
+  validateWorkflowVariables,
   isValidWorkflowStatusTransition,
   validateWorkflowStatusTransition,
   isWorkflow,
@@ -344,44 +344,44 @@ describe('validateWorkflowOptionalText', () => {
 // Variables Validation Tests
 // ============================================================================
 
-describe('isValidVariables', () => {
+describe('isValidWorkflowVariables', () => {
   test('accepts valid variable objects', () => {
-    expect(isValidVariables({})).toBe(true);
-    expect(isValidVariables({ key: 'value' })).toBe(true);
-    expect(isValidVariables({ num: 123, bool: true, nested: { a: 1 } })).toBe(true);
+    expect(isValidWorkflowVariables({})).toBe(true);
+    expect(isValidWorkflowVariables({ key: 'value' })).toBe(true);
+    expect(isValidWorkflowVariables({ num: 123, bool: true, nested: { a: 1 } })).toBe(true);
   });
 
   test('rejects invalid variable values', () => {
-    expect(isValidVariables(null)).toBe(false);
-    expect(isValidVariables(undefined)).toBe(false);
-    expect(isValidVariables([])).toBe(false);
-    expect(isValidVariables('string')).toBe(false);
-    expect(isValidVariables(123)).toBe(false);
+    expect(isValidWorkflowVariables(null)).toBe(false);
+    expect(isValidWorkflowVariables(undefined)).toBe(false);
+    expect(isValidWorkflowVariables([])).toBe(false);
+    expect(isValidWorkflowVariables('string')).toBe(false);
+    expect(isValidWorkflowVariables(123)).toBe(false);
   });
 
   test('rejects non-serializable objects', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    expect(isValidVariables(circular)).toBe(false);
+    expect(isValidWorkflowVariables(circular)).toBe(false);
   });
 });
 
-describe('validateVariables', () => {
+describe('validateWorkflowVariables', () => {
   test('returns valid variables', () => {
     const vars = { key: 'value' };
-    expect(validateVariables(vars)).toEqual(vars);
+    expect(validateWorkflowVariables(vars)).toEqual(vars);
   });
 
   test('throws for non-object', () => {
-    expect(() => validateVariables(null)).toThrow(ValidationError);
-    expect(() => validateVariables([])).toThrow(ValidationError);
-    expect(() => validateVariables('string')).toThrow(ValidationError);
+    expect(() => validateWorkflowVariables(null)).toThrow(ValidationError);
+    expect(() => validateWorkflowVariables([])).toThrow(ValidationError);
+    expect(() => validateWorkflowVariables('string')).toThrow(ValidationError);
   });
 
   test('throws for non-serializable', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    expect(() => validateVariables(circular)).toThrow(ValidationError);
+    expect(() => validateWorkflowVariables(circular)).toThrow(ValidationError);
   });
 });
 
