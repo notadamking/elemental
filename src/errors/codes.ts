@@ -106,6 +106,28 @@ export const StorageErrorCode = {
 export type StorageErrorCode = typeof StorageErrorCode[keyof typeof StorageErrorCode];
 
 /**
+ * Identity error codes - Authentication and signature errors
+ */
+export const IdentityErrorCode = {
+  /** Invalid signature format */
+  INVALID_SIGNATURE: 'INVALID_SIGNATURE',
+  /** Signature verification failed */
+  SIGNATURE_VERIFICATION_FAILED: 'SIGNATURE_VERIFICATION_FAILED',
+  /** Signature timestamp expired */
+  SIGNATURE_EXPIRED: 'SIGNATURE_EXPIRED',
+  /** Invalid public key format */
+  INVALID_PUBLIC_KEY: 'INVALID_PUBLIC_KEY',
+  /** Actor not found for verification */
+  ACTOR_NOT_FOUND: 'ACTOR_NOT_FOUND',
+  /** Request missing required signature */
+  SIGNATURE_REQUIRED: 'SIGNATURE_REQUIRED',
+  /** Entity has no public key for verification */
+  NO_PUBLIC_KEY: 'NO_PUBLIC_KEY',
+} as const;
+
+export type IdentityErrorCode = typeof IdentityErrorCode[keyof typeof IdentityErrorCode];
+
+/**
  * All error codes combined
  */
 export const ErrorCode = {
@@ -114,6 +136,7 @@ export const ErrorCode = {
   ...ConflictErrorCode,
   ...ConstraintErrorCode,
   ...StorageErrorCode,
+  ...IdentityErrorCode,
 } as const;
 
 export type ErrorCode = typeof ErrorCode[keyof typeof ErrorCode];
@@ -162,6 +185,15 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.EXPORT_FAILED]: 500,
   [ErrorCode.IMPORT_FAILED]: 500,
   [ErrorCode.MIGRATION_FAILED]: 500,
+
+  // Identity errors -> 400/401/403
+  [ErrorCode.INVALID_SIGNATURE]: 400,
+  [ErrorCode.SIGNATURE_VERIFICATION_FAILED]: 401,
+  [ErrorCode.SIGNATURE_EXPIRED]: 401,
+  [ErrorCode.INVALID_PUBLIC_KEY]: 400,
+  [ErrorCode.ACTOR_NOT_FOUND]: 404,
+  [ErrorCode.SIGNATURE_REQUIRED]: 401,
+  [ErrorCode.NO_PUBLIC_KEY]: 400,
 };
 
 /**

@@ -6,6 +6,7 @@ import {
   ConflictErrorCode,
   ConstraintErrorCode,
   StorageErrorCode,
+  IdentityErrorCode,
 } from './codes.js';
 
 /**
@@ -198,6 +199,28 @@ export function isConstraintError(error: unknown): error is ConstraintError {
  */
 export function isStorageError(error: unknown): error is StorageError {
   return error instanceof StorageError;
+}
+
+/**
+ * Error for identity and authentication operations
+ */
+export class IdentityError extends ElementalError {
+  constructor(
+    message: string,
+    code: IdentityErrorCode = ErrorCode.SIGNATURE_VERIFICATION_FAILED,
+    details: ErrorDetails = {},
+    cause?: Error
+  ) {
+    super(message, code, details, cause);
+    this.name = 'IdentityError';
+  }
+}
+
+/**
+ * Type guard to check if an error is an IdentityError
+ */
+export function isIdentityError(error: unknown): error is IdentityError {
+  return error instanceof IdentityError;
 }
 
 /**

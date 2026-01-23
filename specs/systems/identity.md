@@ -253,10 +253,10 @@ Allow runtime mode switching:
 ## Implementation Checklist
 
 ### Phase 1: Type Definitions
-- [ ] Define identity mode types
-- [ ] Define signature types
-- [ ] Define verification result types
-- [ ] Create configuration types
+- [x] Define identity mode types (IdentityMode: soft, cryptographic, hybrid)
+- [x] Define signature types (Signature, PublicKey branded types, SignedRequestFields, SignedData)
+- [x] Define verification result types (VerificationStatus, VerificationResult)
+- [x] Create configuration types (IdentityConfig, DEFAULT_IDENTITY_CONFIG)
 
 ### Phase 2: Soft Identity
 - [ ] Implement actor context management
@@ -265,15 +265,15 @@ Allow runtime mode switching:
 - [ ] Test soft mode flows
 
 ### Phase 3: Cryptographic Infrastructure
-- [ ] Select Ed25519 library per platform
-- [ ] Implement key validation
-- [ ] Implement signature generation helpers
-- [ ] Implement signature verification
+- [x] Select Ed25519 library per platform (Web Crypto API with Bun)
+- [x] Implement key validation (isValidPublicKey, validatePublicKey, isValidSignature, validateSignature)
+- [x] Implement signature generation helpers (signEd25519, generateEd25519Keypair)
+- [x] Implement signature verification (verifyEd25519Signature)
 
 ### Phase 4: Verification Flow
-- [ ] Implement signed data construction
-- [ ] Implement time tolerance checking
-- [ ] Implement full verification pipeline
+- [x] Implement signed data construction (constructSignedData, parseSignedData)
+- [x] Implement time tolerance checking (checkTimeTolerance, validateTimeTolerance2)
+- [x] Implement full verification pipeline (verifySignature, shouldAllowRequest)
 - [ ] Add verification middleware
 
 ### Phase 5: Key Management
@@ -282,9 +282,9 @@ Allow runtime mode switching:
 - [ ] Implement key revocation (future)
 
 ### Phase 6: Configuration
-- [ ] Add identity mode config
-- [ ] Implement mode switching
-- [ ] Add tolerance settings
+- [x] Add identity mode config (IdentityConfig type)
+- [x] Implement mode switching (shouldAllowRequest)
+- [x] Add tolerance settings (timeTolerance, DEFAULT_TIME_TOLERANCE)
 - [ ] Document configuration
 
 ### Phase 7: CLI Support
@@ -294,7 +294,7 @@ Allow runtime mode switching:
 - [ ] Add whoami command
 
 ### Phase 8: Testing
-- [ ] Unit tests for signature verification
-- [ ] Unit tests for time tolerance
-- [ ] Integration tests for modes
-- [ ] Security tests for impersonation
+- [x] Unit tests for signature verification (106 tests)
+- [x] Unit tests for time tolerance
+- [x] Integration tests for modes
+- [x] Security tests for impersonation (tampered request detection)
