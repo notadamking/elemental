@@ -11,8 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ElementalAPIImpl, createElementalAPI } from './elemental-api.js';
-import { BunStorageBackend } from '../storage/bun-backend.js';
-import { initializeSchema } from '../storage/schema.js';
+import { createStorage, initializeSchema } from '../storage/index.js';
 import type { StorageBackend } from '../storage/backend.js';
 import type { Element, ElementId, EntityId, Timestamp } from '../types/element.js';
 import type { Task, HydratedTask } from '../types/task.js';
@@ -67,7 +66,7 @@ describe('ElementalAPI', () => {
   let api: ElementalAPIImpl;
 
   beforeEach(() => {
-    backend = new BunStorageBackend({ path: ':memory:' });
+    backend = createStorage({ path: ':memory:' });
     initializeSchema(backend);
     api = new ElementalAPIImpl(backend);
   });
@@ -1078,7 +1077,7 @@ describe('ElementalAPI', () => {
       const jsonl = await api.export();
 
       // Create a new database and import
-      const backend2 = new BunStorageBackend({ path: ':memory:' });
+      const backend2 = createStorage({ path: ':memory:' });
       initializeSchema(backend2);
       const api2 = new ElementalAPIImpl(backend2);
 
@@ -1110,7 +1109,7 @@ describe('ElementalAPI', () => {
       const jsonl = await api.export({ includeDependencies: true });
 
       // Create a new database and import
-      const backend2 = new BunStorageBackend({ path: ':memory:' });
+      const backend2 = createStorage({ path: ':memory:' });
       initializeSchema(backend2);
       const api2 = new ElementalAPIImpl(backend2);
 
@@ -1133,7 +1132,7 @@ describe('ElementalAPI', () => {
 
       const jsonl = await api.export();
 
-      const backend2 = new BunStorageBackend({ path: ':memory:' });
+      const backend2 = createStorage({ path: ':memory:' });
       initializeSchema(backend2);
       const api2 = new ElementalAPIImpl(backend2);
 

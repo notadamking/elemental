@@ -13,8 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ElementalAPIImpl } from './elemental-api.js';
-import { BunStorageBackend } from '../storage/bun-backend.js';
-import { initializeSchema } from '../storage/schema.js';
+import { createStorage, initializeSchema } from '../storage/index.js';
 import type { StorageBackend } from '../storage/backend.js';
 import type { Element, ElementId, EntityId } from '../types/element.js';
 import type { Task } from '../types/task.js';
@@ -49,7 +48,7 @@ describe('Automatic Blocked Status Computation', () => {
   let api: ElementalAPIImpl;
 
   beforeEach(() => {
-    backend = new BunStorageBackend({ path: ':memory:' });
+    backend = createStorage({ path: ':memory:' });
     initializeSchema(backend);
     api = new ElementalAPIImpl(backend);
   });

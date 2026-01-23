@@ -16,8 +16,7 @@ import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode } from '../formatter.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import {
   TaskStatus,
@@ -70,7 +69,7 @@ function createAPI(options: GlobalOptions): { api: ElementalAPI; error?: string 
   }
 
   try {
-    const backend = new BunStorageBackend({ path: dbPath, create: true });
+    const backend = createStorage({ path: dbPath, create: true });
     initializeSchema(backend);
     return { api: createElementalAPI(backend) };
   } catch (err) {

@@ -10,8 +10,7 @@ import { createCommand } from './crud.js';
 import { initCommand } from './init.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema, CURRENT_SCHEMA_VERSION } from '../../storage/schema.js';
+import { createStorage, initializeSchema, CURRENT_SCHEMA_VERSION } from '../../storage/index.js';
 
 // ============================================================================
 // Test Utilities
@@ -77,7 +76,7 @@ describe('doctor command', () => {
 
   test('reports healthy for initialized database', async () => {
     // Initialize database with schema
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -89,7 +88,7 @@ describe('doctor command', () => {
   });
 
   test('checks workspace exists', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -103,7 +102,7 @@ describe('doctor command', () => {
   });
 
   test('checks database exists', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -117,7 +116,7 @@ describe('doctor command', () => {
   });
 
   test('checks database connection', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -131,7 +130,7 @@ describe('doctor command', () => {
   });
 
   test('checks schema version', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -147,7 +146,7 @@ describe('doctor command', () => {
 
   test('reports warning for outdated schema', async () => {
     // Create database with older schema version
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     // Initialize schema but then set an older version
     initializeSchema(backend);
     backend.setSchemaVersion(1);
@@ -164,7 +163,7 @@ describe('doctor command', () => {
   });
 
   test('checks schema tables', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -179,7 +178,7 @@ describe('doctor command', () => {
   });
 
   test('checks database integrity', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -194,7 +193,7 @@ describe('doctor command', () => {
   });
 
   test('checks foreign key integrity', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -208,7 +207,7 @@ describe('doctor command', () => {
   });
 
   test('checks blocked cache', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -222,7 +221,7 @@ describe('doctor command', () => {
   });
 
   test('reports storage stats', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -237,7 +236,7 @@ describe('doctor command', () => {
   });
 
   test('verbose mode shows details', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions({ verbose: true });
@@ -250,7 +249,7 @@ describe('doctor command', () => {
   });
 
   test('returns summary counts', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -271,7 +270,7 @@ describe('doctor command', () => {
 describe('migrate command', () => {
   test('reports when already up to date', async () => {
     // Initialize database with full schema
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -294,7 +293,7 @@ describe('migrate command', () => {
 
   test('dry-run shows pending migrations without applying', async () => {
     // Create a database with schema version 1 (one behind current)
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
     backend.setSchemaVersion(1);
 
@@ -307,13 +306,13 @@ describe('migrate command', () => {
     expect((result.data as { pendingMigrations: unknown[] }).pendingMigrations.length).toBeGreaterThan(0);
 
     // Verify schema version didn't change
-    const backend2 = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend2 = createStorage({ path: DB_PATH, create: true });
     expect(backend2.getSchemaVersion()).toBe(1);
   });
 
   test('applies pending migrations', async () => {
     // Create a database with no schema
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     backend.setSchemaVersion(0);
 
     const options = createTestOptions();
@@ -328,7 +327,7 @@ describe('migrate command', () => {
 
   test('shows migration descriptions', async () => {
     // Create a database with no schema
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     backend.setSchemaVersion(0);
 
     const options = createTestOptions();
@@ -346,7 +345,7 @@ describe('migrate command', () => {
   });
 
   test('reports version numbers', async () => {
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
     const options = createTestOptions();
@@ -416,7 +415,7 @@ describe('migrate command structure', () => {
 describe('admin commands integration', () => {
   test('doctor reports warning when schema is outdated', async () => {
     // Create database with old schema version
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
     backend.setSchemaVersion(1);
 
@@ -430,7 +429,7 @@ describe('admin commands integration', () => {
 
   test('migrate fixes schema issues reported by doctor', async () => {
     // Create database with no schema
-    const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+    const backend = createStorage({ path: DB_PATH, create: true });
     backend.setSchemaVersion(0);
 
     // First doctor should report problems

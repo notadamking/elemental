@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
+import { createStorage, type StorageBackend } from '../../storage/index.js';
 import {
   initializeSchema,
   getSchemaVersion,
@@ -122,11 +122,11 @@ async function doctorHandler(
   });
 
   // 3. Check database can be opened
-  let backend: BunStorageBackend;
+  let backend: StorageBackend;
   try {
     // Use create: true to allow opening existing databases without error
     // This doesn't create a new database, just allows opening existing ones
-    backend = new BunStorageBackend({ path: dbPath, create: true });
+    backend = createStorage({ path: dbPath, create: true });
     diagnostics.push({
       name: 'connection',
       status: 'ok',
@@ -424,9 +424,9 @@ async function migrateHandler(
   }
 
   // Open database
-  let backend: BunStorageBackend;
+  let backend: StorageBackend;
   try {
-    backend = new BunStorageBackend({ path: dbPath, create: true });
+    backend = createStorage({ path: dbPath, create: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to open database: ${message}`, ExitCode.GENERAL_ERROR);

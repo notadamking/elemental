@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { BunStorageBackend } from './bun-backend.js';
+import { createStorage } from './create-backend.js';
 import type { StorageBackend } from './backend.js';
 import {
   CURRENT_SCHEMA_VERSION,
@@ -25,7 +25,7 @@ describe('Schema Management', () => {
   let backend: StorageBackend;
 
   beforeEach(() => {
-    backend = new BunStorageBackend({ path: ':memory:' });
+    backend = createStorage({ path: ':memory:' });
   });
 
   afterEach(() => {

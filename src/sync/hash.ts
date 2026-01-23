@@ -5,6 +5,7 @@
  * during merge operations. Excludes identity and attribution fields.
  */
 
+import { createHash } from 'crypto';
 import type { Element } from '../types/element.js';
 import type { ContentHashResult } from './types.js';
 import { HASH_EXCLUDED_FIELDS } from './types.js';
@@ -58,7 +59,9 @@ export async function computeContentHash(element: Element): Promise<ContentHashR
 }
 
 /**
- * Compute content hash synchronously using Bun's native crypto
+ * Compute content hash synchronously using Node.js crypto
+ *
+ * Works in both Bun and Node.js runtimes.
  *
  * @param element - Element to hash
  * @returns Hash result with hex-encoded SHA256 hash
@@ -85,10 +88,8 @@ export function computeContentHashSync(element: Element): ContentHashResult {
   // Create hash input: type prefix + JSON content
   const hashInput = `${element.type}:${JSON.stringify(sortedFields, sortKeyReplacer)}`;
 
-  // Compute SHA256 hash using Bun's native crypto
-  const hasher = new Bun.CryptoHasher('sha256');
-  hasher.update(hashInput);
-  const hash = hasher.digest('hex');
+  // Compute SHA256 hash using Node.js crypto (works in both Bun and Node.js)
+  const hash = createHash('sha256').update(hashInput).digest('hex');
 
   return {
     hash,

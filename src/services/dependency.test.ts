@@ -7,7 +7,8 @@ import {
   DEFAULT_CYCLE_DETECTION_CONFIG,
   type CycleDetectionConfig,
 } from './dependency.js';
-import { createBunStorage, BunStorageBackend } from '../storage/bun-backend.js';
+import { createStorage } from '../storage/index.js';
+import type { StorageBackend } from '../storage/backend.js';
 import type { ElementId, EntityId } from '../types/element.js';
 import {
   DependencyType,
@@ -23,7 +24,7 @@ import { NotFoundError, ConflictError } from '../errors/error.js';
 // ============================================================================
 
 describe('DependencyService', () => {
-  let db: BunStorageBackend;
+  let db: StorageBackend;
   let service: DependencyService;
 
   // Test data
@@ -36,7 +37,7 @@ describe('DependencyService', () => {
 
   beforeEach(() => {
     // Create in-memory database for each test
-    db = createBunStorage({ path: ':memory:' }) as BunStorageBackend;
+    db = createStorage({ path: ':memory:' });
     service = createDependencyService(db);
     service.initSchema();
   });
@@ -996,7 +997,7 @@ describe('Dependency Event Helpers', () => {
 // ============================================================================
 
 describe('Cycle Detection', () => {
-  let db: BunStorageBackend;
+  let db: StorageBackend;
   let service: DependencyService;
 
   // Test data - use el- prefix for clarity
@@ -1008,7 +1009,7 @@ describe('Cycle Detection', () => {
   const elE = 'el-E' as ElementId;
 
   beforeEach(() => {
-    db = createBunStorage({ path: ':memory:' }) as BunStorageBackend;
+    db = createStorage({ path: ':memory:' });
     service = createDependencyService(db);
     service.initSchema();
   });

@@ -12,8 +12,7 @@ import { join, resolve } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getOutputMode } from '../formatter.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createSyncService } from '../../sync/service.js';
 import type { ExportResult, ImportResult } from '../../sync/types.js';
 
@@ -62,7 +61,7 @@ function createSyncServiceFromOptions(options: GlobalOptions): {
   }
 
   try {
-    const backend = new BunStorageBackend({ path: dbPath, create: true });
+    const backend = createStorage({ path: dbPath, create: true });
     initializeSchema(backend);
     return { syncService: createSyncService(backend) };
   } catch (err) {
@@ -349,7 +348,7 @@ async function statusHandler(
   }
 
   try {
-    const backend = new BunStorageBackend({ path: dbPath, create: true });
+    const backend = createStorage({ path: dbPath, create: true });
     initializeSchema(backend);
 
     // Get dirty element count

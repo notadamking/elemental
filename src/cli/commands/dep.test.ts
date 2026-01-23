@@ -21,8 +21,7 @@ import {
 import { createCommand } from './crud.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import { DependencyType, type Dependency } from '../../types/dependency.js';
 import type { ElementId } from '../../types/element.js';
@@ -62,7 +61,7 @@ async function createTestTask(
 
 // Helper to create API instance for direct manipulation
 function createTestAPI() {
-  const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+  const backend = createStorage({ path: DB_PATH, create: true });
   initializeSchema(backend);
   return { api: createElementalAPI(backend), backend };
 }

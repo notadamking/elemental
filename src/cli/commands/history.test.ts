@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { historyCommand } from './history.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
+import type { StorageBackend } from '../../storage/backend.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import { createTask } from '../../types/task.js';
 import type { ElementId, EntityId } from '../../types/element.js';
@@ -37,7 +37,7 @@ async function runHistory(
 }
 
 describe('history command', () => {
-  let backend: BunStorageBackend;
+  let backend: StorageBackend;
   let api: ReturnType<typeof createElementalAPI>;
 
   beforeEach(() => {
@@ -48,7 +48,7 @@ describe('history command', () => {
     mkdirSync(TEST_DIR, { recursive: true });
 
     // Create backend and API
-    backend = new BunStorageBackend({ path: TEST_DB });
+    backend = createStorage({ path: TEST_DB });
     initializeSchema(backend);
     api = createElementalAPI(backend);
   });

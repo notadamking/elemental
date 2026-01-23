@@ -10,8 +10,7 @@ import { join } from 'node:path';
 import { entityCommand, entityRegisterCommand, entityListCommand } from './entity.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
 
 // ============================================================================
 // Test Utilities
@@ -46,7 +45,7 @@ beforeEach(() => {
   mkdirSync(ELEMENTAL_DIR, { recursive: true });
 
   // Initialize database
-  const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+  const backend = createStorage({ path: DB_PATH, create: true });
   initializeSchema(backend);
 });
 

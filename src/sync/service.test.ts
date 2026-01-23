@@ -9,8 +9,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SyncService, createSyncService } from './service.js';
-import { createBunStorage } from '../storage/bun-backend.js';
-import { initializeSchema } from '../storage/schema.js';
+import { createStorage, initializeSchema } from '../storage/index.js';
 import type { StorageBackend } from '../storage/backend.js';
 import type { Element, ElementId, EntityId, Timestamp } from '../types/element.js';
 import { ElementType, createTimestamp } from '../types/element.js';
@@ -117,7 +116,7 @@ function getDependencyCount(backend: StorageBackend): number {
 }
 
 function createTestBackend(path: string): StorageBackend {
-  const backend = createBunStorage({ path });
+  const backend = createStorage({ path });
   initializeSchema(backend);
   return backend;
 }

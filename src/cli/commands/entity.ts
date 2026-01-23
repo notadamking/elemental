@@ -11,8 +11,7 @@ import { dirname, join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getOutputMode } from '../formatter.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import { createEntity, EntityTypeValue, type Entity, type CreateEntityInput } from '../../types/entity.js';
 import type { Element, EntityId } from '../../types/element.js';
@@ -63,7 +62,7 @@ async function createAPI(options: GlobalOptions): Promise<ElementalAPI | null> {
     mkdirSync(dir, { recursive: true });
   }
 
-  const backend = new BunStorageBackend({ path: dbPath, create: true });
+  const backend = createStorage({ path: dbPath, create: true });
   initializeSchema(backend);
   return createElementalAPI(backend);
 }

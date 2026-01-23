@@ -19,8 +19,7 @@ import {
 import { createCommand } from './crud.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import type { ExportResult, ImportResult } from '../../sync/types.js';
 import type { Element, ElementId } from '../../types/element.js';
@@ -61,7 +60,7 @@ async function createTestTask(
 
 // Helper to create API instance for direct manipulation
 function createTestAPI() {
-  const backend = new BunStorageBackend({ path: DB_PATH, create: true });
+  const backend = createStorage({ path: DB_PATH, create: true });
   initializeSchema(backend);
   return { api: createElementalAPI(backend), backend };
 }
@@ -628,7 +627,7 @@ describe('export-import round-trip', () => {
 
     // Create a fresh database with a different path for import
     const importDbPath = join(ELEMENTAL_DIR, 'import-test.db');
-    const importBackend = new BunStorageBackend({ path: importDbPath, create: true });
+    const importBackend = createStorage({ path: importDbPath, create: true });
     initializeSchema(importBackend);
     const importApi = createElementalAPI(importBackend);
 
@@ -665,7 +664,7 @@ describe('export-import round-trip', () => {
 
     // Create a fresh database with a different path for import
     const importDbPath = join(ELEMENTAL_DIR, 'import-test-2.db');
-    const importBackend = new BunStorageBackend({ path: importDbPath, create: true });
+    const importBackend = createStorage({ path: importDbPath, create: true });
     initializeSchema(importBackend);
 
     // Import using the new database
@@ -697,7 +696,7 @@ describe('integration with CRUD commands', () => {
 
     // Create a fresh database with a different path for import
     const importDbPath = join(ELEMENTAL_DIR, 'import-list-test.db');
-    const importBackend = new BunStorageBackend({ path: importDbPath, create: true });
+    const importBackend = createStorage({ path: importDbPath, create: true });
     initializeSchema(importBackend);
 
     // Import using the new database

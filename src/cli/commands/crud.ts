@@ -12,8 +12,7 @@ import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode, getStatusIcon, formatEventsTable, type EventData } from '../formatter.js';
-import { BunStorageBackend } from '../../storage/bun-backend.js';
-import { initializeSchema } from '../../storage/schema.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import { createTask, TaskStatus, TaskTypeValue, type CreateTaskInput, type Priority, type Complexity } from '../../types/task.js';
 import type { Element, ElementId, EntityId } from '../../types/element.js';
@@ -87,9 +86,9 @@ function createAPI(options: GlobalOptions, createDb: boolean = false): { api: El
   }
 
   try {
-    // Note: Bun's SQLite doesn't properly support create: false, so we always use create: true
+    // Note: SQLite doesn't properly support create: false, so we always use create: true
     // The existence check is handled above in resolveDatabasePath when createDb is false
-    const backend = new BunStorageBackend({ path: dbPath, create: true });
+    const backend = createStorage({ path: dbPath, create: true });
     initializeSchema(backend);
     return { api: createElementalAPI(backend) };
   } catch (err) {

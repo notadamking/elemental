@@ -11,8 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ElementalAPIImpl } from './elemental-api.js';
-import { BunStorageBackend } from '../storage/bun-backend.js';
-import { initializeSchema } from '../storage/schema.js';
+import { createStorage, initializeSchema } from '../storage/index.js';
 import type { StorageBackend } from '../storage/backend.js';
 import type { ElementId, EntityId, Timestamp } from '../types/element.js';
 import type { Task } from '../types/task.js';
@@ -62,7 +61,7 @@ describe('Events System Integration', () => {
   let api: ElementalAPIImpl;
 
   beforeEach(() => {
-    backend = new BunStorageBackend({ path: ':memory:' });
+    backend = createStorage({ path: ':memory:' });
     initializeSchema(backend);
     api = new ElementalAPIImpl(backend);
   });
