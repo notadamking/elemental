@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
-import { getFormatter, getOutputMode, getStatusIcon } from '../formatter.js';
+import { getFormatter, getOutputMode, getStatusIcon, formatEventsTable, type EventData } from '../formatter.js';
 import { BunStorageBackend } from '../../storage/bun-backend.js';
 import { initializeSchema } from '../../storage/schema.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
@@ -467,9 +467,28 @@ Examples:
 // Show Command
 // ============================================================================
 
+interface ShowOptions {
+  events?: boolean;
+  'events-limit'?: string;
+}
+
+const showOptions: CommandOption[] = [
+  {
+    name: 'events',
+    short: 'e',
+    description: 'Include recent events/history',
+    hasValue: false,
+  },
+  {
+    name: 'events-limit',
+    description: 'Maximum number of events to show (default: 10)',
+    hasValue: true,
+  },
+];
+
 async function showHandler(
   args: string[],
-  options: GlobalOptions
+  options: GlobalOptions & ShowOptions
 ): Promise<CommandResult> {
   const [id] = args;
 
@@ -500,7 +519,17 @@ async function showHandler(
     const mode = getOutputMode(options);
     const formatter = getFormatter(mode);
 
+    // Get events if requested
+    let events: unknown[] | undefined;
+    if (options.events) {
+      const eventsLimit = options['events-limit'] ? parseInt(options['events-limit'], 10) : 10;
+      events = await api.getEvents(id as ElementId, { limit: eventsLimit });
+    }
+
     if (mode === 'json') {
+      if (events) {
+        return success({ element, events });
+      }
       return success(element);
     }
 
@@ -509,7 +538,15 @@ async function showHandler(
     }
 
     // Human-readable output - format as key-value pairs
-    const output = formatter.element(element as unknown as Record<string, unknown>);
+    let output = formatter.element(element as unknown as Record<string, unknown>);
+
+    // Add events if requested
+    if (events && events.length > 0) {
+      output += '\n\n--- Recent Events ---\n';
+      output += formatEventsTable(events as EventData[]);
+    } else if (options.events) {
+      output += '\n\n--- Recent Events ---\nNo events';
+    }
 
     return success(element, output);
   } catch (err) {
@@ -521,16 +558,22 @@ async function showHandler(
 export const showCommand: Command = {
   name: 'show',
   description: 'Show element details',
-  usage: 'el show <id>',
+  usage: 'el show <id> [options]',
   help: `Display detailed information about an element.
 
 Arguments:
   id    Element identifier (e.g., el-abc123)
 
+Options:
+  -e, --events            Include recent events/history
+      --events-limit <n>  Maximum events to show (default: 10)
+
 Examples:
   el show el-abc123
+  el show el-abc123 --events
+  el show el-abc123 --events --events-limit 20
   el show el-abc123 --json`,
-  options: [],
+  options: showOptions,
   handler: showHandler as Command['handler'],
 };
 

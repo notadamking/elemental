@@ -287,10 +287,10 @@ Event and mutation in same transaction:
 - [ ] Implement timeline generation
 - [ ] Add reconstruction API
 
-### Phase 7: CLI Integration
-- [ ] Add events to show command
-- [ ] Add history command
-- [ ] Add timeline formatting
+### Phase 7: CLI Integration ✅
+- [x] Add events to show command ✅ (--events flag, --events-limit option - 4 tests in crud.test.ts)
+- [x] Add history command ✅ (el history <id> with filtering, timeline/table formats - 15 tests)
+- [x] Add timeline formatting ✅ (formatEvent, formatTimestamp, formatTimeline, formatEventsTable in formatter.ts)
 
 ### Phase 8: Testing ✅
 - [x] Unit tests for event recording (129 tests in event.test.ts)

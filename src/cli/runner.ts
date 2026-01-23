@@ -222,6 +222,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { entityCommand } = await import('./commands/entity.js');
   const { statsCommand } = await import('./commands/stats.js');
   const { doctorCommand, migrateCommand } = await import('./commands/admin.js');
+  const { historyCommand } = await import('./commands/history.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -262,6 +263,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(statsCommand);
   registerCommand(doctorCommand);
   registerCommand(migrateCommand);
+
+  // History command
+  registerCommand(historyCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

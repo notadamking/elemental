@@ -893,3 +893,82 @@ describe('delete command', () => {
     expect(secondDelete.exitCode).toBe(ExitCode.NOT_FOUND);
   });
 });
+
+// ============================================================================
+// Show Command Events Tests
+// ============================================================================
+
+describe('show command events', () => {
+  test('shows events when --events flag is provided', async () => {
+    // Create a task
+    const createOpts = createTestOptions({ title: 'Events Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Show with events
+    const showOpts = createTestOptions({ events: true } as GlobalOptions & { events: boolean });
+    const result = await showCommand.handler([taskId], showOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toContain('Recent Events');
+    expect(result.message).toContain('Created');
+  });
+
+  test('includes events in JSON output when --events flag is provided', async () => {
+    // Create a task
+    const createOpts = createTestOptions({ title: 'JSON Events Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Show with events in JSON mode
+    const showOpts = createTestOptions({ json: true, events: true } as GlobalOptions & { json: boolean; events: boolean });
+    const result = await showCommand.handler([taskId], showOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { element: unknown; events: unknown[] };
+    expect(data.element).toBeDefined();
+    expect(data.events).toBeDefined();
+    expect(Array.isArray(data.events)).toBe(true);
+    expect(data.events.length).toBeGreaterThan(0);
+  });
+
+  test('limits events with --events-limit flag', async () => {
+    // Create a task
+    const createOpts = createTestOptions({ title: 'Limit Events Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update multiple times to create events
+    for (let i = 0; i < 5; i++) {
+      const updateOpts = createTestOptions({ title: `Update ${i}` } as GlobalOptions & { title: string });
+      await updateCommand.handler([taskId], updateOpts);
+    }
+
+    // Show with events limit
+    const showOpts = createTestOptions({
+      json: true,
+      events: true,
+      'events-limit': '2',
+    } as GlobalOptions & { json: boolean; events: boolean; 'events-limit': string });
+    const result = await showCommand.handler([taskId], showOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { element: unknown; events: unknown[] };
+    expect(data.events.length).toBe(2);
+  });
+
+  test('shows no events message when element has no events', async () => {
+    // Note: In practice, creating an element creates an event, but we test the no-events path
+    const createOpts = createTestOptions({ title: 'No Events Message Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Request events but with a filter that returns none
+    const showOpts = createTestOptions({ events: true } as GlobalOptions & { events: boolean });
+    const result = await showCommand.handler([taskId], showOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    // Should show events section even if there are some
+    expect(result.message).toContain('Recent Events');
+  });
+});

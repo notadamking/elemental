@@ -383,3 +383,206 @@ export const STATUS_ICONS: Record<string, string> = {
 export function getStatusIcon(status: string): string {
   return STATUS_ICONS[status] ?? '?';
 }
+
+// ============================================================================
+// Event Formatting
+// ============================================================================
+
+/**
+ * Event type display names
+ */
+export const EVENT_TYPE_DISPLAY: Record<string, string> = {
+  created: 'Created',
+  updated: 'Updated',
+  closed: 'Closed',
+  reopened: 'Reopened',
+  deleted: 'Deleted',
+  dependency_added: 'Dependency Added',
+  dependency_removed: 'Dependency Removed',
+  tag_added: 'Tag Added',
+  tag_removed: 'Tag Removed',
+  member_added: 'Member Added',
+  member_removed: 'Member Removed',
+};
+
+/**
+ * Event type icons
+ */
+export const EVENT_TYPE_ICONS: Record<string, string> = {
+  created: '+',
+  updated: '~',
+  closed: '✓',
+  reopened: '↺',
+  deleted: '×',
+  dependency_added: '→',
+  dependency_removed: '←',
+  tag_added: '#',
+  tag_removed: '#',
+  member_added: '+',
+  member_removed: '-',
+};
+
+/**
+ * Event data for formatting
+ */
+export interface EventData {
+  id: number;
+  elementId: string;
+  eventType: string;
+  actor: string;
+  createdAt: string;
+  oldValue?: Record<string, unknown> | null;
+  newValue?: Record<string, unknown> | null;
+}
+
+/**
+ * Formats a single event for human display
+ */
+export function formatEvent(event: EventData): string {
+  const icon = EVENT_TYPE_ICONS[event.eventType] ?? '?';
+  const type = EVENT_TYPE_DISPLAY[event.eventType] ?? event.eventType;
+  const time = formatTimestamp(event.createdAt);
+  const actor = event.actor.replace(/^.*:/, ''); // Remove prefix (e.g., "user:alice" -> "alice")
+
+  return `${icon} ${type} by ${actor} at ${time}`;
+}
+
+/**
+ * Formats a timestamp for display
+ */
+export function formatTimestamp(timestamp: string): string {
+  try {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+
+    // Within last minute
+    if (diff < 60_000) {
+      return 'just now';
+    }
+
+    // Within last hour
+    if (diff < 3_600_000) {
+      const mins = Math.floor(diff / 60_000);
+      return `${mins}m ago`;
+    }
+
+    // Within last day
+    if (diff < 86_400_000) {
+      const hours = Math.floor(diff / 3_600_000);
+      return `${hours}h ago`;
+    }
+
+    // Within last week
+    if (diff < 604_800_000) {
+      const days = Math.floor(diff / 86_400_000);
+      return `${days}d ago`;
+    }
+
+    // Otherwise show date
+    return date.toLocaleDateString();
+  } catch {
+    return timestamp;
+  }
+}
+
+/**
+ * Formats events as a timeline
+ */
+export function formatTimeline(events: EventData[]): string {
+  if (events.length === 0) {
+    return 'No events';
+  }
+
+  const lines: string[] = [];
+  for (const event of events) {
+    lines.push(formatEvent(event));
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Formats events as a detailed table
+ */
+export function formatEventsTable(events: EventData[]): string {
+  if (events.length === 0) {
+    return 'No events';
+  }
+
+  const headers = ['TIME', 'TYPE', 'ACTOR', 'CHANGES'];
+  const rows = events.map(event => {
+    const time = formatTimestamp(event.createdAt);
+    const type = EVENT_TYPE_DISPLAY[event.eventType] ?? event.eventType;
+    const actor = event.actor.replace(/^.*:/, '');
+    const changes = formatChanges(event);
+    return [time, type, actor, changes];
+  });
+
+  // Calculate column widths
+  const widths = headers.map((h, i) => {
+    const maxDataWidth = Math.max(...rows.map(r => String(r[i] ?? '').length));
+    return Math.max(h.length, maxDataWidth);
+  });
+
+  // Build output
+  const headerRow = headers.map((h, i) => h.padEnd(widths[i])).join('  ');
+  const separator = widths.map(w => '-'.repeat(w)).join('  ');
+  const dataRows = rows.map(row =>
+    row.map((cell, i) => String(cell ?? '').padEnd(widths[i])).join('  ')
+  );
+
+  return [headerRow, separator, ...dataRows].join('\n');
+}
+
+/**
+ * Formats the changes from an event
+ */
+function formatChanges(event: EventData): string {
+  if (event.eventType === 'created') {
+    return 'New element';
+  }
+  if (event.eventType === 'deleted') {
+    return 'Element deleted';
+  }
+  if (event.eventType === 'closed') {
+    return 'Status → closed';
+  }
+  if (event.eventType === 'reopened') {
+    return 'Status → open';
+  }
+  if (event.eventType === 'dependency_added' || event.eventType === 'dependency_removed') {
+    const depInfo = event.newValue ?? event.oldValue;
+    if (depInfo && typeof depInfo === 'object') {
+      const targetId = (depInfo as Record<string, unknown>).targetId;
+      const depType = (depInfo as Record<string, unknown>).type;
+      if (targetId) {
+        return `${depType ?? 'dep'}: ${targetId}`;
+      }
+    }
+    return event.eventType === 'dependency_added' ? 'Added' : 'Removed';
+  }
+
+  // For updates, show changed fields
+  if (event.oldValue && event.newValue) {
+    const changes: string[] = [];
+    for (const key of Object.keys(event.newValue)) {
+      if (key === 'updatedAt' || key === 'createdAt' || key === 'id' || key === 'type') continue;
+      const oldVal = event.oldValue[key];
+      const newVal = event.newValue[key];
+      if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+        const oldStr = oldVal === undefined || oldVal === null ? '-' : String(oldVal);
+        const newStr = newVal === undefined || newVal === null ? '-' : String(newVal);
+        if (oldStr.length > 20) {
+          changes.push(`${key} changed`);
+        } else {
+          changes.push(`${key}: ${oldStr} → ${newStr}`);
+        }
+      }
+    }
+    if (changes.length > 0) {
+      return changes.slice(0, 2).join(', ') + (changes.length > 2 ? '...' : '');
+    }
+  }
+
+  return '-';
+}
