@@ -1,0 +1,298 @@
+/**
+ * Schema Management
+ *
+ * Defines the database schema migrations for Elemental.
+ * Uses a migration-based approach for schema versioning.
+ */
+
+import type { Migration, MigrationResult, StorageBackend } from './index.js';
+
+// ============================================================================
+// Schema Constants
+// ============================================================================
+
+/**
+ * Current schema version
+ */
+export const CURRENT_SCHEMA_VERSION = 1;
+
+// ============================================================================
+// Migrations
+// ============================================================================
+
+/**
+ * Migration 1: Initial schema
+ *
+ * Creates all core tables and indexes for the Elemental storage system.
+ */
+const migration001: Migration = {
+  version: 1,
+  description: 'Initial schema with elements, dependencies, tags, events, and caching tables',
+  up: `
+-- Core element storage
+CREATE TABLE elements (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    data TEXT NOT NULL,
+    content_hash TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    deleted_at TEXT,
+    CHECK (type IN ('task', 'message', 'document', 'entity',
+                    'plan', 'workflow', 'playbook',
+                    'channel', 'library', 'team'))
+);
+
+-- Document version history
+CREATE TABLE document_versions (
+    id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (id, version)
+);
+
+-- Dependencies
+CREATE TABLE dependencies (
+    source_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
+    target_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    metadata TEXT,
+    PRIMARY KEY (source_id, target_id, type)
+);
+
+-- Tags (many-to-many)
+CREATE TABLE tags (
+    element_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL,
+    PRIMARY KEY (element_id, tag)
+);
+
+-- Events (audit trail)
+CREATE TABLE events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    element_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- Hierarchical ID counters
+CREATE TABLE child_counters (
+    parent_id TEXT PRIMARY KEY,
+    last_child INTEGER NOT NULL DEFAULT 0
+);
+
+-- Blocked elements cache (optimization for ready work queries)
+CREATE TABLE blocked_cache (
+    element_id TEXT PRIMARY KEY,
+    blocked_by TEXT NOT NULL,
+    reason TEXT,
+    FOREIGN KEY (element_id) REFERENCES elements(id) ON DELETE CASCADE
+);
+
+-- Key indexes for performance
+CREATE INDEX idx_elements_type ON elements(type);
+CREATE INDEX idx_elements_created_by ON elements(created_by);
+CREATE INDEX idx_elements_created_at ON elements(created_at);
+CREATE INDEX idx_elements_content_hash ON elements(content_hash);
+CREATE INDEX idx_elements_deleted_at ON elements(deleted_at);
+CREATE INDEX idx_dependencies_target ON dependencies(target_id);
+CREATE INDEX idx_dependencies_type ON dependencies(type);
+CREATE INDEX idx_tags_tag ON tags(tag);
+CREATE INDEX idx_events_element ON events(element_id);
+CREATE INDEX idx_events_created_at ON events(created_at);
+CREATE INDEX idx_document_versions_id ON document_versions(id);
+`,
+  down: `
+-- Drop indexes first
+DROP INDEX IF EXISTS idx_document_versions_id;
+DROP INDEX IF EXISTS idx_events_created_at;
+DROP INDEX IF EXISTS idx_events_element;
+DROP INDEX IF EXISTS idx_tags_tag;
+DROP INDEX IF EXISTS idx_dependencies_type;
+DROP INDEX IF EXISTS idx_dependencies_target;
+DROP INDEX IF EXISTS idx_elements_deleted_at;
+DROP INDEX IF EXISTS idx_elements_content_hash;
+DROP INDEX IF EXISTS idx_elements_created_at;
+DROP INDEX IF EXISTS idx_elements_created_by;
+DROP INDEX IF EXISTS idx_elements_type;
+
+-- Drop tables in reverse order of creation (respecting dependencies)
+DROP TABLE IF EXISTS blocked_cache;
+DROP TABLE IF EXISTS child_counters;
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS dependencies;
+DROP TABLE IF EXISTS document_versions;
+DROP TABLE IF EXISTS elements;
+`,
+};
+
+/**
+ * All migrations in order
+ */
+export const MIGRATIONS: readonly Migration[] = [migration001];
+
+// ============================================================================
+// Schema Functions
+// ============================================================================
+
+/**
+ * Initialize the database schema
+ *
+ * Applies all pending migrations to bring the database up to the current version.
+ *
+ * @param backend - The storage backend to initialize
+ * @returns Migration result with details of what was applied
+ */
+export function initializeSchema(backend: StorageBackend): MigrationResult {
+  return backend.migrate([...MIGRATIONS]);
+}
+
+/**
+ * Get the current schema version from a backend
+ *
+ * @param backend - The storage backend to check
+ * @returns Current schema version number
+ */
+export function getSchemaVersion(backend: StorageBackend): number {
+  return backend.getSchemaVersion();
+}
+
+/**
+ * Check if the schema is up to date
+ *
+ * @param backend - The storage backend to check
+ * @returns True if schema is at the current version
+ */
+export function isSchemaUpToDate(backend: StorageBackend): boolean {
+  return backend.getSchemaVersion() === CURRENT_SCHEMA_VERSION;
+}
+
+/**
+ * Get pending migrations that need to be applied
+ *
+ * @param backend - The storage backend to check
+ * @returns Array of migrations that haven't been applied yet
+ */
+export function getPendingMigrations(backend: StorageBackend): Migration[] {
+  const currentVersion = backend.getSchemaVersion();
+  return MIGRATIONS.filter((m) => m.version > currentVersion);
+}
+
+/**
+ * Reset the database schema
+ *
+ * WARNING: This drops all tables and data! Use only for testing.
+ *
+ * @param backend - The storage backend to reset
+ */
+export function resetSchema(backend: StorageBackend): void {
+  // Get the most recent migration with a down script
+  const latestMigration = [...MIGRATIONS].reverse().find((m) => m.down);
+  if (latestMigration?.down) {
+    backend.exec(latestMigration.down);
+  }
+
+  // Reset version
+  backend.setSchemaVersion(0);
+}
+
+// ============================================================================
+// Schema Validation
+// ============================================================================
+
+/**
+ * Table names that should exist after schema initialization
+ */
+export const EXPECTED_TABLES = [
+  'elements',
+  'document_versions',
+  'dependencies',
+  'tags',
+  'events',
+  'dirty_elements', // Created by backend initialization
+  'child_counters',
+  'blocked_cache',
+] as const;
+
+/**
+ * Validate that all expected tables exist
+ *
+ * @param backend - The storage backend to validate
+ * @returns Object with validation results
+ */
+export function validateSchema(backend: StorageBackend): {
+  valid: boolean;
+  missingTables: string[];
+  extraTables: string[];
+} {
+  // Query actual tables
+  const rows = backend.query<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+  );
+
+  const actualTables = new Set(rows.map((r) => r.name));
+  const expectedSet = new Set<string>(EXPECTED_TABLES);
+
+  const missingTables = EXPECTED_TABLES.filter((t) => !actualTables.has(t));
+  const extraTables = [...actualTables].filter((t) => !expectedSet.has(t));
+
+  return {
+    valid: missingTables.length === 0,
+    missingTables,
+    extraTables,
+  };
+}
+
+/**
+ * Validate table columns match expected schema
+ *
+ * @param backend - The storage backend
+ * @param tableName - Name of table to validate
+ * @returns Column information
+ */
+export function getTableColumns(
+  backend: StorageBackend,
+  tableName: string
+): Array<{
+  name: string;
+  type: string;
+  notnull: boolean;
+  pk: boolean;
+}> {
+  const rows = backend.query<{
+    name: string;
+    type: string;
+    notnull: number;
+    pk: number;
+  }>(`PRAGMA table_info(${tableName})`);
+
+  return rows.map((r) => ({
+    name: r.name,
+    type: r.type,
+    notnull: r.notnull === 1,
+    pk: r.pk === 1,
+  }));
+}
+
+/**
+ * Get indexes for a table
+ *
+ * @param backend - The storage backend
+ * @param tableName - Name of table
+ * @returns Index names for the table
+ */
+export function getTableIndexes(backend: StorageBackend, tableName: string): string[] {
+  const rows = backend.query<{ name: string }>(
+    `SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND name NOT LIKE 'sqlite_%'`,
+    [tableName]
+  );
+  return rows.map((r) => r.name);
+}

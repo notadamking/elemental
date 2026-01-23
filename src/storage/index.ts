@@ -50,3 +50,18 @@ export {
 
 // Bun backend implementation
 export { BunStorageBackend, createBunStorage } from './bun-backend.js';
+
+// Schema management
+export {
+  CURRENT_SCHEMA_VERSION,
+  MIGRATIONS,
+  EXPECTED_TABLES,
+  initializeSchema,
+  getSchemaVersion,
+  isSchemaUpToDate,
+  getPendingMigrations,
+  resetSchema,
+  validateSchema,
+  getTableColumns,
+  getTableIndexes,
+} from './schema.js';

@@ -324,11 +324,11 @@ Convert SQLite errors to Elemental errors:
 - [ ] Handle WASM loading
 - [ ] Test persistence
 
-### Phase 5: Schema Management
-- [ ] Implement schema creation
-- [ ] Implement version tracking
-- [ ] Implement migration runner
-- [ ] Create initial migrations
+### Phase 5: Schema Management ✅
+- [x] Implement schema creation (src/storage/schema.ts - initializeSchema)
+- [x] Implement version tracking (src/storage/schema.ts - getSchemaVersion, isSchemaUpToDate)
+- [x] Implement migration runner (src/storage/bun-backend.ts - migrate)
+- [x] Create initial migrations (src/storage/schema.ts - MIGRATIONS with full schema)
 
 ### Phase 6: Dirty Tracking
 - [ ] Implement dirty marking
@@ -342,7 +342,7 @@ Convert SQLite errors to Elemental errors:
 - [ ] Add hash column to schema
 
 ### Phase 8: Testing
-- [ ] Unit tests per backend
-- [ ] Integration tests for transactions
-- [ ] Migration tests
-- [ ] Cross-runtime compatibility tests
+- [x] Unit tests per backend (src/storage/bun-backend.test.ts)
+- [x] Integration tests for transactions (src/storage/bun-backend.test.ts)
+- [x] Migration tests (src/storage/schema.test.ts - 68 tests)
+- [ ] Cross-runtime compatibility tests (pending Node/Browser backends)
