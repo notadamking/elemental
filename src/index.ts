@@ -11,5 +11,64 @@ export * from './types/index.js';
 // Export ID generation
 export * from './id/index.js';
 
-// Export API types
+// Export API types and implementation
 export * from './api/index.js';
+
+// Export storage (excluding isConstraintError which conflicts with errors/index.js)
+// The storage version checks SQLite errors; the errors version checks domain ConstraintError
+// NOTE: BunStorageBackend/NodeStorageBackend are NOT exported here to avoid loading
+// bun:sqlite or better-sqlite3 eagerly. Use createStorage() for automatic runtime detection.
+export {
+  // Types
+  type Row,
+  type QueryResult,
+  type MutationResult,
+  type StatementResult,
+  type PreparedStatement,
+  type IsolationLevel,
+  type TransactionOptions,
+  type Transaction,
+  type SqlitePragmas,
+  type StorageConfig,
+  type DirtyElement,
+  type DirtyTrackingOptions,
+  type Migration,
+  type MigrationResult,
+  type StorageBackend,
+  type StorageStats,
+  type StorageFactory,
+  type AsyncStorageFactory,
+  DEFAULT_PRAGMAS,
+  // Error utilities (excluding isConstraintError)
+  SqliteResultCode,
+  isBusyError,
+  isUniqueViolation,
+  isForeignKeyViolation,
+  isCorruptionError,
+  mapStorageError,
+  queryError,
+  mutationError,
+  connectionError,
+  migrationError,
+  // Storage factory (handles runtime detection automatically)
+  createStorage,
+  createStorageAsync,
+  isBunRuntime,
+  isNodeRuntime,
+  getRuntimeName,
+  // Schema management
+  CURRENT_SCHEMA_VERSION,
+  MIGRATIONS,
+  EXPECTED_TABLES,
+  initializeSchema,
+  getSchemaVersion,
+  isSchemaUpToDate,
+  getPendingMigrations,
+  resetSchema,
+  validateSchema,
+  getTableColumns,
+  getTableIndexes,
+} from './storage/index.js';
+
+// Re-export the storage isConstraintError with a different name for SQLite-specific checks
+export { isConstraintError as isSqliteConstraintError } from './storage/index.js';

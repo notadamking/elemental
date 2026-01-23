@@ -8,7 +8,41 @@ export * from './document.js';
 export * from './task.js';
 export * from './event.js';
 export * from './dependency.js';
-export * from './plan.js';
+// Plan exports - sortByCreationDate aliased to avoid conflict with entity.js
+export {
+  PlanStatus,
+  PLAN_STATUS_TRANSITIONS,
+  MIN_PLAN_TITLE_LENGTH,
+  MAX_PLAN_TITLE_LENGTH,
+  MAX_CANCEL_REASON_LENGTH,
+  type Plan,
+  type PlanProgress,
+  type HydratedPlan,
+  isValidPlanStatus,
+  validatePlanStatus,
+  isValidPlanTitle,
+  validatePlanTitle,
+  validatePlanOptionalText,
+  isValidPlanStatusTransition,
+  validatePlanStatusTransition,
+  isPlan,
+  validatePlan,
+  type CreatePlanInput,
+  createPlan,
+  type UpdatePlanStatusInput,
+  updatePlanStatus,
+  isDraft,
+  isActive,
+  isCompleted,
+  isCancelled,
+  getPlanStatusDisplayName,
+  calculatePlanProgress,
+  canAutoComplete,
+  filterByPlanStatus,
+  filterActivePlans,
+  filterDraftPlans,
+  sortByCreationDate as sortPlansByCreationDate,
+} from './plan.js';
 export * from './message.js';
 export * from './playbook.js';
 export * from './workflow.js';

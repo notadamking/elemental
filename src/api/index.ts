@@ -5,3 +5,4 @@
  */
 
 export * from './types.js';
+export { ElementalAPIImpl, createElementalAPI } from './elemental-api.js';
