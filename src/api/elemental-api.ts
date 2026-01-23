@@ -13,6 +13,7 @@ import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter, EventType } from '../types/event.js';
 import { createTimestamp } from '../types/element.js';
 import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
+import { isPlan, PlanStatus as PlanStatusEnum } from '../types/plan.js';
 import { createEvent, LifecycleEventType } from '../types/event.js';
 import { NotFoundError, ConflictError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
@@ -657,12 +658,25 @@ export class ElementalAPIImpl implements ElementalAPI {
 
       let eventType: EventType = LifecycleEventType.UPDATED;
       if (oldStatus !== newStatus && newStatus !== undefined) {
-        if (newStatus === TaskStatusEnum.CLOSED) {
-          // Transitioning TO closed status
-          eventType = LifecycleEventType.CLOSED;
-        } else if (oldStatus === TaskStatusEnum.CLOSED) {
-          // Transitioning FROM closed status (reopening)
-          eventType = LifecycleEventType.REOPENED;
+        // Handle Task status changes
+        if (isTask(existing)) {
+          if (newStatus === TaskStatusEnum.CLOSED) {
+            // Transitioning TO closed status
+            eventType = LifecycleEventType.CLOSED;
+          } else if (oldStatus === TaskStatusEnum.CLOSED) {
+            // Transitioning FROM closed status (reopening)
+            eventType = LifecycleEventType.REOPENED;
+          }
+        }
+        // Handle Plan status changes
+        else if (isPlan(existing)) {
+          if (newStatus === PlanStatusEnum.COMPLETED || newStatus === PlanStatusEnum.CANCELLED) {
+            // Transitioning TO completed or cancelled status (terminal states)
+            eventType = LifecycleEventType.CLOSED;
+          } else if (oldStatus === PlanStatusEnum.COMPLETED || oldStatus === PlanStatusEnum.CANCELLED) {
+            // Transitioning FROM completed/cancelled status (reopening/restarting)
+            eventType = LifecycleEventType.REOPENED;
+          }
         }
       }
 

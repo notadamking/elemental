@@ -211,7 +211,8 @@ Recommended implementation sequence:
 - [ ] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child)
 
 #### Collection Type Integration (Priority: Medium)
-- [ ] **types/plan.md Phase 2-4**: Status change events, task-to-plan linking, hierarchical ID generation, progress calculation
+- [x] **types/plan.md Phase 2** (partial): Status change events ✅ (closed/reopened events for completed/cancelled transitions - 12 tests)
+- [ ] **types/plan.md Phase 3-4**: task-to-plan linking, hierarchical ID generation, progress calculation
 - [ ] **types/plan.md Phase 5**: Bulk operations (close, defer, reassign, tag)
 - [ ] **types/plan.md Phase 6**: Plan listing, tasks-in-plan query, progress in results
 - [ ] **types/workflow.md Phase 2-3**: Auto-completion/failure detection, pouring (playbook loading, variable resolution, condition evaluation, task creation, dependency wiring)

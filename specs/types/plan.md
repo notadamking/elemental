@@ -209,7 +209,7 @@ When creating task under plan:
 ### Phase 2: Lifecycle Management
 - [x] Implement status transition validation
 - [x] Implement auto-completion detection (canAutoComplete)
-- [ ] Create status change event emission
+- [x] Create status change event emission ✅ (emits 'closed' event when status changes to completed/cancelled, 'reopened' event when status changes from completed/cancelled - 12 tests)
 
 ### Phase 3: Task Association
 - [ ] Implement task-to-plan linking
