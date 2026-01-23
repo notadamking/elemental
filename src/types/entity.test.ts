@@ -1433,3 +1433,257 @@ describe('countByEntityType', () => {
     expect(counts.system).toBe(0);
   });
 });
+
+// ============================================================================
+// Entity Assignment Query Utilities Tests
+// ============================================================================
+
+import {
+  getAssignedTo,
+  getCreatedBy,
+  getRelatedTo,
+  countAssignmentsByEntity,
+  getTopAssignees,
+  hasAssignments,
+  getUnassigned,
+  getEntityAssignmentStats,
+  type Assignable,
+} from './entity.js';
+
+// Helper to create test assignable items
+function createTestAssignable(overrides: Partial<Assignable> = {}): Assignable {
+  return {
+    id: 'item-1',
+    createdBy: 'entity-creator',
+    ...overrides,
+  };
+}
+
+describe('getAssignedTo', () => {
+  test('returns items assigned to the specified entity', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-3', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-4' }), // No assignee
+    ];
+
+    const result = getAssignedTo(items, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map((i) => i.id)).toEqual(['item-1', 'item-3']);
+  });
+
+  test('returns empty array when no items are assigned to entity', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-2' }),
+    ];
+
+    expect(getAssignedTo(items, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array for empty input', () => {
+    expect(getAssignedTo([], 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getCreatedBy', () => {
+  test('returns items created by the specified entity', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', createdBy: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', createdBy: 'entity-b' }),
+      createTestAssignable({ id: 'item-3', createdBy: 'entity-a' }),
+    ];
+
+    const result = getCreatedBy(items, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map((i) => i.id)).toEqual(['item-1', 'item-3']);
+  });
+
+  test('returns empty array when no items created by entity', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', createdBy: 'entity-b' }),
+    ];
+
+    expect(getCreatedBy(items, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getRelatedTo', () => {
+  test('returns items where entity is assignee or creator', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', createdBy: 'entity-a', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-2', createdBy: 'entity-b', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-3', createdBy: 'entity-a', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-4', createdBy: 'entity-b', assignee: 'entity-b' }),
+    ];
+
+    const result = getRelatedTo(items, 'entity-a');
+    expect(result).toHaveLength(3);
+    expect(result.map((i) => i.id)).toEqual(['item-1', 'item-2', 'item-3']);
+  });
+
+  test('returns empty array when entity has no relation', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', createdBy: 'entity-b', assignee: 'entity-c' }),
+    ];
+
+    expect(getRelatedTo(items, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('countAssignmentsByEntity', () => {
+  test('counts assignments for each entity', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-3', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-4', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-5' }), // No assignee
+    ];
+
+    const counts = countAssignmentsByEntity(items);
+    expect(counts.get('entity-a')).toBe(3);
+    expect(counts.get('entity-b')).toBe(1);
+    expect(counts.has('entity-c')).toBe(false);
+  });
+
+  test('returns empty map for items with no assignees', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1' }),
+      createTestAssignable({ id: 'item-2' }),
+    ];
+
+    const counts = countAssignmentsByEntity(items);
+    expect(counts.size).toBe(0);
+  });
+});
+
+describe('getTopAssignees', () => {
+  test('returns entities sorted by assignment count', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-3', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-4', assignee: 'entity-c' }),
+      createTestAssignable({ id: 'item-5', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-6', assignee: 'entity-b' }),
+    ];
+
+    const top = getTopAssignees(items);
+    expect(top).toEqual([
+      ['entity-a', 3],
+      ['entity-b', 2],
+      ['entity-c', 1],
+    ]);
+  });
+
+  test('respects limit parameter', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-3', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-4', assignee: 'entity-c' }),
+    ];
+
+    const top = getTopAssignees(items, 2);
+    expect(top).toHaveLength(2);
+    expect(top[0][0]).toBe('entity-a');
+  });
+
+  test('returns empty array when no assignments', () => {
+    const items: Assignable[] = [createTestAssignable({ id: 'item-1' })];
+    expect(getTopAssignees(items)).toEqual([]);
+  });
+});
+
+describe('hasAssignments', () => {
+  test('returns true when entity has assignments', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', assignee: 'entity-b' }),
+    ];
+
+    expect(hasAssignments(items, 'entity-a')).toBe(true);
+  });
+
+  test('returns false when entity has no assignments', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-2' }),
+    ];
+
+    expect(hasAssignments(items, 'entity-a')).toBe(false);
+  });
+
+  test('returns false for empty array', () => {
+    expect(hasAssignments([], 'entity-a')).toBe(false);
+  });
+});
+
+describe('getUnassigned', () => {
+  test('returns items with no assignee', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2' }),
+      createTestAssignable({ id: 'item-3' }),
+      createTestAssignable({ id: 'item-4', assignee: 'entity-b' }),
+    ];
+
+    const result = getUnassigned(items);
+    expect(result).toHaveLength(2);
+    expect(result.map((i) => i.id)).toEqual(['item-2', 'item-3']);
+  });
+
+  test('returns all items when none have assignees', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1' }),
+      createTestAssignable({ id: 'item-2' }),
+    ];
+
+    expect(getUnassigned(items)).toHaveLength(2);
+  });
+
+  test('returns empty array when all items are assigned', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', assignee: 'entity-b' }),
+    ];
+
+    expect(getUnassigned(items)).toEqual([]);
+  });
+});
+
+describe('getEntityAssignmentStats', () => {
+  test('returns correct stats for entity', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', createdBy: 'entity-a', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-2', createdBy: 'entity-a', assignee: 'entity-b' }),
+      createTestAssignable({ id: 'item-3', createdBy: 'entity-b', assignee: 'entity-a' }),
+      createTestAssignable({ id: 'item-4', createdBy: 'entity-b', assignee: 'entity-b' }),
+    ];
+
+    const stats = getEntityAssignmentStats(items, 'entity-a');
+    expect(stats.assignedCount).toBe(2); // item-1, item-3
+    expect(stats.createdCount).toBe(2); // item-1, item-2
+    expect(stats.totalRelated).toBe(3); // item-1 (both), item-2 (created), item-3 (assigned)
+  });
+
+  test('returns zeros for entity with no relations', () => {
+    const items: Assignable[] = [
+      createTestAssignable({ id: 'item-1', createdBy: 'entity-b', assignee: 'entity-b' }),
+    ];
+
+    const stats = getEntityAssignmentStats(items, 'entity-a');
+    expect(stats.assignedCount).toBe(0);
+    expect(stats.createdCount).toBe(0);
+    expect(stats.totalRelated).toBe(0);
+  });
+
+  test('handles empty array', () => {
+    const stats = getEntityAssignmentStats([], 'entity-a');
+    expect(stats.assignedCount).toBe(0);
+    expect(stats.createdCount).toBe(0);
+    expect(stats.totalRelated).toBe(0);
+  });
+});

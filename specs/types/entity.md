@@ -269,7 +269,7 @@ When enabled:
 - [x] Implement entity update (metadata only) ✅ (updateEntity in src/types/entity.ts - updates publicKey, tags, metadata; 11 tests)
 - [x] Implement entity deactivation ✅ (deactivateEntity, reactivateEntity, isEntityActive, isEntityDeactivated, getDeactivationDetails, filterActiveEntities, filterDeactivatedEntities - 25 tests)
 - [x] Add entity search/filter ✅ (filterByCreator, filterWithPublicKey, filterByTag, filterByAnyTag, filterByAllTags, sortByName, sortByCreationDate, sortByUpdateDate, sortByEntityType, groupByEntityType, groupByCreator, searchByName, findByName, findById, isNameUnique, getUniqueTags, countByEntityType - 30 tests)
-- [ ] Implement entity assignment queries
+- [x] Implement entity assignment queries ✅ (getAssignedTo, getCreatedBy, getRelatedTo, countAssignmentsByEntity, getTopAssignees, hasAssignments, getUnassigned, getEntityAssignmentStats - 21 tests)
 
 ### Phase 6: Integration
 - [ ] Integrate with Task assignment

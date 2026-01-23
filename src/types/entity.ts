@@ -790,3 +790,139 @@ export function countByEntityType(entities: Entity[]): Record<EntityTypeValue, n
   }
   return counts;
 }
+
+// ============================================================================
+// Entity Assignment Query Utilities
+// ============================================================================
+
+/**
+ * Interface for elements that can have an assignee (like Task)
+ */
+export interface Assignable {
+  id: string;
+  assignee?: string;
+  createdBy: string;
+}
+
+/**
+ * Get all items assigned to an entity
+ *
+ * @param items - Array of assignable items
+ * @param entityId - Entity ID to filter by
+ * @returns Items assigned to the specified entity
+ */
+export function getAssignedTo<T extends Assignable>(items: T[], entityId: string): T[] {
+  return items.filter((item) => item.assignee === entityId);
+}
+
+/**
+ * Get all items created by an entity
+ *
+ * @param items - Array of items with createdBy
+ * @param entityId - Entity ID to filter by
+ * @returns Items created by the specified entity
+ */
+export function getCreatedBy<T extends Assignable>(items: T[], entityId: string): T[] {
+  return items.filter((item) => item.createdBy === entityId);
+}
+
+/**
+ * Get all items where entity is either assignee or creator
+ *
+ * @param items - Array of assignable items
+ * @param entityId - Entity ID to filter by
+ * @returns Items where entity is assignee or creator
+ */
+export function getRelatedTo<T extends Assignable>(items: T[], entityId: string): T[] {
+  return items.filter((item) => item.assignee === entityId || item.createdBy === entityId);
+}
+
+/**
+ * Count items assigned to each entity
+ *
+ * @param items - Array of assignable items
+ * @returns Map of entity ID to count of assigned items
+ */
+export function countAssignmentsByEntity<T extends Assignable>(items: T[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    if (item.assignee) {
+      counts.set(item.assignee, (counts.get(item.assignee) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * Get entities with the most assignments
+ *
+ * @param items - Array of assignable items
+ * @param limit - Maximum number of entities to return
+ * @returns Array of [entityId, count] sorted by count descending
+ */
+export function getTopAssignees<T extends Assignable>(
+  items: T[],
+  limit?: number
+): Array<[string, number]> {
+  const counts = countAssignmentsByEntity(items);
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return limit !== undefined ? sorted.slice(0, limit) : sorted;
+}
+
+/**
+ * Check if an entity has any assignments
+ *
+ * @param items - Array of assignable items
+ * @param entityId - Entity ID to check
+ * @returns True if entity has at least one assignment
+ */
+export function hasAssignments<T extends Assignable>(items: T[], entityId: string): boolean {
+  return items.some((item) => item.assignee === entityId);
+}
+
+/**
+ * Get unassigned items (items with no assignee)
+ *
+ * @param items - Array of assignable items
+ * @returns Items with no assignee
+ */
+export function getUnassigned<T extends Assignable>(items: T[]): T[] {
+  return items.filter((item) => item.assignee === undefined);
+}
+
+/**
+ * Get assignment statistics for an entity
+ *
+ * @param items - Array of assignable items
+ * @param entityId - Entity ID to get stats for
+ * @returns Statistics object with counts
+ */
+export function getEntityAssignmentStats<T extends Assignable>(
+  items: T[],
+  entityId: string
+): {
+  assignedCount: number;
+  createdCount: number;
+  totalRelated: number;
+} {
+  let assignedCount = 0;
+  let createdCount = 0;
+  const relatedIds = new Set<string>();
+
+  for (const item of items) {
+    if (item.assignee === entityId) {
+      assignedCount++;
+      relatedIds.add(item.id);
+    }
+    if (item.createdBy === entityId) {
+      createdCount++;
+      relatedIds.add(item.id);
+    }
+  }
+
+  return {
+    assignedCount,
+    createdCount,
+    totalRelated: relatedIds.size,
+  };
+}
