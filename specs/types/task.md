@@ -212,7 +212,7 @@ Tasks under Plans use hierarchical IDs:
 
 ### Phase 2: Lifecycle Management
 - [x] Implement status transition validation
-- [ ] Implement automatic blocked status computation (depends on dependency system)
+- [x] Implement automatic blocked status computation ✅ (BlockedCacheService triggers auto_blocked/auto_unblocked events, stores previous_status for restoration, integrates with ElementalAPI via callback - 20 tests)
 - [x] Implement tombstone transition logic
 - [x] Create status change event emission ✅ (emits 'closed' event when status changes to closed, 'reopened' event when status changes from closed, 'updated' for other changes - 9 tests)
 

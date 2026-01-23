@@ -44,6 +44,7 @@ interface BlockedCacheRow extends Row {
   element_id: string;
   blocked_by: string;
   reason: string | null;
+  previous_status: string | null;
 }
 
 /**
@@ -78,6 +79,8 @@ export interface BlockingInfo {
   blockedBy: ElementId;
   /** Human-readable reason */
   reason: string;
+  /** Status before becoming blocked (for restoration) */
+  previousStatus?: string | null;
 }
 
 /**
@@ -100,6 +103,25 @@ export interface GateCheckOptions {
   currentTime?: Date;
 }
 
+/**
+ * Callback for automatic status transitions
+ */
+export interface StatusTransitionCallback {
+  /**
+   * Called when an element should transition to blocked status
+   * @param elementId - The element to block
+   * @param previousStatus - The status to save for later restoration
+   */
+  onBlock: (elementId: ElementId, previousStatus: string) => void;
+
+  /**
+   * Called when an element should transition from blocked status
+   * @param elementId - The element to unblock
+   * @param statusToRestore - The status to restore to
+   */
+  onUnblock: (elementId: ElementId, statusToRestore: string) => void;
+}
+
 // ============================================================================
 // BlockedCacheService Class
 // ============================================================================
@@ -108,7 +130,17 @@ export interface GateCheckOptions {
  * Service for managing the blocked elements cache
  */
 export class BlockedCacheService {
+  private statusCallback?: StatusTransitionCallback;
+
   constructor(private readonly db: StorageBackend) {}
+
+  /**
+   * Set the callback for automatic status transitions
+   * This allows the service to notify when elements should be blocked/unblocked
+   */
+  setStatusTransitionCallback(callback: StatusTransitionCallback): void {
+    this.statusCallback = callback;
+  }
 
   // --------------------------------------------------------------------------
   // Query Operations
@@ -134,6 +166,7 @@ export class BlockedCacheService {
       elementId: row.element_id as ElementId,
       blockedBy: row.blocked_by as ElementId,
       reason: row.reason ?? 'Blocked by dependency',
+      previousStatus: row.previous_status,
     };
   }
 
@@ -149,6 +182,7 @@ export class BlockedCacheService {
       elementId: row.element_id as ElementId,
       blockedBy: row.blocked_by as ElementId,
       reason: row.reason ?? 'Blocked by dependency',
+      previousStatus: row.previous_status,
     }));
   }
 
@@ -187,12 +221,18 @@ export class BlockedCacheService {
    * @param elementId - Element being blocked
    * @param blockedBy - Element causing the block
    * @param reason - Human-readable reason
+   * @param previousStatus - The element's status before becoming blocked
    */
-  addBlocked(elementId: ElementId, blockedBy: ElementId, reason: string): void {
+  addBlocked(
+    elementId: ElementId,
+    blockedBy: ElementId,
+    reason: string,
+    previousStatus?: string | null
+  ): void {
     this.db.run(
-      `INSERT OR REPLACE INTO blocked_cache (element_id, blocked_by, reason)
-       VALUES (?, ?, ?)`,
-      [elementId, blockedBy, reason]
+      `INSERT OR REPLACE INTO blocked_cache (element_id, blocked_by, reason, previous_status)
+       VALUES (?, ?, ?, ?)`,
+      [elementId, blockedBy, reason, previousStatus ?? null]
     );
   }
 
@@ -246,6 +286,41 @@ export class BlockedCacheService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Get the current status of an element
+   *
+   * @param elementId - Element to check
+   * @returns The element's status, or null if not found or no status
+   */
+  getElementStatus(elementId: ElementId): string | null {
+    const row = this.db.queryOne<ElementRow>(
+      'SELECT data FROM elements WHERE id = ?',
+      [elementId]
+    );
+
+    if (!row) {
+      return null;
+    }
+
+    try {
+      const data = JSON.parse(row.data);
+      return data.status ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if element is a task (has status field)
+   */
+  isTask(elementId: ElementId): boolean {
+    const row = this.db.queryOne<ElementRow>(
+      'SELECT type FROM elements WHERE id = ?',
+      [elementId]
+    );
+    return row?.type === 'task';
   }
 
   /**
@@ -379,17 +454,76 @@ export class BlockedCacheService {
   /**
    * Update blocking state for an element after a dependency change
    *
+   * Handles automatic status transitions:
+   * - When element becomes blocked: saves current status and triggers BLOCKED transition
+   * - When element becomes unblocked: restores previous status
+   *
    * @param elementId - Element whose dependencies changed
    * @param options - Gate check options
    */
   invalidateElement(elementId: ElementId, options: GateCheckOptions = {}): void {
-    const blocking = this.computeBlockingState(elementId, options);
+    // Check current cached state
+    const wasBlocked = this.isBlocked(elementId);
 
-    if (blocking) {
-      this.addBlocked(blocking.elementId, blocking.blockedBy, blocking.reason);
-    } else {
-      this.removeBlocked(elementId);
+    // Compute new blocking state
+    const shouldBeBlocked = this.computeBlockingState(elementId, options);
+
+    // Case 1: Becoming blocked (wasn't blocked, now should be)
+    if (!wasBlocked && shouldBeBlocked) {
+      // Only handle automatic status transitions for tasks
+      if (this.isTask(elementId) && this.statusCallback) {
+        const currentStatus = this.getElementStatus(elementId);
+        // Only trigger automatic block if not already in a terminal/deferred state
+        // and not already blocked
+        if (currentStatus && currentStatus !== 'blocked' &&
+            currentStatus !== 'closed' && currentStatus !== 'tombstone' &&
+            currentStatus !== 'deferred') {
+          this.addBlocked(
+            shouldBeBlocked.elementId,
+            shouldBeBlocked.blockedBy,
+            shouldBeBlocked.reason,
+            currentStatus
+          );
+          this.statusCallback.onBlock(elementId, currentStatus);
+          return;
+        }
+      }
+      // Non-task or no callback: just update cache (no previous status to preserve)
+      this.addBlocked(
+        shouldBeBlocked.elementId,
+        shouldBeBlocked.blockedBy,
+        shouldBeBlocked.reason,
+        null
+      );
     }
+    // Case 2: Becoming unblocked (was blocked, now shouldn't be)
+    else if (wasBlocked && !shouldBeBlocked) {
+      // Get the status to restore
+      const statusToRestore = wasBlocked.previousStatus;
+
+      // Remove from cache first
+      this.removeBlocked(elementId);
+
+      // Only handle automatic status transitions for tasks
+      if (this.isTask(elementId) && this.statusCallback && statusToRestore) {
+        // Only restore if currently blocked
+        const currentStatus = this.getElementStatus(elementId);
+        if (currentStatus === 'blocked') {
+          this.statusCallback.onUnblock(elementId, statusToRestore);
+        }
+      }
+    }
+    // Case 3: Still blocked but by different element (update cache)
+    else if (wasBlocked && shouldBeBlocked) {
+      // Keep the original previousStatus, just update blocker/reason
+      this.addBlocked(
+        shouldBeBlocked.elementId,
+        shouldBeBlocked.blockedBy,
+        shouldBeBlocked.reason,
+        wasBlocked.previousStatus
+      );
+    }
+    // Case 4: Was not blocked, still not blocked - no action needed
   }
 
   /**

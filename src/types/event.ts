@@ -75,6 +75,18 @@ export const MembershipEventType = {
 export type MembershipEventType = (typeof MembershipEventType)[keyof typeof MembershipEventType];
 
 /**
+ * Automatic status transition event types - system-triggered status changes
+ */
+export const AutoStatusEventType = {
+  /** Task automatically blocked due to dependency */
+  AUTO_BLOCKED: 'auto_blocked',
+  /** Task automatically unblocked when blockers resolved */
+  AUTO_UNBLOCKED: 'auto_unblocked',
+} as const;
+
+export type AutoStatusEventType = (typeof AutoStatusEventType)[keyof typeof AutoStatusEventType];
+
+/**
  * All event types combined
  */
 export const EventType = {
@@ -82,6 +94,7 @@ export const EventType = {
   ...DependencyEventType,
   ...TagEventType,
   ...MembershipEventType,
+  ...AutoStatusEventType,
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];
@@ -614,6 +627,13 @@ export function isMembershipEvent(event: Event | EventWithoutId): boolean {
 }
 
 /**
+ * Checks if an event is an automatic status transition event
+ */
+export function isAutoStatusEvent(event: Event | EventWithoutId): boolean {
+  return Object.values(AutoStatusEventType).includes(event.eventType as AutoStatusEventType);
+}
+
+/**
  * Gets a human-readable display name for an event type
  */
 export function getEventTypeDisplayName(eventType: EventType): string {
@@ -629,6 +649,8 @@ export function getEventTypeDisplayName(eventType: EventType): string {
     [EventType.TAG_REMOVED]: 'Tag Removed',
     [EventType.MEMBER_ADDED]: 'Member Added',
     [EventType.MEMBER_REMOVED]: 'Member Removed',
+    [EventType.AUTO_BLOCKED]: 'Auto Blocked',
+    [EventType.AUTO_UNBLOCKED]: 'Auto Unblocked',
   };
   return displayNames[eventType];
 }

@@ -299,7 +299,8 @@ Function `isBlocked(elementId)`:
 - [x] Implement cache invalidation triggers (BlockedCacheService.onDependencyAdded/Removed, onStatusChanged, onElementDeleted)
 - [x] Implement cache rebuild (BlockedCacheService.rebuild with topological ordering)
 - [x] Integrate with ready work query (ElementalAPIImpl uses blocked_cache for ready/blocked queries)
-- [x] Integration tests (60 tests in blocked-cache.test.ts)
+- [x] Add automatic status transitions (migration 003 adds previous_status column, StatusTransitionCallback triggers auto_blocked/auto_unblocked events - 20 tests)
+- [x] Integration tests (60 tests in blocked-cache.test.ts, 20 tests in auto-blocked-status.test.ts)
 
 ### Phase 5: Gate Dependencies ✅
 - [x] Implement timer gate checking (BlockedCacheService.isGateSatisfied with GateType.TIMER)

@@ -7,7 +7,7 @@
 
 import type { StorageBackend } from '../storage/backend.js';
 import type { Element, ElementId, EntityId, ElementType, Timestamp } from '../types/element.js';
-import type { Task, HydratedTask } from '../types/task.js';
+import type { Task, HydratedTask, TaskStatus } from '../types/task.js';
 import type { Document, DocumentId } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter, EventType } from '../types/event.js';
@@ -295,6 +295,89 @@ export class ElementalAPIImpl implements ElementalAPI {
   constructor(private backend: StorageBackend) {
     this.blockedCache = createBlockedCacheService(backend);
     this.syncService = new SyncService(backend);
+
+    // Set up automatic status transitions for blocked/unblocked states
+    this.blockedCache.setStatusTransitionCallback({
+      onBlock: (elementId: ElementId, previousStatus: string) => {
+        this.updateTaskStatusInternal(elementId, TaskStatusEnum.BLOCKED, previousStatus);
+      },
+      onUnblock: (elementId: ElementId, statusToRestore: string) => {
+        this.updateTaskStatusInternal(elementId, statusToRestore as TaskStatus, null);
+      },
+    });
+  }
+
+  /**
+   * Internal method to update task status without triggering additional blocked cache updates.
+   * Used for automatic blocked/unblocked status transitions.
+   */
+  private updateTaskStatusInternal(
+    elementId: ElementId,
+    newStatus: TaskStatus,
+    _previousStatus: string | null
+  ): void {
+    // Get current element
+    const row = this.backend.queryOne<ElementRow>(
+      'SELECT * FROM elements WHERE id = ?',
+      [elementId]
+    );
+
+    if (!row || row.type !== 'task') {
+      return;
+    }
+
+    // Parse current data
+    const data = JSON.parse(row.data);
+    const oldStatus = data.status;
+
+    // Don't update if already at target status
+    if (oldStatus === newStatus) {
+      return;
+    }
+
+    // Update status in data
+    data.status = newStatus;
+
+    // Update timestamps based on transition
+    const now = createTimestamp();
+    if (newStatus === TaskStatusEnum.CLOSED && !data.closedAt) {
+      data.closedAt = now;
+    } else if (newStatus !== TaskStatusEnum.CLOSED && data.closedAt) {
+      data.closedAt = null;
+    }
+
+    // Update in database
+    this.backend.run(
+      `UPDATE elements SET data = ?, updated_at = ? WHERE id = ?`,
+      [JSON.stringify(data), now, elementId]
+    );
+
+    // Record event for automatic status transition
+    const eventType = newStatus === TaskStatusEnum.BLOCKED
+      ? 'auto_blocked' as EventType
+      : 'auto_unblocked' as EventType;
+    const event = createEvent({
+      elementId,
+      eventType,
+      actor: 'system:blocked-cache' as EntityId,
+      oldValue: { status: oldStatus },
+      newValue: { status: newStatus },
+    });
+    this.backend.run(
+      `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        event.elementId,
+        event.eventType,
+        event.actor,
+        JSON.stringify(event.oldValue),
+        JSON.stringify(event.newValue),
+        event.createdAt,
+      ]
+    );
+
+    // Mark as dirty for sync
+    this.backend.markDirty(elementId);
   }
 
   // --------------------------------------------------------------------------

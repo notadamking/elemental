@@ -195,10 +195,11 @@ Recommended implementation sequence:
 - [x] **systems/identity.md Phase 7**: CLI support ✅ (--actor global flag, identity mode config via el identity mode, whoami command showing actor/source/mode/verification - 39 tests)
 
 #### Type Integration (Priority: Medium)
-- [ ] **types/task.md Phase 2** (partial): Automatic blocked status computation
-- [x] **types/task.md Phase 2** (partial): Status change event emission ✅ (closed/reopened/updated events - 9 tests)
+- [x] **types/task.md Phase 2**: Automatic blocked status computation ✅ (BlockedCacheService triggers auto_blocked/auto_unblocked events, stores previous_status in blocked_cache for restoration - 20 tests)
+- [x] **types/task.md Phase 2**: Status change event emission ✅ (closed/reopened/updated events - 9 tests)
 - [ ] **types/task.md Phase 3-4**: Ready/blocked work queries, assignment/deadline queries, hydration (Document reference resolution, batch hydration)
-- [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system
+- [x] **types/task.md Phase 5** (partial): Integration with blocked cache ✅ (automatic status transitions via BlockedCacheService callback, auto_blocked/auto_unblocked events)
+- [ ] **types/task.md Phase 5** (pending): Further dependency system integration (dependency-based priority, complexity inheritance)
 - [x] **types/entity.md Phase 2**: Name uniqueness validation ✅ (storage-level check in create(), DUPLICATE_NAME error)
 - [x] **types/entity.md Phase 3**: Entity listing queries ✅ (name-based lookup, whoami, api.list({ type: 'entity' }))
 - [x] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API ✅ (systems/identity.ts)
@@ -239,7 +240,7 @@ Recommended implementation sequence:
 - [ ] **api/cli.md Phase 8**: Shell completion, command aliases
 - [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset, edit implemented in src/cli/commands/config.ts - 28 tests)
 - [x] **types/task.md Phase 5 (partial)**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)
-- [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system (pending)
+- [x] **types/task.md Phase 5 (partial)**: Integration with blocked cache ✅ (automatic status transitions via BlockedCacheService callback, auto_blocked/auto_unblocked events - 20 tests)
 - [x] **types/entity.md Phase 6**: CLI commands ✅ (entity register, entity list - 40 tests; whoami - 39 tests)
 - [ ] **types/message.md Phase 7**: CLI commands (send, thread)
 

@@ -14,7 +14,7 @@ import type { Migration, MigrationResult, StorageBackend } from './index.js';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 // ============================================================================
 // Migrations
@@ -155,9 +155,38 @@ DROP INDEX IF EXISTS idx_events_actor;
 };
 
 /**
+ * Migration 3: Add previous_status to blocked_cache for automatic status transitions
+ *
+ * Stores the task's status before it became blocked, so we can restore it
+ * when the task becomes unblocked.
+ */
+const migration003: Migration = {
+  version: 3,
+  description: 'Add previous_status column to blocked_cache for automatic status transitions',
+  up: `
+-- Add previous_status column to track status before blocking
+ALTER TABLE blocked_cache ADD COLUMN previous_status TEXT;
+`,
+  down: `
+-- SQLite doesn't support DROP COLUMN directly in older versions
+-- We need to recreate the table without the column
+CREATE TABLE blocked_cache_new (
+    element_id TEXT PRIMARY KEY,
+    blocked_by TEXT NOT NULL,
+    reason TEXT,
+    FOREIGN KEY (element_id) REFERENCES elements(id) ON DELETE CASCADE
+);
+INSERT INTO blocked_cache_new (element_id, blocked_by, reason)
+SELECT element_id, blocked_by, reason FROM blocked_cache;
+DROP TABLE blocked_cache;
+ALTER TABLE blocked_cache_new RENAME TO blocked_cache;
+`,
+};
+
+/**
  * All migrations in order
  */
-export const MIGRATIONS: readonly Migration[] = [migration001, migration002];
+export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003];
 
 // ============================================================================
 // Schema Functions

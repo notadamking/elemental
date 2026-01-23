@@ -859,11 +859,40 @@ describe('Events System Integration', () => {
         const events = await api.getEvents(task1.id);
 
         // Events should be in descending order (most recent first)
-        // Expected order: dependency_removed, updated, dependency_added, created
-        expect(events[0].eventType).toBe(EventType.DEPENDENCY_REMOVED);
-        expect(events[1].eventType).toBe(EventType.UPDATED);
-        expect(events[2].eventType).toBe(EventType.DEPENDENCY_ADDED);
-        expect(events[3].eventType).toBe(EventType.CREATED);
+        // With automatic blocking, the sequence is:
+        // 1. created
+        // 2. dependency_added + auto_blocked (when blocking dep added) - same timestamp, order may vary
+        // 3. updated (title change)
+        // 4. dependency_removed + auto_unblocked (when dep removed) - same timestamp, order may vary
+        //
+        // We verify:
+        // - All expected events exist
+        // - The chronological groups are correct (newest events first)
+        // - created is always last
+        const eventTypes = events.map((e) => e.eventType);
+
+        // Verify all expected event types are present
+        expect(eventTypes).toContain(EventType.CREATED);
+        expect(eventTypes).toContain(EventType.DEPENDENCY_ADDED);
+        expect(eventTypes).toContain(EventType.AUTO_BLOCKED);
+        expect(eventTypes).toContain(EventType.UPDATED);
+        expect(eventTypes).toContain(EventType.DEPENDENCY_REMOVED);
+        expect(eventTypes).toContain(EventType.AUTO_UNBLOCKED);
+        expect(events.length).toBe(6);
+
+        // created should be last (oldest)
+        expect(events[events.length - 1].eventType).toBe(EventType.CREATED);
+
+        // updated should be in the middle (after created but before the final dependency_removed events)
+        const updatedIndex = eventTypes.indexOf(EventType.UPDATED);
+        const createdIndex = eventTypes.indexOf(EventType.CREATED);
+        expect(updatedIndex).toBeLessThan(createdIndex); // updated is more recent than created
+
+        // dependency_removed and auto_unblocked should be more recent than updated
+        const depRemovedIndex = eventTypes.indexOf(EventType.DEPENDENCY_REMOVED);
+        const autoUnblockedIndex = eventTypes.indexOf(EventType.AUTO_UNBLOCKED);
+        expect(depRemovedIndex).toBeLessThan(updatedIndex);
+        expect(autoUnblockedIndex).toBeLessThan(updatedIndex);
       });
     });
 

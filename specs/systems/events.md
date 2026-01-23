@@ -58,6 +58,15 @@ Each event captures a single mutation:
 | `member_added` | Member joins | null / memberId |
 | `member_removed` | Member leaves | memberId / null |
 
+### Automatic Status Events
+
+| Type | Trigger | Old/New Values |
+|------|---------|----------------|
+| `auto_blocked` | Blocking dependency causes task to become blocked | status: previous → blocked |
+| `auto_unblocked` | All blockers resolved, task returns to previous status | status: blocked → restored |
+
+These events are system-generated (actor: `system:blocked-cache`) and track automatic status transitions based on dependency changes.
+
 ## Value Recording
 
 ### Partial Updates

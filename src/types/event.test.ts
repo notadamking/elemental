@@ -27,6 +27,7 @@ import {
   isDependencyEvent,
   isTagEvent,
   isMembershipEvent,
+  isAutoStatusEvent,
   getEventTypeDisplayName,
   filterEventsByElement,
   filterEventsByType,
@@ -126,8 +127,8 @@ describe('EventType', () => {
     expect(EventType.MEMBER_ADDED).toBe('member_added');
   });
 
-  test('has exactly 11 types total', () => {
-    expect(Object.keys(EventType)).toHaveLength(11);
+  test('has exactly 13 types total', () => {
+    expect(Object.keys(EventType)).toHaveLength(13);
   });
 });
 
@@ -144,10 +145,12 @@ describe('ALL_EVENT_TYPES', () => {
     expect(ALL_EVENT_TYPES).toContain('tag_removed');
     expect(ALL_EVENT_TYPES).toContain('member_added');
     expect(ALL_EVENT_TYPES).toContain('member_removed');
+    expect(ALL_EVENT_TYPES).toContain('auto_blocked');
+    expect(ALL_EVENT_TYPES).toContain('auto_unblocked');
   });
 
-  test('has exactly 11 types', () => {
-    expect(ALL_EVENT_TYPES).toHaveLength(11);
+  test('has exactly 13 types', () => {
+    expect(ALL_EVENT_TYPES).toHaveLength(13);
   });
 });
 
@@ -816,6 +819,19 @@ describe('isMembershipEvent', () => {
   });
 });
 
+describe('isAutoStatusEvent', () => {
+  test('returns true for auto status events', () => {
+    expect(isAutoStatusEvent(createTestEvent({ eventType: EventType.AUTO_BLOCKED }))).toBe(true);
+    expect(isAutoStatusEvent(createTestEvent({ eventType: EventType.AUTO_UNBLOCKED }))).toBe(true);
+  });
+
+  test('returns false for non-auto-status events', () => {
+    expect(isAutoStatusEvent(createTestEvent({ eventType: EventType.CREATED }))).toBe(false);
+    expect(isAutoStatusEvent(createTestEvent({ eventType: EventType.CLOSED }))).toBe(false);
+    expect(isAutoStatusEvent(createTestEvent({ eventType: EventType.UPDATED }))).toBe(false);
+  });
+});
+
 describe('getEventTypeDisplayName', () => {
   test('returns display names for all event types', () => {
     expect(getEventTypeDisplayName(EventType.CREATED)).toBe('Created');
@@ -829,6 +845,8 @@ describe('getEventTypeDisplayName', () => {
     expect(getEventTypeDisplayName(EventType.TAG_REMOVED)).toBe('Tag Removed');
     expect(getEventTypeDisplayName(EventType.MEMBER_ADDED)).toBe('Member Added');
     expect(getEventTypeDisplayName(EventType.MEMBER_REMOVED)).toBe('Member Removed');
+    expect(getEventTypeDisplayName(EventType.AUTO_BLOCKED)).toBe('Auto Blocked');
+    expect(getEventTypeDisplayName(EventType.AUTO_UNBLOCKED)).toBe('Auto Unblocked');
   });
 });
 
