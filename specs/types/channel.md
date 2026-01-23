@@ -233,44 +233,50 @@ Before channel operations:
 ## Implementation Checklist
 
 ### Phase 1: Type Definitions
-- [ ] Define `Channel` interface extending `Element`
-- [ ] Define `ChannelType` union
-- [ ] Define `ChannelPermissions` interface
-- [ ] Define `Visibility` and `JoinPolicy` unions
-- [ ] Create type guards
+- [x] Define `Channel` interface extending `Element`
+- [x] Define `ChannelType` union (`direct`, `group`)
+- [x] Define `ChannelPermissions` interface
+- [x] Define `Visibility` (`public`, `private`) and `JoinPolicy` (`open`, `invite-only`, `request`) unions
+- [x] Create type guards (`isChannel`, `isDirectChannel`, `isGroupChannel`, `validateChannel`)
+- [x] Create validation functions for all field types
+- [x] Implement `createGroupChannel` factory function
+- [x] Implement `createDirectChannel` factory function with deterministic naming
+- [x] Implement utility functions (membership checks, filters, sorting, grouping)
+- [x] Implement error classes (`DirectChannelMembershipError`, `NotAMemberError`, `CannotModifyMembersError`)
+- [x] Unit tests - 153 tests covering all Phase 1 functionality
 
 ### Phase 2: Direct Channels
-- [ ] Implement deterministic naming
-- [ ] Implement find-or-create logic
-- [ ] Implement immutable membership
-- [ ] Add direct channel queries
+- [x] Implement deterministic naming (`generateDirectChannelName`, `parseDirectChannelName`)
+- [ ] Implement find-or-create logic (requires storage layer)
+- [x] Implement immutable membership (direct channels have empty `modifyMembers`)
+- [x] Add direct channel queries (`findDirectChannel`, `getDirectChannelsForEntity`, `filterDirectChannels`)
 
 ### Phase 3: Group Channels
-- [ ] Implement channel creation
-- [ ] Implement name uniqueness (scoped)
-- [ ] Implement permission configuration
+- [x] Implement channel creation (`createGroupChannel`)
+- [ ] Implement name uniqueness (scoped) (requires storage layer)
+- [x] Implement permission configuration (visibility, joinPolicy, modifyMembers)
 
 ### Phase 4: Membership
-- [ ] Implement add member
-- [ ] Implement remove member
-- [ ] Implement join (open)
-- [ ] Implement leave
-- [ ] Add membership events
+- [ ] Implement add member (requires storage layer)
+- [ ] Implement remove member (requires storage layer)
+- [x] Implement join policy checking (`canJoin` utility)
+- [ ] Implement leave (requires storage layer)
+- [ ] Add membership events (requires event integration)
 
 ### Phase 5: Permissions
-- [ ] Implement visibility checking
-- [ ] Implement join policy enforcement
-- [ ] Implement modifier validation
+- [x] Implement visibility checking (`isPublicChannel`, `isPrivateChannel`)
+- [x] Implement join policy enforcement (`canJoin`)
+- [x] Implement modifier validation (`canModifyMembers`)
 
 ### Phase 6: Message Integration
-- [ ] Validate sender membership
+- [ ] Validate sender membership (requires Message + Channel integration)
 - [ ] Implement direct message helper
 - [ ] Auto-create direct channels
 
 ### Phase 7: Queries
-- [ ] Implement channel listing
-- [ ] Implement member-based queries
-- [ ] Implement channel search
+- [x] Implement channel listing utilities (filters, sorting)
+- [x] Implement member-based queries (`filterByMember`, `getDirectChannelsForEntity`)
+- [ ] Implement channel search (requires storage layer)
 
 ### Phase 8: CLI Commands
 - [ ] channel create
@@ -280,7 +286,7 @@ Before channel operations:
 - [ ] channel members
 
 ### Phase 9: Testing
-- [ ] Unit tests for direct naming
-- [ ] Unit tests for permissions
-- [ ] Integration tests for membership
+- [x] Unit tests for direct naming
+- [x] Unit tests for permissions
+- [ ] Integration tests for membership (requires storage layer)
 - [ ] E2E tests for messaging flow

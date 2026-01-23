@@ -32,6 +32,8 @@ export type MessageId = ElementId & { readonly [MessageIdBrand]: typeof MessageI
 
 /**
  * Branded type for Channel IDs
+ * Note: This is also exported from channel.ts for the Channel type.
+ * We keep a separate definition here to avoid circular imports.
  */
 declare const ChannelIdBrand: unique symbol;
 export type ChannelId = ElementId & { readonly [ChannelIdBrand]: typeof ChannelIdBrand };
