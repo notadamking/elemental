@@ -141,6 +141,24 @@ export interface BlockedTask extends Task {
 }
 
 // ============================================================================
+// Gate Satisfaction Types
+// ============================================================================
+
+/**
+ * Result of recording an approval
+ */
+export interface ApprovalResult {
+  /** Whether the operation succeeded */
+  success: boolean;
+  /** Current number of approvals */
+  currentCount: number;
+  /** Required number of approvals */
+  requiredCount: number;
+  /** Whether the gate is now satisfied */
+  satisfied: boolean;
+}
+
+// ============================================================================
 // Dependency Tree
 // ============================================================================
 
@@ -554,6 +572,42 @@ export interface ElementalAPI {
    * @returns Complete dependency tree in both directions
    */
   getDependencyTree(id: ElementId): Promise<DependencyTree>;
+
+  // --------------------------------------------------------------------------
+  // Gate Satisfaction
+  // --------------------------------------------------------------------------
+
+  /**
+   * Mark an external or webhook gate as satisfied.
+   * Used to indicate that an external system or webhook has completed.
+   *
+   * @param sourceId - Element that has the awaits dependency
+   * @param targetId - Target element ID of the awaits dependency
+   * @param actor - Entity marking the gate as satisfied
+   * @returns True if gate was found and satisfied, false if not found or wrong type
+   */
+  satisfyGate(sourceId: ElementId, targetId: ElementId, actor: EntityId): Promise<boolean>;
+
+  /**
+   * Record an approval for an approval gate.
+   * Updates the dependency metadata with the new approver.
+   *
+   * @param sourceId - Element that has the awaits dependency
+   * @param targetId - Target element ID of the awaits dependency
+   * @param approver - Entity recording their approval
+   * @returns Result indicating success and current approval status
+   */
+  recordApproval(sourceId: ElementId, targetId: ElementId, approver: EntityId): Promise<ApprovalResult>;
+
+  /**
+   * Remove an approval from an approval gate.
+   *
+   * @param sourceId - Element that has the awaits dependency
+   * @param targetId - Target element ID of the awaits dependency
+   * @param approver - Entity removing their approval
+   * @returns Result indicating success and current approval status
+   */
+  removeApproval(sourceId: ElementId, targetId: ElementId, approver: EntityId): Promise<ApprovalResult>;
 
   // --------------------------------------------------------------------------
   // Search

@@ -40,7 +40,7 @@ import type {
   UpdateOptions,
   DeleteOptions,
 } from './types.js';
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './types.js';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type ApprovalResult } from './types.js';
 
 // ============================================================================
 // Database Row Types
@@ -1226,6 +1226,34 @@ export class ElementalAPIImpl implements ElementalAPI {
       dependentDepth: countDepth(root, 'dependents'),
       nodeCount: countNodes(root, new Set()),
     };
+  }
+
+  // --------------------------------------------------------------------------
+  // Gate Satisfaction
+  // --------------------------------------------------------------------------
+
+  async satisfyGate(
+    sourceId: ElementId,
+    targetId: ElementId,
+    actor: EntityId
+  ): Promise<boolean> {
+    return this.blockedCache.satisfyGate(sourceId, targetId, actor);
+  }
+
+  async recordApproval(
+    sourceId: ElementId,
+    targetId: ElementId,
+    approver: EntityId
+  ): Promise<ApprovalResult> {
+    return this.blockedCache.recordApproval(sourceId, targetId, approver);
+  }
+
+  async removeApproval(
+    sourceId: ElementId,
+    targetId: ElementId,
+    approver: EntityId
+  ): Promise<ApprovalResult> {
+    return this.blockedCache.removeApproval(sourceId, targetId, approver);
   }
 
   // --------------------------------------------------------------------------

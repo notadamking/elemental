@@ -228,6 +228,12 @@ export interface ExternalGateMetadata extends AwaitsMetadataBase {
   externalSystem: string;
   /** External reference ID */
   externalId: string;
+  /** Whether this gate has been marked as satisfied */
+  satisfied?: boolean;
+  /** Timestamp when gate was satisfied */
+  satisfiedAt?: Timestamp;
+  /** Actor who satisfied the gate */
+  satisfiedBy?: EntityId;
 }
 
 /**
@@ -239,6 +245,12 @@ export interface WebhookGateMetadata extends AwaitsMetadataBase {
   webhookUrl?: string;
   /** Expected callback identifier */
   callbackId?: string;
+  /** Whether this gate has been marked as satisfied */
+  satisfied?: boolean;
+  /** Timestamp when gate was satisfied */
+  satisfiedAt?: Timestamp;
+  /** Actor who satisfied the gate */
+  satisfiedBy?: EntityId;
 }
 
 /**
@@ -392,17 +404,20 @@ export function isValidAwaitsMetadata(value: unknown): value is AwaitsMetadata {
       return true;
 
     case GateType.EXTERNAL:
-      return (
-        typeof obj.externalSystem === 'string' &&
-        obj.externalSystem.length > 0 &&
-        typeof obj.externalId === 'string' &&
-        obj.externalId.length > 0
-      );
+      if (typeof obj.externalSystem !== 'string' || obj.externalSystem.length === 0) return false;
+      if (typeof obj.externalId !== 'string' || obj.externalId.length === 0) return false;
+      if (obj.satisfied !== undefined && typeof obj.satisfied !== 'boolean') return false;
+      if (obj.satisfiedAt !== undefined && !isValidTimestamp(obj.satisfiedAt)) return false;
+      if (obj.satisfiedBy !== undefined && typeof obj.satisfiedBy !== 'string') return false;
+      return true;
 
     case GateType.WEBHOOK:
       // Webhook has optional fields
       if (obj.webhookUrl !== undefined && typeof obj.webhookUrl !== 'string') return false;
       if (obj.callbackId !== undefined && typeof obj.callbackId !== 'string') return false;
+      if (obj.satisfied !== undefined && typeof obj.satisfied !== 'boolean') return false;
+      if (obj.satisfiedAt !== undefined && !isValidTimestamp(obj.satisfiedAt)) return false;
+      if (obj.satisfiedBy !== undefined && typeof obj.satisfiedBy !== 'string') return false;
       return true;
 
     default:
@@ -616,6 +631,21 @@ export function validateAwaitsMetadata(value: unknown): AwaitsMetadata {
           { field: 'externalId', value: obj.externalId }
         );
       }
+      if (obj.satisfied !== undefined && typeof obj.satisfied !== 'boolean') {
+        throw new ValidationError('satisfied must be a boolean', ErrorCode.INVALID_INPUT, {
+          field: 'satisfied',
+          value: obj.satisfied,
+        });
+      }
+      if (obj.satisfiedAt !== undefined) {
+        validateTimestamp(obj.satisfiedAt, 'satisfiedAt');
+      }
+      if (obj.satisfiedBy !== undefined && typeof obj.satisfiedBy !== 'string') {
+        throw new ValidationError('satisfiedBy must be a string', ErrorCode.INVALID_INPUT, {
+          field: 'satisfiedBy',
+          value: obj.satisfiedBy,
+        });
+      }
       break;
 
     case GateType.WEBHOOK:
@@ -629,6 +659,21 @@ export function validateAwaitsMetadata(value: unknown): AwaitsMetadata {
         throw new ValidationError('callbackId must be a string', ErrorCode.INVALID_INPUT, {
           field: 'callbackId',
           value: obj.callbackId,
+        });
+      }
+      if (obj.satisfied !== undefined && typeof obj.satisfied !== 'boolean') {
+        throw new ValidationError('satisfied must be a boolean', ErrorCode.INVALID_INPUT, {
+          field: 'satisfied',
+          value: obj.satisfied,
+        });
+      }
+      if (obj.satisfiedAt !== undefined) {
+        validateTimestamp(obj.satisfiedAt, 'satisfiedAt');
+      }
+      if (obj.satisfiedBy !== undefined && typeof obj.satisfiedBy !== 'string') {
+        throw new ValidationError('satisfiedBy must be a string', ErrorCode.INVALID_INPUT, {
+          field: 'satisfiedBy',
+          value: obj.satisfiedBy,
         });
       }
       break;

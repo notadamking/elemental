@@ -19,7 +19,7 @@
 
 import type { StorageBackend } from '../storage/backend.js';
 import type { Row } from '../storage/types.js';
-import type { ElementId } from '../types/element.js';
+import type { ElementId, EntityId } from '../types/element.js';
 import {
   type DependencyType,
   type AwaitsMetadata,
@@ -349,14 +349,12 @@ export class BlockedCacheService {
         return current >= required;
 
       case GateType.EXTERNAL:
-        // External gates are never satisfied via metadata alone
-        // They require explicit API calls to mark as satisfied
-        return false;
+        // External gates are satisfied when explicitly marked via API
+        return (metadata as { satisfied?: boolean }).satisfied === true;
 
       case GateType.WEBHOOK:
-        // Webhook gates are never satisfied via metadata alone
-        // They require callback to mark as satisfied
-        return false;
+        // Webhook gates are satisfied when explicitly marked via callback
+        return (metadata as { satisfied?: boolean }).satisfied === true;
 
       default:
         return false;
@@ -582,6 +580,236 @@ export class BlockedCacheService {
       this.invalidateElement(childId, options);
       this.invalidateChildren(childId, options, visited);
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // Gate Satisfaction
+  // --------------------------------------------------------------------------
+
+  /**
+   * Result of a gate satisfaction operation
+   */
+  /**
+   * Mark an external or webhook gate as satisfied.
+   * Updates the dependency metadata and recomputes blocking state.
+   *
+   * @param sourceId - Element that has the awaits dependency
+   * @param targetId - Target element ID of the awaits dependency
+   * @param actor - Entity marking the gate as satisfied
+   * @param options - Gate check options
+   * @returns True if gate was found and satisfied, false if not found
+   */
+  satisfyGate(
+    sourceId: ElementId,
+    targetId: ElementId,
+    actor: EntityId,
+    options: GateCheckOptions = {}
+  ): boolean {
+    // Find the awaits dependency
+    const dep = this.db.queryOne<DependencyRow>(
+      `SELECT * FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?`,
+      [sourceId, targetId, DT.AWAITS]
+    );
+
+    if (!dep || !dep.metadata) {
+      return false;
+    }
+
+    // Parse and validate metadata
+    let metadata: Record<string, unknown>;
+    try {
+      metadata = JSON.parse(dep.metadata);
+    } catch {
+      return false;
+    }
+
+    // Check gate type - only external and webhook can be satisfied this way
+    const gateType = metadata.gateType;
+    if (gateType !== GateType.EXTERNAL && gateType !== GateType.WEBHOOK) {
+      return false;
+    }
+
+    // Already satisfied?
+    if (metadata.satisfied === true) {
+      return true;
+    }
+
+    // Mark as satisfied
+    metadata.satisfied = true;
+    metadata.satisfiedAt = new Date().toISOString();
+    metadata.satisfiedBy = actor;
+
+    // Update the dependency metadata in the database
+    this.db.run(
+      `UPDATE dependencies SET metadata = ? WHERE source_id = ? AND target_id = ? AND type = ?`,
+      [JSON.stringify(metadata), sourceId, targetId, DT.AWAITS]
+    );
+
+    // Recompute blocking state for the source element
+    this.invalidateElement(sourceId, options);
+
+    return true;
+  }
+
+  /**
+   * Record an approval for an approval gate.
+   * Updates the dependency metadata with the new approver.
+   *
+   * @param sourceId - Element that has the awaits dependency
+   * @param targetId - Target element ID of the awaits dependency
+   * @param approver - Entity recording their approval
+   * @param options - Gate check options
+   * @returns Object indicating success and current approval count
+   */
+  recordApproval(
+    sourceId: ElementId,
+    targetId: ElementId,
+    approver: EntityId,
+    options: GateCheckOptions = {}
+  ): { success: boolean; currentCount: number; requiredCount: number; satisfied: boolean } {
+    // Find the awaits dependency
+    const dep = this.db.queryOne<DependencyRow>(
+      `SELECT * FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?`,
+      [sourceId, targetId, DT.AWAITS]
+    );
+
+    if (!dep || !dep.metadata) {
+      return { success: false, currentCount: 0, requiredCount: 0, satisfied: false };
+    }
+
+    // Parse and validate metadata
+    let metadata: Record<string, unknown>;
+    try {
+      metadata = JSON.parse(dep.metadata);
+    } catch {
+      return { success: false, currentCount: 0, requiredCount: 0, satisfied: false };
+    }
+
+    // Check gate type - only approval gates support this
+    if (metadata.gateType !== GateType.APPROVAL) {
+      return { success: false, currentCount: 0, requiredCount: 0, satisfied: false };
+    }
+
+    // Get required approvers and count
+    const requiredApprovers = metadata.requiredApprovers as EntityId[];
+    const requiredCount = (metadata.approvalCount as number | undefined) ?? requiredApprovers.length;
+
+    // Check if approver is in the required list
+    if (!requiredApprovers.includes(approver)) {
+      return { success: false, currentCount: 0, requiredCount, satisfied: false };
+    }
+
+    // Initialize or get current approvers
+    const currentApprovers: EntityId[] = (metadata.currentApprovers as EntityId[] | undefined) ?? [];
+
+    // Check if already approved
+    if (currentApprovers.includes(approver)) {
+      return {
+        success: true,
+        currentCount: currentApprovers.length,
+        requiredCount,
+        satisfied: currentApprovers.length >= requiredCount,
+      };
+    }
+
+    // Add the approval
+    currentApprovers.push(approver);
+    metadata.currentApprovers = currentApprovers;
+
+    // Update the dependency metadata in the database
+    this.db.run(
+      `UPDATE dependencies SET metadata = ? WHERE source_id = ? AND target_id = ? AND type = ?`,
+      [JSON.stringify(metadata), sourceId, targetId, DT.AWAITS]
+    );
+
+    // Recompute blocking state for the source element
+    this.invalidateElement(sourceId, options);
+
+    const satisfied = currentApprovers.length >= requiredCount;
+    return {
+      success: true,
+      currentCount: currentApprovers.length,
+      requiredCount,
+      satisfied,
+    };
+  }
+
+  /**
+   * Remove an approval from an approval gate.
+   *
+   * @param sourceId - Element that has the awaits dependency
+   * @param targetId - Target element ID of the awaits dependency
+   * @param approver - Entity removing their approval
+   * @param options - Gate check options
+   * @returns Object indicating success and current approval count
+   */
+  removeApproval(
+    sourceId: ElementId,
+    targetId: ElementId,
+    approver: EntityId,
+    options: GateCheckOptions = {}
+  ): { success: boolean; currentCount: number; requiredCount: number; satisfied: boolean } {
+    // Find the awaits dependency
+    const dep = this.db.queryOne<DependencyRow>(
+      `SELECT * FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?`,
+      [sourceId, targetId, DT.AWAITS]
+    );
+
+    if (!dep || !dep.metadata) {
+      return { success: false, currentCount: 0, requiredCount: 0, satisfied: false };
+    }
+
+    // Parse and validate metadata
+    let metadata: Record<string, unknown>;
+    try {
+      metadata = JSON.parse(dep.metadata);
+    } catch {
+      return { success: false, currentCount: 0, requiredCount: 0, satisfied: false };
+    }
+
+    // Check gate type
+    if (metadata.gateType !== GateType.APPROVAL) {
+      return { success: false, currentCount: 0, requiredCount: 0, satisfied: false };
+    }
+
+    // Get required approvers and count
+    const requiredApprovers = metadata.requiredApprovers as EntityId[];
+    const requiredCount = (metadata.approvalCount as number | undefined) ?? requiredApprovers.length;
+
+    // Get current approvers
+    const currentApprovers: EntityId[] = (metadata.currentApprovers as EntityId[] | undefined) ?? [];
+
+    // Check if approver is in the list
+    const index = currentApprovers.indexOf(approver);
+    if (index === -1) {
+      return {
+        success: true,
+        currentCount: currentApprovers.length,
+        requiredCount,
+        satisfied: currentApprovers.length >= requiredCount,
+      };
+    }
+
+    // Remove the approval
+    currentApprovers.splice(index, 1);
+    metadata.currentApprovers = currentApprovers;
+
+    // Update the dependency metadata in the database
+    this.db.run(
+      `UPDATE dependencies SET metadata = ? WHERE source_id = ? AND target_id = ? AND type = ?`,
+      [JSON.stringify(metadata), sourceId, targetId, DT.AWAITS]
+    );
+
+    // Recompute blocking state for the source element
+    this.invalidateElement(sourceId, options);
+
+    const satisfied = currentApprovers.length >= requiredCount;
+    return {
+      success: true,
+      currentCount: currentApprovers.length,
+      requiredCount,
+      satisfied,
+    };
   }
 
   // --------------------------------------------------------------------------

@@ -115,6 +115,10 @@ A task is ready for work when:
 | `externalId` | `string` | external | External reference |
 | `requiredApprovers` | `EntityId[]` | approval | Who must approve |
 | `approvalCount` | `number` | approval | How many needed |
+| `currentApprovers` | `EntityId[]` | approval | Who has approved |
+| `satisfied` | `boolean` | external, webhook | Whether gate is satisfied |
+| `satisfiedAt` | `Timestamp` | external, webhook | When gate was satisfied |
+| `satisfiedBy` | `EntityId` | external, webhook | Who satisfied the gate |
 
 ## Validates Metadata
 
@@ -306,7 +310,7 @@ Function `isBlocked(elementId)`:
 - [x] Implement timer gate checking (BlockedCacheService.isGateSatisfied with GateType.TIMER)
 - [x] Implement approval gate checking (BlockedCacheService.isGateSatisfied with GateType.APPROVAL)
 - [x] Implement external gate interface (BlockedCacheService.isGateSatisfied with GateType.EXTERNAL/WEBHOOK - always blocks until satisfied via API)
-- [ ] Add gate satisfaction events (future: explicit API to mark gates as satisfied)
+- [x] Add gate satisfaction API (BlockedCacheService.satisfyGate, recordApproval, removeApproval - updates dependency metadata and recomputes blocking state - 23 tests)
 
 ### Phase 6: Queries ✅
 - [x] Implement ready work query (ElementalAPI.ready() - filters open/in_progress tasks, excludes blocked and future-scheduled)

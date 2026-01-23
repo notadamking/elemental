@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
 import { BlockedCacheService, createBlockedCacheService } from './blocked-cache.js';
-import { createBunStorage, BunStorageBackend } from '../storage/bun-backend.js';
-import { initializeSchema } from '../storage/schema.js';
+import { createStorage, initializeSchema } from '../storage/index.js';
+import type { StorageBackend } from '../storage/backend.js';
 import type { ElementId, EntityId } from '../types/element.js';
 import { DependencyType, GateType } from '../types/dependency.js';
 
@@ -10,7 +10,7 @@ import { DependencyType, GateType } from '../types/dependency.js';
 // ============================================================================
 
 describe('BlockedCacheService', () => {
-  let db: BunStorageBackend;
+  let db: StorageBackend;
   let service: BlockedCacheService;
 
   // Test data
@@ -67,7 +67,7 @@ describe('BlockedCacheService', () => {
 
   beforeEach(() => {
     // Create in-memory database for each test
-    db = createBunStorage({ path: ':memory:' }) as BunStorageBackend;
+    db = createStorage({ path: ':memory:' });
     // Initialize full schema (includes blocked_cache table)
     initializeSchema(db);
     service = createBlockedCacheService(db);
@@ -336,7 +336,7 @@ describe('BlockedCacheService', () => {
     });
 
     describe('external gate', () => {
-      test('always returns false (requires API call)', () => {
+      test('returns false when not satisfied', () => {
         const metadata = {
           gateType: GateType.EXTERNAL,
           externalSystem: 'jira',
@@ -345,10 +345,23 @@ describe('BlockedCacheService', () => {
 
         expect(service.isGateSatisfied(metadata)).toBe(false);
       });
+
+      test('returns true when satisfied flag is set', () => {
+        const metadata = {
+          gateType: GateType.EXTERNAL,
+          externalSystem: 'jira',
+          externalId: 'PROJ-123',
+          satisfied: true,
+          satisfiedAt: new Date().toISOString(),
+          satisfiedBy: 'en-admin1' as EntityId,
+        };
+
+        expect(service.isGateSatisfied(metadata)).toBe(true);
+      });
     });
 
     describe('webhook gate', () => {
-      test('always returns false (requires callback)', () => {
+      test('returns false when not satisfied', () => {
         const metadata = {
           gateType: GateType.WEBHOOK,
           webhookUrl: 'https://example.com/callback',
@@ -356,6 +369,19 @@ describe('BlockedCacheService', () => {
         } as const;
 
         expect(service.isGateSatisfied(metadata)).toBe(false);
+      });
+
+      test('returns true when satisfied flag is set', () => {
+        const metadata = {
+          gateType: GateType.WEBHOOK,
+          webhookUrl: 'https://example.com/callback',
+          callbackId: 'cb-123',
+          satisfied: true,
+          satisfiedAt: new Date().toISOString(),
+          satisfiedBy: 'en-webhook-handler' as EntityId,
+        };
+
+        expect(service.isGateSatisfied(metadata)).toBe(true);
       });
     });
   });
@@ -776,6 +802,303 @@ describe('BlockedCacheService', () => {
 
       // task1 should be unblocked (deleted elements don't block)
       expect(service.isBlocked(task1)).toBeNull();
+    });
+  });
+
+  // ==========================================================================
+  // Gate Satisfaction
+  // ==========================================================================
+
+  describe('satisfyGate', () => {
+    test('satisfies external gate and unblocks element', () => {
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.EXTERNAL,
+        externalSystem: 'jira',
+        externalId: 'PROJ-123',
+      });
+
+      // Rebuild to establish blocked state
+      service.rebuild();
+      expect(service.isBlocked(task1)).not.toBeNull();
+
+      // Satisfy the gate
+      const result = service.satisfyGate(task1, task2, testEntity);
+
+      expect(result).toBe(true);
+      // Element should now be unblocked
+      expect(service.isBlocked(task1)).toBeNull();
+    });
+
+    test('satisfies webhook gate and unblocks element', () => {
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.WEBHOOK,
+        webhookUrl: 'https://example.com/callback',
+        callbackId: 'cb-123',
+      });
+
+      // Rebuild to establish blocked state
+      service.rebuild();
+      expect(service.isBlocked(task1)).not.toBeNull();
+
+      // Satisfy the gate
+      const result = service.satisfyGate(task1, task2, testEntity);
+
+      expect(result).toBe(true);
+      expect(service.isBlocked(task1)).toBeNull();
+    });
+
+    test('returns false for non-existent dependency', () => {
+      createTestElement(task1, 'task', 'open');
+
+      const result = service.satisfyGate(task1, task2, testEntity);
+
+      expect(result).toBe(false);
+    });
+
+    test('returns false for non-external/webhook gate types', () => {
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.TIMER,
+        waitUntil: '2099-12-31T00:00:00.000Z',
+      });
+
+      const result = service.satisfyGate(task1, task2, testEntity);
+
+      expect(result).toBe(false);
+    });
+
+    test('returns true if gate already satisfied', () => {
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.EXTERNAL,
+        externalSystem: 'jira',
+        externalId: 'PROJ-123',
+        satisfied: true,
+        satisfiedAt: new Date().toISOString(),
+        satisfiedBy: testEntity,
+      });
+
+      const result = service.satisfyGate(task1, task2, testEntity);
+
+      expect(result).toBe(true);
+    });
+
+    test('stores satisfaction metadata', () => {
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.EXTERNAL,
+        externalSystem: 'jira',
+        externalId: 'PROJ-123',
+      });
+
+      service.satisfyGate(task1, task2, testEntity);
+
+      // Check that metadata was updated
+      const dep = db.queryOne<{ metadata: string }>(
+        'SELECT metadata FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
+        [task1, task2, DependencyType.AWAITS]
+      );
+
+      const metadata = JSON.parse(dep!.metadata);
+      expect(metadata.satisfied).toBe(true);
+      expect(metadata.satisfiedAt).toBeDefined();
+      expect(metadata.satisfiedBy).toBe(testEntity);
+    });
+  });
+
+  describe('recordApproval', () => {
+    test('records approval and returns updated status', () => {
+      const approver1 = 'en-approver1' as EntityId;
+      const approver2 = 'en-approver2' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1, approver2],
+      });
+
+      const result = service.recordApproval(task1, task2, approver1);
+
+      expect(result.success).toBe(true);
+      expect(result.currentCount).toBe(1);
+      expect(result.requiredCount).toBe(2);
+      expect(result.satisfied).toBe(false);
+    });
+
+    test('satisfies gate when all approvals received', () => {
+      const approver1 = 'en-approver1' as EntityId;
+      const approver2 = 'en-approver2' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1, approver2],
+      });
+
+      // Rebuild to establish blocked state
+      service.rebuild();
+      expect(service.isBlocked(task1)).not.toBeNull();
+
+      // Record first approval
+      service.recordApproval(task1, task2, approver1);
+      expect(service.isBlocked(task1)).not.toBeNull();
+
+      // Record second approval
+      const result = service.recordApproval(task1, task2, approver2);
+
+      expect(result.success).toBe(true);
+      expect(result.currentCount).toBe(2);
+      expect(result.satisfied).toBe(true);
+      expect(service.isBlocked(task1)).toBeNull();
+    });
+
+    test('respects approvalCount for partial approval', () => {
+      const approver1 = 'en-approver1' as EntityId;
+      const approver2 = 'en-approver2' as EntityId;
+      const approver3 = 'en-approver3' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1, approver2, approver3],
+        approvalCount: 2, // Only need 2 of 3
+      });
+
+      service.rebuild();
+      expect(service.isBlocked(task1)).not.toBeNull();
+
+      service.recordApproval(task1, task2, approver1);
+      const result = service.recordApproval(task1, task2, approver3);
+
+      expect(result.satisfied).toBe(true);
+      expect(service.isBlocked(task1)).toBeNull();
+    });
+
+    test('rejects non-listed approver', () => {
+      const approver1 = 'en-approver1' as EntityId;
+      const unauthorized = 'en-unauthorized' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1],
+      });
+
+      const result = service.recordApproval(task1, task2, unauthorized);
+
+      expect(result.success).toBe(false);
+    });
+
+    test('handles duplicate approval gracefully', () => {
+      const approver1 = 'en-approver1' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1],
+      });
+
+      service.recordApproval(task1, task2, approver1);
+      const result = service.recordApproval(task1, task2, approver1);
+
+      expect(result.success).toBe(true);
+      expect(result.currentCount).toBe(1); // Should not increment again
+    });
+
+    test('returns failure for non-approval gate', () => {
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.EXTERNAL,
+        externalSystem: 'jira',
+        externalId: 'PROJ-123',
+      });
+
+      const result = service.recordApproval(task1, task2, testEntity);
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('removeApproval', () => {
+    test('removes approval and updates status', () => {
+      const approver1 = 'en-approver1' as EntityId;
+      const approver2 = 'en-approver2' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1, approver2],
+        currentApprovers: [approver1, approver2],
+      });
+
+      // Initially satisfied
+      expect(service.isGateSatisfied({
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1, approver2],
+        currentApprovers: [approver1, approver2],
+      })).toBe(true);
+
+      // Remove one approval
+      const result = service.removeApproval(task1, task2, approver1);
+
+      expect(result.success).toBe(true);
+      expect(result.currentCount).toBe(1);
+      expect(result.satisfied).toBe(false);
+    });
+
+    test('re-blocks element when approval removed', () => {
+      const approver1 = 'en-approver1' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1],
+        currentApprovers: [approver1],
+      });
+
+      // Initially unblocked
+      service.rebuild();
+      expect(service.isBlocked(task1)).toBeNull();
+
+      // Remove approval
+      service.removeApproval(task1, task2, approver1);
+
+      // Now blocked
+      expect(service.isBlocked(task1)).not.toBeNull();
+    });
+
+    test('handles removal of non-existing approval gracefully', () => {
+      const approver1 = 'en-approver1' as EntityId;
+      const approver2 = 'en-approver2' as EntityId;
+
+      createTestElement(task1, 'task', 'open');
+      createTestElement(task2, 'task', 'open');
+      createTestDependency(task1, task2, DependencyType.AWAITS, {
+        gateType: GateType.APPROVAL,
+        requiredApprovers: [approver1, approver2],
+        currentApprovers: [approver1],
+      });
+
+      // Try to remove approver2 who hasn't approved
+      const result = service.removeApproval(task1, task2, approver2);
+
+      expect(result.success).toBe(true);
+      expect(result.currentCount).toBe(1); // Unchanged
     });
   });
 

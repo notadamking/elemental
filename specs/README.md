@@ -233,7 +233,7 @@ Recommended implementation sequence:
 - [ ] **systems/events.md Phase 3**: Membership operations integration (blocked on collection types)
 - [ ] **systems/events.md Phase 6**: Reconstruction (point-in-time state, timeline generation, reconstruction API)
 - [x] **systems/events.md Phase 7**: CLI integration ✅ (--events flag on show, history command with filtering, timeline/table formatting - 19 tests)
-- [ ] **systems/dependencies.md Phase 5**: Gate satisfaction events (API to mark gates as satisfied)
+- [x] **systems/dependencies.md Phase 5**: Gate satisfaction API ✅ (satisfyGate, recordApproval, removeApproval - updates dependency metadata and recomputes blocking state - 23 tests)
 
 #### CLI Commands (Priority: Medium)
 - [ ] **api/cli.md Phase 5**: Collection commands (plan create/list/show/close, workflow pour/list/show/burn/squash/gc, playbook list/show/validate/create, channel create/join/leave/list/members, library create/list/add/remove, team create/add/remove/list/members)
