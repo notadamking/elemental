@@ -149,7 +149,7 @@ Recommended implementation sequence:
 - [x] systems/dependencies.md ✅ (Phase 1: Type definitions, validators, factories, utilities - 175 tests; Phase 2: DependencyService CRUD operations, event helpers - 67 tests; Phase 3: Cycle detection with BFS traversal, depth limiting, relates-to exclusion - 33 tests. Total: 100 tests)
 
 #### Phase 4: Collections
-- [ ] types/plan.md
+- [x] types/plan.md ✅ (Phase 1: Plan interface, PlanStatus, type guards, validators, createPlan factory, updatePlanStatus, status transitions, progress calculation, canAutoComplete, filter/sort utilities, unit tests - 103 tests)
 - [ ] types/message.md
 - [ ] types/channel.md
 
