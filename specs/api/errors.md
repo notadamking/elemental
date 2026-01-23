@@ -296,8 +296,8 @@ Preserve context through layers:
 - [ ] Implement status validation (validation logic that uses errors)
 - [x] Create validation error factory
 
-### Phase 4: Storage Mapping
-- [ ] Map SQLite errors
+### Phase 4: Storage Mapping ✅
+- [x] Map SQLite errors (mapStorageError in src/storage/errors.ts - unique, FK, busy, corruption)
 - [x] Preserve original errors (via cause property)
 - [x] Add context details (via details property)
 

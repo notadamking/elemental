@@ -240,7 +240,7 @@ Recommended implementation sequence:
 
 #### Error Handling & Validation (Priority: Low)
 - [ ] **api/errors.md Phase 3**: Field validation integration, status validation integration
-- [ ] **api/errors.md Phase 4**: SQLite error mapping
+- [x] **api/errors.md Phase 4**: SQLite error mapping ✅ (mapStorageError handles unique, FK, busy, corruption errors)
 - [x] **api/errors.md Phase 5**: CLI formatting ✅ (standard, verbose, quiet modes in src/cli/formatter.ts)
 - [ ] **api/errors.md Phase 6**: Documentation (common causes, resolutions, examples)
 
