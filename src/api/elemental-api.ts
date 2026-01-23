@@ -435,6 +435,21 @@ export class ElementalAPIImpl implements ElementalAPI {
     // We just need to persist it
     const element = input as unknown as T;
 
+    // Entity name uniqueness validation
+    if (element.type === 'entity') {
+      const entityData = element as unknown as { name?: string };
+      if (entityData.name) {
+        const existing = await this.lookupEntityByName(entityData.name);
+        if (existing) {
+          throw new ConflictError(
+            `Entity with name "${entityData.name}" already exists`,
+            ErrorCode.DUPLICATE_NAME,
+            { name: entityData.name, existingId: existing.id }
+          );
+        }
+      }
+    }
+
     // Serialize for storage
     const serialized = serializeElement(element);
 

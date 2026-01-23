@@ -198,7 +198,8 @@ Recommended implementation sequence:
 - [ ] **types/task.md Phase 2**: Automatic blocked status computation, status change event emission
 - [ ] **types/task.md Phase 3-4**: Ready/blocked work queries, assignment/deadline queries, hydration (Document reference resolution, batch hydration)
 - [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system
-- [ ] **types/entity.md Phase 2-3**: Name uniqueness validation (storage-level), entity listing queries (name-based lookup ✅, whoami ✅)
+- [x] **types/entity.md Phase 2**: Name uniqueness validation ✅ (storage-level check in create(), DUPLICATE_NAME error)
+- [ ] **types/entity.md Phase 3**: Entity listing queries (name-based lookup ✅, whoami ✅, listing pending)
 - [ ] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API
 - [ ] **types/entity.md Phase 5**: Entity update, deactivation, search/filter, assignment queries
 - [ ] **types/document.md Phase 3-4**: Version table schema integration, getDocumentVersion/getDocumentHistory (storage layer)

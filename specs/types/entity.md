@@ -245,12 +245,12 @@ When enabled:
 - [x] Factory function (`createEntity`)
 - [x] Unit tests for type definitions
 
-### Phase 2: Name Management (Partial ✅)
-- [ ] Implement name uniqueness validation (storage-level)
+### Phase 2: Name Management ✅
+- [x] Implement name uniqueness validation ✅ (src/api/elemental-api.ts - checks for existing entity with same name)
 - [x] Implement name format validation (`isValidEntityName`, `validateEntityName`)
 - [x] Add reserved name checking (`isReservedName`, `RESERVED_NAMES`)
-- [ ] Create name conflict error handling (storage-level)
-- [x] Unit tests for name validation
+- [x] Create name conflict error handling ✅ (throws ConflictError with DUPLICATE_NAME code)
+- [x] Unit tests for name validation ✅ (6 new tests in soft-identity.integration.test.ts)
 
 ### Phase 3: Soft Identity (Partial ✅)
 - [x] Implement entity registration (`createEntity`)

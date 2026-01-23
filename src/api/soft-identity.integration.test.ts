@@ -394,4 +394,85 @@ describe('Soft Identity Integration', () => {
       expect((updateEvent!.newValue as Record<string, unknown>).status).toBe(TaskStatus.IN_PROGRESS);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Entity Name Uniqueness Tests
+  // --------------------------------------------------------------------------
+
+  describe('entity name uniqueness', () => {
+    it('should allow creating entity with unique name', async () => {
+      const entity = await createTestEntity('unique-name');
+      const created = await api.create(toCreateInput(entity));
+
+      expect(created).toBeDefined();
+      expect((created as Entity).name).toBe('unique-name');
+    });
+
+    it('should reject duplicate entity name', async () => {
+      const entity1 = await createTestEntity('duplicate-name');
+      await api.create(toCreateInput(entity1));
+
+      const entity2 = await createTestEntity('duplicate-name');
+
+      await expect(api.create(toCreateInput(entity2))).rejects.toMatchObject({
+        code: 'DUPLICATE_NAME',
+        message: expect.stringContaining('duplicate-name'),
+      });
+    });
+
+    it('should include existing entity ID in error details', async () => {
+      const entity1 = await createTestEntity('existing-name');
+      await api.create(toCreateInput(entity1));
+
+      const entity2 = await createTestEntity('existing-name');
+
+      try {
+        await api.create(toCreateInput(entity2));
+        expect.unreachable('Should have thrown');
+      } catch (err: unknown) {
+        expect((err as { details?: { existingId?: string } }).details?.existingId).toBe(entity1.id);
+      }
+    });
+
+    it('should allow same name for different element types', async () => {
+      // Create an entity with name
+      const entity = await createTestEntity('shared-name');
+      await api.create(toCreateInput(entity));
+
+      // Create a task - tasks don't have name field, but they have title
+      // This test verifies name uniqueness only applies to entities
+      const task = await createTestTask({ title: 'shared-name' });
+      const created = await api.create(toCreateInput(task));
+
+      expect(created).toBeDefined();
+    });
+
+    it('should allow reusing name after entity is soft-deleted', async () => {
+      const entity1 = await createTestEntity('reusable-name');
+      await api.create(toCreateInput(entity1));
+
+      // Delete the entity
+      await api.delete(entity1.id);
+
+      // Create another entity with the same name
+      const entity2 = await createTestEntity('reusable-name');
+      const created = await api.create(toCreateInput(entity2));
+
+      expect(created).toBeDefined();
+      expect((created as Entity).name).toBe('reusable-name');
+      expect(created.id).not.toBe(entity1.id);
+    });
+
+    it('should be case-sensitive for names', async () => {
+      const entity1 = await createTestEntity('CaseSensitive');
+      await api.create(toCreateInput(entity1));
+
+      // Different case should be allowed
+      const entity2 = await createTestEntity('casesensitive');
+      const created = await api.create(toCreateInput(entity2));
+
+      expect(created).toBeDefined();
+      expect((created as Entity).name).toBe('casesensitive');
+    });
+  });
 });
