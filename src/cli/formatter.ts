@@ -129,6 +129,66 @@ class HumanFormatter implements OutputFormatter {
 }
 
 // ============================================================================
+// Verbose Formatter
+// ============================================================================
+
+/**
+ * Verbose output formatter - extends human format with extra details
+ */
+class VerboseFormatter implements OutputFormatter {
+  private humanFormatter = new HumanFormatter();
+
+  success(result: CommandResult): string {
+    // Use human formatter for success, but add more details if available
+    const basic = this.humanFormatter.success(result);
+
+    // Add data details if it's an object
+    if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+      const details = Object.entries(result.data as Record<string, unknown>)
+        .map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`)
+        .join('\n');
+      return `${basic}\n\nDetails:\n${details}`;
+    }
+
+    return basic;
+  }
+
+  error(result: CommandResult): string {
+    const lines: string[] = [`Error: ${result.error}`];
+
+    // Add exit code
+    lines.push(`  Code: ${result.exitCode}`);
+
+    // Add details if available
+    if (result.data && typeof result.data === 'object') {
+      lines.push(`  Details: ${JSON.stringify(result.data)}`);
+    }
+
+    // Add stack trace hint
+    lines.push('');
+    lines.push('For more details, check the application logs.');
+
+    return lines.join('\n');
+  }
+
+  table(headers: string[], rows: unknown[][]): string {
+    return this.humanFormatter.table(headers, rows);
+  }
+
+  element(data: Record<string, unknown>): string {
+    return this.humanFormatter.element(data);
+  }
+
+  list(items: Record<string, unknown>[]): string {
+    return this.humanFormatter.list(items);
+  }
+
+  tree(data: TreeNode): string {
+    return this.humanFormatter.tree(data);
+  }
+}
+
+// ============================================================================
 // JSON Formatter
 // ============================================================================
 
@@ -247,6 +307,7 @@ class QuietFormatter implements OutputFormatter {
 
 const formatters: Record<OutputMode, OutputFormatter> = {
   human: new HumanFormatter(),
+  verbose: new VerboseFormatter(),
   json: new JsonFormatter(),
   quiet: new QuietFormatter(),
 };
@@ -261,9 +322,10 @@ export function getFormatter(mode: OutputMode): OutputFormatter {
 /**
  * Determines output mode from global options
  */
-export function getOutputMode(options: { json?: boolean; quiet?: boolean }): OutputMode {
+export function getOutputMode(options: { json?: boolean; quiet?: boolean; verbose?: boolean }): OutputMode {
   if (options.json) return 'json';
   if (options.quiet) return 'quiet';
+  if (options.verbose) return 'verbose';
   return 'human';
 }
 

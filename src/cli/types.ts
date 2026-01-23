@@ -12,6 +12,8 @@
 export const OutputMode = {
   /** Human-readable formatted output */
   HUMAN: 'human',
+  /** Verbose output with extra details and stack traces for errors */
+  VERBOSE: 'verbose',
   /** Machine-parseable JSON output */
   JSON: 'json',
   /** Minimal output, IDs only */

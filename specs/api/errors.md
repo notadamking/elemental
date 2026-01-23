@@ -301,10 +301,10 @@ Preserve context through layers:
 - [x] Preserve original errors (via cause property)
 - [x] Add context details (via details property)
 
-### Phase 5: CLI Formatting
-- [ ] Implement standard format
-- [ ] Implement verbose format
-- [ ] Implement quiet format
+### Phase 5: CLI Formatting ✅
+- [x] Implement standard format (HumanFormatter in src/cli/formatter.ts)
+- [x] Implement verbose format (VerboseFormatter with details and exit codes)
+- [x] Implement quiet format (QuietFormatter in src/cli/formatter.ts)
 - [x] Map to exit codes (getExitCode function)
 
 ### Phase 6: Documentation

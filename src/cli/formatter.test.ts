@@ -427,3 +427,74 @@ describe('STATUS_ICONS', () => {
     expect(STATUS_ICONS.failed).toBeDefined();
   });
 });
+
+describe('getOutputMode with verbose', () => {
+  it('should return verbose mode when verbose flag is true', () => {
+    expect(getOutputMode({ verbose: true })).toBe('verbose');
+  });
+
+  it('should prefer json over verbose', () => {
+    expect(getOutputMode({ json: true, verbose: true })).toBe('json');
+  });
+
+  it('should prefer quiet over verbose', () => {
+    expect(getOutputMode({ quiet: true, verbose: true })).toBe('quiet');
+  });
+});
+
+describe('Verbose Formatter', () => {
+  const formatter = getFormatter('verbose');
+
+  describe('success', () => {
+    it('should return message like human formatter', () => {
+      const result = success(undefined, 'Operation completed');
+      expect(formatter.success(result)).toContain('Operation completed');
+    });
+
+    it('should add details section for object data', () => {
+      const result = success({ id: 'el-abc', title: 'Task' });
+      const output = formatter.success(result);
+      expect(output).toContain('Details:');
+      expect(output).toContain('id');
+      expect(output).toContain('el-abc');
+    });
+  });
+
+  describe('error', () => {
+    it('should include exit code', () => {
+      const result = failure('Something went wrong', 1);
+      const output = formatter.error(result);
+      expect(output).toContain('Error: Something went wrong');
+      expect(output).toContain('Code: 1');
+    });
+  });
+
+  describe('table', () => {
+    it('should format table like human formatter', () => {
+      const output = formatter.table(
+        ['ID', 'TITLE'],
+        [['el-abc', 'First task']]
+      );
+      expect(output).toContain('ID');
+      expect(output).toContain('TITLE');
+      expect(output).toContain('el-abc');
+    });
+  });
+
+  describe('element', () => {
+    it('should format element like human formatter', () => {
+      const output = formatter.element({ id: 'el-abc', title: 'Task' });
+      expect(output).toContain('id');
+      expect(output).toContain('el-abc');
+    });
+  });
+
+  describe('tree', () => {
+    it('should format tree like human formatter', () => {
+      const tree: TreeNode = { label: 'Root', children: [{ label: 'Child' }] };
+      const output = formatter.tree(tree);
+      expect(output).toContain('Root');
+      expect(output).toContain('Child');
+    });
+  });
+});
