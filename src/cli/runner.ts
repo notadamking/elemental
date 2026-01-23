@@ -198,6 +198,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { configCommand } = await import('./commands/config.js');
   const { helpCommand, versionCommand } = await import('./commands/help.js');
   const { createCommand, listCommand, showCommand } = await import('./commands/crud.js');
+  const {
+    readyCommand,
+    blockedCommand,
+    closeCommand,
+    reopenCommand,
+    assignCommand,
+    deferCommand,
+    undeferCommand,
+  } = await import('./commands/task.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -206,6 +215,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(createCommand);
   registerCommand(listCommand);
   registerCommand(showCommand);
+
+  // Task commands
+  registerCommand(readyCommand);
+  registerCommand(blockedCommand);
+  registerCommand(closeCommand);
+  registerCommand(reopenCommand);
+  registerCommand(assignCommand);
+  registerCommand(deferCommand);
+  registerCommand(undeferCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

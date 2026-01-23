@@ -368,13 +368,15 @@ User-friendly errors:
 - [ ] Implement update
 - [ ] Implement delete
 
-### Phase 3: Task Commands
-- [ ] Implement ready
-- [ ] Implement blocked
-- [ ] Implement close
-- [ ] Implement reopen
-- [ ] Implement assign
-- [ ] Implement defer
+### Phase 3: Task Commands ✅
+- [x] Implement ready (src/cli/commands/task.ts, filters: assignee, priority, type, limit)
+- [x] Implement blocked (src/cli/commands/task.ts, filters: assignee, priority, limit)
+- [x] Implement close (src/cli/commands/task.ts, with optional reason)
+- [x] Implement reopen (src/cli/commands/task.ts)
+- [x] Implement assign (src/cli/commands/task.ts, with --unassign flag)
+- [x] Implement defer (src/cli/commands/task.ts, with optional --until date)
+- [x] Implement undefer (src/cli/commands/task.ts)
+- [x] Unit tests (src/cli/commands/task.test.ts - 58 tests)
 
 ### Phase 4: Dependency Commands
 - [ ] Implement dep add
