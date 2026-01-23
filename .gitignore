@@ -7,10 +7,11 @@ dist/
 # Bun
 bun.lockb
 
-# Elemental data files (database should not be committed)
-.elemental/elemental.db
-.elemental/elemental.db-wal
-.elemental/elemental.db-shm
+# Elemental workspace (local data, created by `el init`)
+.elemental/
+
+# Local development files
+prompt.md
 
 # IDE
 .idea/
