@@ -7,7 +7,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createCommand, listCommand, showCommand } from './crud.js';
+import { createCommand, listCommand, showCommand, updateCommand, deleteCommand } from './crud.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
 
@@ -426,5 +426,382 @@ describe('output formats', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(typeof result.data).toBe('string');
     expect((result.data as string)).toContain(taskId);
+  });
+});
+
+// ============================================================================
+// Update Command Tests
+// ============================================================================
+
+describe('update command', () => {
+  test('updates task title', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Original Title' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update the task
+    const updateOpts = createTestOptions({ title: 'Updated Title' } as GlobalOptions & { title: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { title: string }).title).toBe('Updated Title');
+  });
+
+  test('updates task priority', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Priority Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update priority
+    const updateOpts = createTestOptions({ priority: '1' } as GlobalOptions & { priority: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { priority: number }).priority).toBe(1);
+  });
+
+  test('updates task complexity', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Complexity Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update complexity
+    const updateOpts = createTestOptions({ complexity: '5' } as GlobalOptions & { complexity: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { complexity: number }).complexity).toBe(5);
+  });
+
+  test('updates task status', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Status Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update status
+    const updateOpts = createTestOptions({ status: 'in_progress' } as GlobalOptions & { status: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { status: string }).status).toBe('in_progress');
+  });
+
+  test('updates task assignee', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Assignee Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update assignee
+    const updateOpts = createTestOptions({ assignee: 'new-assignee' } as GlobalOptions & { assignee: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { assignee: string }).assignee).toBe('new-assignee');
+  });
+
+  test('unassigns task with empty string', async () => {
+    // Create a task with assignee
+    const createOpts = createTestOptions({
+      title: 'Unassign Test',
+      assignee: 'original-assignee',
+    } as GlobalOptions & { title: string; assignee: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Unassign with empty string
+    const updateOpts = createTestOptions({ assignee: '' } as GlobalOptions & { assignee: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { assignee?: string }).assignee).toBeUndefined();
+  });
+
+  test('replaces all tags with --tag', async () => {
+    // Create a task with tags
+    const createOpts = createTestOptions({
+      title: 'Tag Replace Test',
+      tag: ['old-tag-1', 'old-tag-2'],
+    } as GlobalOptions & { title: string; tag: string[] });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Replace tags
+    const updateOpts = createTestOptions({ tag: ['new-tag-1', 'new-tag-2'] } as GlobalOptions & { tag: string[] });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const tags = (result.data as { tags: string[] }).tags;
+    expect(tags).toContain('new-tag-1');
+    expect(tags).toContain('new-tag-2');
+    expect(tags).not.toContain('old-tag-1');
+    expect(tags).not.toContain('old-tag-2');
+  });
+
+  test('adds tags with --add-tag', async () => {
+    // Create a task with tags
+    const createOpts = createTestOptions({
+      title: 'Tag Add Test',
+      tag: ['existing-tag'],
+    } as GlobalOptions & { title: string; tag: string[] });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Add tags
+    const updateOpts = createTestOptions({ 'add-tag': ['new-tag'] } as GlobalOptions & { 'add-tag': string[] });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const tags = (result.data as { tags: string[] }).tags;
+    expect(tags).toContain('existing-tag');
+    expect(tags).toContain('new-tag');
+  });
+
+  test('removes tags with --remove-tag', async () => {
+    // Create a task with tags
+    const createOpts = createTestOptions({
+      title: 'Tag Remove Test',
+      tag: ['keep-tag', 'remove-tag'],
+    } as GlobalOptions & { title: string; tag: string[] });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Remove tags
+    const updateOpts = createTestOptions({ 'remove-tag': ['remove-tag'] } as GlobalOptions & { 'remove-tag': string[] });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const tags = (result.data as { tags: string[] }).tags;
+    expect(tags).toContain('keep-tag');
+    expect(tags).not.toContain('remove-tag');
+  });
+
+  test('updates multiple fields at once', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Multi Update Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update multiple fields
+    const updateOpts = createTestOptions({
+      title: 'New Title',
+      priority: '2',
+      complexity: '3',
+      assignee: 'someone',
+    } as GlobalOptions & { title: string; priority: string; complexity: string; assignee: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as Record<string, unknown>;
+    expect(data.title).toBe('New Title');
+    expect(data.priority).toBe(2);
+    expect(data.complexity).toBe(3);
+    expect(data.assignee).toBe('someone');
+  });
+
+  test('fails without id argument', async () => {
+    const options = createTestOptions({ title: 'Test' } as GlobalOptions & { title: string });
+    const result = await updateCommand.handler([], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+    expect(result.error).toContain('Usage');
+  });
+
+  test('fails for non-existent element', async () => {
+    const options = createTestOptions({ title: 'Test' } as GlobalOptions & { title: string });
+    const result = await updateCommand.handler(['el-nonexistent'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Element not found');
+  });
+
+  test('fails with no updates specified', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'No Update Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Try to update with no options
+    const options = createTestOptions();
+    const result = await updateCommand.handler([taskId], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+    expect(result.error).toContain('No updates specified');
+  });
+
+  test('fails with invalid priority', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Invalid Priority Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Try invalid priority
+    const updateOpts = createTestOptions({ priority: '10' } as GlobalOptions & { priority: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Priority must be a number from 1 to 5');
+  });
+
+  test('fails with invalid complexity', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Invalid Complexity Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Try invalid complexity
+    const updateOpts = createTestOptions({ complexity: '0' } as GlobalOptions & { complexity: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Complexity must be a number from 1 to 5');
+  });
+
+  test('fails with invalid status', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Invalid Status Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Try invalid status
+    const updateOpts = createTestOptions({ status: 'invalid' } as GlobalOptions & { status: string });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid status');
+  });
+
+  test('returns JSON in JSON mode', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'JSON Mode Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update with JSON mode
+    const updateOpts = createTestOptions({ json: true, title: 'JSON Updated' });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { title: string }).title).toBe('JSON Updated');
+  });
+
+  test('returns ID in quiet mode', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Quiet Mode Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Update with quiet mode
+    const updateOpts = createTestOptions({ quiet: true, title: 'Quiet Updated' });
+    const result = await updateCommand.handler([taskId], updateOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.data).toBe(taskId);
+  });
+});
+
+// ============================================================================
+// Delete Command Tests
+// ============================================================================
+
+describe('delete command', () => {
+  test('deletes a task', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Delete Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Delete the task
+    const deleteOpts = createTestOptions();
+    const result = await deleteCommand.handler([taskId], deleteOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toContain('Deleted');
+
+    // Verify it's deleted (should not be found)
+    const showOpts = createTestOptions();
+    const showResult = await showCommand.handler([taskId], showOpts);
+    expect(showResult.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('deletes with reason', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Delete With Reason' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Delete with reason
+    const deleteOpts = createTestOptions({ reason: 'Duplicate entry' } as GlobalOptions & { reason: string });
+    const result = await deleteCommand.handler([taskId], deleteOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toContain('Deleted');
+  });
+
+  test('fails without id argument', async () => {
+    const options = createTestOptions();
+    const result = await deleteCommand.handler([], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+    expect(result.error).toContain('Usage');
+  });
+
+  test('fails for non-existent element', async () => {
+    const options = createTestOptions();
+    const result = await deleteCommand.handler(['el-nonexistent'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Element not found');
+  });
+
+  test('returns JSON in JSON mode', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'JSON Delete Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Delete with JSON mode
+    const deleteOpts = createTestOptions({ json: true });
+    const result = await deleteCommand.handler([taskId], deleteOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { id: string; deleted: boolean; type: string };
+    expect(data.id).toBe(taskId);
+    expect(data.deleted).toBe(true);
+    expect(data.type).toBe('task');
+  });
+
+  test('returns ID in quiet mode', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Quiet Delete Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Delete with quiet mode
+    const deleteOpts = createTestOptions({ quiet: true });
+    const result = await deleteCommand.handler([taskId], deleteOpts);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.data).toBe(taskId);
+  });
+
+  test('deleting same element twice fails', async () => {
+    // Create a task first
+    const createOpts = createTestOptions({ title: 'Double Delete Test' } as GlobalOptions & { title: string });
+    const createResult = await createCommand.handler(['task'], createOpts);
+    const taskId = (createResult.data as { id: string }).id;
+
+    // Delete the task
+    const deleteOpts = createTestOptions();
+    const firstDelete = await deleteCommand.handler([taskId], deleteOpts);
+    expect(firstDelete.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Try to delete again
+    const secondDelete = await deleteCommand.handler([taskId], deleteOpts);
+    expect(secondDelete.exitCode).toBe(ExitCode.NOT_FOUND);
   });
 });

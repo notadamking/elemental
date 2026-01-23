@@ -360,13 +360,13 @@ User-friendly errors:
 - [x] Implement global flags (--db, --actor, --json, -q/--quiet, -v/--verbose, -h/--help, -V/--version)
 - [x] Unit tests (155 tests)
 
-### Phase 2: Core Commands (Partial)
+### Phase 2: Core Commands ✅
 - [x] Implement init (src/cli/commands/init.ts)
 - [x] Implement create (tasks only - src/cli/commands/crud.ts, 27 tests)
 - [x] Implement list (src/cli/commands/crud.ts)
 - [x] Implement show (src/cli/commands/crud.ts)
-- [ ] Implement update
-- [ ] Implement delete
+- [x] Implement update (src/cli/commands/crud.ts - title, priority, complexity, status, assignee, tag operations)
+- [x] Implement delete (src/cli/commands/crud.ts - soft-delete with reason, tombstone handling)
 
 ### Phase 3: Task Commands ✅
 - [x] Implement ready (src/cli/commands/task.ts, filters: assignee, priority, type, limit)
@@ -409,4 +409,4 @@ User-friendly errors:
 - [ ] Add shell completion
 - [ ] Add aliases
 - [x] Write help text (src/cli/commands/help.ts)
-- [x] Test all implemented commands (284 tests)
+- [x] Test all implemented commands (308 tests)

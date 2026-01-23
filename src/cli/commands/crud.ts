@@ -16,7 +16,7 @@ import { BunStorageBackend } from '../../storage/bun-backend.js';
 import { initializeSchema } from '../../storage/schema.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import { createTask, TaskStatus, TaskTypeValue, type CreateTaskInput, type Priority, type Complexity } from '../../types/task.js';
-import type { Element, ElementId, EntityId, ElementType } from '../../types/element.js';
+import type { Element, ElementId, EntityId } from '../../types/element.js';
 import type { ElementalAPI, TaskFilter } from '../../api/types.js';
 
 // ============================================================================
@@ -468,6 +468,12 @@ async function showHandler(
       return failure(`Element not found: ${id}`, ExitCode.NOT_FOUND);
     }
 
+    // Check if element is deleted (tombstone)
+    const data = element as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Element not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
     // Format output based on mode
     const mode = getOutputMode(options);
     const formatter = getFormatter(mode);
@@ -504,4 +510,344 @@ Examples:
   el show el-abc123 --json`,
   options: [],
   handler: showHandler as Command['handler'],
+};
+
+// ============================================================================
+// Update Command
+// ============================================================================
+
+interface UpdateOptions {
+  title?: string;
+  priority?: string;
+  complexity?: string;
+  status?: string;
+  assignee?: string;
+  tag?: string[];
+  'add-tag'?: string[];
+  'remove-tag'?: string[];
+}
+
+const updateOptions: CommandOption[] = [
+  {
+    name: 'title',
+    short: 't',
+    description: 'New title',
+    hasValue: true,
+  },
+  {
+    name: 'priority',
+    short: 'p',
+    description: 'New priority level (1-5)',
+    hasValue: true,
+  },
+  {
+    name: 'complexity',
+    short: 'c',
+    description: 'New complexity level (1-5)',
+    hasValue: true,
+  },
+  {
+    name: 'status',
+    short: 's',
+    description: 'New status (for tasks: open, in_progress, closed, deferred)',
+    hasValue: true,
+  },
+  {
+    name: 'assignee',
+    short: 'a',
+    description: 'New assignee (use empty string to unassign)',
+    hasValue: true,
+  },
+  {
+    name: 'tag',
+    description: 'Replace all tags (can be repeated)',
+    hasValue: true,
+  },
+  {
+    name: 'add-tag',
+    description: 'Add a tag (can be repeated)',
+    hasValue: true,
+  },
+  {
+    name: 'remove-tag',
+    description: 'Remove a tag (can be repeated)',
+    hasValue: true,
+  },
+];
+
+async function updateHandler(
+  args: string[],
+  options: GlobalOptions & UpdateOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el update <id> [options]', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Get existing element
+    const element = await api.get<Element>(id as ElementId);
+    if (!element) {
+      return failure(`Element not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    // Check if element is deleted (tombstone)
+    const elemData = element as unknown as Record<string, unknown>;
+    if (elemData.status === 'tombstone' || elemData.deletedAt) {
+      return failure(`Element not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    // Build updates object
+    const updates: Record<string, unknown> = {};
+
+    // Handle title
+    if (options.title !== undefined) {
+      updates.title = options.title;
+    }
+
+    // Handle priority (for tasks)
+    if (options.priority !== undefined) {
+      if (element.type !== 'task') {
+        return failure('Priority can only be set on tasks', ExitCode.VALIDATION);
+      }
+      const p = parseInt(options.priority, 10);
+      if (isNaN(p) || p < 1 || p > 5) {
+        return failure('Priority must be a number from 1 to 5', ExitCode.VALIDATION);
+      }
+      updates.priority = p as Priority;
+    }
+
+    // Handle complexity (for tasks)
+    if (options.complexity !== undefined) {
+      if (element.type !== 'task') {
+        return failure('Complexity can only be set on tasks', ExitCode.VALIDATION);
+      }
+      const c = parseInt(options.complexity, 10);
+      if (isNaN(c) || c < 1 || c > 5) {
+        return failure('Complexity must be a number from 1 to 5', ExitCode.VALIDATION);
+      }
+      updates.complexity = c as Complexity;
+    }
+
+    // Handle status (for tasks)
+    if (options.status !== undefined) {
+      if (element.type !== 'task') {
+        return failure('Status can only be set on tasks', ExitCode.VALIDATION);
+      }
+      const validStatuses: string[] = Object.values(TaskStatus);
+      if (!validStatuses.includes(options.status)) {
+        return failure(
+          `Invalid status: ${options.status}. Must be one of: ${validStatuses.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
+      updates.status = options.status;
+    }
+
+    // Handle assignee (for tasks)
+    if (options.assignee !== undefined) {
+      if (element.type !== 'task') {
+        return failure('Assignee can only be set on tasks', ExitCode.VALIDATION);
+      }
+      // Empty string means unassign
+      updates.assignee = options.assignee === '' ? undefined : (options.assignee as EntityId);
+    }
+
+    // Handle tag operations
+    let currentTags = element.tags ?? [];
+
+    // Complete replacement with --tag
+    if (options.tag !== undefined) {
+      const tags = Array.isArray(options.tag) ? options.tag : [options.tag];
+      currentTags = tags;
+    }
+
+    // Add tags with --add-tag
+    if (options['add-tag'] !== undefined) {
+      const tagsToAdd = Array.isArray(options['add-tag']) ? options['add-tag'] : [options['add-tag']];
+      const tagSet = new Set(currentTags);
+      for (const tag of tagsToAdd) {
+        tagSet.add(tag);
+      }
+      currentTags = Array.from(tagSet);
+    }
+
+    // Remove tags with --remove-tag
+    if (options['remove-tag'] !== undefined) {
+      const tagsToRemove = Array.isArray(options['remove-tag']) ? options['remove-tag'] : [options['remove-tag']];
+      const removeSet = new Set(tagsToRemove);
+      currentTags = currentTags.filter(tag => !removeSet.has(tag));
+    }
+
+    // Only update tags if any tag option was used
+    if (options.tag !== undefined || options['add-tag'] !== undefined || options['remove-tag'] !== undefined) {
+      updates.tags = currentTags;
+    }
+
+    // Check if there are any updates to apply
+    if (Object.keys(updates).length === 0) {
+      return failure('No updates specified. Use --help for available options.', ExitCode.INVALID_ARGUMENTS);
+    }
+
+    // Apply the update
+    const updated = await api.update<Element>(id as ElementId, updates);
+
+    // Format output based on mode
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(updated);
+    }
+
+    if (mode === 'quiet') {
+      return success(updated.id);
+    }
+
+    // Human-readable output
+    const output = formatter.element(updated as unknown as Record<string, unknown>);
+    return success(updated, `Updated ${element.type} ${id}\n\n${output}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to update element: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const updateCommand: Command = {
+  name: 'update',
+  description: 'Update an element',
+  usage: 'el update <id> [options]',
+  help: `Update fields on an existing element.
+
+Arguments:
+  id    Element identifier (e.g., el-abc123)
+
+Options:
+  -t, --title <text>       New title
+  -p, --priority <1-5>     New priority (tasks only)
+  -c, --complexity <1-5>   New complexity (tasks only)
+  -s, --status <status>    New status (tasks only: open, in_progress, closed, deferred)
+  -a, --assignee <id>      New assignee (tasks only, empty string to unassign)
+      --tag <tag>          Replace all tags (can be repeated)
+      --add-tag <tag>      Add a tag (can be repeated)
+      --remove-tag <tag>   Remove a tag (can be repeated)
+
+Examples:
+  el update el-abc123 --title "New Title"
+  el update el-abc123 --priority 1 --status in_progress
+  el update el-abc123 --add-tag urgent --add-tag frontend
+  el update el-abc123 --remove-tag old-tag
+  el update el-abc123 --assignee ""  # Unassign`,
+  options: updateOptions,
+  handler: updateHandler as Command['handler'],
+};
+
+// ============================================================================
+// Delete Command
+// ============================================================================
+
+interface DeleteOptions {
+  reason?: string;
+  force?: boolean;
+}
+
+const deleteOptions: CommandOption[] = [
+  {
+    name: 'reason',
+    short: 'r',
+    description: 'Deletion reason',
+    hasValue: true,
+  },
+  {
+    name: 'force',
+    short: 'f',
+    description: 'Skip confirmation (for scripts)',
+  },
+];
+
+async function deleteHandler(
+  args: string[],
+  options: GlobalOptions & DeleteOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el delete <id> [options]', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Get existing element to verify it exists and get its type
+    const element = await api.get<Element>(id as ElementId);
+    if (!element) {
+      return failure(`Element not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    // Check if element is already deleted (tombstone)
+    const elemData = element as unknown as Record<string, unknown>;
+    if (elemData.status === 'tombstone' || elemData.deletedAt) {
+      return failure(`Element not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    // Check if element type supports deletion
+    if (element.type === 'message') {
+      return failure('Messages cannot be deleted (immutable)', ExitCode.VALIDATION);
+    }
+
+    // Perform the soft delete
+    await api.delete(id as ElementId, options.reason);
+
+    // Format output based on mode
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success({ id, deleted: true, type: element.type });
+    }
+
+    if (mode === 'quiet') {
+      return success(id);
+    }
+
+    return success({ id, deleted: true }, `Deleted ${element.type} ${id}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to delete element: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const deleteCommand: Command = {
+  name: 'delete',
+  description: 'Delete an element',
+  usage: 'el delete <id> [options]',
+  help: `Soft-delete an element.
+
+The element will be marked as deleted (tombstone) but not immediately removed.
+Tombstones are retained for a configurable period (default: 30 days) to
+allow sync operations to propagate deletions.
+
+Note: Messages cannot be deleted as they are immutable.
+
+Arguments:
+  id    Element identifier (e.g., el-abc123)
+
+Options:
+  -r, --reason <text>    Deletion reason (recorded in audit trail)
+  -f, --force            Skip confirmation (for scripts)
+
+Examples:
+  el delete el-abc123
+  el delete el-abc123 --reason "Duplicate entry"
+  el delete el-abc123 -f`,
+  options: deleteOptions,
+  handler: deleteHandler as Command['handler'],
 };
