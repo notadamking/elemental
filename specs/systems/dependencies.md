@@ -301,27 +301,28 @@ Function `isBlocked(elementId)`:
 - [x] Integrate with ready work query (ElementalAPIImpl uses blocked_cache for ready/blocked queries)
 - [x] Integration tests (60 tests in blocked-cache.test.ts)
 
-### Phase 5: Gate Dependencies
-- [ ] Implement timer gate checking
-- [ ] Implement approval gate checking
-- [ ] Implement external gate interface
-- [ ] Add gate satisfaction events
+### Phase 5: Gate Dependencies ✅
+- [x] Implement timer gate checking (BlockedCacheService.isGateSatisfied with GateType.TIMER)
+- [x] Implement approval gate checking (BlockedCacheService.isGateSatisfied with GateType.APPROVAL)
+- [x] Implement external gate interface (BlockedCacheService.isGateSatisfied with GateType.EXTERNAL/WEBHOOK - always blocks until satisfied via API)
+- [ ] Add gate satisfaction events (future: explicit API to mark gates as satisfied)
 
-### Phase 6: Queries
-- [ ] Implement ready work query
-- [ ] Implement blocked work query
-- [ ] Implement dependency tree
-- [ ] Add filtering options
+### Phase 6: Queries ✅
+- [x] Implement ready work query (ElementalAPI.ready() - filters open/in_progress tasks, excludes blocked and future-scheduled)
+- [x] Implement blocked work query (ElementalAPI.blocked() - returns BlockedTask with blockedBy and blockReason)
+- [x] Implement dependency tree (ElementalAPI.getDependencyTree() - recursive traversal with depth limiting)
+- [x] Add filtering options (TaskFilter support for priority, assignee, owner, taskType, deadline)
 
-### Phase 7: CLI Commands
-- [ ] dep add
-- [ ] dep remove
-- [ ] dep list
-- [ ] dep tree
+### Phase 7: CLI Commands ✅
+- [x] dep add (src/cli/commands/dep.ts - depAddCommand)
+- [x] dep remove (src/cli/commands/dep.ts - depRemoveCommand)
+- [x] dep list (src/cli/commands/dep.ts - depListCommand with direction filtering)
+- [x] dep tree (src/cli/commands/dep.ts - depTreeCommand with depth option)
 
-### Phase 8: Testing
+### Phase 8: Testing ✅
 - [x] Unit tests for cycle detection (33 tests in dependency.test.ts)
 - [x] Unit tests for blocked calculation (blocked-cache.test.ts - computeBlockingState tests)
 - [x] Unit tests for cache invalidation (blocked-cache.test.ts - invalidation tests)
 - [x] Integration tests for ready work (blocked-cache.test.ts - rebuild tests, API integration)
+- [x] Integration tests for ready/blocked queries (31 tests in ready-blocked.integration.test.ts)
 - [ ] Performance tests for large graphs

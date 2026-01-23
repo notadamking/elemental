@@ -146,7 +146,7 @@ Recommended implementation sequence:
 - [x] systems/events.md ✅ (Phase 1: Event interface, EventType unions, EventFilter, type guards, validators, createEvent factory, utility functions, unit tests - 129 tests; Phase 2-5,8: Schema with indexes (actor, event_type), CRUD event recording, value capture, queries by element/actor/time/type, integration tests - 40 tests)
 
 #### Phase 3: Dependencies
-- [x] systems/dependencies.md ✅ (Phase 1: Type definitions, validators, factories, utilities - 175 tests; Phase 2: DependencyService CRUD operations, event helpers - 67 tests; Phase 3: Cycle detection with BFS traversal, depth limiting, relates-to exclusion - 33 tests; Phase 4: Blocked cache with invalidation triggers, rebuild, ready work integration - 60 tests. Total: 235 tests)
+- [x] systems/dependencies.md ✅ (Phase 1-8 complete: Type definitions, validators, factories - 175 tests; DependencyService CRUD - 67 tests; Cycle detection with BFS - 33 tests; Blocked cache with invalidation - 60 tests; Gate dependencies (timer/approval/external) - tested in blocked-cache.test.ts; Ready/blocked queries with filtering - tested in API; CLI commands (dep add/remove/list/tree) - 308 CLI tests; Integration tests for ready/blocked work queries - 31 tests. Total: 366+ tests)
 
 #### Phase 4: Collections
 - [x] types/plan.md ✅ (Phase 1: Plan interface, PlanStatus, type guards, validators, createPlan factory, updatePlanStatus, status transitions, progress calculation, canAutoComplete, filter/sort utilities, unit tests - 103 tests)
