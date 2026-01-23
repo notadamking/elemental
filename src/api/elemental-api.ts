@@ -1024,8 +1024,8 @@ export class ElementalAPIImpl implements ElementalAPI {
       elementId: row.element_id as ElementId,
       eventType: row.event_type as EventType,
       actor: row.actor as EntityId,
-      oldValue: row.old_value ? JSON.parse(row.old_value) : undefined,
-      newValue: row.new_value ? JSON.parse(row.new_value) : undefined,
+      oldValue: row.old_value ? JSON.parse(row.old_value) : null,
+      newValue: row.new_value ? JSON.parse(row.new_value) : null,
       createdAt: row.created_at as Timestamp,
     }));
   }

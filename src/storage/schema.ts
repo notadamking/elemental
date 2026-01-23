@@ -14,7 +14,7 @@ import type { Migration, MigrationResult, StorageBackend } from './index.js';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 // ============================================================================
 // Migrations
@@ -135,9 +135,29 @@ DROP TABLE IF EXISTS elements;
 };
 
 /**
+ * Migration 2: Add missing event indexes
+ *
+ * Adds indexes for actor and event_type columns on the events table
+ * to support efficient queries by actor and event type.
+ */
+const migration002: Migration = {
+  version: 2,
+  description: 'Add missing event indexes for actor and event_type',
+  up: `
+-- Add indexes for event queries by actor and type
+CREATE INDEX idx_events_actor ON events(actor);
+CREATE INDEX idx_events_type ON events(event_type);
+`,
+  down: `
+DROP INDEX IF EXISTS idx_events_type;
+DROP INDEX IF EXISTS idx_events_actor;
+`,
+};
+
+/**
  * All migrations in order
  */
-export const MIGRATIONS: readonly Migration[] = [migration001];
+export const MIGRATIONS: readonly Migration[] = [migration001, migration002];
 
 // ============================================================================
 // Schema Functions
@@ -194,10 +214,12 @@ export function getPendingMigrations(backend: StorageBackend): Migration[] {
  * @param backend - The storage backend to reset
  */
 export function resetSchema(backend: StorageBackend): void {
-  // Get the most recent migration with a down script
-  const latestMigration = [...MIGRATIONS].reverse().find((m) => m.down);
-  if (latestMigration?.down) {
-    backend.exec(latestMigration.down);
+  // Run all down scripts in reverse order (newest first)
+  const reversedMigrations = [...MIGRATIONS].reverse();
+  for (const migration of reversedMigrations) {
+    if (migration.down) {
+      backend.exec(migration.down);
+    }
   }
 
   // Reset version

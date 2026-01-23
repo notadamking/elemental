@@ -82,7 +82,7 @@ describe('Schema Management', () => {
       expect(result.success).toBe(true);
       expect(result.fromVersion).toBe(0);
       expect(result.toVersion).toBe(CURRENT_SCHEMA_VERSION);
-      expect(result.applied).toEqual([1]);
+      expect(result.applied).toEqual([1, 2]);
     });
 
     it('should set schema version after initialization', () => {
@@ -104,7 +104,7 @@ describe('Schema Management', () => {
       const result2 = initializeSchema(backend);
 
       expect(result1.success).toBe(true);
-      expect(result1.applied).toEqual([1]);
+      expect(result1.applied).toEqual([1, 2]);
 
       expect(result2.success).toBe(true);
       expect(result2.applied).toEqual([]);
@@ -424,6 +424,9 @@ describe('Schema Management', () => {
 
       expect(indexes).toContain('idx_events_element');
       expect(indexes).toContain('idx_events_created_at');
+      // Added in migration 2
+      expect(indexes).toContain('idx_events_actor');
+      expect(indexes).toContain('idx_events_type');
     });
 
     it('should cascade delete with elements', () => {
@@ -602,7 +605,7 @@ describe('Schema Management', () => {
 
       const result = initializeSchema(backend);
       expect(result.success).toBe(true);
-      expect(result.applied).toEqual([1]);
+      expect(result.applied).toEqual([1, 2]);
     });
   });
 

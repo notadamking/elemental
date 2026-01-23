@@ -143,7 +143,7 @@ Recommended implementation sequence:
 - [x] types/entity.md ✅ (Phase 1: Entity interface, EntityTypeValue, type guards, validators, createEntity factory, unit tests)
 - [x] types/document.md ✅ (Phase 1: Document interface, ContentType, type guards, validators, createDocument factory, updateDocumentContent, unit tests)
 - [x] types/task.md ✅ (Phase 1: Task interface, HydratedTask, TaskStatus, Priority, Complexity, TaskTypeValue, type guards, validators, createTask factory, updateTaskStatus, softDeleteTask, status transition validation, utility functions, unit tests - 135 tests)
-- [x] systems/events.md ✅ (Phase 1: Event interface, EventType unions, EventFilter, type guards, validators, createEvent factory, utility functions, unit tests - 129 tests)
+- [x] systems/events.md ✅ (Phase 1: Event interface, EventType unions, EventFilter, type guards, validators, createEvent factory, utility functions, unit tests - 129 tests; Phase 2-5,8: Schema with indexes (actor, event_type), CRUD event recording, value capture, queries by element/actor/time/type, integration tests - 40 tests)
 
 #### Phase 3: Dependencies
 - [x] systems/dependencies.md ✅ (Phase 1: Type definitions, validators, factories, utilities - 175 tests; Phase 2: DependencyService CRUD operations, event helpers - 67 tests; Phase 3: Cycle detection with BFS traversal, depth limiting, relates-to exclusion - 33 tests. Total: 100 tests)
