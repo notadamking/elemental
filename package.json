@@ -1,0 +1,24 @@
+{
+  "name": "elemental",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A foundational library for building agent coordination systems",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "agents",
+    "coordination",
+    "tasks",
+    "workflows"
+  ],
+  "license": "MIT"
+}

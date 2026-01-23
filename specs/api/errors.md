@@ -279,42 +279,42 @@ Preserve context through layers:
 
 ## Implementation Checklist
 
-### Phase 1: Error Types
-- [ ] Define ElementalError class
-- [ ] Define ErrorCode enum
-- [ ] Define error categories
-- [ ] Create type guards
+### Phase 1: Error Types ✅
+- [x] Define ElementalError class
+- [x] Define ErrorCode enum
+- [x] Define error categories
+- [x] Create type guards
 
-### Phase 2: Factory Functions
-- [ ] Create notFound factory
-- [ ] Create invalidInput factory
-- [ ] Create conflict factories
-- [ ] Create storage factories
+### Phase 2: Factory Functions ✅
+- [x] Create notFound factory
+- [x] Create invalidInput factory
+- [x] Create conflict factories
+- [x] Create storage factories
 
-### Phase 3: Validation Errors
-- [ ] Implement field validation
-- [ ] Implement status validation
-- [ ] Create validation error factory
+### Phase 3: Validation Errors (Partial)
+- [ ] Implement field validation (validation logic that uses errors)
+- [ ] Implement status validation (validation logic that uses errors)
+- [x] Create validation error factory
 
 ### Phase 4: Storage Mapping
 - [ ] Map SQLite errors
-- [ ] Preserve original errors
-- [ ] Add context details
+- [x] Preserve original errors (via cause property)
+- [x] Add context details (via details property)
 
 ### Phase 5: CLI Formatting
 - [ ] Implement standard format
 - [ ] Implement verbose format
 - [ ] Implement quiet format
-- [ ] Map to exit codes
+- [x] Map to exit codes (getExitCode function)
 
 ### Phase 6: Documentation
-- [ ] Document all error codes
+- [x] Document all error codes (in spec and code)
 - [ ] Document common causes
 - [ ] Document resolutions
 - [ ] Add examples
 
-### Phase 7: Testing
-- [ ] Unit tests for each code
-- [ ] Unit tests for mapping
+### Phase 7: Testing ✅
+- [x] Unit tests for each code
+- [x] Unit tests for mapping
 - [ ] Integration tests for propagation
 - [ ] CLI output tests

@@ -137,7 +137,7 @@ Recommended implementation sequence:
 - [ ] types/element.md
 - [ ] systems/id-generation.md
 - [ ] systems/storage.md
-- [ ] api/errors.md
+- [x] api/errors.md ✅ (core error types, codes, factories, type guards, unit tests)
 
 #### Phase 2: Core Types
 - [ ] types/entity.md
