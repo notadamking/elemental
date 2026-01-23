@@ -1,31 +1,57 @@
 {
-  "name": "elemental",
+  "name": "@elemental/cli",
   "version": "0.1.0",
   "type": "module",
   "description": "A foundational library for building agent coordination systems",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "el": "./bin/el.ts",
-    "elemental": "./bin/el.ts"
+    "el": "./dist/bin/el.js",
+    "elemental": "./dist/bin/el.js"
   },
   "scripts": {
-    "build": "tsc",
-    "test": "bun test",
-    "lint": "tsc --noEmit"
+    "build": "tsc && chmod +x dist/bin/el.js",
+    "test": "bun test src",
+    "test:node": "vitest run",
+    "test:all": "npm run test && npm run test:node",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "typescript": "^5.0.0"
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/toolco/elemental.git"
+  },
+  "author": "Toolco",
+  "homepage": "https://github.com/toolco/elemental#readme",
+  "bugs": {
+    "url": "https://github.com/toolco/elemental/issues"
   },
   "keywords": [
     "agents",
     "coordination",
     "tasks",
-    "workflows"
+    "workflows",
+    "sqlite",
+    "cli"
   ],
   "license": "MIT",
   "dependencies": {
+    "better-sqlite3": "^11.0.0",
     "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   }
 }

@@ -48,8 +48,20 @@ export {
   migrationError,
 } from './errors.js';
 
-// Bun backend implementation
-export { BunStorageBackend, createBunStorage } from './bun-backend.js';
+// Unified storage factory (auto-detects runtime)
+export {
+  createStorage,
+  createStorageAsync,
+  isBunRuntime,
+  isNodeRuntime,
+  getRuntimeName,
+} from './create-backend.js';
+
+// NOTE: BunStorageBackend and NodeStorageBackend are NOT exported from this index
+// to avoid eagerly loading bun:sqlite or better-sqlite3 when importing from storage.
+// For explicit backend access, import directly from the specific backend files:
+//   import { BunStorageBackend, createBunStorage } from '@elemental/cli/dist/storage/bun-backend.js';
+//   import { NodeStorageBackend, createNodeStorage } from '@elemental/cli/dist/storage/node-backend.js';
 
 // Schema management
 export {

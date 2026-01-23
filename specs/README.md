@@ -136,7 +136,7 @@ Recommended implementation sequence:
 #### Phase 1: Foundation
 - [x] types/element.md ✅ (Element type, validation, type guards, utilities, unit tests)
 - [x] systems/id-generation.md ✅ (ID validation, parsing, SHA256/Base36 hashing, adaptive length, collision resolution, hierarchical IDs, unit tests)
-- [x] systems/storage.md ✅ (Phase 1: Interface definitions; Phase 2: Bun backend with integration tests; Phase 5: Schema management - migrations, version tracking, validation; Phase 8: Unit tests, integration tests, migration tests - 218 tests)
+- [x] systems/storage.md ✅ (Phase 1: Interface definitions; Phase 2: Bun backend with integration tests; Phase 3: Node.js backend with 33 vitest tests; Phase 5: Schema management - migrations, version tracking, validation; Phase 8: Unit tests, integration tests, migration tests - 251+ tests)
 - [x] api/errors.md ✅ (core error types, codes, factories, type guards, unit tests)
 
 #### Phase 2: Core Types
@@ -173,7 +173,7 @@ Recommended implementation sequence:
 ### Remaining Implementation Items
 
 #### Storage & Infrastructure (Priority: High)
-- [ ] **systems/storage.md Phase 3**: Node.js backend (better-sqlite3 adapter, compatibility tests)
+- [x] **systems/storage.md Phase 3**: Node.js backend ✅ (better-sqlite3 adapter in src/storage/node-backend.ts, 33 vitest tests in tests/node/node-backend.test.ts)
 - [ ] **systems/storage.md Phase 4**: Browser backend (sql.js adapter, OPFS integration, WASM loading)
 - [x] **systems/storage.md Phase 6**: Dirty tracking ✅ (markDirty, getDirtyElements, clearDirty, clearDirtyElements in BunStorageBackend)
 - [x] **systems/storage.md Phase 7**: Content hashing ✅ (computeContentHashSync in sync/hash.ts, integrated with create/update in elemental-api.ts, hash column in schema)

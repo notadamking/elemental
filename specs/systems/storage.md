@@ -313,10 +313,10 @@ Convert SQLite errors to Elemental errors:
 - [x] Test all operations (src/storage/bun-backend.test.ts)
 - [x] Optimize for performance (using native Bun SQLite bindings)
 
-### Phase 3: Node Backend
-- [ ] Implement better-sqlite3 adapter
-- [ ] Test compatibility
-- [ ] Handle sync vs async differences
+### Phase 3: Node Backend ✅
+- [x] Implement better-sqlite3 adapter (src/storage/node-backend.ts - NodeStorageBackend class, createNodeStorage factory)
+- [x] Test compatibility (tests/node/node-backend.test.ts - 33 tests using vitest for Node.js runtime)
+- [x] Handle sync vs async differences (both backends use synchronous API; async factory available via createStorageAsync)
 
 ### Phase 4: Browser Backend
 - [ ] Implement sql.js adapter
@@ -342,7 +342,8 @@ Convert SQLite errors to Elemental errors:
 - [x] Add hash column to schema (content_hash column with index in migration 1)
 
 ### Phase 8: Testing
-- [x] Unit tests per backend (src/storage/bun-backend.test.ts)
-- [x] Integration tests for transactions (src/storage/bun-backend.test.ts)
+- [x] Unit tests per backend (src/storage/bun-backend.test.ts, tests/node/node-backend.test.ts)
+- [x] Integration tests for transactions (src/storage/bun-backend.test.ts, tests/node/node-backend.test.ts)
 - [x] Migration tests (src/storage/schema.test.ts - 68 tests)
-- [ ] Cross-runtime compatibility tests (pending Node/Browser backends)
+- [x] Node.js backend tests (tests/node/node-backend.test.ts - 33 tests using vitest)
+- [ ] Cross-runtime compatibility tests (pending Browser backend)
