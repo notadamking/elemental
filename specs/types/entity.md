@@ -278,9 +278,9 @@ When enabled:
 - [ ] Integrate with Team membership
 - [ ] Add CLI commands (register, list pending; whoami ✅ in src/cli/commands/identity.ts)
 
-### Phase 7: Testing
+### Phase 7: Testing (Partial ✅)
 - [x] Unit tests for name validation
 - [ ] Unit tests for signature verification
-- [ ] Integration tests for uniqueness
+- [x] Integration tests for uniqueness ✅ (6 tests in soft-identity.integration.test.ts)
 - [ ] E2E tests for entity lifecycle
 - [x] Property-based tests for name generation

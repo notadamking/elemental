@@ -253,7 +253,8 @@ Recommended implementation sequence:
 - [ ] **types/task.md Phase 6**: Unit tests for ready/blocked computation with dependencies, integration tests for hydration, E2E tests for task lifecycle
 - [ ] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows
 - [ ] **types/document.md Phase 7**: Integration tests for history queries, E2E tests for Document lifecycle
-- [ ] **types/entity.md Phase 7**: Integration tests for uniqueness, E2E tests for entity lifecycle
+- [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests in soft-identity.integration.test.ts)
+- [ ] **types/entity.md Phase 7**: E2E tests for entity lifecycle
 - [ ] **types/plan.md Phase 8**: Unit tests for status transitions, progress calculation; integration tests; E2E tests
 - [ ] **types/workflow.md Phase 8**: Unit tests for pouring logic; integration tests for full pour flow; E2E tests
 - [ ] **types/playbook.md Phase 9**: Unit tests for inheritance; integration tests for full pour; E2E tests
