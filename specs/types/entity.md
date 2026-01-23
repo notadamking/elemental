@@ -276,7 +276,7 @@ When enabled:
 - [ ] Integrate with Message sender validation
 - [ ] Integrate with Channel membership
 - [ ] Integrate with Team membership
-- [ ] Add CLI commands (register, list pending; whoami ✅ in src/cli/commands/identity.ts)
+- [x] Add CLI commands ✅ (entity register, entity list in src/cli/commands/entity.ts; whoami in src/cli/commands/identity.ts - 40 tests)
 
 ### Phase 7: Testing (Partial ✅)
 - [x] Unit tests for name validation

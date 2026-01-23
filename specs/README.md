@@ -237,7 +237,7 @@ Recommended implementation sequence:
 - [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset, edit implemented in src/cli/commands/config.ts - 28 tests)
 - [x] **types/task.md Phase 5 (partial)**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)
 - [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system (pending)
-- [ ] **types/entity.md Phase 6**: CLI commands (register, list pending; whoami ✅)
+- [x] **types/entity.md Phase 6**: CLI commands ✅ (entity register, entity list - 40 tests; whoami - 39 tests)
 - [ ] **types/message.md Phase 7**: CLI commands (send, thread)
 
 #### Error Handling & Validation (Priority: Low)

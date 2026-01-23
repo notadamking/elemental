@@ -406,6 +406,12 @@ User-friendly errors:
 - [x] Implement identity mode subcommand (show/set identity mode)
 - [x] Unit tests (src/cli/commands/identity.test.ts - 39 tests)
 
+### Phase 6.6: Entity Commands ✅
+- [x] Implement entity register (src/cli/commands/entity.ts - register agent/human/system entities, tags, public key)
+- [x] Implement entity list (src/cli/commands/entity.ts - list with type filter, limit)
+- [x] Implement entity command (parent command with subcommands)
+- [x] Unit tests (src/cli/commands/entity.test.ts - 40 tests)
+
 ### Phase 7: Admin Commands ✅
 - [x] Implement config (src/cli/commands/config.ts - show, set, unset subcommands)
 - [x] Implement stats (src/cli/commands/stats.ts - workspace statistics, 11 tests)
