@@ -38,12 +38,16 @@ for (const [long, def] of Object.entries(GLOBAL_OPTIONS)) {
  *
  * @param argv - Raw arguments (typically process.argv.slice(2))
  * @param commandOptions - Optional command-specific option definitions
+ * @param parserOptions - Parser options
+ * @param parserOptions.strict - If false, unknown options are skipped instead of throwing (default: true)
  * @returns Parsed command line structure
  */
 export function parseArgs(
   argv: string[],
-  commandOptions: CommandOption[] = []
+  commandOptions: CommandOption[] = [],
+  parserOptions: { strict?: boolean } = {}
 ): ParsedCommandLine {
+  const { strict = true } = parserOptions;
   const command: string[] = [];
   const args: string[] = [];
   const options: GlobalOptions = { ...DEFAULT_GLOBAL_OPTIONS };
@@ -144,7 +148,12 @@ export function parseArgs(
       }
 
       // Unknown option
-      throw new Error(`Unknown option: ${optName}`);
+      if (strict) {
+        throw new Error(`Unknown option: ${optName}`);
+      }
+      // In non-strict mode, skip unknown options (and their values if using = syntax)
+      i++;
+      continue;
     }
 
     // Commands and positional arguments

@@ -5,6 +5,10 @@
   "description": "A foundational library for building agent coordination systems",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "el": "./bin/el.ts",
+    "elemental": "./bin/el.ts"
+  },
   "scripts": {
     "build": "tsc",
     "test": "bun test",
