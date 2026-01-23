@@ -257,7 +257,7 @@ Recommended implementation sequence:
 - [ ] **types/channel.md Phase 9**: Integration tests for membership; E2E tests for messaging flow
 - [ ] **types/library.md Phase 7**: Unit tests for association/hierarchy; integration tests; E2E tests
 - [ ] **types/team.md Phase 8**: Integration tests for task assignment; E2E tests for team workflows
-- [ ] **api/sync.md Phase 9**: Integration tests for sync
+- [x] **api/sync.md Phase 9**: Integration tests for sync ✅ (24 tests in service.test.ts)
 - [x] **api/configuration.md Phase 8**: Integration tests for CLI ✅ (20 tests in src/cli/commands/config.test.ts)
 - [ ] **api/errors.md Phase 7**: Integration tests for propagation, CLI output tests
 
