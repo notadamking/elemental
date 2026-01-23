@@ -61,13 +61,15 @@ export function loadConfig(options: LoadConfigOptions = {}): Configuration {
   let config = getDefaultConfig();
   let tracked = createTrackedDefaults();
 
-  // Discover config file (check env override first)
+  // Discover config file (check env override first, skip if requested)
   const envConfigPath = options.skipEnv ? undefined : getEnvConfigPath();
-  const discovery = discoverConfigFile(options.configPath ?? envConfigPath);
+  const discovery = options.skipFile
+    ? { exists: false, path: undefined }
+    : discoverConfigFile(options.configPath ?? envConfigPath);
   activeConfigPath = discovery.path;
 
-  // Load from file if exists
-  if (discovery.exists && discovery.path) {
+  // Load from file if exists (and not skipped)
+  if (!options.skipFile && discovery.exists && discovery.path) {
     try {
       const fileConfig = readConfigFile(discovery.path);
       config = mergeConfiguration(config, fileConfig);

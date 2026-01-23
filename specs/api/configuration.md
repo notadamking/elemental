@@ -352,4 +352,4 @@ Optional: Watch config file:
 - [x] Integration tests for CLI (20 tests in src/cli/commands/config.test.ts)
 
 ### Known Issues
-- [ ] **config.test.ts:888** - "gets nested values" test fails when running in a workspace with a config.yaml that overrides defaults. The test expects `sync.autoExport` to be `true` (default) but the project's `.elemental/config.yaml` sets it to `false`. The test should use `configPath` to point to a non-existent file or use defaults-only mode.
+- [x] **config.test.ts:888** - "gets nested values" test fixed ✅ - Added `skipFile` option to `LoadConfigOptions` allowing tests to use defaults only without interference from project config files.

@@ -223,6 +223,8 @@ export interface LoadConfigOptions {
   configPath?: string;
   /** Skip environment variables */
   skipEnv?: boolean;
+  /** Skip config file loading (use defaults only) */
+  skipFile?: boolean;
   /** CLI flag overrides */
   cliOverrides?: PartialConfiguration;
 }

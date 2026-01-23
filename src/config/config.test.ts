@@ -875,8 +875,8 @@ describe('Configuration API', () => {
   describe('getValue', () => {
     beforeEach(() => {
       clearConfigCache();
-      // Load with known config
-      loadConfig({ skipEnv: true, cliOverrides: { actor: 'test-agent' } });
+      // Load with defaults only (skip file to avoid project config interference)
+      loadConfig({ skipEnv: true, skipFile: true, cliOverrides: { actor: 'test-agent' } });
     });
 
     test('gets top-level values', () => {
