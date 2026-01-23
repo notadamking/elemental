@@ -241,6 +241,151 @@ describe('config unset command', () => {
 });
 
 // ============================================================================
+// Config Edit Tests
+// ============================================================================
+
+describe('config edit command', () => {
+  test('has edit subcommand registered', () => {
+    expect(configCommand.subcommands).toBeDefined();
+    expect(configCommand.subcommands!.edit).toBeDefined();
+    expect(configCommand.subcommands!.edit.name).toBe('edit');
+  });
+
+  test('has help text for edit subcommand', () => {
+    expect(configCommand.subcommands!.edit.help).toBeDefined();
+    expect(configCommand.subcommands!.edit.help).toContain('Open');
+    expect(configCommand.subcommands!.edit.help).toContain('editor');
+  });
+
+  test('has usage text for edit subcommand', () => {
+    expect(configCommand.subcommands!.edit.usage).toBeDefined();
+    expect(configCommand.subcommands!.edit.usage).toContain('edit');
+  });
+
+  test('creates config file if it does not exist', async () => {
+    // Remove the config file
+    rmSync(CONFIG_PATH);
+    expect(existsSync(CONFIG_PATH)).toBe(false);
+
+    const originalCwd = process.cwd();
+    const originalEditor = process.env.EDITOR;
+    process.chdir(TEST_DIR);
+    clearConfigCache();
+    loadConfig({ skipEnv: true });
+
+    // Set EDITOR to 'true' which exits immediately with success
+    process.env.EDITOR = 'true';
+
+    try {
+      const options = createTestOptions();
+      const result = await configCommand.subcommands!.edit.handler!([], options);
+
+      // The config file should now exist
+      expect(existsSync(CONFIG_PATH)).toBe(true);
+      expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    } finally {
+      process.chdir(originalCwd);
+      if (originalEditor !== undefined) {
+        process.env.EDITOR = originalEditor;
+      } else {
+        delete process.env.EDITOR;
+      }
+    }
+  });
+
+  test('opens editor with existing config file', async () => {
+    const originalCwd = process.cwd();
+    const originalEditor = process.env.EDITOR;
+    process.chdir(TEST_DIR);
+    clearConfigCache();
+    loadConfig({ skipEnv: true });
+
+    // Set EDITOR to 'true' which exits immediately with success
+    process.env.EDITOR = 'true';
+
+    try {
+      const options = createTestOptions();
+      const result = await configCommand.subcommands!.edit.handler!([], options);
+
+      expect(result.exitCode).toBe(ExitCode.SUCCESS);
+      expect(result.data).toEqual({
+        editor: 'true',
+        path: expect.stringContaining('config.yaml'),
+      });
+    } finally {
+      process.chdir(originalCwd);
+      if (originalEditor !== undefined) {
+        process.env.EDITOR = originalEditor;
+      } else {
+        delete process.env.EDITOR;
+      }
+    }
+  });
+
+  test('respects VISUAL environment variable', async () => {
+    const originalCwd = process.cwd();
+    const originalEditor = process.env.EDITOR;
+    const originalVisual = process.env.VISUAL;
+    process.chdir(TEST_DIR);
+    clearConfigCache();
+    loadConfig({ skipEnv: true });
+
+    // Clear EDITOR and set VISUAL
+    delete process.env.EDITOR;
+    process.env.VISUAL = 'true';
+
+    try {
+      const options = createTestOptions();
+      const result = await configCommand.subcommands!.edit.handler!([], options);
+
+      expect(result.exitCode).toBe(ExitCode.SUCCESS);
+      expect(result.data).toEqual({
+        editor: 'true',
+        path: expect.stringContaining('config.yaml'),
+      });
+    } finally {
+      process.chdir(originalCwd);
+      if (originalEditor !== undefined) {
+        process.env.EDITOR = originalEditor;
+      } else {
+        delete process.env.EDITOR;
+      }
+      if (originalVisual !== undefined) {
+        process.env.VISUAL = originalVisual;
+      } else {
+        delete process.env.VISUAL;
+      }
+    }
+  });
+
+  test('returns error when editor fails', async () => {
+    const originalCwd = process.cwd();
+    const originalEditor = process.env.EDITOR;
+    process.chdir(TEST_DIR);
+    clearConfigCache();
+    loadConfig({ skipEnv: true });
+
+    // Set EDITOR to 'false' which exits with failure
+    process.env.EDITOR = 'false';
+
+    try {
+      const options = createTestOptions();
+      const result = await configCommand.subcommands!.edit.handler!([], options);
+
+      expect(result.exitCode).toBe(ExitCode.GENERAL_ERROR);
+      expect(result.error).toContain('exited with status');
+    } finally {
+      process.chdir(originalCwd);
+      if (originalEditor !== undefined) {
+        process.env.EDITOR = originalEditor;
+      } else {
+        delete process.env.EDITOR;
+      }
+    }
+  });
+});
+
+// ============================================================================
 // Subcommand Registration Tests
 // ============================================================================
 
@@ -261,6 +406,12 @@ describe('config command structure', () => {
     expect(configCommand.subcommands).toBeDefined();
     expect(configCommand.subcommands!.unset).toBeDefined();
     expect(configCommand.subcommands!.unset.name).toBe('unset');
+  });
+
+  test('has edit subcommand', () => {
+    expect(configCommand.subcommands).toBeDefined();
+    expect(configCommand.subcommands!.edit).toBeDefined();
+    expect(configCommand.subcommands!.edit.name).toBe('edit');
   });
 
   test('default handler shows config', async () => {

@@ -337,7 +337,7 @@ Optional: Watch config file:
 - [x] Implement config show (src/cli/commands/config.ts)
 - [x] Implement config set (src/cli/commands/config.ts)
 - [x] Implement config unset (src/cli/commands/config.ts)
-- [ ] Implement config edit (opens editor - not yet implemented)
+- [x] Implement config edit ✅ (src/cli/commands/config.ts - opens $EDITOR/$VISUAL/platform default, creates file if needed, 8 tests)
 
 ### Phase 7: Validation ✅
 - [x] Implement type validation (isValidActor, isValidDatabase, etc.)

@@ -201,7 +201,8 @@ Recommended implementation sequence:
 - [x] **types/entity.md Phase 2**: Name uniqueness validation ✅ (storage-level check in create(), DUPLICATE_NAME error)
 - [x] **types/entity.md Phase 3**: Entity listing queries ✅ (name-based lookup, whoami, api.list({ type: 'entity' }))
 - [x] **types/entity.md Phase 4**: Ed25519 signature verification integration, signature validation to API ✅ (systems/identity.ts)
-- [ ] **types/entity.md Phase 5**: Entity update, deactivation, search/filter, assignment queries
+- [x] **types/entity.md Phase 5** (partial): Entity update ✅ (updateEntity in src/types/entity.ts - publicKey, tags, metadata; 11 tests)
+- [ ] **types/entity.md Phase 5**: Entity deactivation, search/filter, assignment queries
 - [ ] **types/document.md Phase 3-4**: Version table schema integration, getDocumentVersion/getDocumentHistory (storage layer)
 - [ ] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child)
 
@@ -233,7 +234,7 @@ Recommended implementation sequence:
 - [x] **api/cli.md Phase 6**: Sync commands ✅ (export, import, status - 46 tests)
 - [x] **api/cli.md Phase 7**: Admin commands ✅ (config show/set/unset, stats - 11 tests, doctor - health checks, schema validation, integrity checks, 31 tests, migrate - schema migration with dry-run)
 - [ ] **api/cli.md Phase 8**: Shell completion, command aliases
-- [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset implemented in src/cli/commands/config.ts; edit pending)
+- [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset, edit implemented in src/cli/commands/config.ts - 28 tests)
 - [x] **types/task.md Phase 5 (partial)**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)
 - [ ] **types/task.md Phase 5**: Integration with dependency system, blocked cache, event system (pending)
 - [ ] **types/entity.md Phase 6**: CLI commands (register, list pending; whoami ✅)
