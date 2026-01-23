@@ -252,10 +252,10 @@ When enabled:
 - [x] Create name conflict error handling ✅ (throws ConflictError with DUPLICATE_NAME code)
 - [x] Unit tests for name validation ✅ (6 new tests in soft-identity.integration.test.ts)
 
-### Phase 3: Soft Identity (Partial ✅)
+### Phase 3: Soft Identity ✅
 - [x] Implement entity registration (`createEntity`)
 - [x] Implement name-based lookup ✅ (src/api/elemental-api.ts - lookupEntityByName)
-- [ ] Add entity listing queries (requires query API)
+- [x] Add entity listing queries ✅ (api.list({ type: 'entity' }) - 3 tests in soft-identity.integration.test.ts)
 - [x] Implement `whoami` functionality ✅ (src/cli/commands/identity.ts - whoamiCommand)
 
 ### Phase 4: Cryptographic Identity (Partial ✅)

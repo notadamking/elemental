@@ -125,6 +125,45 @@ describe('Soft Identity Integration', () => {
   });
 
   // --------------------------------------------------------------------------
+  // Entity Listing Tests
+  // --------------------------------------------------------------------------
+
+  describe('entity listing', () => {
+    it('should list all entities', async () => {
+      const alice = await createTestEntity('alice');
+      const bob = await createTestEntity('bob');
+
+      await api.create(toCreateInput(alice));
+      await api.create(toCreateInput(bob));
+
+      const entities = await api.list({ type: 'entity' });
+
+      expect(entities.length).toBe(2);
+      const names = entities.map((e) => (e as Entity).name).sort();
+      expect(names).toEqual(['alice', 'bob']);
+    });
+
+    it('should not list soft-deleted entities', async () => {
+      const alice = await createTestEntity('alice');
+      const bob = await createTestEntity('bob');
+
+      await api.create(toCreateInput(alice));
+      await api.create(toCreateInput(bob));
+      await api.delete(bob.id);
+
+      const entities = await api.list({ type: 'entity' });
+
+      expect(entities.length).toBe(1);
+      expect((entities[0] as Entity).name).toBe('alice');
+    });
+
+    it('should return empty array when no entities exist', async () => {
+      const entities = await api.list({ type: 'entity' });
+      expect(entities).toEqual([]);
+    });
+  });
+
+  // --------------------------------------------------------------------------
   // Update with Actor Tests
   // --------------------------------------------------------------------------
 
