@@ -224,4 +224,4 @@ To fetch a thread:
 - [x] Unit tests for immutability enforcement
 - [x] Unit tests for validation
 - [x] Integration tests for threading
-- [ ] E2E tests for message flows
+- [x] E2E tests for message flows (CLI tests: Direct Messaging Flow, Group Channel Messaging Flow, Threaded Conversation Flow, Channel Lifecycle with Messaging, Messaging Output Formats)
