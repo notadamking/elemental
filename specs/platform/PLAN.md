@@ -508,12 +508,12 @@ For mutations (create, update, delete):
 
 ### Phase 2: Navigation & Layout
 
-- [ ] **TB5: Basic Sidebar Navigation**
-  - [ ] Web: Add TanStack Router
-  - [ ] Web: Create AppShell layout
-  - [ ] Web: Create Sidebar component
-  - [ ] Web: Add routes for `/dashboard` and `/tasks`
-  - [ ] **Verify:** Navigation between pages works
+- [x] **TB5: Basic Sidebar Navigation**
+  - [x] Web: Add TanStack Router
+  - [x] Web: Create AppShell layout
+  - [x] Web: Create Sidebar component
+  - [x] Web: Add routes for `/dashboard` and `/tasks`
+  - [x] **Verify:** Navigation between pages works (Playwright tests passing - 10 tests)
 
 ### Phase 3: Dashboard MVP
 

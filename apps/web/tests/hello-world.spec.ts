@@ -4,7 +4,8 @@ test.describe('TB1: Hello World Full Stack', () => {
   test('page loads and shows Elemental title', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle('Elemental');
-    await expect(page.getByRole('heading', { name: 'Elemental' })).toBeVisible();
+    // Elemental text is in the sidebar
+    await expect(page.getByTestId('sidebar').getByText('Elemental')).toBeVisible();
   });
 
   test('connection status shows Live', async ({ page }) => {
