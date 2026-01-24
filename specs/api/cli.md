@@ -99,8 +99,13 @@ Task-specific commands:
 |---------|-------------|
 | `plan create` | Create plan |
 | `plan list` | List plans |
-| `plan show <id>` | Show plan details |
-| `plan close <id>` | Close plan |
+| `plan show <id>` | Show plan details with progress |
+| `plan activate <id>` | Activate a draft plan |
+| `plan complete <id>` | Complete an active plan |
+| `plan cancel <id>` | Cancel a plan |
+| `plan add-task <plan> <task>` | Add task to plan |
+| `plan remove-task <plan> <task>` | Remove task from plan |
+| `plan tasks <id>` | List tasks in plan |
 
 ### Workflow Operations
 
@@ -264,6 +269,89 @@ List ready tasks:
 | `--type` | Filter by task type |
 | `--limit` | Maximum results |
 
+### el plan create
+
+Create a new plan:
+
+| Flag | Description |
+|------|-------------|
+| `--title` | Plan title (required) |
+| `--status` | Initial status: draft (default) or active |
+| `--tag` | Add tag (repeatable) |
+
+Example: `el plan create --title "Q1 Roadmap" --tag sprint`
+
+### el plan list
+
+List plans:
+
+| Flag | Description |
+|------|-------------|
+| `--status` | Filter by status (draft, active, completed, cancelled) |
+| `--tag` | Filter by tag (repeatable for AND) |
+| `--limit` | Maximum results |
+
+### el plan show
+
+Show plan details with progress:
+
+| Flag | Description |
+|------|-------------|
+| `--tasks` | Include list of tasks in the plan |
+
+Example: `el plan show el-abc123 --tasks`
+
+### el plan activate
+
+Activate a draft plan (transition draft → active).
+
+Example: `el plan activate el-abc123`
+
+### el plan complete
+
+Complete an active plan (transition active → completed).
+
+Example: `el plan complete el-abc123`
+
+### el plan cancel
+
+Cancel a plan (draft or active → cancelled):
+
+| Flag | Description |
+|------|-------------|
+| `--reason` | Cancellation reason |
+
+Example: `el plan cancel el-abc123 --reason "Requirements changed"`
+
+### el plan add-task
+
+Add an existing task to a plan:
+
+```
+el plan add-task <plan-id> <task-id>
+```
+
+Example: `el plan add-task el-plan123 el-task456`
+
+### el plan remove-task
+
+Remove a task from a plan:
+
+```
+el plan remove-task <plan-id> <task-id>
+```
+
+### el plan tasks
+
+List tasks in a plan:
+
+| Flag | Description |
+|------|-------------|
+| `--status` | Filter by task status |
+| `--limit` | Maximum results |
+
+Example: `el plan tasks el-abc123 --status open`
+
 ### el workflow pour
 
 Instantiate playbook:
@@ -386,7 +474,7 @@ User-friendly errors:
 - [x] Unit tests (src/cli/commands/dep.test.ts - 44 tests)
 
 ### Phase 5: Collection Commands
-- [ ] Implement plan commands
+- [x] Implement plan commands (src/cli/commands/plan.ts - create, list, show, activate, complete, cancel, add-task, remove-task, tasks)
 - [ ] Implement workflow commands
 - [ ] Implement playbook commands
 - [ ] Implement channel commands
