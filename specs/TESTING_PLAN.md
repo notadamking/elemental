@@ -5116,15 +5116,20 @@ Key findings:
 - [x] Arrays shown as JSON arrays in Details section
 - [x] Timestamps preserved in ISO 8601 format
 - [x] Nested objects shown with proper indentation
+- [ ] **FAIL**: Cleared/null fields shown as 'undefined' in Details section
+  - **UX el-fatv:** closedAt, scheduledFor, actor show 'undefined' instead of being omitted
+  - Affects: reopen (closedAt: undefined), undefer (scheduledFor: undefined), config (actor: undefined)
+  - JSON output correctly omits these fields
 
 **Success Criteria:** Verbose mode provides consistent additional information across all commands
-- **Partial:** Verbose mode works across all commands but has duplicate output issue for single-element commands
+- **Partial:** Verbose mode works across all commands but has duplicate output issue and undefined field display
 
 **Issues Found:**
 
 | ID | Summary | Priority | Category |
 |----|---------|----------|----------|
 | el-3taj | UX: el show --verbose outputs data twice (human-readable + Details section) | 4 | ux |
+| el-fatv | UX: Verbose output shows 'undefined' for cleared/null fields | 5 | ux |
 
 **Issues Confirmed:**
 
@@ -5135,6 +5140,8 @@ Key findings:
 **Dependencies:**
 - el-3taj → el-3iux (relates-to: both verbose mode output issues)
 - el-3taj → el-50lc (relates-to: both duplicate output patterns)
+- el-fatv → el-3taj (relates-to: both verbose mode output issues)
+- el-fatv → el-3iux (relates-to: both verbose mode output issues)
 
 **Notes:**
 This evaluation tested the --verbose flag behavior across all command types:
@@ -5143,12 +5150,16 @@ This evaluation tested the --verbose flag behavior across all command types:
 3. Admin commands (stats, doctor, export) consistently show summary + Details
 4. Verbose error output missing expected fields (error code string, Details, stack trace)
 5. Flag precedence is correct (json > verbose, quiet > verbose)
+6. Cleared fields display 'undefined' instead of being omitted like JSON mode
 
-The main issue is that "verbose" doesn't actually provide more information - it just duplicates
-the same data in two formats. Consider either:
+The main issues are:
+- "Verbose" doesn't actually provide more information - it just duplicates data in two formats
+- Inconsistent handling of null/undefined fields compared to JSON output
+Consider either:
 - Adding truly verbose data (timing, queries, internal IDs)
 - Using verbose for a different format (JSON-like vs table)
 - Making verbose consistent across all command types
+- Normalizing undefined fields to omission or null for consistency
 
 ---
 
