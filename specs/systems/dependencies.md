@@ -134,13 +134,21 @@ A task is ready for work when:
 
 Before adding blocking dependencies, verify no cycle would result.
 
+### Self-Referential Check
+
+First, reject self-referential dependencies:
+- If `sourceId === targetId`, reject with `CYCLE_DETECTED`
+- Message: "Cannot create self-referential dependency"
+- This is the simplest form of cycle (length 1)
+
 ### Algorithm
 
-1. Check if dependency type is blocking
-2. If not blocking, allow (no cycle possible in acyclic graph)
-3. Start from target, traverse all blocking dependencies
-4. If source is reachable, cycle would be created
-5. Reject with `CYCLE_DETECTED` error
+1. Reject if source equals target (self-referential)
+2. Check if dependency type is blocking
+3. If not blocking, allow (no cycle possible in acyclic graph)
+4. Start from target, traverse all blocking dependencies
+5. If source is reachable, cycle would be created
+6. Reject with `CYCLE_DETECTED` error
 
 ### Traversal
 

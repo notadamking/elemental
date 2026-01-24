@@ -2276,6 +2276,75 @@ Deleting elements with dependents leaves orphaned dependency records (consequenc
 
 ---
 
+### Scenario: Dependency Command Behavior Evaluation
+
+**Purpose:** Validate dependency management commands (el dep add/remove/list/tree) for correctness and edge case handling
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Self-referential dependency bug found)
+
+**Checkpoints:**
+
+**Basic Dependency Operations:**
+- [x] Add blocking dependency: `el dep add B A --type blocks` works correctly
+- [x] Dependency reflected in list: `el dep list B --json` shows the relationship
+- [x] Blocked status updates: dependent task moves to blocked list
+- [x] Duplicate dependency rejected: exit code 4, clear error message
+- [x] Invalid type rejected: exit code 4, lists valid types
+- [x] Type is required: `el dep add A B` fails with "Required option --type is missing"
+- [x] Metadata support: `el dep add A B --type relates-to --metadata '{"key":"val"}'` works
+- [x] Invalid JSON metadata rejected: exit code 4, clear error
+
+**Element Validation:**
+- [x] Non-existent source rejected: "Source element not found" with exit code 3
+- [x] Non-existent target rejected: "Target element not found" with exit code 3
+- [x] Invalid ID format rejected: returns NOT_FOUND (treated as non-existent)
+- [ ] **FAIL**: Self-referential dependency allowed: `el dep add X X --type blocks` succeeds
+  - **BUG el-4pyu:** Creates cycle of length 1, task blocks itself permanently
+
+**Cross-Element Dependencies:**
+- [x] Document-to-task dependency allowed (expected per spec - dependencies are element-agnostic)
+- [x] Multiple dependency types between same elements allowed
+
+**Dependency Removal:**
+- [x] Remove existing dependency: works correctly
+- [x] Remove non-existent dependency: exit code 3, clear error
+- [x] Type is required for remove: prevents ambiguity when multiple types exist
+
+**Dependency Queries:**
+- [x] `el dep list <id>` returns both directions (dependencies and dependents)
+- [x] `el dep list <id> --direction in` filters to dependents only
+- [x] `el dep list <id> --type blocks` filters by type
+- [x] `el dep list <non-existent>` returns exit code 3
+- [x] `el dep tree <id>` shows visual tree representation
+- [x] `el dep tree <id> --json` returns hierarchical JSON
+- [x] `el dep tree <non-existent>` returns exit code 3
+
+**Cycle Detection:**
+- [ ] **FAIL**: Circular dependencies allowed: A→B→A succeeds
+  - **BUG el-5w9d:** (pre-existing) Cycle detection not enforced
+- [ ] **FAIL**: Self-referential dependency allowed: A→A succeeds
+  - **BUG el-4pyu:** Special case of cycle (length 1)
+
+**Blocking Resolution:**
+- [x] Closing blocker unblocks dependent: correctly updates blocked cache
+- [x] Reopening blocker re-blocks dependent: correctly updates blocked cache
+
+**Success Criteria:** Dependency commands handle edge cases and validate inputs correctly
+- **Partial:** Core operations work, but self-referential and cyclic dependencies are allowed
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4pyu | `el dep add` allows self-referential dependencies (A blocks A) | 3 | bug |
+
+**Dependencies:**
+- el-4pyu → el-5w9d (relates-to: self-referential is cycle of length 1)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
