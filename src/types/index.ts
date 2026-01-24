@@ -373,3 +373,21 @@ export {
   isValidChannelId as isValidChannelChannelId,
   validateChannelId as validateChannelChannelId,
 } from './channel.js';
+
+// Workflow pouring exports
+export {
+  // Types
+  type PourWorkflowInput,
+  type CreatedTask,
+  type PourWorkflowResult,
+  type TaskCreator,
+  type PourOptions,
+  // Auto-status detection
+  shouldAutoComplete,
+  shouldAutoFail,
+  shouldAutoStart,
+  computeWorkflowStatus,
+  // Pouring functions
+  pourWorkflow,
+  validatePour,
+} from './workflow-pour.js';

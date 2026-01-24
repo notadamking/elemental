@@ -245,28 +245,32 @@ On export:
 - [x] Implement garbage collection helpers (src/types/workflow.ts)
 - [x] Unit tests - 121 tests (src/types/workflow.test.ts)
 
-### Phase 2: Lifecycle Management
-- [ ] Implement auto-completion detection (requires task service integration)
-- [ ] Implement auto-failure detection (requires task service integration)
+### Phase 2: Lifecycle Management ✅
+- [x] Implement auto-completion detection (src/types/workflow-pour.ts:shouldAutoComplete)
+- [x] Implement auto-failure detection (src/types/workflow-pour.ts:shouldAutoFail)
+- [x] Implement auto-start detection (src/types/workflow-pour.ts:shouldAutoStart)
+- [x] Implement computeWorkflowStatus helper (src/types/workflow-pour.ts:computeWorkflowStatus)
 - [ ] Create status change event emission (requires event service integration)
 
-### Phase 3: Pouring
-- [ ] Implement playbook loading
-- [ ] Implement variable resolution
-- [ ] Implement condition evaluation
-- [ ] Implement variable substitution
-- [ ] Implement task creation
-- [ ] Implement dependency wiring
+### Phase 3: Pouring ✅
+- [x] Implement playbook loading (src/types/workflow-pour.ts:pourWorkflow uses resolvePlaybookInheritance)
+- [x] Implement variable resolution (src/types/workflow-pour.ts uses resolveVariables from playbook.ts)
+- [x] Implement condition evaluation (src/types/workflow-pour.ts uses filterStepsByConditions from playbook.ts)
+- [x] Implement variable substitution (src/types/workflow-pour.ts uses substituteVariables from playbook.ts)
+- [x] Implement task creation (src/types/workflow-pour.ts:createTaskFromStep)
+- [x] Implement dependency wiring (src/types/workflow-pour.ts:createBlocksDependencies, createParentChildDependencies)
+- [x] Implement validatePour for dry-run validation (src/types/workflow-pour.ts:validatePour)
+- [x] Unit tests - 59 tests (src/types/workflow-pour.test.ts)
 
 ### Phase 4: Ephemeral Support
 - [ ] Implement ephemeral filtering in export
 - [ ] Implement `burn` operation (delete workflow and tasks)
 - [ ] Implement garbage collection service
 
-### Phase 5: Task Association
-- [ ] Implement task-to-workflow linking
-- [ ] Implement hierarchical ID generation
-- [ ] Implement task ordering
+### Phase 5: Task Association ✅
+- [x] Implement task-to-workflow linking (src/types/workflow-pour.ts:createParentChildDependencies)
+- [x] Implement hierarchical ID generation (src/types/workflow-pour.ts uses generateChildId)
+- [ ] Implement task ordering queries
 
 ### Phase 6: Queries
 - [ ] Implement workflow listing
@@ -275,14 +279,14 @@ On export:
 - [ ] Add ephemeral filtering
 
 ### Phase 7: Integration
-- [ ] Integrate with Playbook system
-- [ ] Integrate with dependency system
+- [x] Integrate with Playbook system (src/types/workflow-pour.ts uses playbook inheritance)
+- [x] Integrate with dependency system (creates blocks and parent-child dependencies)
 - [ ] Integrate with export system
 - [ ] Add CLI commands (pour, burn, squash, gc)
 
 ### Phase 8: Testing
 - [x] Unit tests for status transitions (src/types/workflow.test.ts)
-- [ ] Unit tests for pouring logic
+- [x] Unit tests for pouring logic - 59 tests (src/types/workflow-pour.test.ts)
 - [x] Unit tests for ephemeral filtering (src/types/workflow.test.ts)
 - [ ] Integration tests for full pour flow
 - [ ] E2E tests for workflow lifecycle
