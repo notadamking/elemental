@@ -155,6 +155,48 @@ describe('entity register command', () => {
     expect((result.data as { publicKey: string }).publicKey).toBe(validKey);
   });
 
+  test('rejects invalid public key - too short', async () => {
+    const options = createTestOptions({ 'public-key': 'abc' } as GlobalOptions & { 'public-key': string });
+    const result = await entityRegisterCommand.handler!(['invalid-key-entity'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid public key format');
+  });
+
+  test('rejects invalid public key - not base64', async () => {
+    const options = createTestOptions({ 'public-key': 'invalid-key-not-base64!!!' } as GlobalOptions & { 'public-key': string });
+    const result = await entityRegisterCommand.handler!(['invalid-key-entity2'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid public key format');
+  });
+
+  test('rejects empty public key', async () => {
+    const options = createTestOptions({ 'public-key': '' } as GlobalOptions & { 'public-key': string });
+    const result = await entityRegisterCommand.handler!(['empty-key-entity'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid public key format');
+  });
+
+  test('rejects public key with wrong length - too long', async () => {
+    // 45 characters instead of 44
+    const options = createTestOptions({ 'public-key': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as GlobalOptions & { 'public-key': string });
+    const result = await entityRegisterCommand.handler!(['long-key-entity'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid public key format');
+  });
+
+  test('rejects public key without proper base64 padding', async () => {
+    // Missing the trailing '=' that makes it 44 chars
+    const options = createTestOptions({ 'public-key': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' } as GlobalOptions & { 'public-key': string });
+    const result = await entityRegisterCommand.handler!(['nopad-key-entity'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid public key format');
+  });
+
   test('outputs JSON in JSON mode', async () => {
     const options = createTestOptions({ json: true });
     const result = await entityRegisterCommand.handler!(['json-entity'], options);

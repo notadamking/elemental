@@ -18,6 +18,7 @@ import type { Element, EntityId } from '../../types/element.js';
 import type { ElementalAPI } from '../../api/types.js';
 import { ValidationError, ConflictError } from '../../errors/error.js';
 import { getValue, loadConfig } from '../../config/index.js';
+import { isValidPublicKey } from '../../systems/identity.js';
 
 // ============================================================================
 // Constants
@@ -120,6 +121,16 @@ async function entityRegisterHandler(
     const actor = getActor(options);
     const tags = options.tag || [];
     const publicKey = options['public-key'];
+
+    // Validate public key format if provided
+    if (publicKey !== undefined) {
+      if (!isValidPublicKey(publicKey)) {
+        return failure(
+          'Invalid public key format. Expected base64-encoded Ed25519 public key (44 characters ending with =)',
+          ExitCode.VALIDATION
+        );
+      }
+    }
 
     const input: CreateEntityInput = {
       name,
