@@ -37,7 +37,8 @@ test.describe('TB1: Hello World Full Stack', () => {
     // Wait for stats to load
     await expect(page.getByText('System Overview')).toBeVisible();
     await expect(page.getByText('Total Elements')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Ready Tasks')).toBeVisible();
+    // Use the stats card "Ready Tasks" heading (uppercase) - the first one
+    await expect(page.getByRole('heading', { name: 'Ready Tasks' }).first()).toBeVisible();
     await expect(page.getByText('Blocked Tasks')).toBeVisible();
     await expect(page.getByText('Total Events')).toBeVisible();
   });
@@ -46,6 +47,6 @@ test.describe('TB1: Hello World Full Stack', () => {
     await page.goto('/');
     await expect(page.getByText('Server Info')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Database')).toBeVisible();
-    await expect(page.getByText(/\.elemental\/db/)).toBeVisible();
+    await expect(page.getByText(/\.elemental\/elemental\.db/)).toBeVisible();
   });
 });

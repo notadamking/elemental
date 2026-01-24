@@ -18,10 +18,10 @@ import type { ElementalAPI } from '@elemental/cli';
 const PORT = parseInt(process.env.PORT || '3456', 10);
 const HOST = process.env.HOST || 'localhost';
 
-// Database path - defaults to .elemental/db in project root
+// Database path - defaults to .elemental/elemental.db in project root
 // Resolve relative paths from the project root (two levels up from apps/server/src)
 const PROJECT_ROOT = resolve(dirname(import.meta.path), '../../..');
-const DEFAULT_DB_PATH = resolve(PROJECT_ROOT, '.elemental/db');
+const DEFAULT_DB_PATH = resolve(PROJECT_ROOT, '.elemental/elemental.db');
 const DB_PATH = process.env.ELEMENTAL_DB_PATH || DEFAULT_DB_PATH;
 
 // ============================================================================
@@ -80,6 +80,20 @@ app.get('/api/stats', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get stats:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get stats' } }, 500);
+  }
+});
+
+// ============================================================================
+// Tasks Endpoints
+// ============================================================================
+
+app.get('/api/tasks/ready', async (c) => {
+  try {
+    const tasks = await api.ready();
+    return c.json(tasks);
+  } catch (error) {
+    console.error('[elemental] Failed to get ready tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get ready tasks' } }, 500);
   }
 });
 

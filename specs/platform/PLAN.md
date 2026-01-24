@@ -492,11 +492,11 @@ For mutations (create, update, delete):
   - [x] Web: Add TanStack Query
   - [x] **Verify:** Stats card shows real database numbers (Playwright tests passing)
 
-- [ ] **TB3: Ready Tasks List**
-  - [ ] Server: Add `GET /api/tasks/ready` endpoint
-  - [ ] Web: Create ReadyTasksList component
-  - [ ] Web: Add `useReadyTasks()` hook
-  - [ ] **Verify:** List shows tasks from database
+- [x] **TB3: Ready Tasks List**
+  - [x] Server: Add `GET /api/tasks/ready` endpoint
+  - [x] Web: Create ReadyTasksList component
+  - [x] Web: Add `useReadyTasks()` hook
+  - [x] **Verify:** List shows tasks from database (Playwright tests passing)
 
 - [ ] **TB4: Real-time Updates (WebSocket)**
   - [ ] Server: Add WebSocket endpoint `/ws`
