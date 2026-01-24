@@ -386,3 +386,26 @@ Import in transaction:
 - [x] Unit tests for merge ✅ (LWW, tombstones, status merge, tags merge, dependency merge)
 - [x] Integration tests for sync ✅ (24 tests in service.test.ts covering export/import/round-trip)
 - [x] Conflict resolution tests ✅ (ConflictRecord generation, resolution scenarios)
+
+## Known Issues
+
+### Blocked Cache Not Rebuilt During Import (el-1dwc)
+
+**Status:** Open - CRITICAL
+
+The import process does not rebuild the blocked_cache table after importing elements and dependencies. This causes:
+
+1. `el blocked` returns empty array even when blocked tasks exist
+2. Tasks with status "blocked" don't appear in blocked list
+3. Closing a blocker task doesn't unblock dependent tasks
+4. Effectively renders the ready/blocked system broken for imported workspaces
+
+**Workaround:** Manually update task status with `el update <task> --status open` for each affected task.
+
+**Required Fix:** Import should call blocked cache rebuild after importing dependencies. See step 6 in "Full Import" section.
+
+### Doctor False-Positive for Blocked Cache (el-64o6)
+
+**Status:** Open
+
+`el doctor` reports "Blocked cache is consistent" even when the blocked_cache table is empty after import. This masks the el-1dwc bug.

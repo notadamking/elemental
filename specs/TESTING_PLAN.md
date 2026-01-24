@@ -5351,6 +5351,115 @@ The alias system is purely cosmetic convenience for top-level commands.
 
 ---
 
+### Scenario: Import/Export Data Integrity with Dependency Chains
+
+**Purpose:** Evaluate import/export sync operations with complex dependency chains, verifying that blocked cache is correctly rebuilt and all task states are preserved during cross-workspace sync
+
+**Prerequisites:** Two workspace directories
+
+**Status:** TESTED - 2026-01-24 (CRITICAL BUG CONFIRMED - Blocked Cache Not Rebuilt)
+
+**Checkpoints:**
+
+**Export Operations:**
+- [x] `el export --json` performs incremental export (dirty elements only)
+- [x] `el export --full --json` exports all elements and dependencies
+- [x] Export to custom path: `el export -o /custom/path --json`
+- [x] Export creates valid JSONL files
+- [x] Export preserves all element fields including scheduledFor, closedAt, etc.
+- [x] Quiet mode: `el export --quiet` returns "elements:dependencies" format
+
+**Import Operations:**
+- [x] `el import --json` imports elements and dependencies from sync directory
+- [x] Import to empty workspace: all elements and dependencies imported
+- [x] Import to existing workspace: skips duplicate elements (by ID)
+- [x] `el import --dry-run` shows what would change without modifying
+- [x] Import from custom path: `el import -i /custom/path --json`
+- [x] Non-existent path: returns exit code 3 with clear error
+- [x] Quiet mode: `el import --quiet` returns "elements:dependencies" format
+
+**Data Integrity After Import:**
+- [x] Element IDs preserved exactly
+- [x] Timestamps (createdAt, updatedAt) preserved exactly
+- [x] Task status field preserved (open, blocked, deferred, etc.)
+- [x] scheduledFor field preserved for deferred tasks
+- [x] Dependencies imported correctly with all metadata
+- [x] Entity references preserved (createdBy, assignee)
+
+**Blocked Cache Rebuild (CRITICAL FAILURES):**
+- [ ] **CRITICAL BUG el-1dwc (CONFIRMED):** Blocked cache NOT rebuilt during import
+  - blocked_cache table is empty after import
+  - `el blocked --json` returns empty array
+  - Tasks have status: "blocked" but don't appear in blocked list
+- [ ] **BUG el-64o6 (NEW):** `el doctor` reports "Blocked cache is consistent" incorrectly
+  - Doctor gives false confidence that workspace is healthy
+  - Masks the blocked cache corruption issue
+
+**Unblocking After Import (CRITICAL FAILURE):**
+- [ ] **CRITICAL:** Closing blocker does NOT unblock dependent tasks
+  - After import, close root task (el-67n9)
+  - Child task (el-2xy3) REMAINS status: "blocked"
+  - Child task does NOT appear in ready list
+  - Child task does NOT appear in blocked list
+  - Task is effectively orphaned - neither ready nor blocked
+
+**Recovery Path:**
+- [x] Manual status update: `el update <task> --status open` works
+  - Task appears in ready list after manual fix
+  - But downstream blocked tasks still broken
+- [ ] **MISSING:** No automated way to rebuild blocked cache
+  - `el doctor` does not offer repair option
+  - No `el blocked rebuild` command
+
+**Conflict Handling:**
+- [x] Default LWW (Last-Write-Wins): later updatedAt wins
+- [x] `el import --force`: remote always wins conflicts
+- [x] Conflicts logged in JSON output with resolution details
+- [x] Dependency conflicts logged separately
+
+**Success Criteria:** Import/export preserves data integrity including blocked status
+- **CRITICAL FAILURE:** Blocked cache not rebuilt during import - el-1dwc
+- **FAILURE:** Doctor false-positive masks the issue - el-64o6
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-1dwc | CRITICAL: Import doesn't rebuild blocked cache | 2 | bug |
+
+**Issues Created:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-64o6 | BUG: el doctor reports blocked cache consistent when empty after import | 3 | bug |
+
+**Dependencies:**
+- el-64o6 → el-1dwc (relates-to: doctor masks the import bug)
+
+**Notes:**
+This evaluation tested import/export data integrity which is critical for:
+1. Cross-machine sync (developer laptop → CI server)
+2. Backup and restore workflows
+3. Multi-agent workspace sharing
+4. Version control integration (commit .elemental/sync/)
+
+Key findings:
+1. Element and dependency data is correctly serialized and deserialized
+2. CRITICAL: Blocked cache is not rebuilt during import
+3. This makes import effectively broken for any workflow using dependencies
+4. Tasks with blocking dependencies become "stuck" after import:
+   - status shows "blocked" but they don't appear in `el blocked`
+   - Closing their blockers doesn't unblock them
+   - They don't appear in `el ready` either
+   - Manual status update required for each affected task
+5. `el doctor` falsely reports the workspace as healthy
+
+Recommended fix for el-1dwc:
+- After importing dependencies, call blockedCacheService.rebuildCache() or equivalent
+- Or iterate through all imported blocking dependencies and populate blocked_cache
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
