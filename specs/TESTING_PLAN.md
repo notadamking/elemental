@@ -343,16 +343,29 @@ Step-by-step checklists for validating critical paths.
 
 **Prerequisites:** Empty directory
 
+**Status:** TESTED - 2026-01-24 (Partial Pass)
+
 **Checkpoints:**
-- [ ] `el init` creates `.elemental/` directory
+- [x] `el init` creates `.elemental/` directory
 - [ ] Database file `elemental.db` is created
-- [ ] Default config file is created (if applicable)
-- [ ] `.gitignore` includes `*.db`, `*.db-wal`, `*.db-shm`
+  - **BUG el-v69e:** Database is NOT created by init; created lazily on first command
+  - `el stats` fails after `el init` with confusing error message
+- [x] Default config file is created (if applicable)
+  - Creates `.elemental/config.yaml` with sensible defaults
+- [x] `.gitignore` includes `*.db`, `*.db-wal`, `*.db-shm`
+  - Also includes `*.db-journal`
 - [ ] `el stats --json` returns valid structure with zero counts
-- [ ] `el ready --json` returns empty array
-- [ ] `el whoami` shows configured actor
+  - **Fails** after fresh init until another command creates the database
+  - After `el ready` creates db, stats returns correct structure with zero counts
+- [x] `el ready --json` returns empty array
+  - Creates database lazily and returns `[]`
+- [x] `el whoami` shows configured actor
+  - Shows "No actor configured" with helpful instructions for setting one
 
 **Success Criteria:** Workspace is ready for use with no errors
+
+**Issues Found:**
+- **el-v69e**: `el init` doesn't create database; `el stats` fails until db is created by another command
 
 ---
 
