@@ -187,6 +187,36 @@ app.get('/api/entities/:id/tasks', async (c) => {
 });
 
 // ============================================================================
+// Dependencies Endpoints
+// ============================================================================
+
+app.get('/api/dependencies/:id/tree', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const tree = await api.getDependencyTree(id);
+    return c.json(tree);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Element not found' } }, 404);
+    }
+    console.error('[elemental] Failed to get dependency tree:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get dependency tree' } }, 500);
+  }
+});
+
+app.get('/api/dependencies/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const dependencies = await api.getDependencies(id);
+    const dependents = await api.getDependents(id);
+    return c.json({ dependencies, dependents });
+  } catch (error) {
+    console.error('[elemental] Failed to get dependencies:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get dependencies' } }, 500);
+  }
+});
+
+// ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================
 

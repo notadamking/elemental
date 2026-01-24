@@ -4,6 +4,7 @@ import { DashboardPage } from './routes/dashboard';
 import { TasksPage } from './routes/tasks';
 import { TaskFlowPage } from './routes/task-flow';
 import { AgentActivityPage } from './routes/agent-activity';
+import { DependencyGraphPage } from './routes/dependency-graph';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -45,6 +46,13 @@ const agentActivityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard/agents',
   component: AgentActivityPage,
+});
+
+// Dependency Graph Lens route (Dashboard sub-view)
+const dependencyGraphRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/dependencies',
+  component: DependencyGraphPage,
 });
 
 // Placeholder routes for future pages
@@ -105,6 +113,7 @@ const routeTree = rootRoute.addChildren([
   dashboardRoute,
   taskFlowRoute,
   agentActivityRoute,
+  dependencyGraphRoute,
   tasksRoute,
   plansRoute,
   workflowsRoute,

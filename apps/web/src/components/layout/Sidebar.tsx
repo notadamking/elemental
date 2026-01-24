@@ -13,6 +13,7 @@ import {
   ChevronRight,
   GitBranch,
   Bot,
+  Network,
 } from 'lucide-react';
 
 interface NavItem {
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', shortcut: 'G H' },
   { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F' },
   { to: '/dashboard/agents', icon: Bot, label: 'Agents', shortcut: 'G A' },
+  { to: '/dashboard/dependencies', icon: Network, label: 'Dependencies', shortcut: 'G G' },
   { to: '/tasks', icon: CheckSquare, label: 'Tasks', shortcut: 'G T' },
   { to: '/plans', icon: Folder, label: 'Plans', shortcut: 'G P' },
   { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W' },

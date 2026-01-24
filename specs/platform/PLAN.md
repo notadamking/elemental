@@ -534,11 +534,13 @@ For mutations (create, update, delete):
   - [x] Web: Add Agents navigation to sidebar
   - [x] **Verify:** Agent cards show assigned tasks (Playwright tests passing - 9 tests)
 
-- [ ] **TB8: Dependency Graph Lens**
-  - [ ] Server: Add `GET /api/dependencies/:id/tree` endpoint
-  - [ ] Web: Add React Flow
-  - [ ] Web: Create DependencyGraphLens component
-  - [ ] **Verify:** Graph renders with pan/zoom
+- [x] **TB8: Dependency Graph Lens**
+  - [x] Server: Add `GET /api/dependencies/:id/tree` endpoint
+  - [x] Server: Add `GET /api/dependencies/:id` endpoint
+  - [x] Web: Add React Flow (@xyflow/react)
+  - [x] Web: Create DependencyGraphLens component with task selector
+  - [x] Web: Add Dependencies navigation to sidebar
+  - [x] **Verify:** Graph renders with pan/zoom (Playwright tests passing - 8 tests)
 
 - [ ] **TB9: Timeline Lens**
   - [ ] Server: Add `GET /api/events` endpoint
