@@ -9,7 +9,7 @@ import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createStorage, createElementalAPI, initializeSchema } from '@elemental/cli';
-import type { ElementalAPI } from '@elemental/cli';
+import type { ElementalAPI, ElementId } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -138,6 +138,51 @@ app.get('/api/tasks/completed', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get completed tasks:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get completed tasks' } }, 500);
+  }
+});
+
+// ============================================================================
+// Entities Endpoints
+// ============================================================================
+
+app.get('/api/entities', async (c) => {
+  try {
+    const entities = await api.list({
+      type: 'entity',
+    });
+    return c.json(entities);
+  } catch (error) {
+    console.error('[elemental] Failed to get entities:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entities' } }, 500);
+  }
+});
+
+app.get('/api/entities/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const entity = await api.get(id);
+    if (!entity) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+    return c.json(entity);
+  } catch (error) {
+    console.error('[elemental] Failed to get entity:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity' } }, 500);
+  }
+});
+
+app.get('/api/entities/:id/tasks', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    // Get tasks assigned to this entity
+    const tasks = await api.list({
+      type: 'task',
+      assignee: id,
+    } as Parameters<typeof api.list>[0]);
+    return c.json(tasks);
+  } catch (error) {
+    console.error('[elemental] Failed to get entity tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity tasks' } }, 500);
   }
 });
 

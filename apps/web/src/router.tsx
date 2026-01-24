@@ -3,6 +3,7 @@ import { AppShell } from './components/layout';
 import { DashboardPage } from './routes/dashboard';
 import { TasksPage } from './routes/tasks';
 import { TaskFlowPage } from './routes/task-flow';
+import { AgentActivityPage } from './routes/agent-activity';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -37,6 +38,13 @@ const taskFlowRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard/task-flow',
   component: TaskFlowPage,
+});
+
+// Agent Activity Lens route (Dashboard sub-view)
+const agentActivityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/agents',
+  component: AgentActivityPage,
 });
 
 // Placeholder routes for future pages
@@ -96,6 +104,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   dashboardRoute,
   taskFlowRoute,
+  agentActivityRoute,
   tasksRoute,
   plansRoute,
   workflowsRoute,

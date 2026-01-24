@@ -525,11 +525,14 @@ For mutations (create, update, delete):
   - [x] Web: Add Task Flow navigation to sidebar
   - [x] **Verify:** All three columns show correct data (Playwright tests passing - 9 tests)
 
-- [ ] **TB7: Agent Activity Lens**
-  - [ ] Server: Add `GET /api/entities` endpoint
-  - [ ] Web: Create AgentActivityLens component
-  - [ ] Web: Agent cards with current tasks
-  - [ ] **Verify:** Agent cards show assigned tasks
+- [x] **TB7: Agent Activity Lens**
+  - [x] Server: Add `GET /api/entities` endpoint
+  - [x] Server: Add `GET /api/entities/:id` endpoint
+  - [x] Server: Add `GET /api/entities/:id/tasks` endpoint
+  - [x] Web: Create AgentActivityLens component
+  - [x] Web: Agent cards with current tasks and workload chart
+  - [x] Web: Add Agents navigation to sidebar
+  - [x] **Verify:** Agent cards show assigned tasks (Playwright tests passing - 9 tests)
 
 - [ ] **TB8: Dependency Graph Lens**
   - [ ] Server: Add `GET /api/dependencies/:id/tree` endpoint
