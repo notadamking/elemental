@@ -1179,6 +1179,69 @@ tags/statuses, sort results, find unassigned tasks, or perform text search. The 
 el-59p3 causes multiple occurrences of the same flag to overwrite instead of accumulate,
 affecting --tag, --status, and potentially other flags.
 
+### Team and Entity Management Exploration
+
+**Goal:** Evaluate team and entity management for agent orchestration scenarios
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical validation gaps)
+
+**Exploration prompts:**
+- Can you register different entity types?
+- Can you look up entities by name?
+- Can you create and manage teams?
+- Can you add/remove team members?
+- Are entity/team validations enforced?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Register entity (agent type) | PASS | Works correctly |
+| Register entity (human type) | PASS | Works correctly |
+| Register entity (system type) | PASS | Works correctly |
+| Duplicate entity name rejected | PASS | Clear error with exit code 4 |
+| Invalid entity type rejected | PASS | Lists valid types |
+| Invalid entity name chars rejected | PASS | Clear validation message |
+| `el entity list` | PASS | Returns all entities correctly |
+| `el entity list --type agent` | PASS | Filters by type correctly |
+| **`el entity show <name>`** | **FAIL** | Returns ALL entities, ignores argument (el-4sdh) |
+| **`el entity list --name`** | **FAIL** | No --name filter exists (el-36fq) |
+| Team creation | PASS | Works correctly |
+| Team list | PASS | Works correctly |
+| Team add member | PASS | Works correctly |
+| Team remove member | PASS | Works correctly |
+| Team members list | PASS | Returns member IDs |
+| Team delete with members | PASS | Requires --force, good UX |
+| Team filter by member | PASS | `el team list --member` works |
+| Duplicate member add | PASS | Idempotent, no error |
+| **Team add with multiple --member** | **FAIL** | Only last member kept (el-59p3) |
+| **Team add non-existent entity** | **FAIL** | Accepts invalid IDs (el-5zl2) |
+| **Team add non-entity element** | **FAIL** | Accepts task IDs as members (el-5gjo) |
+| Assign task to entity | PASS | Works correctly |
+| Assign task to team | PASS | Works per spec (team assignment) |
+| **Assign by entity name** | **FAIL** | Treats name as task ID (el-4kis pre-existing) |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4sdh | `el entity show` ignores argument, returns all entities | 3 | bug |
+| el-5zl2 | `el team add` accepts non-existent entity IDs | 3 | bug |
+| el-5gjo | `el team add` accepts non-entity elements as members | 3 | bug |
+| el-36fq | `el entity list` needs --name filter | 4 | enhancement |
+
+**Dependencies:**
+- el-36fq → el-574h (relates-to: entity name resolution)
+- el-36fq → el-4kis (relates-to: parser entity name handling)
+- el-5zl2 → el-jqhh (relates-to: entity validation)
+
+**Summary:**
+Entity registration and team management work correctly for basic operations. Team operations
+(add, remove, list, delete) function properly. Key gaps: entity lookup by name requires
+client-side filtering, `el entity show` doesn't filter correctly, and team member validation
+doesn't check that IDs are valid entities. The el-59p3 parser bug also affects `--member`
+flag for team creation.
+
 ---
 
 ## 5. CLI UX Evaluation Checklist
