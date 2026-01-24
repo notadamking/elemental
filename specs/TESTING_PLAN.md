@@ -5575,6 +5575,125 @@ agents to track and use element IDs rather than human-readable names.
 
 ---
 
+### Scenario: Identity Sign/Verify Operations and Edge Cases
+
+**Purpose:** Evaluate the cryptographic identity sign/verify workflow, including edge cases for data sources, key handling, and validation - critical for agent workflows requiring signed operations and audit trails
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Input validation gaps found)
+
+**Checkpoints:**
+
+**Keypair Generation:**
+- [x] `el identity keygen` generates new Ed25519 keypair
+- [x] Each invocation produces different keys (cryptographically random)
+- [x] `--json` output includes publicKey and privateKey fields
+- [x] `--quiet` mode returns only the public key
+
+**Sign Operations - Valid Input:**
+- [x] Sign with `--data <string>` works correctly
+- [x] Sign with `--file <path>` works correctly
+- [x] Sign with `--hash <hex>` works correctly
+- [x] Sign with `--sign-key <base64>` works correctly
+- [x] Sign with `--sign-key-file <path>` works correctly
+- [x] Output includes signature, signedAt, actor, requestHash, keySource
+
+**Sign Operations - Input Validation:**
+- [x] Empty `--data ""` correctly rejected with helpful error
+- [x] Missing `--actor` flag correctly rejected
+- [x] Invalid private key format rejected with clear error
+- [x] Non-existent file path for `--file` rejected with ENOENT error
+- [x] Non-existent file path for `--sign-key-file` rejected with ENOENT error
+- [ ] **UX el-4yvw**: Conflicting `--data` and `--hash` flags silently resolved
+  - `--hash` takes precedence over `--data` with no warning
+  - Agents may not realize data was not used for signing
+- [ ] **BUG el-30m7**: Invalid hash format accepted without validation
+  - `--hash "invalidhash"` (not 64 hex chars) accepted
+  - `--hash` with non-hex characters accepted
+  - Should validate 64-character hexadecimal format
+
+**Verify Operations - Valid Input:**
+- [x] Valid signature verifies correctly (returns `valid: true`)
+- [x] Tampered data correctly fails verification
+- [x] Wrong actor correctly fails verification
+- [x] Wrong public key correctly fails verification
+- [x] `--quiet` mode returns "valid" or "invalid"
+
+**Verify Operations - Input Validation:**
+- [x] Malformed base64 signature rejected with clear error
+- [x] Wrong-length signature rejected with "Expected 88-character base64 string"
+- [x] Missing `--signed-at` flag rejected
+- [ ] **UX el-6911**: Invalid date format for `--signed-at` accepted
+  - `--signed-at "not-a-date"` returns `valid: false` instead of validation error
+  - Agent cannot distinguish between invalid signature and invalid input
+
+**Identity Mode:**
+- [x] `el identity mode` shows current mode and source
+- [x] Set mode to cryptographic/hybrid/soft works
+- [x] Invalid mode correctly rejected
+- [ ] **CONFIRMS el-3ftq**: `previous` field shows incorrect value after mode change
+  - Shows new mode as previous instead of actual previous mode
+
+**Hash Command:**
+- [x] `el identity hash --data <string>` returns SHA256 hash
+- [x] `el identity hash --file <path>` hashes file contents
+- [x] `--quiet` mode returns only the hash
+- [x] Empty `--data ""` correctly rejected
+
+**Help Text:**
+- [ ] **CONFIRMS el-50lc**: `el identity --help` shows duplicate Subcommands sections
+
+**Quiet Mode Consistency:**
+- [x] `keygen --quiet` returns public key only
+- [x] `sign --quiet` returns signature only
+- [x] `verify --quiet` returns "valid" or "invalid"
+- [x] `hash --quiet` returns hash only
+
+**Success Criteria:** Identity sign/verify operations work correctly for agent workflows
+- **Partial:** Core cryptographic operations work, but input validation gaps for hash format and conflicting flags
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-6911 | UX: el identity verify --signed-at accepts invalid date formats without validation | 4 | ux |
+| el-30m7 | BUG: el identity sign --hash accepts invalid hash formats (not 64 hex chars) | 4 | bug |
+| el-4yvw | UX: el identity sign silently resolves conflicting --data and --hash flags | 5 | ux |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3ftq | (pre-existing) el identity mode set shows incorrect 'previous' value | 3 | bug |
+| el-50lc | (pre-existing) Help output shows duplicate sections | 4 | ux |
+
+**Dependencies:**
+- el-6911 → el-2p2p (relates-to: same date validation pattern)
+- el-30m7 → el-6911 (relates-to: both input validation issues)
+- el-4yvw → el-30m7 (relates-to: both sign command input handling)
+
+**Notes:**
+This evaluation tested the cryptographic identity subsystem critical for agent orchestration patterns requiring:
+1. Signed operations for audit trails
+2. Signature verification for trust establishment
+3. Hash computation for data integrity
+
+Key findings:
+1. Core Ed25519 sign/verify works correctly
+2. Keypair generation is cryptographically random
+3. Signature validation (format, length) works correctly
+4. CRITICAL GAP: `--hash` input not validated for format (should be 64 hex chars)
+5. UX ISSUE: Conflicting flags silently resolved instead of error
+6. UX ISSUE: Invalid date format returns verification failure instead of validation error
+7. Help text has duplicate sections (consistent with other commands)
+
+The hash validation gap (el-30m7) is particularly important as agents might pass malformed hashes
+which would produce signatures that can never verify correctly. This wastes resources and
+makes debugging difficult since the sign operation succeeds.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
