@@ -287,12 +287,12 @@ Allow runtime mode switching:
 - [x] Add tolerance settings (timeTolerance, DEFAULT_TIME_TOLERANCE)
 - [ ] Document configuration
 
-### Phase 7: CLI Support
+### Phase 7: CLI Support ✅
 - [x] Add --actor flag globally (src/cli/parser.ts - global flag definition)
 - [x] Add identity mode to config (el identity mode, el identity mode <mode>)
-- [ ] Add signature for cryptographic mode
+- [x] Add signature for cryptographic mode ✅ (--sign-key, --sign-key-file global flags; el identity sign, verify, keygen, hash commands - 92 tests)
 - [x] Add whoami command (el whoami - shows actor, source, mode, verification status)
-- [x] Unit tests for CLI identity commands (39 tests)
+- [x] Unit tests for CLI identity commands (92 tests)
 
 ### Phase 8: Testing
 - [x] Unit tests for signature verification (106 tests)

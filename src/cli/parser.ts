@@ -14,6 +14,8 @@ import { DEFAULT_GLOBAL_OPTIONS } from './types.js';
 const GLOBAL_OPTIONS: Record<string, { short?: string; hasValue?: boolean; key: keyof GlobalOptions }> = {
   '--db': { hasValue: true, key: 'db' },
   '--actor': { hasValue: true, key: 'actor' },
+  '--sign-key': { hasValue: true, key: 'signKey' },
+  '--sign-key-file': { hasValue: true, key: 'signKeyFile' },
   '--json': { key: 'json' },
   '--quiet': { short: '-q', key: 'quiet' },
   '--verbose': { short: '-v', key: 'verbose' },
@@ -210,13 +212,15 @@ export function validateRequiredOptions(
  */
 export function getGlobalOptionsHelp(): string {
   return `Global Options:
-  --db <path>          Database file path
-  --actor <name>       Actor name for operations
-  --json               Output in JSON format
-  -q, --quiet          Minimal output (IDs only)
-  -v, --verbose        Enable debug output
-  -h, --help           Show help
-  -V, --version        Show version`;
+  --db <path>            Database file path
+  --actor <name>         Actor name for operations
+  --sign-key <key>       Private key for signing (base64 PKCS8)
+  --sign-key-file <path> Path to file containing private key
+  --json                 Output in JSON format
+  -q, --quiet            Minimal output (IDs only)
+  -v, --verbose          Enable debug output
+  -h, --help             Show help
+  -V, --version          Show version`;
 }
 
 /**

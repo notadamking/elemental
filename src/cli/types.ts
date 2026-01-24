@@ -34,6 +34,10 @@ export interface GlobalOptions {
   db?: string;
   /** Actor name for operations */
   actor?: string;
+  /** Private key for signing requests (base64-encoded PKCS8 format) */
+  signKey?: string;
+  /** Path to file containing private key for signing requests */
+  signKeyFile?: string;
   /** Enable JSON output mode */
   json: boolean;
   /** Enable quiet mode (minimal output) */
@@ -54,6 +58,8 @@ export interface GlobalOptions {
 export const DEFAULT_GLOBAL_OPTIONS: GlobalOptions = {
   db: undefined,
   actor: undefined,
+  signKey: undefined,
+  signKeyFile: undefined,
   json: false,
   quiet: false,
   verbose: false,

@@ -1620,10 +1620,18 @@ Recommended implementation sequence:
 - [x] **systems/identity.md Phase 2**: Soft identity (actor context management, name-based lookup, add actor to all operations) ✅ (ActorContext, resolveActor, validateSoftActor, lookupEntityByName, actor param)
 - [x] **systems/identity.md Phase 4**: Verification middleware integration ✅ (createVerificationMiddleware - 11 tests)
 - [x] **systems/identity.md Phase 5**: Key management ✅ (registration via createEntity, signed key rotation via rotateEntityKey with verification - 20 tests)
+- [ ] **systems/identity.md Phase 5**: Implement key revocation (future/optional)
+- [ ] **systems/identity.md Phase 6**: Document configuration
 - [x] **systems/identity.md Phase 7**: CLI support ✅ (--actor global flag, identity mode config via el identity mode, whoami command showing actor/source/mode/verification - 39 tests)
+- [x] **systems/identity.md Phase 7**: Add signature for cryptographic mode ✅ (--sign-key, --sign-key-file global flags; el identity sign/verify/keygen/hash commands - 92 tests)
 
 ### Type Integration (Priority: Medium)
 
+- [ ] **types/message.md Phase 4**: Implement `replies-to` dependency creation (requires DependencyService integration)
+- [ ] **types/entity.md Phase 6**: Integrate with Task assignment
+- [ ] **types/entity.md Phase 6**: Integrate with Message sender validation
+- [ ] **types/entity.md Phase 6**: Integrate with Channel membership
+- [ ] **types/entity.md Phase 6**: Integrate with Team membership
 - [x] **types/task.md Phase 2**: Automatic blocked status computation ✅ (BlockedCacheService triggers auto_blocked/auto_unblocked events, stores previous_status in blocked_cache for restoration - 20 tests)
 - [x] **types/task.md Phase 2**: Status change event emission ✅ (closed/reopened/updated events - 9 tests)
 - [x] **types/task.md Phase 3**: Ready/blocked work queries ✅ (api.ready(), api.blocked() - 31 tests), assignment/deadline queries ✅ (TaskFilter.assignee, TaskFilter.owner, TaskFilter.hasDeadline, TaskFilter.deadlineBefore - 16 integration tests)
@@ -1638,6 +1646,8 @@ Recommended implementation sequence:
 - [x] **types/entity.md Phase 5** (partial): Entity search/filter ✅ (filterByCreator, filterWithPublicKey, filterByTag, sortByName, groupByEntityType, searchByName, findByName, countByEntityType - 30 tests)
 - [x] **types/entity.md Phase 5**: Entity assignment queries ✅ (getAssignedTo, getCreatedBy, getRelatedTo, countAssignmentsByEntity, getTopAssignees, hasAssignments, getUnassigned, getEntityAssignmentStats - 21 tests)
 - [x] **types/document.md Phase 3-4**: Version table schema integration ✅ (schema migration 1), getDocumentVersion/getDocumentHistory ✅ (API implementation - 19 integration tests)
+- [ ] **types/document.md Phase 4**: Add version filtering to list queries
+- [ ] **types/document.md Phase 5**: Implement content type migration (optional)
 - [x] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child) ✅ (hydration support in API, Document reference validation in message creation, library document association via parent-child dependencies)
 
 ### Collection Type Integration (Priority: Medium)
@@ -1647,15 +1657,24 @@ Recommended implementation sequence:
 - [x] **types/plan.md Phase 4** (partial): Progress calculation ✅ (`getPlanProgress` API method, `calculatePlanProgress` utility - 12 integration tests); remaining: progress caching (optional), weighted progress (optional)
 - [x] **types/plan.md Phase 5**: Bulk operations ✅ (`bulkClosePlanTasks`, `bulkDeferPlanTasks`, `bulkReassignPlanTasks`, `bulkTagPlanTasks` API methods with filter support - 39 integration tests)
 - [x] **types/plan.md Phase 6**: Plan listing, tasks-in-plan query, progress in results ✅ (plan list/show/tasks CLI commands with progress display - 57 tests)
+- [x] **types/plan.md Phase 7**: Integration ✅ (createTaskInPlan API, hierarchical IDs el-planid.n format, CLI commands for plan create/list/show/activate/complete/cancel/add-task/remove-task/tasks)
 - [x] **types/workflow.md Phase 2-3**: Auto-completion/failure detection, pouring ✅ (shouldAutoComplete/shouldAutoFail/shouldAutoStart detection, pourWorkflow with playbook loading, variable resolution, condition evaluation, task creation, dependency wiring - 59 tests)
 - [x] **types/workflow.md Phase 4-5**: Ephemeral support ✅ (filterOutEphemeralTasks in export, burnWorkflow, garbageCollectWorkflows, squashWorkflow, CLI commands - 14 tests)
 - [x] **types/workflow.md Phase 6**: Workflow queries ✅ (getTasksInWorkflow, getReadyTasksInWorkflow, getWorkflowProgress, CLI commands for list/tasks/progress - integration tests)
+- [ ] **types/workflow.md Phase 2 (remaining)**: Status change event emission (requires event service integration)
+- [ ] **types/workflow.md Phase 5 (remaining)**: Task ordering queries
 - [x] **types/playbook.md Phase 5**: Inheritance ✅ (resolveInheritanceChain, mergeVariables, mergeSteps, createPlaybookLoader - 42 tests)
 - [x] **types/playbook.md Phase 6**: YAML support ✅ (parseYamlPlaybook, validateYamlPlaybook, discoverPlaybookFiles, loadPlaybookFromFile)
 - [x] **types/playbook.md Phase 7**: Pour-time validation, validation CLI command ✅ (validatePour, el playbook validate with --var and --pour options)
+- [x] **types/playbook.md Phase 8**: Integration ✅ (workflow creation integration, CLI commands - list, show, validate, create)
 - [x] **types/channel.md Phase 2-4**: Find-or-create logic, name uniqueness, membership operations ✅ (findOrCreateDirectChannel, addChannelMember, removeChannelMember, leaveChannel, membership events - 27 integration tests)
+- [x] **types/channel.md Phase 5**: Permissions ✅ (visibility checking, join policy enforcement, modifier validation)
 - [x] **types/channel.md Phase 6**: Message integration ✅ (sender membership validation in create, sendDirectMessage helper, auto-create direct channels)
+- [ ] **types/channel.md Phase 7**: Channel search (requires storage layer)
 - [x] **types/message.md Phase 3-5**: Channel membership validation, Document reference validation, thread integrity, content/attachments hydration ✅ (validation in API create, hydration support)
+- [ ] **types/message.md Phase 6**: Add pagination support (requires storage layer)
+- [ ] **types/message.md Phase 7**: Integrate with Channel system
+- [ ] **types/message.md Phase 7**: Integrate with event system
 - [x] **types/library.md Phase 2-5**: Library deletion, document association, hierarchy ✅ (orphan handling on delete, add/remove document, multi-membership, nesting, cycle detection via dependency system, root listing, stats - 36 E2E tests)
 - [x] **types/team.md Phase 2-6**: Team deletion, membership events, task integration, metrics ✅ (soft delete, member_added/removed events, team as assignee, getTasksForTeam, claimTaskFromTeam, getTeamMetrics - 26 integration tests)
 
@@ -1672,7 +1691,7 @@ Recommended implementation sequence:
 - [x] **api/cli.md Phase 5**: Collection commands ✅ (plan create/list/show/activate/complete/cancel/add-task/remove-task/tasks, workflow pour/list/show/burn/squash/gc/tasks/progress, playbook list/show/validate/create, channel create/join/leave/list/members/add/remove, library create/list/add/remove/docs/nest/roots/stats/delete, team create/add/remove/list/members/delete)
 - [x] **api/cli.md Phase 6**: Sync commands ✅ (export, import, status - 46 tests)
 - [x] **api/cli.md Phase 7**: Admin commands ✅ (config show/set/unset, stats - 11 tests, doctor - health checks, schema validation, integrity checks, 31 tests, migrate - schema migration with dry-run)
-- [ ] **api/cli.md Phase 8**: Shell completion, command aliases
+- [x] **api/cli.md Phase 8**: Shell completion, command aliases ✅ (bash/zsh/fish completion via el completion, 12 default aliases via el alias - 925+ tests)
 - [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset, edit implemented in src/cli/commands/config.ts - 28 tests)
 - [x] **types/task.md Phase 5 (partial)**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)
 - [x] **types/task.md Phase 5 (partial)**: Integration with blocked cache ✅ (automatic status transitions via BlockedCacheService callback, auto_blocked/auto_unblocked events - 20 tests)
@@ -1684,27 +1703,32 @@ Recommended implementation sequence:
 - [x] **api/errors.md Phase 3**: Field validation integration, status validation integration ✅ (types have validators)
 - [x] **api/errors.md Phase 4**: SQLite error mapping ✅ (mapStorageError handles unique, FK, busy, corruption errors)
 - [x] **api/errors.md Phase 5**: CLI formatting ✅ (standard, verbose, quiet modes in src/cli/formatter.ts)
-- [ ] **api/errors.md Phase 6**: Documentation (common causes, resolutions, examples)
+- [x] **api/errors.md Phase 6**: Documentation ✅ (common causes, resolutions, examples documented in Error Reference Guide section of errors.md)
 
 ### Testing & Performance (Priority: Low)
 
-- [ ] **systems/storage.md Phase 8**: Cross-runtime compatibility tests
-- [ ] **systems/dependencies.md Phase 8**: Performance tests for large dependency graphs
+- [x] **systems/storage.md Phase 8**: Cross-runtime compatibility tests ✅ (cross-runtime.test.ts - 119 tests for Bun/Browser, tests/node/cross-runtime.test.ts - 57 tests for Node.js, covering connection management, SQL operations, transactions, schema, dirty tracking, hierarchical IDs)
+- [x] **systems/dependencies.md Phase 8**: Performance tests for large dependency graphs ✅ (22 tests in dependency.perf.test.ts - cycle detection, cache rebuild, query benchmarks)
 - [x] **api/query-api.md Phase 5**: Optimize batch fetching ✅ (batchFetchTags eliminates N+1 queries for list operations and hydration)
-- [ ] **api/query-api.md Phase 8**: Performance tests for queries
-- [ ] **types/task.md Phase 6**: Unit tests for ready/blocked computation with dependencies, E2E tests for task lifecycle
-- [x] **types/task.md Phase 6** (partial): Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
-- [ ] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows
+- [x] **api/query-api.md Phase 8**: Performance tests for queries ✅ (33 tests in src/api/query-performance.test.ts)
+- [x] **types/task.md Phase 6**: Unit tests for status transitions, unit tests for ready/blocked computation with dependencies ✅ (priority-service.test.ts - 21 tests), E2E tests for task lifecycle ✅ (task.test.ts - 12 E2E lifecycle tests), integration tests for dependency-based priority ✅ (ready-blocked.integration.test.ts - 5 tests)
+- [x] **types/task.md Phase 6**: Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
+- [x] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows ✅ (CLI tests: Direct Messaging Flow, Group Channel Messaging Flow, Threaded Conversation Flow, Channel Lifecycle with Messaging, Messaging Output Formats)
 - [x] **types/document.md Phase 7** (partial): Integration tests for history queries ✅ (document-version.integration.test.ts - 19 tests)
 - [ ] **types/document.md Phase 7**: E2E tests for Document lifecycle
 - [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests), signature verification tests ✅ (148 tests)
-- [ ] **types/entity.md Phase 7**: E2E tests for entity lifecycle
+- [ ] **types/entity.md Phase 7**: E2E tests for entity lifecycle (deactivation, reactivation, assignment, membership)
 - [x] **types/plan.md Phase 8**: Unit tests for status transitions, progress calculation; integration tests; E2E tests ✅ (103 unit tests, 31 integration tests, 17 E2E tests)
 - [x] **types/workflow.md Phase 8**: Unit tests for pouring logic; integration tests for full pour flow; E2E tests ✅ (121 unit tests, 59 pour tests, 31 integration tests, 11 E2E tests)
 - [x] **types/playbook.md Phase 9**: Unit tests for inheritance; integration tests for full pour; E2E tests ✅ (230 unit tests, 42 inheritance tests, integration tests in workflow-queries.integration.test.ts, E2E tests in playbook.test.ts)
-- [x] **types/channel.md Phase 9** (partial): Integration tests for membership ✅ (channel-membership.integration.test.ts - 27 tests); pending: E2E tests for messaging flow
+- [x] **types/channel.md Phase 9**: Integration tests for membership ✅ (channel-membership.integration.test.ts - 27 tests); E2E tests for messaging flow ✅ (message.test.ts)
 - [x] **types/library.md Phase 7**: Unit tests for association/hierarchy; integration tests; E2E tests ✅ (94 unit tests, 26 hierarchy tests, 13 multi-membership tests, 36 E2E tests)
 - [x] **types/team.md Phase 8**: Integration tests for task assignment; E2E tests for team workflows ✅ (141 unit tests, 26 integration tests)
 - [x] **api/sync.md Phase 9**: Integration tests for sync ✅ (24 tests in service.test.ts)
 - [x] **api/configuration.md Phase 8**: Integration tests for CLI ✅ (20 tests in src/cli/commands/config.test.ts)
 - [x] **api/errors.md Phase 7**: Integration tests for propagation, CLI output tests ✅ (propagation.integration.test.ts, errors-output.test.ts)
+
+### Deferred/Optional Items (Priority: Low)
+
+- [ ] **systems/id-generation.md Phase 4**: Add collision metrics/logging (deferred)
+- [ ] **types/playbook.md Phase 6**: Add file watching for automatic playbook reload on change (optional, deferred)
