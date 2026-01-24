@@ -291,4 +291,4 @@ Before channel operations:
 - [x] Unit tests for direct naming
 - [x] Unit tests for permissions
 - [x] Integration tests for membership (`channel-membership.integration.test.ts`)
-- [ ] E2E tests for messaging flow
+- [x] E2E tests for messaging flow (`message.test.ts` - E2E sections)

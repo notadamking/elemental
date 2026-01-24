@@ -666,3 +666,527 @@ describe('msg thread command options', () => {
     expect(limitOption!.short).toBe('l');
   });
 });
+
+// ============================================================================
+// E2E Tests: Direct Messaging Flow
+// ============================================================================
+
+describe('E2E: Direct Messaging Flow', () => {
+  test('complete direct message conversation between two users', async () => {
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create a direct channel between TEST_USER and OTHER_USER
+    const { createDirectChannel } = await import('../../types/channel.js');
+    const directChannel = await createDirectChannel({
+      entityA: TEST_USER,
+      entityB: OTHER_USER,
+      createdBy: TEST_USER,
+    });
+    const createdChannel = await api.create(directChannel as unknown as Element & Record<string, unknown>);
+
+    // User 1 sends initial message
+    const sendOptions1 = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Hello! How are you?',
+    } as GlobalOptions & { channel: string; content: string });
+    const msg1Result = await messageCommand.subcommands!.send.handler!([], sendOptions1);
+    expect(msg1Result.exitCode).toBe(ExitCode.SUCCESS);
+
+    // User 2 replies
+    const sendOptions2 = createTestOptions({
+      channel: createdChannel.id,
+      content: "I'm doing great, thanks!",
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string });
+    const msg2Result = await messageCommand.subcommands!.send.handler!([], sendOptions2);
+    expect(msg2Result.exitCode).toBe(ExitCode.SUCCESS);
+
+    // User 1 sends another message
+    const sendOptions3 = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Great to hear! Want to grab coffee?',
+    } as GlobalOptions & { channel: string; content: string });
+    const msg3Result = await messageCommand.subcommands!.send.handler!([], sendOptions3);
+    expect(msg3Result.exitCode).toBe(ExitCode.SUCCESS);
+
+    // List all messages in the conversation
+    const listOptions = createTestOptions({
+      channel: createdChannel.id,
+    } as GlobalOptions & { channel: string });
+    const listResult = await messageCommand.subcommands!.list.handler!([], listOptions);
+
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const messages = listResult.data as Message[];
+    expect(messages.length).toBe(3);
+
+    // Verify message senders alternate
+    const senders = messages.map((m) => m.sender);
+    expect(senders).toContain(TEST_USER);
+    expect(senders).toContain(OTHER_USER);
+
+    backend.close();
+  });
+
+  test('non-participant cannot send to direct channel', async () => {
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create a direct channel between TEST_USER and OTHER_USER
+    const { createDirectChannel } = await import('../../types/channel.js');
+    const directChannel = await createDirectChannel({
+      entityA: TEST_USER,
+      entityB: OTHER_USER,
+      createdBy: TEST_USER,
+    });
+    const createdChannel = await api.create(directChannel as unknown as Element & Record<string, unknown>);
+
+    // Non-participant (NON_MEMBER) tries to send message
+    const sendOptions = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Trying to intrude!',
+      actor: NON_MEMBER,
+    } as GlobalOptions & { channel: string; content: string });
+    const result = await messageCommand.subcommands!.send.handler!([], sendOptions);
+
+    expect(result.exitCode).toBe(ExitCode.PERMISSION);
+    expect(result.error).toContain('not a member');
+
+    backend.close();
+  });
+});
+
+// ============================================================================
+// E2E Tests: Group Channel Messaging Flow
+// ============================================================================
+
+describe('E2E: Group Channel Messaging Flow', () => {
+  test('multiple users exchange messages in group channel', async () => {
+    const THIRD_USER = 'el-user4' as EntityId;
+
+    // Create channel with multiple members
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    const { createGroupChannel } = await import('../../types/channel.js');
+    const groupChannel = await createGroupChannel({
+      name: 'team-discussion',
+      createdBy: TEST_USER,
+      members: [OTHER_USER, THIRD_USER],
+    });
+    const createdChannel = await api.create(groupChannel as unknown as Element & Record<string, unknown>);
+
+    // TEST_USER starts the discussion
+    const msg1Options = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Welcome everyone to the team channel!',
+    } as GlobalOptions & { channel: string; content: string });
+    await messageCommand.subcommands!.send.handler!([], msg1Options);
+
+    // OTHER_USER responds
+    const msg2Options = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Thanks for setting this up!',
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string });
+    await messageCommand.subcommands!.send.handler!([], msg2Options);
+
+    // THIRD_USER chimes in
+    const msg3Options = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Excited to collaborate!',
+      actor: THIRD_USER,
+    } as GlobalOptions & { channel: string; content: string });
+    await messageCommand.subcommands!.send.handler!([], msg3Options);
+
+    // List all messages
+    const listOptions = createTestOptions({
+      channel: createdChannel.id,
+    } as GlobalOptions & { channel: string });
+    const listResult = await messageCommand.subcommands!.list.handler!([], listOptions);
+
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const messages = listResult.data as Message[];
+    expect(messages.length).toBe(3);
+
+    // All three users should have sent messages
+    const senders = new Set(messages.map((m) => String(m.sender)));
+    expect(senders.size).toBe(3);
+    expect(senders.has(TEST_USER)).toBe(true);
+    expect(senders.has(OTHER_USER)).toBe(true);
+    expect(senders.has(THIRD_USER)).toBe(true);
+
+    backend.close();
+  });
+
+  test('new member can message after being added', async () => {
+    const NEW_MEMBER = 'el-newbie' as EntityId;
+
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    const { createGroupChannel } = await import('../../types/channel.js');
+    const groupChannel = await createGroupChannel({
+      name: 'growing-team',
+      createdBy: TEST_USER,
+      members: [OTHER_USER],
+    });
+    const createdChannel = await api.create(groupChannel as unknown as Element & Record<string, unknown>);
+
+    // NEW_MEMBER tries to send before being added - should fail
+    const failOptions = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Hello!',
+      actor: NEW_MEMBER,
+    } as GlobalOptions & { channel: string; content: string });
+    const failResult = await messageCommand.subcommands!.send.handler!([], failOptions);
+    expect(failResult.exitCode).toBe(ExitCode.PERMISSION);
+
+    // Add NEW_MEMBER to channel
+    await api.addChannelMember(createdChannel.id as import('../../types/element.js').ElementId, NEW_MEMBER, {
+      actor: TEST_USER,
+    });
+
+    // NOW NEW_MEMBER can send
+    const successOptions = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Hello team! Glad to be here!',
+      actor: NEW_MEMBER,
+    } as GlobalOptions & { channel: string; content: string });
+    const successResult = await messageCommand.subcommands!.send.handler!([], successOptions);
+    expect(successResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    backend.close();
+  });
+
+  test('removed member cannot send messages', async () => {
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    const { createGroupChannel } = await import('../../types/channel.js');
+    const groupChannel = await createGroupChannel({
+      name: 'restricted-channel',
+      createdBy: TEST_USER,
+      members: [OTHER_USER],
+    });
+    const createdChannel = await api.create(groupChannel as unknown as Element & Record<string, unknown>);
+
+    // OTHER_USER sends a message while still a member
+    const msg1Options = createTestOptions({
+      channel: createdChannel.id,
+      content: 'I am still a member',
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string });
+    const msg1Result = await messageCommand.subcommands!.send.handler!([], msg1Options);
+    expect(msg1Result.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Remove OTHER_USER from channel
+    await api.removeChannelMember(createdChannel.id as import('../../types/element.js').ElementId, OTHER_USER, {
+      actor: TEST_USER,
+    });
+
+    // OTHER_USER tries to send after being removed - should fail
+    const msg2Options = createTestOptions({
+      channel: createdChannel.id,
+      content: 'Can I still send?',
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string });
+    const msg2Result = await messageCommand.subcommands!.send.handler!([], msg2Options);
+    expect(msg2Result.exitCode).toBe(ExitCode.PERMISSION);
+    expect(msg2Result.error).toContain('not a member');
+
+    backend.close();
+  });
+});
+
+// ============================================================================
+// E2E Tests: Threaded Conversation Flow
+// ============================================================================
+
+describe('E2E: Threaded Conversation Flow', () => {
+  test('complete thread lifecycle: post, reply, view thread', async () => {
+    // Send a root message
+    const rootOptions = createTestOptions({
+      channel: testChannelId,
+      content: 'Starting a discussion about the new feature',
+    } as GlobalOptions & { channel: string; content: string });
+    const rootResult = await messageCommand.subcommands!.send.handler!([], rootOptions);
+    expect(rootResult.exitCode).toBe(ExitCode.SUCCESS);
+    const rootMessage = rootResult.data as Message;
+
+    // OTHER_USER replies to the thread
+    const reply1Options = createTestOptions({
+      channel: testChannelId,
+      content: 'I think we should consider option A',
+      thread: rootMessage.id,
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string; thread: string });
+    await messageCommand.subcommands!.send.handler!([], reply1Options);
+
+    // TEST_USER replies to the thread
+    const reply2Options = createTestOptions({
+      channel: testChannelId,
+      content: 'Good point, but option B has better performance',
+      thread: rootMessage.id,
+    } as GlobalOptions & { channel: string; content: string; thread: string });
+    await messageCommand.subcommands!.send.handler!([], reply2Options);
+
+    // OTHER_USER adds another reply
+    const reply3Options = createTestOptions({
+      channel: testChannelId,
+      content: "Let's run some benchmarks to compare",
+      thread: rootMessage.id,
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string; thread: string });
+    await messageCommand.subcommands!.send.handler!([], reply3Options);
+
+    // View the complete thread
+    const threadOptions = createTestOptions();
+    const threadResult = await messageCommand.subcommands!.thread.handler!([rootMessage.id], threadOptions);
+
+    expect(threadResult.exitCode).toBe(ExitCode.SUCCESS);
+    const threadMessages = threadResult.data as Message[];
+    expect(threadMessages.length).toBe(4); // root + 3 replies
+    expect(threadResult.message).toContain('3 replies');
+
+    // Verify thread structure
+    const root = threadMessages.find((m) => m.threadId === null);
+    expect(root).toBeDefined();
+    expect(root!.id).toBe(rootMessage.id);
+
+    const replies = threadMessages.filter((m) => m.threadId === rootMessage.id);
+    expect(replies.length).toBe(3);
+  });
+
+  test('nested discussion with multiple root messages', async () => {
+    // Send first root message
+    const root1Options = createTestOptions({
+      channel: testChannelId,
+      content: 'Topic 1: UI Design',
+    } as GlobalOptions & { channel: string; content: string });
+    const root1Result = await messageCommand.subcommands!.send.handler!([], root1Options);
+    const root1 = root1Result.data as Message;
+
+    // Send second root message
+    const root2Options = createTestOptions({
+      channel: testChannelId,
+      content: 'Topic 2: Backend Architecture',
+    } as GlobalOptions & { channel: string; content: string });
+    const root2Result = await messageCommand.subcommands!.send.handler!([], root2Options);
+    const root2 = root2Result.data as Message;
+
+    // Reply to first topic
+    const reply1Options = createTestOptions({
+      channel: testChannelId,
+      content: 'Let us use a modern design system',
+      thread: root1.id,
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string; thread: string });
+    await messageCommand.subcommands!.send.handler!([], reply1Options);
+
+    // Reply to second topic
+    const reply2Options = createTestOptions({
+      channel: testChannelId,
+      content: 'Microservices would be ideal',
+      thread: root2.id,
+      actor: OTHER_USER,
+    } as GlobalOptions & { channel: string; content: string; thread: string });
+    await messageCommand.subcommands!.send.handler!([], reply2Options);
+
+    // List root-only messages
+    const listOptions = createTestOptions({
+      channel: testChannelId,
+      rootOnly: true,
+    } as GlobalOptions & { channel: string; rootOnly: boolean });
+    const listResult = await messageCommand.subcommands!.list.handler!([], listOptions);
+
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const rootMessages = listResult.data as Message[];
+    expect(rootMessages.length).toBe(2);
+    expect(rootMessages.every((m) => m.threadId === null)).toBe(true);
+
+    // Each thread should have exactly 1 reply
+    const thread1Result = await messageCommand.subcommands!.thread.handler!([root1.id], createTestOptions());
+    expect((thread1Result.data as Message[]).length).toBe(2); // root + 1 reply
+
+    const thread2Result = await messageCommand.subcommands!.thread.handler!([root2.id], createTestOptions());
+    expect((thread2Result.data as Message[]).length).toBe(2); // root + 1 reply
+  });
+});
+
+// ============================================================================
+// E2E Tests: Channel Lifecycle with Messaging
+// ============================================================================
+
+describe('E2E: Channel Lifecycle with Messaging', () => {
+  test('full workflow: create channel, exchange messages, verify history', async () => {
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // 1. Create a new channel
+    const { createGroupChannel } = await import('../../types/channel.js');
+    const channel = await createGroupChannel({
+      name: 'project-alpha',
+      createdBy: TEST_USER,
+      members: [OTHER_USER],
+    });
+    const createdChannel = await api.create(channel as unknown as Element & Record<string, unknown>);
+
+    // 2. Exchange messages over time (simulating a real conversation)
+    const conversations = [
+      { user: TEST_USER, content: 'Project kickoff!' },
+      { user: OTHER_USER, content: 'Excited to start!' },
+      { user: TEST_USER, content: 'Here is the timeline' },
+      { user: OTHER_USER, content: 'Looks good to me' },
+      { user: TEST_USER, content: 'Let us begin with phase 1' },
+    ];
+
+    for (const conv of conversations) {
+      const options = createTestOptions({
+        channel: createdChannel.id,
+        content: conv.content,
+        actor: conv.user,
+      } as GlobalOptions & { channel: string; content: string });
+      const result = await messageCommand.subcommands!.send.handler!([], options);
+      expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    }
+
+    // 3. List all messages and verify order
+    const listOptions = createTestOptions({
+      channel: createdChannel.id,
+    } as GlobalOptions & { channel: string });
+    const listResult = await messageCommand.subcommands!.list.handler!([], listOptions);
+
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const messages = listResult.data as Message[];
+    expect(messages.length).toBe(5);
+
+    // 4. Filter by sender
+    const user1Messages = createTestOptions({
+      channel: createdChannel.id,
+      sender: TEST_USER,
+    } as GlobalOptions & { channel: string; sender: string });
+    const user1Result = await messageCommand.subcommands!.list.handler!([], user1Messages);
+    expect((user1Result.data as Message[]).length).toBe(3);
+
+    const user2Messages = createTestOptions({
+      channel: createdChannel.id,
+      sender: OTHER_USER,
+    } as GlobalOptions & { channel: string; sender: string });
+    const user2Result = await messageCommand.subcommands!.list.handler!([], user2Messages);
+    expect((user2Result.data as Message[]).length).toBe(2);
+
+    backend.close();
+  });
+
+  test('messages persist across database connections', async () => {
+    // Create channel and send messages
+    let backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    let api = createElementalAPI(backend);
+
+    const { createGroupChannel } = await import('../../types/channel.js');
+    const channel = await createGroupChannel({
+      name: 'persistent-channel',
+      createdBy: TEST_USER,
+      members: [OTHER_USER],
+    });
+    const createdChannel = await api.create(channel as unknown as Element & Record<string, unknown>);
+    const channelId = createdChannel.id;
+
+    // Send message
+    const sendOptions = createTestOptions({
+      channel: channelId,
+      content: 'This message should persist',
+    } as GlobalOptions & { channel: string; content: string });
+    await messageCommand.subcommands!.send.handler!([], sendOptions);
+
+    // Close database connection
+    backend.close();
+
+    // Reopen database and verify message persists
+    backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    api = createElementalAPI(backend);
+
+    const listOptions = createTestOptions({
+      channel: channelId,
+    } as GlobalOptions & { channel: string });
+    const listResult = await messageCommand.subcommands!.list.handler!([], listOptions);
+
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const messages = listResult.data as Message[];
+    expect(messages.length).toBe(1);
+
+    backend.close();
+  });
+});
+
+// ============================================================================
+// E2E Tests: Messaging Output Formats
+// ============================================================================
+
+describe('E2E: Messaging Output Formats', () => {
+  test('JSON output for API integration', async () => {
+    // Send a few messages
+    for (let i = 1; i <= 3; i++) {
+      const options = createTestOptions({
+        channel: testChannelId,
+        content: `Message ${i}`,
+      } as GlobalOptions & { channel: string; content: string });
+      await messageCommand.subcommands!.send.handler!([], options);
+    }
+
+    // List in JSON mode
+    const jsonOptions = createTestOptions({
+      channel: testChannelId,
+      json: true,
+    } as GlobalOptions & { channel: string });
+    const jsonResult = await messageCommand.subcommands!.list.handler!([], jsonOptions);
+
+    expect(jsonResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(Array.isArray(jsonResult.data)).toBe(true);
+
+    // Each message should have all required fields
+    const messages = jsonResult.data as Message[];
+    for (const msg of messages) {
+      expect(msg.id).toMatch(/^el-/);
+      expect(msg.type).toBe('message');
+      expect(msg.channelId).toBe(testChannelId);
+      expect(msg.sender).toBeDefined();
+      expect(msg.createdAt).toBeDefined();
+    }
+  });
+
+  test('quiet output for scripting', async () => {
+    // Send messages
+    for (let i = 1; i <= 3; i++) {
+      const options = createTestOptions({
+        channel: testChannelId,
+        content: `Quiet message ${i}`,
+      } as GlobalOptions & { channel: string; content: string });
+      await messageCommand.subcommands!.send.handler!([], options);
+    }
+
+    // List in quiet mode
+    const quietOptions = createTestOptions({
+      channel: testChannelId,
+      quiet: true,
+    } as GlobalOptions & { channel: string });
+    const quietResult = await messageCommand.subcommands!.list.handler!([], quietOptions);
+
+    expect(quietResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(typeof quietResult.data).toBe('string');
+
+    // Should be newline-separated IDs
+    const ids = (quietResult.data as string).split('\n');
+    expect(ids.length).toBe(3);
+    ids.forEach((id) => expect(id).toMatch(/^el-/));
+  });
+});
