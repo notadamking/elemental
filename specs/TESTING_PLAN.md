@@ -1282,6 +1282,76 @@ Core orchestration pattern works but requires workarounds:
 
 ---
 
+### Scenario: Stats and Doctor Commands
+
+**Purpose:** Validate workspace health monitoring and statistics commands for agent observability
+
+**Prerequisites:** Initialized workspace (with and without database)
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Doctor path bug, undocumented quiet behavior)
+
+**Checkpoints:**
+
+**Stats After Init:**
+- [x] Fresh workspace without database: `el stats --json` fails with error (el-v69e pre-existing)
+  - Error: "No database found. Run \"el init\""
+  - Exit code 1
+- [x] After database creation (e.g., `el ready`): stats works correctly
+  - Returns totalElements, elementsByType, totalDependencies, etc.
+
+**Stats Output:**
+- [x] Human-readable format: displays organized statistics
+- [x] JSON format: `{success, data: {...}}` structure
+- [x] Stats update correctly after creating elements
+- [x] Stats update correctly after creating dependencies
+- [x] Stats update correctly after closing tasks (readyTasks/blockedTasks)
+- [ ] **MISSING**: Stats doesn't show task breakdown by status
+  - **ENHANCEMENT el-5wgj:** Would be useful to see counts by open/closed/in_progress/deferred
+- [x] Quiet mode: `el stats --quiet` outputs nothing (exit code 0)
+  - **UX el-6bqx:** Undocumented behavior - should output key number or be documented
+
+**Doctor Command:**
+- [x] Fresh workspace without database: shows diagnostic with database error
+  - `healthy: false` with clear message
+  - Exit code 1
+- [x] After database creation: all diagnostics pass
+  - workspace, database, connection, schema_version, schema_tables, integrity, foreign_keys, blocked_cache, storage
+  - Exit code 0
+- [x] Corrupted database: correctly reports connection error
+  - "file is not a database" message
+- [x] Outside workspace: reports "No .elemental directory found"
+- [x] Verbose mode: includes detailed diagnostic info
+- [ ] **FAIL**: Custom database path: `el doctor --db <path>`
+  - **BUG el-690o:** Says "Using custom database path: <path>" but then checks default workspace path
+
+**Doctor Output:**
+- [x] Human-readable format: [OK]/[ERROR] prefix for each check
+- [x] JSON format: `{success, data: {healthy, diagnostics: [], summary: {}}}`
+- [x] Exit code 0 when healthy, 1 when unhealthy
+- [x] Quiet mode: no output
+
+**Discoverability:**
+- [x] `el stats` listed in main help
+- [x] `el doctor` listed in main help
+- [x] Help text includes examples
+
+**Success Criteria:** Agents can monitor workspace health and get statistics
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-690o | BUG: `el doctor --db <path>` ignores custom path for database check | 3 | bug |
+| el-5wgj | ENHANCEMENT: Stats should show task breakdown by status | 5 | enhancement |
+| el-6bqx | UX: `el stats --quiet` outputs nothing - undocumented | 5 | ux |
+
+**Dependencies:**
+- el-690o → el-5guf (relates-to: CLI flag handling issues)
+- el-6bqx → el-389k (relates-to: quiet output format documentation)
+- el-5wgj → el-46xq (relates-to: enhanced information outputs)
+
+---
+
 ## 4. Exploratory Testing Guides
 
 Areas for freeform exploration without strict scripts.
