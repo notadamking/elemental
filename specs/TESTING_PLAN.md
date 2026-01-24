@@ -4631,6 +4631,122 @@ systemic consistency issues:
 
 ---
 
+### Scenario: Quiet Mode Output Consistency and Pipeline Ergonomics
+
+**Purpose:** Comprehensive evaluation of --quiet mode output consistency across all command types, and validation that quiet mode enables effective pipeline operations for agent orchestration
+
+**Prerequisites:** Initialized workspace with multiple element types
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Inconsistencies found)
+
+**Checkpoints:**
+
+**Quiet Mode for Create Commands:**
+- [x] `el create task --quiet` returns only ID
+- [x] `el doc create --quiet` returns only ID
+- [x] `el plan create --quiet` returns only ID
+- [x] `el entity register --quiet` returns only ID
+- [x] `el library create --quiet` returns only ID
+- [x] `el team create --quiet` returns only ID
+- [x] `el channel create --quiet` returns only ID
+- [x] `el playbook create --quiet` returns only ID
+- [x] `el workflow pour --quiet` returns only ID
+
+**Quiet Mode for List/Query Commands:**
+- [x] `el ready --quiet` returns IDs one per line
+- [x] `el blocked --quiet` returns IDs one per line
+- [x] `el list --quiet` returns IDs one per line
+- [x] `el entity list --quiet` returns IDs one per line
+- [x] `el plan list --quiet` returns IDs one per line
+- [x] `el channel list --quiet` returns IDs one per line
+- [x] `el msg list --quiet` returns IDs one per line
+
+**Quiet Mode for Update/Action Commands:**
+- [x] `el update --quiet` returns element ID
+- [x] `el close --quiet` returns element ID
+- [x] `el reopen --quiet` returns element ID
+- [x] `el assign --quiet` returns element ID
+- [x] `el defer --quiet` returns element ID
+- [x] `el undefer --quiet` returns element ID
+- [x] `el delete --quiet` returns element ID
+
+**Quiet Mode Inconsistencies Found:**
+- [ ] **FAIL**: `el library add --quiet` outputs nothing
+  - **UX el-c99l:** Should output affected library ID or confirmation
+- [ ] **FAIL**: `el library remove --quiet` outputs nothing
+  - **UX el-c99l:** Should output affected library ID or confirmation
+- [ ] **FAIL**: `el team add --quiet` outputs nothing
+  - **UX el-c99l:** Should output affected team ID or confirmation
+- [ ] **FAIL**: `el team remove --quiet` outputs nothing
+  - **UX el-c99l:** Should output affected team ID or confirmation
+- [ ] **FAIL**: `el plan add-task --quiet` outputs nothing
+  - **UX el-c99l:** Should output plan ID or confirmation
+- [ ] **FAIL**: `el plan remove-task --quiet` outputs nothing
+  - **UX el-c99l:** Should output plan ID or confirmation
+- [ ] **FAIL**: `el dep remove --quiet` outputs nothing
+  - **UX el-c99l:** Should output confirmation
+- [ ] **FAIL**: `el doctor --quiet` outputs nothing
+  - **UX el-c99l:** Should output health status (0/1 or OK/ERROR)
+- [ ] **FAIL**: `el stats --quiet` outputs nothing
+  - **UX el-2zsz:** Should output key metric (e.g., total element count)
+
+**Quiet Mode Format Documentation:**
+- [x] `el status --quiet` outputs dirty count (e.g., "17")
+- [x] `el export --quiet` outputs "elements:dependencies" format (e.g., "17:3")
+- [x] `el dep add --quiet` outputs "source -> target" format
+- [ ] **FAIL**: Quiet formats are undocumented
+  - **DOC el-52o5:** Help text should explain quiet output format for each command
+
+**Quiet Mode for Dependency Commands:**
+- [x] `el dep add --quiet` outputs "source -> target" format
+- [x] `el dep list --quiet` outputs target IDs only
+- [ ] **FAIL**: `el dep list --quiet` loses dependency type information
+  - **UX el-bea6:** Cannot filter by type without using JSON mode
+- [x] `el dep tree --quiet` outputs IDs in tree order
+
+**Pipeline Ergonomics:**
+- [x] Pipeline: `el ready --quiet | head -1 | xargs -I{} el show {}`
+- [x] Pipeline: `el ready --quiet | wc -l` for counting
+- [x] Pipeline: `el ready --quiet | xargs -I{} el close {} --quiet` for bulk operations
+- [x] Pipeline: Create, add to plan, add dependency chain works
+- [x] Bulk tagging via pipeline works correctly
+- [x] Parallel xargs (-P4) works correctly
+
+**Flag Interaction:**
+- [x] `--quiet --verbose` together: --quiet takes precedence (order independent)
+- [x] Error messages still shown in quiet mode (correct behavior)
+
+**Success Criteria:** Quiet mode works consistently for pipeline-based agent workflows
+- **PARTIAL:** Most commands work correctly, but inconsistent output for relationship operations
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-c99l | UX: Quiet mode output inconsistent - relationship ops return nothing | 4 | ux |
+| el-2zsz | UX: el stats --quiet outputs nothing | 5 | ux |
+| el-bea6 | UX: el dep list --quiet loses dependency type information | 5 | ux |
+| el-52o5 | DOC: Quiet mode output formats need documentation | 4 | documentation |
+
+**Dependencies:**
+- el-52o5 → el-389k (relates-to: pre-existing quiet format documentation issue)
+- el-c99l → el-52o5 (relates-to: both quiet mode consistency)
+- el-2zsz → el-c99l (relates-to: both quiet mode consistency)
+- el-bea6 → el-c99l (relates-to: both quiet mode consistency)
+
+**Notes:**
+This evaluation tested quiet mode and pipeline ergonomics critical for agent orchestration:
+1. All create commands consistently return only the ID (good)
+2. All list commands consistently return IDs one per line (good)
+3. Update/close/action commands return element ID (good)
+4. Relationship operations (add/remove on library/team/plan) output nothing (inconsistent)
+5. el stats and el doctor output nothing in quiet mode (inconsistent)
+6. Pipeline operations work correctly for bulk operations
+7. Quiet mode takes precedence over verbose when both specified
+8. Quiet output formats are undocumented (el-389k pre-existing, el-52o5 comprehensive)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
