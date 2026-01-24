@@ -6858,3 +6858,121 @@ But `el team add` validates neither:
 - Element type not checked
 
 This inconsistency should be resolved by adding the same validations to team add.
+
+---
+
+### Scenario: Entity Operations Edge Cases and Validation
+
+**Purpose:** Comprehensive evaluation of entity registration, listing, and lookup operations - critical for agent orchestration where entities represent agents, humans, and systems that interact with the workspace
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Public key not persisted, validation gaps)
+
+**Checkpoints:**
+
+**Entity Registration - Basic:**
+- [x] Register with valid name and type: `el entity register agent-name --type agent --json` works correctly
+- [x] Default type is agent when `--type` omitted
+- [x] All three types work: agent, human, system
+- [x] Invalid type correctly rejected with exit code 4 and helpful error
+- [x] Duplicate name correctly rejected with exit code 4
+
+**Entity Registration - Name Validation:**
+- [x] Empty name correctly rejected
+- [x] Whitespace-only name correctly rejected ("must start with a letter")
+- [x] Name with spaces correctly rejected
+- [x] Name starting with number correctly rejected
+- [x] Name with special characters (@, #, !) correctly rejected
+- [x] Name with hyphens and underscores allowed: `valid-name_123`
+- [x] Unicode characters in name correctly rejected
+- [x] Name over 100 characters correctly rejected
+
+**Entity Registration - Tags:**
+- [ ] **CONFIRMS el-5693:** Single `--tag` flag stores tag as string instead of array
+  - `--tag mytag` results in `tags: "mytag"` not `["mytag"]`
+- [ ] **CONFIRMS el-59p3:** Multiple `--tag` flags only keep last tag
+  - `--tag a --tag b --tag c` results in `tags: "c"`
+- [x] Adding tags via `el update --add-tag` correctly uses array format
+
+**Entity Registration - Public Key:**
+- [ ] **CRITICAL BUG el-ohmj (NEW):** `--public-key` value not persisted to entity
+  - Key accepted without error but NOT stored in database
+  - Entity output shows no publicKey field
+  - Cryptographic identity feature non-functional for entities
+- [ ] **BUG el-5ism (NEW):** `--public-key` accepts invalid key formats without validation
+  - Invalid base64, wrong length, empty string all accepted
+  - No validation error even though value is discarded
+
+**Entity Listing:**
+- [x] `el entity list --json` returns all entities with consistent structure
+- [x] `el entity list --type agent` filters correctly
+- [x] `el entity list --limit N` works correctly
+- [x] `el entity list --quiet` returns IDs one per line
+- [ ] **CONFIRMS el-1on4:** `el entity list --tag` filter doesn't exist
+- [ ] **CONFIRMS el-36fq:** `el entity list --name` filter doesn't exist
+- [ ] **ENHANCEMENT el-5h79 (NEW):** `el entity list --offset` doesn't exist
+  - Cannot paginate through large entity lists
+  - Inconsistent with `el list` which supports `--offset`
+
+**Entity Show:**
+- [ ] **CONFIRMS el-4sdh:** `el entity show <id>` ignores ID argument
+  - Returns ALL entities regardless of which ID provided
+  - Same as `el entity list`
+  - Undocumented in `el entity --help`
+- [x] Generic `el show <entity-id>` works correctly
+
+**Entity Update:**
+- [x] `el update <entity-id> --add-tag X` works correctly
+  - Tags stored as array (unlike el-5693)
+
+**Entity Deletion:**
+- [x] `el delete <entity-id>` soft deletes correctly
+- [x] Deleted entity returns NOT_FOUND via `el show`
+- [x] Deleted entity not included in `el entity list`
+
+**Actor Attribution:**
+- [x] `--actor <entity-name>` correctly sets createdBy field
+
+**Success Criteria:** Entity operations work correctly for agent orchestration
+- **Partial:** Core registration and listing work. Public key feature broken. Validation and filter gaps.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-ohmj | BUG: --public-key flag accepts value but does not persist it | 3 | bug |
+| el-5ism | BUG: --public-key accepts invalid key formats without validation | 4 | bug |
+| el-5h79 | ENHANCEMENT: el entity list needs --offset option | 5 | enhancement |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5693 | (pre-existing) --tag stores as string instead of array | 3 | bug |
+| el-59p3 | (pre-existing) Parser bug affects multiple --tag flags | 2 | bug |
+| el-4sdh | (pre-existing) el entity show ignores ID argument | 3 | bug |
+| el-1on4 | (pre-existing) el entity list needs --tag filter | 4 | enhancement |
+| el-36fq | (pre-existing) el entity list needs --name filter | 4 | enhancement |
+
+**Dependencies:**
+- el-5ism → el-ohmj (relates-to: both affect --public-key flag)
+- el-5h79 → el-6sbt (relates-to: same --offset pagination pattern)
+- el-5h79 → el-58qw (relates-to: same --offset pagination pattern)
+- el-5h79 → el-36fq (relates-to: both el entity list enhancements)
+
+**Notes:**
+This evaluation tested entity operations critical for multi-agent orchestration:
+1. Entity registration works correctly for basic cases
+2. Name validation is robust - proper rejection of invalid names
+3. **CRITICAL:** Public key feature is broken - value accepted but not stored
+4. Tags have known issues (el-5693, el-59p3) affecting entity registration
+5. `el entity show` command exists but is broken (el-4sdh)
+6. No --offset pagination support (consistent with other list commands)
+7. Actor attribution via --actor flag works correctly
+
+The public key bugs (el-ohmj, el-5ism) are particularly important because:
+- Cryptographic identity is a documented feature for entities
+- Users expect --public-key flag to store the key
+- Silent acceptance followed by silent discard is confusing
+- `el identity verify` cannot work with entity-stored keys until fixed
