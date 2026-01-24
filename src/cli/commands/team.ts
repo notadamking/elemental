@@ -218,6 +218,13 @@ async function teamAddHandler(
       return success(team, `Entity ${entityId} is already a member of team ${teamId}`);
     }
 
+    // Verify that if the element exists, it's actually an entity type
+    // (We allow non-existent entity IDs for flexibility - entity may be created later)
+    const entity = await api.get<Element>(entityId as ElementId);
+    if (entity && entity.type !== 'entity') {
+      return failure(`Element ${entityId} is not an entity (type: ${entity.type})`, ExitCode.VALIDATION);
+    }
+
     // Use the API method which handles validation, updates, and events
     await api.addTeamMember(
       teamId as ElementId,

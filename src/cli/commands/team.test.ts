@@ -233,6 +233,113 @@ describe('team add command', () => {
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error).toContain('Team not found');
   });
+
+  test('allows adding non-existent entity ID for flexibility', async () => {
+    // Non-existent entity IDs are allowed - entity may be created later
+    const teamId = await createTestTeam('Test Team');
+
+    const options = createTestOptions();
+    const result = await addSubCmd.handler([teamId, 'el-nonexistent-entity'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toContain('Added');
+  });
+
+  test('fails when adding non-entity element (task) to team', async () => {
+    // Create the API directly to create a task
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const { createTask } = await import('../../types/task.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create a task
+    const task = await createTask({
+      title: 'Test Task',
+      createdBy: 'test-user' as EntityId,
+    });
+    const createdTask = await api.create(task as unknown as Element & Record<string, unknown>);
+
+    // Create a team
+    const teamId = await createTestTeam('Test Team');
+
+    // Try to add the task as a team member
+    const options = createTestOptions();
+    const result = await addSubCmd.handler([teamId, createdTask.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('is not an entity');
+    expect(result.error).toContain('type: task');
+
+    backend.close();
+  });
+
+  test('fails when adding non-entity element (document) to team', async () => {
+    // Create the API directly to create a document
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const { createDocument, ContentType } = await import('../../types/document.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create a document
+    const doc = await createDocument({
+      contentType: ContentType.TEXT,
+      content: 'Test content',
+      createdBy: 'test-user' as EntityId,
+    });
+    const createdDoc = await api.create(doc as unknown as Element & Record<string, unknown>);
+
+    // Create a team
+    const teamId = await createTestTeam('Test Team');
+
+    // Try to add the document as a team member
+    const options = createTestOptions();
+    const result = await addSubCmd.handler([teamId, createdDoc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('is not an entity');
+    expect(result.error).toContain('type: document');
+
+    backend.close();
+  });
+
+  test('succeeds when adding actual entity to team', async () => {
+    // Create the API directly to create an entity
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const { createEntity } = await import('../../types/entity.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create an entity (name must follow pattern: letters, numbers, hyphens, underscores)
+    const entity = await createEntity({
+      name: 'test-agent',
+      entityType: 'agent',
+      createdBy: 'test-user' as EntityId,
+    });
+    const createdEntity = await api.create(entity as unknown as Element & Record<string, unknown>);
+
+    // Create a team
+    const teamId = await createTestTeam('Test Team');
+
+    // Add the entity as a team member
+    const options = createTestOptions();
+    const result = await addSubCmd.handler([teamId, createdEntity.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toContain('Added');
+
+    // Verify member is in team
+    const membersResult = await membersSubCmd.handler([teamId], createTestOptions({ json: true }));
+    const data = membersResult.data as { members: string[] };
+    expect(data.members).toContain(createdEntity.id);
+
+    backend.close();
+  });
 });
 
 // ============================================================================
