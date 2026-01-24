@@ -4381,6 +4381,68 @@ This evaluation tested dependency metadata capabilities critical for agent orche
 
 ---
 
+### Scenario: Self-Dependency Recovery and el blocked Pagination
+
+**Purpose:** Evaluate recovery from self-referential dependencies and pagination capabilities of the el blocked command
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Confirmed existing bugs, documented recovery)
+
+**Checkpoints:**
+
+**Self-Dependency Recovery:**
+- [x] Self-referential dependency can be created: `el dep add <task> <task> --type blocks`
+  - **BUG el-4pyu (CONFIRMED):** Task blocks itself, enters blocked state
+- [x] Self-blocked task appears in blocked list with `blockedBy` pointing to itself
+  - blockReason: "Blocked by el-xxx (blocks dependency)"
+- [x] **NEW FINDING**: Self-dependency can be removed: `el dep remove <task> <task> --type blocks`
+  - Task correctly returns to "open" status after removal
+  - Provides recovery path from self-blocking state (should be documented)
+
+**el blocked --limit Bug (el-46sa):**
+- [x] `el blocked --limit 1` returns 1 task (correct)
+- [ ] **FAIL**: `el blocked --limit 2` returns 1 task instead of 2
+- [ ] **FAIL**: `el blocked --limit 3` returns 2 tasks instead of 3
+- [ ] **FAIL**: `el blocked --limit 4` returns 3 tasks instead of 4
+- [x] `el blocked --limit N` where N > total returns all tasks (correct behavior)
+- **BUG el-46sa (CONFIRMED):** Off-by-one error for limit >= 2
+
+**el blocked Pagination:**
+- [x] `el blocked --limit` option exists and works (with bug)
+- [ ] **FAIL**: `el blocked --offset` option doesn't exist
+  - **ENHANCEMENT el-58qw:** Created - Add --offset option for pagination
+- [x] No pagination metadata (total count, hasMore) in JSON output
+  - Related to el-46xq
+
+**Success Criteria:** Blocked tasks can be paginated and self-dependencies can be recovered
+- **Partial:** Recovery path discovered, but pagination limited by missing --offset and limit bug
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4pyu | Self-referential dependency allowed (A blocks A) | 3 | bug |
+| el-46sa | el blocked --limit has off-by-one error for limit >= 2 | 3 | bug |
+
+**Issues Created:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-58qw | Add --offset option to el blocked for pagination | 4 | enhancement |
+
+**Dependencies:**
+- el-58qw → el-4ayv (relates-to: same pagination pattern as msg list)
+- el-58qw → el-1kt1 (relates-to: both el blocked enhancements)
+
+**Notes:**
+This evaluation discovered that while el-4pyu (self-blocking task) is a known bug, the recovery
+path via `el dep remove` works correctly. This should be documented in user-facing docs as a
+workaround until cycle detection is enforced. The el-46sa limit bug is still present and affects
+agents trying to paginate through blocked tasks.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.

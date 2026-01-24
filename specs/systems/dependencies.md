@@ -218,6 +218,14 @@ Dependencies stored in `dependencies` table:
 - type must be valid DependencyType
 - No self-references (source_id != target_id)
 
+### Implementation Status
+
+> **Note:** Cycle detection including self-referential checks are specified but not yet enforced.
+> See el-5w9d (cycle detection) and el-4pyu (self-referential dependency).
+>
+> **Workaround:** If a self-referential dependency is accidentally created, it can be removed
+> with `el dep remove <task-id> <task-id> --type blocks` to recover the task to "open" status.
+
 ## Operations
 
 ### Add Dependency
