@@ -3064,6 +3064,93 @@ Key findings:
 
 ---
 
+### Scenario: Assignment Validation and Cross-Reference Integrity
+
+**Purpose:** Evaluate task assignment validation, including self-assignment edge cases and type validation for assignee field, plus cross-reference cleanup when elements are deleted
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Confirms existing validation gaps)
+
+**Checkpoints:**
+
+**Assignment Validation:**
+- [ ] **FAIL**: Task can be assigned to itself: `el assign <task-id> <task-id>`
+  - Succeeds silently, setting `assignee` to the task's own ID
+  - Related to el-1fnm (no type validation on assignee field)
+- [ ] **FAIL**: Task can be assigned to a plan: `el assign <task-id> <plan-id>`
+  - **BUG el-1fnm confirmed:** Accepts plan ID as assignee
+- [ ] **FAIL**: Task can be assigned to a document: `el assign <task-id> <doc-id>`
+  - **BUG el-1fnm confirmed:** Accepts document ID as assignee
+- [ ] **FAIL**: Task can be assigned to non-existent ID: `el assign <task-id> el-nonexistent`
+  - **BUG el-jqhh confirmed:** Accepts invalid/non-existent IDs
+
+**Cross-Reference Cleanup (Plan-Task):**
+- [x] Delete task in plan: plan task count correctly decremented
+  - Plan progress recalculates correctly (3 tasks → 2 tasks after delete)
+- [x] Delete plan with tasks: tasks survive (expected behavior)
+  - Tasks remain accessible with normal IDs
+  - planId field not visible in task output (internal field)
+
+**Library Nesting Cycles:**
+- [ ] **FAIL**: Library nesting allows cycles: A→B→C→A
+  - **BUG el-u6qd confirmed:** No cycle detection on `el library nest`
+  - After cycle, all 3 libraries become non-roots (0 roots)
+  - No way to recover from corrupted state without `el library unnest` (el-5m3u)
+
+**Playbook Parser Bug:**
+- [ ] **FAIL**: Multiple `--step` flags only keeps last step
+  - **BUG el-59p3 confirmed:** `--step a:A --step b:B` creates only step b
+  - Error message "depends on unknown step" reveals only last step was parsed
+
+**Workflow Pour Validation:**
+- [ ] **FAIL**: Pour with non-existent playbook: `el workflow pour nonexistent`
+  - **BUG el-5rrv confirmed:** Creates empty workflow with invalid reference
+- [ ] **FAIL**: Pour with task ID: `el workflow pour <task-id>`
+  - **BUG el-5ldi confirmed:** Accepts task ID as playbook name
+- [ ] **FAIL**: Pour doesn't create tasks from playbook steps
+  - **BUG el-18ug confirmed:** Workflow tasks list is empty
+
+**Plan Completion Validation:**
+- [ ] **FAIL**: Complete plan with incomplete tasks
+  - **BUG el-g5qk confirmed:** Plan with 0% progress marked "completed"
+- [ ] **FAIL**: Add tasks to completed plan
+  - **BUG el-4uvk confirmed:** `el plan add-task` succeeds after plan completion
+
+**Concurrent Access:**
+- [x] SQLite correctly handles concurrent access attempts
+  - Second concurrent command fails with "database is locked"
+  - Error message could be more user-friendly
+- [x] Already-closed task rejection: `el close` on closed task properly rejected
+  - Clear error: "Task is already closed: el-xxx"
+
+**Success Criteria:** Assignment and reference operations validate types and clean up correctly
+- **Partial:** Cross-reference cleanup works for plan-task, but assignment validation missing
+
+**Issues Confirmed:**
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-1fnm | el assign accepts non-entity elements (task, doc, plan) as assignee | 3 | bug |
+| el-jqhh | el assign accepts non-existent entity IDs | 3 | bug |
+| el-u6qd | Library nesting allows cycles | 2 | bug |
+| el-59p3 | Parser bug - multiple --step/--tag/--member flags only keep last | 2 | bug |
+| el-5rrv | workflow pour accepts non-existent playbook names | 3 | bug |
+| el-5ldi | workflow pour accepts non-playbook element IDs | 3 | bug |
+| el-18ug | workflow pour doesn't create tasks from playbook | 2 | bug |
+| el-g5qk | plan complete allows completion with incomplete tasks | 3 | bug |
+| el-4uvk | plan add-task allows adding tasks to completed plans | 3 | bug |
+
+**Notes:**
+This scenario confirms multiple existing bugs are reproducible. Key finding: the assignee field
+has no type validation at all - it accepts any element ID (including the task itself) or even
+non-existent IDs. This is part of a larger pattern where entity references are not validated
+(also affects team members, channel members, and --actor flags).
+
+Self-assignment of a task (assignee = task's own ID) is a novel edge case discovered during
+this testing. While likely harmless, it demonstrates the complete lack of validation.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
