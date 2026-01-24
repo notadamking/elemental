@@ -5694,6 +5694,109 @@ makes debugging difficult since the sign operation succeeds.
 
 ---
 
+### Scenario: Task Type (taskType) Field CLI Behavior
+
+**Purpose:** Evaluate the taskType field behavior during creation, display, filtering, and update operations - critical for agents categorizing work by type (bug, feature, task, chore)
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Missing update flag, filter inconsistencies)
+
+**Checkpoints:**
+
+**Create with taskType:**
+- [x] `el create task --type bug --json` creates task with taskType=bug
+- [x] `el create task --type feature --json` creates task with taskType=feature
+- [x] `el create task --type chore --json` creates task with taskType=chore
+- [x] `el create task --type task --json` creates task with taskType=task
+- [x] `el create task --json` (no type) defaults to taskType=task
+- [x] `el create task --type "" --json` normalizes to default taskType=task
+- [x] `el create task --type "   " --json` (whitespace) correctly rejected
+- [x] `el create task --type BUG --json` (uppercase) correctly rejected (case-sensitive)
+- [x] `el create task --type invalidtype --json` correctly rejected with clear error
+
+**taskType Validation:**
+- [x] Invalid taskType returns exit code 4
+- [x] Error message lists valid types: "Invalid task type: X. Must be one of: bug, feature, task, chore"
+- [x] Case sensitivity enforced (BUG ≠ bug)
+
+**taskType in Output:**
+- [x] taskType field included in create response
+- [x] taskType field included in `el show` output
+- [x] taskType field included in `el ready` output
+- [x] taskType field included in `el list task` output
+
+**Filter by taskType - el ready:**
+- [x] `el ready --type bug --json` correctly filters to bug tasks only
+- [x] `el ready --type feature --json` correctly filters to feature tasks only
+- [ ] **CONFIRMS el-1jvk:** `el ready --type invalidtype --json` silently returns empty array
+  - Should reject with validation error like create does
+
+**Filter by taskType - el list:**
+- [ ] **CONFIRMS el-4jhl:** `el list task --type bug --json` returns ALL tasks
+  - `--type` flag filters element type, not taskType
+  - No `--task-type` flag available
+  - Inconsistent with `el ready --type` behavior
+
+**Filter by taskType - el blocked:**
+- [ ] **CONFIRMS el-1kt1:** `el blocked --type bug` returns "Unknown option: --type"
+  - Missing taskType filter on el blocked
+
+**Update taskType:**
+- [ ] **ENHANCEMENT el-45ic (NEW):** `el update --type chore --json` returns "Unknown option: --type"
+  - Cannot change taskType after creation
+  - Other mutable fields (priority, complexity, status) can be updated
+
+**Flag Consistency:**
+- [ ] **ENHANCEMENT el-w13e (NEW):** `--type` flag has inconsistent semantics
+  - On `el ready`: filters by taskType (bug, feature, task, chore)
+  - On `el list`: filters by element type (task, document, plan, etc.)
+  - Suggested: Use `--task-type` for taskType filtering
+
+**Success Criteria:** taskType field works correctly for agent task categorization
+- **PARTIAL:** Core creation and display work correctly. Filtering inconsistent between commands. Cannot update taskType after creation.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-45ic | ENHANCEMENT: el update should support --type flag to change taskType | 5 | enhancement |
+| el-w13e | ENHANCEMENT: Add --task-type flag to el ready (rename --type) for CLI consistency | 5 | enhancement |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4jhl | (pre-existing) el list task --type filters element type, not taskType | 3 | bug |
+| el-1jvk | (pre-existing) el ready --type accepts invalid taskType values silently | 4 | bug |
+| el-1kt1 | (pre-existing) el blocked needs --tag and --type filters like el ready | 4 | enhancement |
+
+**Dependencies:**
+- el-45ic → el-4jhl (relates-to: both taskType CLI gaps)
+- el-w13e → el-4jhl (relates-to: both involve --type flag semantics)
+- el-w13e → el-45ic (relates-to: both taskType CLI improvements)
+
+**Notes:**
+This evaluation tested the taskType field which is critical for agent orchestration patterns:
+1. Categorizing work by type (bug fixes vs features vs maintenance)
+2. Filtering work queues by task category
+3. Reporting and metrics by task type
+
+Key findings:
+1. taskType creation works correctly with proper validation
+2. Default taskType is "task" when not specified
+3. INCONSISTENT: `--type` flag means different things on different commands
+4. MISSING: Cannot filter by taskType on `el list` or `el blocked`
+5. MISSING: Cannot update taskType after creation
+6. SILENT FAILURE: Invalid taskType on `el ready` returns empty instead of error
+
+The flag inconsistency is particularly confusing:
+- `el ready --type bug` → filters by taskType
+- `el list --type bug` → error (bug is not an element type)
+- `el list task --type feature` → returns ALL tasks (--type is ignored after positional arg)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
