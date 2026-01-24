@@ -870,6 +870,74 @@ el playbook create --name test-workflow --title "Test Workflow" \
 
 ---
 
+### Scenario: Message Immutability and Access Control
+
+**Purpose:** Validate message immutability guarantees and channel membership access control for read/write operations
+
+**Prerequisites:** Initialized workspace with three entities
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - CRITICAL security bug found)
+
+**Checkpoints:**
+
+**Message Immutability:**
+- [x] Message update rejected: `el update <msg-id> --title "New"` fails
+  - Returns "Messages are immutable and cannot be updated" with exit code 1
+- [x] Message deletion rejected: `el delete <msg-id>` fails
+  - Returns "Messages cannot be deleted (immutable)" with exit code 4
+- [x] Message content preserved: original content always accessible
+
+**Channel Membership - Write Operations:**
+- [x] Member can send message: `el msg send --channel <id> --content "Hi" --actor <member>` succeeds
+- [x] Non-member send rejected: `el msg send --channel <id> --content "Hi" --actor <non-member>` fails
+  - Returns "You are not a member of channel el-xxx" with exit code 5
+
+**Channel Membership - Read Operations:**
+- [ ] **FAIL - SECURITY BUG el-1rbd**: Non-member can list messages: `el msg list --channel <id> --actor <non-member>`
+  - **CRITICAL**: Returns messages successfully instead of denying access
+- [ ] **FAIL - SECURITY BUG el-1rbd**: Non-member can view threads: `el msg thread <msg-id> --actor <non-member>`
+  - **CRITICAL**: Returns thread messages instead of denying access
+- [ ] **FAIL - SECURITY BUG el-1rbd**: Non-member can show message: `el show <msg-id> --actor <non-member>`
+  - **CRITICAL**: Returns message data instead of denying access
+
+**Threading Validation:**
+- [x] Valid thread reply: `el msg send --channel <id> --content "Reply" --thread <msg-id>` succeeds
+- [x] Cross-channel thread rejected: threading to message in different channel fails
+  - Returns "Thread parent message is in a different channel" with exit code 4
+- [x] Thread to non-existent message rejected: returns "Thread parent message not found" with exit code 3
+- [x] Thread to non-message element rejected: returns "Element el-xxx is not a message" with exit code 4
+- [x] Nested threading allowed: replies to replies succeed (creates message with threadId)
+- [ ] **UX el-54d6**: Nested replies not visible from root thread view
+  - `el msg thread <root>` only shows direct children, not nested descendants
+
+**Content Validation:**
+- [x] Empty content rejected: returns "Either --content or --file is required" with exit code 2
+- [ ] **UX el-5ha0**: Whitespace-only content accepted (should be rejected)
+  - `el msg send --content "   "` succeeds but creates empty-looking message
+
+**Attachment Handling:**
+- [x] Valid document attachment: `el msg send --attachment <doc-id>` works correctly
+- [x] Non-document attachment rejected: returns "Attachment el-xxx is not a document" with exit code 4
+- [x] Non-existent attachment rejected: returns NOT_FOUND with exit code 3
+
+**Success Criteria:** Messages are immutable and channel membership enforced for all operations
+- **CRITICAL FAILURE**: Read operations do not enforce channel membership
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-1rbd | SECURITY: Non-members can read channel messages via msg list, msg thread, show | 1 | bug |
+| el-5ha0 | UX: el msg send accepts whitespace-only content | 5 | ux |
+| el-54d6 | UX: Nested thread replies don't appear in root thread view | 4 | ux |
+
+**Dependencies:**
+- el-1rbd → el-4gu7 (relates-to: channel member validation pattern)
+- el-1rbd → el-36li (relates-to: channel access validation pattern)
+- el-5ha0 → el-2aqg (relates-to: whitespace content validation pattern)
+
+---
+
 ### Scenario: Cross-Element Orchestration
 
 **Purpose:** Validate the complete agent orchestration pattern
