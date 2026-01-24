@@ -484,6 +484,8 @@ Step-by-step checklists for validating critical paths.
   - Error: "Cannot complete plan: current status is 'cancelled'. Only active plans can be completed."
 - [x] Cannot activate cancelled plan
   - Error: "Cannot activate plan: current status is 'cancelled'. Only draft plans can be activated."
+- [ ] **FAIL**: Add tasks to cancelled plan: `el plan add-task <cancelled-plan-id> <task-id>`
+  - **BUG el-48i3:** Should be rejected, but succeeds
 - [ ] **MISSING**: No `el plan reopen` command (see el-6c3v)
 - [x] Plan list filtering by status: `el plan list --status active --json`
   - Returns only plans with matching status
@@ -504,6 +506,7 @@ Step-by-step checklists for validating critical paths.
 **Issues Found:**
 - **el-g5qk**: BUG - `el plan complete` allows completing plans with incomplete tasks
 - **el-4uvk**: BUG - `el plan add-task` allows adding tasks to completed plans
+- **el-48i3**: BUG - `el plan add-task` allows adding tasks to cancelled plans
 - **el-6c3v**: ENHANCEMENT - Add `el plan reopen` command for reactivating completed/cancelled plans
 - **el-58d9**: UX - Inconsistent JSON structure between `el show` and `el plan show` for plans
 
