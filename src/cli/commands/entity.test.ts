@@ -148,7 +148,7 @@ describe('entity register command', () => {
 
   test('registers entity with public key', async () => {
     const validKey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
-    const options = createTestOptions({ publicKey: validKey } as GlobalOptions & { publicKey: string });
+    const options = createTestOptions({ 'public-key': validKey } as GlobalOptions & { 'public-key': string });
     const result = await entityRegisterCommand.handler!(['crypto-entity'], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
@@ -428,11 +428,11 @@ function createTestAPI() {
 // Helper to register an entity via CLI and return it
 async function registerEntity(
   name: string,
-  options: Partial<GlobalOptions> & { type?: string; publicKey?: string; tag?: string[] } = {}
+  options: Partial<GlobalOptions> & { type?: string; 'public-key'?: string; tag?: string[] } = {}
 ): Promise<Entity> {
-  const fullOptions = createTestOptions(options as Partial<GlobalOptions>) as GlobalOptions & { type?: string; publicKey?: string; tag?: string[] };
+  const fullOptions = createTestOptions(options as Partial<GlobalOptions>) as GlobalOptions & { type?: string; 'public-key'?: string; tag?: string[] };
   if (options.type) fullOptions.type = options.type;
-  if (options.publicKey) fullOptions.publicKey = options.publicKey;
+  if (options['public-key']) fullOptions['public-key'] = options['public-key'];
   if (options.tag) fullOptions.tag = options.tag;
 
   const result = await entityRegisterCommand.handler!([name], fullOptions);
@@ -478,7 +478,7 @@ describe('entity lifecycle E2E scenarios', () => {
     const validPublicKey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
     // 1. Register entity with public key
-    const entity = await registerEntity('crypto-agent', { publicKey: validPublicKey });
+    const entity = await registerEntity('crypto-agent', { 'public-key': validPublicKey });
     expect(entity.publicKey).toBe(validPublicKey);
 
     // 2. Verify entity shows up with public key

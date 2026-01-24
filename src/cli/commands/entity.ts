@@ -84,7 +84,7 @@ function getActor(options: GlobalOptions): string {
 
 interface RegisterOptions extends GlobalOptions {
   type?: string;
-  publicKey?: string;
+  'public-key'?: string;
   tag?: string[];
 }
 
@@ -119,12 +119,13 @@ async function entityRegisterHandler(
 
     const actor = getActor(options);
     const tags = options.tag || [];
+    const publicKey = options['public-key'];
 
     const input: CreateEntityInput = {
       name,
       entityType,
       createdBy: actor as EntityId,
-      ...(options.publicKey && { publicKey: options.publicKey }),
+      ...(publicKey && { publicKey }),
       ...(tags.length > 0 && { tags }),
     };
 
