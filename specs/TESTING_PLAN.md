@@ -6631,3 +6631,140 @@ el workflow pour testing-workflow \
   --var feature="task-lifecycle" \
   --var tester="qa-agent"
 ```
+
+---
+
+### Scenario: Playbook Variable Interpolation and Inheritance
+
+**Purpose:** Evaluate playbook variable creation, type validation, default value handling, and inheritance resolution across extended playbooks - critical for agent workflows using parameterized workflow templates
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Boolean default validation gap, circular inheritance allowed at creation)
+
+**Checkpoints:**
+
+**Variable Type Validation:**
+- [x] String variable: `--variable "name:string"` works correctly
+- [x] Number variable: `--variable "count:number"` works correctly
+- [x] Boolean variable: `--variable "flag:boolean"` works correctly
+- [x] Invalid type: `--variable "foo:invalidtype"` correctly rejected with clear error
+  - Error: "Invalid variable type: invalidtype. Must be one of: string, number, boolean"
+
+**Variable Default Values:**
+- [x] String with default: `--variable "env:string:production"` works correctly
+- [x] Number with default: `--variable "count:number:42"` works correctly
+  - Default correctly typed as number (42, not "42")
+- [x] Boolean with default "true": `--variable "flag:boolean:true"` works correctly (default: true)
+- [x] Boolean with default "false": `--variable "flag:boolean:false"` works correctly (default: false)
+- [x] Invalid number default: `--variable "count:number:notanumber"` correctly rejected
+  - Error: "Invalid number default for variable 'count': notanumber"
+- [ ] **FAIL - BUG el-hqky (NEW):** Invalid boolean default silently accepts
+  - `--variable "flag:boolean:notabool"` succeeds with default: false
+  - `--variable "flag:boolean:1"` succeeds with default: false (should be true or error)
+  - `--variable "flag:boolean:yes"` succeeds with default: false (should be true or error)
+  - Only exact strings "true"/"false" work; all other values become false
+
+**Optional Variables:**
+- [x] Optional variable syntax: `--variable "opt:string:default:false"` works correctly
+  - Creates variable with required: false and default: "default"
+- [x] Validation without providing optional variable: passes correctly
+- [x] Optional variable with required: false can be omitted at pour time
+
+**Variable Name Validation:**
+- [x] Alphanumeric names: accepted (myVar, var1)
+- [x] Names with underscore: accepted (my_var)
+- [x] Names starting with underscore: accepted (_private)
+- [x] Names with hyphen: correctly rejected
+  - Error: "Variable name must be a valid identifier..."
+- [x] Names starting with number: correctly rejected
+
+**Playbook Inheritance (--extends):**
+- [x] Single parent: `--extends base-playbook` works correctly
+- [x] Parent steps inherited: child's `el playbook validate` shows inherited steps
+- [x] Parent variables inherited: inherited variables resolved at pour time
+- [x] Variable defaults from parent used when not overridden
+- [ ] **FAIL - BUG el-59p3 (CONFIRMED):** Multiple `--extends` only keeps last parent
+  - `--extends parent1 --extends parent2` results in extends: ["parent2"]
+  - Parser bug affects multiple repeated options
+- [ ] **FAIL - BUG el-7jdh (CONFIRMED):** `--extends nonexistent` allowed at creation
+  - Playbook created successfully with invalid parent reference
+  - Even `el playbook validate` reports valid: true
+
+**Circular Inheritance:**
+- [x] Self-extension: `--extends self-name` correctly rejected at creation
+  - Error: "Playbook cannot extend itself"
+- [ ] **FAIL - BUG el-bmsw (NEW):** Indirect cycle allowed at creation time
+  - A extends B, then B extends A: both creations succeed
+  - Basic validation (`el playbook validate`) passes
+  - Only pour-time validation detects: "Circular inheritance detected: A -> B -> A"
+  - Should be rejected at creation time
+
+**Variable Inheritance Resolution:**
+- [x] Child inherits parent variables via dependency resolution
+- [x] Parent defaults used when variable not provided
+- [x] `el playbook validate --var` shows resolvedVariables with inherited values
+- [x] `includedSteps` shows steps from both parent and child
+- [x] Steps from parent appear before steps from child in step list
+
+**Step Dependency Validation:**
+- [x] Step self-dependency: `--step "a:Step A:a"` correctly rejected
+  - Error: "Step 'a' cannot depend on itself"
+- [ ] **FAIL - BUG el-59p3:** Step with dependency to earlier step fails
+  - `--step "a:Step A" --step "b:Step B:a"` fails with "unknown step 'a'"
+  - Actual cause: only last --step kept, step "a" never created
+  - Misleading error message hides parser bug
+
+**Workflow Pour with Inheritance:**
+- [x] `el workflow pour child-playbook --var childvar=value` works correctly
+- [x] Inherited parent defaults applied automatically
+- [x] Workflow created with variables from both parent and child
+- [ ] **INFO:** Workflow tasks are NOT auto-created from playbook steps
+  - workflow.tasks returns empty array after pour
+  - Steps resolved at validation time but tasks created on-demand
+  - May be by design (lazy task creation)
+
+**Success Criteria:** Playbook variables work correctly with proper type validation and inheritance
+- **PARTIAL:** Core variable types and inheritance work. Boolean default validation gap. Circular inheritance detected too late.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-hqky | BUG: Playbook boolean variable default silently accepts invalid values | 3 | bug |
+| el-bmsw | BUG: Circular playbook inheritance allowed at creation time | 3 | bug |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-59p3 | (pre-existing) Parser bug affects multiple --variable, --extends, --step flags | 2 | bug |
+| el-7jdh | (pre-existing) --extends accepts non-existent playbooks | 3 | bug |
+
+**Dependencies:**
+- el-hqky → el-59p3 (relates-to: parser bug prevents testing multiple variables)
+- el-bmsw → el-7jdh (relates-to: both --extends validation gaps at creation time)
+
+**Notes:**
+This evaluation tested playbook variable and inheritance features critical for agent orchestration patterns:
+1. Parameterized workflow templates with typed variables
+2. Template reuse via inheritance (DRY principle)
+3. Default values for optional configuration
+4. Type-safe variable validation
+
+Key findings:
+1. Core variable types (string, number, boolean) work correctly
+2. Number default validation is robust - invalid values rejected
+3. **CRITICAL GAP:** Boolean default validation is missing - only "true"/"false" strings work
+4. Inheritance resolution works correctly at pour time
+5. **CRITICAL GAP:** Circular inheritance allowed at creation (detected only at pour)
+6. Parser bug el-59p3 severely impacts playbook creation via CLI
+7. Workflow pour doesn't auto-generate tasks from steps (may be by design)
+
+The boolean default bug (el-hqky) is particularly problematic because:
+- Values like "1", "yes", "on" intuitively should be truthy but become false
+- No error message alerts the user to the unexpected conversion
+- Inconsistent with number validation which properly rejects invalid values
+
+The circular inheritance bug (el-bmsw) allows creating playbooks that will always fail at pour time.
+Cycle detection logic exists (used in pour validation) but isn't called during creation.
