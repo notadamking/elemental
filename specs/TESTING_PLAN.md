@@ -7160,3 +7160,74 @@ When a "blocks" dependency is created, it's recording:
 Additionally, non-task elements (workflow, plan, document) are not considered when
 updating the blocked cache, meaning cross-element blocking dependencies are silently
 ignored.
+
+---
+
+### Scenario: Configuration Command Validation and Error Handling
+
+**Purpose:** Evaluate `el config` command behavior for validation of configuration keys and values, error messaging, and persistence consistency - critical for agent workflows that programmatically configure workspaces
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Silent acceptance of invalid keys)
+
+**Checkpoints:**
+
+**Valid Configuration Keys:**
+- [x] `el config set identity.mode cryptographic` persists correctly
+- [x] `el config set identity.mode soft` persists correctly
+- [x] `el config set identity.mode hybrid` persists correctly
+- [x] `el config set sync.autoExport true` persists correctly
+- [x] `el config show --json` displays all configuration values
+
+**Invalid Configuration Values:**
+- [x] `el config set identity.mode badmode` correctly rejected with exit code 4
+  - Error: "identity.mode must be a valid identity mode"
+- [x] Invalid values for valid keys are properly validated
+
+**Invalid Configuration Keys:**
+- [ ] **FAIL - UX el-18uu (NEW):** `el config set invalidkey somevalue` silently ignored
+  - Returns success: true with path and value
+  - Value is NOT persisted to configuration
+  - `el config show` does not include the invalid key
+  - User has no indication the key was invalid
+
+**Configuration Key Validation:**
+- [ ] **FAIL:** No schema validation for configuration keys
+- [ ] **FAIL:** No helpful error message listing valid keys
+- [ ] **FAIL:** Typos in config keys go undetected
+
+**Quiet Mode:**
+- [x] `el config show --quiet` returns "path=value" format
+- [x] `el config set --quiet` returns only the path
+
+**JSON Output:**
+- [x] `el config show --json` returns valid JSON structure
+- [x] `el config set --json` returns `{success: true, data: {path, value}}`
+
+**Success Criteria:** Configuration commands validate keys and provide clear feedback
+- **PARTIAL:** Value validation works correctly, but key validation is missing
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-18uu | UX: el config set silently ignores invalid configuration keys | 4 | ux |
+
+**Dependencies:**
+- el-18uu → el-1jvk (relates-to: both involve silent acceptance of invalid input)
+
+**Notes:**
+This evaluation tested the el config command which is critical for agent orchestration:
+1. Agents configure workspaces programmatically (identity mode, sync settings)
+2. Configuration errors should be detected early
+3. Silent failures make debugging difficult
+
+Key findings:
+1. **POSITIVE:** Valid keys with invalid values are properly rejected
+2. **NEGATIVE:** Invalid keys are silently accepted but not persisted
+3. The discrepancy between "success: true" and no actual persistence is confusing
+4. No documentation or error message lists valid configuration keys
+
+The silent acceptance pattern (el-18uu) is similar to el-1jvk (invalid taskType accepted)
+and suggests a broader pattern where filter/setting values should be validated.
