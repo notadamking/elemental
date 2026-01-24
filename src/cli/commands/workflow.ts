@@ -1,0 +1,770 @@
+/**
+ * Workflow Commands - Collection command interface for workflows
+ *
+ * Provides CLI commands for workflow operations:
+ * - workflow pour: Instantiate a playbook into a workflow
+ * - workflow list: List workflows with filtering
+ * - workflow show: Show workflow details
+ * - workflow burn: Delete ephemeral workflow and tasks
+ * - workflow squash: Promote ephemeral to durable
+ * - workflow gc: Garbage collect old ephemeral workflows
+ */
+
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
+import { success, failure, ExitCode } from '../types.js';
+import { getFormatter, getOutputMode, getStatusIcon } from '../formatter.js';
+import { createStorage, initializeSchema } from '../../storage/index.js';
+import { createElementalAPI } from '../../api/elemental-api.js';
+import {
+  createWorkflow,
+  WorkflowStatus,
+  squashWorkflow,
+  filterGarbageCollectionByAge,
+  type Workflow,
+  type CreateWorkflowInput,
+} from '../../types/workflow.js';
+import type { Element, ElementId, EntityId } from '../../types/element.js';
+import type { ElementalAPI } from '../../api/types.js';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const ELEMENTAL_DIR = '.elemental';
+const DEFAULT_DB_NAME = 'elemental.db';
+const DEFAULT_ACTOR = 'cli-user';
+
+// Default GC age: 7 days in milliseconds
+const DEFAULT_GC_AGE_DAYS = 7;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// ============================================================================
+// Database Helper
+// ============================================================================
+
+function resolveDatabasePath(options: GlobalOptions, requireExists: boolean = true): string | null {
+  if (options.db) {
+    if (requireExists && !existsSync(options.db)) {
+      return null;
+    }
+    return options.db;
+  }
+
+  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
+  if (existsSync(elementalDir)) {
+    const dbPath = join(elementalDir, DEFAULT_DB_NAME);
+    if (requireExists && !existsSync(dbPath)) {
+      return null;
+    }
+    return dbPath;
+  }
+
+  return null;
+}
+
+function resolveActor(options: GlobalOptions): EntityId {
+  return (options.actor ?? DEFAULT_ACTOR) as EntityId;
+}
+
+function createAPI(options: GlobalOptions, createDb: boolean = false): { api: ElementalAPI; error?: string } {
+  const dbPath = resolveDatabasePath(options, !createDb);
+  if (!dbPath) {
+    return {
+      api: null as unknown as ElementalAPI,
+      error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
+    };
+  }
+
+  try {
+    const backend = createStorage({ path: dbPath, create: true });
+    initializeSchema(backend);
+    return { api: createElementalAPI(backend) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      api: null as unknown as ElementalAPI,
+      error: `Failed to open database: ${message}`,
+    };
+  }
+}
+
+// ============================================================================
+// Workflow Pour Command
+// ============================================================================
+
+interface WorkflowPourOptions {
+  var?: string | string[];
+  ephemeral?: boolean;
+  title?: string;
+}
+
+const workflowPourOptions: CommandOption[] = [
+  {
+    name: 'var',
+    description: 'Set variable (name=value, can be repeated)',
+    hasValue: true,
+  },
+  {
+    name: 'ephemeral',
+    short: 'e',
+    description: 'Create as ephemeral (not synced)',
+    hasValue: false,
+  },
+  {
+    name: 'title',
+    short: 't',
+    description: 'Override workflow title',
+    hasValue: true,
+  },
+];
+
+async function workflowPourHandler(
+  args: string[],
+  options: GlobalOptions & WorkflowPourOptions
+): Promise<CommandResult> {
+  const [playbookNameOrId] = args;
+
+  if (!playbookNameOrId) {
+    return failure('Usage: el workflow pour <playbook> [options]', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options, true);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const actor = resolveActor(options);
+
+    // Parse variables
+    const variables: Record<string, unknown> = {};
+    if (options.var) {
+      const varArgs = Array.isArray(options.var) ? options.var : [options.var];
+      for (const varArg of varArgs) {
+        const eqIndex = varArg.indexOf('=');
+        if (eqIndex === -1) {
+          return failure(
+            `Invalid variable format: ${varArg}. Use name=value`,
+            ExitCode.VALIDATION
+          );
+        }
+        const name = varArg.slice(0, eqIndex);
+        const value = varArg.slice(eqIndex + 1);
+        variables[name] = value;
+      }
+    }
+
+    // For now, create a workflow directly
+    // TODO: When playbook pouring is implemented, look up playbook and instantiate
+    const title = options.title || `Workflow from ${playbookNameOrId}`;
+
+    const input: CreateWorkflowInput = {
+      title,
+      createdBy: actor,
+      ephemeral: options.ephemeral ?? false,
+      variables,
+      // playbookId would be set here when playbook lookup is implemented
+    };
+
+    const workflow = await createWorkflow(input);
+    const created = await api.create(workflow as unknown as Element & Record<string, unknown>);
+
+    const mode = getOutputMode(options);
+    if (mode === 'quiet') {
+      return success(created.id);
+    }
+
+    return success(created, `Created workflow ${created.id}${options.ephemeral ? ' (ephemeral)' : ''}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to pour workflow: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowPourCommand: Command = {
+  name: 'pour',
+  description: 'Instantiate a playbook into a workflow',
+  usage: 'el workflow pour <playbook> [options]',
+  help: `Create a workflow by instantiating a playbook template.
+
+Arguments:
+  playbook    Playbook name or ID to instantiate
+
+Options:
+      --var <name=value>  Set variable (can be repeated)
+  -e, --ephemeral         Create as ephemeral (not synced to JSONL)
+  -t, --title <text>      Override workflow title
+
+Examples:
+  el workflow pour deploy --var env=prod --var version=1.2
+  el workflow pour sprint-setup --ephemeral
+  el workflow pour deploy --title "Production Deploy v1.2"`,
+  options: workflowPourOptions,
+  handler: workflowPourHandler as Command['handler'],
+};
+
+// ============================================================================
+// Workflow List Command
+// ============================================================================
+
+interface WorkflowListOptions {
+  status?: string;
+  ephemeral?: boolean;
+  durable?: boolean;
+  limit?: string;
+}
+
+const workflowListOptions: CommandOption[] = [
+  {
+    name: 'status',
+    short: 's',
+    description: 'Filter by status (pending, running, completed, failed, cancelled)',
+    hasValue: true,
+  },
+  {
+    name: 'ephemeral',
+    short: 'e',
+    description: 'Show only ephemeral workflows',
+    hasValue: false,
+  },
+  {
+    name: 'durable',
+    short: 'd',
+    description: 'Show only durable workflows',
+    hasValue: false,
+  },
+  {
+    name: 'limit',
+    short: 'l',
+    description: 'Maximum number of results',
+    hasValue: true,
+  },
+];
+
+async function workflowListHandler(
+  _args: string[],
+  options: GlobalOptions & WorkflowListOptions
+): Promise<CommandResult> {
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Build filter
+    const filter: Record<string, unknown> = {
+      type: 'workflow',
+    };
+
+    // Status filter
+    if (options.status) {
+      const validStatuses = Object.values(WorkflowStatus);
+      if (!validStatuses.includes(options.status as WorkflowStatus)) {
+        return failure(
+          `Invalid status: ${options.status}. Must be one of: ${validStatuses.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
+    }
+
+    // Limit
+    if (options.limit) {
+      const limit = parseInt(options.limit, 10);
+      if (isNaN(limit) || limit < 1) {
+        return failure('Limit must be a positive number', ExitCode.VALIDATION);
+      }
+      filter.limit = limit;
+    }
+
+    const result = await api.listPaginated<Workflow>(filter);
+
+    // Post-filter
+    let items = result.items;
+
+    // Status filter
+    if (options.status) {
+      items = items.filter((w) => w.status === options.status);
+    }
+
+    // Ephemeral/durable filter
+    if (options.ephemeral && !options.durable) {
+      items = items.filter((w) => w.ephemeral);
+    } else if (options.durable && !options.ephemeral) {
+      items = items.filter((w) => !w.ephemeral);
+    }
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(items);
+    }
+
+    if (mode === 'quiet') {
+      return success(items.map((w) => w.id).join('\n'));
+    }
+
+    if (items.length === 0) {
+      return success(null, 'No workflows found');
+    }
+
+    // Build table
+    const headers = ['ID', 'TITLE', 'STATUS', 'MODE', 'CREATED'];
+    const rows = items.map((w) => [
+      w.id,
+      w.title.length > 40 ? w.title.substring(0, 37) + '...' : w.title,
+      `${getStatusIcon(w.status)} ${w.status}`,
+      w.ephemeral ? 'ephemeral' : 'durable',
+      w.createdAt.split('T')[0],
+    ]);
+
+    const table = formatter.table(headers, rows);
+    const summary = `\nShowing ${items.length} of ${result.total} workflows`;
+
+    return success(items, table + summary);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to list workflows: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowListCommand: Command = {
+  name: 'list',
+  description: 'List workflows',
+  usage: 'el workflow list [options]',
+  help: `List workflows with optional filtering.
+
+Options:
+  -s, --status <status>  Filter by status: pending, running, completed, failed, cancelled
+  -e, --ephemeral        Show only ephemeral workflows
+  -d, --durable          Show only durable workflows
+  -l, --limit <n>        Maximum results
+
+Examples:
+  el workflow list
+  el workflow list --status running
+  el workflow list --ephemeral`,
+  options: workflowListOptions,
+  handler: workflowListHandler as Command['handler'],
+};
+
+// ============================================================================
+// Workflow Show Command
+// ============================================================================
+
+async function workflowShowHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el workflow show <id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const workflow = await api.get<Workflow>(id as ElementId);
+
+    if (!workflow) {
+      return failure(`Workflow not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    if (workflow.type !== 'workflow') {
+      return failure(`Element ${id} is not a workflow (type: ${workflow.type})`, ExitCode.VALIDATION);
+    }
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(workflow);
+    }
+
+    if (mode === 'quiet') {
+      return success(workflow.id);
+    }
+
+    // Human-readable output
+    let output = formatter.element(workflow as unknown as Record<string, unknown>);
+
+    // Add workflow-specific info
+    output += '\n\n--- Workflow Info ---\n';
+    output += `Mode:      ${workflow.ephemeral ? 'ephemeral' : 'durable'}\n`;
+    if (workflow.playbookId) {
+      output += `Playbook:  ${workflow.playbookId}\n`;
+    }
+    if (workflow.startedAt) {
+      output += `Started:   ${workflow.startedAt}\n`;
+    }
+    if (workflow.finishedAt) {
+      output += `Finished:  ${workflow.finishedAt}\n`;
+    }
+    if (workflow.failureReason) {
+      output += `Failure:   ${workflow.failureReason}\n`;
+    }
+    if (workflow.cancelReason) {
+      output += `Cancelled: ${workflow.cancelReason}\n`;
+    }
+
+    // Show variables if any
+    const varKeys = Object.keys(workflow.variables);
+    if (varKeys.length > 0) {
+      output += '\n--- Variables ---\n';
+      for (const key of varKeys) {
+        output += `${key}: ${JSON.stringify(workflow.variables[key])}\n`;
+      }
+    }
+
+    return success(workflow, output);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to show workflow: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowShowCommand: Command = {
+  name: 'show',
+  description: 'Show workflow details',
+  usage: 'el workflow show <id>',
+  help: `Display detailed information about a workflow.
+
+Arguments:
+  id    Workflow identifier (e.g., el-abc123)
+
+Examples:
+  el workflow show el-abc123
+  el workflow show el-abc123 --json`,
+  handler: workflowShowHandler as Command['handler'],
+};
+
+// ============================================================================
+// Workflow Burn Command
+// ============================================================================
+
+async function workflowBurnHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el workflow burn <id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const workflow = await api.get<Workflow>(id as ElementId);
+
+    if (!workflow) {
+      return failure(`Workflow not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    if (workflow.type !== 'workflow') {
+      return failure(`Element ${id} is not a workflow (type: ${workflow.type})`, ExitCode.VALIDATION);
+    }
+
+    if (!workflow.ephemeral) {
+      return failure(
+        `Workflow ${id} is durable. Use 'el delete ${id}' instead, or first convert with 'el workflow squash'.`,
+        ExitCode.VALIDATION
+      );
+    }
+
+    const actor = resolveActor(options);
+
+    // TODO: Delete child tasks first when task association is implemented
+
+    // Delete the workflow
+    await api.delete(id as ElementId, { actor, reason: 'Burned ephemeral workflow' });
+
+    return success({ id }, `Burned workflow ${id} and its tasks`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to burn workflow: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowBurnCommand: Command = {
+  name: 'burn',
+  description: 'Delete ephemeral workflow and tasks',
+  usage: 'el workflow burn <id>',
+  help: `Delete an ephemeral workflow and all its tasks immediately.
+
+This command only works on ephemeral workflows. For durable workflows,
+use the standard delete command.
+
+Arguments:
+  id    Workflow identifier
+
+Examples:
+  el workflow burn el-abc123`,
+  handler: workflowBurnHandler as Command['handler'],
+};
+
+// ============================================================================
+// Workflow Squash Command
+// ============================================================================
+
+async function workflowSquashHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el workflow squash <id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const workflow = await api.get<Workflow>(id as ElementId);
+
+    if (!workflow) {
+      return failure(`Workflow not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    if (workflow.type !== 'workflow') {
+      return failure(`Element ${id} is not a workflow (type: ${workflow.type})`, ExitCode.VALIDATION);
+    }
+
+    if (!workflow.ephemeral) {
+      return success(workflow, `Workflow ${id} is already durable`);
+    }
+
+    const actor = resolveActor(options);
+
+    // Use the squashWorkflow function to get updated values
+    const squashed = squashWorkflow(workflow);
+
+    // Update in database
+    const updated = await api.update<Workflow>(
+      id as ElementId,
+      { ephemeral: squashed.ephemeral },
+      { actor }
+    );
+
+    return success(updated, `Promoted workflow ${id} to durable`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to squash workflow: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowSquashCommand: Command = {
+  name: 'squash',
+  description: 'Promote ephemeral workflow to durable',
+  usage: 'el workflow squash <id>',
+  help: `Promote an ephemeral workflow to durable so it gets synced to JSONL.
+
+After squashing, the workflow and its tasks will be included in exports
+and git sync.
+
+Arguments:
+  id    Workflow identifier
+
+Examples:
+  el workflow squash el-abc123`,
+  handler: workflowSquashHandler as Command['handler'],
+};
+
+// ============================================================================
+// Workflow GC Command
+// ============================================================================
+
+interface WorkflowGcOptions {
+  age?: string;
+  dryRun?: boolean;
+}
+
+const workflowGcOptions: CommandOption[] = [
+  {
+    name: 'age',
+    short: 'a',
+    description: `Maximum age in days (default: ${DEFAULT_GC_AGE_DAYS})`,
+    hasValue: true,
+  },
+  {
+    name: 'dry-run',
+    description: 'Show what would be deleted without deleting',
+    hasValue: false,
+  },
+];
+
+async function workflowGcHandler(
+  _args: string[],
+  options: GlobalOptions & WorkflowGcOptions
+): Promise<CommandResult> {
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Parse age
+    let ageDays = DEFAULT_GC_AGE_DAYS;
+    if (options.age) {
+      ageDays = parseInt(options.age, 10);
+      if (isNaN(ageDays) || ageDays < 0) {
+        return failure('Age must be a non-negative number', ExitCode.VALIDATION);
+      }
+    }
+
+    const maxAgeMs = ageDays * MS_PER_DAY;
+
+    // Get all workflows
+    const result = await api.list<Workflow>({ type: 'workflow' });
+
+    // Filter to those eligible for GC
+    const eligible = filterGarbageCollectionByAge(result, maxAgeMs);
+
+    if (eligible.length === 0) {
+      return success({ deleted: 0 }, 'No workflows eligible for garbage collection');
+    }
+
+    if (options.dryRun) {
+      const mode = getOutputMode(options);
+      const formatter = getFormatter(mode);
+
+      if (mode === 'json') {
+        return success({ wouldDelete: eligible.map((w) => w.id), count: eligible.length });
+      }
+
+      if (mode === 'quiet') {
+        return success(eligible.map((w) => w.id).join('\n'));
+      }
+
+      const headers = ['ID', 'TITLE', 'STATUS', 'FINISHED'];
+      const rows = eligible.map((w) => [
+        w.id,
+        w.title.length > 40 ? w.title.substring(0, 37) + '...' : w.title,
+        w.status,
+        w.finishedAt ? w.finishedAt.split('T')[0] : '-',
+      ]);
+
+      const table = formatter.table(headers, rows);
+      return success(
+        { wouldDelete: eligible.map((w) => w.id), count: eligible.length },
+        `Would delete ${eligible.length} workflow(s):\n${table}`
+      );
+    }
+
+    // Delete eligible workflows
+    const actor = resolveActor(options);
+    let deleted = 0;
+    const errors: string[] = [];
+
+    for (const workflow of eligible) {
+      try {
+        // TODO: Delete child tasks first when task association is implemented
+        await api.delete(workflow.id, { actor, reason: 'Garbage collected' });
+        deleted++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${workflow.id}: ${msg}`);
+      }
+    }
+
+    const result2 = {
+      deleted,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+
+    if (errors.length > 0) {
+      return success(
+        result2,
+        `Garbage collected ${deleted} workflow(s), ${errors.length} error(s):\n${errors.join('\n')}`
+      );
+    }
+
+    return success(result2, `Garbage collected ${deleted} workflow(s)`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to garbage collect: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowGcCommand: Command = {
+  name: 'gc',
+  description: 'Garbage collect old ephemeral workflows',
+  usage: 'el workflow gc [options]',
+  help: `Delete old ephemeral workflows that have reached a terminal state.
+
+Workflows are eligible for garbage collection if they are:
+- Ephemeral (not durable)
+- In a terminal state (completed, failed, or cancelled)
+- Older than the specified age
+
+Options:
+  -a, --age <days>   Maximum age in days (default: ${DEFAULT_GC_AGE_DAYS})
+      --dry-run      Show what would be deleted without deleting
+
+Examples:
+  el workflow gc
+  el workflow gc --age 30
+  el workflow gc --dry-run`,
+  options: workflowGcOptions,
+  handler: workflowGcHandler as Command['handler'],
+};
+
+// ============================================================================
+// Workflow Root Command
+// ============================================================================
+
+export const workflowCommand: Command = {
+  name: 'workflow',
+  description: 'Manage workflows (executable task sequences)',
+  usage: 'el workflow <subcommand> [options]',
+  help: `Manage workflows - executable sequences of tasks.
+
+Workflows can be instantiated from playbook templates or created ad-hoc.
+They support both durable (synced) and ephemeral (temporary) modes.
+
+Subcommands:
+  pour     Instantiate a playbook into a workflow
+  list     List workflows
+  show     Show workflow details
+  burn     Delete ephemeral workflow and tasks
+  squash   Promote ephemeral to durable
+  gc       Garbage collect old ephemeral workflows
+
+Examples:
+  el workflow pour deploy --var env=prod
+  el workflow list --status running
+  el workflow show el-abc123
+  el workflow burn el-abc123
+  el workflow squash el-abc123
+  el workflow gc --age 30`,
+  subcommands: {
+    pour: workflowPourCommand,
+    list: workflowListCommand,
+    show: workflowShowCommand,
+    burn: workflowBurnCommand,
+    squash: workflowSquashCommand,
+    gc: workflowGcCommand,
+  },
+  handler: async (args, options): Promise<CommandResult> => {
+    // Default to list if no subcommand
+    if (args.length === 0) {
+      return workflowListHandler(args, options);
+    }
+    return failure(
+      `Unknown subcommand: ${args[0]}. Use 'el workflow --help' for available subcommands.`,
+      ExitCode.INVALID_ARGUMENTS
+    );
+  },
+};

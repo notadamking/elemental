@@ -473,13 +473,13 @@ User-friendly errors:
 - [x] Implement dep tree (src/cli/commands/dep.ts, --depth limit, ASCII tree output)
 - [x] Unit tests (src/cli/commands/dep.test.ts - 44 tests)
 
-### Phase 5: Collection Commands
+### Phase 5: Collection Commands ✅
 - [x] Implement plan commands (src/cli/commands/plan.ts - create, list, show, activate, complete, cancel, add-task, remove-task, tasks)
-- [ ] Implement workflow commands
-- [ ] Implement playbook commands
-- [ ] Implement channel commands
-- [ ] Implement library commands
-- [ ] Implement team commands
+- [x] Implement workflow commands (src/cli/commands/workflow.ts - pour, list, show, burn, squash, gc)
+- [x] Implement playbook commands (src/cli/commands/playbook.ts - list, show, validate, create)
+- [x] Implement channel commands (src/cli/commands/channel.ts - create, join, leave, list, members)
+- [x] Implement library commands (src/cli/commands/library.ts - create, list, add, remove)
+- [x] Implement team commands (src/cli/commands/team.ts - create, add, remove, list, members)
 
 ### Phase 6: Sync Commands ✅
 - [x] Implement export (src/cli/commands/sync.ts, --output, --full, --include-ephemeral)

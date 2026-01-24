@@ -22,3 +22,8 @@ export { createCommand, listCommand, showCommand } from './commands/crud.js';
 export { depCommand, depAddCommand, depRemoveCommand, depListCommand, depTreeCommand } from './commands/dep.js';
 export { statsCommand } from './commands/stats.js';
 export { planCommand } from './commands/plan.js';
+export { workflowCommand } from './commands/workflow.js';
+export { playbookCommand } from './commands/playbook.js';
+export { channelCommand } from './commands/channel.js';
+export { libraryCommand } from './commands/library.js';
+export { teamCommand } from './commands/team.js';
