@@ -17,6 +17,7 @@ import { createElementalAPI } from '../../api/elemental-api.js';
 import { createTask, TaskStatus, TaskTypeValue, type CreateTaskInput, type Priority, type Complexity } from '../../types/task.js';
 import type { Element, ElementId, EntityId } from '../../types/element.js';
 import type { ElementalAPI, TaskFilter } from '../../api/types.js';
+import type { PlanProgress } from '../../types/plan.js';
 
 // ============================================================================
 // Constants
@@ -525,9 +526,19 @@ async function showHandler(
       events = await api.getEvents(id as ElementId, { limit: eventsLimit });
     }
 
+    // Get plan progress if element is a plan
+    let planProgress: PlanProgress | undefined;
+    if (element.type === 'plan') {
+      try {
+        planProgress = await api.getPlanProgress(id as ElementId);
+      } catch {
+        // Ignore errors fetching progress
+      }
+    }
+
     if (mode === 'json') {
-      if (events) {
-        return success({ element, events });
+      if (events || planProgress) {
+        return success({ element, ...(planProgress && { progress: planProgress }), ...(events && { events }) });
       }
       return success(element);
     }
@@ -538,6 +549,17 @@ async function showHandler(
 
     // Human-readable output - format as key-value pairs
     let output = formatter.element(element as unknown as Record<string, unknown>);
+
+    // Add plan progress if available
+    if (planProgress) {
+      output += '\n\n--- Task Progress ---\n';
+      output += `Total:       ${planProgress.totalTasks}\n`;
+      output += `Completed:   ${planProgress.completedTasks}\n`;
+      output += `In Progress: ${planProgress.inProgressTasks}\n`;
+      output += `Blocked:     ${planProgress.blockedTasks}\n`;
+      output += `Remaining:   ${planProgress.remainingTasks}\n`;
+      output += `Progress:    ${planProgress.completionPercentage}%`;
+    }
 
     // Add events if requested
     if (events && events.length > 0) {
