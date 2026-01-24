@@ -708,6 +708,91 @@ el playbook create --name test-workflow --title "Test Workflow" \
 
 ---
 
+### Scenario: Channel and Messaging Operations
+
+**Purpose:** Validate channel lifecycle and messaging operations with focus on validation and edge cases
+
+**Prerequisites:** Initialized workspace with three registered entities
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical validation gaps)
+
+**Checkpoints:**
+
+**Channel Lifecycle:**
+- [x] Create group channel with members: `el channel create --name "test" --type group --member el-a --member el-b --actor el-a`
+  - Works correctly with at least 2 members
+  - Error message clear when fewer than 2 members: "Group channel requires at least 2 members"
+- [x] Create direct channel: `el channel create --type direct --direct el-b --actor el-a`
+  - Works correctly, creates channel with both members
+  - Self-direct correctly rejected: "Direct channel requires two different entities"
+- [ ] **FAIL**: Create duplicate direct channel between same entities
+  - **BUG el-53sv:** Creates second direct channel instead of returning existing or erroring
+- [x] Channel list with filters: `el channel list --type group --member el-a`
+  - Both --type and --member filters work correctly
+- [x] Delete channel: `el delete <channel-id>`
+  - Works correctly for empty channels
+- [ ] **FAIL**: Delete channel with messages orphans them
+  - **BUG el-wjo9:** Messages left with invalid channelId reference, no warning or --force required
+
+**Channel Membership:**
+- [x] Add member with proper permissions: `el channel add <channel-id> <entity-id> --actor <modifier>`
+  - Works correctly when actor is in modifyMembers
+- [x] Permission enforcement: non-modifier rejected
+  - Clear error: "Entity does not have permission to modify channel membership"
+- [ ] **FAIL**: Add non-existent entity as member
+  - **BUG el-36li:** Accepts invalid entity IDs without validation
+- [ ] **FAIL**: Add non-entity element (task) as member
+  - **BUG el-4gu7:** Accepts task/document IDs as members (same as el-5gjo for teams)
+- [x] Add duplicate member: idempotent (succeeds, no duplicate added)
+- [x] Remove member: works correctly
+- [x] Remove non-member: correctly rejected with exit code 4
+- [ ] **FAIL**: Remove last modifier
+  - **BUG el-63cy:** Allows removing last modifier, leaving unmanageable channel
+- [x] Cannot modify direct channel membership: correctly rejected
+
+**Message Operations:**
+- [x] Send message to channel: `el msg send --channel <id> --content "Hello" --actor <entity>`
+  - Works correctly, content stored in separate document (contentRef)
+- [x] List messages: `el msg list --channel <id> --actor <entity>`
+  - Returns messages with content hydrated
+- [x] Message threading: `el msg send --channel <id> --content "Reply" --thread <msg-id> --actor <entity>`
+  - Thread relationship correctly created
+- [x] View thread: `el msg thread <msg-id>`
+  - Returns all messages in thread with hydrated content
+- [x] Send with attachment: `el msg send --channel <id> --content "Doc" --attachment <doc-id> --actor <entity>`
+  - Works correctly with single attachment
+- [ ] **FAIL**: Multiple attachments: `--attachment doc1 --attachment doc2`
+  - **BUG el-2674:** Only last attachment kept (parser bug el-59p3 affects --attachment)
+- [x] Attachment validation: non-existent attachment rejected
+- [x] Attachment type validation: non-document attachment rejected with clear error
+
+**Message Validation:**
+- [x] Non-existent channel: "Channel not found: el-xxx" with exit code 3
+- [x] Non-member sender: "You are not a member of channel el-xxx" with exit code 5
+- [x] Empty message: "Either --content or --file is required" with exit code 2
+- [x] Thread to non-existent message: "Thread parent message not found" with exit code 3
+- [x] Thread to message in different channel: "Thread parent message is in a different channel" with exit code 4
+
+**Success Criteria:** Channel and message operations work with proper validation
+- **Partial:** Core operations work, but validation gaps allow invalid data (member validation, orphaned messages)
+
+**Issues Found:**
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-53sv | Duplicate direct channels can be created between same entities | 3 | bug |
+| el-wjo9 | Delete channel leaves orphaned messages with invalid channelId | 2 | bug |
+| el-36li | el channel add accepts non-existent entity IDs | 3 | bug |
+| el-4gu7 | el channel add accepts non-entity elements as members | 3 | bug |
+| el-63cy | el channel remove allows removing last modifier | 3 | bug |
+| el-2674 | Parser bug el-59p3 affects --member and --attachment flags | 2 | bug |
+
+**Dependencies:**
+- el-36li → el-5gjo (relates-to: same entity validation pattern)
+- el-4gu7 → el-5gjo (relates-to: same non-entity member pattern)
+- el-2674 → el-59p3 (relates-to: same parser bug root cause)
+
+---
+
 ### Scenario: Cross-Element Orchestration
 
 **Purpose:** Validate the complete agent orchestration pattern
