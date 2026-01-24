@@ -87,12 +87,59 @@ Default paths:
 | `tombstone.ttl` | duration | 720h | Time-to-live (30 days) |
 | `tombstone.min_ttl` | duration | 168h | Minimum TTL (7 days) |
 
-### Identity Mode
+### Identity Configuration
+
+Identity settings control how actors are verified and authenticated.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `identity.mode` | string | soft | soft, cryptographic, hybrid |
-| `identity.time_tolerance` | duration | 5m | Signature time tolerance |
+| `identity.mode` | string | soft | Identity verification mode |
+| `identity.time_tolerance` | duration | 5m | Signature expiry tolerance |
+
+#### Identity Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `soft` | Name-based identity without verification | Trusted, single-system environments |
+| `cryptographic` | Key-based identity with signature verification | Untrusted, multi-system environments |
+| `hybrid` | Accepts both verified and unverified actors | Gradual migration to cryptographic |
+
+**Soft Mode (Default)**
+- Any actor name can be claimed
+- No signature verification
+- Impersonation is possible
+- Federation not supported
+- Suitable for trusted environments
+
+**Cryptographic Mode**
+- Requires Ed25519 public key registration
+- All write operations require valid signatures
+- Prevents impersonation
+- Supports federation across systems
+- Reject unsigned requests
+
+**Hybrid Mode**
+- Entities with keys are verified
+- Entities without keys use soft identity
+- System accepts both
+- Queries can filter by verification status
+- Useful for gradual adoption
+
+#### Time Tolerance
+
+Signatures include a timestamp (`signedAt`) that must be within the configured tolerance:
+- Prevents replay attacks
+- Allows for clock skew between systems
+- Default: 5 minutes
+- Minimum: 1 second
+- Maximum: 24 hours
+
+#### Validation Rules
+
+| Field | Constraint |
+|-------|------------|
+| `identity.mode` | Must be: soft, cryptographic, or hybrid |
+| `identity.time_tolerance` | 1s ≤ value ≤ 24h |
 
 ## Environment Variables
 
@@ -113,6 +160,23 @@ Default paths:
 | `ELEMENTAL_VERBOSE` | (debug mode) | boolean |
 | `ELEMENTAL_SYNC_AUTO_EXPORT` | sync.auto_export | boolean |
 | `ELEMENTAL_IDENTITY_MODE` | identity.mode | string |
+| `ELEMENTAL_SIGN_KEY` | (signing) | string |
+| `ELEMENTAL_SIGN_KEY_FILE` | (signing) | string |
+
+### Identity Environment Variables
+
+For cryptographic mode, signing keys can be provided via environment:
+
+| Variable | Description |
+|----------|-------------|
+| `ELEMENTAL_SIGN_KEY` | Base64-encoded Ed25519 private key (PKCS8 format) |
+| `ELEMENTAL_SIGN_KEY_FILE` | Path to file containing private key |
+
+Priority order (highest to lowest):
+1. CLI `--sign-key` flag
+2. CLI `--sign-key-file` flag
+3. `ELEMENTAL_SIGN_KEY` environment variable
+4. `ELEMENTAL_SIGN_KEY_FILE` environment variable
 
 ### Boolean Parsing
 
@@ -212,6 +276,95 @@ identity:
   time_tolerance: 5m
 ```
 
+## Identity Configuration Examples
+
+### Soft Mode (Default)
+
+For trusted, single-system environments:
+
+```yaml
+identity:
+  mode: soft
+```
+
+Usage:
+```bash
+# Any actor name is accepted
+el task create "My task" --actor alice
+el task create "Another task" --actor bob
+```
+
+### Cryptographic Mode
+
+For untrusted, multi-system environments:
+
+```yaml
+identity:
+  mode: cryptographic
+  time_tolerance: 5m
+```
+
+Setup:
+```bash
+# Generate keypair
+el identity keygen
+# Output:
+#   Public Key:  <base64-public-key>
+#   Private Key: <base64-private-key>
+
+# Register entity with public key
+el entity register alice --type agent --public-key <base64-public-key>
+
+# Set actor in config
+el config set actor alice
+```
+
+Usage:
+```bash
+# Sign requests with private key
+el --sign-key <private-key> task create "Secure task"
+
+# Or use environment variable
+export ELEMENTAL_SIGN_KEY=<base64-private-key>
+el task create "Secure task"
+
+# Or use key file
+el --sign-key-file ~/.elemental/private.key task create "Secure task"
+```
+
+### Hybrid Mode
+
+For gradual migration from soft to cryptographic:
+
+```yaml
+identity:
+  mode: hybrid
+  time_tolerance: 10m  # More lenient for distributed systems
+```
+
+In hybrid mode:
+- Entities with public keys must sign requests
+- Entities without keys use soft identity
+- Both types can coexist
+
+### Environment-Based Configuration
+
+```bash
+# Set identity mode via environment
+export ELEMENTAL_IDENTITY_MODE=cryptographic
+
+# Set signing key
+export ELEMENTAL_SIGN_KEY=<base64-private-key>
+# Or path to key file
+export ELEMENTAL_SIGN_KEY_FILE=~/.elemental/private.key
+
+# Set actor
+export ELEMENTAL_ACTOR=alice
+
+# Now all commands use cryptographic identity
+el task create "Secure task"
+```
+
 ## CLI Config Commands
 
 ### Show All
@@ -244,6 +397,84 @@ Example: `el config unset actor`
 
 Opens config file in default editor.
 
+## Identity CLI Commands
+
+### Show Current Actor
+
+`el whoami`
+
+Displays the current actor identity and how it was determined.
+
+Output includes:
+- Actor name
+- Source (CLI flag, environment, config file, default)
+- Identity mode (soft, cryptographic, hybrid)
+- Verification status
+
+### Show/Set Identity Mode
+
+`el identity mode`
+`el identity mode <mode>`
+
+Show or set the identity verification mode.
+
+Examples:
+```bash
+el identity mode              # Show current mode
+el identity mode soft         # Set to soft mode
+el identity mode cryptographic  # Set to cryptographic mode
+```
+
+### Generate Keypair
+
+`el identity keygen`
+
+Generate a new Ed25519 keypair for cryptographic identity.
+
+Output:
+- Public Key: Register with `el entity register --public-key <key>`
+- Private Key: Use with `--sign-key` to sign requests
+
+### Sign Data
+
+`el identity sign [options]`
+
+Sign data using an Ed25519 private key.
+
+| Option | Description |
+|--------|-------------|
+| `-d, --data <string>` | Data to sign (will be hashed) |
+| `-f, --file <path>` | File containing data to sign |
+| `--hash <hash>` | Pre-computed SHA256 hash (hex) |
+| `--sign-key <key>` | Private key (base64 PKCS8) |
+| `--sign-key-file <path>` | Path to private key file |
+
+### Verify Signature
+
+`el identity verify [options]`
+
+Verify an Ed25519 signature against data.
+
+| Option | Description |
+|--------|-------------|
+| `-s, --signature <sig>` | Signature to verify (base64) |
+| `-k, --public-key <key>` | Public key (base64) |
+| `--signed-at <time>` | Timestamp when signed (ISO 8601) |
+| `-d, --data <string>` | Original data that was signed |
+| `-f, --file <path>` | File containing original data |
+| `--hash <hash>` | Request hash that was signed |
+
+### Compute Hash
+
+`el identity hash [options]`
+
+Compute SHA256 hash of data for use in signing.
+
+| Option | Description |
+|--------|-------------|
+| `-d, --data <string>` | Data to hash |
+| `-f, --file <path>` | File to hash |
+
 ## Validation
 
 ### On Load
@@ -267,9 +498,11 @@ Configuration validated on set:
 |-------|------------|
 | actor | Valid identifier format |
 | database | Valid filename |
-| sync.export_debounce | >= 100ms |
-| tombstone.ttl | >= min_ttl |
+| sync.export_debounce | >= 100ms, <= 1h |
+| tombstone.ttl | >= min_ttl, <= 365d |
+| tombstone.min_ttl | >= 0, <= ttl |
 | identity.mode | Enum: soft, cryptographic, hybrid |
+| identity.time_tolerance | >= 1s, <= 24h |
 
 ## Implementation Methodology
 

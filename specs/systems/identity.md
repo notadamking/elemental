@@ -281,11 +281,11 @@ Allow runtime mode switching:
 - [x] Implement key update (signed) ✅ (rotateEntityKey with signature verification, constructKeyRotationMessage, validateKeyRotationInput, prepareKeyRotation - 20 tests)
 - [ ] Implement key revocation (future/optional)
 
-### Phase 6: Configuration
+### Phase 6: Configuration ✅
 - [x] Add identity mode config (IdentityConfig type)
 - [x] Implement mode switching (shouldAllowRequest)
 - [x] Add tolerance settings (timeTolerance, DEFAULT_TIME_TOLERANCE)
-- [ ] Document configuration
+- [x] Document configuration (specs/api/configuration.md - identity modes, environment variables, CLI commands, examples)
 
 ### Phase 7: CLI Support ✅
 - [x] Add --actor flag globally (src/cli/parser.ts - global flag definition)
