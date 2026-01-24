@@ -5731,6 +5731,9 @@ makes debugging difficult since the sign operation succeeds.
 - [x] `el ready --type feature --json` correctly filters to feature tasks only
 - [ ] **CONFIRMS el-1jvk:** `el ready --type invalidtype --json` silently returns empty array
   - Should reject with validation error like create does
+- [ ] **UX el-60f2 (NEW):** `el ready --type BUG` (uppercase) silently returns empty array
+  - `el create task --type BUG` correctly rejects with validation error
+  - Inconsistent case sensitivity handling between create and filter
 
 **Filter by taskType - el list:**
 - [ ] **CONFIRMS el-4jhl:** `el list task --type bug --json` returns ALL tasks
@@ -5762,6 +5765,7 @@ makes debugging difficult since the sign operation succeeds.
 |----|---------|----------|----------|
 | el-45ic | ENHANCEMENT: el update should support --type flag to change taskType | 5 | enhancement |
 | el-w13e | ENHANCEMENT: Add --task-type flag to el ready (rename --type) for CLI consistency | 5 | enhancement |
+| el-60f2 | UX: el ready --type should reject invalid case (BUG) like el create does | 4 | ux |
 
 **Issues Confirmed:**
 
@@ -5775,6 +5779,7 @@ makes debugging difficult since the sign operation succeeds.
 - el-45ic → el-4jhl (relates-to: both taskType CLI gaps)
 - el-w13e → el-4jhl (relates-to: both involve --type flag semantics)
 - el-w13e → el-45ic (relates-to: both taskType CLI improvements)
+- el-60f2 → el-1jvk (relates-to: both taskType filter validation issues)
 
 **Notes:**
 This evaluation tested the taskType field which is critical for agent orchestration patterns:
@@ -5789,6 +5794,7 @@ Key findings:
 4. MISSING: Cannot filter by taskType on `el list` or `el blocked`
 5. MISSING: Cannot update taskType after creation
 6. SILENT FAILURE: Invalid taskType on `el ready` returns empty instead of error
+7. CASE SENSITIVITY: `el create --type BUG` rejects but `el ready --type BUG` silently returns empty
 
 The flag inconsistency is particularly confusing:
 - `el ready --type bug` → filters by taskType
