@@ -5946,6 +5946,89 @@ The version overwrite behavior (el-3ef1) is the most critical issue as it:
 
 ---
 
+### Scenario: Element Lifecycle Timestamps and Soft Delete Behavior
+
+**Purpose:** Evaluate timestamp format consistency across all lifecycle fields (createdAt, updatedAt, closedAt, deletedAt, scheduledFor), soft delete behavior across element types, and dependency cleanup on element deletion
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Timestamp formats correct, orphan dependency bug found)
+
+**Checkpoints:**
+
+**Timestamp Format Validation:**
+- [x] createdAt uses ISO 8601 with milliseconds: `2026-01-24T18:11:22.676Z`
+- [x] updatedAt uses ISO 8601 with milliseconds
+- [x] closedAt uses ISO 8601 with milliseconds
+- [x] deletedAt uses ISO 8601 with milliseconds
+- [x] scheduledFor uses ISO 8601 with milliseconds
+- [x] Timezone offsets correctly converted to UTC
+  - Input: `2026-03-15T10:00:00+05:30` → Output: `2026-03-15T04:30:00.000Z`
+- [x] Milliseconds preserved (3 digits)
+- [x] Nanoseconds truncated to milliseconds (9 digits → 3 digits)
+
+**Soft Delete Behavior:**
+- [x] `el delete` marks elements as tombstone status
+- [x] `el show` (generic) returns NOT_FOUND for deleted elements
+- [ ] **INCONSISTENT el-2yva (CONFIRMED):** `el doc show` returns deleted documents with deletedAt
+- [ ] **INCONSISTENT:** `el plan show` returns deleted plans with deletedAt
+- [ ] **INCONSISTENT:** `el entity show` returns empty array for deleted entities
+
+**Dependency Cleanup on Delete:**
+- [x] Blocked task correctly unblocked when blocker deleted
+- [x] Ready list updates correctly after blocker deletion
+- [ ] **BUG el-nyh7 (NEW):** Orphan dependencies remain after element deletion
+  - `el dep list` shows dependencies to non-existent elements
+  - Dependency sourceId points to deleted/tombstoned element
+  - Similar to el-4egr but for task deletion (not just plans)
+
+**scheduledFor Behavior:**
+- [x] `el defer --until <date>` sets scheduledFor correctly
+- [x] `el defer` without `--until` sets scheduledFor to null (indefinite defer)
+- [x] `el undefer` clears scheduledFor to null
+- [ ] **CONFIRMS el-3ap6:** Past dates accepted silently
+- [ ] **CONFIRMS el-66en:** Relative dates (today, tomorrow) rejected
+- [ ] **FAIL:** `--scheduledFor` not available on `el update`
+
+**deadline Field:**
+- [ ] **CONFIRMS el-e6wc:** `--deadline` flag missing from `el create task`
+- [ ] **CONFIRMS el-e6wc:** `--deadline` flag missing from `el update`
+
+**Success Criteria:** Timestamps use consistent ISO 8601 format; soft delete works correctly; dependencies cleaned up
+- **PARTIAL:** Timestamp formats are correct. Soft delete inconsistent between generic and type-specific show. New orphan dependency bug found.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-nyh7 | BUG: el delete leaves orphan blocking dependencies when deleting source task | 3 | bug |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-2yva | (pre-existing) el doc show returns deleted docs but el show returns NOT_FOUND | 3 | bug |
+| el-3ap6 | (pre-existing) Past dates accepted without warning | 4 | ux |
+| el-66en | (pre-existing) No relative date support (today, tomorrow, +1d) | 4 | enhancement |
+| el-e6wc | (pre-existing) --deadline flag missing from create/update | 4 | enhancement |
+
+**Dependencies:**
+- el-nyh7 → el-4egr (relates-to: same orphan dependency pattern for plans)
+- el-nyh7 → el-wjo9 (relates-to: similar cascade cleanup issue for channels)
+
+**Notes:**
+This evaluation tested timestamp format consistency and soft delete behavior critical for agent workflows:
+1. All timestamps use correct ISO 8601 format with milliseconds
+2. Timezone conversion to UTC works correctly
+3. Soft delete creates tombstone status but accessibility is inconsistent
+4. CRITICAL: Deleting a blocking task leaves orphan dependency in database
+5. Task correctly unblocks but dependency record remains
+6. Suggests delete operation needs general cascade cleanup for dependencies
+
+The orphan dependency issue (el-nyh7) extends the pattern found in el-4egr (plan deletion) and el-wjo9 (channel deletion), suggesting a broader cascade cleanup implementation is needed in the delete operation.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
@@ -6099,8 +6182,8 @@ All timestamps use ISO 8601: `2026-01-24T11:10:47.029Z`
 - [x] `createdAt` format correct
 - [x] `updatedAt` format correct
 - [x] `closedAt` format correct
-- [ ] `deletedAt` format correct - not tested (soft delete not exercised)
-- [ ] `scheduledFor` format correct - not tested (no CLI flag)
+- [x] `deletedAt` format correct - tested via soft delete (2026-01-24)
+- [x] `scheduledFor` format correct - tested via `el defer --until` (2026-01-24)
 - [ ] `deadline` format correct - **ENHANCEMENT el-e6wc:** No `--deadline` CLI flag
 
 ### Error Output

@@ -244,6 +244,21 @@ Dependencies stored in `dependencies` table:
 3. Update blocked cache (if blocking type)
 4. Emit `dependency_removed` event
 
+### Delete Element (Cascade Cleanup)
+
+When an element is deleted (tombstoned), dependencies should be cleaned up:
+
+1. Find all dependencies where element is source
+2. Find all dependencies where element is target
+3. Remove all found dependencies
+4. Update blocked cache for affected elements
+5. Emit `dependency_removed` events
+
+> **Implementation Status:** Cascade cleanup is NOT currently implemented.
+> See el-nyh7 (task delete orphans), el-4egr (plan delete orphans), el-wjo9 (channel delete orphans).
+> Orphan dependencies remain in database pointing to tombstoned elements.
+> The blocked cache IS correctly updated (tasks become unblocked), but dependency records persist.
+
 ### Get Dependencies
 
 Query all dependencies where element is source.
