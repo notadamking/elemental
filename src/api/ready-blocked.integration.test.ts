@@ -1288,4 +1288,152 @@ describe('Ready/Blocked Work Query Integration', () => {
       expect(blockedTasks.map((t) => t.id)).toContain(blocked.id);
     });
   });
+
+  // ==========================================================================
+  // Dependency-Based Priority Tests
+  // ==========================================================================
+
+  describe('Dependency-Based Priority Sorting', () => {
+    it('should return tasks sorted by effective priority', async () => {
+      // Create 3 tasks with different priorities
+      const lowPriorityTask = await createTestTask({ title: 'Low Priority Task', priority: Priority.LOW });
+      const mediumPriorityTask = await createTestTask({ title: 'Medium Priority Task', priority: Priority.MEDIUM });
+      const criticalPriorityTask = await createTestTask({ title: 'Critical Priority Task', priority: Priority.CRITICAL });
+
+      await api.create(toCreateInput(lowPriorityTask));
+      await api.create(toCreateInput(mediumPriorityTask));
+      await api.create(toCreateInput(criticalPriorityTask));
+
+      // Without dependencies, should be sorted by base priority
+      const readyTasks = await api.ready();
+      expect(readyTasks.length).toBe(3);
+      expect(readyTasks[0].priority).toBe(Priority.CRITICAL);
+      expect(readyTasks[1].priority).toBe(Priority.MEDIUM);
+      expect(readyTasks[2].priority).toBe(Priority.LOW);
+    });
+
+    it('should boost priority of tasks blocking high-priority tasks', async () => {
+      // lowPriorityTask blocks criticalTask
+      // Even though lowPriorityTask has LOW priority, it should be sorted higher
+      // because it's blocking a CRITICAL task
+      const lowPriorityTask = await createTestTask({ title: 'Low Priority Blocker', priority: Priority.LOW });
+      const criticalTask = await createTestTask({ title: 'Critical Task', priority: Priority.CRITICAL });
+      const mediumTask = await createTestTask({ title: 'Medium Task', priority: Priority.MEDIUM });
+
+      await api.create(toCreateInput(lowPriorityTask));
+      await api.create(toCreateInput(criticalTask));
+      await api.create(toCreateInput(mediumTask));
+
+      // criticalTask blocks until lowPriorityTask is done
+      await api.addDependency({
+        sourceId: criticalTask.id,
+        targetId: lowPriorityTask.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      // Now lowPriorityTask should have effective priority CRITICAL
+      // criticalTask is blocked (not in ready)
+      // Order should be: lowPriorityTask (effective CRITICAL), mediumTask
+      const readyTasks = await api.ready();
+
+      // criticalTask is blocked, so only 2 tasks should be ready
+      expect(readyTasks.length).toBe(2);
+
+      // lowPriorityTask should come first due to effective priority boost
+      expect(readyTasks[0].id).toBe(lowPriorityTask.id);
+      expect(readyTasks[1].id).toBe(mediumTask.id);
+    });
+
+    it('should propagate priority boost through dependency chain', async () => {
+      // Chain: task1 <- task2 <- task3 (CRITICAL)
+      // task1 and task2 both have LOW priority
+      // But since task3 (CRITICAL) depends on them transitively,
+      // task1 should come before task2, and both before an unrelated MEDIUM task
+      const task1 = await createTestTask({ title: 'Task 1', priority: Priority.LOW });
+      const task2 = await createTestTask({ title: 'Task 2', priority: Priority.LOW });
+      const task3 = await createTestTask({ title: 'Task 3 Critical', priority: Priority.CRITICAL });
+      const unrelatedMedium = await createTestTask({ title: 'Unrelated Medium', priority: Priority.MEDIUM });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.create(toCreateInput(task3));
+      await api.create(toCreateInput(unrelatedMedium));
+
+      // task2 depends on task1
+      await api.addDependency({
+        sourceId: task2.id,
+        targetId: task1.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      // task3 depends on task2
+      await api.addDependency({
+        sourceId: task3.id,
+        targetId: task2.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const readyTasks = await api.ready();
+
+      // task2 and task3 are blocked, only task1 and unrelatedMedium are ready
+      expect(readyTasks.length).toBe(2);
+
+      // task1 should come first (effective CRITICAL), then unrelatedMedium (MEDIUM)
+      expect(readyTasks[0].id).toBe(task1.id);
+      expect(readyTasks[1].id).toBe(unrelatedMedium.id);
+    });
+
+    it('should use base priority as tiebreaker when effective priorities are equal', async () => {
+      // Both tasks have the same effective priority but different base priorities
+      const highBase = await createTestTask({ title: 'High Base', priority: Priority.HIGH });
+      const lowBase = await createTestTask({ title: 'Low Base', priority: Priority.LOW });
+      const criticalDependent = await createTestTask({ title: 'Critical Dependent', priority: Priority.CRITICAL });
+
+      await api.create(toCreateInput(highBase));
+      await api.create(toCreateInput(lowBase));
+      await api.create(toCreateInput(criticalDependent));
+
+      // criticalDependent depends on both highBase and lowBase
+      await api.addDependency({
+        sourceId: criticalDependent.id,
+        targetId: highBase.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: criticalDependent.id,
+        targetId: lowBase.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const readyTasks = await api.ready();
+
+      // Both have effective priority CRITICAL, but highBase has better base priority
+      expect(readyTasks.length).toBe(2);
+      expect(readyTasks[0].id).toBe(highBase.id);
+      expect(readyTasks[1].id).toBe(lowBase.id);
+    });
+
+    it('should not lower effective priority from dependent', async () => {
+      // highPriorityTask is blocking a lowPriorityDependent
+      // highPriorityTask should keep its HIGH priority, not lower to LOW
+      const highPriorityTask = await createTestTask({ title: 'High Priority Task', priority: Priority.HIGH });
+      const lowPriorityDependent = await createTestTask({ title: 'Low Priority Dependent', priority: Priority.LOW });
+
+      await api.create(toCreateInput(highPriorityTask));
+      await api.create(toCreateInput(lowPriorityDependent));
+
+      await api.addDependency({
+        sourceId: lowPriorityDependent.id,
+        targetId: highPriorityTask.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const readyTasks = await api.ready();
+
+      // Only highPriorityTask is ready (lowPriorityDependent is blocked)
+      expect(readyTasks.length).toBe(1);
+      expect(readyTasks[0].id).toBe(highPriorityTask.id);
+      expect(readyTasks[0].priority).toBe(Priority.HIGH);
+    });
+  });
 });

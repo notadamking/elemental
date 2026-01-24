@@ -32,6 +32,7 @@ import {
 import { createMessage, isMessage } from '../types/message.js';
 import type { Message, HydratedMessage, ChannelId as MessageChannelId } from '../types/message.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
+import { PriorityService, createPriorityService } from '../services/priority-service.js';
 import { SyncService } from '../sync/service.js';
 import { computeContentHashSync } from '../sync/hash.js';
 import type {
@@ -331,10 +332,12 @@ function buildTaskWhereClause(
  */
 export class ElementalAPIImpl implements ElementalAPI {
   private blockedCache: BlockedCacheService;
+  private priorityService: PriorityService;
   private syncService: SyncService;
 
   constructor(private backend: StorageBackend) {
     this.blockedCache = createBlockedCacheService(backend);
+    this.priorityService = createPriorityService(backend);
     this.syncService = new SyncService(backend);
 
     // Set up automatic status transitions for blocked/unblocked states
@@ -1628,15 +1631,20 @@ export class ElementalAPIImpl implements ElementalAPI {
       return true;
     });
 
-    // Sort by priority ascending (1 = highest/critical, 5 = lowest/minimal)
-    readyTasks.sort((a, b) => a.priority - b.priority);
+    // Calculate effective priorities based on dependency relationships
+    // Tasks blocking high-priority work inherit that urgency
+    const tasksWithPriority = this.priorityService.enhanceTasksWithEffectivePriority(readyTasks);
+
+    // Sort by effective priority ascending (1 = highest/critical, 5 = lowest/minimal)
+    // Secondary sort by base priority for ties
+    this.priorityService.sortByEffectivePriority(tasksWithPriority);
 
     // Apply limit after sorting
     if (limit !== undefined) {
-      return readyTasks.slice(0, limit);
+      return tasksWithPriority.slice(0, limit);
     }
 
-    return readyTasks;
+    return tasksWithPriority;
   }
 
   async blocked(filter?: TaskFilter): Promise<BlockedTask[]> {

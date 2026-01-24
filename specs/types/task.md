@@ -111,6 +111,32 @@ Tasks provide:
 | 4 | Complex | Significant changes, multiple components |
 | 5 | Very Complex | Large scope, architectural changes |
 
+## Dependency-Based Priority
+
+Tasks inherit priority from their dependents. If a high-priority task depends on a low-priority task, the low-priority task's **effective priority** is boosted to match.
+
+### Effective Priority Calculation
+
+The effective priority is the minimum (highest urgency) of:
+- The task's own/base priority
+- The priorities of all tasks that directly or transitively depend on it
+
+This ensures that blockers for critical work are surfaced appropriately.
+
+### Example
+
+```
+Task A (P3/Medium) <- Task B (P1/Critical)
+```
+
+Task A has base priority P3, but Task B (P1) depends on it. Task A's effective priority becomes P1, ensuring it's worked on before unrelated P2 tasks.
+
+### Aggregate Complexity
+
+A task's **aggregate complexity** represents total effort including its blockers:
+- Sum of the task's own complexity plus all blocking tasks' complexities
+- Useful for estimating total work remaining
+
 ## Task Types
 
 Built-in types (extensible):
@@ -227,14 +253,18 @@ Tasks under Plans use hierarchical IDs:
 - [x] Implement batch hydration for lists ✅ (hydrateTasks + batchFetchDocuments for efficient bulk operations)
 - [x] Add hydration options to query API ✅ (hydrate option in ElementFilter, supports list/listPaginated - 18 tests)
 
-### Phase 5: Integration
-- [ ] Integrate with dependency system
-- [ ] Integrate with blocked cache
-- [ ] Integrate with event system
+### Phase 5: Integration ✅
+- [x] Integrate with dependency system ✅ (PriorityService for dependency-based priority calculation)
+- [x] Integrate with blocked cache ✅ (ready() excludes blocked tasks via blocked_cache)
+- [x] Integrate with event system ✅ (auto_blocked/auto_unblocked events)
 - [x] Add CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)
+- [x] Dependency-based priority calculation ✅ (PriorityService.calculateEffectivePriority - 21 tests)
+- [x] Complexity inheritance ✅ (PriorityService.calculateAggregateComplexity)
+- [x] Ready query uses effective priority for sorting ✅ (tasks blocking high-priority work sort first - 5 integration tests)
 
 ### Phase 6: Testing
 - [x] Unit tests for status transitions
-- [ ] Unit tests for ready/blocked computation (with dependencies)
+- [x] Unit tests for ready/blocked computation (with dependencies) ✅ (priority-service.test.ts - 21 tests)
 - [x] Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
+- [x] Integration tests for dependency-based priority ✅ (ready-blocked.integration.test.ts - 5 tests)
 - [ ] E2E tests for task lifecycle
