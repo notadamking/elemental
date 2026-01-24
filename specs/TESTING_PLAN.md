@@ -557,31 +557,51 @@ el playbook create --name test-workflow --title "Test Workflow" \
 
 **Prerequisites:** Initialized workspace
 
+**Status:** BLOCKED - 2026-01-24 (Missing CLI command)
+
+**Blockers:**
+1. **ENHANCEMENT el-4pen**: CLI lacks `el doc update` command - cannot update document content
+   - The API `updateDocumentContent()` exists and is tested (19+ tests in document-version.integration.test.ts)
+   - But no CLI command exposes this functionality
+   - `el update --content` does not exist (only handles task fields: title, priority, status, etc.)
+   - `el doc update` subcommand does not exist
+   - Without the ability to update documents, versioning cannot be tested via CLI
+
+2. **BUG el-1eo2**: `-V` flag collision on `el doc show`
+   - `el doc show el-xxx -V 1` shows CLI version `{"version": "0.1.0"}` instead of doc version
+   - `el doc show el-xxx --docVersion 1` works correctly
+   - The `-V` shortcut collides with global `--version` flag
+
 **Checkpoints:**
-- [ ] Create initial document
+- [x] Create initial document
   ```bash
-  el doc write --content "Version 1" --content-type text --json
+  el doc create --content "Version 1" --type text --json
   ```
-  - Returns document ID
-  - Version is 1
+  - Returns document ID ✓
+  - Version is 1 ✓
+  - **Note:** Command is `el doc create`, not `el doc write`
 - [ ] Update document
   ```bash
-  el update <doc-id> --content "Version 2"
+  # BLOCKED: el doc update does not exist
+  # el update <doc-id> --content "Version 2"  # Does NOT work
   ```
-  - Version increments to 2
+  - **BLOCKED**: No CLI command to update document content
 - [ ] Update again
-  ```bash
-  el update <doc-id> --content "Version 3"
-  ```
-  - Version increments to 3
-- [ ] View history: `el doc history <doc-id> --json`
-  - Shows all 3 versions
-  - Each has correct content
-  - previousVersionId chain is intact
-- [ ] Read specific version: `el doc versions <doc-id> --version 1`
-  - Returns "Version 1" content
+  - **BLOCKED**: Same as above
+- [x] View history: `el doc history <doc-id> --json`
+  - Works correctly, shows all versions in array
+  - Would show multiple versions if updates were possible
+- [x] Read specific version: `el doc show <doc-id> --docVersion 1 --json`
+  - **Note:** Use `--docVersion` not `--version` (flag collision with -V)
+  - **Note:** Command is `el doc show` not `el doc versions`
+  - Returns correct version data when using full `--docVersion` flag
 
 **Success Criteria:** Full version history preserved and accessible
+
+**Issues Found:**
+- **el-4pen**: CLI needs `el doc update` command (enhancement)
+- **el-1eo2**: `-V` flag collision on `el doc show` (bug)
+- **el-4vik**: This scenario documents non-existent syntax (doc)
 
 ---
 
@@ -1121,10 +1141,10 @@ el doctor                                    # Health check
 
 ### Task Operations
 ```bash
-el create task "Title" --priority 2 --json   # Create task
+el create task --title "Title" --priority 2 --json  # Create task
 el ready --json --limit 10                   # List ready work
 el blocked --json                            # List blocked tasks
-el assign <id> --to <entity>                 # Assign task
+el assign <id> <entity-id>                   # Assign task (use entity ID, not name - el-4kis)
 el update <id> --status in_progress          # Change status
 el close <id> --reason "Done"                # Complete task
 el reopen <id>                               # Reopen closed task
@@ -1133,10 +1153,13 @@ el defer <id>                                # Defer task
 
 ### Document Operations
 ```bash
-el doc write --content-type markdown < f.md  # Create document
-el doc read <id>                             # Read document
-el update <id> --content "New content"       # Update document
+el doc create --file f.md --type markdown    # Create document from file
+el doc create --content "text" --type text   # Create document inline
+el doc show <id>                             # Read document
+# el doc update <id> --content "New"         # NOT YET IMPLEMENTED (el-4pen)
 el doc history <id> --json                   # View history
+el doc show <id> --docVersion 1              # Read specific version
+el doc rollback <id> <version>               # Rollback to version
 ```
 
 ### Dependency Operations
