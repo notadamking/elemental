@@ -273,7 +273,7 @@ When enabled:
 
 ### Phase 6: Integration
 - [ ] Integrate with Task assignment
-- [ ] Integrate with Message sender validation
+- [x] Integrate with Message sender validation ✅ (isValidMessageSender, canSendToChannel, validateMessageSender, getMessagesSentBy, getEntityChannelMessages, countMessagesSentBy, countMessagesBySender, getTopMessageSenders, hasSentMessages, getMostRecentMessageBy, getChannelsWithMessagesFrom, getEntityMessageStats, filterEntitiesWithMessages, filterEntitiesWithoutMessages, getChannelParticipants, getMessagePartners, canCryptographicallySign, filterEntitiesWithSigningCapability, getVerifiedMessageSenders - 48 tests in entity.test.ts)
 - [x] Integrate with Channel membership ✅ (getEntityChannelMemberships, countEntityChannelMemberships, isEntityInAnyChannel, isEntityInChannel, getEntityChannelIds, getEntityChannelNames, getChannelmates, countChannelmates, getEntityChannelMembershipStats, filterEntitiesByChannelMembership, filterEntitiesByAnyChannelMembership, filterEntitiesWithoutChannel, findEntitiesWithSameChannels, getEntityDirectChannels, getEntityGroupChannels, getDirectChannelCounterpart, getDirectMessagePartners - 45 tests in entity.test.ts)
 - [x] Integrate with Team membership ✅ (getEntityTeamMemberships, countEntityTeamMemberships, isEntityInAnyTeam, isEntityInTeam, getEntityTeamIds, getEntityTeamNames, getTeammates, countTeammates, getEntityTeamMembershipStats, filterEntitiesByTeamMembership, filterEntitiesByAnyTeamMembership, filterEntitiesWithoutTeam, findEntitiesWithSameTeams - 40 tests in entity.test.ts)
 - [x] Add CLI commands ✅ (entity register, entity list in src/cli/commands/entity.ts; whoami in src/cli/commands/identity.ts - 40 tests)

@@ -2039,3 +2039,406 @@ export function getDirectMessagePartners<T extends ChannelLike>(channels: T[], e
 
   return Array.from(partners);
 }
+
+// ============================================================================
+// Message Sender Integration
+// ============================================================================
+
+/**
+ * Interface for message-like objects (minimal interface for entity queries)
+ * This allows entity module to work with messages without creating circular dependencies
+ */
+export interface MessageLike {
+  id: string;
+  sender: string;
+  channelId: string;
+  createdAt: string;
+}
+
+/**
+ * Validates that an entity exists and can be a message sender
+ *
+ * In soft identity mode: validates that the entity ID exists in the entities array
+ * This function performs the basic existence check for sender validation.
+ *
+ * @param entities - Array of entities to search
+ * @param senderId - The sender ID to validate
+ * @returns True if the sender is a valid entity
+ */
+export function isValidMessageSender<T extends Entity>(entities: T[], senderId: string): boolean {
+  return entities.some((e) => e.id === senderId);
+}
+
+/**
+ * Validates that an entity can send messages to a channel
+ *
+ * Checks both:
+ * 1. The entity exists (is a valid sender)
+ * 2. The entity is a member of the target channel
+ *
+ * @param entities - Array of entities to search
+ * @param channel - Target channel for the message
+ * @param senderId - The sender ID to validate
+ * @returns True if the sender can send to the channel
+ */
+export function canSendToChannel<T extends Entity>(
+  entities: T[],
+  channel: ChannelLike,
+  senderId: string
+): boolean {
+  // First check if sender is a valid entity
+  if (!isValidMessageSender(entities, senderId)) {
+    return false;
+  }
+  // Then check if sender is a member of the channel
+  return channel.members.includes(senderId);
+}
+
+/**
+ * Result of sender validation
+ */
+export interface SenderValidationResult {
+  /** Whether the sender is valid */
+  valid: boolean;
+  /** Error code if invalid */
+  errorCode?: 'ENTITY_NOT_FOUND' | 'NOT_CHANNEL_MEMBER' | 'ENTITY_DEACTIVATED';
+  /** Human-readable error message if invalid */
+  errorMessage?: string;
+}
+
+/**
+ * Validates a message sender with detailed error information
+ *
+ * Performs comprehensive validation:
+ * 1. Checks if the sender entity exists
+ * 2. Checks if the entity is active (not deactivated)
+ * 3. Checks if the entity is a member of the channel
+ *
+ * @param entities - Array of entities to search
+ * @param channel - Target channel for the message
+ * @param senderId - The sender ID to validate
+ * @returns Validation result with error details if invalid
+ */
+export function validateMessageSender<T extends Entity>(
+  entities: T[],
+  channel: ChannelLike,
+  senderId: string
+): SenderValidationResult {
+  // Find the sender entity
+  const senderEntity = entities.find((e) => e.id === senderId);
+
+  // Check if entity exists
+  if (!senderEntity) {
+    return {
+      valid: false,
+      errorCode: 'ENTITY_NOT_FOUND',
+      errorMessage: `Sender entity '${senderId}' not found`,
+    };
+  }
+
+  // Check if entity is active
+  if (isEntityDeactivated(senderEntity)) {
+    return {
+      valid: false,
+      errorCode: 'ENTITY_DEACTIVATED',
+      errorMessage: `Sender entity '${senderId}' is deactivated`,
+    };
+  }
+
+  // Check if entity is a member of the channel
+  if (!channel.members.includes(senderId)) {
+    return {
+      valid: false,
+      errorCode: 'NOT_CHANNEL_MEMBER',
+      errorMessage: `Sender entity '${senderId}' is not a member of channel '${channel.id}'`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Get all messages sent by an entity
+ *
+ * @param messages - Array of messages to search
+ * @param entityId - The entity ID to filter by
+ * @returns Messages sent by the specified entity
+ */
+export function getMessagesSentBy<T extends MessageLike>(messages: T[], entityId: string): T[] {
+  return messages.filter((m) => m.sender === entityId);
+}
+
+/**
+ * Get all messages sent by an entity to a specific channel
+ *
+ * @param messages - Array of messages to search
+ * @param entityId - The entity ID to filter by
+ * @param channelId - The channel ID to filter by
+ * @returns Messages sent by the entity to the channel
+ */
+export function getEntityChannelMessages<T extends MessageLike>(
+  messages: T[],
+  entityId: string,
+  channelId: string
+): T[] {
+  return messages.filter((m) => m.sender === entityId && m.channelId === channelId);
+}
+
+/**
+ * Count messages sent by an entity
+ *
+ * @param messages - Array of messages to search
+ * @param entityId - The entity ID to count for
+ * @returns Number of messages sent by the entity
+ */
+export function countMessagesSentBy<T extends MessageLike>(messages: T[], entityId: string): number {
+  return messages.filter((m) => m.sender === entityId).length;
+}
+
+/**
+ * Count messages sent by each entity
+ *
+ * @param messages - Array of messages to analyze
+ * @returns Map of entity ID to message count
+ */
+export function countMessagesBySender<T extends MessageLike>(messages: T[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const message of messages) {
+    counts.set(message.sender, (counts.get(message.sender) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Get entities with the most messages sent
+ *
+ * @param messages - Array of messages to analyze
+ * @param limit - Maximum number of entities to return
+ * @returns Array of [entityId, count] sorted by count descending
+ */
+export function getTopMessageSenders<T extends MessageLike>(
+  messages: T[],
+  limit?: number
+): Array<[string, number]> {
+  const counts = countMessagesBySender(messages);
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return limit !== undefined ? sorted.slice(0, limit) : sorted;
+}
+
+/**
+ * Check if an entity has sent any messages
+ *
+ * @param messages - Array of messages to search
+ * @param entityId - Entity ID to check
+ * @returns True if entity has sent at least one message
+ */
+export function hasSentMessages<T extends MessageLike>(messages: T[], entityId: string): boolean {
+  return messages.some((m) => m.sender === entityId);
+}
+
+/**
+ * Get the most recent message sent by an entity
+ *
+ * @param messages - Array of messages to search
+ * @param entityId - Entity ID to find messages for
+ * @returns Most recent message or undefined if none found
+ */
+export function getMostRecentMessageBy<T extends MessageLike>(
+  messages: T[],
+  entityId: string
+): T | undefined {
+  const entityMessages = messages.filter((m) => m.sender === entityId);
+  if (entityMessages.length === 0) {
+    return undefined;
+  }
+  return entityMessages.reduce((latest, m) =>
+    m.createdAt > latest.createdAt ? m : latest
+  );
+}
+
+/**
+ * Get unique channels that an entity has sent messages to
+ *
+ * @param messages - Array of messages to search
+ * @param entityId - Entity ID to find channels for
+ * @returns Array of unique channel IDs
+ */
+export function getChannelsWithMessagesFrom<T extends MessageLike>(
+  messages: T[],
+  entityId: string
+): string[] {
+  const channelIds = new Set<string>();
+  for (const message of messages) {
+    if (message.sender === entityId) {
+      channelIds.add(message.channelId);
+    }
+  }
+  return Array.from(channelIds);
+}
+
+/**
+ * Message sending statistics for an entity
+ */
+export interface EntityMessageStats {
+  /** Total number of messages sent */
+  messageCount: number;
+  /** Number of unique channels the entity has sent messages to */
+  channelCount: number;
+  /** Channel IDs the entity has sent messages to */
+  channelIds: string[];
+  /** Timestamp of most recent message (or undefined if none) */
+  mostRecentMessageAt?: string;
+}
+
+/**
+ * Get comprehensive message statistics for an entity
+ *
+ * @param messages - Array of messages to analyze
+ * @param entityId - Entity ID to get stats for
+ * @returns Message statistics
+ */
+export function getEntityMessageStats<T extends MessageLike>(
+  messages: T[],
+  entityId: string
+): EntityMessageStats {
+  const entityMessages = messages.filter((m) => m.sender === entityId);
+  const channelIds = new Set<string>();
+  let mostRecentAt: string | undefined;
+
+  for (const message of entityMessages) {
+    channelIds.add(message.channelId);
+    if (!mostRecentAt || message.createdAt > mostRecentAt) {
+      mostRecentAt = message.createdAt;
+    }
+  }
+
+  return {
+    messageCount: entityMessages.length,
+    channelCount: channelIds.size,
+    channelIds: Array.from(channelIds),
+    mostRecentMessageAt: mostRecentAt,
+  };
+}
+
+/**
+ * Filter entities that have sent messages
+ *
+ * @param entities - Array of entities to filter
+ * @param messages - Array of messages to check against
+ * @returns Entities that have sent at least one message
+ */
+export function filterEntitiesWithMessages<T extends Entity>(
+  entities: T[],
+  messages: MessageLike[]
+): T[] {
+  const senderIds = new Set<string>();
+  for (const message of messages) {
+    senderIds.add(message.sender);
+  }
+  return entities.filter((e) => senderIds.has(e.id));
+}
+
+/**
+ * Filter entities that have not sent any messages
+ *
+ * @param entities - Array of entities to filter
+ * @param messages - Array of messages to check against
+ * @returns Entities that have not sent any messages
+ */
+export function filterEntitiesWithoutMessages<T extends Entity>(
+  entities: T[],
+  messages: MessageLike[]
+): T[] {
+  const senderIds = new Set<string>();
+  for (const message of messages) {
+    senderIds.add(message.sender);
+  }
+  return entities.filter((e) => !senderIds.has(e.id));
+}
+
+/**
+ * Find entities that have sent messages to a specific channel
+ *
+ * @param entities - Array of entities to filter
+ * @param messages - Array of messages to check
+ * @param channelId - Channel ID to filter by
+ * @returns Entities that have sent messages to the channel
+ */
+export function getChannelParticipants<T extends Entity>(
+  entities: T[],
+  messages: MessageLike[],
+  channelId: string
+): T[] {
+  const senderIds = new Set<string>();
+  for (const message of messages) {
+    if (message.channelId === channelId) {
+      senderIds.add(message.sender);
+    }
+  }
+  return entities.filter((e) => senderIds.has(e.id));
+}
+
+/**
+ * Get entities that an entity has exchanged messages with (in any shared channel)
+ *
+ * @param messages - Array of messages to search
+ * @param entityId - Entity ID to find message partners for
+ * @returns Array of entity IDs that have exchanged messages with the given entity
+ */
+export function getMessagePartners<T extends MessageLike>(
+  messages: T[],
+  entityId: string
+): string[] {
+  // Get channels where this entity has sent messages
+  const entityChannels = new Set<string>();
+  for (const message of messages) {
+    if (message.sender === entityId) {
+      entityChannels.add(message.channelId);
+    }
+  }
+
+  // Get other senders in those channels
+  const partners = new Set<string>();
+  for (const message of messages) {
+    if (entityChannels.has(message.channelId) && message.sender !== entityId) {
+      partners.add(message.sender);
+    }
+  }
+
+  return Array.from(partners);
+}
+
+/**
+ * Validates that a sender can cryptographically sign messages (has a public key)
+ *
+ * @param entity - Entity to check
+ * @returns True if the entity has a public key for cryptographic signing
+ */
+export function canCryptographicallySign(entity: Entity): boolean {
+  return hasCryptographicIdentity(entity);
+}
+
+/**
+ * Filter entities that can cryptographically sign messages
+ *
+ * @param entities - Array of entities to filter
+ * @returns Entities that have public keys
+ */
+export function filterEntitiesWithSigningCapability<T extends Entity>(entities: T[]): T[] {
+  return entities.filter(canCryptographicallySign);
+}
+
+/**
+ * Get entities that have both sent messages and have cryptographic identity
+ *
+ * @param entities - Array of entities to filter
+ * @param messages - Array of messages to check
+ * @returns Entities with both message activity and cryptographic identity
+ */
+export function getVerifiedMessageSenders<T extends Entity>(
+  entities: T[],
+  messages: MessageLike[]
+): T[] {
+  const withMessages = filterEntitiesWithMessages(entities, messages);
+  return withMessages.filter(canCryptographicallySign);
+}

@@ -3300,3 +3300,543 @@ describe('getDirectMessagePartners', () => {
     expect(getDirectMessagePartners(channels, 'entity-a')).toEqual([]);
   });
 });
+
+// ============================================================================
+// Message Sender Integration Tests
+// ============================================================================
+
+import {
+  MessageLike,
+  isValidMessageSender,
+  canSendToChannel,
+  validateMessageSender,
+  getMessagesSentBy,
+  getEntityChannelMessages,
+  countMessagesSentBy,
+  countMessagesBySender,
+  getTopMessageSenders,
+  hasSentMessages,
+  getMostRecentMessageBy,
+  getChannelsWithMessagesFrom,
+  getEntityMessageStats,
+  filterEntitiesWithMessages,
+  filterEntitiesWithoutMessages,
+  getChannelParticipants,
+  getMessagePartners,
+  canCryptographicallySign,
+  filterEntitiesWithSigningCapability,
+  getVerifiedMessageSenders,
+} from './entity.js';
+
+// Helper to create a minimal message-like object
+function createTestMessage(overrides: Partial<MessageLike> = {}): MessageLike {
+  return {
+    id: 'message-1',
+    sender: 'entity-a',
+    channelId: 'channel-1',
+    createdAt: '2025-01-22T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('isValidMessageSender', () => {
+  test('returns true when sender entity exists', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+
+    expect(isValidMessageSender(entities, 'entity-a')).toBe(true);
+    expect(isValidMessageSender(entities, 'entity-b')).toBe(true);
+  });
+
+  test('returns false when sender entity does not exist', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+
+    expect(isValidMessageSender(entities, 'entity-x')).toBe(false);
+    expect(isValidMessageSender(entities, 'unknown')).toBe(false);
+  });
+
+  test('returns false for empty entities array', () => {
+    expect(isValidMessageSender([], 'entity-a')).toBe(false);
+  });
+});
+
+describe('canSendToChannel', () => {
+  test('returns true when entity exists and is channel member', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const channel = createTestChannel({ members: ['entity-a', 'entity-b'] });
+
+    expect(canSendToChannel(entities, channel, 'entity-a')).toBe(true);
+    expect(canSendToChannel(entities, channel, 'entity-b')).toBe(true);
+  });
+
+  test('returns false when entity exists but is not channel member', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const channel = createTestChannel({ members: ['entity-a'] });
+
+    expect(canSendToChannel(entities, channel, 'entity-b')).toBe(false);
+  });
+
+  test('returns false when entity does not exist', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const channel = createTestChannel({ members: ['entity-a', 'entity-x'] });
+
+    expect(canSendToChannel(entities, channel, 'entity-x')).toBe(false);
+  });
+
+  test('returns false for empty entities array', () => {
+    const channel = createTestChannel({ members: ['entity-a'] });
+    expect(canSendToChannel([], channel, 'entity-a')).toBe(false);
+  });
+});
+
+describe('validateMessageSender', () => {
+  test('returns valid result when entity exists and is channel member', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const channel = createTestChannel({ members: ['entity-a'] });
+
+    const result = validateMessageSender(entities, channel, 'entity-a');
+    expect(result.valid).toBe(true);
+    expect(result.errorCode).toBeUndefined();
+    expect(result.errorMessage).toBeUndefined();
+  });
+
+  test('returns ENTITY_NOT_FOUND when entity does not exist', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const channel = createTestChannel({ members: ['entity-a', 'entity-x'] });
+
+    const result = validateMessageSender(entities, channel, 'entity-x');
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('ENTITY_NOT_FOUND');
+    expect(result.errorMessage).toContain('entity-x');
+  });
+
+  test('returns ENTITY_DEACTIVATED when entity is deactivated', () => {
+    const deactivatedEntity = createTestEntity({
+      id: 'entity-a' as ElementId,
+      name: 'Alice',
+      metadata: { active: false, deactivatedAt: '2025-01-22T12:00:00.000Z' },
+    });
+    const entities = [deactivatedEntity];
+    const channel = createTestChannel({ members: ['entity-a'] });
+
+    const result = validateMessageSender(entities, channel, 'entity-a');
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('ENTITY_DEACTIVATED');
+    expect(result.errorMessage).toContain('deactivated');
+  });
+
+  test('returns NOT_CHANNEL_MEMBER when entity is not in channel', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const channel = createTestChannel({ id: 'channel-1', members: ['entity-b'] });
+
+    const result = validateMessageSender(entities, channel, 'entity-a');
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('NOT_CHANNEL_MEMBER');
+    expect(result.errorMessage).toContain('entity-a');
+    expect(result.errorMessage).toContain('channel-1');
+  });
+});
+
+describe('getMessagesSentBy', () => {
+  test('returns messages sent by the entity', () => {
+    const messages = [
+      createTestMessage({ id: 'msg-1', sender: 'entity-a' }),
+      createTestMessage({ id: 'msg-2', sender: 'entity-b' }),
+      createTestMessage({ id: 'msg-3', sender: 'entity-a' }),
+    ];
+
+    const result = getMessagesSentBy(messages, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(m => m.id)).toEqual(['msg-1', 'msg-3']);
+  });
+
+  test('returns empty array when no messages from entity', () => {
+    const messages = [
+      createTestMessage({ id: 'msg-1', sender: 'entity-b' }),
+    ];
+
+    expect(getMessagesSentBy(messages, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array for empty messages array', () => {
+    expect(getMessagesSentBy([], 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getEntityChannelMessages', () => {
+  test('returns messages sent by entity to specific channel', () => {
+    const messages = [
+      createTestMessage({ id: 'msg-1', sender: 'entity-a', channelId: 'channel-1' }),
+      createTestMessage({ id: 'msg-2', sender: 'entity-a', channelId: 'channel-2' }),
+      createTestMessage({ id: 'msg-3', sender: 'entity-a', channelId: 'channel-1' }),
+      createTestMessage({ id: 'msg-4', sender: 'entity-b', channelId: 'channel-1' }),
+    ];
+
+    const result = getEntityChannelMessages(messages, 'entity-a', 'channel-1');
+    expect(result).toHaveLength(2);
+    expect(result.map(m => m.id)).toEqual(['msg-1', 'msg-3']);
+  });
+
+  test('returns empty array when no matching messages', () => {
+    const messages = [
+      createTestMessage({ id: 'msg-1', sender: 'entity-a', channelId: 'channel-1' }),
+    ];
+
+    expect(getEntityChannelMessages(messages, 'entity-a', 'channel-2')).toEqual([]);
+    expect(getEntityChannelMessages(messages, 'entity-b', 'channel-1')).toEqual([]);
+  });
+});
+
+describe('countMessagesSentBy', () => {
+  test('counts messages sent by entity', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-b' }),
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-a' }),
+    ];
+
+    expect(countMessagesSentBy(messages, 'entity-a')).toBe(3);
+    expect(countMessagesSentBy(messages, 'entity-b')).toBe(1);
+  });
+
+  test('returns 0 when entity has sent no messages', () => {
+    const messages = [createTestMessage({ sender: 'entity-a' })];
+    expect(countMessagesSentBy(messages, 'entity-x')).toBe(0);
+  });
+});
+
+describe('countMessagesBySender', () => {
+  test('counts messages for each sender', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-b' }),
+      createTestMessage({ sender: 'entity-a' }),
+    ];
+
+    const counts = countMessagesBySender(messages);
+    expect(counts.get('entity-a')).toBe(2);
+    expect(counts.get('entity-b')).toBe(1);
+  });
+
+  test('returns empty map for empty messages array', () => {
+    expect(countMessagesBySender([]).size).toBe(0);
+  });
+});
+
+describe('getTopMessageSenders', () => {
+  test('returns senders sorted by message count descending', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-b' }),
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-c' }),
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-b' }),
+    ];
+
+    const result = getTopMessageSenders(messages);
+    expect(result).toEqual([
+      ['entity-a', 3],
+      ['entity-b', 2],
+      ['entity-c', 1],
+    ]);
+  });
+
+  test('respects limit parameter', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-b' }),
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-c' }),
+    ];
+
+    const result = getTopMessageSenders(messages, 2);
+    expect(result).toHaveLength(2);
+    expect(result[0][0]).toBe('entity-a');
+    expect(result[1][0]).toBe('entity-b');
+  });
+
+  test('returns empty array for empty messages', () => {
+    expect(getTopMessageSenders([])).toEqual([]);
+  });
+});
+
+describe('hasSentMessages', () => {
+  test('returns true when entity has sent at least one message', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-b' }),
+    ];
+
+    expect(hasSentMessages(messages, 'entity-a')).toBe(true);
+  });
+
+  test('returns false when entity has not sent any messages', () => {
+    const messages = [createTestMessage({ sender: 'entity-a' })];
+    expect(hasSentMessages(messages, 'entity-x')).toBe(false);
+  });
+
+  test('returns false for empty messages array', () => {
+    expect(hasSentMessages([], 'entity-a')).toBe(false);
+  });
+});
+
+describe('getMostRecentMessageBy', () => {
+  test('returns most recent message by entity', () => {
+    const messages = [
+      createTestMessage({ id: 'msg-1', sender: 'entity-a', createdAt: '2025-01-22T10:00:00.000Z' }),
+      createTestMessage({ id: 'msg-2', sender: 'entity-a', createdAt: '2025-01-22T12:00:00.000Z' }),
+      createTestMessage({ id: 'msg-3', sender: 'entity-a', createdAt: '2025-01-22T11:00:00.000Z' }),
+    ];
+
+    const result = getMostRecentMessageBy(messages, 'entity-a');
+    expect(result?.id).toBe('msg-2');
+  });
+
+  test('returns undefined when entity has no messages', () => {
+    const messages = [createTestMessage({ sender: 'entity-b' })];
+    expect(getMostRecentMessageBy(messages, 'entity-a')).toBeUndefined();
+  });
+
+  test('returns undefined for empty messages array', () => {
+    expect(getMostRecentMessageBy([], 'entity-a')).toBeUndefined();
+  });
+});
+
+describe('getChannelsWithMessagesFrom', () => {
+  test('returns unique channel IDs where entity has sent messages', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1' }),
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-2' }),
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1' }), // Duplicate channel
+      createTestMessage({ sender: 'entity-b', channelId: 'channel-3' }), // Different sender
+    ];
+
+    const result = getChannelsWithMessagesFrom(messages, 'entity-a');
+    expect(result.sort()).toEqual(['channel-1', 'channel-2']);
+  });
+
+  test('returns empty array when entity has no messages', () => {
+    const messages = [createTestMessage({ sender: 'entity-b' })];
+    expect(getChannelsWithMessagesFrom(messages, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getEntityMessageStats', () => {
+  test('returns comprehensive message statistics', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1', createdAt: '2025-01-22T10:00:00.000Z' }),
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-2', createdAt: '2025-01-22T12:00:00.000Z' }),
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1', createdAt: '2025-01-22T11:00:00.000Z' }),
+      createTestMessage({ sender: 'entity-b', channelId: 'channel-1' }), // Different sender
+    ];
+
+    const stats = getEntityMessageStats(messages, 'entity-a');
+    expect(stats.messageCount).toBe(3);
+    expect(stats.channelCount).toBe(2);
+    expect(stats.channelIds.sort()).toEqual(['channel-1', 'channel-2']);
+    expect(stats.mostRecentMessageAt).toBe('2025-01-22T12:00:00.000Z');
+  });
+
+  test('returns zeros when entity has no messages', () => {
+    const messages = [createTestMessage({ sender: 'entity-b' })];
+
+    const stats = getEntityMessageStats(messages, 'entity-a');
+    expect(stats.messageCount).toBe(0);
+    expect(stats.channelCount).toBe(0);
+    expect(stats.channelIds).toEqual([]);
+    expect(stats.mostRecentMessageAt).toBeUndefined();
+  });
+});
+
+describe('filterEntitiesWithMessages', () => {
+  test('returns entities that have sent messages', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-c' }),
+    ];
+
+    const result = filterEntitiesWithMessages(entities, messages);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('returns empty array when no entities have sent messages', () => {
+    const entities = [createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' })];
+    const messages = [createTestMessage({ sender: 'entity-x' })];
+
+    expect(filterEntitiesWithMessages(entities, messages)).toEqual([]);
+  });
+});
+
+describe('filterEntitiesWithoutMessages', () => {
+  test('returns entities that have not sent messages', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-c' }),
+    ];
+
+    const result = filterEntitiesWithoutMessages(entities, messages);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Bob');
+  });
+
+  test('returns all entities when no messages exist', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+
+    const result = filterEntitiesWithoutMessages(entities, []);
+    expect(result).toHaveLength(2);
+  });
+});
+
+describe('getChannelParticipants', () => {
+  test('returns entities that have sent messages to the channel', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const messages = [
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1' }),
+      createTestMessage({ sender: 'entity-b', channelId: 'channel-2' }),
+      createTestMessage({ sender: 'entity-c', channelId: 'channel-1' }),
+    ];
+
+    const result = getChannelParticipants(entities, messages, 'channel-1');
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('returns empty array when no messages in channel', () => {
+    const entities = [createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' })];
+    const messages = [createTestMessage({ sender: 'entity-a', channelId: 'channel-1' })];
+
+    expect(getChannelParticipants(entities, messages, 'channel-2')).toEqual([]);
+  });
+});
+
+describe('getMessagePartners', () => {
+  test('returns entities that have exchanged messages with entity in shared channels', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1' }),
+      createTestMessage({ sender: 'entity-b', channelId: 'channel-1' }), // Same channel as entity-a
+      createTestMessage({ sender: 'entity-c', channelId: 'channel-1' }), // Same channel as entity-a
+      createTestMessage({ sender: 'entity-d', channelId: 'channel-2' }), // Different channel, not a partner
+    ];
+
+    const result = getMessagePartners(messages, 'entity-a');
+    expect(result.sort()).toEqual(['entity-b', 'entity-c']);
+  });
+
+  test('does not include the entity itself', () => {
+    const messages = [
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1' }),
+      createTestMessage({ sender: 'entity-a', channelId: 'channel-1' }),
+    ];
+
+    const result = getMessagePartners(messages, 'entity-a');
+    expect(result).not.toContain('entity-a');
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array when entity has no messages', () => {
+    const messages = [createTestMessage({ sender: 'entity-b', channelId: 'channel-1' })];
+    expect(getMessagePartners(messages, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('canCryptographicallySign', () => {
+  test('returns true when entity has public key', () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    expect(canCryptographicallySign(entity)).toBe(true);
+  });
+
+  test('returns false when entity has no public key', () => {
+    const entity = createTestEntity();
+    expect(canCryptographicallySign(entity)).toBe(false);
+  });
+});
+
+describe('filterEntitiesWithSigningCapability', () => {
+  test('returns entities with public keys', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie', publicKey: VALID_PUBLIC_KEY }),
+    ];
+
+    const result = filterEntitiesWithSigningCapability(entities);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('returns empty array when no entities have public keys', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+
+    expect(filterEntitiesWithSigningCapability(entities)).toEqual([]);
+  });
+});
+
+describe('getVerifiedMessageSenders', () => {
+  test('returns entities with both message activity and cryptographic identity', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }), // No public key
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ id: 'entity-d' as ElementId, name: 'David', publicKey: VALID_PUBLIC_KEY }), // Has key but no messages
+    ];
+    const messages = [
+      createTestMessage({ sender: 'entity-a' }),
+      createTestMessage({ sender: 'entity-b' }),
+      createTestMessage({ sender: 'entity-c' }),
+    ];
+
+    const result = getVerifiedMessageSenders(entities, messages);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('returns empty array when no entities match both criteria', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }), // No public key
+    ];
+    const messages = [createTestMessage({ sender: 'entity-a' })];
+
+    expect(getVerifiedMessageSenders(entities, messages)).toEqual([]);
+  });
+});
