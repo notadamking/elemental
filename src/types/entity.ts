@@ -1715,3 +1715,327 @@ export function findEntitiesWithSameTeams<T extends Entity>(
     return true;
   });
 }
+
+// ============================================================================
+// Channel Membership Integration
+// ============================================================================
+
+/**
+ * Interface for channel-like objects (minimal interface for entity queries)
+ * This allows entity module to work with channels without creating circular dependencies
+ */
+export interface ChannelLike {
+  id: string;
+  name: string;
+  members: readonly string[];
+  channelType: 'direct' | 'group';
+}
+
+/**
+ * Get all channels that an entity is a member of
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to find memberships for
+ * @returns Channels that contain the entity as a member
+ */
+export function getEntityChannelMemberships<T extends ChannelLike>(channels: T[], entityId: string): T[] {
+  return channels.filter((channel) => channel.members.includes(entityId));
+}
+
+/**
+ * Count the number of channels an entity belongs to
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to count memberships for
+ * @returns Number of channels the entity is a member of
+ */
+export function countEntityChannelMemberships(channels: ChannelLike[], entityId: string): number {
+  return channels.filter((channel) => channel.members.includes(entityId)).length;
+}
+
+/**
+ * Check if an entity is a member of any channel
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to check
+ * @returns True if the entity is a member of at least one channel
+ */
+export function isEntityInAnyChannel(channels: ChannelLike[], entityId: string): boolean {
+  return channels.some((channel) => channel.members.includes(entityId));
+}
+
+/**
+ * Check if an entity is a member of a specific channel
+ *
+ * @param channel - Channel to check membership in
+ * @param entityId - The entity ID to check
+ * @returns True if the entity is a member of the channel
+ */
+export function isEntityInChannel(channel: ChannelLike, entityId: string): boolean {
+  return channel.members.includes(entityId);
+}
+
+/**
+ * Get all unique channel IDs that an entity belongs to
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to find memberships for
+ * @returns Array of channel IDs
+ */
+export function getEntityChannelIds<T extends ChannelLike>(channels: T[], entityId: string): string[] {
+  return channels.filter((channel) => channel.members.includes(entityId)).map((channel) => channel.id);
+}
+
+/**
+ * Get all unique channel names that an entity belongs to
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to find memberships for
+ * @returns Array of channel names
+ */
+export function getEntityChannelNames<T extends ChannelLike>(channels: T[], entityId: string): string[] {
+  return channels.filter((channel) => channel.members.includes(entityId)).map((channel) => channel.name);
+}
+
+/**
+ * Get entities that share channel membership with a given entity
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to find co-members for
+ * @returns Array of unique entity IDs that share at least one channel with the given entity
+ */
+export function getChannelmates<T extends ChannelLike>(channels: T[], entityId: string): string[] {
+  const channelmates = new Set<string>();
+
+  for (const channel of channels) {
+    if (channel.members.includes(entityId)) {
+      for (const member of channel.members) {
+        if (member !== entityId) {
+          channelmates.add(member);
+        }
+      }
+    }
+  }
+
+  return Array.from(channelmates);
+}
+
+/**
+ * Count the number of channelmates (unique entities that share channels with entity)
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to count channelmates for
+ * @returns Number of unique channelmates
+ */
+export function countChannelmates<T extends ChannelLike>(channels: T[], entityId: string): number {
+  return getChannelmates(channels, entityId).length;
+}
+
+/**
+ * Channel membership statistics for an entity
+ */
+export interface EntityChannelMembershipStats {
+  /** Number of channels the entity belongs to */
+  channelCount: number;
+  /** Number of direct channels */
+  directChannelCount: number;
+  /** Number of group channels */
+  groupChannelCount: number;
+  /** Number of unique channelmates (entities that share channels) */
+  channelmateCount: number;
+  /** Channel IDs the entity belongs to */
+  channelIds: string[];
+  /** Channel names the entity belongs to */
+  channelNames: string[];
+}
+
+/**
+ * Get comprehensive channel membership statistics for an entity
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to get stats for
+ * @returns Membership statistics
+ */
+export function getEntityChannelMembershipStats<T extends ChannelLike>(
+  channels: T[],
+  entityId: string
+): EntityChannelMembershipStats {
+  const entityChannels = channels.filter((channel) => channel.members.includes(entityId));
+  const channelmates = new Set<string>();
+
+  let directChannelCount = 0;
+  let groupChannelCount = 0;
+
+  for (const channel of entityChannels) {
+    if (channel.channelType === 'direct') {
+      directChannelCount++;
+    } else {
+      groupChannelCount++;
+    }
+
+    for (const member of channel.members) {
+      if (member !== entityId) {
+        channelmates.add(member);
+      }
+    }
+  }
+
+  return {
+    channelCount: entityChannels.length,
+    directChannelCount,
+    groupChannelCount,
+    channelmateCount: channelmates.size,
+    channelIds: entityChannels.map((channel) => channel.id),
+    channelNames: entityChannels.map((channel) => channel.name),
+  };
+}
+
+/**
+ * Filter entities that are members of a specific channel
+ *
+ * @param entities - Array of entities to filter
+ * @param channel - Channel to check membership against
+ * @returns Entities that are members of the channel
+ */
+export function filterEntitiesByChannelMembership<T extends Entity>(
+  entities: T[],
+  channel: ChannelLike
+): T[] {
+  return entities.filter((entity) => channel.members.includes(entity.id));
+}
+
+/**
+ * Filter entities that are members of any of the specified channels
+ *
+ * @param entities - Array of entities to filter
+ * @param channels - Channels to check membership against
+ * @returns Entities that are members of at least one of the channels
+ */
+export function filterEntitiesByAnyChannelMembership<T extends Entity>(
+  entities: T[],
+  channels: ChannelLike[]
+): T[] {
+  const memberIds = new Set<string>();
+  for (const channel of channels) {
+    for (const memberId of channel.members) {
+      memberIds.add(memberId);
+    }
+  }
+  return entities.filter((entity) => memberIds.has(entity.id));
+}
+
+/**
+ * Filter entities that are not members of any channel
+ *
+ * @param entities - Array of entities to filter
+ * @param channels - All channels to check membership against
+ * @returns Entities that are not members of any channel
+ */
+export function filterEntitiesWithoutChannel<T extends Entity>(
+  entities: T[],
+  channels: ChannelLike[]
+): T[] {
+  const allMemberIds = new Set<string>();
+  for (const channel of channels) {
+    for (const memberId of channel.members) {
+      allMemberIds.add(memberId);
+    }
+  }
+  return entities.filter((entity) => !allMemberIds.has(entity.id));
+}
+
+/**
+ * Get entities that share the same channels (same channel memberships)
+ *
+ * @param entities - Array of entities
+ * @param channels - Array of channels
+ * @param entityId - The entity to find matching entities for
+ * @returns Entities that belong to exactly the same channels
+ */
+export function findEntitiesWithSameChannels<T extends Entity>(
+  entities: T[],
+  channels: ChannelLike[],
+  entityId: string
+): T[] {
+  const entityChannelIds = new Set(
+    channels.filter((c) => c.members.includes(entityId)).map((c) => c.id)
+  );
+
+  return entities.filter((entity) => {
+    if (entity.id === entityId) return false;
+    const otherChannelIds = new Set(
+      channels.filter((c) => c.members.includes(entity.id)).map((c) => c.id)
+    );
+    if (entityChannelIds.size !== otherChannelIds.size) return false;
+    for (const id of entityChannelIds) {
+      if (!otherChannelIds.has(id)) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Get direct channels for an entity
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to find direct channels for
+ * @returns Direct channels that contain the entity
+ */
+export function getEntityDirectChannels<T extends ChannelLike>(channels: T[], entityId: string): T[] {
+  return channels.filter(
+    (channel) => channel.channelType === 'direct' && channel.members.includes(entityId)
+  );
+}
+
+/**
+ * Get group channels for an entity
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to find group channels for
+ * @returns Group channels that contain the entity
+ */
+export function getEntityGroupChannels<T extends ChannelLike>(channels: T[], entityId: string): T[] {
+  return channels.filter(
+    (channel) => channel.channelType === 'group' && channel.members.includes(entityId)
+  );
+}
+
+/**
+ * Get the other entity in a direct channel
+ *
+ * @param channel - Direct channel to examine
+ * @param entityId - The entity ID to find the counterpart for
+ * @returns The other entity ID in the direct channel, or null if not a direct channel or entity not a member
+ */
+export function getDirectChannelCounterpart(channel: ChannelLike, entityId: string): string | null {
+  if (channel.channelType !== 'direct') {
+    return null;
+  }
+  if (!channel.members.includes(entityId)) {
+    return null;
+  }
+  const counterpart = channel.members.find((m) => m !== entityId);
+  return counterpart ?? null;
+}
+
+/**
+ * Get all entities that an entity has direct channels with
+ *
+ * @param channels - Array of channels to search
+ * @param entityId - The entity ID to find direct message partners for
+ * @returns Array of entity IDs that have direct channels with the given entity
+ */
+export function getDirectMessagePartners<T extends ChannelLike>(channels: T[], entityId: string): string[] {
+  const partners = new Set<string>();
+
+  for (const channel of channels) {
+    if (channel.channelType === 'direct' && channel.members.includes(entityId)) {
+      const counterpart = getDirectChannelCounterpart(channel, entityId);
+      if (counterpart) {
+        partners.add(counterpart);
+      }
+    }
+  }
+
+  return Array.from(partners);
+}

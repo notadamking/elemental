@@ -2776,3 +2776,527 @@ describe('findEntitiesWithSameTeams', () => {
     expect(result[0].name).toBe('Bob');
   });
 });
+
+// ============================================================================
+// Channel Membership Integration Tests
+// ============================================================================
+
+import {
+  ChannelLike,
+  getEntityChannelMemberships,
+  countEntityChannelMemberships,
+  isEntityInAnyChannel,
+  isEntityInChannel,
+  getEntityChannelIds,
+  getEntityChannelNames,
+  getChannelmates,
+  countChannelmates,
+  getEntityChannelMembershipStats,
+  filterEntitiesByChannelMembership,
+  filterEntitiesByAnyChannelMembership,
+  filterEntitiesWithoutChannel,
+  findEntitiesWithSameChannels,
+  getEntityDirectChannels,
+  getEntityGroupChannels,
+  getDirectChannelCounterpart,
+  getDirectMessagePartners,
+} from './entity.js';
+
+// Helper to create a minimal channel-like object
+function createTestChannel(overrides: Partial<ChannelLike> = {}): ChannelLike {
+  return {
+    id: 'channel-1',
+    name: 'Test Channel',
+    members: [],
+    channelType: 'group',
+    ...overrides,
+  };
+}
+
+describe('getEntityChannelMemberships', () => {
+  test('returns channels that contain the entity', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', name: 'Channel A', members: ['entity-a', 'entity-b'] }),
+      createTestChannel({ id: 'channel-2', name: 'Channel B', members: ['entity-b', 'entity-c'] }),
+      createTestChannel({ id: 'channel-3', name: 'Channel C', members: ['entity-a', 'entity-c'] }),
+    ];
+
+    const result = getEntityChannelMemberships(channels, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(c => c.id)).toEqual(['channel-1', 'channel-3']);
+  });
+
+  test('returns empty array when entity is not in any channel', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-b', 'entity-c'] }),
+    ];
+
+    expect(getEntityChannelMemberships(channels, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array for empty channels array', () => {
+    expect(getEntityChannelMemberships([], 'entity-a')).toEqual([]);
+  });
+});
+
+describe('countEntityChannelMemberships', () => {
+  test('counts channels the entity belongs to', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a', 'entity-b'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-b'] }),
+      createTestChannel({ id: 'channel-3', members: ['entity-a'] }),
+    ];
+
+    expect(countEntityChannelMemberships(channels, 'entity-a')).toBe(2);
+  });
+
+  test('returns 0 when entity is not in any channel', () => {
+    const channels = [createTestChannel({ members: ['entity-b'] })];
+    expect(countEntityChannelMemberships(channels, 'entity-a')).toBe(0);
+  });
+});
+
+describe('isEntityInAnyChannel', () => {
+  test('returns true when entity is in at least one channel', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-b'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-a'] }),
+    ];
+
+    expect(isEntityInAnyChannel(channels, 'entity-a')).toBe(true);
+  });
+
+  test('returns false when entity is not in any channel', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-b'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-c'] }),
+    ];
+
+    expect(isEntityInAnyChannel(channels, 'entity-a')).toBe(false);
+  });
+
+  test('returns false for empty channels array', () => {
+    expect(isEntityInAnyChannel([], 'entity-a')).toBe(false);
+  });
+});
+
+describe('isEntityInChannel', () => {
+  test('returns true when entity is a member', () => {
+    const channel = createTestChannel({ members: ['entity-a', 'entity-b'] });
+    expect(isEntityInChannel(channel, 'entity-a')).toBe(true);
+  });
+
+  test('returns false when entity is not a member', () => {
+    const channel = createTestChannel({ members: ['entity-b', 'entity-c'] });
+    expect(isEntityInChannel(channel, 'entity-a')).toBe(false);
+  });
+
+  test('returns false for empty members array', () => {
+    const channel = createTestChannel({ members: [] });
+    expect(isEntityInChannel(channel, 'entity-a')).toBe(false);
+  });
+});
+
+describe('getEntityChannelIds', () => {
+  test('returns IDs of channels containing the entity', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-b'] }),
+      createTestChannel({ id: 'channel-3', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    const result = getEntityChannelIds(channels, 'entity-a');
+    expect(result).toEqual(['channel-1', 'channel-3']);
+  });
+
+  test('returns empty array when entity is not in any channel', () => {
+    const channels = [createTestChannel({ id: 'channel-1', members: ['entity-b'] })];
+    expect(getEntityChannelIds(channels, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getEntityChannelNames', () => {
+  test('returns names of channels containing the entity', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', name: 'Frontend', members: ['entity-a'] }),
+      createTestChannel({ id: 'channel-2', name: 'Backend', members: ['entity-b'] }),
+      createTestChannel({ id: 'channel-3', name: 'Full Stack', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    const result = getEntityChannelNames(channels, 'entity-a');
+    expect(result).toEqual(['Frontend', 'Full Stack']);
+  });
+
+  test('returns empty array when entity is not in any channel', () => {
+    const channels = [createTestChannel({ id: 'channel-1', name: 'Backend', members: ['entity-b'] })];
+    expect(getEntityChannelNames(channels, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getChannelmates', () => {
+  test('returns unique entity IDs that share channels with the given entity', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-a', 'entity-d'] }),
+      createTestChannel({ id: 'channel-3', members: ['entity-e', 'entity-f'] }), // entity-a not here
+    ];
+
+    const result = getChannelmates(channels, 'entity-a');
+    expect(result.sort()).toEqual(['entity-b', 'entity-c', 'entity-d']);
+  });
+
+  test('does not include the entity itself', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    const result = getChannelmates(channels, 'entity-a');
+    expect(result).not.toContain('entity-a');
+    expect(result).toEqual(['entity-b']);
+  });
+
+  test('returns empty array when entity has no channelmates', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a'] }), // Only entity-a
+      createTestChannel({ id: 'channel-2', members: ['entity-b'] }), // entity-a not here
+    ];
+
+    expect(getChannelmates(channels, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array when entity is not in any channel', () => {
+    const channels = [createTestChannel({ id: 'channel-1', members: ['entity-b', 'entity-c'] })];
+    expect(getChannelmates(channels, 'entity-a')).toEqual([]);
+  });
+
+  test('deduplicates channelmates across multiple shared channels', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a', 'entity-b'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-a', 'entity-b'] }), // Same channelmate
+    ];
+
+    const result = getChannelmates(channels, 'entity-a');
+    expect(result).toEqual(['entity-b']);
+  });
+});
+
+describe('countChannelmates', () => {
+  test('counts unique channelmates', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-a', 'entity-d'] }),
+    ];
+
+    expect(countChannelmates(channels, 'entity-a')).toBe(3);
+  });
+
+  test('returns 0 when entity has no channelmates', () => {
+    const channels = [createTestChannel({ id: 'channel-1', members: ['entity-a'] })];
+    expect(countChannelmates(channels, 'entity-a')).toBe(0);
+  });
+
+  test('returns 0 when entity is not in any channel', () => {
+    const channels = [createTestChannel({ id: 'channel-1', members: ['entity-b'] })];
+    expect(countChannelmates(channels, 'entity-a')).toBe(0);
+  });
+});
+
+describe('getEntityChannelMembershipStats', () => {
+  test('returns comprehensive statistics', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', name: 'General', channelType: 'group', members: ['entity-a', 'entity-b'] }),
+      createTestChannel({ id: 'channel-2', name: 'entity-a:entity-c', channelType: 'direct', members: ['entity-a', 'entity-c'] }),
+      createTestChannel({ id: 'channel-3', name: 'DevOps', channelType: 'group', members: ['entity-e'] }), // entity-a not here
+    ];
+
+    const stats = getEntityChannelMembershipStats(channels, 'entity-a');
+    expect(stats.channelCount).toBe(2);
+    expect(stats.directChannelCount).toBe(1);
+    expect(stats.groupChannelCount).toBe(1);
+    expect(stats.channelmateCount).toBe(2); // entity-b, entity-c
+    expect(stats.channelIds).toEqual(['channel-1', 'channel-2']);
+    expect(stats.channelNames).toEqual(['General', 'entity-a:entity-c']);
+  });
+
+  test('returns zeros and empty arrays when entity is not in any channel', () => {
+    const channels = [createTestChannel({ id: 'channel-1', members: ['entity-b'] })];
+
+    const stats = getEntityChannelMembershipStats(channels, 'entity-a');
+    expect(stats.channelCount).toBe(0);
+    expect(stats.directChannelCount).toBe(0);
+    expect(stats.groupChannelCount).toBe(0);
+    expect(stats.channelmateCount).toBe(0);
+    expect(stats.channelIds).toEqual([]);
+    expect(stats.channelNames).toEqual([]);
+  });
+
+  test('handles entity in channel with no other members', () => {
+    const channels = [createTestChannel({ id: 'channel-1', name: 'Solo', members: ['entity-a'] })];
+
+    const stats = getEntityChannelMembershipStats(channels, 'entity-a');
+    expect(stats.channelCount).toBe(1);
+    expect(stats.channelmateCount).toBe(0);
+  });
+});
+
+describe('filterEntitiesByChannelMembership', () => {
+  test('returns entities that are members of the channel', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const channel = createTestChannel({ members: ['entity-a', 'entity-c'] });
+
+    const result = filterEntitiesByChannelMembership(entities, channel);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('returns empty array when no entities are members', () => {
+    const entities = [createTestEntity({ id: 'entity-x' as ElementId, name: 'X' })];
+    const channel = createTestChannel({ members: ['entity-a', 'entity-b'] });
+
+    expect(filterEntitiesByChannelMembership(entities, channel)).toEqual([]);
+  });
+
+  test('returns empty array for empty entities array', () => {
+    const channel = createTestChannel({ members: ['entity-a'] });
+    expect(filterEntitiesByChannelMembership([], channel)).toEqual([]);
+  });
+});
+
+describe('filterEntitiesByAnyChannelMembership', () => {
+  test('returns entities that are members of any of the channels', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+      createTestEntity({ id: 'entity-d' as ElementId, name: 'David' }),
+    ];
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-c'] }),
+    ];
+
+    const result = filterEntitiesByAnyChannelMembership(entities, channels);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('deduplicates entities that are in multiple channels', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-a'] }),
+    ];
+
+    const result = filterEntitiesByAnyChannelMembership(entities, channels);
+    expect(result).toHaveLength(1);
+  });
+
+  test('returns empty array when no entities match', () => {
+    const entities = [createTestEntity({ id: 'entity-x' as ElementId, name: 'X' })];
+    const channels = [createTestChannel({ members: ['entity-a'] })];
+
+    expect(filterEntitiesByAnyChannelMembership(entities, channels)).toEqual([]);
+  });
+
+  test('returns empty array for empty channels array', () => {
+    const entities = [createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' })];
+    expect(filterEntitiesByAnyChannelMembership(entities, [])).toEqual([]);
+  });
+});
+
+describe('filterEntitiesWithoutChannel', () => {
+  test('returns entities that are not in any channel', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-c'] }),
+    ];
+
+    const result = filterEntitiesWithoutChannel(entities, channels);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Bob');
+  });
+
+  test('returns all entities when there are no channels', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+
+    const result = filterEntitiesWithoutChannel(entities, []);
+    expect(result).toHaveLength(2);
+  });
+
+  test('returns empty array when all entities are in channels', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const channels = [createTestChannel({ members: ['entity-a'] })];
+
+    expect(filterEntitiesWithoutChannel(entities, channels)).toEqual([]);
+  });
+});
+
+describe('findEntitiesWithSameChannels', () => {
+  test('returns entities with exactly the same channel memberships', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+      createTestEntity({ id: 'entity-d' as ElementId, name: 'David' }),
+    ];
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-a', 'entity-b'] }),
+      // entity-a is in channel-1 and channel-2
+      // entity-b is in channel-1 and channel-2 (same as entity-a)
+      // entity-c is only in channel-1 (different)
+      // entity-d is in neither (different)
+    ];
+
+    const result = findEntitiesWithSameChannels(entities, channels, 'entity-a');
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Bob');
+  });
+
+  test('does not include the entity itself', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const channels = [createTestChannel({ id: 'channel-1', members: ['entity-a'] })];
+
+    const result = findEntitiesWithSameChannels(entities, channels, 'entity-a');
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array when no entities match', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const channels = [
+      createTestChannel({ id: 'channel-1', members: ['entity-a'] }),
+      createTestChannel({ id: 'channel-2', members: ['entity-b'] }),
+    ];
+
+    const result = findEntitiesWithSameChannels(entities, channels, 'entity-a');
+    expect(result).toEqual([]);
+  });
+
+  test('handles entities not in any channel', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const channels: ChannelLike[] = []; // No channels
+
+    const result = findEntitiesWithSameChannels(entities, channels, 'entity-a');
+    // entity-b also has zero channels, so they match
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Bob');
+  });
+});
+
+describe('getEntityDirectChannels', () => {
+  test('returns only direct channels containing the entity', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', channelType: 'direct', members: ['entity-a', 'entity-b'] }),
+      createTestChannel({ id: 'channel-2', channelType: 'group', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestChannel({ id: 'channel-3', channelType: 'direct', members: ['entity-a', 'entity-c'] }),
+      createTestChannel({ id: 'channel-4', channelType: 'direct', members: ['entity-b', 'entity-c'] }), // entity-a not here
+    ];
+
+    const result = getEntityDirectChannels(channels, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(c => c.id)).toEqual(['channel-1', 'channel-3']);
+  });
+
+  test('returns empty array when entity has no direct channels', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', channelType: 'group', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    expect(getEntityDirectChannels(channels, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getEntityGroupChannels', () => {
+  test('returns only group channels containing the entity', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', channelType: 'direct', members: ['entity-a', 'entity-b'] }),
+      createTestChannel({ id: 'channel-2', channelType: 'group', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestChannel({ id: 'channel-3', channelType: 'group', members: ['entity-a', 'entity-d'] }),
+      createTestChannel({ id: 'channel-4', channelType: 'group', members: ['entity-b', 'entity-c'] }), // entity-a not here
+    ];
+
+    const result = getEntityGroupChannels(channels, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(c => c.id)).toEqual(['channel-2', 'channel-3']);
+  });
+
+  test('returns empty array when entity has no group channels', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', channelType: 'direct', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    expect(getEntityGroupChannels(channels, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getDirectChannelCounterpart', () => {
+  test('returns the other entity in a direct channel', () => {
+    const channel = createTestChannel({ channelType: 'direct', members: ['entity-a', 'entity-b'] });
+    expect(getDirectChannelCounterpart(channel, 'entity-a')).toBe('entity-b');
+    expect(getDirectChannelCounterpart(channel, 'entity-b')).toBe('entity-a');
+  });
+
+  test('returns null for group channels', () => {
+    const channel = createTestChannel({ channelType: 'group', members: ['entity-a', 'entity-b'] });
+    expect(getDirectChannelCounterpart(channel, 'entity-a')).toBeNull();
+  });
+
+  test('returns null when entity is not a member', () => {
+    const channel = createTestChannel({ channelType: 'direct', members: ['entity-a', 'entity-b'] });
+    expect(getDirectChannelCounterpart(channel, 'entity-c')).toBeNull();
+  });
+});
+
+describe('getDirectMessagePartners', () => {
+  test('returns all entities the given entity has direct channels with', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', channelType: 'direct', members: ['entity-a', 'entity-b'] }),
+      createTestChannel({ id: 'channel-2', channelType: 'direct', members: ['entity-a', 'entity-c'] }),
+      createTestChannel({ id: 'channel-3', channelType: 'group', members: ['entity-a', 'entity-d'] }), // Group, not included
+      createTestChannel({ id: 'channel-4', channelType: 'direct', members: ['entity-b', 'entity-c'] }), // entity-a not here
+    ];
+
+    const result = getDirectMessagePartners(channels, 'entity-a');
+    expect(result.sort()).toEqual(['entity-b', 'entity-c']);
+  });
+
+  test('returns empty array when entity has no direct channels', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', channelType: 'group', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    expect(getDirectMessagePartners(channels, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array when entity is not in any channel', () => {
+    const channels = [
+      createTestChannel({ id: 'channel-1', channelType: 'direct', members: ['entity-b', 'entity-c'] }),
+    ];
+
+    expect(getDirectMessagePartners(channels, 'entity-a')).toEqual([]);
+  });
+});
