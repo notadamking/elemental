@@ -47,6 +47,7 @@ import type {
   TaskFilter,
   ChannelFilter,
   DocumentFilter,
+  MessageFilter,
   GetOptions,
   HydrationOptions,
   BlockedTask,
@@ -416,6 +417,58 @@ function buildDocumentWhereClause(
   return { where, params };
 }
 
+/**
+ * Build message-specific WHERE clause additions
+ */
+function buildMessageWhereClause(
+  filter: MessageFilter,
+  params: unknown[]
+): { where: string; params: unknown[] } {
+  const conditions: string[] = [];
+
+  // Channel filter
+  if (filter.channelId !== undefined) {
+    const channelIds = Array.isArray(filter.channelId) ? filter.channelId : [filter.channelId];
+    const channelConditions = channelIds.map(() => "JSON_EXTRACT(e.data, '$.channelId') = ?").join(' OR ');
+    conditions.push(`(${channelConditions})`);
+    params.push(...channelIds);
+  }
+
+  // Sender filter
+  if (filter.sender !== undefined) {
+    const senders = Array.isArray(filter.sender) ? filter.sender : [filter.sender];
+    const senderConditions = senders.map(() => "JSON_EXTRACT(e.data, '$.sender') = ?").join(' OR ');
+    conditions.push(`(${senderConditions})`);
+    params.push(...senders);
+  }
+
+  // Thread filter
+  if (filter.threadId !== undefined) {
+    if (filter.threadId === null) {
+      // Root messages only
+      conditions.push("JSON_EXTRACT(e.data, '$.threadId') IS NULL");
+    } else {
+      // Messages in a specific thread
+      conditions.push("JSON_EXTRACT(e.data, '$.threadId') = ?");
+      params.push(filter.threadId);
+    }
+  }
+
+  // Has attachments filter
+  if (filter.hasAttachments !== undefined) {
+    if (filter.hasAttachments) {
+      // Has at least one attachment
+      conditions.push("JSON_ARRAY_LENGTH(JSON_EXTRACT(e.data, '$.attachments')) > 0");
+    } else {
+      // No attachments
+      conditions.push("(JSON_EXTRACT(e.data, '$.attachments') IS NULL OR JSON_ARRAY_LENGTH(JSON_EXTRACT(e.data, '$.attachments')) = 0)");
+    }
+  }
+
+  const where = conditions.length > 0 ? conditions.join(' AND ') : '';
+  return { where, params };
+}
+
 // ============================================================================
 // ElementalAPI Implementation
 // ============================================================================
@@ -588,6 +641,16 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
     }
 
+    // Build message-specific WHERE clause if filtering messages
+    let messageWhere = '';
+    if (effectiveFilter.type === 'message' || (Array.isArray(effectiveFilter.type) && effectiveFilter.type.includes('message'))) {
+      const messageFilter = effectiveFilter as MessageFilter;
+      const { where: mw } = buildMessageWhereClause(messageFilter, params);
+      if (mw) {
+        messageWhere = ` AND ${mw}`;
+      }
+    }
+
     // Handle tag filtering
     let tagJoin = '';
     let tagWhere = '';
@@ -612,7 +675,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     const countSql = `
       SELECT COUNT(DISTINCT e.id) as count
       FROM elements e${tagJoin}
-      WHERE ${baseWhere}${taskWhere}${documentWhere}${tagWhere}
+      WHERE ${baseWhere}${taskWhere}${documentWhere}${messageWhere}${tagWhere}
     `;
     const countRow = this.backend.queryOne<CountRow>(countSql, params);
     const total = countRow?.count ?? 0;
@@ -630,7 +693,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     const sql = `
       SELECT DISTINCT e.*
       FROM elements e${tagJoin}
-      WHERE ${baseWhere}${taskWhere}${documentWhere}${tagWhere}
+      WHERE ${baseWhere}${taskWhere}${documentWhere}${messageWhere}${tagWhere}
       ${orderClause}
       LIMIT ? OFFSET ?
     `;

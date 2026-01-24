@@ -213,7 +213,7 @@ To fetch a thread:
 - [x] Implement channel message listing (filterByChannel utility)
 - [x] Implement thread listing (filterByThread, getThreadMessages utilities)
 - [x] Implement sender-based queries (filterBySender utility)
-- [ ] Add pagination support (requires storage layer)
+- [x] Add pagination support (MessageFilter interface with channelId, sender, threadId, hasAttachments filters)
 
 ### Phase 7: Integration
 - [ ] Integrate with Channel system

@@ -12,7 +12,7 @@ import type { Document, DocumentId, ContentType } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter } from '../types/event.js';
 import type { PlanProgress } from '../types/plan.js';
-import type { Message } from '../types/message.js';
+import type { Message, MessageId, ChannelId } from '../types/message.js';
 import type { Team } from '../types/team.js';
 import type { WorkflowStatus } from '../types/workflow.js';
 
@@ -117,6 +117,21 @@ export interface DocumentFilter extends ElementFilter {
   minVersion?: number;
   /** Filter by maximum version (inclusive) */
   maxVersion?: number;
+}
+
+/**
+ * Extended filter for message queries.
+ * Includes all ElementFilter options plus message-specific filters.
+ */
+export interface MessageFilter extends ElementFilter {
+  /** Filter by channel(s) */
+  channelId?: ChannelId | ChannelId[];
+  /** Filter by sender entity(ies) */
+  sender?: EntityId | EntityId[];
+  /** Filter by thread (null for root messages only, specific ID for thread replies) */
+  threadId?: MessageId | null;
+  /** Filter by presence of attachments */
+  hasAttachments?: boolean;
 }
 
 // ============================================================================

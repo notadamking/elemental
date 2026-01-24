@@ -1672,7 +1672,7 @@ Recommended implementation sequence:
 - [x] **types/channel.md Phase 6**: Message integration ✅ (sender membership validation in create, sendDirectMessage helper, auto-create direct channels)
 - [x] **types/channel.md Phase 7**: Channel search ✅ (searchChannels method with storage layer, filters by channelType/visibility/joinPolicy/member - 14 integration tests)
 - [x] **types/message.md Phase 3-5**: Channel membership validation, Document reference validation, thread integrity, content/attachments hydration ✅ (validation in API create, hydration support)
-- [ ] **types/message.md Phase 6**: Add pagination support (requires storage layer)
+- [x] **types/message.md Phase 6**: Add pagination support ✅ (MessageFilter interface with channelId, sender, threadId, hasAttachments filters - 13 integration tests)
 - [ ] **types/message.md Phase 7**: Integrate with Channel system
 - [ ] **types/message.md Phase 7**: Integrate with event system
 - [x] **types/library.md Phase 2-5**: Library deletion, document association, hierarchy ✅ (orphan handling on delete, add/remove document, multi-membership, nesting, cycle detection via dependency system, root listing, stats - 36 E2E tests)
