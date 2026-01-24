@@ -1661,7 +1661,7 @@ Recommended implementation sequence:
 - [x] **types/workflow.md Phase 2-3**: Auto-completion/failure detection, pouring ✅ (shouldAutoComplete/shouldAutoFail/shouldAutoStart detection, pourWorkflow with playbook loading, variable resolution, condition evaluation, task creation, dependency wiring - 59 tests)
 - [x] **types/workflow.md Phase 4-5**: Ephemeral support ✅ (filterOutEphemeralTasks in export, burnWorkflow, garbageCollectWorkflows, squashWorkflow, CLI commands - 14 tests)
 - [x] **types/workflow.md Phase 6**: Workflow queries ✅ (getTasksInWorkflow, getReadyTasksInWorkflow, getWorkflowProgress, CLI commands for list/tasks/progress - integration tests)
-- [ ] **types/workflow.md Phase 2 (remaining)**: Status change event emission (requires event service integration)
+- [x] **types/workflow.md Phase 2 (remaining)**: Status change event emission ✅ (workflow status changes to terminal states emit 'closed' events, tested in events.integration.test.ts - 7 tests)
 - [x] **types/workflow.md Phase 5 (remaining)**: Task ordering queries ✅ (getOrderedTasksInWorkflow with topological sort based on blocks dependencies - 9 tests)
 - [x] **types/playbook.md Phase 5**: Inheritance ✅ (resolveInheritanceChain, mergeVariables, mergeSteps, createPlaybookLoader - 42 tests)
 - [x] **types/playbook.md Phase 6**: YAML support ✅ (parseYamlPlaybook, validateYamlPlaybook, discoverPlaybookFiles, loadPlaybookFromFile)

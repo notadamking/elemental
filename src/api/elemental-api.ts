@@ -92,6 +92,7 @@ import {
 } from './types.js';
 import type { Plan } from '../types/plan.js';
 import type { Workflow } from '../types/workflow.js';
+import { isWorkflow, WorkflowStatus as WorkflowStatusEnum } from '../types/workflow.js';
 import { generateChildId } from '../id/generator.js';
 import type { CreateTaskInput } from '../types/task.js';
 import { createTask } from '../types/task.js';
@@ -968,6 +969,21 @@ export class ElementalAPIImpl implements ElementalAPI {
             eventType = LifecycleEventType.CLOSED;
           } else if (oldStatus === PlanStatusEnum.COMPLETED || oldStatus === PlanStatusEnum.CANCELLED) {
             // Transitioning FROM completed/cancelled status (reopening/restarting)
+            eventType = LifecycleEventType.REOPENED;
+          }
+        }
+        // Handle Workflow status changes
+        else if (isWorkflow(existing)) {
+          const terminalStatuses = [
+            WorkflowStatusEnum.COMPLETED,
+            WorkflowStatusEnum.FAILED,
+            WorkflowStatusEnum.CANCELLED,
+          ];
+          if (terminalStatuses.includes(newStatus as (typeof terminalStatuses)[number])) {
+            // Transitioning TO completed, failed, or cancelled status (terminal states)
+            eventType = LifecycleEventType.CLOSED;
+          } else if (terminalStatuses.includes(oldStatus as (typeof terminalStatuses)[number])) {
+            // Transitioning FROM a terminal status (restarting - though not normally allowed by workflow transitions)
             eventType = LifecycleEventType.REOPENED;
           }
         }

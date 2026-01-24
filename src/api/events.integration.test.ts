@@ -19,6 +19,8 @@ import type { Task } from '../types/task.js';
 import { createTask, Priority, TaskStatus } from '../types/task.js';
 import { createDocument, ContentType } from '../types/document.js';
 import { EventType, computeChangedFields } from '../types/event.js';
+import type { Workflow } from '../types/workflow.js';
+import { createWorkflow, WorkflowStatus } from '../types/workflow.js';
 
 // ============================================================================
 // Test Helpers
@@ -40,6 +42,17 @@ function toCreateInput<T>(element: T): Parameters<ElementalAPIImpl['create']>[0]
 async function createTestTask(overrides: Partial<Parameters<typeof createTask>[0]> = {}): Promise<Task> {
   return createTask({
     title: 'Test Task',
+    createdBy: mockEntityId,
+    ...overrides,
+  });
+}
+
+/**
+ * Create a test workflow element
+ */
+async function createTestWorkflow(overrides: Partial<Parameters<typeof createWorkflow>[0]> = {}): Promise<Workflow> {
+  return createWorkflow({
+    title: 'Test Workflow',
     createdBy: mockEntityId,
     ...overrides,
   });
@@ -1208,6 +1221,123 @@ describe('Events System Integration', () => {
       expect(lifecycleEvents.length).toBe(2);
       expect(lifecycleEvents.some((e) => e.eventType === EventType.CLOSED)).toBe(true);
       expect(lifecycleEvents.some((e) => e.eventType === EventType.REOPENED)).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Workflow Status Change Event Tests
+  // --------------------------------------------------------------------------
+
+  describe('Workflow Status Change Events', () => {
+    it('should emit closed event when workflow status changes to completed', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.RUNNING });
+      await api.create(toCreateInput(workflow));
+
+      // Update workflow status to completed
+      await api.update<Workflow>(workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      const events = await api.getEvents(workflow.id);
+      const closedEvent = events.find((e) => e.eventType === EventType.CLOSED);
+
+      expect(closedEvent).toBeDefined();
+      expect(closedEvent?.eventType).toBe(EventType.CLOSED);
+      expect((closedEvent?.oldValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.RUNNING);
+      expect((closedEvent?.newValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.COMPLETED);
+    });
+
+    it('should emit closed event when workflow status changes to failed', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.RUNNING });
+      await api.create(toCreateInput(workflow));
+
+      // Update workflow status to failed
+      await api.update<Workflow>(workflow.id, { status: WorkflowStatus.FAILED } as Partial<Workflow>);
+
+      const events = await api.getEvents(workflow.id);
+      const closedEvent = events.find((e) => e.eventType === EventType.CLOSED);
+
+      expect(closedEvent).toBeDefined();
+      expect(closedEvent?.eventType).toBe(EventType.CLOSED);
+      expect((closedEvent?.oldValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.RUNNING);
+      expect((closedEvent?.newValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.FAILED);
+    });
+
+    it('should emit closed event when workflow status changes to cancelled', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.RUNNING });
+      await api.create(toCreateInput(workflow));
+
+      // Update workflow status to cancelled
+      await api.update<Workflow>(workflow.id, { status: WorkflowStatus.CANCELLED } as Partial<Workflow>);
+
+      const events = await api.getEvents(workflow.id);
+      const closedEvent = events.find((e) => e.eventType === EventType.CLOSED);
+
+      expect(closedEvent).toBeDefined();
+      expect(closedEvent?.eventType).toBe(EventType.CLOSED);
+      expect((closedEvent?.oldValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.RUNNING);
+      expect((closedEvent?.newValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.CANCELLED);
+    });
+
+    it('should emit updated event for non-terminal status transitions (pending to running)', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.PENDING });
+      await api.create(toCreateInput(workflow));
+
+      // Update workflow status to running (not terminal)
+      await api.update<Workflow>(workflow.id, { status: WorkflowStatus.RUNNING } as Partial<Workflow>);
+
+      const events = await api.getEvents(workflow.id);
+      const closedEvents = events.filter((e) => e.eventType === EventType.CLOSED);
+      const reopenedEvents = events.filter((e) => e.eventType === EventType.REOPENED);
+      const updatedEvents = events.filter((e) => e.eventType === EventType.UPDATED);
+
+      expect(closedEvents.length).toBe(0);
+      expect(reopenedEvents.length).toBe(0);
+      expect(updatedEvents.length).toBe(1);
+    });
+
+    it('should emit updated event for non-status changes on workflow', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.RUNNING, title: 'Original' });
+      await api.create(toCreateInput(workflow));
+
+      // Update workflow title without changing status
+      await api.update<Workflow>(workflow.id, { title: 'Updated Title' } as Partial<Workflow>);
+
+      const events = await api.getEvents(workflow.id);
+      const closedEvents = events.filter((e) => e.eventType === EventType.CLOSED);
+      const reopenedEvents = events.filter((e) => e.eventType === EventType.REOPENED);
+      const updatedEvents = events.filter((e) => e.eventType === EventType.UPDATED);
+
+      expect(closedEvents.length).toBe(0);
+      expect(reopenedEvents.length).toBe(0);
+      expect(updatedEvents.length).toBe(1);
+    });
+
+    it('should emit closed event when workflow transitions from pending directly to cancelled', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.PENDING });
+      await api.create(toCreateInput(workflow));
+
+      // Cancel the workflow (pending -> cancelled is a valid transition)
+      await api.update<Workflow>(workflow.id, { status: WorkflowStatus.CANCELLED } as Partial<Workflow>);
+
+      const events = await api.getEvents(workflow.id);
+      const closedEvent = events.find((e) => e.eventType === EventType.CLOSED);
+
+      expect(closedEvent).toBeDefined();
+      expect((closedEvent?.oldValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.PENDING);
+      expect((closedEvent?.newValue as Record<string, unknown>)?.status).toBe(WorkflowStatus.CANCELLED);
+    });
+
+    it('should filter events by closed event type for workflows', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.RUNNING });
+      await api.create(toCreateInput(workflow));
+
+      // Create various events
+      await api.update<Workflow>(workflow.id, { title: 'Updated' } as Partial<Workflow>);
+      await api.update<Workflow>(workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      const closedEvents = await api.getEvents(workflow.id, { eventType: EventType.CLOSED });
+
+      expect(closedEvents.length).toBe(1);
+      expect(closedEvents[0].eventType).toBe(EventType.CLOSED);
     });
   });
 

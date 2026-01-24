@@ -250,7 +250,7 @@ On export:
 - [x] Implement auto-failure detection (src/types/workflow-pour.ts:shouldAutoFail)
 - [x] Implement auto-start detection (src/types/workflow-pour.ts:shouldAutoStart)
 - [x] Implement computeWorkflowStatus helper (src/types/workflow-pour.ts:computeWorkflowStatus)
-- [ ] Create status change event emission (requires event service integration)
+- [x] Create status change event emission (src/api/elemental-api.ts:update - 7 tests in events.integration.test.ts)
 
 ### Phase 3: Pouring ✅
 - [x] Implement playbook loading (src/types/workflow-pour.ts:pourWorkflow uses resolvePlaybookInheritance)
