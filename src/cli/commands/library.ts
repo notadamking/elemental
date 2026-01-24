@@ -299,10 +299,10 @@ async function libraryAddHandler(
       return failure(`Element ${docId} is not a document (type: ${doc.type})`, ExitCode.VALIDATION);
     }
 
-    // Add parent-child dependency (library is parent, document is child)
+    // Add parent-child dependency (document is source/child, library is target/parent)
     await api.addDependency({
-      sourceId: libraryId as ElementId,
-      targetId: docId as ElementId,
+      sourceId: docId as ElementId,
+      targetId: libraryId as ElementId,
       type: 'parent-child',
       actor,
     });
@@ -352,10 +352,10 @@ async function libraryRemoveHandler(
   }
 
   try {
-    // Remove parent-child dependency
+    // Remove parent-child dependency (document is source/child, library is target/parent)
     await api.removeDependency(
-      libraryId as ElementId,
       docId as ElementId,
+      libraryId as ElementId,
       'parent-child'
     );
 
@@ -385,6 +385,450 @@ Examples:
 };
 
 // ============================================================================
+// Library Docs Command (list documents in library)
+// ============================================================================
+
+async function libraryDocsHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [libraryId] = args;
+
+  if (!libraryId) {
+    return failure('Usage: el library docs <library-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Verify library exists
+    const library = await api.get<Library>(libraryId as ElementId);
+    if (!library) {
+      return failure(`Library not found: ${libraryId}`, ExitCode.NOT_FOUND);
+    }
+    if (library.type !== 'library') {
+      return failure(`Element ${libraryId} is not a library (type: ${library.type})`, ExitCode.VALIDATION);
+    }
+
+    // Get documents that have parent-child dependency to this library
+    // (document is source, library is target)
+    const deps = await api.getDependents(libraryId as ElementId, ['parent-child']);
+    const docIds = deps.map((d) => d.sourceId);
+
+    if (docIds.length === 0) {
+      return success([], `No documents in library ${libraryId}`);
+    }
+
+    // Fetch documents
+    const docs: Element[] = [];
+    for (const docId of docIds) {
+      const doc = await api.get<Element>(docId);
+      if (doc && doc.type === 'document') {
+        docs.push(doc);
+      }
+    }
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(docs);
+    }
+
+    if (mode === 'quiet') {
+      return success(docs.map((d) => d.id).join('\n'));
+    }
+
+    // Build table
+    const headers = ['ID', 'TITLE', 'CREATED'];
+    const rows = docs.map((d) => {
+      const title = (d as unknown as Record<string, unknown>).title as string || 'Untitled';
+      return [
+        d.id,
+        title.length > 50 ? title.substring(0, 47) + '...' : title,
+        d.createdAt.split('T')[0],
+      ];
+    });
+
+    const table = formatter.table(headers, rows);
+    const summary = `\n${docs.length} document(s) in library`;
+
+    return success(docs, table + summary);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to list documents: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const libraryDocsCommand: Command = {
+  name: 'docs',
+  description: 'List documents in a library',
+  usage: 'el library docs <library-id>',
+  help: `List all documents in a library.
+
+Arguments:
+  library-id    Library identifier
+
+Examples:
+  el library docs el-lib123`,
+  handler: libraryDocsHandler as Command['handler'],
+};
+
+// ============================================================================
+// Library Nest Command (nest library under another)
+// ============================================================================
+
+async function libraryNestHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [childLibraryId, parentLibraryId] = args;
+
+  if (!childLibraryId || !parentLibraryId) {
+    return failure('Usage: el library nest <child-library-id> <parent-library-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const actor = resolveActor(options);
+
+    // Verify child library exists
+    const childLib = await api.get<Library>(childLibraryId as ElementId);
+    if (!childLib) {
+      return failure(`Library not found: ${childLibraryId}`, ExitCode.NOT_FOUND);
+    }
+    if (childLib.type !== 'library') {
+      return failure(`Element ${childLibraryId} is not a library (type: ${childLib.type})`, ExitCode.VALIDATION);
+    }
+
+    // Verify parent library exists
+    const parentLib = await api.get<Library>(parentLibraryId as ElementId);
+    if (!parentLib) {
+      return failure(`Library not found: ${parentLibraryId}`, ExitCode.NOT_FOUND);
+    }
+    if (parentLib.type !== 'library') {
+      return failure(`Element ${parentLibraryId} is not a library (type: ${parentLib.type})`, ExitCode.VALIDATION);
+    }
+
+    // Check if child already has a parent (libraries can only have one parent)
+    const existingParent = await api.getDependencies(childLibraryId as ElementId, ['parent-child']);
+    // Check if any parent-child dependency points to a library
+    for (const dep of existingParent) {
+      const target = await api.get<Element>(dep.targetId);
+      if (target?.type === 'library') {
+        return failure(`Library ${childLibraryId} already has a parent library`, ExitCode.VALIDATION);
+      }
+    }
+
+    // Add parent-child dependency (child library is source, parent library is target)
+    // Cycle detection is handled by the dependency service
+    await api.addDependency({
+      sourceId: childLibraryId as ElementId,
+      targetId: parentLibraryId as ElementId,
+      type: 'parent-child',
+      actor,
+    });
+
+    return success(
+      { childLibraryId, parentLibraryId },
+      `Nested library ${childLibraryId} under ${parentLibraryId}`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('cycle')) {
+      return failure(`Cannot nest: would create a cycle`, ExitCode.VALIDATION);
+    }
+    return failure(`Failed to nest library: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const libraryNestCommand: Command = {
+  name: 'nest',
+  description: 'Nest a library under another (create hierarchy)',
+  usage: 'el library nest <child-library-id> <parent-library-id>',
+  help: `Nest a library under another library to create a hierarchy.
+
+A library can only have one parent library.
+Cycle detection prevents circular nesting.
+
+Arguments:
+  child-library-id   Library to nest (becomes a sub-library)
+  parent-library-id  Library to nest under (becomes parent)
+
+Examples:
+  el library nest el-sub123 el-parent456`,
+  handler: libraryNestHandler as Command['handler'],
+};
+
+// ============================================================================
+// Library Stats Command
+// ============================================================================
+
+async function libraryStatsHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [libraryId] = args;
+
+  if (!libraryId) {
+    return failure('Usage: el library stats <library-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Verify library exists
+    const library = await api.get<Library>(libraryId as ElementId);
+    if (!library) {
+      return failure(`Library not found: ${libraryId}`, ExitCode.NOT_FOUND);
+    }
+    if (library.type !== 'library') {
+      return failure(`Element ${libraryId} is not a library (type: ${library.type})`, ExitCode.VALIDATION);
+    }
+
+    // Get direct children (documents and sub-libraries that have this library as parent)
+    const deps = await api.getDependents(libraryId as ElementId, ['parent-child']);
+
+    let documentCount = 0;
+    let subLibraryCount = 0;
+
+    for (const dep of deps) {
+      const child = await api.get<Element>(dep.sourceId);
+      if (child) {
+        if (child.type === 'document') {
+          documentCount++;
+        } else if (child.type === 'library') {
+          subLibraryCount++;
+        }
+      }
+    }
+
+    const stats = {
+      libraryId,
+      name: library.name,
+      documentCount,
+      subLibraryCount,
+    };
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success(stats);
+    }
+
+    if (mode === 'quiet') {
+      return success(`${documentCount} docs, ${subLibraryCount} sub-libraries`);
+    }
+
+    const output = `Library: ${library.name} (${libraryId})
+Documents: ${documentCount}
+Sub-libraries: ${subLibraryCount}`;
+
+    return success(stats, output);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to get stats: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const libraryStatsCommand: Command = {
+  name: 'stats',
+  description: 'Show library statistics',
+  usage: 'el library stats <library-id>',
+  help: `Show statistics for a library.
+
+Arguments:
+  library-id    Library identifier
+
+Examples:
+  el library stats el-lib123`,
+  handler: libraryStatsHandler as Command['handler'],
+};
+
+// ============================================================================
+// Library Roots Command (list root libraries)
+// ============================================================================
+
+async function libraryRootsHandler(
+  _args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Get all libraries
+    const result = await api.listPaginated<Library>({ type: 'library' });
+    const libraries = result.items;
+
+    if (libraries.length === 0) {
+      return success([], 'No libraries found');
+    }
+
+    // Get all parent-child dependencies where target is a library
+    const libraryIds = new Set(libraries.map((l) => l.id as string));
+
+    // A library is a root if it doesn't have a parent-child dependency
+    // pointing to another library
+    const rootLibraries: Library[] = [];
+
+    for (const lib of libraries) {
+      const deps = await api.getDependencies(lib.id, ['parent-child']);
+      const hasLibraryParent = deps.some((d) => libraryIds.has(d.targetId as string));
+      if (!hasLibraryParent) {
+        rootLibraries.push(lib);
+      }
+    }
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(rootLibraries);
+    }
+
+    if (mode === 'quiet') {
+      return success(rootLibraries.map((l) => l.id).join('\n'));
+    }
+
+    if (rootLibraries.length === 0) {
+      return success([], 'No root libraries found');
+    }
+
+    // Build table
+    const headers = ['ID', 'NAME', 'CREATED'];
+    const rows = rootLibraries.map((l) => [
+      l.id,
+      l.name.length > 40 ? l.name.substring(0, 37) + '...' : l.name,
+      l.createdAt.split('T')[0],
+    ]);
+
+    const table = formatter.table(headers, rows);
+    const summary = `\n${rootLibraries.length} root library(ies)`;
+
+    return success(rootLibraries, table + summary);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to list root libraries: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const libraryRootsCommand: Command = {
+  name: 'roots',
+  description: 'List root libraries (not nested under other libraries)',
+  usage: 'el library roots',
+  help: `List all root libraries (libraries not nested under other libraries).
+
+Examples:
+  el library roots`,
+  handler: libraryRootsHandler as Command['handler'],
+};
+
+// ============================================================================
+// Library Delete Command
+// ============================================================================
+
+interface LibraryDeleteOptions {
+  force?: boolean;
+}
+
+const libraryDeleteOptions: CommandOption[] = [
+  {
+    name: 'force',
+    short: 'f',
+    description: 'Force deletion even if library has contents',
+    hasValue: false,
+  },
+];
+
+async function libraryDeleteHandler(
+  args: string[],
+  options: GlobalOptions & LibraryDeleteOptions
+): Promise<CommandResult> {
+  const [libraryId] = args;
+
+  if (!libraryId) {
+    return failure('Usage: el library delete <library-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Verify library exists
+    const library = await api.get<Library>(libraryId as ElementId);
+    if (!library) {
+      return failure(`Library not found: ${libraryId}`, ExitCode.NOT_FOUND);
+    }
+    if (library.type !== 'library') {
+      return failure(`Element ${libraryId} is not a library (type: ${library.type})`, ExitCode.VALIDATION);
+    }
+
+    // Check if library has contents
+    const deps = await api.getDependents(libraryId as ElementId, ['parent-child']);
+
+    if (deps.length > 0 && !options.force) {
+      return failure(
+        `Library has ${deps.length} child element(s). Use --force to delete anyway (contents will be orphaned).`,
+        ExitCode.VALIDATION
+      );
+    }
+
+    // Orphan strategy: remove all parent-child dependencies pointing to this library
+    for (const dep of deps) {
+      await api.removeDependency(dep.sourceId, libraryId as ElementId, 'parent-child');
+    }
+
+    // Delete the library
+    await api.delete(libraryId as ElementId);
+
+    return success(
+      { libraryId, orphanedCount: deps.length },
+      `Deleted library ${libraryId}` + (deps.length > 0 ? ` (orphaned ${deps.length} element(s))` : '')
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to delete library: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const libraryDeleteCommand: Command = {
+  name: 'delete',
+  description: 'Delete a library',
+  usage: 'el library delete <library-id> [--force]',
+  help: `Delete a library.
+
+By default, deletion is prevented if the library has contents.
+Use --force to delete anyway (documents and sub-libraries will be orphaned).
+
+Options:
+  -f, --force  Force deletion even with contents
+
+Arguments:
+  library-id    Library identifier
+
+Examples:
+  el library delete el-lib123
+  el library delete el-lib123 --force`,
+  options: libraryDeleteOptions,
+  handler: libraryDeleteHandler as Command['handler'],
+};
+
+// ============================================================================
 // Library Root Command
 // ============================================================================
 
@@ -396,23 +840,39 @@ export const libraryCommand: Command = {
 
 Libraries organize documents for knowledge bases, documentation, and
 content management. Documents can belong to multiple libraries.
+Libraries can also be nested hierarchically.
 
 Subcommands:
   create   Create a new library
-  list     List libraries
+  list     List all libraries
+  roots    List root libraries (not nested)
+  docs     List documents in a library
+  stats    Show library statistics
   add      Add document to library
   remove   Remove document from library
+  nest     Nest library under another
+  delete   Delete a library
 
 Examples:
   el library create --name "API Documentation"
   el library list
+  el library roots
+  el library docs el-lib123
+  el library stats el-lib123
   el library add el-lib123 el-doc456
-  el library remove el-lib123 el-doc456`,
+  el library remove el-lib123 el-doc456
+  el library nest el-sub123 el-parent456
+  el library delete el-lib123`,
   subcommands: {
     create: libraryCreateCommand,
     list: libraryListCommand,
+    roots: libraryRootsCommand,
+    docs: libraryDocsCommand,
+    stats: libraryStatsCommand,
     add: libraryAddCommand,
     remove: libraryRemoveCommand,
+    nest: libraryNestCommand,
+    delete: libraryDeleteCommand,
   },
   handler: async (args, options): Promise<CommandResult> => {
     // Default to list if no subcommand

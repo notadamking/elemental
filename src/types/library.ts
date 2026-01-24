@@ -477,3 +477,225 @@ export function isNameUnique(libraries: Library[], name: string, excludeId?: Lib
     (lib) => lib.name.toLowerCase() === lowerName && lib.id !== excludeId
   );
 }
+
+// ============================================================================
+// Deletion Types
+// ============================================================================
+
+/**
+ * Deletion modes for library deletion
+ */
+export const LibraryDeletionMode = {
+  /** Remove dependencies, documents remain (default, safest) */
+  ORPHAN: 'orphan',
+  /** Delete all child documents (cascade) */
+  CASCADE: 'cascade',
+  /** Reject if library has contents */
+  PREVENT: 'prevent',
+} as const;
+
+export type LibraryDeletionMode = (typeof LibraryDeletionMode)[keyof typeof LibraryDeletionMode];
+
+/**
+ * Input for deleting a library
+ */
+export interface DeleteLibraryInput {
+  /** Deletion mode - how to handle contents */
+  mode?: LibraryDeletionMode;
+  /** Entity performing the deletion */
+  deletedBy: EntityId;
+}
+
+/**
+ * Result of library deletion
+ */
+export interface DeleteLibraryResult {
+  /** Whether the library was deleted */
+  deleted: boolean;
+  /** Number of documents orphaned */
+  documentsOrphaned: number;
+  /** Number of documents deleted (cascade mode) */
+  documentsDeleted: number;
+  /** Number of sub-libraries orphaned */
+  subLibrariesOrphaned: number;
+  /** Number of sub-libraries deleted (cascade mode) */
+  subLibrariesDeleted: number;
+}
+
+// ============================================================================
+// Library Content Information
+// ============================================================================
+
+/**
+ * Statistics about library contents
+ */
+export interface LibraryStats {
+  /** Number of direct child documents */
+  documentCount: number;
+  /** Total documents including descendants */
+  totalDocuments: number;
+  /** Number of direct child libraries */
+  subLibraryCount: number;
+  /** Total sub-libraries including nested */
+  totalSubLibraries: number;
+}
+
+/**
+ * Information about a library's ancestors
+ */
+export interface LibraryAncestry {
+  /** Path from root to this library (ordered, root first) */
+  path: LibraryId[];
+  /** Depth from root (0 = root library) */
+  depth: number;
+}
+
+// ============================================================================
+// Hierarchy Utility Functions
+// ============================================================================
+
+/**
+ * Checks if a library is a root library (has no parent library)
+ * Note: This requires dependency information to be passed in
+ */
+export function isRootLibrary(
+  libraryId: LibraryId | string,
+  parentChildDependencies: Array<{ sourceId: string; targetId: string }>
+): boolean {
+  // A library is root if it has no parent-child dependency where it is the source
+  // and the target is another library
+  return !parentChildDependencies.some(
+    (dep) => dep.sourceId === libraryId
+  );
+}
+
+/**
+ * Gets direct children of a library (documents and sub-libraries)
+ * from parent-child dependencies
+ */
+export function getDirectChildren(
+  libraryId: LibraryId | string,
+  dependencies: Array<{ sourceId: string; targetId: string }>
+): string[] {
+  return dependencies
+    .filter((dep) => dep.targetId === libraryId)
+    .map((dep) => dep.sourceId);
+}
+
+/**
+ * Gets the parent library ID of a library (if it has one)
+ */
+export function getParentLibraryId(
+  libraryId: LibraryId | string,
+  libraryIds: Set<string>,
+  dependencies: Array<{ sourceId: string; targetId: string }>
+): string | undefined {
+  const parentDep = dependencies.find(
+    (dep) => dep.sourceId === libraryId && libraryIds.has(dep.targetId)
+  );
+  return parentDep?.targetId;
+}
+
+/**
+ * Gets all ancestor library IDs (parent, grandparent, etc.)
+ * Returns ordered array from immediate parent to root
+ */
+export function getAncestorIds(
+  libraryId: LibraryId | string,
+  libraryIds: Set<string>,
+  dependencies: Array<{ sourceId: string; targetId: string }>,
+  maxDepth = 100
+): string[] {
+  const ancestors: string[] = [];
+  let currentId: string | undefined = libraryId;
+  let depth = 0;
+
+  while (depth < maxDepth) {
+    const parentId = getParentLibraryId(currentId, libraryIds, dependencies);
+    if (!parentId) break;
+    ancestors.push(parentId);
+    currentId = parentId;
+    depth++;
+  }
+
+  return ancestors;
+}
+
+/**
+ * Gets all descendant IDs (children, grandchildren, etc.) recursively
+ * Uses BFS for efficiency
+ */
+export function getDescendantIds(
+  libraryId: LibraryId | string,
+  dependencies: Array<{ sourceId: string; targetId: string }>,
+  maxDepth = 100
+): string[] {
+  const descendants: string[] = [];
+  const visited = new Set<string>();
+  const queue: Array<{ id: string; depth: number }> = [{ id: libraryId, depth: 0 }];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    if (current.depth >= maxDepth) continue;
+
+    const children = getDirectChildren(current.id, dependencies);
+    for (const childId of children) {
+      if (!visited.has(childId) && childId !== libraryId) {
+        visited.add(childId);
+        descendants.push(childId);
+        queue.push({ id: childId, depth: current.depth + 1 });
+      }
+    }
+  }
+
+  return descendants;
+}
+
+/**
+ * Builds the ancestry information for a library
+ */
+export function buildAncestry(
+  libraryId: LibraryId | string,
+  libraryIds: Set<string>,
+  dependencies: Array<{ sourceId: string; targetId: string }>
+): LibraryAncestry {
+  const ancestors = getAncestorIds(libraryId, libraryIds, dependencies);
+  // Reverse to get path from root to current (excluding current)
+  const path = ancestors.reverse() as LibraryId[];
+  return {
+    path,
+    depth: ancestors.length,
+  };
+}
+
+/**
+ * Detects if adding a parent-child relationship would create a cycle
+ * (child would become parent of an ancestor)
+ */
+export function wouldCreateCycle(
+  childId: LibraryId | string,
+  proposedParentId: LibraryId | string,
+  dependencies: Array<{ sourceId: string; targetId: string }>
+): boolean {
+  // If the proposed parent is already a descendant of the child, adding it would create a cycle
+  const descendants = getDescendantIds(childId, dependencies);
+  return descendants.includes(proposedParentId as string);
+}
+
+/**
+ * Filter libraries to only root libraries
+ */
+export function filterRootLibraries<T extends Library>(
+  libraries: T[],
+  dependencies: Array<{ sourceId: string; targetId: string }>
+): T[] {
+  const libraryIds = new Set(libraries.map((lib) => lib.id as string));
+  return libraries.filter((lib) => {
+    // Check if this library has no parent-child dependency pointing to another library
+    const hasLibraryParent = dependencies.some(
+      (dep) => dep.sourceId === (lib.id as string) && libraryIds.has(dep.targetId)
+    );
+    return !hasLibraryParent;
+  });
+}

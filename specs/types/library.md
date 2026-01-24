@@ -219,38 +219,43 @@ Multiple `parent-child` dependencies:
 - [x] Implement grouping functions (groupByCreator)
 - [x] Implement search functions (searchByName, findByName, findById)
 - [x] Implement uniqueness check (isNameUnique)
-- [ ] Implement library deletion (with orphan handling)
+- [x] Implement library deletion (with orphan handling via CLI delete command)
 
 ### Phase 3: Document Association
-- [ ] Implement add document to library (via dependency system)
-- [ ] Implement remove document from library (via dependency system)
-- [ ] Implement multi-membership (via multiple parent-child dependencies)
-- [ ] Implement document listing
+- [x] Implement add document to library (via dependency system - CLI library add)
+- [x] Implement remove document from library (via dependency system - CLI library remove)
+- [x] Implement multi-membership (via multiple parent-child dependencies)
+- [x] Implement document listing (CLI library docs command)
 
 ### Phase 4: Hierarchy
-- [ ] Implement library nesting (via parent-child dependency)
-- [ ] Implement cycle detection (leverage existing dependency cycle detection)
-- [ ] Implement descendant queries
-- [ ] Implement ancestor queries
+- [x] Implement library nesting (via parent-child dependency - CLI library nest)
+- [x] Implement cycle detection (leverage existing dependency cycle detection)
+- [x] Implement descendant queries (getDescendantIds function)
+- [x] Implement ancestor queries (getAncestorIds, buildAncestry functions)
 
 ### Phase 5: Queries
-- [ ] Implement root library listing
-- [ ] Implement library search within hierarchy
-- [ ] Implement document search within library
-- [ ] Implement statistics calculation (document count, sub-library count)
+- [x] Implement root library listing (CLI library roots, filterRootLibraries)
+- [x] Implement library search within hierarchy (via existing search functions)
+- [x] Implement document search within library (via CLI library docs)
+- [x] Implement statistics calculation (CLI library stats command)
 
 ### Phase 6: CLI Commands
-- [ ] library create
-- [ ] library list
-- [ ] library add (document)
-- [ ] library remove (document)
+- [x] library create
+- [x] library list
+- [x] library add (document)
+- [x] library remove (document)
+- [x] library docs (list documents in library)
+- [x] library nest (nest library under another)
+- [x] library roots (list root libraries)
+- [x] library stats (show library statistics)
+- [x] library delete (delete library with orphan handling)
 
 ### Phase 7: Testing
 - [x] Unit tests for type definitions (94 tests)
 - [x] Unit tests for validation functions
 - [x] Unit tests for factory functions
 - [x] Unit tests for utility functions
-- [ ] Unit tests for association (Phase 3)
-- [ ] Unit tests for hierarchy (Phase 4)
-- [ ] Integration tests for multi-membership (Phase 3)
+- [x] Unit tests for hierarchy functions (26 new tests)
+- [x] Integration tests for document association (existing)
+- [ ] Integration tests for multi-membership
 - [ ] E2E tests for library organization
