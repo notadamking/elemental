@@ -2835,6 +2835,83 @@ through dependency chains. Team assignment correctly propagates to team member q
 
 ---
 
+### Scenario: Document Operations with References and Versioning
+
+**Purpose:** Validate document creation, content management, references in messages/tasks, library organization, and tombstone behavior
+
+**Prerequisites:** Initialized workspace with registered entity
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Tombstone inconsistency found)
+
+**Checkpoints:**
+
+**Document Creation:**
+- [x] Create document with inline content: `el doc create --content "..." --type markdown` works correctly
+- [x] Create document from file: `el doc create --file <path> --type markdown` works correctly
+- [x] Content types validated: text, markdown, json accepted; invalid rejected
+- [x] JSON output includes id, type, contentType, version fields
+- [ ] **FAIL**: Whitespace-only content accepted (el-5c2v)
+  - `el doc create --content "   " --type text` succeeds
+  - Empty content correctly rejected
+- [x] Special characters and Unicode preserved correctly
+  - HTML, quotes, CJK, emojis all stored and retrieved properly
+
+**Document Content Update:**
+- [ ] **BLOCKED**: `el doc update` command doesn't exist (el-4pen)
+  - `el update --content` returns "Unknown option"
+  - API exists (updateDocumentContent) but no CLI command
+- [x] Document versioning works when update available via API
+
+**Document References:**
+- [x] Task notes can reference document ID: `--notes "See spec: el-xxx"`
+- [x] Message attachment works: `--attachment <doc-id>` correctly adds reference
+- [x] Non-document attachment rejected: "Attachment el-xxx is not a document"
+- [x] Non-existent attachment rejected: NOT_FOUND error
+- [x] Message list hydrates content from contentRef
+
+**Library Organization:**
+- [x] Add document to library: `el library add <lib> <doc>` works
+- [x] Library docs shows added document
+- [x] Library stats shows documentCount correctly
+- [ ] **FAIL**: Library includes tombstoned document (el-2h6o confirmed)
+  - After `el delete <doc>`, library docs still shows it with deletedAt
+  - Library stats still counts it (documentCount: 1 instead of 0)
+
+**Document Deletion and Tombstone Behavior:**
+- [x] Delete document succeeds with references: `el delete <doc> --reason "..."`
+- [ ] **FAIL**: Inconsistent tombstone visibility (el-2yva NEW)
+  - `el doc show <deleted-doc>` returns document with deletedAt field
+  - `el show <deleted-doc>` returns NOT_FOUND error (exit code 3)
+  - Inconsistent behavior between type-specific and generic show
+- [x] Message attachment retains reference to deleted document
+- [x] `el list --type document` correctly excludes tombstoned documents
+
+**Version Flag Collision:**
+- [ ] **FAIL**: `-V` flag collision on el doc show (el-1eo2 confirmed)
+  - `el doc show el-xxx -V 1` shows CLI version {"version": "0.1.0"}
+  - `el doc show el-xxx --docVersion 1` works correctly
+
+**Success Criteria:** Documents can be created, referenced, organized, and deleted with consistent behavior
+- **Partial:** Core operations work, but tombstone visibility inconsistent between show commands
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-2yva | NEW: el doc show returns deleted documents but el show returns NOT_FOUND | 3 | bug |
+| el-5c2v | NEW: el doc create accepts whitespace-only content | 5 | ux |
+| el-2h6o | (confirmed) Library docs/stats include tombstoned documents | 3 | bug |
+| el-1eo2 | (confirmed) -V flag collision on el doc show | 4 | bug |
+| el-4pen | (confirmed) No el doc update command | 3 | enhancement |
+
+**Dependencies:**
+- el-2yva → el-2h6o (relates-to: same tombstone visibility theme)
+- el-2yva → el-2awx (relates-to: --include-deleted enhancement)
+- el-5c2v → el-5ha0 (relates-to: same whitespace validation pattern)
+- el-5c2v → el-2aqg (relates-to: same whitespace validation pattern)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
