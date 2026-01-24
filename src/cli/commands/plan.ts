@@ -697,6 +697,12 @@ async function planAddTaskHandler(
     if (plan.type !== 'plan') {
       return failure(`Element ${planId} is not a plan (type: ${plan.type})`, ExitCode.VALIDATION);
     }
+    if (plan.status === PlanStatus.CANCELLED) {
+      return failure(
+        `Cannot add task to plan with status 'cancelled'`,
+        ExitCode.VALIDATION
+      );
+    }
 
     // Verify task exists
     const task = await api.get<Task>(taskId as ElementId);

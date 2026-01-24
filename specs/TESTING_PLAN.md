@@ -484,8 +484,8 @@ Step-by-step checklists for validating critical paths.
   - Error: "Cannot complete plan: current status is 'cancelled'. Only active plans can be completed."
 - [x] Cannot activate cancelled plan
   - Error: "Cannot activate plan: current status is 'cancelled'. Only draft plans can be activated."
-- [ ] **FAIL**: Add tasks to cancelled plan: `el plan add-task <cancelled-plan-id> <task-id>`
-  - **BUG el-48i3:** Should be rejected, but succeeds
+- [x] **FIXED**: Add tasks to cancelled plan: `el plan add-task <cancelled-plan-id> <task-id>`
+  - **BUG el-48i3 (FIXED):** Now correctly rejected with "Cannot add task to plan with status 'cancelled'"
 - [ ] **MISSING**: No `el plan reopen` command (see el-6c3v)
 - [x] Plan list filtering by status: `el plan list --status active --json`
   - Returns only plans with matching status
@@ -506,7 +506,7 @@ Step-by-step checklists for validating critical paths.
 **Issues Found:**
 - **el-g5qk**: BUG - `el plan complete` allows completing plans with incomplete tasks
 - **el-4uvk**: BUG - `el plan add-task` allows adding tasks to completed plans
-- **el-48i3**: BUG - `el plan add-task` allows adding tasks to cancelled plans
+- **el-48i3**: BUG (FIXED) - `el plan add-task` now correctly rejects adding tasks to cancelled plans
 - **el-6c3v**: ENHANCEMENT - Add `el plan reopen` command for reactivating completed/cancelled plans
 - **el-58d9**: UX - Inconsistent JSON structure between `el show` and `el plan show` for plans
 
@@ -3860,9 +3860,8 @@ tasks created with hierarchical IDs like `el-planid.1` would self-document their
 - [x] Can add blocked task to active plan
 
 **Plan Status Lifecycle:**
-- [ ] **BUG el-48i3 (NEW):** Can add tasks to cancelled plans
-  - Expected: Error "Cannot add task to plan with status 'cancelled'"
-  - Actual: success:true, task added to cancelled plan
+- [x] **BUG el-48i3 (FIXED):** Cannot add tasks to cancelled plans
+  - Now correctly returns error: "Cannot add task to plan with status 'cancelled'"
 - [ ] **BUG el-4uvk (CONFIRMED):** Can add tasks to completed plans
   - Same validation gap as cancelled plans
 - [ ] **BUG el-g5qk (CONFIRMED):** Can complete plans with 0% progress

@@ -520,6 +520,21 @@ describe('plan add-task command', () => {
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error ?? '').toContain('Task not found');
   });
+
+  test('fails for cancelled plan', async () => {
+    const cancelSubCmd = planCommand.subcommands!['cancel'];
+
+    // Create a plan and cancel it
+    const planId = await createTestPlan('Cancelled Plan');
+    await cancelSubCmd.handler([planId], createTestOptions());
+
+    // Try to add a task to the cancelled plan
+    const taskId = await createTestTask('Test Task');
+    const result = await addTaskSubCmd.handler([planId, taskId], createTestOptions());
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error ?? '').toContain("Cannot add task to plan with status 'cancelled'");
+  });
 });
 
 // ============================================================================

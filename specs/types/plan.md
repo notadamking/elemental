@@ -108,7 +108,7 @@ Optional: weight by complexity or priority for more accurate progress.
 
 ### Add Tasks
 
-1. Verify plan is draft or active (not completed/cancelled) - **BUG el-4uvk: Verification not enforced**
+1. Verify plan is draft or active (not completed/cancelled) - **BUG el-4uvk: Completed plan check not enforced** (cancelled check implemented)
 2. Create task with plan as parent
 3. Task gets hierarchical ID
 4. `parent-child` dependency created
@@ -218,7 +218,8 @@ When creating task under plan:
 - [x] Implement auto-completion detection (canAutoComplete)
 - [x] Create status change event emission ✅ (emits 'closed' event when status changes to completed/cancelled, 'reopened' event when status changes from completed/cancelled - 12 tests)
 - [ ] **BUG el-g5qk**: Enforce task completion validation before plan complete (or require --force)
-- [ ] **BUG el-4uvk**: Reject adding tasks to completed/cancelled plans
+- [x] **BUG el-48i3**: Reject adding tasks to cancelled plans ✅
+- [ ] **BUG el-4uvk**: Reject adding tasks to completed plans
 - [ ] **ENHANCEMENT el-6c3v**: Implement `el plan reopen` command
 
 ### Phase 3: Task Association ✅
