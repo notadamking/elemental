@@ -17,6 +17,8 @@ import type { Task } from '../types/task.js';
 import { createTask, Priority, TaskStatus } from '../types/task.js';
 import { createWorkflow, WorkflowStatus, type Workflow } from '../types/workflow.js';
 import { DependencyType } from '../types/dependency.js';
+import { createPlaybook, VariableType, type Playbook } from '../types/playbook.js';
+import { pourWorkflow, computeWorkflowStatus } from '../types/workflow-pour.js';
 
 // ============================================================================
 // Test Helpers
@@ -529,6 +531,497 @@ describe('Workflow Query Integration', () => {
       // Check ready() with includeEphemeral
       const readyTasks = await api.ready({ includeEphemeral: true });
       expect(readyTasks.map((t) => t.id)).toContain(ephemeralTask.id);
+    });
+  });
+
+  // ==========================================================================
+  // Full Pour Flow Integration Tests
+  // ==========================================================================
+
+  describe('Full Pour Flow Integration', () => {
+    /**
+     * Helper to create a test playbook
+     */
+    async function createTestPlaybook(
+      overrides: Partial<Parameters<typeof createPlaybook>[0]> = {}
+    ): Promise<Playbook> {
+      return createPlaybook({
+        name: 'test_playbook',
+        title: 'Test Playbook',
+        createdBy: mockEntityId,
+        steps: [],
+        variables: [],
+        ...overrides,
+      });
+    }
+
+    /**
+     * Helper to persist pour result to database
+     */
+    async function persistPourResult(
+      pourResult: Awaited<ReturnType<typeof pourWorkflow>>
+    ): Promise<void> {
+      // Create workflow
+      await api.create(toCreateInput(pourResult.workflow));
+
+      // Create tasks
+      for (const { task } of pourResult.tasks) {
+        await api.create(toCreateInput(task));
+      }
+
+      // Create parent-child dependencies
+      for (const dep of pourResult.parentChildDependencies) {
+        await api.addDependency({
+          sourceId: dep.sourceId,
+          targetId: dep.targetId,
+          type: dep.type,
+        });
+      }
+
+      // Create blocks dependencies - SWAP source/target because pourWorkflow
+      // uses opposite semantics (sourceId=blocker, targetId=blocked) vs
+      // the system (sourceId=blocked, targetId=blocker)
+      for (const dep of pourResult.blocksDependencies) {
+        await api.addDependency({
+          sourceId: dep.targetId,  // blocked task (was targetId in pourWorkflow)
+          targetId: dep.sourceId,  // blocker task (was sourceId in pourWorkflow)
+          type: dep.type,
+        });
+      }
+    }
+
+    it('should pour workflow with steps and persist to database', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Deployment Pipeline',
+        steps: [
+          { id: 'setup', title: 'Setup Environment' },
+          { id: 'build', title: 'Build Application' },
+          { id: 'test', title: 'Run Tests' },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Verify workflow was created
+      const workflow = await api.get(pourResult.workflow.id);
+      expect(workflow.type).toBe('workflow');
+      expect(workflow.title).toBe('Deployment Pipeline');
+
+      // Verify all tasks were created
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(3);
+      expect(tasks.map((t) => t.title)).toContain('Setup Environment');
+      expect(tasks.map((t) => t.title)).toContain('Build Application');
+      expect(tasks.map((t) => t.title)).toContain('Run Tests');
+    });
+
+    it('should pour workflow with dependencies and verify blocked/ready tasks', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Sequential Pipeline',
+        steps: [
+          { id: 'setup', title: 'Setup' },
+          { id: 'build', title: 'Build', dependsOn: ['setup'] },
+          { id: 'test', title: 'Test', dependsOn: ['build'] },
+          { id: 'deploy', title: 'Deploy', dependsOn: ['test'] },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Verify dependency chain
+      expect(pourResult.blocksDependencies).toHaveLength(3);
+
+      // Update workflow to COMPLETED so tasks aren't blocked by parent-child dependency
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      // Get ready tasks - only 'setup' should be ready (others blocked by step dependencies)
+      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      expect(readyTasks).toHaveLength(1);
+      expect(readyTasks[0].title).toBe('Setup');
+
+      // Get progress
+      const progress = await api.getWorkflowProgress(pourResult.workflow.id);
+      expect(progress.totalTasks).toBe(4);
+      expect(progress.readyTasks).toBe(1);
+      expect(progress.blockedTasks).toBe(3);
+    });
+
+    it('should pour workflow with variables and verify substitution in persisted data', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Deploy {{environment}}',
+        variables: [
+          { name: 'environment', type: VariableType.STRING, required: true },
+          { name: 'version', type: VariableType.STRING, required: false, default: '1.0.0' },
+        ],
+        steps: [
+          { id: 'deploy', title: 'Deploy {{version}} to {{environment}}' },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: { environment: 'production', version: '2.0.0' },
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Verify workflow title has substitution
+      const workflow = await api.get(pourResult.workflow.id);
+      expect(workflow.title).toBe('Deploy production');
+
+      // Verify task title has substitution
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks[0].title).toBe('Deploy 2.0.0 to production');
+
+      // Verify variables stored in workflow
+      expect((workflow as Workflow).variables).toEqual({ environment: 'production', version: '2.0.0' });
+    });
+
+    it('should pour workflow with conditions and verify filtered steps are not persisted', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Conditional Pipeline',
+        variables: [
+          { name: 'runTests', type: VariableType.BOOLEAN, required: false, default: true },
+          { name: 'runLint', type: VariableType.BOOLEAN, required: false, default: false },
+        ],
+        steps: [
+          { id: 'build', title: 'Build' },
+          { id: 'test', title: 'Run Tests', condition: '{{runTests}}' },
+          { id: 'lint', title: 'Run Linting', condition: '{{runLint}}' },
+          { id: 'deploy', title: 'Deploy' },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: { runTests: true, runLint: false },
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Verify skipped steps
+      expect(pourResult.skippedSteps).toEqual(['lint']);
+
+      // Verify only non-skipped tasks were created
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(3);
+      expect(tasks.map((t) => t.title)).toContain('Build');
+      expect(tasks.map((t) => t.title)).toContain('Run Tests');
+      expect(tasks.map((t) => t.title)).toContain('Deploy');
+      expect(tasks.map((t) => t.title)).not.toContain('Run Linting');
+    });
+
+    it('should pour ephemeral workflow and verify ephemeral filtering', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Ephemeral Test',
+        steps: [{ id: 'step1', title: 'Ephemeral Task' }],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+        ephemeral: true,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Verify workflow is ephemeral
+      const workflow = await api.get(pourResult.workflow.id) as Workflow;
+      expect(workflow.ephemeral).toBe(true);
+
+      // Update workflow status to COMPLETED so tasks aren't blocked by parent-child
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      // Ephemeral tasks should not appear in regular ready() query
+      const readyTasks = await api.ready();
+      expect(readyTasks.map((t) => t.id)).not.toContain(pourResult.tasks[0].task.id);
+
+      // But should appear with includeEphemeral flag
+      const allReadyTasks = await api.ready({ includeEphemeral: true });
+      expect(allReadyTasks.map((t) => t.id)).toContain(pourResult.tasks[0].task.id);
+    });
+
+    it('should pour workflow and verify hierarchical task IDs', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Hierarchical IDs Test',
+        steps: [
+          { id: 'step1', title: 'First Step' },
+          { id: 'step2', title: 'Second Step' },
+          { id: 'step3', title: 'Third Step' },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Verify hierarchical IDs
+      const workflowId = pourResult.workflow.id;
+      expect(pourResult.tasks[0].task.id).toBe(`${workflowId}.1`);
+      expect(pourResult.tasks[1].task.id).toBe(`${workflowId}.2`);
+      expect(pourResult.tasks[2].task.id).toBe(`${workflowId}.3`);
+
+      // Verify tasks are queryable by their hierarchical IDs
+      for (const { task } of pourResult.tasks) {
+        const retrieved = await api.get(task.id);
+        expect(retrieved).toBeDefined();
+        expect(retrieved.id).toBe(task.id);
+      }
+    });
+
+    it('should pour workflow with task priority and complexity from steps', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Priority Test',
+        steps: [
+          { id: 'critical', title: 'Critical Task', priority: 1, complexity: 5 },
+          { id: 'normal', title: 'Normal Task', priority: 3, complexity: 2 },
+          { id: 'minimal', title: 'Minimal Task', priority: 5, complexity: 1 },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Update workflow status to COMPLETED so tasks aren't blocked by parent-child
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      // Verify priority and complexity were set
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+
+      const criticalTask = tasks.find((t) => t.title === 'Critical Task');
+      expect(criticalTask?.priority).toBe(1);
+      expect(criticalTask?.complexity).toBe(5);
+
+      const normalTask = tasks.find((t) => t.title === 'Normal Task');
+      expect(normalTask?.priority).toBe(3);
+      expect(normalTask?.complexity).toBe(2);
+
+      const minimalTask = tasks.find((t) => t.title === 'Minimal Task');
+      expect(minimalTask?.priority).toBe(5);
+      expect(minimalTask?.complexity).toBe(1);
+
+      // Verify priority ordering in ready tasks
+      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      // Should be sorted by priority (lower number = higher priority)
+      expect(readyTasks[0].title).toBe('Critical Task');
+    });
+
+    it('should pour workflow and track workflow status through task completion', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Status Tracking Test',
+        steps: [
+          { id: 'step1', title: 'First Task' },
+          { id: 'step2', title: 'Second Task' },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Initial status should be pending
+      let workflow = (await api.get(pourResult.workflow.id)) as Workflow;
+      expect(workflow.status).toBe(WorkflowStatus.PENDING);
+
+      // Get task IDs
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+
+      // Start first task (in_progress)
+      await api.update(tasks[0].id, { status: TaskStatus.IN_PROGRESS });
+
+      // Compute workflow status - should be RUNNING
+      const tasksAfterStart = await api.getTasksInWorkflow(pourResult.workflow.id);
+      let computedStatus = computeWorkflowStatus(workflow, tasksAfterStart);
+      expect(computedStatus).toBe(WorkflowStatus.RUNNING);
+
+      // Close first task
+      await api.update(tasks[0].id, { status: TaskStatus.CLOSED });
+
+      // Update workflow to running status
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.RUNNING });
+      workflow = (await api.get(pourResult.workflow.id)) as Workflow;
+
+      // Close second task
+      await api.update(tasks[1].id, { status: TaskStatus.CLOSED });
+
+      // Compute workflow status - should now be COMPLETED
+      const tasksAfterComplete = await api.getTasksInWorkflow(pourResult.workflow.id);
+      computedStatus = computeWorkflowStatus(workflow, tasksAfterComplete);
+      expect(computedStatus).toBe(WorkflowStatus.COMPLETED);
+    });
+
+    it('should pour workflow with parallel tasks (diamond dependency pattern)', async () => {
+      // Diamond pattern: start -> parallel1, parallel2 -> end
+      const playbook = await createTestPlaybook({
+        title: 'Diamond Pattern',
+        steps: [
+          { id: 'start', title: 'Start' },
+          { id: 'parallel1', title: 'Parallel Task 1', dependsOn: ['start'] },
+          { id: 'parallel2', title: 'Parallel Task 2', dependsOn: ['start'] },
+          { id: 'end', title: 'End', dependsOn: ['parallel1', 'parallel2'] },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Verify dependencies (should have 4: start->p1, start->p2, p1->end, p2->end)
+      expect(pourResult.blocksDependencies).toHaveLength(4);
+
+      // Update workflow to COMPLETED so tasks aren't blocked by parent-child
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      // Initially only 'start' should be ready
+      let readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      expect(readyTasks).toHaveLength(1);
+      expect(readyTasks[0].title).toBe('Start');
+
+      // Close 'start' task
+      const startTask = pourResult.tasks.find((t) => t.stepId === 'start')!;
+      await api.update(startTask.task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
+
+      // Now both parallel tasks should be ready
+      readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      expect(readyTasks).toHaveLength(2);
+      expect(readyTasks.map((t) => t.title)).toContain('Parallel Task 1');
+      expect(readyTasks.map((t) => t.title)).toContain('Parallel Task 2');
+
+      // Close one parallel task
+      const parallel1 = pourResult.tasks.find((t) => t.stepId === 'parallel1')!;
+      await api.update(parallel1.task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
+
+      // 'end' should still be blocked
+      readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      expect(readyTasks).toHaveLength(1);
+      expect(readyTasks[0].title).toBe('Parallel Task 2');
+
+      // Close other parallel task
+      const parallel2 = pourResult.tasks.find((t) => t.stepId === 'parallel2')!;
+      await api.update(parallel2.task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
+
+      // Now 'end' should be ready
+      readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      expect(readyTasks).toHaveLength(1);
+      expect(readyTasks[0].title).toBe('End');
+    });
+
+    it('should pour workflow with assignee from step', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Assigned Tasks',
+        variables: [
+          { name: 'reviewer', type: VariableType.STRING, required: true },
+        ],
+        steps: [
+          { id: 'dev', title: 'Development', assignee: 'user:developer' },
+          { id: 'review', title: 'Review', assignee: '{{reviewer}}' },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: { reviewer: 'user:senior-dev' },
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+
+      const devTask = tasks.find((t) => t.title === 'Development');
+      expect(devTask?.assignee).toBe('user:developer');
+
+      const reviewTask = tasks.find((t) => t.title === 'Review');
+      expect(reviewTask?.assignee).toBe('user:senior-dev');
+    });
+
+    it('should pour workflow with tags and metadata', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Tagged Workflow',
+        steps: [{ id: 'step1', title: 'Task' }],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+        tags: ['deployment', 'production', 'v2-release'],
+        metadata: { region: 'us-east-1', team: 'platform' },
+      });
+
+      await persistPourResult(pourResult);
+
+      const workflow = (await api.get(pourResult.workflow.id)) as Workflow;
+      expect(workflow.tags).toEqual(['deployment', 'production', 'v2-release']);
+      expect(workflow.metadata).toEqual({ region: 'us-east-1', team: 'platform' });
+    });
+
+    it('should handle workflow progress with mixed task statuses', async () => {
+      const playbook = await createTestPlaybook({
+        title: 'Progress Tracking',
+        steps: [
+          { id: 'step1', title: 'Task 1' },
+          { id: 'step2', title: 'Task 2' },
+          { id: 'step3', title: 'Task 3' },
+          { id: 'step4', title: 'Task 4' },
+        ],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      await persistPourResult(pourResult);
+
+      // Update workflow to COMPLETED so we can modify task statuses freely
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      // Set different statuses: 2 closed, 1 open, 1 in_progress
+      await api.update(pourResult.tasks[0].task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
+      await api.update(pourResult.tasks[1].task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
+      await api.update(pourResult.tasks[2].task.id, { status: TaskStatus.IN_PROGRESS } as Partial<Task>);
+      // Task 4 stays open
+
+      const progress = await api.getWorkflowProgress(pourResult.workflow.id);
+      expect(progress.totalTasks).toBe(4);
+      expect(progress.completionPercentage).toBe(50); // 2/4
+      expect(progress.statusCounts.closed).toBe(2);
+      expect(progress.statusCounts.open).toBe(1);
+      expect(progress.statusCounts.in_progress).toBe(1);
     });
   });
 });

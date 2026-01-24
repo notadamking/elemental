@@ -290,10 +290,10 @@ On export:
 - [ ] Integrate with export system
 - [x] Add CLI commands: pour, burn, squash, gc, list, show, tasks, progress (src/cli/commands/workflow.ts)
 
-### Phase 8: Testing
+### Phase 8: Testing ✅
 - [x] Unit tests for status transitions (src/types/workflow.test.ts)
 - [x] Unit tests for pouring logic - 59 tests (src/types/workflow-pour.test.ts)
 - [x] Unit tests for ephemeral filtering (src/types/workflow.test.ts)
-- [x] Integration tests for workflow queries - 19 tests (src/api/workflow-queries.integration.test.ts)
-- [ ] Integration tests for full pour flow
-- [ ] E2E tests for workflow lifecycle
+- [x] Integration tests for workflow queries - 31 tests (src/api/workflow-queries.integration.test.ts)
+- [x] Integration tests for full pour flow - 14 tests (src/api/workflow-queries.integration.test.ts)
+- [x] E2E tests for workflow lifecycle - 11 tests (src/cli/commands/workflow.test.ts)
