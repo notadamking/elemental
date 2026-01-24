@@ -4194,6 +4194,122 @@ Key findings:
 
 ---
 
+### Scenario: Tag System Behavior and Validation
+
+**Purpose:** Comprehensive evaluation of tag creation, validation, filtering, and manipulation across all element types - critical for agent-based categorization and work organization
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Entity tag type bug, missing filters)
+
+**Checkpoints:**
+
+**Tag Creation on Tasks:**
+- [x] Single tag: `el create task --title "Test" --tag frontend` works correctly
+- [ ] **FAIL**: Multiple `--tag` flags: `--tag a --tag b --tag c` only keeps last tag
+  - **BUG el-59p3:** (pre-existing) Parser overwrites repeated options
+
+**Tag Format Validation:**
+- [x] Alphanumeric tags: accepted
+- [x] Hyphens in tags: accepted (`high-priority`)
+- [x] Underscores in tags: accepted (`needs_review`)
+- [x] Colons in tags: accepted (`feature:auth`)
+- [x] Spaces in tags: rejected with clear error
+- [x] Dots in tags: rejected with clear error (`v1.2.3`)
+- [x] Slashes in tags: rejected with clear error (`feature/auth`)
+- [x] Unicode characters: rejected (alphanumeric only)
+- [x] Special characters (@, #, =): rejected with clear error
+- [x] Very long tag (100+ chars): accepted (no length limit)
+- [ ] **FAIL**: Empty string tag on create: silently ignored (inconsistent)
+- [x] Whitespace-only tag: rejected with clear error
+
+**Tag Update Operations:**
+- [x] `--add-tag` on update: works correctly for single tag
+- [ ] **FAIL**: Multiple `--add-tag` flags: only keeps last tag (el-59p3)
+- [x] `--remove-tag`: works correctly
+- [x] `--remove-tag` on non-existent tag: succeeds silently (idempotent)
+- [x] `--tag` on update replaces all tags with single new tag
+- [ ] **FAIL**: `--tag ""` on update: creates empty string tag `[""]`
+  - **BUG el-1xwq:** Should be rejected or normalize to empty array
+
+**Tag Filtering:**
+- [x] `el list task --tag <tag>`: works correctly
+- [x] `el list --tag <tag>` (generic): works across element types
+- [x] Combined filters: `--tag + --priority` works correctly
+- [ ] **FAIL**: `el ready --tag <tag>`: "Unknown option"
+  - **ENHANCEMENT el-8idf:** (pre-existing) Missing filter
+- [ ] **FAIL**: `el blocked --tag <tag>`: "Unknown option"
+  - **ENHANCEMENT el-1kt1:** (pre-existing) Missing filter
+- [ ] **FAIL**: `el entity list --tag <tag>`: "Unknown option"
+  - **ENHANCEMENT el-1on4:** Missing filter
+
+**Tag Case Sensitivity:**
+- [x] Tags are case-sensitive: `Frontend` ≠ `frontend`
+- [x] Filtering is case-sensitive: `--tag Frontend` doesn't match `frontend`
+- [ ] **INFO**: No case-insensitive filter option exists
+
+**Tag Uniqueness:**
+- [x] Adding duplicate tag via `--add-tag`: idempotent (no error, no duplicate)
+- [x] Same tag can be used across different element types
+
+**Tags on Different Element Types:**
+- [x] Task: supports tags correctly
+- [x] Plan: supports tags correctly
+- [x] Document: supports tags correctly
+- [x] Library: supports tags correctly
+- [x] Team: supports tags correctly
+- [x] Channel: supports tags correctly
+- [x] Playbook: supports tags correctly
+- [ ] **FAIL**: Entity: `--tag` flag stores as string instead of array
+  - **BUG el-5693:** `el entity register --tag mytag` stores `"tags": "mytag"` not `["mytag"]`
+
+**Tag Prefix/Pattern Matching:**
+- [x] Exact match only: `--tag priority:` returns no results
+- [ ] **INFO**: No glob/prefix matching for tags
+
+**Success Criteria:** Tags work consistently across all element types with proper validation
+- **Partial:** Core tag operations work, but entity type bug and missing filters affect usability
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5693 | BUG: el entity register --tag stores tag as string instead of array | 3 | bug |
+| el-1xwq | BUG: el update --tag "" creates invalid empty string tag | 4 | bug |
+| el-1on4 | ENHANCEMENT: el entity list needs --tag filter | 4 | enhancement |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-59p3 | (pre-existing) Parser bug affects multiple --tag flags | 2 | bug |
+| el-8idf | (pre-existing) el ready needs --tag filter | 4 | enhancement |
+| el-1kt1 | (pre-existing) el blocked needs --tag filter | 4 | enhancement |
+
+**Dependencies:**
+- el-5693 → el-59p3 (relates-to: likely same parser root cause)
+- el-1xwq → el-2aqg (relates-to: empty/whitespace validation pattern)
+- el-1on4 → el-8idf (relates-to: same --tag filter pattern)
+- el-1on4 → el-1kt1 (relates-to: same --tag filter pattern)
+- el-1on4 → el-36fq (relates-to: entity list filter enhancement)
+
+**Notes:**
+This evaluation tested the tag system which is critical for agent orchestration patterns:
+1. Categorizing tasks by domain, team, or feature
+2. Organizing work items by sprint or milestone
+3. Filtering ready work by category
+4. Tagging entities for team organization
+
+Key findings:
+1. Core tag validation is robust - proper rejection of invalid characters
+2. Tag filtering works on `el list` but not on `el ready`, `el blocked`, or `el entity list`
+3. Critical bug: entity tags stored as string instead of array breaks consistency
+4. Parser bug el-59p3 prevents using multiple tags in single command
+5. Tags are case-sensitive with no case-insensitive option
+6. No tag prefix/pattern matching for organized tag hierarchies
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
