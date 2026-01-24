@@ -653,59 +653,93 @@ el playbook create --name test-workflow --title "Test Workflow" \
 - Initialized workspace
 - Two entities: `lead-agent`, `worker-agent`
 
+**Status:** TESTED - 2026-01-24 (Partial Pass - documented syntax differs from actual)
+
 **Checkpoints:**
-- [ ] Lead creates specification document
+- [x] Lead creates specification document
   ```bash
-  SPEC=$(el doc write --content-type markdown --actor lead-agent --json << 'EOF'
+  # Create spec file
+  cat > /tmp/spec.md << 'EOF'
   # Feature Spec
   Build the authentication module with OAuth2 support.
   EOF
-  )
-  SPEC_ID=$(echo $SPEC | jq -r '.id')
+  SPEC_ID=$(el doc create --file /tmp/spec.md --type markdown --actor <lead-id> --json | jq -r '.data.id')
   ```
-- [ ] Lead creates task with spec reference
+  - **Note:** Use `el doc create --file` not `el doc write` with heredoc
+- [x] Lead creates task with spec reference
   ```bash
-  TASK=$(el create task "Implement auth module" \
-    --description-ref $SPEC_ID \
-    --assignee worker-agent \
+  # --description-ref does not exist; use --notes to reference spec
+  TASK_ID=$(el create task --title "Implement auth module" \
+    --assignee <worker-id> \
     --priority 2 \
-    --actor lead-agent --json)
-  TASK_ID=$(echo $TASK | jq -r '.id')
+    --notes "See spec $SPEC_ID" \
+    --actor <lead-id> --json | jq -r '.data.id')
   ```
-- [ ] Lead sends message to worker
+  - **ENHANCEMENT el-4jgm:** `--description-ref` flag doesn't exist
+  - **Note:** Use `--title` flag, not positional argument
+  - **Note:** Use entity IDs, not names for `--assignee` and `--actor`
+- [x] Lead sends message to worker
   ```bash
-  el send --to worker-agent --content "New task assigned: $TASK_ID" \
-    --attachment $SPEC_ID --actor lead-agent
+  # el send doesn't exist; create channel first, then use el msg send
+  CHANNEL=$(el channel create --type direct --direct <worker-id> --actor <lead-id> --json | jq -r '.data.id')
+  el msg send --channel $CHANNEL --content "New task assigned: $TASK_ID" --attachment $SPEC_ID --actor <lead-id>
   ```
-- [ ] Worker finds the task
+  - **DOC el-4xe1:** Original uses `el send --to` which doesn't exist
+  - Channel membership correctly includes both entities
+  - Attachment reference preserved in message
+- [x] Worker finds the task
   ```bash
-  el ready --assignee worker-agent --actor worker-agent --json
+  el ready --assignee <worker-id> --actor <worker-id> --json
   ```
-- [ ] Worker reads the hydrated task
+  - Task appears in ready list with assignee set ✓
+- [x] Worker reads the task (no hydration available)
   ```bash
-  el show $TASK_ID --hydrate --actor worker-agent --json
+  el show $TASK_ID --actor <worker-id> --json
   ```
-  - Description content is included
-- [ ] Worker starts work
+  - **ENHANCEMENT el-2606:** `--hydrate` flag doesn't exist
+  - Worker must separately read spec: `el doc show $SPEC_ID`
+- [x] Worker starts work
   ```bash
-  el update $TASK_ID --status in_progress --actor worker-agent
+  el update $TASK_ID --status in_progress --actor <worker-id>
   ```
-- [ ] Worker sends progress update
+  - Status changes correctly ✓
+- [x] Worker sends progress update
   ```bash
-  el send --to lead-agent --content "Auth module 50% complete" --actor worker-agent
+  el msg send --channel $CHANNEL --content "Auth module 50% complete" --actor <worker-id>
   ```
-- [ ] Worker completes task
+  - Message sent to existing channel ✓
+- [x] Worker completes task
   ```bash
-  el close $TASK_ID --reason "Auth module implemented with tests" --actor worker-agent
+  el close $TASK_ID --reason "Auth module implemented with tests" --actor <worker-id>
   ```
-- [ ] Lead verifies completion
+  - Status changes to closed ✓
+  - closedAt timestamp set ✓
+  - closeReason captured ✓
+- [x] Lead verifies completion
   ```bash
-  el show $TASK_ID --actor lead-agent --json
+  el show $TASK_ID --actor <lead-id> --json
   ```
-  - Status is `closed`
-  - closeReason present
+  - Status is `closed` ✓
+  - closeReason present ✓
+- [x] Conversation history accessible
+  ```bash
+  el msg list --channel $CHANNEL --actor <lead-id> --json
+  ```
+  - Both messages visible with content hydrated ✓
 
-**Success Criteria:** Full orchestration flow completes with proper attribution
+**Success Criteria:** Full orchestration flow completes with proper attribution ✓
+
+**Issues Found:**
+- **el-4jgm**: ENHANCEMENT - Add `--description-ref` flag to `el create task`
+- **el-2606**: ENHANCEMENT - Add `--hydrate` flag to `el show`
+- **el-42sk**: DOC - This scenario uses syntax that doesn't exist
+
+**Notes:**
+Core orchestration pattern works but requires workarounds:
+1. Reference documents in `--notes` instead of `--description-ref`
+2. Create explicit channels instead of using `el send --to`
+3. Read documents separately instead of using `--hydrate`
+4. Use entity IDs for `--actor` and `--assignee`, not names
 
 ---
 
