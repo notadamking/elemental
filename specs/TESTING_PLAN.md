@@ -1519,6 +1519,74 @@ feature non-functional for its primary use case. Additionally, `el config set` d
 values before writing, allowing invalid values that corrupt the config. The snake_case vs camelCase
 path handling is inconsistent - snake_case paths silently fail to write.
 
+### Element Update Command Evaluation
+
+**Goal:** Systematically test the `el update` command across element types and validate field updates
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical validation gaps)
+
+**Exploration prompts:**
+- Does update work for all element types (task, document, plan, entity)?
+- Are task-only fields properly restricted (priority, status, complexity, assignee)?
+- Does tag manipulation work (--add-tag, --remove-tag, --tag)?
+- Are invalid values properly rejected?
+- Is validation consistent between create and update?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Update task title | PASS | Works correctly |
+| Update task priority | PASS | Works correctly |
+| Update task complexity | PASS | Works correctly |
+| Update task status | PASS | Works correctly, valid statuses enforced |
+| Invalid status rejected | PASS | Clear error with valid values listed |
+| Add single tag (--add-tag) | PASS | Works correctly |
+| **Multiple --add-tag flags** | **FAIL** | Only last tag kept (el-59p3 pre-existing) |
+| **Multiple --tag flags** | **FAIL** | Only last tag kept (el-59p3 pre-existing) |
+| Remove tag (--remove-tag) | PASS | Works correctly |
+| Replace tags (--tag) | PASS | Works correctly for single tag |
+| Update document title | PASS | Works correctly, creates new version |
+| Update plan title | PASS | Works correctly |
+| Update entity title | PASS | Works - sets title field, not name |
+| Priority on non-task | PASS | Properly rejected with clear error |
+| Status on plan | PASS | Rejected - directs to plan activate/complete |
+| Assign via update | PASS | Works correctly |
+| Unassign (--assignee "") | PASS | Works correctly |
+| Update non-existent element | PASS | Returns NOT_FOUND with exit code 3 |
+| Update with no changes | PASS | Rejected with helpful error |
+| **Update with empty title** | **FAIL** | Accepts empty title (el-2aqg) |
+| **Update with whitespace title** | **FAIL** | Accepts whitespace-only title (el-2aqg) |
+| **Assign non-existent entity** | **FAIL** | Accepts invalid ID (el-jqhh pre-existing) |
+| **Assign non-entity element** | **FAIL** | Accepts plan/doc ID as assignee (el-1fnm pre-existing) |
+| **--notes flag** | **FAIL** | Flag doesn't exist (el-5qjd) |
+| **--name flag** | **FAIL** | Flag doesn't exist (el-dkya pre-existing) |
+| Update closed task | INFO | Allowed - may be intentional |
+| --status open on closed | INFO | Doesn't clear closedAt (el-4e6g) |
+| --status blocked manually | INFO | Allowed but confusing (el-27ip) |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-2aqg | NEW: `el update` accepts empty/whitespace title | 3 | bug |
+| el-5qjd | NEW: `el update` missing --notes flag | 4 | enhancement |
+| el-4e6g | NEW: `el update --status open` doesn't clear closedAt | 4 | ux |
+| el-27ip | NEW: Manual blocked status allowed without blockers | 5 | ux |
+
+**Dependencies:**
+- el-2aqg → el-1t4x (relates-to: validation consistency theme)
+- el-5qjd → el-dkya (relates-to: update flag coverage)
+- el-4e6g → el-2deb (relates-to: status field cleanup on reopen)
+
+**Summary:**
+Core update operations work correctly for titles, priorities, and tag manipulation. Type
+restrictions are properly enforced (priority/status/assignee only on tasks). Critical gap:
+empty and whitespace-only titles are accepted by update, unlike create which rejects them.
+Several missing flags: --notes for updating task notes, --name for updating entity/library
+names. Status transitions via `el update --status` behave differently from dedicated
+commands like `el reopen`, which may confuse users.
+
 ---
 
 ## 5. CLI UX Evaluation Checklist
