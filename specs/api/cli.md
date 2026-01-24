@@ -257,13 +257,16 @@ Create new task:
 | Flag | Description |
 |------|-------------|
 | `--title` | Task title (required) |
-| `--priority` | Priority (1-5) |
-| `--complexity` | Complexity (1-5) |
+| `--priority` | Priority (1-5, integer) |
+| `--complexity` | Complexity (1-5, integer) |
 | `--type` | Task type |
 | `--assignee` | Assignee entity |
 | `--parent` | Parent plan ID |
 | `--description` | Description text |
 | `--description-file` | Description from file |
+
+> **Note**: Float values for priority/complexity are silently truncated to integers (e.g., 2.5 → 2).
+> See **el-28w0** for enhancement to warn on truncation.
 
 ### el ready
 

@@ -899,6 +899,8 @@ main help, and alias help doesn't mention the alias relationship.
 
 **Goal:** Find boundary conditions and unusual inputs
 
+**Status:** TESTED - 2026-01-24 (Partial Pass)
+
 **Exploration prompts:**
 - What happens with very long titles (500+ chars)?
 - What happens with special characters in names?
@@ -913,6 +915,50 @@ main help, and alias help doesn't mention the alias relationship.
 - Unexpected behavior
 - Missing validation
 - Performance degradation
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Title > 500 chars | PASS | Properly rejected with clear error message |
+| Title = 500 chars | PASS | Accepted correctly |
+| Special chars in title | PASS | Quotes, HTML, ampersand handled safely |
+| Entity name validation | PASS | Rejects invalid chars, allows alphanum/hyphen/underscore |
+| Unicode in titles | PASS | CJK, emojis, Greek letters all work |
+| Empty title | PASS | Rejected with clear error |
+| Whitespace-only title | PASS | Rejected with clear error |
+| Empty results (list/search) | PASS | Returns empty array `[]` |
+| SQL injection attempt | PASS | Safely handled, parameterized queries |
+| Priority 0 | PASS | Rejected with "1 to 5" message |
+| Priority 6 | PASS | Rejected with "1 to 5" message |
+| Priority -1 | PASS | Rejected (parsed as missing value) |
+| **Priority 2.5 (float)** | PARTIAL | Silently truncated to 2 - no warning |
+| Large priority (9999999999) | PASS | Rejected with "1 to 5" message |
+| Limit 0 | PASS | Returns 0 results |
+| Limit -1 | PASS | Rejected (parsed as missing value) |
+| Tags with spaces | PASS | Rejected with clear error |
+| Tags with colons | PASS | Accepted (feature:auth format) |
+| **Multiple --tag flags** | FAIL | Only last tag kept (el-59p3) |
+| Plan with 10 tasks | PASS | Progress tracking works correctly |
+| 25-task dependency chain | PASS | Blocked status propagates correctly |
+| `el ready` with long chain | PASS | Only root task shown as ready |
+| `el blocked` with long chain | PASS | All 24 blocked tasks listed |
+| **`el show` blocked task** | FAIL | Missing blockedBy/blockReason fields (el-pjjg) |
+| **`el dep tree --depth 30`** | FAIL | Ignores depth option, hardcoded to 10 (el-5z7k) |
+| Control chars in title | PASS | Accepted (escaped in output) |
+
+**Issues Found:**
+- **el-pjjg**: `el show` missing blockedBy/blockReason for blocked tasks (blocked list has them)
+- **el-5z7k**: `el dep tree --depth` option ignored - hardcoded to 10 in elemental-api.ts:2186
+- **el-28w0**: Float priority values silently truncated to integers without warning
+- **el-59p3**: (pre-existing) Multiple --tag flags only keeps last value
+
+**Summary:**
+Input validation is robust - proper rejection of invalid values with clear error messages.
+Unicode, special characters, and SQL injection attempts are handled safely. Long dependency
+chains work correctly for blocked status propagation. Three issues found: show command
+doesn't include blocked info, dep tree depth option is ignored, and float priorities are
+silently truncated.
 
 ---
 

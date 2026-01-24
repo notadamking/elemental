@@ -44,6 +44,8 @@ Behavior:
 - Returns null if not found
 - Returns element typed as T
 - Optionally hydrates references
+- **Should include** `blockedBy` and `blockReason` for blocked tasks
+  - **BUG el-pjjg**: Currently missing - only `blocked()` includes these fields
 
 ### list
 

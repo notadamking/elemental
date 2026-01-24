@@ -243,6 +243,8 @@ Recursive traversal building full tree:
 - Dependencies as children
 - Dependents as separate branch
 - Cycle handling for `relates-to`
+- **Depth limit**: Configurable via `--depth` option (default: 5 for CLI, 100 for API)
+  - **BUG el-5z7k**: CLI `--depth` option ignored, API uses hardcoded 10 in `elemental-api.ts:2186`
 
 ## Implementation Methodology
 
