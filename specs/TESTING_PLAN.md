@@ -1497,6 +1497,75 @@ automatic based on task status, but:
 
 ---
 
+### Scenario: Team-Based Work Assignment and Pool Selection
+
+**Purpose:** Evaluate team-based task assignment for multi-agent orchestration - validating that agents can work from team pools and claim work appropriately
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Validation gaps found)
+
+**Checkpoints:**
+
+**Team Creation and Management:**
+- [x] Create team: `el team create --name "dev-team" --json` works correctly
+- [x] Add members: `el team add <team-id> <entity-id>` works correctly
+- [x] List members: `el team members <team-id>` returns member IDs
+- [ ] **FAIL**: Create duplicate team name allowed
+  - **BUG el-4lug:** `el team create --name "dev-team"` succeeds even if name exists
+- [ ] **FAIL**: Remove non-member succeeds silently
+  - **BUG el-11d5:** `el team remove <team> <non-member>` returns success instead of error
+
+**Task Assignment to Teams:**
+- [x] Assign task to team by ID: `el create task --title "Team task" --assignee <team-id>` works
+- [x] Assign task to team by name: `--assignee "dev-team"` resolves to team ID correctly
+- [x] Reassign from team to individual: `el assign <task> <entity>` removes from team pool
+- [x] Reassign from individual to team: `el assign <task> <team>` adds to team pool
+
+**Team Member Work Discovery:**
+- [x] Team members see team-assigned tasks: `el ready --assignee <member-id>` includes team tasks
+- [x] Multiple team membership: entity in multiple teams sees all team tasks
+- [x] Priority filter works: `el ready --assignee <member> --priority 1` filters correctly
+- [ ] **FAIL**: Filter by team name doesn't work
+  - `el ready --assignee "dev-team"` returns empty (no name resolution for filters)
+  - Related to el-574h (name resolution for assignee filter)
+
+**Work Claiming Patterns:**
+- [x] Claim task from pool: reassign from team to individual works
+- [x] Claimed task invisible to other team members
+- [x] Work-in-progress visible only to assignee: `el ready --assignee <owner>`
+- [x] Complete task removes from ready list
+
+**Team Deletion:**
+- [ ] **FAIL**: Delete team without --force succeeds when team has members
+  - **BUG el-8cz4:** Should require --force or reject deletion
+- [x] Tasks assigned to deleted team retain orphaned assignee (related to el-27ay)
+
+**Team List Filtering:**
+- [x] Filter by member: `el team list --member <entity-id>` works
+- [ ] **FAIL**: No --name filter: `el team list --name "dev-team"` returns "Unknown option"
+  - **ENHANCEMENT el-5ske:** Add --name filter for team lookup
+
+**Success Criteria:** Teams enable multi-agent work distribution with proper pool mechanics
+- **Partial:** Core assignment and discovery work, but validation gaps exist
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4lug | `el team create` allows duplicate team names | 3 | bug |
+| el-11d5 | `el team remove` succeeds silently for non-members | 4 | bug |
+| el-8cz4 | `el delete team` succeeds without --force when team has members | 3 | bug |
+| el-5ske | `el team list` needs --name filter | 4 | enhancement |
+
+**Dependencies:**
+- el-4lug → el-32y1 (relates-to: same duplicate name validation pattern)
+- el-8cz4 → el-5hnx (relates-to: same delete validation pattern)
+- el-5ske → el-36fq (relates-to: same name filter pattern)
+- el-5ske → el-3scb (relates-to: same name filter pattern)
+
+---
+
 ## 4. Exploratory Testing Guides
 
 Areas for freeform exploration without strict scripts.
@@ -1874,8 +1943,10 @@ affecting --tag, --status, and potentially other flags.
 | Team list | PASS | Works correctly |
 | Team add member | PASS | Works correctly |
 | Team remove member | PASS | Works correctly |
+| **Team remove non-member** | **FAIL** | Succeeds silently instead of error (el-11d5) |
+| **Team duplicate name** | **FAIL** | Allows creating teams with same name (el-4lug) |
 | Team members list | PASS | Returns member IDs |
-| Team delete with members | PASS | Requires --force, good UX |
+| **Team delete with members** | **FAIL** | Succeeds without --force (el-8cz4) |
 | Team filter by member | PASS | `el team list --member` works |
 | Duplicate member add | PASS | Idempotent, no error |
 | **Team add with multiple --member** | **FAIL** | Only last member kept (el-59p3) |
@@ -1893,11 +1964,18 @@ affecting --tag, --status, and potentially other flags.
 | el-5zl2 | `el team add` accepts non-existent entity IDs | 3 | bug |
 | el-5gjo | `el team add` accepts non-entity elements as members | 3 | bug |
 | el-36fq | `el entity list` needs --name filter | 4 | enhancement |
+| el-4lug | `el team create` allows duplicate team names | 3 | bug |
+| el-11d5 | `el team remove` succeeds silently for non-members | 4 | bug |
+| el-8cz4 | `el delete team` succeeds without --force when has members | 3 | bug |
+| el-5ske | `el team list` needs --name filter | 4 | enhancement |
 
 **Dependencies:**
 - el-36fq → el-574h (relates-to: entity name resolution)
 - el-36fq → el-4kis (relates-to: parser entity name handling)
 - el-5zl2 → el-jqhh (relates-to: entity validation)
+- el-4lug → el-32y1 (relates-to: same duplicate name validation pattern)
+- el-8cz4 → el-5hnx (relates-to: same delete validation pattern)
+- el-5ske → el-36fq (relates-to: same name filter pattern)
 
 **Summary:**
 Entity registration and team management work correctly for basic operations. Team operations
