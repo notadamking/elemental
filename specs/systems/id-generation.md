@@ -230,10 +230,10 @@ Cache current length threshold:
 - [x] Implement hash truncation (truncateHash)
 - [x] Implement full hash generation (generateIdHash, generateId)
 
-### Phase 3: Adaptive Length (partial - storage integration pending)
-- [ ] Implement element count query (requires storage)
+### Phase 3: Adaptive Length ✅
+- [x] Implement element count query (StorageBackend.getElementCount())
 - [x] Implement length calculation (calculateIdLength)
-- [ ] Implement length caching (requires storage)
+- [x] Implement length caching (IdLengthCache service with TTL, growth threshold, stats)
 - [x] Add length configuration (IdGeneratorConfig.hashLength, elementCount)
 
 ### Phase 4: Collision Resolution ✅

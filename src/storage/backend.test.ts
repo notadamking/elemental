@@ -144,6 +144,36 @@ class MockStorageBackend implements StorageBackend {
     }
   }
 
+  // Child counter methods (mock implementation)
+  private _childCounters: Map<string, number> = new Map();
+
+  getNextChildNumber(parentId: string): number {
+    const current = this._childCounters.get(parentId) ?? 0;
+    const next = current + 1;
+    this._childCounters.set(parentId, next);
+    return next;
+  }
+
+  getChildCounter(parentId: string): number {
+    return this._childCounters.get(parentId) ?? 0;
+  }
+
+  resetChildCounter(parentId: string): void {
+    this._childCounters.delete(parentId);
+  }
+
+  // Element count for ID generation
+  private _elementCount: number = 0;
+
+  getElementCount(): number {
+    return this._elementCount;
+  }
+
+  // Test helper to set element count
+  setElementCount(count: number): void {
+    this._elementCount = count;
+  }
+
   checkIntegrity(): boolean {
     return this._isOpen;
   }

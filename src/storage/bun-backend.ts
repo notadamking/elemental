@@ -464,6 +464,23 @@ export class BunStorageBackend implements StorageBackend {
   }
 
   // --------------------------------------------------------------------------
+  // Element Count (for ID generation)
+  // --------------------------------------------------------------------------
+
+  getElementCount(): number {
+    try {
+      const db = this.ensureOpen();
+      const result = db.prepare(
+        'SELECT COUNT(*) as count FROM elements'
+      ).get() as { count: number } | undefined;
+      return result?.count ?? 0;
+    } catch {
+      // Table doesn't exist yet
+      return 0;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Utilities
   // --------------------------------------------------------------------------
 

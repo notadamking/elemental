@@ -842,6 +842,23 @@ export class BrowserStorageBackend implements StorageBackend {
   }
 
   // --------------------------------------------------------------------------
+  // Element Count (for ID generation)
+  // --------------------------------------------------------------------------
+
+  getElementCount(): number {
+    try {
+      const db = this.ensureOpen();
+      const result = db.exec('SELECT COUNT(*) as count FROM elements');
+      return result.length > 0 && result[0].values.length > 0
+        ? (result[0].values[0][0] as number)
+        : 0;
+    } catch {
+      // Table doesn't exist yet
+      return 0;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Utilities
   // --------------------------------------------------------------------------
 

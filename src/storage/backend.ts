@@ -220,6 +220,20 @@ export interface StorageBackend {
   resetChildCounter(parentId: string): void;
 
   // --------------------------------------------------------------------------
+  // Element Count (for ID generation)
+  // --------------------------------------------------------------------------
+
+  /**
+   * Get the total number of elements in the database.
+   *
+   * This is an efficient method for ID length calculation that only
+   * queries the element count without computing other statistics.
+   *
+   * @returns The total number of elements, or 0 if elements table doesn't exist
+   */
+  getElementCount(): number;
+
+  // --------------------------------------------------------------------------
   // Utilities
   // --------------------------------------------------------------------------
 
