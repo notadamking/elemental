@@ -4443,6 +4443,105 @@ agents trying to paginate through blocked tasks.
 
 ---
 
+### Scenario: el list Pagination and Complexity CLI Behavior
+
+**Purpose:** Evaluate `el list` pagination capabilities (--limit and --offset) and complexity field CLI behavior for create/update/filter operations
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Missing offset on ready/blocked, float truncation)
+
+**Checkpoints:**
+
+**el list Pagination:**
+- [x] `el list --limit N` returns N results
+- [x] `el list --limit 0` correctly rejected with "Limit must be a positive number"
+- [x] `el list --offset N` skips first N results
+- [x] `el list --offset` beyond total returns empty array (no error)
+- [x] Combined `--limit 3 --offset 2` returns correct slice
+- [x] Negative offset correctly rejected (parsed as missing value)
+- [x] Float offset (2.5) silently truncated to 2 (el-5b46)
+- [x] Pagination order is consistent between pages
+- [x] Combined with filters (--priority) works correctly
+
+**el ready Pagination:**
+- [x] `el ready --limit N` works correctly
+- [ ] **FAIL**: `el ready --offset N` returns "Unknown option: --offset"
+  - **ENHANCEMENT el-6sbt:** Missing offset option
+
+**el blocked Pagination:**
+- [x] `el blocked --limit N` works (with off-by-one bug el-46sa)
+- [ ] **FAIL**: `el blocked --offset N` returns "Unknown option: --offset"
+  - **ENHANCEMENT el-58qw:** Missing offset option (pre-existing)
+
+**Pagination Metadata:**
+- [ ] **FAIL**: JSON output lacks total count or hasMore field
+  - **ENHANCEMENT el-46xq:** (pre-existing) No pagination metadata
+
+**Complexity Field - Create:**
+- [x] `el create task --complexity 3` works correctly
+- [x] Complexity field present in JSON output
+- [x] Invalid complexity 0 rejected with "Complexity must be 1 to 5"
+- [x] Invalid complexity 6 rejected with clear error
+- [x] Float complexity 2.5 silently truncated to 2 (el-5b46)
+- [x] Negative complexity parsed as missing value
+- [x] Very large complexity (9999999999) rejected correctly
+
+**Complexity Field - Update:**
+- [x] `el update --complexity N` works correctly
+- [x] Invalid complexity values rejected on update
+- [x] Cannot clear complexity once set (--complexity '' rejected)
+- [x] Complexity on non-task rejected with "Complexity can only be set on tasks"
+
+**Complexity Field - Filter:**
+- [ ] **FAIL**: `el list task --complexity N` returns "Unknown option: --complexity"
+  - **ENHANCEMENT el-3908:** (pre-existing) Missing complexity filter
+- [ ] **FAIL**: `el ready --complexity N` returns "Unknown option: --complexity"
+  - **ENHANCEMENT el-3908:** (pre-existing) Missing complexity filter
+
+**Complexity Field - Output:**
+- [x] `el show` includes complexity field when set
+- [x] `el ready` includes complexity field
+- [x] `el list task` includes complexity field
+
+**Success Criteria:** Pagination works consistently; complexity field usable for create/update/display
+- **Partial:** `el list` pagination works correctly but `el ready`/`el blocked` lack `--offset`. Float truncation silent.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-6sbt | ENHANCEMENT: Add --offset option to el ready for pagination | 4 | enhancement |
+| el-5b46 | UX: Float values silently truncated for --complexity and --offset flags | 5 | ux |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3908 | (pre-existing) No --complexity filter on list/ready | 5 | enhancement |
+| el-46xq | (pre-existing) No pagination metadata in JSON output | 4 | enhancement |
+| el-58qw | (pre-existing) No --offset on el blocked | 4 | enhancement |
+| el-28w0 | (pre-existing) Float priority silently truncated | 5 | ux |
+
+**Dependencies:**
+- el-6sbt → el-58qw (relates-to: same pagination pattern)
+- el-6sbt → el-46xq (relates-to: pagination improvements)
+- el-5b46 → el-28w0 (relates-to: same float truncation pattern)
+
+**Notes:**
+This evaluation tested pagination and complexity field behavior critical for agent orchestration:
+1. `el list` pagination with `--limit` and `--offset` works correctly
+2. `el ready` and `el blocked` lack `--offset`, forcing agents to fetch all results
+3. Complexity field works for create/update/display but cannot be used for filtering
+4. Float values for numeric flags silently truncated (complexity, offset, priority)
+5. Pagination metadata (total count) not included in JSON output
+
+The float truncation pattern (el-28w0, el-5b46) is a broader UX issue - agents computing
+values programmatically may pass floats expecting rejection or proper rounding, but get
+silent truncation instead.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
