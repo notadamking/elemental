@@ -246,4 +246,4 @@ Forward query is more efficient for full history.
 - [x] Unit tests for versioning logic
 - [x] Property-based tests for content types and versions
 - [x] Integration tests for history queries ✅ (document-version.integration.test.ts - 19 tests)
-- [ ] E2E tests for Document lifecycle
+- [x] E2E tests for Document lifecycle ✅ (document.test.ts - 37 tests)
