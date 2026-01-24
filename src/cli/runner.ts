@@ -15,6 +15,7 @@ import { getCommandHelp } from './commands/help.js';
 // ============================================================================
 
 const commands: Map<string, Command> = new Map();
+const aliases: Map<string, string> = new Map();
 
 /**
  * Registers a command
@@ -24,10 +25,19 @@ export function registerCommand(command: Command): void {
 }
 
 /**
- * Gets a registered command
+ * Registers a command alias
+ */
+export function registerAlias(alias: string, commandName: string): void {
+  aliases.set(alias, commandName);
+}
+
+/**
+ * Gets a registered command (checking aliases first)
  */
 export function getCommand(name: string): Command | undefined {
-  return commands.get(name);
+  // Check if it's an alias
+  const resolvedName = aliases.get(name) ?? name;
+  return commands.get(resolvedName);
 }
 
 /**
@@ -35,6 +45,13 @@ export function getCommand(name: string): Command | undefined {
  */
 export function getAllCommands(): Command[] {
   return Array.from(commands.values());
+}
+
+/**
+ * Gets all registered aliases
+ */
+export function getAllAliases(): Map<string, string> {
+  return new Map(aliases);
 }
 
 // ============================================================================
@@ -53,7 +70,9 @@ function resolveCommand(commandPath: string[]): {
   }
 
   const [first, ...rest] = commandPath;
-  let command: Command | undefined = commands.get(first);
+  // Check aliases first, then commands
+  const resolvedFirst = aliases.get(first) ?? first;
+  let command: Command | undefined = commands.get(resolvedFirst);
 
   if (!command) {
     return { command: undefined, args: commandPath };
@@ -234,6 +253,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { teamCommand } = await import('./commands/team.js');
   const { documentCommand } = await import('./commands/document.js');
   const { messageCommand } = await import('./commands/message.js');
+  const { completionCommand } = await import('./commands/completion.js');
+  const { aliasCommand } = await import('./commands/alias.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -287,6 +308,26 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(teamCommand);
   registerCommand(documentCommand);
   registerCommand(messageCommand);
+
+  // Completion command
+  registerCommand(completionCommand);
+
+  // Alias command
+  registerCommand(aliasCommand);
+
+  // Command aliases
+  registerAlias('add', 'create');    // Common CRUD alias
+  registerAlias('new', 'create');    // Alternative create alias
+  registerAlias('rm', 'delete');     // Common shell convention
+  registerAlias('remove', 'delete'); // Alternative delete alias
+  registerAlias('ls', 'list');       // Common shell convention
+  registerAlias('s', 'show');        // Short form
+  registerAlias('get', 'show');      // Alternative show alias
+  registerAlias('todo', 'ready');    // User-friendly alias
+  registerAlias('tasks', 'ready');   // User-friendly alias
+  registerAlias('done', 'close');    // User-friendly alias
+  registerAlias('complete', 'close'); // Alternative close alias
+  registerAlias('st', 'status');     // Short form for sync status
 
   const exitCode = await run(argv);
   process.exit(exitCode);

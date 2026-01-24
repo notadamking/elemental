@@ -12,7 +12,7 @@ export { parseArgs, validateRequiredOptions, getGlobalOptionsHelp, getCommandOpt
 export { getFormatter, getOutputMode, getStatusIcon, type OutputFormatter, type TreeNode } from './formatter.js';
 
 // Runner
-export { registerCommand, getCommand, getAllCommands, run, main } from './runner.js';
+export { registerCommand, registerAlias, getCommand, getAllCommands, getAllAliases, run, main } from './runner.js';
 
 // Commands
 export { initCommand } from './commands/init.js';
@@ -29,3 +29,8 @@ export { libraryCommand } from './commands/library.js';
 export { teamCommand } from './commands/team.js';
 export { documentCommand } from './commands/document.js';
 export { messageCommand } from './commands/message.js';
+export { completionCommand } from './commands/completion.js';
+export { aliasCommand } from './commands/alias.js';
+
+// Completion
+export { generateCompletion, generateBashCompletion, generateZshCompletion, generateFishCompletion, getInstallInstructions, type ShellType } from './completion.js';

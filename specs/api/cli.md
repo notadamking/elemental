@@ -175,6 +175,13 @@ Task-specific commands:
 | `doctor` | Check system health |
 | `migrate` | Run migrations |
 
+### Shell Completion & Aliases
+
+| Command | Description |
+|---------|-------------|
+| `completion <shell>` | Generate shell completion script (bash, zsh, fish) |
+| `alias` | Show command aliases |
+
 ## Output Formats
 
 ### Human-Readable (Default)
@@ -389,6 +396,58 @@ Set configuration value:
 
 Remove configuration value.
 
+## Shell Completion
+
+### el completion
+
+Generate shell completion scripts:
+
+| Argument | Description |
+|----------|-------------|
+| `shell` | Shell type: bash, zsh, or fish |
+
+Installation:
+
+**Bash:**
+```bash
+# Add to ~/.bashrc or ~/.bash_profile:
+source <(el completion bash)
+
+# Or save to a file:
+el completion bash > ~/.local/share/bash-completion/completions/el
+```
+
+**Zsh:**
+```bash
+# Add to ~/.zshrc:
+source <(el completion zsh)
+
+# Or save to a file in your fpath:
+el completion zsh > ~/.zsh/completions/_el
+```
+
+**Fish:**
+```bash
+# Save to completions directory:
+el completion fish > ~/.config/fish/completions/el.fish
+```
+
+### el alias
+
+Display all available command aliases.
+
+**Default Aliases:**
+
+| Alias | Command | Description |
+|-------|---------|-------------|
+| `add`, `new` | `create` | Create a new element |
+| `rm`, `remove` | `delete` | Delete an element |
+| `ls` | `list` | List elements |
+| `s`, `get` | `show` | Show element details |
+| `todo`, `tasks` | `ready` | List ready tasks |
+| `done`, `complete` | `close` | Close a task |
+| `st` | `status` | Show sync status |
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -506,11 +565,11 @@ User-friendly errors:
 - [x] Implement doctor (src/cli/commands/admin.ts - health checks, schema validation, integrity checks, 31 tests)
 - [x] Implement migrate (src/cli/commands/admin.ts - schema migration with dry-run support)
 
-### Phase 8: Polish
-- [ ] Add shell completion
-- [ ] Add aliases
+### Phase 8: Polish ✅
+- [x] Add shell completion (src/cli/completion.ts, src/cli/commands/completion.ts - bash, zsh, fish)
+- [x] Add aliases (src/cli/commands/alias.ts, src/cli/runner.ts - 12 default aliases)
 - [x] Write help text (src/cli/commands/help.ts)
-- [x] Test all implemented commands (431+ tests)
+- [x] Test all implemented commands (925+ tests)
 
 ### Known Issues
 - [x] **crud.test.ts:373** - "fails gracefully when no database exists" test fixed ✅ - Added database existence check in `resolveDatabasePath()` and `createAPI()`. Read operations (list, show, update, delete) now properly return GENERAL_ERROR when database doesn't exist. Write operations (create) still create the database if needed.
