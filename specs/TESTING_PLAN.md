@@ -3935,6 +3935,83 @@ Key findings:
 
 ---
 
+### Scenario: Agent Workflow Interruption and State Recovery
+
+**Purpose:** Evaluate agent ability to pause, resume, and hand off work - critical for multi-agent orchestration where agents may need to interrupt tasks and resume later or transfer work to other agents
+
+**Prerequisites:** Initialized workspace with multiple registered entities
+
+**Status:** TESTED - 2026-01-24 (Pass - Core patterns work, minor enhancement opportunities)
+
+**Checkpoints:**
+
+**Progress Tracking During Work:**
+- [x] Agent starts work: `el update <task> --status in_progress` works correctly
+- [ ] **FAIL**: Agent records progress via notes: `el update <task> --notes "50% done"`
+  - **ENHANCEMENT el-5qjd:** (pre-existing) --notes flag not supported on update
+  - Workaround: Use tags like `progress:50pct` which work correctly
+- [x] Tag-based progress tracking: `el update <task> --add-tag progress:50pct` works correctly
+
+**Pausing Work:**
+- [x] Pause via status change: `el update <task> --status open` works correctly
+- [x] Pause via defer: `el defer <task>` works from `in_progress` status
+- [x] No dedicated `el pause` command (expected - status changes sufficient)
+
+**Resuming Work:**
+- [x] Resume from deferred: `el update <task> --status in_progress` works directly
+- [x] Resume from open: `el update <task> --status in_progress` works correctly
+- [x] Undefer then resume: `el undefer <task>` then status change works
+
+**Finding In-Progress Work:**
+- [x] Agent finds own work: `el list task --status in_progress --assignee <id>` works correctly
+- [x] Ready list includes in_progress: `el ready` shows in_progress tasks correctly
+- [x] List all in_progress: `el list task --status in_progress` works correctly
+- [ ] **FAIL**: Filter by createdBy: `el list task --createdBy <id>`
+  - **ENHANCEMENT el-5g7m:** (pre-existing) --createdBy filter not supported
+- [ ] **FAIL**: Sort by recently modified: `el list --sort updatedAt`
+  - **ENHANCEMENT el-51fy:** (pre-existing) --sort option not supported
+
+**Work Handoff:**
+- [x] Reassign to another agent: `el assign <task> <other-agent-id>` works correctly
+- [x] Status preserved during handoff: `in_progress` status remains after reassignment
+- [x] New assignee sees task: `el ready --assignee <new-agent-id>` includes handed off task
+- [x] Previous assignee no longer sees task in their filtered ready list
+
+**Handoff Tracking:**
+- [x] Assignee field updated correctly on handoff
+- [ ] **INFO**: No previous assignee tracking - assignments overwrite without history
+  - Agents cannot see who previously worked on a task
+  - Could use notes or tags as workaround
+  - Potential future enhancement: assigneeHistory field
+
+**State Consistency:**
+- [x] in_progress + assignee preserved across operations
+- [x] Tags preserved during status changes
+- [x] Notes preserved during status changes
+
+**Success Criteria:** Agents can interrupt, resume, and hand off work reliably
+- **Pass:** Core workflow patterns work correctly
+
+**Issues Confirmed:**
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5qjd | (pre-existing) `el update` missing --notes flag | 4 | enhancement |
+| el-5g7m | (pre-existing) `el list` missing --createdBy filter | 5 | enhancement |
+| el-51fy | (pre-existing) `el list` missing --sort option | 4 | enhancement |
+
+**Notes:**
+This evaluation confirms that core agent workflow interruption patterns work correctly:
+1. Agents can pause work by changing status or using defer
+2. Agents can resume work directly from deferred or open status
+3. Work handoff via reassignment works correctly
+4. Ready list correctly includes in_progress tasks for resumption
+5. Tags can be used effectively for progress tracking (e.g., `progress:50pct`)
+
+The main gaps are convenience features (--notes on update, --sort, --createdBy) which are already tracked.
+Potential future enhancement: tracking assignment history for handoff auditing.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
