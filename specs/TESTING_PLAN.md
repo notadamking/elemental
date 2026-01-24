@@ -3938,6 +3938,7 @@ The orphan dependency bug (el-4egr) is particularly problematic as it:
 **Prerequisites:** Initialized workspace
 
 **Status:** TESTED - 2026-01-24 (Partial Pass - Confirms critical bugs, found new enhancements)
+**Re-evaluated:** 2026-01-24 - Confirmed el-1rbd, el-53sv, el-63cy, el-36li with fresh test data
 
 **Checkpoints:**
 
@@ -6036,6 +6037,7 @@ The orphan dependency issue (el-nyh7) extends the pattern found in el-4egr (plan
 **Prerequisites:** Initialized workspace with multiple entities
 
 **Status:** TESTED - 2026-01-24 (Confirms Known Issues - No New Bugs Found)
+**Re-evaluated:** 2026-01-24 - All issues confirmed with independent test session
 
 **Checkpoints:**
 
