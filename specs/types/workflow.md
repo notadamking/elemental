@@ -96,6 +96,22 @@ Workflows provide:
 | `workflow squash <id>` | Promote to durable (begin syncing) |
 | `workflow gc --age <d>` | Garbage collect old ephemeral workflows |
 
+### Status Transition Commands (Proposed - el-rja0)
+
+Manual status transitions are needed for:
+- Workflows created without tasks (e.g., ad-hoc workflows)
+- Overriding automatic transitions
+- Agent orchestration control
+
+| Command | Transition | Description |
+|---------|------------|-------------|
+| `workflow start <id>` | pending → running | Mark workflow as actively executing |
+| `workflow complete <id>` | running → completed | Mark workflow as successfully finished |
+| `workflow fail <id> --reason <msg>` | running → failed | Mark workflow as failed with reason |
+| `workflow cancel <id> --reason <msg>` | pending/running → cancelled | Cancel workflow execution |
+
+**Note:** These commands are not yet implemented. See el-rja0 for tracking.
+
 ## Instantiation ("Pouring")
 
 Workflows are instantiated from Playbooks via "pouring":
@@ -297,3 +313,11 @@ On export:
 - [x] Integration tests for workflow queries - 31 tests (src/api/workflow-queries.integration.test.ts)
 - [x] Integration tests for full pour flow - 14 tests (src/api/workflow-queries.integration.test.ts)
 - [x] E2E tests for workflow lifecycle - 11 tests (src/cli/commands/workflow.test.ts)
+
+### Phase 9: Status Transition CLI (el-rja0)
+- [ ] Add `workflow start` command (src/cli/commands/workflow.ts)
+- [ ] Add `workflow complete` command (src/cli/commands/workflow.ts)
+- [ ] Add `workflow fail` command with --reason (src/cli/commands/workflow.ts)
+- [ ] Add `workflow cancel` command with --reason (src/cli/commands/workflow.ts)
+- [ ] Add status transition API methods (src/api/elemental-api.ts)
+- [ ] Add tests for status transition commands (src/cli/commands/workflow.test.ts)

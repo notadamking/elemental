@@ -1269,6 +1269,83 @@ Core orchestration pattern works but requires workarounds:
 
 ---
 
+### Scenario: Workflow Status Transitions and Lifecycle
+
+**Purpose:** Evaluate workflow status management - ability to transition workflows through their defined lifecycle states
+
+**Prerequisites:** Initialized workspace with at least one playbook
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - No CLI commands for status transitions)
+
+**Checkpoints:**
+
+**Status Values:**
+- [x] Workflow statuses defined: pending, running, completed, failed, cancelled
+- [x] Workflow created via pour starts in `pending` status
+- [x] List filter by status works: `el workflow list --status pending`
+- [x] Invalid status rejected with clear error listing valid values
+
+**Status Transition Commands:**
+- [ ] **FAIL**: No `el workflow start` command (pending → running)
+  - **ENHANCEMENT el-rja0:** Missing command for manual status transition
+- [ ] **FAIL**: No `el workflow complete` command (running → completed)
+  - **ENHANCEMENT el-rja0:** Missing command for manual status transition
+- [ ] **FAIL**: No `el workflow fail` command (running → failed)
+  - **ENHANCEMENT el-rja0:** Missing command for manual status transition
+- [ ] **FAIL**: No `el workflow cancel` command (pending/running → cancelled)
+  - **ENHANCEMENT el-rja0:** Missing command for manual status transition
+- [ ] **FAIL**: `el update <workflow> --status running` rejected
+  - Returns "Status can only be set on tasks"
+  - No alternative way to change workflow status via CLI
+
+**Automatic Transitions:**
+- [ ] **BLOCKED**: Cannot test automatic transitions (el-18ug prevents task creation)
+  - Per spec, workflow should auto-transition:
+    - pending → running: when first task starts
+    - running → completed: when all tasks close
+    - running → failed: when required task fails
+
+**Workflow Burn:**
+- [x] Burn ephemeral workflow: works correctly, deletes workflow and tasks
+- [x] Burn durable workflow requires --force: proper error message
+- [x] Burn durable with --force: works correctly
+
+**Workflow Squash:**
+- [x] Squash ephemeral → durable: sets ephemeral=false correctly
+- [x] Squash already durable: idempotent (succeeds, no change)
+
+**Workflow GC:**
+- [x] GC only collects terminal status workflows
+- [x] GC with --dry-run: shows count without deleting
+- [x] GC with --age: filters by workflow age
+- [x] Pending status workflows not collected (correct behavior)
+  - **Note:** Without status transition commands, workflows can never reach terminal status for GC
+
+**Success Criteria:** Workflows can transition through their lifecycle
+- **PARTIAL FAILURE:** No way to change workflow status via CLI
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-rja0 | No CLI commands for workflow status transitions | 3 | enhancement |
+
+**Dependencies:**
+- el-rja0 → el-18ug (relates-to: both affect workflow lifecycle)
+- el-rja0 → el-2gdi (relates-to: workaround for el-18ug)
+- el-rja0 → el-5rrv (relates-to: pour validation)
+
+**Notes:**
+The workflow type has a well-defined status lifecycle (pending → running → completed/failed/cancelled)
+but the CLI provides no way to transition between states. The spec indicates transitions should be
+automatic based on task status, but:
+1. el-18ug prevents pour from creating tasks
+2. Even with tasks, there are no manual override commands
+3. Result: All workflows are stuck in "pending" forever
+4. GC cannot collect any workflows (requires terminal status)
+
+---
+
 ### Scenario: Task Deferral and Scheduling
 
 **Purpose:** Validate task deferral, scheduling, and ready list filtering based on scheduledFor
