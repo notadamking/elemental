@@ -3000,6 +3000,66 @@ through dependency chains. Team assignment correctly propagates to team member q
 
 ---
 
+### Scenario: Output Truncation and Large Content Handling
+
+**Purpose:** Validate CLI behavior with large content, including JSON output limits and special character handling
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical 64KB truncation bug found)
+
+**Checkpoints:**
+
+**JSON Output Size Limits:**
+- [x] Small content (under 64KB): JSON output is valid and complete
+- [ ] **FAIL**: Large content (over 64KB): JSON output truncated mid-stream
+  - **BUG el-1us7:** When total JSON output exceeds ~65536 bytes, output is cut off
+  - `el doc create --content "$(python3 -c "print('X' * 65280)")" --type text --json`
+  - Produces invalid JSON: `jq: parse error: Unfinished string at EOF`
+  - Affects `el doc create`, `el doc show`, `el list`, `el msg list` with large content
+  - Main elemental repo itself triggers this bug
+
+**Content Length Limits:**
+- [x] Task title at 500 chars: accepted correctly
+- [x] Task title over 500 chars: rejected with clear error
+- [x] Task notes: no apparent limit (10k+ chars works)
+- [x] Document content 50k chars: works correctly
+- [x] Document content 65k chars: content stored but JSON output truncated
+
+**Special Character Handling:**
+- [x] Unicode characters (CJK, emoji, Greek, Arabic, Hebrew): preserved correctly
+- [x] Tab characters: preserved correctly
+- [x] Newline characters: preserved correctly
+- [x] Backslash characters: escaped correctly
+- [x] Quote characters: escaped correctly
+- [x] Control characters (bell, escape): escaped as Unicode escapes
+- [ ] **FAIL**: Null character (\\x00): silently truncates string
+  - **BUG el-5zw4:** `'BeforeNull\x00AfterNull'` becomes `'BeforeNull'`
+  - No error or warning - data after null character is lost
+
+**Tag Character Validation:**
+- [x] Alphanumeric tags: accepted
+- [x] Hyphens in tags: accepted
+- [x] Colons in tags (feature:auth): accepted
+- [x] Dots in tags (v1.2.3): rejected with clear error
+- [x] Slashes in tags: rejected with clear error
+
+**Success Criteria:** Large content handled gracefully; special characters validated or properly escaped
+- **CRITICAL FAILURE:** JSON output truncation makes CLI unreliable for large documents
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-1us7 | JSON output truncated at 64KB producing invalid JSON | 2 | bug |
+| el-5zw4 | Null character in input silently truncates strings | 3 | bug |
+
+**Dependencies:**
+- el-1us7 → el-5pwg (relates-to: JSON output issues)
+- el-5zw4 → el-2aqg (relates-to: input validation pattern)
+
+---
+
 ### Scenario: Actor Attribution and Multi-Entity Operations
 
 **Purpose:** Validate that actor attribution (createdBy field) works correctly across all operations and that --actor flag properly validates entity references
@@ -3413,6 +3473,8 @@ All timestamps use ISO 8601: `2026-01-24T11:10:47.029Z`
 | el-5zan | `el channel create` requires `--actor` unlike other create commands | 3 |
 | el-e6wc | `el create task` missing `--deadline` flag per task spec | 4 |
 | el-5pwg | (pre-existing) JSON error output missing `code` field | 3 |
+| el-1us7 | **CRITICAL**: JSON output truncated at 64KB producing invalid JSON | 2 |
+| el-5zw4 | Null character in input silently truncates strings | 3 |
 
 ---
 
@@ -3456,6 +3518,10 @@ Based on manual testing findings, consider adding:
 2. **Actor attribution audit**: Verify all operations correctly attribute to the specified actor
 
 3. **JSON schema validation**: Automated check that all JSON output matches documented schemas
+
+4. **Large content stress test**: Verify JSON output remains valid for documents/tasks with 100KB+ content (el-1us7)
+
+5. **Input sanitization test**: Verify null characters and other control characters are rejected or properly handled (el-5zw4)
 
 4. **Error message snapshot tests**: Capture and verify error message text doesn't regress
 
