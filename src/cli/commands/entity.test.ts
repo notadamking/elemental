@@ -399,3 +399,426 @@ describe('entity list command structure', () => {
     expect(limitOption!.short).toBe('n');
   });
 });
+
+// ============================================================================
+// Entity Lifecycle E2E Tests
+// ============================================================================
+
+import { createElementalAPI } from '../../api/elemental-api.js';
+import type { Entity } from '../../types/entity.js';
+import {
+  updateEntity,
+  deactivateEntity,
+  reactivateEntity,
+  isEntityActive,
+  isEntityDeactivated,
+  getDeactivationDetails,
+  filterActiveEntities,
+  filterDeactivatedEntities,
+} from '../../types/entity.js';
+import type { ElementId, EntityId } from '../../types/element.js';
+
+// Helper to create API instance for direct manipulation
+function createTestAPI() {
+  const backend = createStorage({ path: DB_PATH, create: true });
+  initializeSchema(backend);
+  return { api: createElementalAPI(backend), backend };
+}
+
+// Helper to register an entity via CLI and return it
+async function registerEntity(
+  name: string,
+  options: Partial<GlobalOptions> & { type?: string; publicKey?: string; tag?: string[] } = {}
+): Promise<Entity> {
+  const fullOptions = createTestOptions(options as Partial<GlobalOptions>) as GlobalOptions & { type?: string; publicKey?: string; tag?: string[] };
+  if (options.type) fullOptions.type = options.type;
+  if (options.publicKey) fullOptions.publicKey = options.publicKey;
+  if (options.tag) fullOptions.tag = options.tag;
+
+  const result = await entityRegisterCommand.handler!([name], fullOptions);
+  if (result.exitCode !== ExitCode.SUCCESS) {
+    throw new Error(`Failed to register entity: ${result.error}`);
+  }
+  return result.data as Entity;
+}
+
+describe('entity lifecycle E2E scenarios', () => {
+  test('complete entity lifecycle: register → update → list → verify', async () => {
+    // 1. Register a new agent entity
+    const entity = await registerEntity('lifecycle-agent', { type: 'agent', tag: ['v1'] });
+    expect(entity.name).toBe('lifecycle-agent');
+    expect(entity.entityType).toBe('agent');
+    expect(entity.tags).toContain('v1');
+
+    // 2. Update entity via API (update tags and metadata)
+    const { api, backend } = createTestAPI();
+    const retrieved = await api.get<Entity>(entity.id as ElementId);
+    expect(retrieved).toBeDefined();
+    expect(retrieved!.name).toBe('lifecycle-agent');
+
+    const updated = updateEntity(retrieved!, {
+      tags: ['v1', 'updated'],
+      metadata: { displayName: 'Lifecycle Agent V1' },
+    });
+    await api.update<Entity>(entity.id as ElementId, updated);
+    backend.close();
+
+    // 3. Verify via list command
+    const listOptions = createTestOptions({ json: true });
+    const listResult = await entityListCommand.handler!([], listOptions);
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const entities = listResult.data as Entity[];
+    const found = entities.find((e) => e.name === 'lifecycle-agent');
+    expect(found).toBeDefined();
+    expect(found!.tags).toContain('updated');
+    expect(found!.metadata.displayName).toBe('Lifecycle Agent V1');
+  });
+
+  test('entity with cryptographic identity lifecycle', async () => {
+    const validPublicKey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+
+    // 1. Register entity with public key
+    const entity = await registerEntity('crypto-agent', { publicKey: validPublicKey });
+    expect(entity.publicKey).toBe(validPublicKey);
+
+    // 2. Verify entity shows up with public key
+    const listOptions = createTestOptions({ json: true });
+    const listResult = await entityListCommand.handler!([], listOptions);
+    const entities = listResult.data as Entity[];
+    const found = entities.find((e) => e.name === 'crypto-agent');
+    expect(found).toBeDefined();
+    expect(found!.publicKey).toBe(validPublicKey);
+
+    // 3. Update public key (key rotation)
+    const newPublicKey = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=';
+    const { api, backend } = createTestAPI();
+    const retrieved = await api.get<Entity>(entity.id as ElementId);
+    const updated = updateEntity(retrieved!, { publicKey: newPublicKey });
+    await api.update<Entity>(entity.id as ElementId, updated);
+    backend.close();
+
+    // 4. Verify key was updated
+    const { api: api2, backend: backend2 } = createTestAPI();
+    const refreshed = await api2.get<Entity>(entity.id as ElementId);
+    expect(refreshed!.publicKey).toBe(newPublicKey);
+    backend2.close();
+  });
+
+  test('entity deactivation and reactivation lifecycle', async () => {
+    // 1. Register an entity
+    const entity = await registerEntity('deactivate-test', { type: 'human' });
+    expect(isEntityActive(entity)).toBe(true);
+
+    // 2. Deactivate the entity
+    const { api, backend } = createTestAPI();
+    let retrieved = await api.get<Entity>(entity.id as ElementId);
+    const deactivated = deactivateEntity(retrieved!, {
+      deactivatedBy: 'el-admin' as EntityId,
+      reason: 'User left the organization',
+    });
+    await api.update<Entity>(entity.id as ElementId, deactivated);
+    backend.close();
+
+    // 3. Verify entity is deactivated
+    const { api: api2, backend: backend2 } = createTestAPI();
+    retrieved = await api2.get<Entity>(entity.id as ElementId);
+    expect(isEntityDeactivated(retrieved!)).toBe(true);
+    expect(isEntityActive(retrieved!)).toBe(false);
+
+    const details = getDeactivationDetails(retrieved!);
+    expect(details).not.toBeNull();
+    expect(details!.deactivatedBy).toBe('el-admin');
+    expect(details!.reason).toBe('User left the organization');
+    backend2.close();
+
+    // 4. List should still show the entity (but we can filter it)
+    const listResult = await entityListCommand.handler!([], createTestOptions({ json: true }));
+    const allEntities = listResult.data as Entity[];
+    const activeOnly = filterActiveEntities(allEntities);
+    const deactivatedOnly = filterDeactivatedEntities(allEntities);
+
+    // The deactivated entity should be in deactivatedOnly, not in activeOnly
+    expect(deactivatedOnly.some((e) => e.name === 'deactivate-test')).toBe(true);
+    expect(activeOnly.some((e) => e.name === 'deactivate-test')).toBe(false);
+
+    // 5. Reactivate the entity
+    const { api: api3, backend: backend3 } = createTestAPI();
+    retrieved = await api3.get<Entity>(entity.id as ElementId);
+    const reactivated = reactivateEntity(retrieved!, 'el-admin' as EntityId);
+    await api3.update<Entity>(entity.id as ElementId, reactivated);
+    backend3.close();
+
+    // 6. Verify entity is active again
+    const { api: api4, backend: backend4 } = createTestAPI();
+    const final = await api4.get<Entity>(entity.id as ElementId);
+    expect(isEntityActive(final!)).toBe(true);
+    expect(isEntityDeactivated(final!)).toBe(false);
+    expect(final!.metadata.reactivatedBy).toBe('el-admin');
+    backend4.close();
+  });
+
+  test('multiple entities with different types lifecycle', async () => {
+    // 1. Register entities of each type
+    const agent = await registerEntity('multi-agent', { type: 'agent' });
+    const human = await registerEntity('multi-human', { type: 'human' });
+    const system = await registerEntity('multi-system', { type: 'system' });
+
+    expect(agent.entityType).toBe('agent');
+    expect(human.entityType).toBe('human');
+    expect(system.entityType).toBe('system');
+
+    // 2. List and filter by type
+    const agentList = await entityListCommand.handler!(
+      [],
+      createTestOptions({ type: 'agent', json: true }) as GlobalOptions & { type: string }
+    );
+    expect((agentList.data as Entity[]).some((e) => e.name === 'multi-agent')).toBe(true);
+    expect((agentList.data as Entity[]).some((e) => e.name === 'multi-human')).toBe(false);
+
+    const humanList = await entityListCommand.handler!(
+      [],
+      createTestOptions({ type: 'human', json: true }) as GlobalOptions & { type: string }
+    );
+    expect((humanList.data as Entity[]).some((e) => e.name === 'multi-human')).toBe(true);
+
+    // 3. Update each entity with type-specific metadata
+    const { api, backend } = createTestAPI();
+    const agentRetrieved = await api.get<Entity>(agent.id as ElementId);
+    const agentUpdated = updateEntity(agentRetrieved!, {
+      metadata: { model: 'claude-3-opus', capabilities: ['coding', 'analysis'] },
+    });
+    await api.update<Entity>(agent.id as ElementId, agentUpdated);
+
+    const humanRetrieved = await api.get<Entity>(human.id as ElementId);
+    const humanUpdated = updateEntity(humanRetrieved!, {
+      metadata: { email: 'test@example.com', timezone: 'America/New_York' },
+    });
+    await api.update<Entity>(human.id as ElementId, humanUpdated);
+
+    const systemRetrieved = await api.get<Entity>(system.id as ElementId);
+    const systemUpdated = updateEntity(systemRetrieved!, {
+      metadata: { serviceName: 'ci-pipeline', version: '1.0.0' },
+    });
+    await api.update<Entity>(system.id as ElementId, systemUpdated);
+    backend.close();
+
+    // 4. Verify metadata persists
+    const { api: api2, backend: backend2 } = createTestAPI();
+    const agentFinal = await api2.get<Entity>(agent.id as ElementId);
+    expect(agentFinal!.metadata.model).toBe('claude-3-opus');
+    expect(agentFinal!.metadata.capabilities).toEqual(['coding', 'analysis']);
+
+    const humanFinal = await api2.get<Entity>(human.id as ElementId);
+    expect(humanFinal!.metadata.email).toBe('test@example.com');
+
+    const systemFinal = await api2.get<Entity>(system.id as ElementId);
+    expect(systemFinal!.metadata.serviceName).toBe('ci-pipeline');
+    backend2.close();
+  });
+
+  test('entity persistence across database connections', async () => {
+    // 1. Register an entity
+    const entity = await registerEntity('persistent-entity', {
+      type: 'agent',
+      tag: ['persistent'],
+    });
+    const entityId = entity.id as ElementId;
+
+    // 2. Update via API
+    const { api: api1, backend: backend1 } = createTestAPI();
+    const retrieved = await api1.get<Entity>(entityId);
+    const updated = updateEntity(retrieved!, {
+      tags: ['persistent', 'updated'],
+      metadata: { updateCount: 1 },
+    });
+    await api1.update<Entity>(entityId, updated);
+    backend1.close();
+
+    // 3. Reconnect and verify data persists
+    const { api: api2, backend: backend2 } = createTestAPI();
+    const persisted = await api2.get<Entity>(entityId);
+    expect(persisted).toBeDefined();
+    expect(persisted!.name).toBe('persistent-entity');
+    expect(persisted!.tags).toContain('updated');
+    expect(persisted!.metadata.updateCount).toBe(1);
+    backend2.close();
+
+    // 4. Make another update
+    const { api: api3, backend: backend3 } = createTestAPI();
+    const retrieved2 = await api3.get<Entity>(entityId);
+    const updated2 = updateEntity(retrieved2!, {
+      metadata: { updateCount: 2, lastUpdated: 'now' },
+    });
+    await api3.update<Entity>(entityId, updated2);
+    backend3.close();
+
+    // 5. Final verification
+    const { api: api4, backend: backend4 } = createTestAPI();
+    const final = await api4.get<Entity>(entityId);
+    expect(final!.metadata.updateCount).toBe(2);
+    expect(final!.metadata.lastUpdated).toBe('now');
+    backend4.close();
+  });
+
+  test('entity tag management lifecycle', async () => {
+    // 1. Create entity with initial tags
+    const entity = await registerEntity('tagged-lifecycle', { tag: ['initial', 'test'] });
+    expect(entity.tags).toEqual(['initial', 'test']);
+
+    // 2. Update tags - replace entirely
+    const { api, backend } = createTestAPI();
+    let retrieved = await api.get<Entity>(entity.id as ElementId);
+    let updated = updateEntity(retrieved!, { tags: ['replaced', 'new-tags'] });
+    await api.update<Entity>(entity.id as ElementId, updated);
+    backend.close();
+
+    // 3. Verify replacement
+    const { api: api2, backend: backend2 } = createTestAPI();
+    retrieved = await api2.get<Entity>(entity.id as ElementId);
+    expect(retrieved!.tags).toEqual(['replaced', 'new-tags']);
+    expect(retrieved!.tags).not.toContain('initial');
+    backend2.close();
+
+    // 4. Clear all tags
+    const { api: api3, backend: backend3 } = createTestAPI();
+    retrieved = await api3.get<Entity>(entity.id as ElementId);
+    updated = updateEntity(retrieved!, { tags: [] });
+    await api3.update<Entity>(entity.id as ElementId, updated);
+    backend3.close();
+
+    // 5. Verify tags are cleared
+    const { api: api4, backend: backend4 } = createTestAPI();
+    retrieved = await api4.get<Entity>(entity.id as ElementId);
+    expect(retrieved!.tags).toEqual([]);
+    backend4.close();
+
+    // 6. Add tags back
+    const { api: api5, backend: backend5 } = createTestAPI();
+    retrieved = await api5.get<Entity>(entity.id as ElementId);
+    updated = updateEntity(retrieved!, { tags: ['restored', 'final'] });
+    await api5.update<Entity>(entity.id as ElementId, updated);
+    backend5.close();
+
+    // 7. Final verification
+    const { api: api6, backend: backend6 } = createTestAPI();
+    const final = await api6.get<Entity>(entity.id as ElementId);
+    expect(final!.tags).toEqual(['restored', 'final']);
+    backend6.close();
+  });
+
+  test('entity uniqueness enforcement across lifecycle', async () => {
+    // 1. Register an entity
+    const entity = await registerEntity('unique-test');
+    expect(entity.name).toBe('unique-test');
+
+    // 2. Try to register with same name - should fail
+    const duplicateResult = await entityRegisterCommand.handler!(
+      ['unique-test'],
+      createTestOptions()
+    );
+    expect(duplicateResult.exitCode).toBe(ExitCode.VALIDATION);
+    expect(duplicateResult.error).toContain('already exists');
+
+    // 3. Register with different name - should succeed
+    const entity2 = await registerEntity('unique-test-2');
+    expect(entity2.name).toBe('unique-test-2');
+
+    // 4. Verify both exist
+    const listResult = await entityListCommand.handler!([], createTestOptions({ json: true }));
+    const entities = listResult.data as Entity[];
+    expect(entities.some((e) => e.name === 'unique-test')).toBe(true);
+    expect(entities.some((e) => e.name === 'unique-test-2')).toBe(true);
+  });
+
+  test('entity deactivation does not affect name uniqueness', async () => {
+    // 1. Register an entity
+    const entity = await registerEntity('deactivate-unique');
+
+    // 2. Deactivate the entity
+    const { api, backend } = createTestAPI();
+    const retrieved = await api.get<Entity>(entity.id as ElementId);
+    const deactivated = deactivateEntity(retrieved!, {
+      deactivatedBy: 'el-admin' as EntityId,
+    });
+    await api.update<Entity>(entity.id as ElementId, deactivated);
+    backend.close();
+
+    // 3. Try to register with same name - should still fail
+    // (deactivated entities still occupy the namespace)
+    const duplicateResult = await entityRegisterCommand.handler!(
+      ['deactivate-unique'],
+      createTestOptions()
+    );
+    expect(duplicateResult.exitCode).toBe(ExitCode.VALIDATION);
+    expect(duplicateResult.error).toContain('already exists');
+  });
+
+  test('rapid entity operations', async () => {
+    // 1. Register multiple entities rapidly
+    const entities: Entity[] = [];
+    for (let i = 0; i < 10; i++) {
+      const entity = await registerEntity(`rapid-entity-${i}`, {
+        type: ['agent', 'human', 'system'][i % 3] as 'agent' | 'human' | 'system',
+        tag: [`batch-${i}`],
+      });
+      entities.push(entity);
+    }
+    expect(entities.length).toBe(10);
+
+    // 2. List and verify all were created
+    const listResult = await entityListCommand.handler!([], createTestOptions({ json: true }));
+    const allEntities = listResult.data as Entity[];
+    for (let i = 0; i < 10; i++) {
+      expect(allEntities.some((e) => e.name === `rapid-entity-${i}`)).toBe(true);
+    }
+
+    // 3. Update all entities in sequence
+    const { api, backend } = createTestAPI();
+    for (const entity of entities) {
+      const retrieved = await api.get<Entity>(entity.id as ElementId);
+      const updated = updateEntity(retrieved!, {
+        metadata: { batchUpdated: true, originalName: entity.name },
+      });
+      await api.update<Entity>(entity.id as ElementId, updated);
+    }
+    backend.close();
+
+    // 4. Verify all updates
+    const { api: api2, backend: backend2 } = createTestAPI();
+    for (const entity of entities) {
+      const retrieved = await api2.get<Entity>(entity.id as ElementId);
+      expect(retrieved!.metadata.batchUpdated).toBe(true);
+    }
+    backend2.close();
+  });
+
+  test('entity special characters in metadata', async () => {
+    // 1. Register entity
+    const entity = await registerEntity('special-chars');
+
+    // 2. Update with special characters in metadata
+    const { api, backend } = createTestAPI();
+    const retrieved = await api.get<Entity>(entity.id as ElementId);
+    const updated = updateEntity(retrieved!, {
+      metadata: {
+        displayName: "Test User's Entity",
+        description: 'Line 1\nLine 2\tTabbed',
+        unicode: 'Unicode: αβγ • 日本語 • 🎉',
+        jsonLike: '{"nested": "value"}',
+        quotes: '"quoted" and \'single\'',
+      },
+    });
+    await api.update<Entity>(entity.id as ElementId, updated);
+    backend.close();
+
+    // 3. Verify metadata is preserved correctly
+    const { api: api2, backend: backend2 } = createTestAPI();
+    const final = await api2.get<Entity>(entity.id as ElementId);
+    expect(final!.metadata.displayName).toBe("Test User's Entity");
+    expect(final!.metadata.description).toBe('Line 1\nLine 2\tTabbed');
+    expect(final!.metadata.unicode).toBe('Unicode: αβγ • 日本語 • 🎉');
+    expect(final!.metadata.jsonLike).toBe('{"nested": "value"}');
+    expect(final!.metadata.quotes).toBe('"quoted" and \'single\'');
+    backend2.close();
+  });
+});
