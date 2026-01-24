@@ -228,18 +228,20 @@ When creating task under plan:
 - [x] Implement bulk tag (`bulkTagPlanTasks` API method - adds/removes tags from tasks with optional filter)
 - [x] Integration tests (39 tests in plan-bulk-operations.integration.test.ts)
 
-### Phase 6: Queries
-- [ ] Implement plan listing
-- [ ] Implement tasks-in-plan query
-- [ ] Add progress to list results
+### Phase 6: Queries ✅
+- [x] Implement plan listing (src/cli/commands/plan.ts:planListHandler - lists plans with status filtering, tag filtering, and limit)
+- [x] Implement tasks-in-plan query (src/cli/commands/plan.ts:planTasksHandler - lists tasks with status filtering)
+- [x] Add progress to list results (plan list shows PROGRESS column, plan show shows detailed progress breakdown)
+- [x] CLI tests - 40 tests (src/cli/commands/plan.test.ts)
 
-### Phase 7: Integration
-- [ ] Integrate with task creation
-- [ ] Integrate with hierarchical IDs
-- [ ] Add CLI commands (plan create, plan list, plan show)
+### Phase 7: Integration ✅
+- [x] Integrate with task creation (createTaskInPlan API)
+- [x] Integrate with hierarchical IDs (el-planid.n format)
+- [x] Add CLI commands (plan create, plan list, plan show, plan activate, plan complete, plan cancel, plan add-task, plan remove-task, plan tasks)
 
-### Phase 8: Testing
-- [ ] Unit tests for status transitions
-- [ ] Unit tests for progress calculation
-- [ ] Integration tests for task association
+### Phase 8: Testing ✅
+- [x] Unit tests for status transitions (src/types/plan.test.ts - 103 tests)
+- [x] Unit tests for progress calculation (API integration tests)
+- [x] Integration tests for task association (plan-task-linking.integration.test.ts - 31 tests)
+- [x] CLI integration tests (src/cli/commands/plan.test.ts - 40 tests)
 - [ ] E2E tests for plan lifecycle
