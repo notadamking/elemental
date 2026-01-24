@@ -5858,6 +5858,94 @@ since playbooks are intended to have multiple interdependent steps.
 
 ---
 
+### Scenario: Document Rollback Operations and Version Integrity
+
+**Purpose:** Evaluate el doc rollback command behavior, version creation semantics, and edge case handling - critical for document version management in agent workflows
+
+**Prerequisites:** Initialized workspace with multi-version documents
+
+**Status:** TESTED - 2026-01-24 (FAIL - Rollback overwrites instead of creating new version)
+
+**Checkpoints:**
+
+**Basic Rollback Behavior:**
+- [x] `el doc rollback --help` shows correct usage
+- [x] Rollback requires document-id and version arguments
+- [x] Missing arguments rejected with usage error (exit code 2)
+- [ ] **CRITICAL FAIL**: Rollback overwrites current version instead of creating new
+  - **BUG el-3ef1 (NEW):** Help says "creates a new version" but actually modifies in-place
+  - Version number stays at 3 after rolling back from version 3 to version 1
+  - Version history becomes inconsistent with duplicate version numbers
+  - Content is correctly updated but version semantics are broken
+
+**Version Number Handling:**
+- [x] Version 0 correctly rejected with "Version must be a positive number" (exit code 4)
+- [x] Negative version parsed as unknown option (exit code 1)
+- [x] Non-numeric version correctly rejected with "Version must be a positive number"
+- [x] Float version (2.5) correctly rejected (unlike other commands that truncate)
+- [x] Non-existent version correctly rejected with "Version X not found" (exit code 3)
+- [x] Rollback to current version succeeds (idempotent, no change)
+
+**Document Validation:**
+- [ ] **UX el-1f49 (NEW)**: Rollback on non-document gives confusing error
+  - Task ID returns "Version X not found for document <id>" instead of "Not a document"
+  - Should validate element type before checking version
+- [x] Non-existent document returns "Version X not found" (exit code 3)
+
+**Tombstone Behavior:**
+- [ ] **UX el-2p3s (NEW)**: Rollback on tombstoned document succeeds without warning
+  - Returns document with status: tombstone, deletedAt populated
+  - No error or warning about document being deleted
+  - Unclear if this is intended behavior
+
+**Output Formats:**
+- [x] JSON output: `{success: true, data: {...}}` with full document
+- [x] Quiet mode: outputs document ID only
+- [x] Human-readable: formatted document display
+
+**Version History Impact:**
+- [ ] **FAIL**: After rollback, history shows duplicate version numbers
+  - Version 3 appears twice: once with original content, once with rolled-back content
+  - Caused by el-3ef1 (overwrite instead of new version)
+
+**Document Show Integration:**
+- [x] `el doc show <id> --docVersion N` correctly retrieves specific version
+- [x] After rollback, `el doc show <id>` shows rolled-back content
+- [x] Version history preserved in document_versions table
+
+**Success Criteria:** Rollback creates new version and preserves version history
+- **CRITICAL FAILURE:** Rollback overwrites instead of creating new version
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3ef1 | BUG: el doc rollback overwrites current version instead of creating new | 3 | bug |
+| el-2p3s | UX: el doc rollback succeeds on tombstoned documents without warning | 4 | ux |
+| el-1f49 | UX: el doc rollback on non-document gives confusing error message | 5 | ux |
+
+**Dependencies:**
+- el-3ef1 → el-4pen (relates-to: both document versioning operations)
+- el-2p3s → el-3ef1 (relates-to: rollback edge case handling)
+- el-1f49 → el-3ef1 (relates-to: rollback error handling)
+
+**Notes:**
+This evaluation tested the document rollback functionality which is critical for agent workflows
+that need to restore previous document versions. Key findings:
+1. CRITICAL: Rollback modifies version in-place rather than creating new version
+2. This violates documented behavior: "This creates a new version with the content"
+3. Version history becomes inconsistent with duplicate version numbers
+4. Rollback on tombstoned documents succeeds without warning
+5. Non-document rollback gives confusing "version not found" error
+6. Float version validation is correct (unlike other commands that silently truncate)
+
+The version overwrite behavior (el-3ef1) is the most critical issue as it:
+- Breaks immutability semantics of document versioning
+- Makes version history confusing and unreliable
+- Contradicts the help text documentation
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
