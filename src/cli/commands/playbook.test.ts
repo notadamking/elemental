@@ -619,6 +619,89 @@ describe('playbook create command', () => {
     expect((result.data as { extends: string[] }).extends).toEqual(['base']);
   });
 
+  test('rejects invalid boolean variable default values', async () => {
+    createTestAPI();
+
+    // Test "notabool" - should be rejected
+    const result1 = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'test_bool1',
+        title: 'Test',
+        variable: 'flag:boolean:notabool',
+      })
+    );
+    expect(result1.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result1.error).toContain("Invalid boolean default for variable 'flag': notabool");
+    expect(result1.error).toContain("Must be 'true' or 'false'");
+
+    // Test "1" - should be rejected
+    const result2 = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'test_bool2',
+        title: 'Test',
+        variable: 'flag:boolean:1',
+      })
+    );
+    expect(result2.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result2.error).toContain("Invalid boolean default for variable 'flag': 1");
+
+    // Test "yes" - should be rejected
+    const result3 = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'test_bool3',
+        title: 'Test',
+        variable: 'flag:boolean:yes',
+      })
+    );
+    expect(result3.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result3.error).toContain("Invalid boolean default for variable 'flag': yes");
+
+    // Test "True" (wrong case) - should be rejected
+    const result4 = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'test_bool4',
+        title: 'Test',
+        variable: 'flag:boolean:True',
+      })
+    );
+    expect(result4.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result4.error).toContain("Invalid boolean default for variable 'flag': True");
+  });
+
+  test('accepts valid boolean variable default values', async () => {
+    createTestAPI();
+
+    // Test "true" - should be accepted
+    const result1 = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'test_bool_true',
+        title: 'Test True',
+        variable: 'flag:boolean:true',
+      })
+    );
+    expect(result1.exitCode).toBe(ExitCode.SUCCESS);
+    const playbook1 = result1.data as { variables: { name: string; default?: boolean }[] };
+    expect(playbook1.variables[0].default).toBe(true);
+
+    // Test "false" - should be accepted
+    const result2 = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'test_bool_false',
+        title: 'Test False',
+        variable: 'flag:boolean:false',
+      })
+    );
+    expect(result2.exitCode).toBe(ExitCode.SUCCESS);
+    const playbook2 = result2.data as { variables: { name: string; default?: boolean }[] };
+    expect(playbook2.variables[0].default).toBe(false);
+  });
+
   test('detects transitive circular inheritance during creation', async () => {
     // Create A extends B, B extends C
     const { api } = createTestAPI();

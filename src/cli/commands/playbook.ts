@@ -729,6 +729,9 @@ function parseVariable(varArg: string): PlaybookVariable {
           }
           break;
         case VariableType.BOOLEAN:
+          if (defaultStr !== 'true' && defaultStr !== 'false') {
+            throw new Error(`Invalid boolean default for variable '${name}': ${defaultStr}. Must be 'true' or 'false'`);
+          }
           defaultValue = defaultStr === 'true';
           break;
       }

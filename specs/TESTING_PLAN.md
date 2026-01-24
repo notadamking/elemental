@@ -6662,11 +6662,11 @@ el workflow pour testing-workflow \
 - [x] Boolean with default "false": `--variable "flag:boolean:false"` works correctly (default: false)
 - [x] Invalid number default: `--variable "count:number:notanumber"` correctly rejected
   - Error: "Invalid number default for variable 'count': notanumber"
-- [ ] **FAIL - BUG el-hqky (NEW):** Invalid boolean default silently accepts
-  - `--variable "flag:boolean:notabool"` succeeds with default: false
-  - `--variable "flag:boolean:1"` succeeds with default: false (should be true or error)
-  - `--variable "flag:boolean:yes"` succeeds with default: false (should be true or error)
-  - Only exact strings "true"/"false" work; all other values become false
+- [x] **FIXED - BUG el-hqky:** Invalid boolean default now correctly rejected
+  - `--variable "flag:boolean:notabool"` now returns error: "Invalid boolean default for variable 'flag': notabool. Must be 'true' or 'false'"
+  - `--variable "flag:boolean:1"` now returns error: "Invalid boolean default for variable 'flag': 1. Must be 'true' or 'false'"
+  - `--variable "flag:boolean:yes"` now returns error: "Invalid boolean default for variable 'flag': yes. Must be 'true' or 'false'"
+  - Only exact strings "true"/"false" are accepted
 
 **Optional Variables:**
 - [x] Optional variable syntax: `--variable "opt:string:default:false"` works correctly
@@ -6728,13 +6728,13 @@ el workflow pour testing-workflow \
   - May be by design (lazy task creation)
 
 **Success Criteria:** Playbook variables work correctly with proper type validation and inheritance
-- **PARTIAL:** Core variable types and inheritance work. Boolean default validation gap remains.
+- **PASS:** Core variable types and inheritance work. Boolean default validation fixed (el-hqky).
 
 **Issues Found:**
 
 | ID | Summary | Priority | Category |
 |----|---------|----------|----------|
-| el-hqky | BUG: Playbook boolean variable default silently accepts invalid values | 3 | bug |
+| ~~el-hqky~~ | ~~BUG: Playbook boolean variable default silently accepts invalid values~~ | ~~3~~ | ~~bug~~ (FIXED) |
 | ~~el-bmsw~~ | ~~BUG: Circular playbook inheritance allowed at creation time~~ | ~~3~~ | ~~bug~~ (FIXED) |
 
 **Issues Confirmed:**
@@ -6745,8 +6745,8 @@ el workflow pour testing-workflow \
 | el-7jdh | (pre-existing) --extends accepts non-existent playbooks | 3 | bug |
 
 **Dependencies:**
-- el-hqky → el-59p3 (relates-to: parser bug prevents testing multiple variables)
-- el-bmsw → el-7jdh (relates-to: both --extends validation gaps at creation time)
+- ~~el-hqky → el-59p3 (relates-to: parser bug prevents testing multiple variables)~~ (el-hqky FIXED)
+- ~~el-bmsw → el-7jdh (relates-to: both --extends validation gaps at creation time)~~ (el-bmsw FIXED)
 
 **Notes:**
 This evaluation tested playbook variable and inheritance features critical for agent orchestration patterns:
@@ -6764,10 +6764,11 @@ Key findings:
 6. Parser bug el-59p3 severely impacts playbook creation via CLI
 7. Workflow pour doesn't auto-generate tasks from steps (may be by design)
 
-The boolean default bug (el-hqky) is particularly problematic because:
-- Values like "1", "yes", "on" intuitively should be truthy but become false
-- No error message alerts the user to the unexpected conversion
-- Inconsistent with number validation which properly rejects invalid values
+~~The boolean default bug (el-hqky) is particularly problematic because:~~
+~~- Values like "1", "yes", "on" intuitively should be truthy but become false~~
+~~- No error message alerts the user to the unexpected conversion~~
+~~- Inconsistent with number validation which properly rejects invalid values~~
+(FIXED: el-hqky now correctly rejects invalid boolean defaults with proper error message)
 
 ---
 
