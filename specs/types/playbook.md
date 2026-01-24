@@ -311,9 +311,9 @@ String replacement with variable values:
 - [x] Implement pour-time validation (validatePour in workflow-pour.ts)
 - [x] Add validation CLI command (el playbook validate with --var and --pour options)
 
-### Phase 8: Integration
-- [ ] Integrate with workflow creation
-- [ ] Add CLI commands (list, show, validate, create)
+### Phase 8: Integration ✅
+- [x] Integrate with workflow creation (pourWorkflow uses playbook inheritance, variable resolution, condition evaluation)
+- [x] Add CLI commands (list, show, validate, create - src/cli/commands/playbook.ts)
 
 ### Phase 9: Testing ✅
 - [x] Unit tests for variable system (230 tests)

@@ -235,11 +235,11 @@ Forward query is more efficient for full history.
 - [ ] Implement content type migration (optional)
 - [x] Add content type constraints (JSON validation)
 
-### Phase 6: Integration
-- [ ] Integrate with Task (description, design)
-- [ ] Integrate with Message (content, attachments)
-- [ ] Integrate with Library (parent-child)
-- [ ] Add CLI commands for Document operations
+### Phase 6: Integration ✅
+- [x] Integrate with Task (description, design) - hydration support in API (descriptionRef, designRef → description, design)
+- [x] Integrate with Message (content, attachments) - contentRef, attachments validation and hydration
+- [x] Integrate with Library (parent-child) - document association via parent-child dependencies
+- [x] Add CLI commands for Document operations (doc write, doc read, doc history, doc versions via CRUD commands)
 
 ### Phase 7: Testing ✅
 - [x] Unit tests for content validation

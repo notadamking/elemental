@@ -284,10 +284,10 @@ On export:
 - [x] CLI commands: workflow tasks, workflow progress (src/cli/commands/workflow.ts)
 - [x] Integration tests (src/api/workflow-queries.integration.test.ts)
 
-### Phase 7: Integration
+### Phase 7: Integration ✅
 - [x] Integrate with Playbook system (src/types/workflow-pour.ts uses playbook inheritance)
 - [x] Integrate with dependency system (creates blocks and parent-child dependencies)
-- [ ] Integrate with export system
+- [x] Integrate with export system (ephemeral filtering via filterOutEphemeralTasks in sync/service.ts)
 - [x] Add CLI commands: pour, burn, squash, gc, list, show, tasks, progress (src/cli/commands/workflow.ts)
 
 ### Phase 8: Testing ✅
