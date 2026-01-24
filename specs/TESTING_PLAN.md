@@ -1805,6 +1805,53 @@ All 12 existing aliases work correctly and accept the same flags as their target
 Help text is inherited properly. Main discoverability gap is that `el alias` isn't listed in
 main help, and alias help doesn't mention the alias relationship.
 
+### Alias Pipeline Compatibility and Scripting
+
+**Goal:** Validate that aliases work correctly in scripting scenarios, pipelines, and complex command chains - critical for agent orchestration
+
+**Status:** TESTED - 2026-01-24 (Pass)
+
+**Exploration prompts:**
+- Do aliases work with xargs pipelines?
+- Do exit codes match between aliases and target commands?
+- Do aliases work in shell scripts?
+- Do aliases work with parallel execution (xargs -P)?
+- Do complex flag combinations work with aliases?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| `el add task` alias creates tasks | PASS | All create aliases (add, new) work correctly |
+| `el ls` alias lists elements | PASS | Returns correct JSON structure |
+| `el todo` alias for ready list | PASS | Returns ready tasks correctly |
+| `el tasks` alias for ready list | PASS | Both aliases work identically |
+| `el s` alias shows element | PASS | Returns full element data |
+| `el get` alias shows element | PASS | Returns full element data |
+| `el done` alias closes task | PASS | Correctly sets status to closed |
+| `el complete` alias closes task | PASS | Correctly sets status to closed |
+| `el rm` alias deletes element | PASS | Returns deleted: true |
+| `el remove` alias deletes element | PASS | Returns deleted: true |
+| `el st` alias for status | PASS | Returns sync status data |
+| Aliases with --quiet for pipelines | PASS | Outputs IDs only as expected |
+| Aliases with xargs | PASS | `el todo --quiet \| xargs -I{} el done {} --reason "..."` |
+| Aliases in shell scripts | PASS | Scripts with aliases execute correctly |
+| Aliases with parallel xargs (-P) | PASS | Concurrent execution works |
+| Alias exit codes match target | PASS | `el s el-nonexistent` returns exit code 3 like `el show` |
+| Complex flag combinations | PASS | --title, --priority, --tag, --notes work together |
+| Alias with --verbose | PASS | Verbose output works correctly |
+| Alias help shows target help | PASS | `el add --help` shows create help |
+| Case sensitivity | INFO | Aliases are lowercase only (ADD fails) |
+| Alias with subcommand arg | PASS | `el ls task` works correctly |
+| jq pipeline chaining | PASS | `el add ... --json \| jq ... \| xargs el s ...` |
+
+**Summary:**
+Aliases are fully compatible with scripting and pipeline scenarios. All 12 aliases correctly
+resolve to their target commands, accept the same flags, and produce identical exit codes.
+This makes aliases safe for use in agent orchestration scripts and complex pipelines.
+Confirmed existing issues: el-53ot (alias not in help), el-3ct2 (help doesn't mention alias),
+el-4o53 (missing intuitive aliases). No new issues found.
+
 ### Edge Cases Exploration
 
 **Goal:** Find boundary conditions and unusual inputs
