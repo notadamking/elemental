@@ -20,6 +20,7 @@ import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import {
   TaskStatus,
+  TaskTypeValue,
   updateTaskStatus,
   isValidStatusTransition,
   type Task,
@@ -145,6 +146,13 @@ async function readyHandler(
     }
 
     if (options.type) {
+      const validTypes: string[] = Object.values(TaskTypeValue);
+      if (!validTypes.includes(options.type)) {
+        return failure(
+          `Invalid task type: ${options.type}. Must be one of: ${validTypes.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
       filter.taskType = options.type as TaskFilter['taskType'];
     }
 

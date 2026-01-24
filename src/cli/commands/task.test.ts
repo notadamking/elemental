@@ -228,6 +228,23 @@ describe('ready command', () => {
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
     expect(result.error).toContain('Limit must be a positive number');
   });
+
+  test('fails with invalid task type', async () => {
+    const options = createTestOptions({ type: 'BUG' });
+    const result = await readyCommand.handler([], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid task type: BUG');
+    expect(result.error).toContain('bug, feature, task, chore');
+  });
+
+  test('fails with unknown task type', async () => {
+    const options = createTestOptions({ type: 'invalid-type' });
+    const result = await readyCommand.handler([], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Invalid task type: invalid-type');
+  });
 });
 
 // ============================================================================
