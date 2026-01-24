@@ -573,3 +573,5 @@ User-friendly errors:
 
 ### Known Issues
 - [x] **crud.test.ts:373** - "fails gracefully when no database exists" test fixed ✅ - Added database existence check in `resolveDatabasePath()` and `createAPI()`. Read operations (list, show, update, delete) now properly return GENERAL_ERROR when database doesn't exist. Write operations (create) still create the database if needed.
+- [ ] **el-59p3** - CLI parser overwrites repeated options instead of accumulating to array. In src/cli/parser.ts line 144, when a command option is parsed multiple times (e.g., `--step a:A --step b:B`), only the last value is kept. The parser should accumulate repeated options into an array. This breaks playbook create with multiple steps/variables, adding multiple tags, and any command using repeated options.
+- [ ] **el-18ug** - CLI `workflow pour` handler does not use `pourWorkflow()` function. The handler in src/cli/commands/workflow.ts has a TODO comment and just creates an empty workflow with the playbook name as title. The `pourWorkflow()` function exists in src/types/workflow-pour.ts and is well-tested (59 tests) - the CLI handler just needs to call it and store results.
