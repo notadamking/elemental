@@ -870,6 +870,8 @@ entities, channels, playbooks, libraries, or teams without external documentatio
 
 **Goal:** Assess error quality for agent recovery
 
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical enforcement gaps)
+
 **Exploration prompts:**
 - Trigger each error code at least once
 - For each error, can you understand what went wrong?
@@ -883,6 +885,62 @@ entities, channels, playbooks, libraries, or teams without external documentatio
 - ALREADY_EXISTS, DUPLICATE_NAME, CYCLE_DETECTED
 - IMMUTABLE, HAS_DEPENDENTS, INVALID_PARENT
 - DATABASE_ERROR, SYNC_CONFLICT
+
+**Test Results:**
+
+| Error Code | Tested | Result | Exit Code | Notes |
+|------------|--------|--------|-----------|-------|
+| INVALID_INPUT (priority) | ✓ | PASS | 4 | Clear message: "Priority must be 1 to 5" |
+| INVALID_INPUT (complexity) | ✓ | PASS | 4 | Clear message: "Complexity must be 1 to 5" |
+| INVALID_INPUT (entity type) | ✓ | PASS | 4 | Lists valid types |
+| INVALID_INPUT (content type) | ✓ | PASS | 4 | Lists valid types |
+| **INVALID_ID** | ✓ | **FAIL** | 3 | Returns NOT_FOUND instead of INVALID_ID (el-2er0) |
+| **INVALID_STATUS** | ✓ | **FAIL** | - | Transition from closed→blocked ALLOWED (el-4odk) |
+| NOT_FOUND | ✓ | PASS | 3 | Clear message with ID |
+| **ENTITY_NOT_FOUND** | ✓ | **FAIL** | - | Accepts non-existent assignees (el-jqhh) |
+| DOCUMENT_NOT_FOUND | ✓ | PASS | 3 | Clear message for attachments |
+| CHANNEL_NOT_FOUND | ✓ | PASS | 3 | Clear message |
+| PLAYBOOK_NOT_FOUND | ✓ | PASS | 3 | Clear message |
+| DEPENDENCY_NOT_FOUND | ✓ | PASS | 3 | Shows source→target |
+| DUPLICATE_NAME | ✓ | PASS | 4 | Clear message with name |
+| DUPLICATE_DEPENDENCY | ✓ | PASS | 4 | Shows existing dep |
+| **CYCLE_DETECTED** | ✓ | **FAIL** | - | Not enforced (el-5w9d pre-existing) |
+| **HAS_DEPENDENTS** | ✓ | **FAIL** | - | Delete succeeds anyway (el-s80d) |
+| TYPE_MISMATCH | ✓ | PASS | 4 | "Element is not a task" |
+| MEMBER_REQUIRED | ✓ | PASS | 5 | Clear membership error |
+| ALREADY_IN_PLAN | ✓ | PASS* | 1* | Wrong exit code (el-66ln) |
+| TITLE_TOO_LONG | ✓ | PASS* | 1* | Wrong exit code (el-66ln) |
+| INVALID_JSON | ✓ | PASS* | 1* | Wrong exit code (el-66ln) |
+| INVALID_TAG | ✓ | PASS* | 1* | Wrong exit code (el-66ln) |
+
+**Error Output Format Tests:**
+
+| Format | Result | Notes |
+|--------|--------|-------|
+| JSON error structure | PARTIAL | Missing `code` field (el-5pwg pre-existing) |
+| **Verbose format** | **FAIL** | Shows exit code not error code (el-3iux) |
+| **Verbose details** | **FAIL** | Missing details field (el-3iux) |
+| **Quiet format** | **FAIL** | Missing CODE: prefix (el-5v6j) |
+| Standard format | PASS | Clear error messages |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-s80d | HAS_DEPENDENTS not enforced - delete succeeds | 2 | bug |
+| el-4odk | INVALID_STATUS transition closed→blocked allowed | 2 | bug |
+| el-jqhh | ENTITY_NOT_FOUND not enforced for assignee | 3 | bug |
+| el-66ln | Exit codes inconsistent - validation returns 1 not 4 | 3 | bug |
+| el-3iux | Verbose output shows exit code not error code | 4 | bug |
+| el-5v6j | Quiet format missing CODE: prefix | 4 | bug |
+| el-2er0 | INVALID_ID returns NOT_FOUND instead | 4 | bug |
+
+**Summary:**
+Error message text is generally clear and actionable. However, critical constraint
+enforcement is missing - HAS_DEPENDENTS, INVALID_STATUS, ENTITY_NOT_FOUND, and
+CYCLE_DETECTED (pre-existing) are not enforced, allowing invalid operations to succeed.
+Exit code mapping is inconsistent for validation errors. Error output formats (verbose,
+quiet, JSON) don't match the spec in api/errors.md.
 
 ### Command Aliases Exploration
 
