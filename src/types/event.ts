@@ -784,3 +784,237 @@ export function computeChangedFields(
 
   return changedFields.sort();
 }
+
+// ============================================================================
+// Reconstruction Utilities
+// ============================================================================
+
+/**
+ * Applies an event to a state object to produce the next state.
+ *
+ * For 'created' events: Returns the newValue as the initial state
+ * For 'updated' events: Merges newValue into current state
+ * For 'deleted' events: Returns null (element was deleted)
+ * For other events (dependency, tag, membership): Updates specific fields
+ *
+ * @param currentState - The current state (null if element doesn't exist yet)
+ * @param event - The event to apply
+ * @returns The new state after applying the event, or null if deleted
+ */
+export function applyEventToState(
+  currentState: Record<string, unknown> | null,
+  event: Event | EventWithoutId
+): Record<string, unknown> | null {
+  const { eventType, newValue } = event;
+
+  switch (eventType) {
+    case EventType.CREATED:
+      // Created event - newValue is the full initial element
+      return newValue ? { ...newValue } : null;
+
+    case EventType.UPDATED:
+    case EventType.CLOSED:
+    case EventType.REOPENED:
+      // Update events - newValue contains the full updated state
+      if (newValue === null) {
+        return currentState;
+      }
+      return { ...newValue };
+
+    case EventType.DELETED:
+      // Deleted event - element is tombstoned
+      return null;
+
+    case EventType.DEPENDENCY_ADDED:
+    case EventType.DEPENDENCY_REMOVED:
+      // Dependency events don't change element state directly
+      // (dependencies are stored in a separate table)
+      return currentState;
+
+    case EventType.TAG_ADDED:
+    case EventType.TAG_REMOVED:
+      // Tag events - update the tags array if tracking in element state
+      // Tags are typically stored separately, but may be in element state
+      if (!currentState) return null;
+      if (newValue && 'tags' in newValue) {
+        return { ...currentState, tags: newValue.tags };
+      }
+      return currentState;
+
+    case EventType.MEMBER_ADDED:
+    case EventType.MEMBER_REMOVED:
+      // Membership events - update the members array
+      if (!currentState) return null;
+      if (newValue && 'members' in newValue) {
+        return { ...currentState, members: newValue.members };
+      }
+      return currentState;
+
+    case EventType.AUTO_BLOCKED:
+    case EventType.AUTO_UNBLOCKED:
+      // Auto status events - update the status field
+      if (!currentState) return null;
+      if (newValue && 'status' in newValue) {
+        return { ...currentState, status: newValue.status };
+      }
+      return currentState;
+
+    default:
+      // Unknown event type - return current state unchanged
+      return currentState;
+  }
+}
+
+/**
+ * Reconstructs element state at a specific point in time by replaying events.
+ *
+ * @param events - All events for the element (oldest first recommended)
+ * @param asOf - Target timestamp to reconstruct state at
+ * @returns Object with the reconstructed state and metadata
+ */
+export function reconstructStateAtTime(
+  events: Event[],
+  asOf: Timestamp
+): { state: Record<string, unknown> | null; eventsApplied: number; exists: boolean } {
+  // Sort events by createdAt (oldest first) for correct replay order
+  const sortedEvents = sortEventsByTime(events, false);
+
+  let currentState: Record<string, unknown> | null = null;
+  let eventsApplied = 0;
+  let exists = false;
+
+  for (const event of sortedEvents) {
+    // Stop if event is after the target timestamp
+    if (event.createdAt > asOf) {
+      break;
+    }
+
+    // Apply the event
+    currentState = applyEventToState(currentState, event);
+    eventsApplied++;
+
+    // Track existence
+    if (event.eventType === EventType.CREATED) {
+      exists = true;
+    } else if (event.eventType === EventType.DELETED) {
+      exists = false;
+    }
+  }
+
+  return { state: currentState, eventsApplied, exists };
+}
+
+/**
+ * Generates a human-readable summary of an event.
+ *
+ * @param event - The event to summarize
+ * @returns A human-readable description of what changed
+ */
+export function generateEventSummary(event: Event | EventWithoutId): string {
+  const { eventType, oldValue, newValue, actor } = event;
+
+  switch (eventType) {
+    case EventType.CREATED:
+      return `Created by ${actor}`;
+
+    case EventType.UPDATED: {
+      const changedFields = computeChangedFields(oldValue, newValue);
+      if (changedFields.length === 0) {
+        return `Updated by ${actor} (no field changes detected)`;
+      }
+      if (changedFields.length <= 3) {
+        return `Updated ${changedFields.join(', ')} by ${actor}`;
+      }
+      return `Updated ${changedFields.length} fields by ${actor}`;
+    }
+
+    case EventType.CLOSED: {
+      const reason = newValue?.closedReason ?? newValue?.reason;
+      return reason
+        ? `Closed by ${actor}: ${reason}`
+        : `Closed by ${actor}`;
+    }
+
+    case EventType.REOPENED:
+      return `Reopened by ${actor}`;
+
+    case EventType.DELETED: {
+      const reason = newValue?.reason;
+      return reason
+        ? `Deleted by ${actor}: ${reason}`
+        : `Deleted by ${actor}`;
+    }
+
+    case EventType.DEPENDENCY_ADDED: {
+      const targetId = newValue?.targetId ?? 'unknown';
+      const depType = newValue?.type ?? 'dependency';
+      return `Added ${depType} to ${targetId} by ${actor}`;
+    }
+
+    case EventType.DEPENDENCY_REMOVED: {
+      const targetId = oldValue?.targetId ?? 'unknown';
+      const depType = oldValue?.type ?? 'dependency';
+      return `Removed ${depType} from ${targetId} by ${actor}`;
+    }
+
+    case EventType.TAG_ADDED: {
+      const tag = newValue?.tag ?? 'tag';
+      return `Added tag "${tag}" by ${actor}`;
+    }
+
+    case EventType.TAG_REMOVED: {
+      const tag = oldValue?.tag ?? 'tag';
+      return `Removed tag "${tag}" by ${actor}`;
+    }
+
+    case EventType.MEMBER_ADDED: {
+      const member = newValue?.addedMember ?? 'member';
+      return `Added member ${member} by ${actor}`;
+    }
+
+    case EventType.MEMBER_REMOVED: {
+      const member = newValue?.removedMember ?? 'member';
+      const selfRemoval = newValue?.selfRemoval;
+      return selfRemoval
+        ? `${member} left`
+        : `Removed member ${member} by ${actor}`;
+    }
+
+    case EventType.AUTO_BLOCKED:
+      return `Automatically blocked (dependency not satisfied)`;
+
+    case EventType.AUTO_UNBLOCKED:
+      return `Automatically unblocked (blockers resolved)`;
+
+    default:
+      return `${getEventTypeDisplayName(eventType)} by ${actor}`;
+  }
+}
+
+/**
+ * Generates timeline snapshots from a sequence of events.
+ *
+ * @param events - Events to generate timeline from (will be sorted oldest first)
+ * @returns Array of timeline snapshots showing state evolution
+ */
+export function generateTimelineSnapshots(
+  events: Event[]
+): { event: Event; state: Record<string, unknown> | null; summary: string }[] {
+  // Sort events oldest first
+  const sortedEvents = sortEventsByTime(events, false);
+
+  const snapshots: { event: Event; state: Record<string, unknown> | null; summary: string }[] = [];
+  let currentState: Record<string, unknown> | null = null;
+
+  for (const event of sortedEvents) {
+    currentState = applyEventToState(currentState, event);
+    const summary = generateEventSummary(event);
+    snapshots.push({
+      event,
+      state: currentState ? { ...currentState } : null,
+      summary,
+    });
+  }
+
+  return snapshots;
+}

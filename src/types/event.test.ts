@@ -36,6 +36,10 @@ import {
   sortEventsByTime,
   applyEventFilter,
   computeChangedFields,
+  applyEventToState,
+  reconstructStateAtTime,
+  generateEventSummary,
+  generateTimelineSnapshots,
 } from './event.js';
 import type { ElementId, EntityId, Timestamp } from './element.js';
 import { ValidationError } from '../errors/error.js';
@@ -1125,5 +1129,505 @@ describe('computeChangedFields', () => {
     const oldValue = { z: 1, a: 2, m: 3 };
     const newValue = { z: 2, a: 3, m: 4 };
     expect(computeChangedFields(oldValue, newValue)).toEqual(['a', 'm', 'z']);
+  });
+});
+
+// ============================================================================
+// Event State Reconstruction Tests
+// ============================================================================
+
+describe('applyEventToState', () => {
+  test('applies created event to null state', () => {
+    const event = createTestEvent({
+      eventType: EventType.CREATED,
+      oldValue: null,
+      newValue: { id: 'el-123', type: 'task', title: 'Test Task', status: 'open' },
+    });
+    const result = applyEventToState(null, event);
+    expect(result).toEqual({ id: 'el-123', type: 'task', title: 'Test Task', status: 'open' });
+  });
+
+  test('applies updated event to existing state', () => {
+    const currentState = { id: 'el-123', type: 'task', title: 'Old Title', status: 'open' };
+    const event = createTestEvent({
+      eventType: EventType.UPDATED,
+      oldValue: currentState,
+      newValue: { id: 'el-123', type: 'task', title: 'New Title', status: 'open' },
+    });
+    const result = applyEventToState(currentState, event);
+    expect(result).toEqual({ id: 'el-123', type: 'task', title: 'New Title', status: 'open' });
+  });
+
+  test('applies closed event', () => {
+    const currentState = { id: 'el-123', type: 'task', title: 'Task', status: 'open' };
+    const event = createTestEvent({
+      eventType: EventType.CLOSED,
+      oldValue: currentState,
+      newValue: { id: 'el-123', type: 'task', title: 'Task', status: 'closed' },
+    });
+    const result = applyEventToState(currentState, event);
+    expect(result?.status).toBe('closed');
+  });
+
+  test('applies reopened event', () => {
+    const currentState = { id: 'el-123', type: 'task', title: 'Task', status: 'closed' };
+    const event = createTestEvent({
+      eventType: EventType.REOPENED,
+      oldValue: currentState,
+      newValue: { id: 'el-123', type: 'task', title: 'Task', status: 'open' },
+    });
+    const result = applyEventToState(currentState, event);
+    expect(result?.status).toBe('open');
+  });
+
+  test('applies deleted event - returns null', () => {
+    const currentState = { id: 'el-123', type: 'task', title: 'Task' };
+    const event = createTestEvent({
+      eventType: EventType.DELETED,
+      oldValue: currentState,
+      newValue: null,
+    });
+    const result = applyEventToState(currentState, event);
+    expect(result).toBeNull();
+  });
+
+  test('dependency events do not change element state', () => {
+    const currentState = { id: 'el-123', type: 'task', title: 'Task' };
+    const event = createTestEvent({
+      eventType: EventType.DEPENDENCY_ADDED,
+      oldValue: null,
+      newValue: { targetId: 'el-456', type: 'blocks' },
+    });
+    const result = applyEventToState(currentState, event);
+    expect(result).toEqual(currentState);
+  });
+
+  test('member added event updates members array', () => {
+    const currentState = { id: 'el-team', type: 'team', members: ['el-alice'] };
+    const event = createTestEvent({
+      eventType: EventType.MEMBER_ADDED,
+      oldValue: { members: ['el-alice'] },
+      newValue: { members: ['el-alice', 'el-bob'], addedMember: 'el-bob' },
+    });
+    const result = applyEventToState(currentState, event);
+    expect(result?.members).toEqual(['el-alice', 'el-bob']);
+  });
+
+  test('auto_blocked event updates status', () => {
+    const currentState = { id: 'el-123', type: 'task', status: 'open' };
+    const event = createTestEvent({
+      eventType: EventType.AUTO_BLOCKED,
+      oldValue: { status: 'open' },
+      newValue: { status: 'blocked' },
+    });
+    const result = applyEventToState(currentState, event);
+    expect(result?.status).toBe('blocked');
+  });
+
+  test('returns null for null newValue in created event', () => {
+    const event = createTestEvent({
+      eventType: EventType.CREATED,
+      oldValue: null,
+      newValue: null,
+    });
+    const result = applyEventToState(null, event);
+    expect(result).toBeNull();
+  });
+});
+
+describe('reconstructStateAtTime', () => {
+  const baseTimestamp = '2025-01-22T10:00:00.000Z' as Timestamp;
+  const elementId = 'el-123' as ElementId;
+
+  test('reconstructs initial state from created event', () => {
+    const events: Event[] = [
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: baseTimestamp,
+        newValue: { id: 'el-123', type: 'task', title: 'Test Task', status: 'open' },
+      }),
+    ];
+
+    const result = reconstructStateAtTime(events, '2025-01-22T11:00:00.000Z' as Timestamp);
+    expect(result.exists).toBe(true);
+    expect(result.eventsApplied).toBe(1);
+    expect(result.state?.title).toBe('Test Task');
+  });
+
+  test('returns exists=false before creation', () => {
+    const events: Event[] = [
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: baseTimestamp,
+        newValue: { id: 'el-123', type: 'task', title: 'Test Task' },
+      }),
+    ];
+
+    const result = reconstructStateAtTime(events, '2025-01-22T09:00:00.000Z' as Timestamp);
+    expect(result.exists).toBe(false);
+    expect(result.eventsApplied).toBe(0);
+    expect(result.state).toBeNull();
+  });
+
+  test('reconstructs state after multiple updates', () => {
+    const events: Event[] = [
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+        newValue: { id: 'el-123', type: 'task', title: 'Initial', status: 'open' },
+      }),
+      createTestEvent({
+        id: 2,
+        elementId,
+        eventType: EventType.UPDATED,
+        createdAt: '2025-01-22T11:00:00.000Z' as Timestamp,
+        oldValue: { id: 'el-123', type: 'task', title: 'Initial', status: 'open' },
+        newValue: { id: 'el-123', type: 'task', title: 'Updated Once', status: 'open' },
+      }),
+      createTestEvent({
+        id: 3,
+        elementId,
+        eventType: EventType.UPDATED,
+        createdAt: '2025-01-22T12:00:00.000Z' as Timestamp,
+        oldValue: { id: 'el-123', type: 'task', title: 'Updated Once', status: 'open' },
+        newValue: { id: 'el-123', type: 'task', title: 'Updated Twice', status: 'open' },
+      }),
+    ];
+
+    // At 10:30, should have initial state
+    let result = reconstructStateAtTime(events, '2025-01-22T10:30:00.000Z' as Timestamp);
+    expect(result.state?.title).toBe('Initial');
+    expect(result.eventsApplied).toBe(1);
+
+    // At 11:30, should have first update
+    result = reconstructStateAtTime(events, '2025-01-22T11:30:00.000Z' as Timestamp);
+    expect(result.state?.title).toBe('Updated Once');
+    expect(result.eventsApplied).toBe(2);
+
+    // At 12:30, should have second update
+    result = reconstructStateAtTime(events, '2025-01-22T12:30:00.000Z' as Timestamp);
+    expect(result.state?.title).toBe('Updated Twice');
+    expect(result.eventsApplied).toBe(3);
+  });
+
+  test('handles deleted state', () => {
+    const events: Event[] = [
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+        newValue: { id: 'el-123', type: 'task', title: 'Task' },
+      }),
+      createTestEvent({
+        id: 2,
+        elementId,
+        eventType: EventType.DELETED,
+        createdAt: '2025-01-22T11:00:00.000Z' as Timestamp,
+        oldValue: { id: 'el-123', type: 'task', title: 'Task' },
+        newValue: null,
+      }),
+    ];
+
+    // Before deletion
+    let result = reconstructStateAtTime(events, '2025-01-22T10:30:00.000Z' as Timestamp);
+    expect(result.exists).toBe(true);
+    expect(result.state?.title).toBe('Task');
+
+    // After deletion
+    result = reconstructStateAtTime(events, '2025-01-22T12:00:00.000Z' as Timestamp);
+    expect(result.exists).toBe(false);
+    expect(result.state).toBeNull();
+  });
+
+  test('handles unsorted events (sorts internally)', () => {
+    const events: Event[] = [
+      // Provide events out of order
+      createTestEvent({
+        id: 2,
+        elementId,
+        eventType: EventType.UPDATED,
+        createdAt: '2025-01-22T11:00:00.000Z' as Timestamp,
+        newValue: { title: 'Updated' },
+      }),
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+        newValue: { title: 'Created' },
+      }),
+    ];
+
+    const result = reconstructStateAtTime(events, '2025-01-22T12:00:00.000Z' as Timestamp);
+    expect(result.state?.title).toBe('Updated');
+    expect(result.eventsApplied).toBe(2);
+  });
+});
+
+describe('generateEventSummary', () => {
+  test('summarizes created event', () => {
+    const event = createTestEvent({
+      eventType: EventType.CREATED,
+      actor: 'el-alice' as EntityId,
+    });
+    expect(generateEventSummary(event)).toBe('Created by el-alice');
+  });
+
+  test('summarizes updated event with changed fields', () => {
+    const event = createTestEvent({
+      eventType: EventType.UPDATED,
+      actor: 'el-alice' as EntityId,
+      oldValue: { title: 'Old', status: 'open' },
+      newValue: { title: 'New', status: 'open' },
+    });
+    expect(generateEventSummary(event)).toBe('Updated title by el-alice');
+  });
+
+  test('summarizes updated event with multiple fields', () => {
+    const event = createTestEvent({
+      eventType: EventType.UPDATED,
+      actor: 'el-alice' as EntityId,
+      oldValue: { title: 'Old', status: 'open', priority: 1 },
+      newValue: { title: 'New', status: 'closed', priority: 2 },
+    });
+    const summary = generateEventSummary(event);
+    expect(summary).toBe('Updated priority, status, title by el-alice');
+  });
+
+  test('summarizes updated event with many fields', () => {
+    const event = createTestEvent({
+      eventType: EventType.UPDATED,
+      actor: 'el-alice' as EntityId,
+      oldValue: { a: 1, b: 2, c: 3, d: 4 },
+      newValue: { a: 2, b: 3, c: 4, d: 5 },
+    });
+    expect(generateEventSummary(event)).toBe('Updated 4 fields by el-alice');
+  });
+
+  test('summarizes closed event with reason', () => {
+    const event = createTestEvent({
+      eventType: EventType.CLOSED,
+      actor: 'el-alice' as EntityId,
+      newValue: { reason: 'Completed successfully' },
+    });
+    expect(generateEventSummary(event)).toBe('Closed by el-alice: Completed successfully');
+  });
+
+  test('summarizes closed event without reason', () => {
+    const event = createTestEvent({
+      eventType: EventType.CLOSED,
+      actor: 'el-alice' as EntityId,
+      newValue: {},
+    });
+    expect(generateEventSummary(event)).toBe('Closed by el-alice');
+  });
+
+  test('summarizes reopened event', () => {
+    const event = createTestEvent({
+      eventType: EventType.REOPENED,
+      actor: 'el-alice' as EntityId,
+    });
+    expect(generateEventSummary(event)).toBe('Reopened by el-alice');
+  });
+
+  test('summarizes deleted event', () => {
+    const event = createTestEvent({
+      eventType: EventType.DELETED,
+      actor: 'el-alice' as EntityId,
+      newValue: { reason: 'No longer needed' },
+    });
+    expect(generateEventSummary(event)).toBe('Deleted by el-alice: No longer needed');
+  });
+
+  test('summarizes dependency_added event', () => {
+    const event = createTestEvent({
+      eventType: EventType.DEPENDENCY_ADDED,
+      actor: 'el-alice' as EntityId,
+      newValue: { targetId: 'el-456', type: 'blocks' },
+    });
+    expect(generateEventSummary(event)).toBe('Added blocks to el-456 by el-alice');
+  });
+
+  test('summarizes dependency_removed event', () => {
+    const event = createTestEvent({
+      eventType: EventType.DEPENDENCY_REMOVED,
+      actor: 'el-alice' as EntityId,
+      oldValue: { targetId: 'el-456', type: 'awaits' },
+    });
+    expect(generateEventSummary(event)).toBe('Removed awaits from el-456 by el-alice');
+  });
+
+  test('summarizes member_added event', () => {
+    const event = createTestEvent({
+      eventType: EventType.MEMBER_ADDED,
+      actor: 'el-admin' as EntityId,
+      newValue: { addedMember: 'el-bob' },
+    });
+    expect(generateEventSummary(event)).toBe('Added member el-bob by el-admin');
+  });
+
+  test('summarizes member_removed event', () => {
+    const event = createTestEvent({
+      eventType: EventType.MEMBER_REMOVED,
+      actor: 'el-admin' as EntityId,
+      newValue: { removedMember: 'el-bob' },
+    });
+    expect(generateEventSummary(event)).toBe('Removed member el-bob by el-admin');
+  });
+
+  test('summarizes self-removal (leaving)', () => {
+    const event = createTestEvent({
+      eventType: EventType.MEMBER_REMOVED,
+      actor: 'el-bob' as EntityId,
+      newValue: { removedMember: 'el-bob', selfRemoval: true },
+    });
+    expect(generateEventSummary(event)).toBe('el-bob left');
+  });
+
+  test('summarizes auto_blocked event', () => {
+    const event = createTestEvent({
+      eventType: EventType.AUTO_BLOCKED,
+      actor: 'system:blocked-cache' as EntityId,
+    });
+    expect(generateEventSummary(event)).toBe('Automatically blocked (dependency not satisfied)');
+  });
+
+  test('summarizes auto_unblocked event', () => {
+    const event = createTestEvent({
+      eventType: EventType.AUTO_UNBLOCKED,
+      actor: 'system:blocked-cache' as EntityId,
+    });
+    expect(generateEventSummary(event)).toBe('Automatically unblocked (blockers resolved)');
+  });
+});
+
+describe('generateTimelineSnapshots', () => {
+  const elementId = 'el-123' as ElementId;
+
+  test('generates timeline from single created event', () => {
+    const events: Event[] = [
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+        newValue: { id: 'el-123', type: 'task', title: 'Task' },
+      }),
+    ];
+
+    const snapshots = generateTimelineSnapshots(events);
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0].summary).toContain('Created by');
+    expect(snapshots[0].state?.title).toBe('Task');
+  });
+
+  test('generates timeline showing state evolution', () => {
+    const events: Event[] = [
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+        actor: 'el-alice' as EntityId,
+        newValue: { title: 'Initial', status: 'open' },
+      }),
+      createTestEvent({
+        id: 2,
+        elementId,
+        eventType: EventType.UPDATED,
+        createdAt: '2025-01-22T11:00:00.000Z' as Timestamp,
+        actor: 'el-bob' as EntityId,
+        oldValue: { title: 'Initial', status: 'open' },
+        newValue: { title: 'Updated', status: 'in_progress' },
+      }),
+      createTestEvent({
+        id: 3,
+        elementId,
+        eventType: EventType.CLOSED,
+        createdAt: '2025-01-22T12:00:00.000Z' as Timestamp,
+        actor: 'el-bob' as EntityId,
+        oldValue: { title: 'Updated', status: 'in_progress' },
+        newValue: { title: 'Updated', status: 'closed', reason: 'Done' },
+      }),
+    ];
+
+    const snapshots = generateTimelineSnapshots(events);
+    expect(snapshots).toHaveLength(3);
+
+    // Check state evolution
+    expect(snapshots[0].state?.title).toBe('Initial');
+    expect(snapshots[1].state?.title).toBe('Updated');
+    expect(snapshots[2].state?.status).toBe('closed');
+
+    // Check summaries
+    expect(snapshots[0].summary).toBe('Created by el-alice');
+    expect(snapshots[1].summary).toContain('Updated');
+    expect(snapshots[2].summary).toContain('Closed by el-bob');
+  });
+
+  test('handles deletion in timeline', () => {
+    const events: Event[] = [
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+        newValue: { title: 'Task' },
+      }),
+      createTestEvent({
+        id: 2,
+        elementId,
+        eventType: EventType.DELETED,
+        createdAt: '2025-01-22T11:00:00.000Z' as Timestamp,
+        oldValue: { title: 'Task' },
+        newValue: null,
+      }),
+    ];
+
+    const snapshots = generateTimelineSnapshots(events);
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[0].state?.title).toBe('Task');
+    expect(snapshots[1].state).toBeNull();
+  });
+
+  test('sorts events by time before generating timeline', () => {
+    const events: Event[] = [
+      // Provide events out of order
+      createTestEvent({
+        id: 2,
+        elementId,
+        eventType: EventType.UPDATED,
+        createdAt: '2025-01-22T11:00:00.000Z' as Timestamp,
+        newValue: { title: 'Second' },
+      }),
+      createTestEvent({
+        id: 1,
+        elementId,
+        eventType: EventType.CREATED,
+        createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+        newValue: { title: 'First' },
+      }),
+    ];
+
+    const snapshots = generateTimelineSnapshots(events);
+    expect(snapshots).toHaveLength(2);
+    // First snapshot should be from the created event
+    expect(snapshots[0].event.eventType).toBe(EventType.CREATED);
+    expect(snapshots[0].state?.title).toBe('First');
+    // Second snapshot should have updated state
+    expect(snapshots[1].event.eventType).toBe(EventType.UPDATED);
+    expect(snapshots[1].state?.title).toBe('Second');
+  });
+
+  test('returns empty array for no events', () => {
+    const snapshots = generateTimelineSnapshots([]);
+    expect(snapshots).toHaveLength(0);
   });
 });

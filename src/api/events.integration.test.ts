@@ -1210,4 +1210,210 @@ describe('Events System Integration', () => {
       expect(lifecycleEvents.some((e) => e.eventType === EventType.REOPENED)).toBe(true);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Reconstruction Tests
+  // --------------------------------------------------------------------------
+
+  describe('State Reconstruction', () => {
+    describe('reconstructAtTime', () => {
+      it('should reconstruct state at specific point in time', async () => {
+        const task = await createTestTask({ title: 'Initial Title', status: 'open' });
+        await api.create(toCreateInput(task));
+
+        // Wait for distinct timestamps
+        await delay(10);
+
+        // Get the timestamp before update
+        const beforeUpdate = new Date().toISOString() as Timestamp;
+
+        await delay(10);
+
+        // Update the task
+        await api.update<Task>(task.id, { title: 'Updated Title' } as Partial<Task>);
+
+        // Reconstruct state at time before update
+        const reconstructed = await api.reconstructAtTime<Task>(task.id, beforeUpdate);
+
+        expect(reconstructed).not.toBeNull();
+        expect(reconstructed!.exists).toBe(true);
+        expect(reconstructed!.element.title).toBe('Initial Title');
+        expect(reconstructed!.eventsApplied).toBe(1);
+      });
+
+      it('should return null for time before element existed', async () => {
+        const beforeCreation = new Date().toISOString() as Timestamp;
+
+        await delay(10);
+
+        const task = await createTestTask({ title: 'Task' });
+        await api.create(toCreateInput(task));
+
+        const reconstructed = await api.reconstructAtTime<Task>(task.id, beforeCreation);
+
+        expect(reconstructed).toBeNull();
+      });
+
+      it('should throw NotFoundError for non-existent element', async () => {
+        const nonExistentId = 'el-nonexistent' as ElementId;
+        const now = new Date().toISOString() as Timestamp;
+
+        await expect(api.reconstructAtTime(nonExistentId, now)).rejects.toThrow(
+          /No events found for element/
+        );
+      });
+
+      it('should handle multiple updates correctly', async () => {
+        const task = await createTestTask({ title: 'V1', status: 'open' });
+        await api.create(toCreateInput(task));
+
+        await delay(10);
+        const afterV1 = new Date().toISOString() as Timestamp;
+
+        await delay(10);
+        await api.update<Task>(task.id, { title: 'V2' } as Partial<Task>);
+
+        await delay(10);
+        const afterV2 = new Date().toISOString() as Timestamp;
+
+        await delay(10);
+        await api.update<Task>(task.id, { title: 'V3' } as Partial<Task>);
+
+        // Reconstruct at V1
+        let reconstructed = await api.reconstructAtTime<Task>(task.id, afterV1);
+        expect(reconstructed!.element.title).toBe('V1');
+
+        // Reconstruct at V2
+        reconstructed = await api.reconstructAtTime<Task>(task.id, afterV2);
+        expect(reconstructed!.element.title).toBe('V2');
+      });
+
+      it('should handle deleted elements', async () => {
+        const task = await createTestTask({ title: 'To Be Deleted' });
+        await api.create(toCreateInput(task));
+
+        await delay(10);
+        const beforeDelete = new Date().toISOString() as Timestamp;
+
+        await delay(10);
+        await api.delete(task.id, { actor: mockEntityId });
+
+        await delay(10);
+        const afterDelete = new Date().toISOString() as Timestamp;
+
+        // Before deletion - should exist
+        const beforeState = await api.reconstructAtTime<Task>(task.id, beforeDelete);
+        expect(beforeState).not.toBeNull();
+        expect(beforeState!.exists).toBe(true);
+
+        // After deletion - should not exist
+        const afterState = await api.reconstructAtTime<Task>(task.id, afterDelete);
+        expect(afterState).toBeNull();
+      });
+    });
+
+    describe('getElementTimeline', () => {
+      it('should generate timeline for element', async () => {
+        const task = await createTestTask({ title: 'Initial' });
+        await api.create(toCreateInput(task));
+
+        await delay(5);
+        await api.update<Task>(task.id, { title: 'Updated' } as Partial<Task>);
+
+        await delay(5);
+        await api.update<Task>(task.id, { status: 'closed' } as Partial<Task>);
+
+        const timeline = await api.getElementTimeline(task.id);
+
+        expect(timeline.elementId).toBe(task.id);
+        expect(timeline.snapshots.length).toBeGreaterThanOrEqual(3);
+        expect(timeline.totalEvents).toBeGreaterThanOrEqual(3);
+
+        // First snapshot should be creation
+        expect(timeline.snapshots[0].event.eventType).toBe(EventType.CREATED);
+        expect(timeline.snapshots[0].state?.title).toBe('Initial');
+        expect(timeline.snapshots[0].summary).toContain('Created by');
+      });
+
+      it('should throw NotFoundError for non-existent element', async () => {
+        const nonExistentId = 'el-nonexistent' as ElementId;
+
+        await expect(api.getElementTimeline(nonExistentId)).rejects.toThrow(
+          /No events found for element/
+        );
+      });
+
+      it('should filter timeline events by type', async () => {
+        const task = await createTestTask({ title: 'Task' });
+        await api.create(toCreateInput(task));
+
+        await delay(5);
+        await api.update<Task>(task.id, { title: 'Updated 1' } as Partial<Task>);
+
+        await delay(5);
+        await api.update<Task>(task.id, { title: 'Updated 2' } as Partial<Task>);
+
+        // Get timeline with only update events
+        const timeline = await api.getElementTimeline(task.id, {
+          eventType: EventType.UPDATED,
+        });
+
+        // Should only have update events
+        expect(timeline.snapshots.every((s) => s.event.eventType === EventType.UPDATED)).toBe(true);
+        expect(timeline.snapshots.length).toBe(2);
+      });
+
+      it('should show current state in timeline', async () => {
+        const task = await createTestTask({ title: 'Current' });
+        await api.create(toCreateInput(task));
+
+        const timeline = await api.getElementTimeline(task.id);
+
+        expect(timeline.currentState).not.toBeNull();
+        expect((timeline.currentState as Task).title).toBe('Current');
+      });
+
+      it('should show tombstone state for deleted elements', async () => {
+        const task = await createTestTask({ title: 'To Delete' });
+        await api.create(toCreateInput(task));
+
+        await api.delete(task.id, { actor: mockEntityId });
+
+        const timeline = await api.getElementTimeline(task.id);
+
+        // Soft-deleted elements are returned as tombstone by get()
+        expect(timeline.currentState).not.toBeNull();
+        expect((timeline.currentState as Task).status).toBe('tombstone');
+        expect(timeline.totalEvents).toBe(2); // created + deleted
+      });
+
+      it('should show state evolution in snapshots', async () => {
+        const task = await createTestTask({ title: 'Start', priority: 1 });
+        await api.create(toCreateInput(task));
+
+        await delay(5);
+        await api.update<Task>(task.id, { title: 'Middle', priority: 2 } as Partial<Task>);
+
+        await delay(5);
+        await api.update<Task>(task.id, { title: 'End', priority: 3 } as Partial<Task>);
+
+        const timeline = await api.getElementTimeline(task.id);
+
+        // Check state evolution
+        expect(timeline.snapshots[0].state?.title).toBe('Start');
+        expect(timeline.snapshots[0].state?.priority).toBe(1);
+
+        // Find the update snapshots
+        const updateSnapshots = timeline.snapshots.filter(
+          (s) => s.event.eventType === EventType.UPDATED
+        );
+        expect(updateSnapshots.length).toBe(2);
+
+        // Last snapshot should have final state
+        const lastSnapshot = timeline.snapshots[timeline.snapshots.length - 1];
+        expect(lastSnapshot.state?.title).toBe('End');
+        expect(lastSnapshot.state?.priority).toBe(3);
+      });
+    });
+  });
 });

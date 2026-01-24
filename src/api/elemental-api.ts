@@ -12,6 +12,7 @@ import type { Document, DocumentId } from '../types/document.js';
 import { isDocument } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter, EventType } from '../types/event.js';
+import { reconstructStateAtTime, generateTimelineSnapshots } from '../types/event.js';
 import { createTimestamp } from '../types/element.js';
 import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
 import { isPlan, PlanStatus as PlanStatusEnum, calculatePlanProgress, type PlanProgress } from '../types/plan.js';
@@ -72,6 +73,9 @@ import type {
   TeamMembershipResult,
   TeamMetrics,
   OperationOptions,
+  ReconstructedState,
+  ElementTimeline,
+  TimelineSnapshot,
 } from './types.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -2200,6 +2204,71 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     return results;
+  }
+
+  async reconstructAtTime<T extends Element = Element>(
+    id: ElementId,
+    asOf: Timestamp
+  ): Promise<ReconstructedState<T> | null> {
+    // Get all events for this element (we need them all for reconstruction)
+    const events = await this.getEvents(id, {});
+
+    if (events.length === 0) {
+      throw new NotFoundError(
+        `No events found for element: ${id}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: id }
+      );
+    }
+
+    // Use the reconstruction utility
+    const { state, eventsApplied, exists } = reconstructStateAtTime(events, asOf);
+
+    // If the element didn't exist at that time, return null
+    if (!exists || state === null) {
+      return null;
+    }
+
+    // Return the reconstructed state
+    return {
+      element: state as T,
+      asOf,
+      eventsApplied,
+      exists,
+    };
+  }
+
+  async getElementTimeline(id: ElementId, filter?: EventFilter): Promise<ElementTimeline> {
+    // Get all events for this element
+    const events = await this.getEvents(id, filter);
+
+    if (events.length === 0) {
+      throw new NotFoundError(
+        `No events found for element: ${id}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: id }
+      );
+    }
+
+    // Get current state
+    const currentState = await this.get(id);
+
+    // Generate timeline snapshots
+    const snapshotData = generateTimelineSnapshots(events);
+
+    // Convert to the expected format
+    const snapshots: TimelineSnapshot[] = snapshotData.map(({ event, state, summary }) => ({
+      event,
+      state,
+      summary,
+    }));
+
+    return {
+      elementId: id,
+      currentState,
+      snapshots,
+      totalEvents: events.length,
+    };
   }
 
   // --------------------------------------------------------------------------

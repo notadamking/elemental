@@ -291,10 +291,10 @@ Event and mutation in same transaction:
 - [x] Implement getEvents by time range (EventFilter.after/before support)
 - [x] Implement filtering (EventFilter with eventType, actor, after, before, limit)
 
-### Phase 6: Reconstruction (Optional)
-- [ ] Implement point-in-time reconstruction
-- [ ] Implement timeline generation
-- [ ] Add reconstruction API
+### Phase 6: Reconstruction ✅
+- [x] Implement point-in-time reconstruction ✅ (reconstructStateAtTime utility in event.ts, reconstructAtTime API method)
+- [x] Implement timeline generation ✅ (generateTimelineSnapshots utility, getElementTimeline API method)
+- [x] Add reconstruction API ✅ (ReconstructedState, ElementTimeline, TimelineSnapshot types in api/types.ts; reconstructAtTime, getElementTimeline methods in elemental-api.ts; 36 unit tests in event.test.ts for reconstruction utilities; 10 integration tests in events.integration.test.ts)
 
 ### Phase 7: CLI Integration ✅
 - [x] Add events to show command ✅ (--events flag, --events-limit option - 4 tests in crud.test.ts)

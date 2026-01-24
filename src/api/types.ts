@@ -512,6 +512,50 @@ export interface ListResult<T> {
 }
 
 // ============================================================================
+// Reconstruction Types
+// ============================================================================
+
+/**
+ * Result of point-in-time state reconstruction.
+ */
+export interface ReconstructedState<T extends Element = Element> {
+  /** The reconstructed element state at the target timestamp */
+  element: T;
+  /** The timestamp at which the state was reconstructed */
+  asOf: Timestamp;
+  /** Number of events applied to reconstruct this state */
+  eventsApplied: number;
+  /** Whether the element existed at this timestamp */
+  exists: boolean;
+}
+
+/**
+ * A snapshot in an element's history timeline.
+ */
+export interface TimelineSnapshot {
+  /** The event that caused this state change */
+  event: Event;
+  /** The element state after this event was applied */
+  state: Record<string, unknown> | null;
+  /** Human-readable description of the change */
+  summary: string;
+}
+
+/**
+ * Complete timeline of an element's history.
+ */
+export interface ElementTimeline {
+  /** The element ID */
+  elementId: ElementId;
+  /** The current state (or null if deleted) */
+  currentState: Element | null;
+  /** Timeline of all state changes (oldest first) */
+  snapshots: TimelineSnapshot[];
+  /** Total number of events in the element's history */
+  totalEvents: number;
+}
+
+// ============================================================================
 // Element Input Types
 // ============================================================================
 
@@ -921,6 +965,37 @@ export interface ElementalAPI {
    * @returns Array of document versions (newest first)
    */
   getDocumentHistory(id: DocumentId): Promise<Document[]>;
+
+  /**
+   * Reconstruct an element's state at a specific point in time.
+   *
+   * Algorithm:
+   * 1. Find the creation event for the element
+   * 2. Apply all events up to the target timestamp
+   * 3. Return the reconstructed state
+   *
+   * @param id - Element ID
+   * @param asOf - Target timestamp to reconstruct state at
+   * @returns Reconstructed state, or null if element didn't exist at that time
+   * @throws NotFoundError if element has no events (never existed)
+   */
+  reconstructAtTime<T extends Element = Element>(
+    id: ElementId,
+    asOf: Timestamp
+  ): Promise<ReconstructedState<T> | null>;
+
+  /**
+   * Generate a complete timeline of an element's history.
+   *
+   * Shows the evolution of the element through all its events,
+   * with state snapshots after each event.
+   *
+   * @param id - Element ID
+   * @param filter - Optional event filter (e.g., limit to certain event types)
+   * @returns Element timeline with snapshots
+   * @throws NotFoundError if element has no events (never existed)
+   */
+  getElementTimeline(id: ElementId, filter?: EventFilter): Promise<ElementTimeline>;
 
   // --------------------------------------------------------------------------
   // Channel Operations
