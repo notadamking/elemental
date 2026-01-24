@@ -4106,6 +4106,94 @@ would enable efficient "messages since last check" polling patterns.
 
 ---
 
+### Scenario: Task Notes Field CLI Behavior and Edge Cases
+
+**Purpose:** Evaluate the task notes field behavior during creation, display, and edge case handling - critical for agents recording progress, context, and handoff information
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Minor UX issues found)
+
+**Checkpoints:**
+
+**Notes Creation:**
+- [x] Create task with notes: `el create task --title "Task" --notes "Notes content" --json`
+  - Notes stored correctly
+  - Notes field present in JSON output
+- [x] Create task without notes: notes field omitted from output (not null)
+- [x] Create task with empty notes string: normalized to null
+- [ ] **FAIL**: Create task with whitespace-only notes: `--notes "   "`
+  - **UX el-3v7z:** Stored literally instead of normalized to null like empty string
+- [x] Multi-line notes: newlines preserved correctly
+- [x] Unicode notes: Japanese, emojis, special characters preserved correctly
+- [x] Long notes (10K+ chars): accepted and stored correctly
+- [x] Notes with tab characters: preserved correctly
+
+**Notes Display:**
+- [x] `el show` includes notes in output
+- [x] `el ready` includes notes in output
+- [x] `el list task` includes notes in output
+- [x] Notes field omitted when null (not shown as `null`)
+
+**Notes Update:**
+- [ ] **FAIL**: `el update --notes "New notes"` returns "Unknown option: --notes"
+  - **ENHANCEMENT el-5qjd (pre-existing):** --notes flag not supported on update
+  - No workaround to update notes after creation
+
+**Notes from File:**
+- [x] Command substitution workaround: `--notes "$(cat file.md)"` works
+- [ ] **FAIL**: `--notes-file` option doesn't exist
+  - **ENHANCEMENT el-5yhr:** No file-based notes loading option
+
+**Content Validation:**
+- [ ] **FAIL**: Null character truncates notes content (el-5zw4 confirmed)
+  - `--notes "Before\x00After"` stores only "Before"
+
+**Filtering by Notes:**
+- [ ] **FAIL**: `el list --notes "keyword"` option doesn't exist
+  - Must filter client-side with jq
+  - Related to el-4aja (search command not implemented)
+
+**Success Criteria:** Notes field works correctly for agent progress tracking
+- **PARTIAL:** Core creation and display work, but no update capability and minor UX issues
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3v7z | UX: el create task --notes accepts whitespace-only content | 5 | ux |
+| el-5yhr | ENHANCEMENT: Add --notes-file flag to el create task | 5 | enhancement |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5qjd | (pre-existing) el update missing --notes flag | 4 | enhancement |
+| el-5zw4 | (pre-existing) Null character in input silently truncates strings | 3 | bug |
+
+**Dependencies:**
+- el-3v7z → el-5ha0 (relates-to: same whitespace validation pattern)
+- el-3v7z → el-5c2v (relates-to: same whitespace validation pattern)
+- el-3v7z → el-2aqg (relates-to: same whitespace validation pattern)
+- el-5yhr → el-5qjd (relates-to: both notes field improvements)
+
+**Notes:**
+This evaluation tested the task notes field which is critical for agent orchestration patterns
+where agents need to record:
+1. Progress updates during work
+2. Context for handoff to other agents
+3. Links to specifications or related documents
+4. Structured information (markdown, JSON)
+
+Key findings:
+1. Core notes functionality works correctly for creation and display
+2. No ability to update notes after creation (el-5qjd)
+3. Null character truncation affects notes (el-5zw4)
+4. Whitespace normalization inconsistent (empty string → null, whitespace → preserved)
+5. Notes field not searchable/filterable (related to missing search command)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
