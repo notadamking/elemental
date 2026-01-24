@@ -1032,68 +1032,95 @@ Agent-focused criteria for CLI usability.
 
 Verify each command produces consistent JSON.
 
+**Status:** TESTED - 2026-01-24 (Partial Pass - Inconsistencies Found)
+
 ### Create Commands
 
-| Command | ID Location | Includes Type | Includes Timestamps |
-|---------|-------------|---------------|---------------------|
-| `el create task` | `.id` | [ ] | [ ] |
-| `el create document` (via `el doc write`) | `.id` | [ ] | [ ] |
-| `el plan create` | `.id` | [ ] | [ ] |
-| `el workflow pour` | `.id` | [ ] | [ ] |
-| `el channel create` | `.id` | [ ] | [ ] |
-| `el library create` | `.id` | [ ] | [ ] |
-| `el team create` | `.id` | [ ] | [ ] |
-| `el entity register` | `.id` | [ ] | [ ] |
+All create commands return `{success: true, data: {...}}` with the created element.
+
+| Command | ID Location | Includes Type | Includes Timestamps | Notes |
+|---------|-------------|---------------|---------------------|-------|
+| `el create task` | `.data.id` | [x] | [x] | ✓ Consistent |
+| `el doc create` | `.data.id` | [x] | [x] | ✓ Consistent (not `el doc write`) |
+| `el plan create` | `.data.id` | [x] | [x] | ✓ Consistent |
+| `el workflow pour` | `.data.id` | [x] | [x] | ✓ Consistent |
+| `el channel create` | `.data.id` | [x] | [x] | **BUG el-5zan:** Requires `--actor` flag |
+| `el library create` | `.data.id` | [x] | [x] | ✓ Consistent |
+| `el team create` | `.data.id` | [x] | [x] | ✓ Consistent |
+| `el entity register` | `.data.id` | [x] | [x] | ✓ Consistent |
+| `el playbook create` | `.data.id` | [x] | [x] | ✓ Consistent |
 
 ### List Commands
 
-| Command | Array Field | Item Has ID | Consistent Item Shape |
-|---------|-------------|-------------|----------------------|
-| `el list` | top-level array | [ ] | [ ] |
-| `el list --type task` | top-level array | [ ] | [ ] |
-| `el ready` | top-level array | [ ] | [ ] |
-| `el blocked` | top-level array | [ ] | [ ] |
-| `el plan list` | top-level array | [ ] | [ ] |
-| `el workflow list` | top-level array | [ ] | [ ] |
-| `el channel list` | top-level array | [ ] | [ ] |
-| `el library list` | top-level array | [ ] | [ ] |
-| `el team list` | top-level array | [ ] | [ ] |
-| `el entity list` | top-level array | [ ] | [ ] |
-| `el playbook list` | top-level array | [ ] | [ ] |
+All list commands return `{success: true, data: [...]}` with array of elements.
+
+| Command | Array Field | Item Has ID | Consistent Item Shape | Notes |
+|---------|-------------|-------------|----------------------|-------|
+| `el list` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el list --type task` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el ready` | `.data[]` | [x] | **PARTIAL** | **BUG el-50s8:** Extra fields (effectivePriority, priorityInfluenced) |
+| `el blocked` | `.data[]` | [x] | **PARTIAL** | Extra fields (blockedBy, blockReason) - expected behavior |
+| `el plan list` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el workflow list` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el channel list` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el library list` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el team list` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el entity list` | `.data[]` | [x] | [x] | ✓ Consistent |
+| `el playbook list` | `.data[]` | [x] | [x] | ✓ Consistent |
 
 ### Show Commands
 
-| Command | ID at `.id` | Full Element Data | Consistent with List Item |
-|---------|-------------|-------------------|--------------------------|
-| `el show <id>` | [ ] | [ ] | [ ] |
-| `el plan show <id>` | [ ] | [ ] | [ ] |
-| `el workflow show <id>` | [ ] | [ ] | [ ] |
-| `el playbook show <name>` | [ ] | [ ] | [ ] |
-| `el doc read <id>` | [ ] | [ ] | [ ] |
+| Command | ID at `.data.id` | Full Element Data | Consistent with List Item | Notes |
+|---------|------------------|-------------------|--------------------------|-------|
+| `el show <id>` | [x] | [x] | [x] | ✓ Consistent |
+| `el plan show <id>` | **NESTED** | [x] | **NO** | **BUG el-lxt9:** Returns `{plan: {...}, progress: {...}}` |
+| `el workflow show <id>` | [x] | [x] | [x] | ✓ Consistent |
+| `el playbook show <name>` | [x] | [x] | [x] | ✓ Consistent |
+| `el doc show <id>` | [x] | [x] | [x] | ✓ Consistent (not `el doc read`) |
 
 ### Field Naming Conventions
 
-Check all commands use consistent naming:
+All commands use consistent camelCase naming:
 
-| Expected | Alternatives to Check For |
-|----------|--------------------------|
-| `id` | `_id`, `ID`, `elementId` |
-| `createdAt` | `created_at`, `createTime`, `created` |
-| `updatedAt` | `updated_at`, `updateTime`, `updated` |
-| `createdBy` | `created_by`, `creator`, `author` |
-| `channelId` | `channel_id`, `channel` |
-| `contentType` | `content_type`, `type` |
+| Expected | Alternatives Found | Status |
+|----------|-------------------|--------|
+| `id` | None | ✓ |
+| `createdAt` | None | ✓ |
+| `updatedAt` | None | ✓ |
+| `createdBy` | None | ✓ |
+| `channelId` | N/A (not used) | ✓ |
+| `contentType` | None | ✓ |
 
 ### Timestamp Format
 
-All timestamps should be ISO 8601: `2025-01-22T10:00:00.000Z`
+All timestamps use ISO 8601: `2026-01-24T11:10:47.029Z`
 
-- [ ] `createdAt` format correct
-- [ ] `updatedAt` format correct
-- [ ] `closedAt` format correct
-- [ ] `deletedAt` format correct
-- [ ] `scheduledFor` format correct
-- [ ] `deadline` format correct
+- [x] `createdAt` format correct
+- [x] `updatedAt` format correct
+- [x] `closedAt` format correct
+- [ ] `deletedAt` format correct - not tested (soft delete not exercised)
+- [ ] `scheduledFor` format correct - not tested (no CLI flag)
+- [ ] `deadline` format correct - **ENHANCEMENT el-e6wc:** No `--deadline` CLI flag
+
+### Error Output
+
+- [x] Errors return valid JSON when `--json` specified
+- [x] Error structure: `{success: false, error: "message", exitCode: N}`
+- [ ] Error includes `code` field - **BUG el-5pwg:** Missing per api/errors.md spec
+
+### Empty Results
+
+- [x] Empty arrays returned as `[]`, not `null` or omitted
+
+### Issues Found
+
+| ID | Summary | Priority |
+|----|---------|----------|
+| el-50s8 | `el ready` includes extra fields not in `el list --type task` | 3 |
+| el-lxt9 | `el plan show` wraps data in nested `{plan, progress}` structure | 3 |
+| el-5zan | `el channel create` requires `--actor` unlike other create commands | 3 |
+| el-e6wc | `el create task` missing `--deadline` flag per task spec | 4 |
+| el-5pwg | (pre-existing) JSON error output missing `code` field | 3 |
 
 ---
 
