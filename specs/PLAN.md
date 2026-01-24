@@ -1715,7 +1715,7 @@ Recommended implementation sequence:
 - [x] **types/task.md Phase 6**: Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
 - [x] **types/message.md Phase 8**: Integration tests for threading, E2E tests for message flows ✅ (CLI tests: Direct Messaging Flow, Group Channel Messaging Flow, Threaded Conversation Flow, Channel Lifecycle with Messaging, Messaging Output Formats)
 - [x] **types/document.md Phase 7** (partial): Integration tests for history queries ✅ (document-version.integration.test.ts - 19 tests)
-- [ ] **types/document.md Phase 7**: E2E tests for Document lifecycle
+- [x] **types/document.md Phase 7**: E2E tests for Document lifecycle ✅ (document.test.ts - 37 tests)
 - [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests), signature verification tests ✅ (148 tests)
 - [x] **types/entity.md Phase 7**: E2E tests for entity lifecycle ✅ (10 E2E tests in src/cli/commands/entity.test.ts covering registration, update, deactivation, reactivation, persistence, tags, uniqueness, special characters)
 - [x] **types/plan.md Phase 8**: Unit tests for status transitions, progress calculation; integration tests; E2E tests ✅ (103 unit tests, 31 integration tests, 17 E2E tests)
