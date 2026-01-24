@@ -141,6 +141,47 @@ app.get('/api/tasks/completed', async (c) => {
   }
 });
 
+app.get('/api/tasks/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+
+    // Parse hydration options from query params
+    const hydrateDescription = url.searchParams.get('hydrate.description') === 'true';
+    const hydrateDesign = url.searchParams.get('hydrate.design') === 'true';
+
+    const hydrate = (hydrateDescription || hydrateDesign)
+      ? { description: hydrateDescription, design: hydrateDesign }
+      : undefined;
+
+    const task = await api.get(id, hydrate ? { hydrate } : undefined);
+
+    if (!task) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Verify it's actually a task
+    if (task.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Fetch dependencies and dependents for the task detail view
+    const [dependencies, dependents] = await Promise.all([
+      api.getDependencies(id),
+      api.getDependents(id),
+    ]);
+
+    return c.json({
+      ...task,
+      _dependencies: dependencies,
+      _dependents: dependents,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get task' } }, 500);
+  }
+});
+
 // ============================================================================
 // Entities Endpoints
 // ============================================================================

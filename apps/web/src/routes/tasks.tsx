@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 
 interface Task {
   id: string;
@@ -44,12 +46,16 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-800',
 };
 
-function TaskRow({ task }: { task: Task }) {
+function TaskRow({ task, isSelected, onClick }: { task: Task; isSelected: boolean; onClick: () => void }) {
   const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
   const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr
+      className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}`}
+      onClick={onClick}
+      data-testid={`task-row-${task.id}`}
+    >
       <td className="px-4 py-3">
         <div>
           <div className="font-medium text-gray-900">{task.title}</div>
@@ -90,61 +96,85 @@ function TaskRow({ task }: { task: Task }) {
 
 export function TasksPage() {
   const tasks = useTasks();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  const handleTaskClick = (taskId: string) => {
+    setSelectedTaskId(taskId);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedTaskId(null);
+  };
 
   return (
-    <div data-testid="tasks-page">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
-        <div className="flex items-center gap-2">
-          {/* View toggle and filters will go here */}
+    <div className="flex h-full" data-testid="tasks-page">
+      {/* Task List - shrinks when detail panel is open */}
+      <div className={`flex flex-col ${selectedTaskId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
+          <div className="flex items-center gap-2">
+            {/* View toggle and filters will go here */}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto">
+          {tasks.isLoading && (
+            <div className="p-4 text-gray-500">Loading tasks...</div>
+          )}
+
+          {tasks.isError && (
+            <div className="p-4 text-red-600">Failed to load tasks</div>
+          )}
+
+          {tasks.data && tasks.data.length === 0 && (
+            <div className="p-6 text-center text-gray-500">
+              No tasks found.
+            </div>
+          )}
+
+          {tasks.data && tasks.data.length > 0 && (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Task
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Priority
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Assignee
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tags
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {tasks.data.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    isSelected={task.id === selectedTaskId}
+                    onClick={() => handleTaskClick(task.id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {tasks.isLoading && (
-        <div className="text-gray-500">Loading tasks...</div>
-      )}
-
-      {tasks.isError && (
-        <div className="text-red-600">Failed to load tasks</div>
-      )}
-
-      {tasks.data && tasks.data.length === 0 && (
-        <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-          No tasks found.
-        </div>
-      )}
-
-      {tasks.data && tasks.data.length > 0 && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Task
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Priority
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Assignee
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tags
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tasks.data.map((task) => (
-                <TaskRow key={task.id} task={task} />
-              ))}
-            </tbody>
-          </table>
+      {/* Task Detail Panel */}
+      {selectedTaskId && (
+        <div className="w-1/2 border-l border-gray-200" data-testid="task-detail-container">
+          <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
         </div>
       )}
     </div>

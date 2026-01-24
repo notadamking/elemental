@@ -558,11 +558,11 @@ For mutations (create, update, delete):
   - [x] Web: Wire up navigation actions
   - [x] **Verify:** Cmd+K opens, navigation works (Playwright tests passing - 11 tests)
 
-- [ ] **TB11: Task Detail Panel**
-  - [ ] Server: Add hydration to `GET /api/tasks/:id`
-  - [ ] Web: Create TaskDetailPanel component
-  - [ ] Web: Split view layout
-  - [ ] **Verify:** Click task shows detail panel
+- [x] **TB11: Task Detail Panel**
+  - [x] Server: Add `GET /api/tasks/:id` endpoint with hydration support
+  - [x] Web: Create TaskDetailPanel component
+  - [x] Web: Split view layout with task selection
+  - [x] **Verify:** Click task shows detail panel (Playwright tests passing - 12 tests)
 
 - [ ] **TB12: Edit Task**
   - [ ] Server: Add `PATCH /api/tasks/:id` endpoint
