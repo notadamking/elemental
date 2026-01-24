@@ -222,7 +222,7 @@ For "tasks for team":
 ### Phase 2: Basic Operations ✅
 - [x] Implement team creation (`createTeam`)
 - [x] Implement team update (name, description) (`updateTeam`)
-- [ ] Implement team deletion (soft delete pattern)
+- [x] Implement team deletion (soft delete pattern)
 
 ### Phase 3: Membership ✅
 - [x] Implement add member (`addMember`)
@@ -230,7 +230,7 @@ For "tasks for team":
 - [x] Implement membership check (`isMember`)
 - [x] Implement `getMemberCount`
 - [x] Create `MembershipError` for membership operations
-- [ ] Add membership events (requires event system integration)
+- [x] Add membership events (requires event system integration)
 
 ### Phase 4: Queries ✅
 - [x] Implement team listing utilities (`filterByCreator`, `filterWithDescription`, etc.)
@@ -242,26 +242,27 @@ For "tasks for team":
 - [x] Implement grouping utilities (`groupByCreator`)
 - [x] Implement team comparison (`haveCommonMembers`, `getCommonMembers`)
 
-### Phase 5: Task Integration
-- [ ] Support team as assignee
-- [ ] Implement tasks-for-team query
-- [ ] Implement claim mechanism (optional)
+### Phase 5: Task Integration ✅
+- [x] Support team as assignee
+- [x] Implement tasks-for-team query (`getTasksForTeam`)
+- [x] Implement claim mechanism (`claimTaskFromTeam`)
 
-### Phase 6: Metrics (Optional)
-- [ ] Implement task aggregation
-- [ ] Implement throughput calculation
-- [ ] Add metrics endpoint
+### Phase 6: Metrics ✅
+- [x] Implement task aggregation
+- [x] Implement throughput calculation
+- [x] Add metrics endpoint (`getTeamMetrics`)
 
-### Phase 7: CLI Commands
-- [ ] team create
-- [ ] team add (member)
-- [ ] team remove (member)
-- [ ] team list
-- [ ] team members
+### Phase 7: CLI Commands ✅
+- [x] team create
+- [x] team add (member)
+- [x] team remove (member)
+- [x] team delete (soft delete)
+- [x] team list
+- [x] team members
 
 ### Phase 8: Testing ✅
 - [x] Unit tests for type definitions and validation (141 tests)
 - [x] Unit tests for membership operations
 - [x] Unit tests for queries and utility functions
-- [ ] Integration tests for task assignment
+- [x] Integration tests for task assignment
 - [ ] E2E tests for team workflows

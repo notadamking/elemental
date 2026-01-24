@@ -18,9 +18,8 @@ import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import {
   createTeam,
-  addMember,
-  removeMember,
   isMember,
+  isDeleted,
   type Team,
   type CreateTeamInput,
 } from '../../types/team.js';
@@ -207,7 +206,7 @@ async function teamAddHandler(
   try {
     const actor = resolveActor(options);
 
-    // Get team
+    // First check if already a member (for better UX message)
     const team = await api.get<Team>(teamId as ElementId);
     if (!team) {
       return failure(`Team not found: ${teamId}`, ExitCode.NOT_FOUND);
@@ -215,19 +214,14 @@ async function teamAddHandler(
     if (team.type !== 'team') {
       return failure(`Element ${teamId} is not a team (type: ${team.type})`, ExitCode.VALIDATION);
     }
-
-    // Check if already a member
     if (isMember(team, entityId as EntityId)) {
       return success(team, `Entity ${entityId} is already a member of team ${teamId}`);
     }
 
-    // Add member
-    const updated = addMember(team, entityId as EntityId);
-
-    // Update in database
-    await api.update<Team>(
+    // Use the API method which handles validation, updates, and events
+    await api.addTeamMember(
       teamId as ElementId,
-      { members: updated.members },
+      entityId as EntityId,
       { actor }
     );
 
@@ -278,7 +272,7 @@ async function teamRemoveHandler(
   try {
     const actor = resolveActor(options);
 
-    // Get team
+    // First check if entity is a member (for better UX)
     const team = await api.get<Team>(teamId as ElementId);
     if (!team) {
       return failure(`Team not found: ${teamId}`, ExitCode.NOT_FOUND);
@@ -286,19 +280,14 @@ async function teamRemoveHandler(
     if (team.type !== 'team') {
       return failure(`Element ${teamId} is not a team (type: ${team.type})`, ExitCode.VALIDATION);
     }
-
-    // Check if member
     if (!isMember(team, entityId as EntityId)) {
       return success(team, `Entity ${entityId} is not a member of team ${teamId}`);
     }
 
-    // Remove member
-    const updated = removeMember(team, entityId as EntityId);
-
-    // Update in database
-    await api.update<Team>(
+    // Use the API method which handles validation, updates, and events
+    await api.removeTeamMember(
       teamId as ElementId,
-      { members: updated.members },
+      entityId as EntityId,
       { actor }
     );
 
@@ -325,6 +314,112 @@ Arguments:
 Examples:
   el team remove el-team123 el-user456`,
   handler: teamRemoveHandler as Command['handler'],
+};
+
+// ============================================================================
+// Team Delete Command
+// ============================================================================
+
+interface TeamDeleteOptions {
+  reason?: string;
+  force?: boolean;
+}
+
+const teamDeleteOptions: CommandOption[] = [
+  {
+    name: 'reason',
+    short: 'r',
+    description: 'Reason for deletion',
+    hasValue: true,
+  },
+  {
+    name: 'force',
+    short: 'f',
+    description: 'Skip confirmation for teams with members',
+    hasValue: false,
+  },
+];
+
+async function teamDeleteHandler(
+  args: string[],
+  options: GlobalOptions & TeamDeleteOptions
+): Promise<CommandResult> {
+  const [teamId] = args;
+
+  if (!teamId) {
+    return failure('Usage: el team delete <team-id> [options]', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const actor = resolveActor(options);
+
+    // Get team
+    const team = await api.get<Team>(teamId as ElementId);
+    if (!team) {
+      return failure(`Team not found: ${teamId}`, ExitCode.NOT_FOUND);
+    }
+    if (team.type !== 'team') {
+      return failure(`Element ${teamId} is not a team (type: ${team.type})`, ExitCode.VALIDATION);
+    }
+
+    // Check if already deleted
+    if (isDeleted(team)) {
+      return failure(`Team ${teamId} is already deleted`, ExitCode.VALIDATION);
+    }
+
+    // Warn if team has members (unless --force)
+    if (team.members.length > 0 && !options.force) {
+      return failure(
+        `Team ${teamId} has ${team.members.length} member(s). Use --force to delete anyway.`,
+        ExitCode.VALIDATION
+      );
+    }
+
+    // Soft delete the team
+    await api.delete(teamId as ElementId, { actor, reason: options.reason });
+
+    const mode = getOutputMode(options);
+    if (mode === 'quiet') {
+      return success(teamId);
+    }
+
+    return success(
+      { teamId, deletedAt: new Date().toISOString() },
+      `Deleted team ${teamId}${options.reason ? ` (reason: ${options.reason})` : ''}`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to delete team: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const teamDeleteCommand: Command = {
+  name: 'delete',
+  description: 'Delete a team (soft delete)',
+  usage: 'el team delete <team-id> [options]',
+  help: `Delete a team (soft delete).
+
+Arguments:
+  team-id    Team identifier
+
+Options:
+  -r, --reason <text>  Reason for deletion
+  -f, --force          Skip confirmation for teams with members
+
+Note: Teams with members require --force flag to delete.
+      Soft delete preserves the team in audit trail.
+
+Examples:
+  el team delete el-team123
+  el team delete el-team123 --reason "Team disbanded"
+  el team delete el-team123 --force`,
+  options: teamDeleteOptions,
+  handler: teamDeleteHandler as Command['handler'],
 };
 
 // ============================================================================
@@ -529,6 +624,7 @@ Subcommands:
   create   Create a new team
   add      Add member to team
   remove   Remove member from team
+  delete   Delete a team (soft delete)
   list     List teams
   members  List team members
 
@@ -536,11 +632,13 @@ Examples:
   el team create --name "Engineering"
   el team list --member el-user123
   el team add el-team123 el-user456
-  el team members el-team123`,
+  el team members el-team123
+  el team delete el-team123`,
   subcommands: {
     create: teamCreateCommand,
     add: teamAddCommand,
     remove: teamRemoveCommand,
+    delete: teamDeleteCommand,
     list: teamListCommand,
     members: teamMembersCommand,
   },

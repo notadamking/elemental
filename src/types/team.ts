@@ -13,6 +13,7 @@ import {
   ElementId,
   EntityId,
   ElementType,
+  Timestamp,
   createTimestamp,
   validateTags,
   validateMetadata,
@@ -48,6 +49,18 @@ export type TeamId = ElementId & { readonly [TeamIdBrand]: typeof TeamIdBrand };
 // ============================================================================
 
 /**
+ * Team status values
+ */
+export const TeamStatus = {
+  /** Active team - can accept members and tasks */
+  ACTIVE: 'active',
+  /** Soft-deleted team - preserved for audit trail */
+  TOMBSTONE: 'tombstone',
+} as const;
+
+export type TeamStatus = (typeof TeamStatus)[keyof typeof TeamStatus];
+
+/**
  * Team interface - extends Element with entity collection properties
  */
 export interface Team extends Element {
@@ -63,6 +76,18 @@ export interface Team extends Element {
   // Membership
   /** Current team members (EntityIds) */
   members: EntityId[];
+
+  // Status
+  /** Team status - defaults to 'active' */
+  status?: TeamStatus;
+
+  // Soft delete fields
+  /** When team was soft-deleted */
+  deletedAt?: Timestamp;
+  /** Entity that deleted the team */
+  deletedBy?: EntityId;
+  /** Reason for deletion */
+  deleteReason?: string;
 }
 
 /**
@@ -718,4 +743,75 @@ export function haveCommonMembers(teamA: Team, teamB: Team): boolean {
  */
 export function getCommonMembers(teamA: Team, teamB: Team): EntityId[] {
   return teamA.members.filter((m) => teamB.members.includes(m));
+}
+
+// ============================================================================
+// Soft Delete Functions
+// ============================================================================
+
+/**
+ * Input for soft deleting a team
+ */
+export interface DeleteTeamInput {
+  /** Entity performing the deletion */
+  deletedBy: EntityId;
+  /** Reason for deletion */
+  deleteReason?: string;
+}
+
+/**
+ * Soft deletes a team (marks as tombstone)
+ *
+ * @param team - The team to delete
+ * @param input - Deletion input
+ * @returns The soft-deleted team
+ * @throws ValidationError if team is already deleted
+ */
+export function softDeleteTeam(team: Team, input: DeleteTeamInput): Team {
+  if (isDeleted(team)) {
+    throw new ValidationError(
+      'Team is already deleted',
+      ErrorCode.INVALID_INPUT,
+      { teamId: team.id, currentStatus: team.status }
+    );
+  }
+
+  const now = createTimestamp();
+
+  return {
+    ...team,
+    status: TeamStatus.TOMBSTONE,
+    deletedAt: now,
+    deletedBy: input.deletedBy,
+    ...(input.deleteReason !== undefined && { deleteReason: input.deleteReason }),
+    updatedAt: now,
+  };
+}
+
+/**
+ * Checks if a team is soft-deleted (tombstone)
+ */
+export function isDeleted(team: Team): boolean {
+  return team.status === TeamStatus.TOMBSTONE;
+}
+
+/**
+ * Checks if a team is active (not deleted)
+ */
+export function isActive(team: Team): boolean {
+  return team.status !== TeamStatus.TOMBSTONE;
+}
+
+/**
+ * Filter teams to only active (non-deleted)
+ */
+export function filterActive<T extends Team>(teams: T[]): T[] {
+  return teams.filter((t) => t.status !== TeamStatus.TOMBSTONE);
+}
+
+/**
+ * Filter teams to only deleted (tombstone)
+ */
+export function filterDeleted<T extends Team>(teams: T[]): T[] {
+  return teams.filter((t) => t.status === TeamStatus.TOMBSTONE);
 }

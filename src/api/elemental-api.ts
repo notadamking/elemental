@@ -33,6 +33,9 @@ import { createMessage, isMessage } from '../types/message.js';
 import type { Message, HydratedMessage, ChannelId as MessageChannelId } from '../types/message.js';
 import { isLibrary } from '../types/library.js';
 import type { Library, HydratedLibrary } from '../types/library.js';
+import type { Team } from '../types/team.js';
+import { isDeleted as isTeamDeleted, TeamStatus } from '../types/team.js';
+import { isMember as isTeamMember } from '../types/team.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { PriorityService, createPriorityService } from '../services/priority-service.js';
 import { SyncService } from '../sync/service.js';
@@ -66,6 +69,9 @@ import type {
   BurnWorkflowResult,
   GarbageCollectionOptions,
   GarbageCollectionResult,
+  TeamMembershipResult,
+  TeamMetrics,
+  OperationOptions,
 } from './types.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -1616,15 +1622,35 @@ export class ElementalAPIImpl implements ElementalAPI {
   async ready(filter?: TaskFilter): Promise<Task[]> {
     // Extract limit to apply after sorting
     const limit = filter?.limit;
+
+    // For team-based assignee filtering:
+    // If an assignee is specified, also find tasks assigned to teams the entity belongs to
+    let teamIds: ElementId[] = [];
+    if (filter?.assignee) {
+      // Find all teams the entity is a member of
+      const teams = await this.list<Team>({ type: 'team' });
+      teamIds = teams
+        .filter((team) => isTeamMember(team, filter.assignee!))
+        .map((team) => team.id);
+    }
+
+    // Build effective filter - remove assignee since we'll handle it manually
     const effectiveFilter: TaskFilter = {
       ...filter,
       type: 'task',
       status: [TaskStatusEnum.OPEN, TaskStatusEnum.IN_PROGRESS],
       limit: undefined, // Don't limit at DB level - we'll apply after sorting
+      assignee: undefined, // Handle assignee filtering manually for team support
     };
 
     // Get tasks matching filter
-    const tasks = await this.list<Task>(effectiveFilter);
+    let tasks = await this.list<Task>(effectiveFilter);
+
+    // Apply team-aware assignee filtering if specified
+    if (filter?.assignee) {
+      const validAssignees = new Set<string>([filter.assignee, ...teamIds]);
+      tasks = tasks.filter((task) => task.assignee && validAssignees.has(task.assignee));
+    }
 
     // Filter out blocked tasks
     const blockedIds = new Set(
@@ -2896,6 +2922,382 @@ export class ElementalAPIImpl implements ElementalAPI {
       conflicts,
       errors,
       dryRun,
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // Team Operations
+  // --------------------------------------------------------------------------
+
+  async addTeamMember(
+    teamId: ElementId,
+    entityId: EntityId,
+    options?: { actor?: EntityId }
+  ): Promise<TeamMembershipResult> {
+    // Get the team
+    const team = await this.get<Team>(teamId);
+    if (!team) {
+      throw new NotFoundError(
+        `Team not found: ${teamId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: teamId }
+      );
+    }
+
+    // Verify it's a team
+    if (team.type !== 'team') {
+      throw new ConstraintError(
+        `Element is not a team: ${teamId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: teamId, actualType: team.type, expectedType: 'team' }
+      );
+    }
+
+    // Check if team is deleted
+    if (isTeamDeleted(team)) {
+      throw new ConstraintError(
+        'Cannot add member to a deleted team',
+        ErrorCode.IMMUTABLE,
+        { teamId, status: team.status }
+      );
+    }
+
+    // Check if entity is already a member
+    if (isTeamMember(team, entityId)) {
+      // Already a member, return success without change
+      return { success: true, team, entityId };
+    }
+
+    // Add member
+    const newMembers = [...team.members, entityId];
+    const actor = options?.actor ?? team.createdBy;
+    const now = createTimestamp();
+
+    // Update team and record event in transaction
+    this.backend.transaction((tx) => {
+      // Get current data
+      const row = this.backend.queryOne<ElementRow>(
+        'SELECT data FROM elements WHERE id = ?',
+        [teamId]
+      );
+      if (!row) return;
+
+      const data = JSON.parse(row.data);
+      data.members = newMembers;
+
+      // Recompute content hash
+      const updatedTeam = { ...team, members: newMembers, updatedAt: now };
+      const { hash: contentHash } = computeContentHashSync(updatedTeam as unknown as Element);
+
+      // Update element
+      tx.run(
+        `UPDATE elements SET data = ?, content_hash = ?, updated_at = ? WHERE id = ?`,
+        [JSON.stringify(data), contentHash, now, teamId]
+      );
+
+      // Record membership event
+      const event = createEvent({
+        elementId: teamId,
+        eventType: MembershipEventType.MEMBER_ADDED,
+        actor,
+        oldValue: { members: team.members },
+        newValue: { members: newMembers, addedMember: entityId },
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          event.elementId,
+          event.eventType,
+          event.actor,
+          JSON.stringify(event.oldValue),
+          JSON.stringify(event.newValue),
+          event.createdAt,
+        ]
+      );
+    });
+
+    // Mark as dirty
+    this.backend.markDirty(teamId);
+
+    // Return updated team
+    const updatedTeam = await this.get<Team>(teamId);
+    return {
+      success: true,
+      team: updatedTeam!,
+      entityId,
+    };
+  }
+
+  async removeTeamMember(
+    teamId: ElementId,
+    entityId: EntityId,
+    options?: { actor?: EntityId; reason?: string }
+  ): Promise<TeamMembershipResult> {
+    // Get the team
+    const team = await this.get<Team>(teamId);
+    if (!team) {
+      throw new NotFoundError(
+        `Team not found: ${teamId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: teamId }
+      );
+    }
+
+    // Verify it's a team
+    if (team.type !== 'team') {
+      throw new ConstraintError(
+        `Element is not a team: ${teamId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: teamId, actualType: team.type, expectedType: 'team' }
+      );
+    }
+
+    // Check if team is deleted
+    if (isTeamDeleted(team)) {
+      throw new ConstraintError(
+        'Cannot remove member from a deleted team',
+        ErrorCode.IMMUTABLE,
+        { teamId, status: team.status }
+      );
+    }
+
+    // Check if entity is a member
+    if (!isTeamMember(team, entityId)) {
+      throw new ConstraintError(
+        `Entity is not a member of this team`,
+        ErrorCode.MEMBER_REQUIRED,
+        { teamId, entityId }
+      );
+    }
+
+    // Remove member
+    const newMembers = team.members.filter((m) => m !== entityId);
+    const actor = options?.actor ?? team.createdBy;
+    const now = createTimestamp();
+
+    // Update team and record event in transaction
+    this.backend.transaction((tx) => {
+      // Get current data
+      const row = this.backend.queryOne<ElementRow>(
+        'SELECT data FROM elements WHERE id = ?',
+        [teamId]
+      );
+      if (!row) return;
+
+      const data = JSON.parse(row.data);
+      data.members = newMembers;
+
+      // Recompute content hash
+      const updatedTeam = { ...team, members: newMembers, updatedAt: now };
+      const { hash: contentHash } = computeContentHashSync(updatedTeam as unknown as Element);
+
+      // Update element
+      tx.run(
+        `UPDATE elements SET data = ?, content_hash = ?, updated_at = ? WHERE id = ?`,
+        [JSON.stringify(data), contentHash, now, teamId]
+      );
+
+      // Record membership event
+      const event = createEvent({
+        elementId: teamId,
+        eventType: MembershipEventType.MEMBER_REMOVED,
+        actor,
+        oldValue: { members: team.members },
+        newValue: {
+          members: newMembers,
+          removedMember: entityId,
+          ...(options?.reason && { reason: options.reason }),
+        },
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          event.elementId,
+          event.eventType,
+          event.actor,
+          JSON.stringify(event.oldValue),
+          JSON.stringify(event.newValue),
+          event.createdAt,
+        ]
+      );
+    });
+
+    // Mark as dirty
+    this.backend.markDirty(teamId);
+
+    // Return updated team
+    const updatedTeam = await this.get<Team>(teamId);
+    return {
+      success: true,
+      team: updatedTeam!,
+      entityId,
+    };
+  }
+
+  async getTasksForTeam(teamId: ElementId, options?: TaskFilter): Promise<Task[]> {
+    // Get the team
+    const team = await this.get<Team>(teamId);
+    if (!team) {
+      throw new NotFoundError(
+        `Team not found: ${teamId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: teamId }
+      );
+    }
+
+    // Verify it's a team
+    if (team.type !== 'team') {
+      throw new ConstraintError(
+        `Element is not a team: ${teamId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: teamId, actualType: team.type, expectedType: 'team' }
+      );
+    }
+
+    // Build assignee list: team ID + all member IDs
+    const assignees = [teamId, ...team.members];
+
+    // Get all tasks and filter by assignee
+    const tasks = await this.list<Task>({ type: 'task', ...options });
+
+    // Filter to tasks assigned to team or any member
+    return tasks.filter(
+      (task) => task.assignee && assignees.includes(task.assignee)
+    );
+  }
+
+  async claimTaskFromTeam(
+    taskId: ElementId,
+    entityId: EntityId,
+    options?: OperationOptions
+  ): Promise<Task> {
+    // Get the task
+    const task = await this.get<Task>(taskId);
+    if (!task) {
+      throw new NotFoundError(
+        `Task not found: ${taskId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: taskId }
+      );
+    }
+
+    // Verify it's a task
+    if (task.type !== 'task') {
+      throw new ConstraintError(
+        `Element is not a task: ${taskId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: taskId, actualType: task.type, expectedType: 'task' }
+      );
+    }
+
+    // Check if task is assigned to a team
+    if (!task.assignee) {
+      throw new ValidationError(
+        'Task has no assignee to claim from',
+        ErrorCode.MISSING_REQUIRED_FIELD,
+        { taskId, field: 'assignee' }
+      );
+    }
+
+    // Get the team to verify the task is team-assigned
+    const team = await this.get<Team>(task.assignee as unknown as ElementId);
+    if (!team || team.type !== 'team') {
+      throw new ConstraintError(
+        'Task is not assigned to a team',
+        ErrorCode.TYPE_MISMATCH,
+        { taskId, currentAssignee: task.assignee, expectedType: 'team' }
+      );
+    }
+
+    // Check if entity is a member of the team
+    if (!isTeamMember(team, entityId)) {
+      throw new ConstraintError(
+        'Entity is not a member of the assigned team',
+        ErrorCode.MEMBER_REQUIRED,
+        { taskId, teamId: team.id, entityId }
+      );
+    }
+
+    // Update task assignee to the claiming entity
+    const actor = options?.actor ?? entityId;
+    const updated = await this.update<Task>(
+      taskId,
+      {
+        assignee: entityId,
+        // Optionally preserve the team reference in metadata
+        metadata: {
+          ...task.metadata,
+          claimedFromTeam: team.id,
+          claimedAt: createTimestamp(),
+        },
+      },
+      { actor }
+    );
+
+    return updated;
+  }
+
+  async getTeamMetrics(teamId: ElementId): Promise<TeamMetrics> {
+    // Get the team
+    const team = await this.get<Team>(teamId);
+    if (!team) {
+      throw new NotFoundError(
+        `Team not found: ${teamId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: teamId }
+      );
+    }
+
+    // Verify it's a team
+    if (team.type !== 'team') {
+      throw new ConstraintError(
+        `Element is not a team: ${teamId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: teamId, actualType: team.type, expectedType: 'team' }
+      );
+    }
+
+    // Get tasks for team
+    const tasks = await this.getTasksForTeam(teamId);
+
+    // Calculate metrics
+    let tasksCompleted = 0;
+    let tasksInProgress = 0;
+    let tasksAssignedToTeam = 0;
+    let totalCycleTimeMs = 0;
+    let completedWithCycleTime = 0;
+
+    for (const task of tasks) {
+      if (task.assignee === (teamId as unknown as EntityId)) {
+        tasksAssignedToTeam++;
+      }
+
+      if (task.status === TaskStatusEnum.CLOSED) {
+        tasksCompleted++;
+        // Calculate cycle time if closedAt exists
+        if (task.closedAt) {
+          const createdAt = new Date(task.createdAt).getTime();
+          const closedAt = new Date(task.closedAt).getTime();
+          totalCycleTimeMs += closedAt - createdAt;
+          completedWithCycleTime++;
+        }
+      } else if (task.status === TaskStatusEnum.IN_PROGRESS) {
+        tasksInProgress++;
+      }
+    }
+
+    const averageCycleTimeMs =
+      completedWithCycleTime > 0 ? Math.round(totalCycleTimeMs / completedWithCycleTime) : null;
+
+    return {
+      teamId,
+      tasksCompleted,
+      tasksInProgress,
+      totalTasks: tasks.length,
+      tasksAssignedToTeam,
+      averageCycleTimeMs,
     };
   }
 

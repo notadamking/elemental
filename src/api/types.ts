@@ -13,6 +13,7 @@ import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter } from '../types/event.js';
 import type { PlanProgress } from '../types/plan.js';
 import type { Message } from '../types/message.js';
+import type { Team } from '../types/team.js';
 
 // Re-export PlanProgress for API consumers
 export type { PlanProgress };
@@ -987,6 +988,81 @@ export interface ElementalAPI {
   leaveChannel(channelId: ElementId, actor: EntityId): Promise<MembershipResult>;
 
   // --------------------------------------------------------------------------
+  // Team Operations
+  // --------------------------------------------------------------------------
+
+  /**
+   * Add a member to a team with event recording.
+   *
+   * @param teamId - The team to add the member to
+   * @param entityId - The entity to add as a member
+   * @param options - Operation options including actor
+   * @returns The result of the operation
+   * @throws NotFoundError if team doesn't exist
+   * @throws ConstraintError if team is deleted
+   * @throws ConstraintError if entity is already a member
+   */
+  addTeamMember(
+    teamId: ElementId,
+    entityId: EntityId,
+    options?: AddMemberOptions
+  ): Promise<TeamMembershipResult>;
+
+  /**
+   * Remove a member from a team with event recording.
+   *
+   * @param teamId - The team to remove the member from
+   * @param entityId - The entity to remove
+   * @param options - Operation options including actor and reason
+   * @returns The result of the operation
+   * @throws NotFoundError if team doesn't exist
+   * @throws ConstraintError if team is deleted
+   * @throws ConstraintError if entity is not a member
+   */
+  removeTeamMember(
+    teamId: ElementId,
+    entityId: EntityId,
+    options?: RemoveMemberOptions
+  ): Promise<TeamMembershipResult>;
+
+  /**
+   * Get tasks assigned to a team or its members.
+   *
+   * @param teamId - The team identifier
+   * @param options - Filter options
+   * @returns Tasks assigned to the team or its members
+   * @throws NotFoundError if team doesn't exist
+   */
+  getTasksForTeam(teamId: ElementId, options?: TaskFilter): Promise<Task[]>;
+
+  /**
+   * Claim a team-assigned task for an individual member.
+   * Updates the task's assignee from the team to the claiming entity.
+   *
+   * @param taskId - The task to claim
+   * @param entityId - The entity claiming the task
+   * @param options - Operation options including actor
+   * @returns The updated task
+   * @throws NotFoundError if task doesn't exist
+   * @throws ConstraintError if task is not assigned to a team
+   * @throws ConstraintError if entity is not a member of the team
+   */
+  claimTaskFromTeam(
+    taskId: ElementId,
+    entityId: EntityId,
+    options?: OperationOptions
+  ): Promise<Task>;
+
+  /**
+   * Get aggregated metrics for a team.
+   *
+   * @param teamId - The team identifier
+   * @returns Team metrics
+   * @throws NotFoundError if team doesn't exist
+   */
+  getTeamMetrics(teamId: ElementId): Promise<TeamMetrics>;
+
+  // --------------------------------------------------------------------------
   // Workflow Operations
   // --------------------------------------------------------------------------
 
@@ -1323,6 +1399,40 @@ export interface SendDirectMessageResult {
   channel: Channel;
   /** Whether a new channel was created for this message */
   channelCreated: boolean;
+}
+
+// ============================================================================
+// Team Types
+// ============================================================================
+
+/**
+ * Result of a team membership operation
+ */
+export interface TeamMembershipResult {
+  /** Whether the operation succeeded */
+  success: boolean;
+  /** The updated team */
+  team: Team;
+  /** The entity that was added/removed */
+  entityId: EntityId;
+}
+
+/**
+ * Team metrics aggregation
+ */
+export interface TeamMetrics {
+  /** Team identifier */
+  teamId: ElementId;
+  /** Number of tasks completed by team members */
+  tasksCompleted: number;
+  /** Number of tasks currently in progress */
+  tasksInProgress: number;
+  /** Number of tasks assigned to team or members */
+  totalTasks: number;
+  /** Tasks assigned directly to the team */
+  tasksAssignedToTeam: number;
+  /** Average time from task open to close (ms) */
+  averageCycleTimeMs: number | null;
 }
 
 // ============================================================================
