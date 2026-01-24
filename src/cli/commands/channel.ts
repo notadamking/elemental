@@ -366,44 +366,26 @@ async function channelLeaveHandler(
 
   try {
     const actor = resolveActor(options);
-    const channel = await api.get<Channel>(id as ElementId);
-
-    if (!channel) {
-      return failure(`Channel not found: ${id}`, ExitCode.NOT_FOUND);
-    }
-
-    if (channel.type !== 'channel') {
-      return failure(`Element ${id} is not a channel (type: ${channel.type})`, ExitCode.VALIDATION);
-    }
-
-    if (channel.channelType === ChannelTypeValue.DIRECT) {
-      return failure('Cannot leave a direct channel', ExitCode.VALIDATION);
-    }
-
-    if (!isMember(channel, actor)) {
-      return success(channel, `Not a member of channel ${id}`);
-    }
-
-    // Remove actor from members
-    const newMembers = channel.members.filter((m) => m !== actor);
-
-    // Also remove from modifyMembers if present
-    const newModifyMembers = channel.permissions.modifyMembers.filter((m) => m !== actor);
-
-    const updated = await api.update<Channel>(
-      id as ElementId,
-      {
-        members: newMembers,
-        permissions: {
-          ...channel.permissions,
-          modifyMembers: newModifyMembers,
-        },
-      },
-      { actor }
-    );
-
-    return success(updated, `Left channel ${id}`);
+    const result = await api.leaveChannel(id as ElementId, actor);
+    return success(result.channel, `Left channel ${id}`);
   } catch (err) {
+    // Handle specific error cases with user-friendly messages
+    if (err instanceof Error) {
+      if (err.message.includes('not found')) {
+        return failure(`Channel not found: ${id}`, ExitCode.NOT_FOUND);
+      }
+      if (err.message.includes('not a channel')) {
+        return failure(`Element ${id} is not a channel`, ExitCode.VALIDATION);
+      }
+      if (err.message.includes('Cannot leave a direct channel')) {
+        return failure('Cannot leave a direct channel', ExitCode.VALIDATION);
+      }
+      if (err.message.includes('not a member')) {
+        // Not an error - just inform the user
+        const channel = await api.get<Channel>(id as ElementId);
+        return success(channel, `Not a member of channel ${id}`);
+      }
+    }
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to leave channel: ${message}`, ExitCode.GENERAL_ERROR);
   }
@@ -637,6 +619,141 @@ Examples:
 };
 
 // ============================================================================
+// Channel Add Command
+// ============================================================================
+
+async function channelAddHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [id, entityId] = args;
+
+  if (!id || !entityId) {
+    return failure('Usage: el channel add <channel-id> <entity-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const actor = resolveActor(options);
+    const result = await api.addChannelMember(id as ElementId, entityId as EntityId, { actor });
+
+    if (result.success) {
+      return success(result.channel, `Added ${entityId} to channel ${id}`);
+    }
+    return failure(`Failed to add member`, ExitCode.GENERAL_ERROR);
+  } catch (err) {
+    // Handle specific error cases with user-friendly messages
+    if (err instanceof Error) {
+      if (err.message.includes('not found')) {
+        return failure(`Channel not found: ${id}`, ExitCode.NOT_FOUND);
+      }
+      if (err.message.includes('not a channel')) {
+        return failure(`Element ${id} is not a channel`, ExitCode.VALIDATION);
+      }
+      if (err.message.includes('direct channel')) {
+        return failure('Cannot modify members of a direct channel', ExitCode.VALIDATION);
+      }
+      if (err.message.includes('Cannot modify members')) {
+        return failure('You do not have permission to add members to this channel', ExitCode.PERMISSION);
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to add member: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const channelAddCommand: Command = {
+  name: 'add',
+  description: 'Add a member to a channel',
+  usage: 'el channel add <channel-id> <entity-id>',
+  help: `Add a member to a group channel.
+
+Only group channels support adding members. Direct channels have fixed membership.
+You must have permission to modify members (be in the modifyMembers list).
+
+Arguments:
+  channel-id    Channel identifier
+  entity-id     Entity to add as member
+
+Examples:
+  el channel add el-abc123 el-user456`,
+  handler: channelAddHandler as Command['handler'],
+};
+
+// ============================================================================
+// Channel Remove Command
+// ============================================================================
+
+async function channelRemoveHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [id, entityId] = args;
+
+  if (!id || !entityId) {
+    return failure('Usage: el channel remove <channel-id> <entity-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const actor = resolveActor(options);
+    const result = await api.removeChannelMember(id as ElementId, entityId as EntityId, { actor });
+
+    if (result.success) {
+      return success(result.channel, `Removed ${entityId} from channel ${id}`);
+    }
+    return failure(`Failed to remove member`, ExitCode.GENERAL_ERROR);
+  } catch (err) {
+    // Handle specific error cases with user-friendly messages
+    if (err instanceof Error) {
+      if (err.message.includes('not found')) {
+        return failure(`Channel not found: ${id}`, ExitCode.NOT_FOUND);
+      }
+      if (err.message.includes('not a channel')) {
+        return failure(`Element ${id} is not a channel`, ExitCode.VALIDATION);
+      }
+      if (err.message.includes('direct channel')) {
+        return failure('Cannot modify members of a direct channel', ExitCode.VALIDATION);
+      }
+      if (err.message.includes('not a member')) {
+        return failure(`${entityId} is not a member of this channel`, ExitCode.VALIDATION);
+      }
+      if (err.message.includes('Cannot modify members')) {
+        return failure('You do not have permission to remove members from this channel', ExitCode.PERMISSION);
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to remove member: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const channelRemoveCommand: Command = {
+  name: 'remove',
+  description: 'Remove a member from a channel',
+  usage: 'el channel remove <channel-id> <entity-id>',
+  help: `Remove a member from a group channel.
+
+Only group channels support removing members. Direct channels have fixed membership.
+You must have permission to modify members (be in the modifyMembers list).
+
+Arguments:
+  channel-id    Channel identifier
+  entity-id     Entity to remove
+
+Examples:
+  el channel remove el-abc123 el-user456`,
+  handler: channelRemoveHandler as Command['handler'],
+};
+
+// ============================================================================
 // Channel Root Command
 // ============================================================================
 
@@ -655,18 +772,24 @@ Subcommands:
   leave     Leave a channel
   list      List channels
   members   List channel members
+  add       Add a member to a channel
+  remove    Remove a member from a channel
 
 Examples:
   el channel create --name general
   el channel list --member el-user123
   el channel join el-abc123
-  el channel members el-abc123`,
+  el channel members el-abc123
+  el channel add el-abc123 el-user456
+  el channel remove el-abc123 el-user456`,
   subcommands: {
     create: channelCreateCommand,
     join: channelJoinCommand,
     leave: channelLeaveCommand,
     list: channelListCommand,
     members: channelMembersCommand,
+    add: channelAddCommand,
+    remove: channelRemoveCommand,
   },
   handler: async (args, options): Promise<CommandResult> => {
     // Default to list if no subcommand

@@ -15,9 +15,20 @@ import type { Event, EventFilter, EventType } from '../types/event.js';
 import { createTimestamp } from '../types/element.js';
 import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
 import { isPlan, PlanStatus as PlanStatusEnum, calculatePlanProgress, type PlanProgress } from '../types/plan.js';
-import { createEvent, LifecycleEventType } from '../types/event.js';
+import { createEvent, LifecycleEventType, MembershipEventType } from '../types/event.js';
 import { NotFoundError, ConflictError, ConstraintError, ValidationError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
+import type { Channel } from '../types/channel.js';
+import {
+  ChannelTypeValue,
+  generateDirectChannelName,
+  createDirectChannel,
+  isMember,
+  canModifyMembers,
+  DirectChannelMembershipError,
+  NotAMemberError,
+  CannotModifyMembersError,
+} from '../types/channel.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { SyncService } from '../sync/service.js';
 import { computeContentHashSync } from '../sync/hash.js';
@@ -47,7 +58,15 @@ import type {
   BulkTagOptions,
   BulkOperationResult,
 } from './types.js';
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type ApprovalResult } from './types.js';
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  type ApprovalResult,
+  type AddMemberOptions,
+  type RemoveMemberOptions,
+  type MembershipResult,
+  type FindOrCreateDirectChannelResult,
+} from './types.js';
 import type { Plan } from '../types/plan.js';
 import { generateChildId } from '../id/generator.js';
 import type { CreateTaskInput } from '../types/task.js';
@@ -557,6 +576,36 @@ export class ElementalAPIImpl implements ElementalAPI {
             `Entity with name "${entityData.name}" already exists`,
             ErrorCode.DUPLICATE_NAME,
             { name: entityData.name, existingId: existing.id }
+          );
+        }
+      }
+    }
+
+    // Channel name uniqueness validation (group channels only)
+    if (element.type === 'channel') {
+      const channelData = element as unknown as {
+        name?: string;
+        channelType?: string;
+        permissions?: { visibility?: string };
+      };
+      // Only validate group channels (direct channels have deterministic names)
+      if (channelData.channelType === ChannelTypeValue.GROUP && channelData.name) {
+        const visibility = channelData.permissions?.visibility ?? 'private';
+        // Check for existing channel with same name and visibility scope
+        const existingRow = this.backend.queryOne<ElementRow>(
+          `SELECT * FROM elements
+           WHERE type = 'channel'
+           AND JSON_EXTRACT(data, '$.channelType') = 'group'
+           AND JSON_EXTRACT(data, '$.name') = ?
+           AND JSON_EXTRACT(data, '$.permissions.visibility') = ?
+           AND deleted_at IS NULL`,
+          [channelData.name, visibility]
+        );
+        if (existingRow) {
+          throw new ConflictError(
+            `Channel with name "${channelData.name}" already exists in ${visibility} scope`,
+            ErrorCode.DUPLICATE_NAME,
+            { name: channelData.name, visibility, existingId: existingRow.id }
           );
         }
       }
@@ -1428,10 +1477,13 @@ export class ElementalAPIImpl implements ElementalAPI {
   // --------------------------------------------------------------------------
 
   async ready(filter?: TaskFilter): Promise<Task[]> {
+    // Extract limit to apply after sorting
+    const limit = filter?.limit;
     const effectiveFilter: TaskFilter = {
       ...filter,
       type: 'task',
       status: [TaskStatusEnum.OPEN, TaskStatusEnum.IN_PROGRESS],
+      limit: undefined, // Don't limit at DB level - we'll apply after sorting
     };
 
     // Get tasks matching filter
@@ -1457,6 +1509,14 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
       return true;
     });
+
+    // Sort by priority ascending (1 = highest/critical, 5 = lowest/minimal)
+    readyTasks.sort((a, b) => a.priority - b.priority);
+
+    // Apply limit after sorting
+    if (limit !== undefined) {
+      return readyTasks.slice(0, limit);
+    }
 
     return readyTasks;
   }
@@ -1972,6 +2032,396 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     return results;
+  }
+
+  // --------------------------------------------------------------------------
+  // Channel Operations
+  // --------------------------------------------------------------------------
+
+  async findOrCreateDirectChannel(
+    entityA: EntityId,
+    entityB: EntityId,
+    actor: EntityId
+  ): Promise<FindOrCreateDirectChannelResult> {
+    // Validate actor is one of the entities
+    if (actor !== entityA && actor !== entityB) {
+      throw new ValidationError(
+        'Actor must be one of the channel entities',
+        ErrorCode.INVALID_INPUT,
+        { field: 'actor', value: actor, expected: 'entityA or entityB' }
+      );
+    }
+
+    // Generate deterministic name for the direct channel
+    const channelName = generateDirectChannelName(entityA, entityB);
+
+    // Try to find existing channel
+    const existingRow = this.backend.queryOne<ElementRow>(
+      `SELECT * FROM elements
+       WHERE type = 'channel'
+       AND JSON_EXTRACT(data, '$.channelType') = 'direct'
+       AND JSON_EXTRACT(data, '$.name') = ?
+       AND deleted_at IS NULL`,
+      [channelName]
+    );
+
+    if (existingRow) {
+      // Found existing channel, return it
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [existingRow.id]
+      );
+      const tags = tagRows.map((r) => r.tag);
+      const channel = deserializeElement<Channel>(existingRow, tags);
+      return { channel, created: false };
+    }
+
+    // No existing channel, create a new one
+    const newChannel = await createDirectChannel({
+      entityA,
+      entityB,
+      createdBy: actor,
+    });
+
+    const createdChannel = await this.create<Channel>(
+      newChannel as unknown as Element & Record<string, unknown>
+    );
+
+    return { channel: createdChannel, created: true };
+  }
+
+  async addChannelMember(
+    channelId: ElementId,
+    entityId: EntityId,
+    options?: AddMemberOptions
+  ): Promise<MembershipResult> {
+    // Get the channel
+    const channel = await this.get<Channel>(channelId);
+    if (!channel) {
+      throw new NotFoundError(
+        `Channel not found: ${channelId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: channelId }
+      );
+    }
+
+    // Verify it's a channel
+    if (channel.type !== 'channel') {
+      throw new ConstraintError(
+        `Element is not a channel: ${channelId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: channelId, actualType: channel.type, expectedType: 'channel' }
+      );
+    }
+
+    // Cast to Channel type (type guard validated above)
+    const typedChannel = channel as Channel;
+
+    // Direct channels cannot have membership modified
+    if (typedChannel.channelType === ChannelTypeValue.DIRECT) {
+      throw new DirectChannelMembershipError(channelId, 'add');
+    }
+
+    // Get actor
+    const actor = options?.actor ?? typedChannel.createdBy;
+
+    // Check actor has permission to modify members
+    if (!canModifyMembers(typedChannel, actor)) {
+      throw new CannotModifyMembersError(channelId, actor);
+    }
+
+    // Check if entity is already a member
+    if (isMember(typedChannel, entityId)) {
+      // Already a member, return success without change
+      return { success: true, channel: typedChannel, entityId };
+    }
+
+    // Add member
+    const newMembers = [...typedChannel.members, entityId];
+    const now = createTimestamp();
+
+    // Update channel and record event in transaction
+    this.backend.transaction((tx) => {
+      // Get current data
+      const row = this.backend.queryOne<ElementRow>(
+        'SELECT data FROM elements WHERE id = ?',
+        [channelId]
+      );
+      if (!row) return;
+
+      const data = JSON.parse(row.data);
+      data.members = newMembers;
+
+      // Recompute content hash
+      const updatedChannel = { ...typedChannel, members: newMembers, updatedAt: now };
+      const { hash: contentHash } = computeContentHashSync(updatedChannel as unknown as Element);
+
+      // Update element
+      tx.run(
+        `UPDATE elements SET data = ?, content_hash = ?, updated_at = ? WHERE id = ?`,
+        [JSON.stringify(data), contentHash, now, channelId]
+      );
+
+      // Record membership event
+      const event = createEvent({
+        elementId: channelId,
+        eventType: MembershipEventType.MEMBER_ADDED,
+        actor,
+        oldValue: { members: typedChannel.members },
+        newValue: { members: newMembers, addedMember: entityId },
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          event.elementId,
+          event.eventType,
+          event.actor,
+          JSON.stringify(event.oldValue),
+          JSON.stringify(event.newValue),
+          event.createdAt,
+        ]
+      );
+    });
+
+    // Mark as dirty
+    this.backend.markDirty(channelId);
+
+    // Return updated channel
+    const updatedChannel = await this.get<Channel>(channelId);
+    return {
+      success: true,
+      channel: updatedChannel!,
+      entityId,
+    };
+  }
+
+  async removeChannelMember(
+    channelId: ElementId,
+    entityId: EntityId,
+    options?: RemoveMemberOptions
+  ): Promise<MembershipResult> {
+    // Get the channel
+    const channel = await this.get<Channel>(channelId);
+    if (!channel) {
+      throw new NotFoundError(
+        `Channel not found: ${channelId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: channelId }
+      );
+    }
+
+    // Verify it's a channel
+    if (channel.type !== 'channel') {
+      throw new ConstraintError(
+        `Element is not a channel: ${channelId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: channelId, actualType: channel.type, expectedType: 'channel' }
+      );
+    }
+
+    // Cast to Channel type (type guard validated above)
+    const typedChannel = channel as Channel;
+
+    // Direct channels cannot have membership modified
+    if (typedChannel.channelType === ChannelTypeValue.DIRECT) {
+      throw new DirectChannelMembershipError(channelId, 'remove');
+    }
+
+    // Get actor
+    const actor = options?.actor ?? typedChannel.createdBy;
+
+    // Check actor has permission to modify members
+    if (!canModifyMembers(typedChannel, actor)) {
+      throw new CannotModifyMembersError(channelId, actor);
+    }
+
+    // Check if entity is a member
+    if (!isMember(typedChannel, entityId)) {
+      throw new NotAMemberError(channelId, entityId);
+    }
+
+    // Remove member
+    const newMembers = typedChannel.members.filter((m) => m !== entityId);
+    // Also remove from modifyMembers if present
+    const newModifyMembers = typedChannel.permissions.modifyMembers.filter((m) => m !== entityId);
+    const now = createTimestamp();
+
+    // Update channel and record event in transaction
+    this.backend.transaction((tx) => {
+      // Get current data
+      const row = this.backend.queryOne<ElementRow>(
+        'SELECT data FROM elements WHERE id = ?',
+        [channelId]
+      );
+      if (!row) return;
+
+      const data = JSON.parse(row.data);
+      data.members = newMembers;
+      data.permissions = {
+        ...data.permissions,
+        modifyMembers: newModifyMembers,
+      };
+
+      // Recompute content hash
+      const updatedChannel = {
+        ...typedChannel,
+        members: newMembers,
+        permissions: { ...typedChannel.permissions, modifyMembers: newModifyMembers },
+        updatedAt: now,
+      };
+      const { hash: contentHash } = computeContentHashSync(updatedChannel as unknown as Element);
+
+      // Update element
+      tx.run(
+        `UPDATE elements SET data = ?, content_hash = ?, updated_at = ? WHERE id = ?`,
+        [JSON.stringify(data), contentHash, now, channelId]
+      );
+
+      // Record membership event
+      const event = createEvent({
+        elementId: channelId,
+        eventType: MembershipEventType.MEMBER_REMOVED,
+        actor,
+        oldValue: { members: typedChannel.members },
+        newValue: {
+          members: newMembers,
+          removedMember: entityId,
+          ...(options?.reason && { reason: options.reason }),
+        },
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          event.elementId,
+          event.eventType,
+          event.actor,
+          JSON.stringify(event.oldValue),
+          JSON.stringify(event.newValue),
+          event.createdAt,
+        ]
+      );
+    });
+
+    // Mark as dirty
+    this.backend.markDirty(channelId);
+
+    // Return updated channel
+    const updatedChannel = await this.get<Channel>(channelId);
+    return {
+      success: true,
+      channel: updatedChannel!,
+      entityId,
+    };
+  }
+
+  async leaveChannel(channelId: ElementId, actor: EntityId): Promise<MembershipResult> {
+    // Get the channel
+    const channel = await this.get<Channel>(channelId);
+    if (!channel) {
+      throw new NotFoundError(
+        `Channel not found: ${channelId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: channelId }
+      );
+    }
+
+    // Verify it's a channel
+    if (channel.type !== 'channel') {
+      throw new ConstraintError(
+        `Element is not a channel: ${channelId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: channelId, actualType: channel.type, expectedType: 'channel' }
+      );
+    }
+
+    // Cast to Channel type (type guard validated above)
+    const typedChannel = channel as Channel;
+
+    // Direct channels cannot be left
+    if (typedChannel.channelType === ChannelTypeValue.DIRECT) {
+      throw new ConstraintError(
+        'Cannot leave a direct channel',
+        ErrorCode.IMMUTABLE,
+        { channelId, channelType: 'direct' }
+      );
+    }
+
+    // Check if actor is a member
+    if (!isMember(typedChannel, actor)) {
+      throw new NotAMemberError(channelId, actor);
+    }
+
+    // Remove actor from members
+    const newMembers = typedChannel.members.filter((m) => m !== actor);
+    // Also remove from modifyMembers if present
+    const newModifyMembers = typedChannel.permissions.modifyMembers.filter((m) => m !== actor);
+    const now = createTimestamp();
+
+    // Update channel and record event in transaction
+    this.backend.transaction((tx) => {
+      // Get current data
+      const row = this.backend.queryOne<ElementRow>(
+        'SELECT data FROM elements WHERE id = ?',
+        [channelId]
+      );
+      if (!row) return;
+
+      const data = JSON.parse(row.data);
+      data.members = newMembers;
+      data.permissions = {
+        ...data.permissions,
+        modifyMembers: newModifyMembers,
+      };
+
+      // Recompute content hash
+      const updatedChannelData = {
+        ...typedChannel,
+        members: newMembers,
+        permissions: { ...typedChannel.permissions, modifyMembers: newModifyMembers },
+        updatedAt: now,
+      };
+      const { hash: contentHash } = computeContentHashSync(updatedChannelData as unknown as Element);
+
+      // Update element
+      tx.run(
+        `UPDATE elements SET data = ?, content_hash = ?, updated_at = ? WHERE id = ?`,
+        [JSON.stringify(data), contentHash, now, channelId]
+      );
+
+      // Record membership event (leaving is a special form of member_removed)
+      const event = createEvent({
+        elementId: channelId,
+        eventType: MembershipEventType.MEMBER_REMOVED,
+        actor,
+        oldValue: { members: typedChannel.members },
+        newValue: { members: newMembers, removedMember: actor, selfRemoval: true },
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          event.elementId,
+          event.eventType,
+          event.actor,
+          JSON.stringify(event.oldValue),
+          JSON.stringify(event.newValue),
+          event.createdAt,
+        ]
+      );
+    });
+
+    // Mark as dirty
+    this.backend.markDirty(channelId);
+
+    // Return updated channel
+    const updatedChannel = await this.get<Channel>(channelId);
+    return {
+      success: true,
+      channel: updatedChannel!,
+      entityId: actor,
+    };
   }
 
   // --------------------------------------------------------------------------

@@ -247,21 +247,21 @@ Before channel operations:
 
 ### Phase 2: Direct Channels
 - [x] Implement deterministic naming (`generateDirectChannelName`, `parseDirectChannelName`)
-- [ ] Implement find-or-create logic (requires storage layer)
+- [x] Implement find-or-create logic (`api.findOrCreateDirectChannel`)
 - [x] Implement immutable membership (direct channels have empty `modifyMembers`)
 - [x] Add direct channel queries (`findDirectChannel`, `getDirectChannelsForEntity`, `filterDirectChannels`)
 
 ### Phase 3: Group Channels
 - [x] Implement channel creation (`createGroupChannel`)
-- [ ] Implement name uniqueness (scoped) (requires storage layer)
+- [x] Implement name uniqueness (scoped by visibility in `ElementalAPI.create`)
 - [x] Implement permission configuration (visibility, joinPolicy, modifyMembers)
 
 ### Phase 4: Membership
-- [ ] Implement add member (requires storage layer)
-- [ ] Implement remove member (requires storage layer)
+- [x] Implement add member (`api.addChannelMember`)
+- [x] Implement remove member (`api.removeChannelMember`)
 - [x] Implement join policy checking (`canJoin` utility)
-- [ ] Implement leave (requires storage layer)
-- [ ] Add membership events (requires event integration)
+- [x] Implement leave (`api.leaveChannel`)
+- [x] Add membership events (`member_added`, `member_removed`)
 
 ### Phase 5: Permissions
 - [x] Implement visibility checking (`isPublicChannel`, `isPrivateChannel`)
@@ -279,14 +279,16 @@ Before channel operations:
 - [ ] Implement channel search (requires storage layer)
 
 ### Phase 8: CLI Commands
-- [ ] channel create
-- [ ] channel join
-- [ ] channel leave
-- [ ] channel list
-- [ ] channel members
+- [x] channel create
+- [x] channel join
+- [x] channel leave
+- [x] channel list
+- [x] channel members
+- [x] channel add (add member)
+- [x] channel remove (remove member)
 
 ### Phase 9: Testing
 - [x] Unit tests for direct naming
 - [x] Unit tests for permissions
-- [ ] Integration tests for membership (requires storage layer)
+- [x] Integration tests for membership (`channel-membership.integration.test.ts`)
 - [ ] E2E tests for messaging flow

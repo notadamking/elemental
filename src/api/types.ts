@@ -869,6 +869,71 @@ export interface ElementalAPI {
   getDocumentHistory(id: DocumentId): Promise<Document[]>;
 
   // --------------------------------------------------------------------------
+  // Channel Operations
+  // --------------------------------------------------------------------------
+
+  /**
+   * Find an existing direct channel between two entities, or create one if it doesn't exist.
+   *
+   * @param entityA - First entity
+   * @param entityB - Second entity
+   * @param actor - Actor performing the operation (must be one of the entities)
+   * @returns The channel (existing or newly created) and whether it was created
+   */
+  findOrCreateDirectChannel(
+    entityA: EntityId,
+    entityB: EntityId,
+    actor: EntityId
+  ): Promise<FindOrCreateDirectChannelResult>;
+
+  /**
+   * Add a member to a channel.
+   *
+   * @param channelId - The channel to add the member to
+   * @param entityId - The entity to add as a member
+   * @param options - Operation options including actor
+   * @returns The result of the operation
+   * @throws NotFoundError if channel doesn't exist
+   * @throws ConstraintError if channel is a direct channel (immutable membership)
+   * @throws ConstraintError if actor doesn't have permission to modify members
+   */
+  addChannelMember(
+    channelId: ElementId,
+    entityId: EntityId,
+    options?: AddMemberOptions
+  ): Promise<MembershipResult>;
+
+  /**
+   * Remove a member from a channel.
+   *
+   * @param channelId - The channel to remove the member from
+   * @param entityId - The entity to remove
+   * @param options - Operation options including actor and reason
+   * @returns The result of the operation
+   * @throws NotFoundError if channel doesn't exist
+   * @throws ConstraintError if channel is a direct channel (immutable membership)
+   * @throws ConstraintError if actor doesn't have permission to modify members
+   * @throws ConstraintError if entity is not a member
+   */
+  removeChannelMember(
+    channelId: ElementId,
+    entityId: EntityId,
+    options?: RemoveMemberOptions
+  ): Promise<MembershipResult>;
+
+  /**
+   * Leave a channel (remove self from members).
+   *
+   * @param channelId - The channel to leave
+   * @param actor - The entity leaving the channel
+   * @returns The result of the operation
+   * @throws NotFoundError if channel doesn't exist
+   * @throws ConstraintError if channel is a direct channel (cannot leave)
+   * @throws ConstraintError if actor is not a member
+   */
+  leaveChannel(channelId: ElementId, actor: EntityId): Promise<MembershipResult>;
+
+  // --------------------------------------------------------------------------
   // Sync Operations
   // --------------------------------------------------------------------------
 
@@ -1096,6 +1161,63 @@ export function isValidImportOptions(value: unknown): value is ImportOptions {
   }
 
   return true;
+}
+
+// ============================================================================
+// Channel Types
+// ============================================================================
+
+import type { Channel, ChannelType, Visibility, JoinPolicy } from '../types/channel.js';
+
+/**
+ * Filter for channel queries
+ */
+export interface ChannelFilter extends ElementFilter {
+  /** Filter by channel type (direct or group) */
+  channelType?: ChannelType;
+  /** Filter by visibility */
+  visibility?: Visibility;
+  /** Filter by join policy */
+  joinPolicy?: JoinPolicy;
+  /** Filter channels containing a specific member */
+  member?: EntityId;
+}
+
+/**
+ * Options for adding a member to a channel
+ */
+export interface AddMemberOptions extends OperationOptions {
+  // Future: add invitation metadata, etc.
+}
+
+/**
+ * Options for removing a member from a channel
+ */
+export interface RemoveMemberOptions extends OperationOptions {
+  /** Reason for removal */
+  reason?: string;
+}
+
+/**
+ * Result of a channel membership operation
+ */
+export interface MembershipResult {
+  /** Whether the operation succeeded */
+  success: boolean;
+  /** The updated channel */
+  channel: Channel;
+  /** The entity that was added/removed */
+  entityId: EntityId;
+}
+
+/**
+ * Result of find-or-create direct channel operation
+ */
+export interface FindOrCreateDirectChannelResult {
+  /** The channel (existing or newly created) */
+  channel: Channel;
+  /** Whether a new channel was created */
+  created: boolean;
 }
 
 // ============================================================================
