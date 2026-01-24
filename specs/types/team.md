@@ -265,4 +265,4 @@ For "tasks for team":
 - [x] Unit tests for membership operations
 - [x] Unit tests for queries and utility functions
 - [x] Integration tests for task assignment
-- [ ] E2E tests for team workflows
+- [x] E2E tests for team workflows
