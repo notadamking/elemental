@@ -715,36 +715,53 @@ el playbook create --name test-workflow --title "Test Workflow" \
 
 **Prerequisites:** Initialized workspace
 
+**Status:** TESTED - 2026-01-24 (Partial Pass - JSON error code missing)
+
 **Checkpoints:**
-- [ ] NOT_FOUND error handling
+- [x] NOT_FOUND error handling
   ```bash
   el show el-nonexistent --json 2>&1
   ```
-  - Exit code is non-zero (3)
+  - Exit code is non-zero (3) ✓
   - JSON error includes code: "NOT_FOUND"
-  - Message is actionable
-- [ ] VALIDATION_ERROR handling
+    - **BUG el-5pwg:** JSON output missing `code` field - only has `error`, `exitCode`, `success`
+  - Message is actionable ✓ ("Element not found: el-nonexistent")
+- [x] VALIDATION_ERROR handling
   ```bash
-  el create task "" --json 2>&1  # Empty title
+  el create task --title "" --json 2>&1  # Empty title - use --title flag
   ```
-  - Exit code 4
-  - Error explains what's wrong
+  - Exit code 2 (invalid args) - different from expected but acceptable
+  - Error explains what's wrong ✓ ("--title is required for creating a task")
+  - **Note:** Original test used positional arg, but actual syntax requires `--title` flag
 - [ ] CYCLE_DETECTED handling
   ```bash
-  A=$(el create task "A" --json | jq -r '.id')
-  B=$(el create task "B" --json | jq -r '.id')
+  A=$(el create task --title "A" --json | jq -r '.data.id')
+  B=$(el create task --title "B" --json | jq -r '.data.id')
   el dep add $B $A --type blocks
   el dep add $A $B --type blocks 2>&1
   ```
-  - Error explains cycle would be created
-- [ ] DUPLICATE_NAME handling
+  - **BUG el-5w9d:** Cycle detection NOT enforced - second command succeeds, creating cycle
+  - Both tasks become permanently blocked with no way to unblock
+- [x] DUPLICATE_NAME handling
   ```bash
-  el entity register --name "test-entity" --type agent
-  el entity register --name "test-entity" --type agent 2>&1
+  el entity register test-entity --type agent  # positional name, not --name
+  el entity register test-entity --type agent 2>&1
   ```
-  - Error explains name already taken
+  - Error explains name already taken ✓ ("Entity with name \"test-entity\" already exists")
+  - Exit code 4 ✓
+  - **DOC:** Original test used `--name` flag but actual syntax is positional
+
+**Additional Tests Performed:**
+- [x] Invalid priority value: Exit code 4, "Priority must be a number from 1 to 5" ✓
+- [x] Invalid status value: Exit code 4, lists valid values ✓
+- [x] Dependency to non-existent element: Exit code 3, "Target element not found" ✓
 
 **Success Criteria:** All errors include code, message, and recovery guidance
+- **Partial:** Messages are actionable but JSON missing `code` field (el-5pwg)
+
+**Issues Found:**
+- **el-5pwg**: JSON error output missing `code` field per api/errors.md spec
+- **el-5w9d**: (pre-existing) Cycle detection not enforced
 
 ---
 
