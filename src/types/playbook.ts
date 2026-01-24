@@ -1734,3 +1734,285 @@ export function findChildPlaybooks<T extends Playbook>(
 ): T[] {
   return playbooks.filter((p) => p.extends?.includes(parentName));
 }
+
+/**
+ * Finds a playbook by name
+ */
+export function findByName<T extends Playbook>(playbooks: T[], name: string): T | undefined {
+  const normalizedName = name.toLowerCase();
+  return playbooks.find((p) => p.name.toLowerCase() === normalizedName);
+}
+
+// ============================================================================
+// Playbook Inheritance System
+// ============================================================================
+
+/**
+ * Playbook loader function type.
+ * Used to load playbooks by name for inheritance resolution.
+ */
+export type PlaybookLoader = (name: string) => Playbook | undefined | Promise<Playbook | undefined>;
+
+/**
+ * Resolved inheritance chain for a playbook
+ */
+export interface ResolvedInheritanceChain {
+  /** The inheritance chain in order from root ancestors to the target playbook */
+  chain: Playbook[];
+  /** All unique playbook names in the chain */
+  names: Set<string>;
+}
+
+/**
+ * Result of resolving playbook inheritance
+ */
+export interface ResolvedPlaybook {
+  /** The original playbook (without merged inheritance) */
+  original: Playbook;
+  /** Merged variables from inheritance chain */
+  variables: PlaybookVariable[];
+  /** Merged steps from inheritance chain */
+  steps: PlaybookStep[];
+  /** The complete inheritance chain */
+  inheritanceChain: Playbook[];
+}
+
+/**
+ * Resolves the inheritance chain for a playbook.
+ *
+ * Detects circular inheritance and returns the chain in order from
+ * root ancestors to the target playbook.
+ *
+ * @param playbook - The playbook to resolve inheritance for
+ * @param loader - Function to load playbooks by name
+ * @returns The resolved inheritance chain
+ * @throws ConflictError if circular inheritance is detected
+ * @throws NotFoundError if a parent playbook cannot be found
+ */
+export async function resolveInheritanceChain(
+  playbook: Playbook,
+  loader: PlaybookLoader
+): Promise<ResolvedInheritanceChain> {
+  const chain: Playbook[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>(); // For cycle detection
+
+  // Recursive helper to resolve a playbook and its parents
+  async function resolve(current: Playbook, path: string[]): Promise<void> {
+    const name = current.name;
+
+    // Check for circular inheritance
+    if (visiting.has(name)) {
+      const cycle = [...path, name].join(' -> ');
+      throw new ConflictError(
+        `Circular inheritance detected: ${cycle}`,
+        ErrorCode.CYCLE_DETECTED,
+        { chain: path, duplicate: name }
+      );
+    }
+
+    // Skip if already fully processed
+    if (visited.has(name)) {
+      return;
+    }
+
+    // Mark as being visited (for cycle detection)
+    visiting.add(name);
+
+    // Process parent playbooks first (depth-first)
+    if (current.extends && current.extends.length > 0) {
+      for (const parentName of current.extends) {
+        // Self-extension check
+        if (parentName === name) {
+          throw new ConflictError(
+            `Playbook '${name}' cannot extend itself`,
+            ErrorCode.CYCLE_DETECTED,
+            { field: 'extends', value: name }
+          );
+        }
+
+        // Skip if parent already processed
+        if (visited.has(parentName)) {
+          continue;
+        }
+
+        // Load parent playbook
+        const parent = await Promise.resolve(loader(parentName));
+        if (!parent) {
+          throw new NotFoundError(
+            `Parent playbook '${parentName}' not found (required by '${name}')`,
+            ErrorCode.NOT_FOUND,
+            { field: 'extends', value: parentName, requiredBy: name }
+          );
+        }
+
+        // Recursively resolve parent
+        await resolve(parent, [...path, name]);
+      }
+    }
+
+    // Mark as fully visited and add to chain
+    visiting.delete(name);
+    visited.add(name);
+    chain.push(current);
+  }
+
+  // Start resolution from the target playbook
+  await resolve(playbook, []);
+
+  return {
+    chain,
+    names: visited,
+  };
+}
+
+/**
+ * Merges variables from an inheritance chain.
+ *
+ * Variables are merged in order - later playbooks override earlier ones.
+ * A variable with the same name replaces the parent's definition entirely.
+ *
+ * @param chain - The inheritance chain (from root ancestors to target)
+ * @returns Merged array of variables
+ */
+export function mergeVariables(chain: Playbook[]): PlaybookVariable[] {
+  const variableMap = new Map<string, PlaybookVariable>();
+
+  // Process chain in order - later playbooks override earlier ones
+  for (const playbook of chain) {
+    for (const variable of playbook.variables) {
+      variableMap.set(variable.name, variable);
+    }
+  }
+
+  return Array.from(variableMap.values());
+}
+
+/**
+ * Merges steps from an inheritance chain.
+ *
+ * Steps are merged in order:
+ * - Same ID replaces parent's step
+ * - New steps are added after parent's steps
+ * - Order within each playbook is preserved
+ *
+ * @param chain - The inheritance chain (from root ancestors to target)
+ * @returns Merged array of steps
+ */
+export function mergeSteps(chain: Playbook[]): PlaybookStep[] {
+  const stepMap = new Map<string, { step: PlaybookStep; order: number }>();
+  let orderCounter = 0;
+
+  // Process chain in order - later playbooks override earlier ones
+  for (const playbook of chain) {
+    for (const step of playbook.steps) {
+      const existing = stepMap.get(step.id);
+      if (existing) {
+        // Replace step but keep original order
+        stepMap.set(step.id, { step, order: existing.order });
+      } else {
+        // New step gets next order
+        stepMap.set(step.id, { step, order: orderCounter++ });
+      }
+    }
+  }
+
+  // Sort by order and return steps
+  return Array.from(stepMap.values())
+    .sort((a, b) => a.order - b.order)
+    .map(({ step }) => step);
+}
+
+/**
+ * Validates merged steps after inheritance resolution.
+ *
+ * Ensures:
+ * - All step IDs are unique (guaranteed by mergeSteps)
+ * - All dependsOn references are valid within the merged steps
+ * - No self-dependencies
+ *
+ * @param steps - Merged steps to validate
+ * @throws NotFoundError if dependsOn references unknown step
+ * @throws ConflictError if self-dependency detected
+ */
+export function validateMergedSteps(steps: PlaybookStep[]): void {
+  const stepIds = new Set(steps.map((s) => s.id));
+
+  for (const step of steps) {
+    if (step.dependsOn) {
+      for (const depId of step.dependsOn) {
+        if (depId === step.id) {
+          throw new ConflictError(
+            `Step '${step.id}' cannot depend on itself`,
+            ErrorCode.CYCLE_DETECTED,
+            { field: 'dependsOn', value: depId }
+          );
+        }
+        if (!stepIds.has(depId)) {
+          throw new NotFoundError(
+            `Step '${step.id}' depends on unknown step '${depId}'`,
+            ErrorCode.NOT_FOUND,
+            { field: 'dependsOn', value: depId, stepId: step.id }
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Resolves full playbook inheritance.
+ *
+ * This is the main entry point for resolving playbook inheritance.
+ * It resolves the inheritance chain, merges variables and steps,
+ * and validates the result.
+ *
+ * @param playbook - The playbook to resolve
+ * @param loader - Function to load playbooks by name
+ * @returns Resolved playbook with merged variables and steps
+ * @throws ConflictError if circular inheritance is detected
+ * @throws NotFoundError if a parent playbook cannot be found
+ */
+export async function resolvePlaybookInheritance(
+  playbook: Playbook,
+  loader: PlaybookLoader
+): Promise<ResolvedPlaybook> {
+  // If playbook has no parents, return as-is
+  if (!hasParents(playbook)) {
+    return {
+      original: playbook,
+      variables: playbook.variables,
+      steps: playbook.steps,
+      inheritanceChain: [playbook],
+    };
+  }
+
+  // Resolve the inheritance chain
+  const { chain } = await resolveInheritanceChain(playbook, loader);
+
+  // Merge variables and steps
+  const mergedVariables = mergeVariables(chain);
+  const mergedSteps = mergeSteps(chain);
+
+  // Validate merged steps
+  validateMergedSteps(mergedSteps);
+
+  return {
+    original: playbook,
+    variables: mergedVariables,
+    steps: mergedSteps,
+    inheritanceChain: chain,
+  };
+}
+
+/**
+ * Creates a synchronous playbook loader from an array of playbooks.
+ *
+ * Useful for creating a loader for in-memory playbook collections.
+ *
+ * @param playbooks - Array of playbooks to search
+ * @returns Loader function
+ */
+export function createPlaybookLoader(playbooks: Playbook[]): PlaybookLoader {
+  return (name: string) => findByName(playbooks, name);
+}

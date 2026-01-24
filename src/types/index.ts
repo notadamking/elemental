@@ -44,8 +44,122 @@ export {
   sortByCreationDate as sortPlansByCreationDate,
 } from './plan.js';
 export * from './message.js';
-export * from './playbook.js';
 export * from './workflow.js';
+
+// Playbook exports - aliased to avoid naming conflicts with other modules
+export {
+  // Types and interfaces
+  type PlaybookId,
+  type PlaybookVariable,
+  type PlaybookStep,
+  type Playbook,
+  type HydratedPlaybook,
+  type CreatePlaybookInput,
+  type UpdatePlaybookInput,
+  type ResolvedVariables,
+  type ConditionOperator,
+  type ParsedCondition,
+  type PlaybookLoader,
+  type ResolvedInheritanceChain,
+  type ResolvedPlaybook,
+  // VariableType enum
+  VariableType,
+  // Constants
+  MIN_PLAYBOOK_NAME_LENGTH,
+  MAX_PLAYBOOK_NAME_LENGTH,
+  MIN_PLAYBOOK_TITLE_LENGTH,
+  MAX_PLAYBOOK_TITLE_LENGTH,
+  MAX_VARIABLE_NAME_LENGTH,
+  MAX_STEP_ID_LENGTH,
+  MAX_STEP_TITLE_LENGTH,
+  MAX_STEP_DESCRIPTION_LENGTH,
+  MAX_ASSIGNEE_LENGTH,
+  MAX_CONDITION_LENGTH,
+  MAX_STEPS,
+  MAX_VARIABLES,
+  MAX_EXTENDS,
+  VARIABLE_NAME_PATTERN,
+  STEP_ID_PATTERN,
+  PLAYBOOK_NAME_PATTERN,
+  VARIABLE_SUBSTITUTION_PATTERN,
+  // Variable type validation
+  isValidVariableType,
+  validateVariableType,
+  isValidVariableName,
+  validateVariableName,
+  isValidDefaultForType,
+  isValidEnumForType,
+  isValidPlaybookVariable,
+  validatePlaybookVariable,
+  // Step validation
+  isValidStepId,
+  validateStepId,
+  isValidStepTitle,
+  validateStepTitle,
+  validateStepDescription,
+  isValidPlaybookStep,
+  validatePlaybookStep,
+  // Playbook name/title/version validation
+  isValidPlaybookName,
+  validatePlaybookName,
+  isValidPlaybookTitle,
+  validatePlaybookTitle,
+  isValidPlaybookVersion,
+  validatePlaybookVersion,
+  isValidPlaybookId,
+  validatePlaybookId,
+  // Array validators
+  validateSteps,
+  validateVariables,
+  validateExtends,
+  // Type guards
+  isPlaybook,
+  validatePlaybook,
+  // Factory functions
+  createPlaybook,
+  updatePlaybook,
+  // Variable system
+  resolveVariables,
+  getVariableNames,
+  getRequiredVariableNames,
+  getOptionalVariableNames,
+  // Condition system
+  isTruthy,
+  parseCondition,
+  evaluateCondition,
+  // Substitution system
+  extractVariableNames,
+  substituteVariables,
+  hasVariables,
+  filterStepsByConditions,
+  // Utility functions - aliased to avoid conflicts
+  getStepById,
+  getVariableByName,
+  hasPlaybookVariables,
+  hasSteps,
+  hasParents,
+  hasDescription as playbookHasDescription,
+  getStepCount,
+  getVariableCount,
+  filterByNamePattern as filterPlaybooksByNamePattern,
+  filterByVariable as filterPlaybooksByVariable,
+  sortByName as sortPlaybooksByName,
+  sortByVersion as sortPlaybooksByVersion,
+  sortPlaybooksByCreatedAtDesc,
+  sortPlaybooksByCreatedAtAsc,
+  sortByStepCount as sortPlaybooksByStepCount,
+  groupByHasParents,
+  getAllParentNames,
+  findChildPlaybooks,
+  findByName as findPlaybookByName,
+  // Inheritance system
+  resolveInheritanceChain,
+  mergeVariables,
+  mergeSteps,
+  validateMergedSteps,
+  resolvePlaybookInheritance,
+  createPlaybookLoader,
+} from './playbook.js';
 
 // Library exports - exclude duplicates
 // Note: hasDescription is also in channel.js but with a different implementation for channels

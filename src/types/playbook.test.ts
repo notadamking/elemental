@@ -99,6 +99,17 @@ import {
   groupByHasParents,
   getAllParentNames,
   findChildPlaybooks,
+  findByName,
+  // Inheritance system
+  type PlaybookLoader,
+  type ResolvedInheritanceChain,
+  type ResolvedPlaybook,
+  resolveInheritanceChain,
+  mergeVariables,
+  mergeSteps,
+  validateMergedSteps,
+  resolvePlaybookInheritance,
+  createPlaybookLoader,
 } from './playbook.js';
 import { ElementType, type EntityId, type Timestamp } from './element.js';
 import { type DocumentId } from './document.js';
@@ -1707,5 +1718,545 @@ describe('findChildPlaybooks', () => {
     const playbooks = [createTestPlaybook({ name: 'standalone' })];
     const children = findChildPlaybooks(playbooks, 'nonexistent');
     expect(children).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// findByName Tests
+// ============================================================================
+
+describe('findByName', () => {
+  test('finds playbook by exact name', () => {
+    const playbooks = [
+      createTestPlaybook({ name: 'alpha' }),
+      createTestPlaybook({ name: 'bravo' }),
+      createTestPlaybook({ name: 'charlie' }),
+    ];
+    const found = findByName(playbooks, 'bravo');
+    expect(found).toBeDefined();
+    expect(found?.name).toBe('bravo');
+  });
+
+  test('finds playbook case-insensitively', () => {
+    const playbooks = [createTestPlaybook({ name: 'MyPlaybook' })];
+    expect(findByName(playbooks, 'myplaybook')).toBeDefined();
+    expect(findByName(playbooks, 'MYPLAYBOOK')).toBeDefined();
+    expect(findByName(playbooks, 'MyPlaybook')).toBeDefined();
+  });
+
+  test('returns undefined when not found', () => {
+    const playbooks = [createTestPlaybook({ name: 'alpha' })];
+    expect(findByName(playbooks, 'nonexistent')).toBeUndefined();
+  });
+
+  test('returns undefined for empty array', () => {
+    expect(findByName([], 'anything')).toBeUndefined();
+  });
+});
+
+// ============================================================================
+// Playbook Inheritance Tests
+// ============================================================================
+
+describe('mergeVariables', () => {
+  test('returns empty array for empty chain', () => {
+    const result = mergeVariables([]);
+    expect(result).toEqual([]);
+  });
+
+  test('returns variables from single playbook', () => {
+    const playbook = createTestPlaybook({
+      name: 'single',
+      variables: [
+        createTestVariable({ name: 'var1' }),
+        createTestVariable({ name: 'var2' }),
+      ],
+    });
+    const result = mergeVariables([playbook]);
+    expect(result).toHaveLength(2);
+    expect(result.map((v) => v.name)).toEqual(['var1', 'var2']);
+  });
+
+  test('merges variables from parent and child (child overrides)', () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      variables: [
+        createTestVariable({ name: 'shared', type: VT.STRING, description: 'parent' }),
+        createTestVariable({ name: 'parentOnly', description: 'from parent' }),
+      ],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      variables: [
+        createTestVariable({ name: 'shared', type: VT.NUMBER, description: 'child' }),
+        createTestVariable({ name: 'childOnly', description: 'from child' }),
+      ],
+    });
+    const result = mergeVariables([parent, child]);
+    expect(result).toHaveLength(3);
+
+    // Child's definition should override parent's
+    const shared = result.find((v) => v.name === 'shared');
+    expect(shared?.type).toBe(VT.NUMBER);
+    expect(shared?.description).toBe('child');
+
+    // Both exclusive vars should be present
+    expect(result.find((v) => v.name === 'parentOnly')).toBeDefined();
+    expect(result.find((v) => v.name === 'childOnly')).toBeDefined();
+  });
+
+  test('merges multiple parent playbooks (left to right)', () => {
+    const base = createTestPlaybook({
+      name: 'base',
+      variables: [createTestVariable({ name: 'var1', description: 'base' })],
+    });
+    const mixin1 = createTestPlaybook({
+      name: 'mixin1',
+      variables: [
+        createTestVariable({ name: 'var1', description: 'mixin1' }),
+        createTestVariable({ name: 'var2', description: 'mixin1' }),
+      ],
+    });
+    const mixin2 = createTestPlaybook({
+      name: 'mixin2',
+      variables: [
+        createTestVariable({ name: 'var2', description: 'mixin2' }),
+        createTestVariable({ name: 'var3', description: 'mixin2' }),
+      ],
+    });
+    const result = mergeVariables([base, mixin1, mixin2]);
+    expect(result).toHaveLength(3);
+
+    // Later playbooks override earlier ones
+    expect(result.find((v) => v.name === 'var1')?.description).toBe('mixin1');
+    expect(result.find((v) => v.name === 'var2')?.description).toBe('mixin2');
+    expect(result.find((v) => v.name === 'var3')?.description).toBe('mixin2');
+  });
+});
+
+describe('mergeSteps', () => {
+  test('returns empty array for empty chain', () => {
+    const result = mergeSteps([]);
+    expect(result).toEqual([]);
+  });
+
+  test('returns steps from single playbook', () => {
+    const playbook = createTestPlaybook({
+      name: 'single',
+      steps: [
+        createTestStep({ id: 'step1' }),
+        createTestStep({ id: 'step2' }),
+      ],
+    });
+    const result = mergeSteps([playbook]);
+    expect(result).toHaveLength(2);
+    expect(result.map((s) => s.id)).toEqual(['step1', 'step2']);
+  });
+
+  test('merges steps from parent and child (child overrides same ID)', () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      steps: [
+        createTestStep({ id: 'shared', title: 'Parent Shared' }),
+        createTestStep({ id: 'parentOnly', title: 'Parent Only' }),
+      ],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      steps: [
+        createTestStep({ id: 'shared', title: 'Child Shared' }),
+        createTestStep({ id: 'childOnly', title: 'Child Only' }),
+      ],
+    });
+    const result = mergeSteps([parent, child]);
+    expect(result).toHaveLength(3);
+
+    // Child's step should override parent's (but keep order)
+    const shared = result.find((s) => s.id === 'shared');
+    expect(shared?.title).toBe('Child Shared');
+
+    // Both exclusive steps should be present
+    expect(result.find((s) => s.id === 'parentOnly')).toBeDefined();
+    expect(result.find((s) => s.id === 'childOnly')).toBeDefined();
+  });
+
+  test('preserves step order from parent', () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      steps: [
+        createTestStep({ id: 'step1', title: 'First' }),
+        createTestStep({ id: 'step2', title: 'Second' }),
+        createTestStep({ id: 'step3', title: 'Third' }),
+      ],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      steps: [
+        createTestStep({ id: 'step2', title: 'Modified Second' }),
+        createTestStep({ id: 'step4', title: 'Fourth' }),
+      ],
+    });
+    const result = mergeSteps([parent, child]);
+
+    // Order should be: step1, step2, step3 (from parent), step4 (new from child)
+    expect(result.map((s) => s.id)).toEqual(['step1', 'step2', 'step3', 'step4']);
+    expect(result[1].title).toBe('Modified Second');
+  });
+
+  test('handles deep inheritance chain', () => {
+    const grandparent = createTestPlaybook({
+      name: 'grandparent',
+      steps: [createTestStep({ id: 's1', title: 'GP' })],
+    });
+    const parent = createTestPlaybook({
+      name: 'parent',
+      extends: ['grandparent'],
+      steps: [createTestStep({ id: 's2', title: 'P' })],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      steps: [createTestStep({ id: 's3', title: 'C' })],
+    });
+    const result = mergeSteps([grandparent, parent, child]);
+    expect(result.map((s) => s.id)).toEqual(['s1', 's2', 's3']);
+  });
+});
+
+describe('validateMergedSteps', () => {
+  test('passes for valid steps', () => {
+    const steps: PlaybookStep[] = [
+      createTestStep({ id: 'step1' }),
+      createTestStep({ id: 'step2', dependsOn: ['step1'] }),
+    ];
+    expect(() => validateMergedSteps(steps)).not.toThrow();
+  });
+
+  test('throws on self-dependency', () => {
+    const steps: PlaybookStep[] = [
+      createTestStep({ id: 'step1', dependsOn: ['step1'] }),
+    ];
+    expect(() => validateMergedSteps(steps)).toThrow(ConflictError);
+  });
+
+  test('throws on unknown dependency reference', () => {
+    const steps: PlaybookStep[] = [
+      createTestStep({ id: 'step1', dependsOn: ['nonexistent'] }),
+    ];
+    expect(() => validateMergedSteps(steps)).toThrow(NotFoundError);
+  });
+
+  test('passes for empty steps array', () => {
+    expect(() => validateMergedSteps([])).not.toThrow();
+  });
+});
+
+describe('resolveInheritanceChain', () => {
+  test('returns single-element chain for playbook without extends', async () => {
+    const playbook = createTestPlaybook({ name: 'standalone' });
+    const loader = createPlaybookLoader([playbook]);
+    const result = await resolveInheritanceChain(playbook, loader);
+
+    expect(result.chain).toHaveLength(1);
+    expect(result.chain[0].name).toBe('standalone');
+    expect(result.names.size).toBe(1);
+  });
+
+  test('resolves simple parent-child relationship', async () => {
+    const parent = createTestPlaybook({ name: 'parent' });
+    const child = createTestPlaybook({ name: 'child', extends: ['parent'] });
+    const loader = createPlaybookLoader([parent, child]);
+
+    const result = await resolveInheritanceChain(child, loader);
+
+    // Chain should be: parent, child (root ancestors first)
+    expect(result.chain).toHaveLength(2);
+    expect(result.chain[0].name).toBe('parent');
+    expect(result.chain[1].name).toBe('child');
+  });
+
+  test('resolves deep inheritance chain', async () => {
+    const grandparent = createTestPlaybook({ name: 'grandparent' });
+    const parent = createTestPlaybook({ name: 'parent', extends: ['grandparent'] });
+    const child = createTestPlaybook({ name: 'child', extends: ['parent'] });
+    const loader = createPlaybookLoader([grandparent, parent, child]);
+
+    const result = await resolveInheritanceChain(child, loader);
+
+    expect(result.chain).toHaveLength(3);
+    expect(result.chain.map((p) => p.name)).toEqual(['grandparent', 'parent', 'child']);
+  });
+
+  test('resolves multiple parents (left to right)', async () => {
+    const parentA = createTestPlaybook({ name: 'parentA' });
+    const parentB = createTestPlaybook({ name: 'parentB' });
+    const child = createTestPlaybook({ name: 'child', extends: ['parentA', 'parentB'] });
+    const loader = createPlaybookLoader([parentA, parentB, child]);
+
+    const result = await resolveInheritanceChain(child, loader);
+
+    expect(result.chain).toHaveLength(3);
+    // Parents should appear in extends order
+    expect(result.chain[0].name).toBe('parentA');
+    expect(result.chain[1].name).toBe('parentB');
+    expect(result.chain[2].name).toBe('child');
+  });
+
+  test('handles diamond inheritance (grandparent loaded once)', async () => {
+    const base = createTestPlaybook({ name: 'base' });
+    const mixin1 = createTestPlaybook({ name: 'mixin1', extends: ['base'] });
+    const mixin2 = createTestPlaybook({ name: 'mixin2', extends: ['base'] });
+    const child = createTestPlaybook({ name: 'child', extends: ['mixin1', 'mixin2'] });
+    const loader = createPlaybookLoader([base, mixin1, mixin2, child]);
+
+    const result = await resolveInheritanceChain(child, loader);
+
+    // base should appear only once
+    expect(result.chain.filter((p) => p.name === 'base')).toHaveLength(1);
+    expect(result.names.size).toBe(4);
+  });
+
+  test('throws on circular inheritance', async () => {
+    const a = createTestPlaybook({ name: 'a', extends: ['b'] });
+    const b = createTestPlaybook({ name: 'b', extends: ['a'] });
+    const loader = createPlaybookLoader([a, b]);
+
+    await expect(resolveInheritanceChain(a, loader)).rejects.toThrow(ConflictError);
+  });
+
+  test('throws on self-extension', async () => {
+    const self = createTestPlaybook({ name: 'self', extends: ['self'] });
+    const loader = createPlaybookLoader([self]);
+
+    await expect(resolveInheritanceChain(self, loader)).rejects.toThrow(ConflictError);
+  });
+
+  test('throws when parent not found', async () => {
+    const child = createTestPlaybook({ name: 'child', extends: ['nonexistent'] });
+    const loader = createPlaybookLoader([child]);
+
+    await expect(resolveInheritanceChain(child, loader)).rejects.toThrow(NotFoundError);
+  });
+
+  test('works with async loader', async () => {
+    const parent = createTestPlaybook({ name: 'parent' });
+    const child = createTestPlaybook({ name: 'child', extends: ['parent'] });
+    const asyncLoader: PlaybookLoader = async (name) => {
+      // Simulate async operation
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      return [parent, child].find((p) => p.name.toLowerCase() === name.toLowerCase());
+    };
+
+    const result = await resolveInheritanceChain(child, asyncLoader);
+    expect(result.chain).toHaveLength(2);
+  });
+});
+
+describe('resolvePlaybookInheritance', () => {
+  test('returns original for playbook without extends', async () => {
+    const playbook = createTestPlaybook({
+      name: 'standalone',
+      variables: [createTestVariable({ name: 'v1' })],
+      steps: [createTestStep({ id: 's1' })],
+    });
+    const loader = createPlaybookLoader([playbook]);
+
+    const result = await resolvePlaybookInheritance(playbook, loader);
+
+    expect(result.original).toBe(playbook);
+    expect(result.variables).toEqual(playbook.variables);
+    expect(result.steps).toEqual(playbook.steps);
+    expect(result.inheritanceChain).toHaveLength(1);
+  });
+
+  test('merges variables and steps from parent', async () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      variables: [
+        createTestVariable({ name: 'parentVar', description: 'from parent' }),
+      ],
+      steps: [
+        createTestStep({ id: 'parentStep', title: 'Parent Step' }),
+      ],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      variables: [
+        createTestVariable({ name: 'childVar', description: 'from child' }),
+      ],
+      steps: [
+        createTestStep({ id: 'childStep', title: 'Child Step' }),
+      ],
+    });
+    const loader = createPlaybookLoader([parent, child]);
+
+    const result = await resolvePlaybookInheritance(child, loader);
+
+    expect(result.variables).toHaveLength(2);
+    expect(result.variables.map((v) => v.name).sort()).toEqual(['childVar', 'parentVar']);
+
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps.map((s) => s.id)).toEqual(['parentStep', 'childStep']);
+  });
+
+  test('child overrides parent variables with same name', async () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      variables: [
+        createTestVariable({ name: 'shared', type: VT.STRING, default: 'parent default' }),
+      ],
+      steps: [],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      variables: [
+        createTestVariable({ name: 'shared', type: VT.NUMBER, default: 42 }),
+      ],
+      steps: [],
+    });
+    const loader = createPlaybookLoader([parent, child]);
+
+    const result = await resolvePlaybookInheritance(child, loader);
+
+    expect(result.variables).toHaveLength(1);
+    expect(result.variables[0].type).toBe(VT.NUMBER);
+    expect(result.variables[0].default).toBe(42);
+  });
+
+  test('child overrides parent steps with same ID', async () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      variables: [],
+      steps: [createTestStep({ id: 'shared', title: 'Parent Title' })],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      variables: [],
+      steps: [createTestStep({ id: 'shared', title: 'Child Title' })],
+    });
+    const loader = createPlaybookLoader([parent, child]);
+
+    const result = await resolvePlaybookInheritance(child, loader);
+
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].title).toBe('Child Title');
+  });
+
+  test('validates merged steps dependencies', async () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      variables: [],
+      steps: [createTestStep({ id: 'parentStep' })],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      variables: [],
+      steps: [createTestStep({ id: 'childStep', dependsOn: ['nonexistent'] })],
+    });
+    const loader = createPlaybookLoader([parent, child]);
+
+    await expect(resolvePlaybookInheritance(child, loader)).rejects.toThrow(NotFoundError);
+  });
+
+  test('allows valid cross-playbook dependencies', async () => {
+    const parent = createTestPlaybook({
+      name: 'parent',
+      variables: [],
+      steps: [createTestStep({ id: 'parentStep' })],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['parent'],
+      variables: [],
+      steps: [createTestStep({ id: 'childStep', dependsOn: ['parentStep'] })],
+    });
+    const loader = createPlaybookLoader([parent, child]);
+
+    const result = await resolvePlaybookInheritance(child, loader);
+
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps[1].dependsOn).toContain('parentStep');
+  });
+
+  test('handles complex diamond inheritance', async () => {
+    // base -> [mixin1, mixin2] -> child
+    const base = createTestPlaybook({
+      name: 'base',
+      variables: [createTestVariable({ name: 'baseVar', description: 'base' })],
+      steps: [createTestStep({ id: 'baseStep', title: 'Base' })],
+    });
+    const mixin1 = createTestPlaybook({
+      name: 'mixin1',
+      extends: ['base'],
+      variables: [
+        createTestVariable({ name: 'baseVar', description: 'mixin1' }),
+        createTestVariable({ name: 'mixin1Var' }),
+      ],
+      steps: [createTestStep({ id: 'mixin1Step' })],
+    });
+    const mixin2 = createTestPlaybook({
+      name: 'mixin2',
+      extends: ['base'],
+      variables: [
+        createTestVariable({ name: 'baseVar', description: 'mixin2' }),
+        createTestVariable({ name: 'mixin2Var' }),
+      ],
+      steps: [createTestStep({ id: 'mixin2Step' })],
+    });
+    const child = createTestPlaybook({
+      name: 'child',
+      extends: ['mixin1', 'mixin2'],
+      variables: [createTestVariable({ name: 'childVar' })],
+      steps: [createTestStep({ id: 'childStep' })],
+    });
+    const loader = createPlaybookLoader([base, mixin1, mixin2, child]);
+
+    const result = await resolvePlaybookInheritance(child, loader);
+
+    // Variables: baseVar (overridden by mixin2), mixin1Var, mixin2Var, childVar
+    expect(result.variables).toHaveLength(4);
+    const baseVar = result.variables.find((v) => v.name === 'baseVar');
+    expect(baseVar?.description).toBe('mixin2'); // mixin2 came after mixin1
+
+    // Steps: baseStep, mixin1Step, mixin2Step, childStep
+    expect(result.steps).toHaveLength(4);
+    expect(result.steps.map((s) => s.id)).toEqual([
+      'baseStep',
+      'mixin1Step',
+      'mixin2Step',
+      'childStep',
+    ]);
+
+    // Inheritance chain should include all 4 playbooks
+    expect(result.inheritanceChain).toHaveLength(4);
+  });
+});
+
+describe('createPlaybookLoader', () => {
+  test('creates loader from playbook array', () => {
+    const playbooks = [
+      createTestPlaybook({ name: 'alpha' }),
+      createTestPlaybook({ name: 'bravo' }),
+    ];
+    const loader = createPlaybookLoader(playbooks);
+
+    expect(loader('alpha')).toBeDefined();
+    expect(loader('bravo')).toBeDefined();
+    expect(loader('charlie')).toBeUndefined();
+  });
+
+  test('loader is case-insensitive', () => {
+    const playbooks = [createTestPlaybook({ name: 'MyPlaybook' })];
+    const loader = createPlaybookLoader(playbooks);
+
+    expect(loader('myplaybook')).toBeDefined();
+    expect(loader('MYPLAYBOOK')).toBeDefined();
   });
 });

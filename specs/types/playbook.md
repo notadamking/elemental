@@ -291,12 +291,13 @@ String replacement with variable values:
 - [x] Error on unresolved variables (with allowMissing option)
 - [x] Implement filterStepsByConditions
 
-### Phase 5: Inheritance
-- [ ] Implement playbook loading
-- [ ] Implement inheritance chain resolution
-- [ ] Implement variable merging
-- [ ] Implement step merging
+### Phase 5: Inheritance ✅
+- [x] Implement playbook loading (findByName, createPlaybookLoader)
+- [x] Implement inheritance chain resolution (resolveInheritanceChain)
+- [x] Implement variable merging (mergeVariables)
+- [x] Implement step merging (mergeSteps, validateMergedSteps)
 - [x] Detect circular inheritance (self-extension check in createPlaybook/updatePlaybook)
+- [x] Main entry point (resolvePlaybookInheritance)
 
 ### Phase 6: YAML Support
 - [ ] Define YAML schema
@@ -317,6 +318,6 @@ String replacement with variable values:
 - [x] Unit tests for variable system (230 tests)
 - [x] Unit tests for condition evaluation
 - [x] Unit tests for substitution
-- [ ] Unit tests for inheritance (requires Phase 5)
-- [ ] Integration tests for full pour (requires Phase 5-8)
+- [x] Unit tests for inheritance (42 tests covering mergeVariables, mergeSteps, validateMergedSteps, resolveInheritanceChain, resolvePlaybookInheritance, createPlaybookLoader, findByName)
+- [ ] Integration tests for full pour (requires Phase 6-8)
 - [ ] E2E tests for playbook lifecycle (requires Phase 8)
