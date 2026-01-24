@@ -5460,6 +5460,121 @@ Recommended fix for el-1dwc:
 
 ---
 
+### Scenario: Complex Multi-Agent Work Handoff with Dependency Chains
+
+**Purpose:** Evaluate realistic multi-agent orchestration patterns including work handoff, priority inheritance through dependency chains, and agent-specific ready list filtering
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Pass - Core patterns work, confirms known issues)
+
+**Checkpoints:**
+
+**Multi-Agent Setup:**
+- [x] Register multiple agent entities (lead, worker1, worker2, reviewer): works correctly
+- [x] Create plan with active status using `--actor` flag: works correctly
+- [x] Create tasks with different priorities and assignees: works correctly
+- [x] Add tasks to plan via `el plan add-task`: works correctly
+
+**Dependency Chain Behavior:**
+- [x] Create multi-step dependency chain (Design → Impl Core → Review): works correctly
+  - Design blocks both implementation tasks
+  - Both implementations block Review (fan-in pattern)
+- [x] Only unblocked tasks appear in ready list: correct
+  - Initially only Design task is ready
+- [x] Blocked tasks correctly show blockedBy field
+- [ ] **CONFIRMS el-19gz:** Tasks with multiple blockers only show first blocker
+  - Review blocked by both impl tasks, but only shows one in `blockedBy` field
+
+**Priority Inheritance:**
+- [x] P3 task (Impl Extension) blocking P2 task (Review) inherits effectivePriority=2
+- [x] priorityInfluenced=true correctly shown in ready list
+- [ ] **CONFIRMS el-2a9n:** `el show` does NOT include effectivePriority/priorityInfluenced
+  - Fields only available in `el ready` output
+
+**Blocked Cache Update on Close:**
+- [x] Closing Design task correctly unblocks both implementation tasks
+- [x] Both Impl tasks immediately appear in ready list
+- [x] Review task remains blocked (still has two blockers)
+- [x] Closing one Impl task doesn't unblock Review (still has other blocker)
+- [x] Closing both Impl tasks correctly unblocks Review
+
+**Work Handoff:**
+- [x] Agent can reassign task via `el assign`: works correctly
+- [x] Status preserved during handoff (in_progress remains)
+- [x] New assignee immediately sees task in their ready list
+- [x] Previous assignee no longer sees task in filtered ready list
+
+**Agent-Specific Filtering:**
+- [x] `el ready --assignee <entity-id>` filters correctly by ID
+- [ ] **CONFIRMS el-574h:** `el ready --assignee <entity-name>` returns empty
+  - Entity names not resolved to IDs
+
+**Handoff by Entity Name:**
+- [ ] **CONFIRMS el-4kis:** `el assign <task> <entity-name>` fails
+  - Error: "Task not found: <entity-name>"
+  - Entity name treated as task ID
+
+**Plan Progress:**
+- [x] Progress correctly tracks closed tasks (25%, 50%, 75%, 100%)
+- [x] inProgressTasks count is accurate
+- [x] blockedTasks count is accurate
+
+**Plan Show Structure:**
+- [ ] **CONFIRMS el-58d9:** Inconsistent structure between `el show` and `el plan show`
+  - `el show` returns `{element: {...}, progress: {...}}`
+  - `el plan show` returns `{plan: {...}, progress: {...}}`
+
+**Task planId Visibility:**
+- [ ] **CONFIRMS el-2a68:** Task output shows `planId: null` even when task is in plan
+  - Must use `el dep list --type parent-child` as workaround
+
+**Dependency Types:**
+- [x] `blocks` type correctly blocks tasks
+- [x] `relates-to` type does NOT block tasks
+- [x] Both types can coexist on same source task
+
+**Dependency Tree:**
+- [x] `el dep tree` correctly visualizes full dependency hierarchy
+- [x] Shows both dependency depth and dependent depth
+- [x] Properly traverses through parent-child relationships to plan
+
+**Success Criteria:** Multi-agent coordination patterns work correctly
+- **Pass:** Core patterns for work handoff, dependency resolution, and priority inheritance work correctly. All issues found were already tracked.
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-19gz | (pre-existing) el blocked shows only first blocker for multi-blocked tasks | 4 | ux |
+| el-574h | (pre-existing) --assignee flag doesn't resolve entity names | 3 | enhancement |
+| el-4kis | (pre-existing) el assign treats entity names as task IDs | 2 | bug |
+| el-58d9 | (pre-existing) Inconsistent JSON structure between el show and el plan show | 4 | ux |
+| el-2a68 | (pre-existing) Task output missing planId field | 4 | enhancement |
+
+**Notes:**
+This evaluation tested a realistic multi-agent orchestration scenario simulating:
+1. Lead agent creates plan, designs API, assigns implementation to workers
+2. Workers execute implementation tasks in parallel
+3. Work handoff between workers when needed
+4. Reviewer waits for all implementations before review
+5. Plan progress tracked through completion
+
+Key findings:
+1. **POSITIVE:** Core dependency resolution and blocked cache work correctly
+2. **POSITIVE:** Priority inheritance through dependency chains works correctly
+3. **POSITIVE:** Work handoff via reassignment works correctly
+4. **POSITIVE:** Agent-specific ready list filtering works (by ID)
+5. **KNOWN ISSUE:** Entity names not resolved for --assignee filter
+6. **KNOWN ISSUE:** Multi-blocker visibility limited to first blocker
+7. **KNOWN ISSUE:** planId not visible in task output
+
+The multi-agent patterns work well for orchestration when using entity IDs.
+The main friction is around name resolution (el-574h, el-4kis) which forces
+agents to track and use element IDs rather than human-readable names.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
