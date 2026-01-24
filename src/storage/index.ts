@@ -54,14 +54,16 @@ export {
   createStorageAsync,
   isBunRuntime,
   isNodeRuntime,
+  isBrowserRuntime,
   getRuntimeName,
 } from './create-backend.js';
 
-// NOTE: BunStorageBackend and NodeStorageBackend are NOT exported from this index
-// to avoid eagerly loading bun:sqlite or better-sqlite3 when importing from storage.
+// NOTE: Runtime-specific backends are NOT exported from this index
+// to avoid eagerly loading runtime-specific dependencies.
 // For explicit backend access, import directly from the specific backend files:
 //   import { BunStorageBackend, createBunStorage } from '@elemental/cli/dist/storage/bun-backend.js';
 //   import { NodeStorageBackend, createNodeStorage } from '@elemental/cli/dist/storage/node-backend.js';
+//   import { BrowserStorageBackend, createBrowserStorage } from '@elemental/cli/dist/storage/browser-backend.js';
 
 // Schema management
 export {

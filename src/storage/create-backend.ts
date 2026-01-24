@@ -1,12 +1,12 @@
 /**
  * Runtime Detection and Unified Storage Factory
  *
- * Automatically detects the runtime environment (Bun vs Node.js)
+ * Automatically detects the runtime environment (Bun, Node.js, or Browser)
  * and returns the appropriate storage backend.
  */
 
 import { createRequire } from 'node:module';
-import type { StorageBackend, StorageFactory } from './backend.js';
+import type { StorageBackend, StorageFactory, AsyncStorageFactory } from './backend.js';
 import type { StorageConfig } from './types.js';
 
 // Create a require function for use in ESM
@@ -34,11 +34,22 @@ export function isNodeRuntime(): boolean {
 }
 
 /**
+ * Check if running in a browser environment
+ */
+export function isBrowserRuntime(): boolean {
+  return typeof window !== 'undefined' &&
+         typeof window.document !== 'undefined' &&
+         !isBunRuntime() &&
+         !isNodeRuntime();
+}
+
+/**
  * Get the current runtime name
  */
-export function getRuntimeName(): 'bun' | 'node' | 'unknown' {
+export function getRuntimeName(): 'bun' | 'node' | 'browser' | 'unknown' {
   if (isBunRuntime()) return 'bun';
   if (isNodeRuntime()) return 'node';
+  if (isBrowserRuntime()) return 'browser';
   return 'unknown';
 }
 
@@ -49,6 +60,7 @@ export function getRuntimeName(): 'bun' | 'node' | 'unknown' {
 // Cache for loaded factories to avoid repeated dynamic imports
 let bunFactory: StorageFactory | null = null;
 let nodeFactory: StorageFactory | null = null;
+let browserFactory: AsyncStorageFactory | null = null;
 
 /**
  * Get the Bun storage factory
@@ -70,6 +82,17 @@ async function getNodeFactory(): Promise<StorageFactory> {
   const { createNodeStorage } = await import('./node-backend.js');
   nodeFactory = createNodeStorage;
   return nodeFactory;
+}
+
+/**
+ * Get the Browser storage factory
+ * Uses dynamic import to avoid loading sql.js in Node/Bun
+ */
+async function getBrowserFactory(): Promise<AsyncStorageFactory> {
+  if (browserFactory) return browserFactory;
+  const { createBrowserStorage } = await import('./browser-backend.js');
+  browserFactory = createBrowserStorage;
+  return browserFactory;
 }
 
 // ============================================================================
@@ -132,9 +155,13 @@ export function createStorage(config: StorageConfig): StorageBackend {
       return getBunFactorySync()(config);
     case 'node':
       return getNodeFactorySync()(config);
+    case 'browser':
+      throw new Error(
+        'Browser storage requires async initialization. Use createStorageAsync() instead.'
+      );
     default:
       throw new Error(
-        `Unsupported runtime: ${runtime}. Elemental requires either Bun or Node.js.`
+        `Unsupported runtime: ${runtime}. Elemental requires Bun, Node.js, or a modern browser.`
       );
   }
 }
@@ -145,6 +172,9 @@ export function createStorage(config: StorageConfig): StorageBackend {
  * Use this when you need to ensure the backend module is loaded
  * before creating the storage instance (e.g., in environments
  * where synchronous require might not work).
+ *
+ * This is also required for browser environments since WASM loading
+ * is inherently asynchronous.
  *
  * @param config - Storage configuration
  * @returns A promise resolving to a storage backend instance
@@ -162,9 +192,13 @@ export async function createStorageAsync(config: StorageConfig): Promise<Storage
       const factory = await getNodeFactory();
       return factory(config);
     }
+    case 'browser': {
+      const factory = await getBrowserFactory();
+      return factory(config);
+    }
     default:
       throw new Error(
-        `Unsupported runtime: ${runtime}. Elemental requires either Bun or Node.js.`
+        `Unsupported runtime: ${runtime}. Elemental requires Bun, Node.js, or a modern browser.`
       );
   }
 }

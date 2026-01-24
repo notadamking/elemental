@@ -318,11 +318,11 @@ Convert SQLite errors to Elemental errors:
 - [x] Test compatibility (tests/node/node-backend.test.ts - 33 tests using vitest for Node.js runtime)
 - [x] Handle sync vs async differences (both backends use synchronous API; async factory available via createStorageAsync)
 
-### Phase 4: Browser Backend
-- [ ] Implement sql.js adapter
-- [ ] Implement OPFS integration
-- [ ] Handle WASM loading
-- [ ] Test persistence
+### Phase 4: Browser Backend ✅
+- [x] Implement sql.js adapter (src/storage/browser-backend.ts - BrowserStorageBackend class using sql.js WASM)
+- [x] Implement OPFS integration (src/storage/browser-backend.ts - OpfsStorageManager for persistent storage)
+- [x] Handle WASM loading (src/storage/browser-backend.ts - async initialization via BrowserStorageBackend.create())
+- [x] Test persistence (src/storage/browser-backend.test.ts - 35 tests covering all operations)
 
 ### Phase 5: Schema Management ✅
 - [x] Implement schema creation (src/storage/schema.ts - initializeSchema)
@@ -341,9 +341,9 @@ Convert SQLite errors to Elemental errors:
 - [x] Integrate with create/update (src/api/elemental-api.ts - serializeElement)
 - [x] Add hash column to schema (content_hash column with index in migration 1)
 
-### Phase 8: Testing
-- [x] Unit tests per backend (src/storage/bun-backend.test.ts, tests/node/node-backend.test.ts)
-- [x] Integration tests for transactions (src/storage/bun-backend.test.ts, tests/node/node-backend.test.ts)
+### Phase 8: Testing ✅
+- [x] Unit tests per backend (src/storage/bun-backend.test.ts, tests/node/node-backend.test.ts, src/storage/browser-backend.test.ts)
+- [x] Integration tests for transactions (src/storage/bun-backend.test.ts, tests/node/node-backend.test.ts, src/storage/browser-backend.test.ts)
 - [x] Migration tests (src/storage/schema.test.ts - 68 tests)
 - [x] Node.js backend tests (tests/node/node-backend.test.ts - 33 tests using vitest)
-- [ ] Cross-runtime compatibility tests (pending Browser backend)
+- [x] Browser backend tests (src/storage/browser-backend.test.ts - 35 tests for sql.js adapter)
