@@ -229,6 +229,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { channelCommand } = await import('./commands/channel.js');
   const { libraryCommand } = await import('./commands/library.js');
   const { teamCommand } = await import('./commands/team.js');
+  const { documentCommand } = await import('./commands/document.js');
 
   registerCommand(initCommand);
   registerCommand(configCommand);
@@ -280,6 +281,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(channelCommand);
   registerCommand(libraryCommand);
   registerCommand(teamCommand);
+  registerCommand(documentCommand);
 
   const exitCode = await run(argv);
   process.exit(exitCode);

@@ -27,3 +27,4 @@ export { playbookCommand } from './commands/playbook.js';
 export { channelCommand } from './commands/channel.js';
 export { libraryCommand } from './commands/library.js';
 export { teamCommand } from './commands/team.js';
+export { documentCommand } from './commands/document.js';

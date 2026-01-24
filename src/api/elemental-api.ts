@@ -31,6 +31,8 @@ import {
 } from '../types/channel.js';
 import { createMessage, isMessage } from '../types/message.js';
 import type { Message, HydratedMessage, ChannelId as MessageChannelId } from '../types/message.js';
+import { isLibrary } from '../types/library.js';
+import type { Library, HydratedLibrary } from '../types/library.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { PriorityService, createPriorityService } from '../services/priority-service.js';
 import { SyncService } from '../sync/service.js';
@@ -455,6 +457,8 @@ export class ElementalAPIImpl implements ElementalAPI {
         element = await this.hydrateTask(element as unknown as Task, options.hydrate) as unknown as T;
       } else if (isMessage(element)) {
         element = await this.hydrateMessage(element as unknown as Message, options.hydrate) as unknown as T;
+      } else if (isLibrary(element)) {
+        element = await this.hydrateLibrary(element as unknown as Library, options.hydrate) as unknown as T;
       }
     }
 
@@ -577,6 +581,19 @@ export class ElementalAPIImpl implements ElementalAPI {
         // Replace messages with hydrated versions
         finalItems = finalItems.map((item) => {
           const hydrated = hydratedMsgMap.get(item.id);
+          return hydrated ? (hydrated as unknown as T) : item;
+        });
+      }
+
+      // Hydrate libraries
+      const libraries = finalItems.filter((item): item is Library & T => isLibrary(item));
+      if (libraries.length > 0) {
+        const hydratedLibraries = this.hydrateLibraries(libraries, effectiveFilter.hydrate);
+        // Create a map for efficient lookup
+        const hydratedLibMap = new Map(hydratedLibraries.map((l) => [l.id, l]));
+        // Replace libraries with hydrated versions
+        finalItems = finalItems.map((item) => {
+          const hydrated = hydratedLibMap.get(item.id);
           return hydrated ? (hydrated as unknown as T) : item;
         });
       }
@@ -3114,6 +3131,60 @@ export class ElementalAPIImpl implements ElementalAPI {
           }
         }
         result.attachmentContents = attachmentContents;
+      }
+
+      return result;
+    });
+
+    return hydrated;
+  }
+
+  /**
+   * Hydrate a single library with its document references.
+   * Resolves descriptionRef -> description.
+   */
+  private async hydrateLibrary(library: Library, options: HydrationOptions): Promise<HydratedLibrary> {
+    const hydrated: HydratedLibrary = { ...library };
+
+    if (options.description && library.descriptionRef) {
+      const doc = await this.get<Document>(library.descriptionRef as unknown as ElementId);
+      if (doc) {
+        hydrated.description = doc.content;
+      }
+    }
+
+    return hydrated;
+  }
+
+  /**
+   * Batch hydrate libraries with their document references.
+   * Collects all document IDs, fetches them in a single query, then populates.
+   */
+  private hydrateLibraries(libraries: Library[], options: HydrationOptions): HydratedLibrary[] {
+    if (libraries.length === 0) {
+      return [];
+    }
+
+    // Collect all document IDs to fetch
+    const documentIds: ElementId[] = [];
+    for (const library of libraries) {
+      if (options.description && library.descriptionRef) {
+        documentIds.push(library.descriptionRef as unknown as ElementId);
+      }
+    }
+
+    // Batch fetch all documents
+    const documentMap = this.batchFetchDocuments(documentIds);
+
+    // Hydrate each library
+    const hydrated: HydratedLibrary[] = libraries.map((library) => {
+      const result: HydratedLibrary = { ...library };
+
+      if (options.description && library.descriptionRef) {
+        const doc = documentMap.get(library.descriptionRef as unknown as ElementId);
+        if (doc) {
+          result.description = doc.content;
+        }
       }
 
       return result;
