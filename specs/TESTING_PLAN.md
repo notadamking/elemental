@@ -6976,3 +6976,82 @@ The public key bugs (el-ohmj, el-5ism) are particularly important because:
 - Users expect --public-key flag to store the key
 - Silent acceptance followed by silent discard is confusing
 - `el identity verify` cannot work with entity-stored keys until fixed
+
+---
+
+### Scenario: Workflow GC Edge Cases and Ephemeral/Durable Behavior
+
+**Purpose:** Evaluate workflow garbage collection, ephemeral vs durable workflow behavior, squash/burn commands, and tombstone handling - critical for agent workflows managing workflow lifecycle
+
+**Prerequisites:** Initialized workspace with a playbook
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Tombstone handling bugs found)
+
+**Checkpoints:**
+
+**Ephemeral/Durable Workflow Creation:**
+- [x] `el workflow pour <playbook> --ephemeral` creates ephemeral workflow (ephemeral=true)
+- [x] `el workflow pour <playbook>` creates durable workflow by default (ephemeral=false)
+- [x] `el workflow list --ephemeral` filters to ephemeral workflows only
+- [x] `el workflow list --durable` filters to durable workflows only
+
+**Squash Command:**
+- [x] `el workflow squash <ephemeral-id>` converts to durable (ephemeral=false)
+- [x] Squash on already-durable workflow is idempotent (succeeds, no change)
+- [x] Squash on non-existent workflow returns NOT_FOUND (exit code 3)
+- [x] Squash on non-workflow element correctly rejected with type error (exit code 4)
+- [ ] **FAIL - BUG el-3hp7:** Squash succeeds on tombstoned workflow
+  - Silently changes ephemeral flag while status='tombstone'
+  - Should return NOT_FOUND like `el show` does
+  - Creates inconsistent data state
+
+**Burn Command:**
+- [x] `el workflow burn <ephemeral-id>` permanently deletes ephemeral workflow
+- [x] `el workflow burn <durable-id>` rejected with "is durable. Use --force"
+- [x] `el workflow burn <durable-id> --force` permanently deletes durable workflow
+- [x] Burn on non-existent workflow returns "Workflow not found" (exit code 3)
+- [x] Burn on non-workflow element correctly rejected with type error (exit code 4)
+- [ ] **FAIL - BUG el-5u9n:** Burn on tombstoned workflow gives misleading error
+  - Says "is durable" instead of "not found"
+  - With --force: succeeds (acts as permanent delete of tombstone record)
+  - Inconsistent with `el show` which returns NOT_FOUND
+
+**Garbage Collection (el workflow gc):**
+- [x] `el workflow gc --dry-run` reports what would be deleted without deleting
+- [x] GC only collects terminal-status ephemeral workflows (completed/failed/cancelled)
+- [x] GC returns 0 when no eligible workflows (all pending/running or durable)
+- [x] `el workflow gc --age N` filters by minimum age in days
+- [x] `el workflow gc --age abc` rejected with "Age must be a non-negative number"
+
+**Soft Delete vs Burn:**
+- [x] `el delete <workflow>` soft deletes (tombstones) the workflow
+- [x] Soft-deleted workflow excluded from `el workflow list`
+- [x] `el show <deleted-workflow>` returns NOT_FOUND
+- [x] Burn with --force on tombstoned workflow permanently removes record (intentional?)
+
+**Success Criteria:** Workflow lifecycle commands handle all states correctly, including tombstones
+- **PARTIAL:** Core operations work, but tombstone handling inconsistent between squash/burn and show
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3hp7 | el workflow squash succeeds on tombstoned workflows, creates inconsistent state | 3 | bug |
+| el-5u9n | el workflow burn on tombstoned workflow gives misleading error message | 4 | bug |
+
+**Dependencies:**
+- el-3hp7 → el-2yva (relates-to: tombstone visibility inconsistency theme)
+- el-3hp7 → el-4egr (relates-to: delete/tombstone handling pattern)
+- el-5u9n → el-3hp7 (relates-to: both workflow tombstone bugs)
+- el-5u9n → el-2yva (relates-to: tombstone visibility inconsistency theme)
+
+**Notes:**
+This evaluation tested workflow lifecycle commands critical for agent orchestration:
+1. Ephemeral/durable distinction works correctly for creation and listing
+2. Squash command works correctly for live workflows
+3. Burn command correctly enforces --force for durable workflows
+4. GC cannot collect anything because workflows cannot reach terminal status (el-rja0)
+5. **CRITICAL GAP:** Squash and burn don't check tombstone status before processing
+6. Tombstone handling inconsistent: `el show` returns NOT_FOUND, but squash/burn process the record
+
+The tombstone bugs (el-3hp7, el-5u9n) are part of a broader pattern (el-2yva) where different commands handle tombstoned elements inconsistently. Commands should uniformly treat tombstones as "not found" unless explicitly including deleted elements.
