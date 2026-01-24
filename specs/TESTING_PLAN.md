@@ -3499,6 +3499,103 @@ The cryptographic identity system has well-tested API code (106+ unit tests for 
 
 ---
 
+### Scenario: Concurrent Agent Access and Data Integrity
+
+**Purpose:** Evaluate data integrity under concurrent multi-agent access - critical for agent orchestration scenarios where multiple agents may attempt to modify the same elements simultaneously
+
+**Prerequisites:** Initialized workspace with multiple registered entities
+
+**Status:** TESTED - 2026-01-24 (Critical Bug Found - Race Condition)
+
+**Checkpoints:**
+
+**Concurrent Read Operations:**
+- [x] Multiple concurrent reads succeed: `xargs -P4` with multiple `el show` commands
+  - All reads complete successfully
+  - No database locking errors for read-only operations
+- [x] Concurrent `el ready` queries: all return consistent results
+
+**Concurrent Write Operations:**
+- [x] Concurrent task creation: `xargs -P10` with 10 simultaneous `el create task`
+  - All creates succeed
+  - Each gets unique ID
+  - No duplicate entries
+- [x] Concurrent updates to different tasks: all succeed independently
+- [x] Concurrent exports while writing data: both operations succeed
+- [x] Rapid sequential operations: 10 creates in quick succession all succeed
+
+**Concurrent Updates to Same Element:**
+- [x] Concurrent priority updates: last-write-wins behavior observed
+  - Both operations report success:true
+  - Final value is from whichever completed last
+- [x] Concurrent assignment by multiple agents: last-write-wins
+  - All agents receive success:true
+  - Only one agent's assignment persists
+
+**Race Condition Between Update and Close:**
+- [ ] **CRITICAL BUG el-4kve:** Concurrent update and close create inconsistent state
+  - Both operations report success:true
+  - Final state can be inconsistent:
+    - status: `in_progress` but `closedAt`: `<timestamp>` (should be null)
+    - status: `closed` but `closedAt`: `null` (should have timestamp)
+  - Reproducible ~80% of the time with parallel execution
+  - Data integrity violation affecting multi-agent scenarios
+
+**Concurrent Dependency Operations:**
+- [x] Concurrent dependency creation: both succeed (no transaction isolation)
+- [ ] **CONFIRMS el-5w9d:** Concurrent A→B and B→A creates cycle
+  - Both operations succeed
+  - Both tasks become permanently blocked
+  - No way to recover without manual database intervention
+
+**Concurrent Task Claiming:**
+- [x] Multiple agents claiming same task: last-write-wins
+  - All agents receive success:true response
+  - Only one agent's assignment persists
+  - **UX el-17hj:** Agents cannot tell if they "won" the claim
+
+**Concurrent Close Attempts:**
+- [x] Multiple agents closing same task: both report success
+  - Final closeReason is from last writer
+  - Multiple closedAt timestamps written (last one persists)
+
+**Database Locking Behavior:**
+- [x] Sequential rapid operations: no locking issues
+- [x] Parallel rapid operations: SQLite handles concurrent writes correctly
+- [x] No data corruption observed in element content
+- [ ] **UX:** Error message for "database is locked" could be more helpful
+
+**Success Criteria:** Data integrity maintained under concurrent access
+- **CRITICAL FAILURE:** Race condition between update and close creates inconsistent state
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4kve | Concurrent update and close cause inconsistent task state (status vs closedAt) | 2 | bug |
+| el-2w0m | Add optimistic locking or conflict detection for concurrent updates | 3 | enhancement |
+| el-17hj | Concurrent operation success responses should indicate if superseded | 4 | ux |
+
+**Dependencies:**
+- el-4kve → el-2w0m (relates-to: enhancement addresses the bug)
+- el-17hj → el-4kve (relates-to: UX for understanding race outcomes)
+- el-17hj → el-2w0m (relates-to: conflict detection enables proper feedback)
+
+**Notes:**
+Multi-agent orchestration is a core use case for Elemental. While SQLite handles concurrent writes at the database level, the application layer doesn't ensure atomic field updates. The close operation should atomically set both `status` and `closedAt`, but the race condition shows these can end up inconsistent.
+
+The current LWW (Last-Write-Wins) strategy works for simple cases but doesn't prevent logical inconsistencies. Consider:
+1. Version-based optimistic locking for critical operations
+2. Field-level atomicity for related fields (status + closedAt, status + scheduledFor)
+3. Response metadata indicating whether the operation's effect persisted
+
+This is particularly important for agent orchestration where:
+- Multiple agents may try to claim the same task
+- Agents make decisions based on operation success responses
+- Inconsistent state can lead to duplicate work or missed work
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
