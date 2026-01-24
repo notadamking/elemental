@@ -316,5 +316,5 @@ Preserve context through layers:
 ### Phase 7: Testing ✅
 - [x] Unit tests for each code
 - [x] Unit tests for mapping
-- [ ] Integration tests for propagation
-- [ ] CLI output tests
+- [x] Integration tests for propagation (src/errors/propagation.integration.test.ts)
+- [x] CLI output tests (src/cli/errors-output.test.ts)
