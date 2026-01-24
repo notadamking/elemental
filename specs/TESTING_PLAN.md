@@ -518,6 +518,7 @@ Step-by-step checklists for validating critical paths.
 **Blockers:**
 1. **BUG el-59p3**: CLI parser overwrites repeated options instead of accumulating to array
    - Cannot create playbooks with multiple steps via CLI (`--step a:A --step b:B` only creates step b)
+   - Also affects `--variable` and `--extends` (see el-2674 for full list of affected flags)
 2. **BUG el-18ug**: CLI `workflow pour` handler does not use `pourWorkflow()` function
    - The CLI handler has a TODO comment and just creates an empty workflow
    - The `pourWorkflow()` function EXISTS in src/types/workflow-pour.ts and is well-tested (59 tests)
@@ -559,6 +560,82 @@ el playbook create --name test-workflow --title "Test Workflow" \
 - [ ] Close step3: workflow status changes to `completed`
 
 **Success Criteria:** Playbook produces working task sequence with proper dependencies
+
+---
+
+### Scenario: Playbook Management
+
+**Purpose:** Validate playbook creation, listing, validation, and management independent of workflow pouring
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Validation gaps)
+
+**Checkpoints:**
+
+**Playbook Creation:**
+- [x] Create simple playbook: `el playbook create --name test --title "Test" --step "s:Step" --json`
+  - Returns valid JSON with playbook ID
+  - Steps array contains the step
+- [ ] **FAIL**: Create playbook with multiple steps
+  - **BUG el-59p3:** Only last step kept (parser bug)
+- [ ] **FAIL**: Create playbook with multiple variables
+  - **BUG el-59p3:** Only last variable kept (parser bug)
+- [ ] **FAIL**: Create playbook with multiple extends
+  - **BUG el-59p3:** Only last extends kept (parser bug)
+- [x] Playbook name validation: rejects invalid characters
+- [x] Playbook name validation: rejects empty/whitespace
+- [x] Playbook title validation: rejects empty title
+- [x] Playbook can have zero steps
+- [ ] **FAIL**: Create playbook with duplicate name
+  - **BUG el-32y1:** Creates second playbook instead of DUPLICATE_NAME error
+- [ ] **FAIL**: Create playbook with non-existent extends reference
+  - **BUG el-7jdh:** Accepts invalid extends reference without validation
+
+**Playbook Listing:**
+- [x] List all playbooks: `el playbook list --json`
+  - Returns consistent `{success, data: [...]}` structure
+- [ ] **FAIL**: Filter by name: `el playbook list --name foo`
+  - **ENHANCEMENT el-3scb:** No --name filter exists
+- [ ] **FAIL**: Filter by tag: `el playbook list --tag foo`
+  - **ENHANCEMENT el-3scb:** No --tag filter exists
+- [x] Generic delete works: `el delete <playbook-id>`
+
+**Playbook Show:**
+- [x] Show by name: `el playbook show <name> --json`
+  - Returns full playbook data
+- [x] Show by ID: `el playbook show <id> --json`
+  - Returns full playbook data
+- [x] Show non-existent: returns NOT_FOUND with exit code 3
+- [x] When duplicate names exist, returns newer playbook (undefined behavior)
+
+**Playbook Validation:**
+- [x] Validate existing playbook: `el playbook validate <name> --json`
+  - Returns `{valid: true, issues: []}`
+- [x] Validate with variables: `el playbook validate <name> --var key=value`
+  - Returns pourValidation with resolvedVariables
+- [x] Validate non-existent playbook: returns NOT_FOUND
+- [ ] **FAIL**: Validate playbook with non-existent extends
+  - **BUG el-7jdh:** Reports valid:true despite broken reference
+
+**Playbook Inheritance:**
+- [x] Create playbook with extends: `el playbook create --name child --extends base ...`
+  - Extends array populated correctly (for single value)
+- [x] Validate child playbook works
+
+**Success Criteria:** Playbooks can be created, listed, and validated correctly
+- **Partial:** Core creation and validation work, but uniqueness/reference validation missing
+
+**Issues Found:**
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-32y1 | el playbook create allows duplicate playbook names | 3 | bug |
+| el-7jdh | el playbook create accepts --extends for non-existent playbooks | 3 | bug |
+| el-3scb | el playbook list needs --name and --tag filters | 4 | enhancement |
+
+**Dependencies:**
+- el-3scb → el-59p3 (blocks: parser bug prevents --tag from working)
+- el-3scb → el-1gg5 (relates-to: similar filter enhancement for library list)
 
 ---
 
