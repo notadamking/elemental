@@ -400,25 +400,36 @@ Step-by-step checklists for validating critical paths.
 
 **Prerequisites:** Initialized workspace
 
+**Status:** TESTED - 2026-01-24 (Partial Pass - Hierarchical IDs not available via CLI)
+
 **Checkpoints:**
-- [ ] Create plan: `el plan create --title "Test Plan" --json`
+- [x] Create plan: `el plan create --title "Test Plan" --json`
   - Returns plan ID
   - Status is `draft` by default
-- [ ] Activate plan: `el plan activate <plan-id>`
+- [x] Activate plan: `el plan activate <plan-id>`
   - Status changes to `active`
-- [ ] Create child task: `el create task "Step 1" --parent <plan-id> --json`
-  - Task ID has hierarchical format: `<plan-id>.1`
-- [ ] Create second child: `el create task "Step 2" --parent <plan-id> --json`
-  - Task ID is `<plan-id>.2`
-- [ ] View plan progress: `el plan show <plan-id> --json`
+- [x] Create child task: ~~`el create task "Step 1" --parent <plan-id> --json`~~
+  - **LIMITATION el-3gnj:** `--parent` flag doesn't exist in CLI
+  - **Workaround:** Create task separately, then `el plan add-task <plan-id> <task-id>`
+  - Tasks get regular IDs (el-xxx), NOT hierarchical (el-planid.1)
+  - **Note:** API `createTaskInPlan()` supports hierarchical IDs but no CLI equivalent
+- [x] Create second child: via `el plan add-task`
+  - Same limitation as above
+- [x] View plan progress: `el plan show <plan-id> --json`
   - Progress shows 0% (no tasks closed)
-- [ ] Close first task: `el close <plan-id>.1`
-- [ ] View progress again
+- [x] Close first task: `el close <task-id>`
+- [x] View progress again
   - Progress shows 50%
-- [ ] Close second task
-- [ ] Plan auto-completion check (if enabled)
+- [x] Close second task
+- [x] Plan auto-completion check
+  - Plan status remains `active` (auto-completion is optional/not enabled by default)
+  - Progress correctly shows 100%
 
-**Success Criteria:** Plan manages child tasks with accurate progress tracking
+**Success Criteria:** Plan manages child tasks with accurate progress tracking ✓
+
+**Issues Found:**
+- **el-3gnj**: CLI lacks `--parent` flag or `plan create-task` subcommand for hierarchical IDs
+- **el-2ola**: This scenario documents non-existent `--parent` syntax
 
 ---
 
