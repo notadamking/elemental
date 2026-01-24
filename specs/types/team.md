@@ -277,7 +277,5 @@ Issues discovered during manual testing (2026-01-24):
 | el-11d5 | Remove non-member succeeds | Spec says "Verify entity is member" but not enforced in CLI |
 | el-8cz4 | Delete team with members succeeds | Spec says "Dissolve Team" should handle members, but no --force required |
 | el-5ske | No --name filter for team list | Spec says "Get team by name" but CLI lacks --name filter |
-| el-5zl2 | Add non-existent entity succeeds | Spec says "Verify entity exists" but not enforced |
-| el-5gjo | Add non-entity element succeeds | Spec implies entity types only but not enforced |
 
 These issues indicate the CLI implementation diverges from the specification. The service layer may have the validation but CLI layer bypasses it.

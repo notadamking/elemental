@@ -2017,8 +2017,8 @@ affecting --tag, --status, and potentially other flags.
 | Team filter by member | PASS | `el team list --member` works |
 | Duplicate member add | PASS | Idempotent, no error |
 | **Team add with multiple --member** | **FAIL** | Only last member kept (el-59p3) |
-| **Team add non-existent entity** | **FAIL** | Accepts invalid IDs (el-5zl2) |
-| **Team add non-entity element** | **FAIL** | Accepts task IDs as members (el-5gjo) |
+| Team add non-existent entity | PASS | Returns "Entity not found" (el-5zl2 fixed) |
+| Team add non-entity element | PASS | Returns type validation error (el-5gjo fixed) |
 | Assign task to entity | PASS | Works correctly |
 | Assign task to team | PASS | Works per spec (team assignment) |
 | **Assign by entity name** | **FAIL** | Treats name as task ID (el-4kis pre-existing) |
@@ -2028,8 +2028,8 @@ affecting --tag, --status, and potentially other flags.
 | ID | Summary | Priority | Category |
 |----|---------|----------|----------|
 | el-4sdh | `el entity show` ignores argument, returns all entities | 3 | bug |
-| el-5zl2 | `el team add` accepts non-existent entity IDs | 3 | bug |
-| el-5gjo | `el team add` accepts non-entity elements as members | 3 | bug |
+| el-5zl2 | ~~`el team add` accepts non-existent entity IDs~~ (FIXED) | 3 | bug |
+| el-5gjo | ~~`el team add` accepts non-entity elements as members~~ (FIXED) | 3 | bug |
 | el-36fq | `el entity list` needs --name filter | 4 | enhancement |
 | el-4lug | `el team create` allows duplicate team names | 3 | bug |
 | el-11d5 | `el team remove` succeeds silently for non-members | 4 | bug |
@@ -6810,13 +6810,11 @@ Cycle detection logic exists (used in pour validation) but isn't called during c
 - [x] `el team add` duplicate entity succeeds silently (idempotent)
 - [x] `el team members <team>` lists members correctly
 - [x] `el team remove <team> <entity>` works correctly
-- [ ] **FAIL - BUG el-5rcm**: `el team add` accepts non-existent entity IDs
-  - `el team add <team> el-9999` succeeds
-  - Invalid ID added to members array
-  - Same pattern as el-36li (channel add validation gap)
-- [ ] **FAIL - BUG el-5u1m**: `el team add` accepts non-entity element IDs
-  - Task ID can be added as team member
-  - No type validation unlike `el library add`
+- [x] `el team add` validates entity existence (el-5rcm fixed)
+  - `el team add <team> el-9999` now returns "Entity not found: el-9999" with exit code 3
+- [x] `el team add` validates entity type (el-5u1m fixed)
+  - Task ID cannot be added as team member
+  - Returns "Element <id> is not an entity (type: task)" with exit code 5
 
 **Quiet Mode Consistency:**
 - [x] `el library add --quiet` outputs nothing (consistent)
@@ -6828,14 +6826,14 @@ Cycle detection logic exists (used in pour validation) but isn't called during c
   - Inconsistent behavior within same command
 
 **Success Criteria:** Library and team collection operations validate inputs and handle edge cases correctly
-- **PARTIAL:** Library document operations work correctly. Team member operations missing entity validation. Library self-nesting allowed.
+- **PARTIAL:** Library document operations work correctly. Team member operations now validate entity existence and type. Library self-nesting allowed.
 
 **Issues Found:**
 
 | ID | Summary | Priority | Category |
 |----|---------|----------|----------|
-| el-5rcm | BUG: el team add accepts non-existent entity IDs | 3 | bug |
-| el-5u1m | BUG: el team add accepts non-entity element IDs | 3 | bug |
+| el-5rcm | ~~BUG: el team add accepts non-existent entity IDs~~ (FIXED) | 3 | bug |
+| el-5u1m | ~~BUG: el team add accepts non-entity element IDs~~ (FIXED) | 3 | bug |
 | el-32jm | BUG: el library nest allows self-nesting | 3 | bug |
 | el-56x2 | UX: el team add --quiet inconsistent output | 5 | ux |
 

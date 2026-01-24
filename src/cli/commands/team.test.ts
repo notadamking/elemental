@@ -52,6 +52,28 @@ async function createTestTeam(
   return (result.data as { id: string }).id;
 }
 
+// Helper to create an entity and return its ID
+async function createTestEntity(
+  name: string,
+  entityType: 'agent' | 'human' | 'system' = 'agent'
+): Promise<string> {
+  const { createElementalAPI } = await import('../../api/elemental-api.js');
+  const { createStorage, initializeSchema } = await import('../../storage/index.js');
+  const { createEntity } = await import('../../types/entity.js');
+  const backend = createStorage({ path: DB_PATH, create: true });
+  initializeSchema(backend);
+  const api = createElementalAPI(backend);
+
+  const entity = await createEntity({
+    name,
+    entityType,
+    createdBy: 'test-user' as EntityId,
+  });
+  const created = await api.create(entity as unknown as Element & Record<string, unknown>);
+  backend.close();
+  return created.id;
+}
+
 // ============================================================================
 // Setup / Teardown
 // ============================================================================
@@ -192,9 +214,10 @@ describe('team add command', () => {
 
   test('adds a member to a team', async () => {
     const teamId = await createTestTeam('Engineering');
+    const entityId = await createTestEntity('new-user', 'human');
 
     const options = createTestOptions();
-    const result = await addSubCmd.handler([teamId, 'el-newuser'], options);
+    const result = await addSubCmd.handler([teamId, entityId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.message).toContain('Added');
@@ -202,7 +225,7 @@ describe('team add command', () => {
     // Verify member is in team
     const membersResult = await membersSubCmd.handler([teamId], createTestOptions({ json: true }));
     const data = membersResult.data as { members: string[] };
-    expect(data.members).toContain('el-newuser');
+    expect(data.members).toContain(entityId);
   });
 
   test('returns success for already existing member', async () => {
@@ -234,15 +257,15 @@ describe('team add command', () => {
     expect(result.error).toContain('Team not found');
   });
 
-  test('allows adding non-existent entity ID for flexibility', async () => {
-    // Non-existent entity IDs are allowed - entity may be created later
+  test('fails when adding non-existent entity ID', async () => {
+    // Per spec, entity must exist before being added to team
     const teamId = await createTestTeam('Test Team');
 
     const options = createTestOptions();
     const result = await addSubCmd.handler([teamId, 'el-nonexistent-entity'], options);
 
-    expect(result.exitCode).toBe(ExitCode.SUCCESS);
-    expect(result.message).toContain('Added');
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Entity not found: el-nonexistent-entity');
   });
 
   test('fails when adding non-entity element (task) to team', async () => {
@@ -470,7 +493,7 @@ describe('team multi-membership scenarios', () => {
   test('entity can belong to multiple teams', async () => {
     const team1Id = await createTestTeam('Frontend');
     const team2Id = await createTestTeam('Backend');
-    const entityId = 'el-shared-user';
+    const entityId = await createTestEntity('shared-user', 'agent');
 
     // Add entity to both teams
     await addSubCmd.handler([team1Id, entityId], createTestOptions());
@@ -496,7 +519,7 @@ describe('team multi-membership scenarios', () => {
   test('removing from one team does not affect other teams', async () => {
     const team1Id = await createTestTeam('Design');
     const team2Id = await createTestTeam('UX');
-    const entityId = 'el-multi-member';
+    const entityId = await createTestEntity('multi-member', 'agent');
 
     // Add entity to both teams
     await addSubCmd.handler([team1Id, entityId], createTestOptions());
@@ -517,8 +540,8 @@ describe('team multi-membership scenarios', () => {
 
   test('team with multiple member types (agents and humans)', async () => {
     const teamId = await createTestTeam('Hybrid Team');
-    const humanId = 'hu-john';
-    const agentId = 'ag-helper';
+    const humanId = await createTestEntity('john', 'human');
+    const agentId = await createTestEntity('helper-agent', 'agent');
 
     // Add both types of members
     await addSubCmd.handler([teamId, humanId], createTestOptions());
@@ -546,25 +569,30 @@ describe('team lifecycle scenarios', () => {
   const listSubCmd = teamCommand.subcommands!['list'];
 
   test('complete team lifecycle: create, add, remove, delete', async () => {
+    // 0. Create test entities
+    const entity1Id = await createTestEntity('lifecycle-user-1', 'human');
+    const entity2Id = await createTestEntity('lifecycle-user-2', 'human');
+    const entity3Id = await createTestEntity('lifecycle-user-3', 'human');
+
     // 1. Create team
     const createResult = await createSubCmd.handler([], createTestOptions({ name: 'Lifecycle Team' }));
     expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
     const teamId = (createResult.data as Team).id;
 
     // 2. Add members
-    await addSubCmd.handler([teamId, 'el-user1'], createTestOptions());
-    await addSubCmd.handler([teamId, 'el-user2'], createTestOptions());
-    await addSubCmd.handler([teamId, 'el-user3'], createTestOptions());
+    await addSubCmd.handler([teamId, entity1Id], createTestOptions());
+    await addSubCmd.handler([teamId, entity2Id], createTestOptions());
+    await addSubCmd.handler([teamId, entity3Id], createTestOptions());
 
     // 3. Verify members
     let membersResult = await membersSubCmd.handler([teamId], createTestOptions({ json: true }));
     expect((membersResult.data as { count: number }).count).toBe(3);
 
     // 4. Remove a member
-    await removeSubCmd.handler([teamId, 'el-user2'], createTestOptions());
+    await removeSubCmd.handler([teamId, entity2Id], createTestOptions());
     membersResult = await membersSubCmd.handler([teamId], createTestOptions({ json: true }));
     expect((membersResult.data as { count: number }).count).toBe(2);
-    expect((membersResult.data as { members: string[] }).members).not.toContain('el-user2');
+    expect((membersResult.data as { members: string[] }).members).not.toContain(entity2Id);
 
     // 5. Force delete (team has members)
     const deleteResult = await deleteSubCmd.handler([teamId], createTestOptions({ force: true }));
