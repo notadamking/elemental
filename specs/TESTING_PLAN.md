@@ -1201,6 +1201,87 @@ Core orchestration pattern works but requires workarounds:
 
 ---
 
+### Scenario: Task Deferral and Scheduling
+
+**Purpose:** Validate task deferral, scheduling, and ready list filtering based on scheduledFor
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Pass - Core functionality works, enhancements identified)
+
+**Checkpoints:**
+
+**Defer Command:**
+- [x] Create task: `el create task --title "Test" --json`
+- [x] Defer without date: `el defer <id> --json`
+  - Status changes to `deferred`
+  - `scheduledFor` remains null
+  - Task no longer in ready list
+- [x] Defer with future date: `el defer <id> --until 2026-02-01 --json`
+  - Status changes to `deferred`
+  - `scheduledFor` set to specified date (ISO 8601)
+  - Task no longer in ready list
+- [x] Invalid date rejected: `el defer <id> --until invalid`
+  - Returns clear error "Invalid date format"
+  - Exit code 4
+- [ ] **MISSING**: Relative date support: `el defer <id> --until tomorrow`
+  - **ENHANCEMENT el-66en:** No relative date parsing (tomorrow, +1d, +1w, etc.)
+- [x] Full ISO format accepted: `el defer <id> --until "2026-03-15T10:30:00Z"`
+  - Parses correctly with time component
+- [x] Defer non-existent task: exit code 3
+- [x] Defer closed task: rejected with clear error
+- [x] Defer non-task element: rejected with "Element is not a task"
+- [x] Defer already-deferred task: silently succeeds (idempotent)
+  - **UX el-4naz:** Should warn or require explicit --update flag when changing schedule
+
+**Undefer Command:**
+- [x] Undefer deferred task: `el undefer <id> --json`
+  - Status changes to `open`
+  - `scheduledFor` cleared to null
+  - Task appears in ready list (if no other blocks)
+- [x] Undefer non-deferred task: rejected with clear error
+  - "Task is not deferred (status: open)"
+  - Exit code 4
+- [x] Undefer non-existent task: exit code 3
+
+**Ready List Filtering:**
+- [x] Open task with no schedule: appears in ready
+- [x] Deferred task: not in ready (regardless of scheduledFor)
+- [x] Open task with future scheduledFor: not in ready
+  - Correctly excluded even though status is open
+- [x] Open task with past scheduledFor: appears in ready
+  - Tasks become "ready" when schedule date passes
+
+**Listing Deferred Tasks:**
+- [x] Filter by status: `el list task --status deferred --json`
+  - Returns all deferred tasks with scheduledFor info
+- [ ] **MISSING**: Dedicated command: `el deferred --json`
+  - **ENHANCEMENT el-4sdm:** No command to list upcoming scheduled tasks
+
+**Create with Schedule:**
+- [ ] **MISSING**: `el create task --scheduled-for 2026-02-01`
+  - **ENHANCEMENT el-wtu9:** No flag to set scheduledFor during creation
+  - Workaround: Create then immediately defer with --until
+
+**Success Criteria:** Task deferral and scheduling work correctly with proper ready list filtering
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-66en | ENHANCEMENT: Add relative date support (tomorrow, +1d, +1w) | 4 | enhancement |
+| el-wtu9 | ENHANCEMENT: Add --scheduled-for flag to el create task | 4 | enhancement |
+| el-4sdm | ENHANCEMENT: Add el deferred command to list scheduled tasks | 4 | enhancement |
+| el-4naz | UX: el defer on already-deferred task silently succeeds | 5 | ux |
+
+**Dependencies:**
+- el-wtu9 → el-66en (relates-to: both date handling improvements)
+- el-4sdm → el-66en (relates-to: both scheduling improvements)
+- el-4naz → el-66en (relates-to: defer command behavior)
+- el-wtu9 → el-e6wc (relates-to: both create task date flags)
+
+---
+
 ## 4. Exploratory Testing Guides
 
 Areas for freeform exploration without strict scripts.

@@ -584,3 +584,7 @@ User-friendly errors:
 - [ ] **el-53ot** - `el alias` command not listed in main help. The command works and is documented in this spec, but agents cannot discover it from `el --help`.
 - [ ] **el-1rp0** - `el team members` returns `{members: [], count: 0}` object structure instead of array like other list commands. Minor consistency issue.
 - [ ] **el-18nr** - `el dep list` returns `{dependencies: [], dependents: []}` object structure instead of flat array. May be intentional for bidirectional info but differs from other list commands.
+- [ ] **el-66en** - `el defer --until` doesn't support relative date formats (tomorrow, +1d, +1w). Only ISO 8601 dates accepted. Would improve UX for quick scheduling.
+- [ ] **el-wtu9** - `el create task` missing `--scheduled-for` flag. Users must create then defer to set initial schedule. Related to el-e6wc (missing --deadline).
+- [ ] **el-4sdm** - No `el deferred` command to list deferred/scheduled tasks. Must use `el list task --status deferred` as workaround.
+- [ ] **el-4naz** - `el defer` on already-deferred task silently succeeds without updating schedule date or warning. Minor UX issue.
