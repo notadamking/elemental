@@ -279,3 +279,23 @@ Tasks under Plans use hierarchical IDs:
 - [x] Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
 - [x] Integration tests for dependency-based priority ✅ (ready-blocked.integration.test.ts - 5 tests)
 - [x] E2E tests for task lifecycle ✅ (task.test.ts - 12 E2E lifecycle tests covering: complete lifecycle, deferral, blocking/unblocking, reopen, priority ordering, soft delete, assignment filtering, dependency chains, cascading unblock, multiple blockers, task type filtering, close reason persistence)
+
+## CLI Exposure Gaps
+
+The following task properties are fully supported by the API but not yet exposed via CLI:
+
+| Property | API Support | CLI Create | CLI Update | Tracking Issue |
+|----------|-------------|------------|------------|----------------|
+| `deadline` | ✓ Full | ✗ Missing | ✗ Missing | el-e6wc |
+| `owner` | ✓ Full | ✗ Missing | ✗ Missing | el-356g |
+| `externalRef` | ✓ Full | ✗ Missing | ✗ Missing | el-64pb |
+| `acceptanceCriteria` | ✓ Full | ✗ Missing | ✗ Missing | el-3xok |
+| `descriptionRef` | ✓ Full | ✗ Missing | ✗ Missing | el-4jgm |
+| `designRef` | ✓ Full | ✗ Missing | ✗ Missing | el-5wp0 |
+| `scheduledFor` | ✓ Full | ✗ Missing | ✓ via `el defer --until` | el-wtu9 |
+
+Parent tracking issue: **el-uxgg**
+
+### Deadline Filtering
+
+The API supports deadline-based filtering (`TaskFilter.hasDeadline`, `TaskFilter.deadlineBefore`) but the CLI does not expose this. Tracking issue: **el-4zrw** (blocks on el-e6wc)

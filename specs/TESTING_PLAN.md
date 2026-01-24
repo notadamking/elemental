@@ -2472,6 +2472,77 @@ These patterns work correctly and should be documented. Future enhancement could
 
 ---
 
+### Task Field CLI Exposure Exploration
+
+**Goal:** Evaluate which task properties from specs/types/task.md are exposed via CLI
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Multiple fields missing)
+
+**Exploration prompts:**
+- Are all task fields from the spec settable via CLI create/update?
+- Can deadline be set and filtered?
+- Can owner (distinct from assignee) be set?
+- Can external references be tracked?
+
+**Test Results:**
+
+| Task Property | Spec Status | CLI Create | CLI Update | CLI Filter | Notes |
+|---------------|-------------|------------|------------|------------|-------|
+| `title` | Defined | ✓ `--title` | ✓ `--title` | N/A | Works |
+| `priority` | Defined | ✓ `--priority` | ✓ `--priority` | ✓ `--priority` | Works |
+| `complexity` | Defined | ✓ `--complexity` | ✓ `--complexity` | **FAIL** | No filter (el-3908) |
+| `taskType` | Defined | ✓ `--type` | N/A | ✓ `--type` on ready | Works |
+| `status` | Defined | N/A | ✓ `--status` | ✓ `--status` | Works |
+| `assignee` | Defined | ✓ `--assignee` | ✓ `--assignee` | ✓ `--assignee` | Works |
+| `notes` | Defined | ✓ `--notes` | **FAIL** | N/A | No update flag (el-5qjd) |
+| `tags` | Defined | ✓ `--tag` | ✓ `--add-tag/--remove-tag` | ✓ `--tag` | Works |
+| **deadline** | Defined | **FAIL** | **FAIL** | **FAIL** | No CLI support (el-e6wc) |
+| **owner** | Defined | **FAIL** | **FAIL** | N/A | No CLI support (el-356g) |
+| **externalRef** | Defined | **FAIL** | **FAIL** | N/A | No CLI support (el-64pb) |
+| **acceptanceCriteria** | Defined | **FAIL** | **FAIL** | N/A | No CLI support (el-3xok) |
+| **descriptionRef** | Defined | **FAIL** | **FAIL** | N/A | No CLI support (el-4jgm) |
+| **designRef** | Defined | **FAIL** | **FAIL** | N/A | No CLI support (el-5wp0) |
+| `scheduledFor` | Defined | **FAIL** | ✓ `el defer --until` | N/A | Create only (el-wtu9) |
+
+**API vs CLI Gap Analysis:**
+
+The underlying API (src/types/task.ts) fully supports all task fields including:
+- `isTaskPastDeadline()` - checks if task is overdue
+- `sortTasksByDeadline()` - sorts tasks by deadline date
+- `createTaskInput` - accepts all fields including deadline, owner, externalRef, etc.
+
+But the CLI (src/cli/commands/crud.ts) only exposes a subset of these fields.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-uxgg | Main task: Add missing task field flags to CLI | 3 | enhancement |
+| el-356g | Add --owner flag to el create task / el update | 4 | enhancement |
+| el-64pb | Add --external-ref flag to el create task / el update | 4 | enhancement |
+| el-3xok | Add --acceptance-criteria flag to el create task / el update | 4 | enhancement |
+| el-5wp0 | Add --design-ref flag to el create task / el update | 5 | enhancement |
+| el-4zrw | Add deadline-based filtering to el ready and el list | 4 | enhancement |
+
+**Dependencies:**
+- el-356g → el-uxgg (relates-to: parent enhancement)
+- el-64pb → el-uxgg (relates-to: parent enhancement)
+- el-3xok → el-uxgg (relates-to: parent enhancement)
+- el-5wp0 → el-uxgg (relates-to: parent enhancement)
+- el-5wp0 → el-4jgm (relates-to: similar document ref flag)
+- el-4zrw → el-e6wc (blocks: requires deadline flag first)
+- el-e6wc → el-uxgg (relates-to: parent enhancement)
+- el-wtu9 → el-uxgg (relates-to: similar date flag enhancement)
+
+**Summary:**
+The task type specification defines 16+ properties, but the CLI only exposes about half of them.
+Key missing fields are deadline, owner, externalRef, acceptanceCriteria, descriptionRef, and
+designRef. All these fields are fully supported by the API, so the fix is purely CLI-side.
+This creates a gap between what agents can do via CLI vs API, limiting the usefulness of
+deadline-based workflows and external system integration.
+
+---
+
 ### Scenario: Delete Operations and Cascading Effects
 
 **Purpose:** Evaluate delete operation behavior and cascading cleanup across all element types and relationships
