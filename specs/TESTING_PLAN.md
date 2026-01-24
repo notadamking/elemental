@@ -773,6 +773,8 @@ Areas for freeform exploration without strict scripts.
 
 **Goal:** Determine if agents can discover functionality without documentation
 
+**Status:** TESTED - 2026-01-24 (Partial Pass - Major Discoverability Gaps)
+
 **Exploration prompts:**
 - Starting from `el --help`, can you discover how to create a task?
 - Can you find all task-related commands?
@@ -785,6 +787,33 @@ Areas for freeform exploration without strict scripts.
 - Commands that behave differently than help suggests
 - Undocumented but useful flags
 - Aliases that aren't mentioned
+
+**Test Results:**
+
+| Question | Result | Notes |
+|----------|--------|-------|
+| Can you discover how to create a task from `el --help`? | ✓ Yes | `create <type>` is listed, `el create --help` shows task options |
+| Can you find all task-related commands? | ✓ Yes | Task Operations section in main help |
+| Are subcommands documented with `--help`? | ✓ Yes | `el plan --help`, `el doc --help`, etc. all work |
+| Are required flags marked clearly? | ✓ Yes | `--title <title> (required)` format used |
+| Do flag descriptions explain valid values? | ✓ Yes | e.g., "Priority level (1-5, 1=critical)" |
+| Can you discover document management? | ✗ No | `el doc` not listed in main help |
+| Can you discover plan management? | ✗ No | `el plan` not listed in main help |
+| Can you discover workflows? | ✗ No | `el workflow` not listed in main help |
+| Can you discover messaging? | ✗ No | `el msg` not listed in main help |
+| Can you discover aliases? | ✗ No | `el alias` not listed in main help |
+| Does `el search` work? | ✗ No | Listed in help but returns "Unknown command" |
+
+**Issues Found:**
+- **el-4a62**: Main help missing command groups (plan, doc, workflow, channel, entity, msg, playbook, library, team)
+- **el-53ot**: `el alias` command not listed in main help
+- **el-4aja**: `el search` listed in help but not implemented
+- **el-3ygh**: `el list --help` doesn't enumerate valid element types
+
+**Summary:**
+Basic task operations are discoverable, but 9 major command groups are completely hidden from
+the main help. An agent would not be able to learn about documents, plans, workflows, messaging,
+entities, channels, playbooks, libraries, or teams without external documentation.
 
 ### JSON Output Exploration
 
