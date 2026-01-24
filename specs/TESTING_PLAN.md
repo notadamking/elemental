@@ -309,11 +309,16 @@ el dep tree <task-id>                         # Visualize dependencies
 **I want to** be prevented from creating cycles
 **So that** the dependency graph remains valid
 
+**Status:** BROKEN - See el-5w9d
+
 **Expected behavior:**
 ```bash
 el dep add A B --type blocks                  # A waits for B
 el dep add B A --type blocks                  # Should fail: CYCLE_DETECTED
 ```
+
+**Actual behavior (BUG):** Second command succeeds, creating a cycle. Both tasks become
+permanently blocked. Root cause: ElementalApi.addDependency doesn't call checkForCycle.
 
 #### US-D04: Ready Work Computation
 **As an** agent querying available work
@@ -546,27 +551,37 @@ el playbook create --name test-workflow --title "Test Workflow" \
 
 **Prerequisites:** Initialized workspace
 
+**Status:** TESTED - 2026-01-24 (Pass with Critical Bug)
+
 **Checkpoints:**
-- [ ] Create chain: A → B → C → D (A blocks B blocks C blocks D)
+- [x] Create chain: A → B → C → D (A blocks B blocks C blocks D)
   ```bash
-  A=$(el create task "Task A" --json | jq -r '.id')
-  B=$(el create task "Task B" --json | jq -r '.id')
-  C=$(el create task "Task C" --json | jq -r '.id')
-  D=$(el create task "Task D" --json | jq -r '.id')
+  A=$(el create task --title "Task A" --json | jq -r '.data.id')
+  B=$(el create task --title "Task B" --json | jq -r '.data.id')
+  C=$(el create task --title "Task C" --json | jq -r '.data.id')
+  D=$(el create task --title "Task D" --json | jq -r '.data.id')
   el dep add $B $A --type blocks
   el dep add $C $B --type blocks
   el dep add $D $C --type blocks
   ```
-- [ ] Check ready: only A is ready
-- [ ] Check blocked: B, C, D are blocked
-- [ ] Blocked reasons accurate for each
-- [ ] Close A: B becomes ready
-- [ ] Close B: C becomes ready
-- [ ] Close C: D becomes ready
-- [ ] Dependency tree visualization: `el dep tree $D`
-  - Shows full chain
+  - **Note:** Use `--title` flag, not positional argument
+  - **Note:** JSON output structure is `{success, data: {id, ...}}` not `{id, ...}`
+- [x] Check ready: only A is ready
+- [x] Check blocked: B, C, D are blocked
+- [x] Blocked reasons accurate for each (e.g., "Blocked by el-xxx (blocks dependency)")
+- [x] Close A: B becomes ready
+- [x] Close B: C becomes ready
+- [x] Close C: D becomes ready
+- [x] Dependency tree visualization: `el dep tree $D`
+  - Shows full chain with proper hierarchy
 
-**Success Criteria:** Dependencies correctly propagate blocking status
+**Success Criteria:** Dependencies correctly propagate blocking status ✓
+
+**Issues Found:**
+- **el-5w9d**: Cycle detection not enforced - `el dep add` allows creating circular dependencies
+  - ElementalApi.addDependency has TODO at line 1995 to call checkForCycle but never does
+  - DependencyService.checkForCycle exists and is tested (33 tests) but not integrated
+  - Both tasks in a cycle become permanently blocked with no way to unblock
 
 ---
 

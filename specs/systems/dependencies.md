@@ -291,12 +291,12 @@ Function `isBlocked(elementId)`:
 - [x] Bulk operations: removeAllDependencies, removeAllDependents
 - [x] Unit tests (67 tests)
 
-### Phase 3: Cycle Detection ✅
+### Phase 3: Cycle Detection ⚠️ (Partial)
 - [x] Implement BFS traversal (detectCycle method using breadth-first search)
 - [x] Implement depth limiting (configurable maxDepth, default 100)
 - [x] Handle relates-to exclusion (non-blocking types skip cycle detection)
-- [x] Add cycle detection to addDependency (checkForCycle called before insert)
-- [x] Unit tests (33 tests covering all cycle detection scenarios)
+- [ ] **BUG el-5w9d**: Add cycle detection to addDependency (ElementalApi.addDependency has TODO at line 1995 but never calls DependencyService.checkForCycle)
+- [x] Unit tests (33 tests covering all cycle detection scenarios in DependencyService)
 
 ### Phase 4: Blocked Cache ✅
 - [x] Create blocked_cache table (in src/storage/schema.ts migration 001)
