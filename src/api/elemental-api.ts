@@ -2470,6 +2470,62 @@ export class ElementalAPIImpl implements ElementalAPI {
     }));
   }
 
+  async listEvents(filter?: EventFilter): Promise<Event[]> {
+    let sql = 'SELECT * FROM events WHERE 1=1';
+    const params: unknown[] = [];
+
+    if (filter?.elementId) {
+      sql += ' AND element_id = ?';
+      params.push(filter.elementId);
+    }
+
+    if (filter?.eventType) {
+      const types = Array.isArray(filter.eventType) ? filter.eventType : [filter.eventType];
+      const placeholders = types.map(() => '?').join(', ');
+      sql += ` AND event_type IN (${placeholders})`;
+      params.push(...types);
+    }
+
+    if (filter?.actor) {
+      sql += ' AND actor = ?';
+      params.push(filter.actor);
+    }
+
+    if (filter?.after) {
+      sql += ' AND created_at > ?';
+      params.push(filter.after);
+    }
+
+    if (filter?.before) {
+      sql += ' AND created_at < ?';
+      params.push(filter.before);
+    }
+
+    sql += ' ORDER BY created_at DESC';
+
+    if (filter?.limit) {
+      sql += ' LIMIT ?';
+      params.push(filter.limit);
+    }
+
+    if (filter?.offset) {
+      sql += ' OFFSET ?';
+      params.push(filter.offset);
+    }
+
+    const rows = this.backend.query<EventRow>(sql, params);
+
+    return rows.map((row) => ({
+      id: row.id,
+      elementId: row.element_id as ElementId,
+      eventType: row.event_type as EventType,
+      actor: row.actor as EntityId,
+      oldValue: row.old_value ? JSON.parse(row.old_value) : null,
+      newValue: row.new_value ? JSON.parse(row.new_value) : null,
+      createdAt: row.created_at as Timestamp,
+    }));
+  }
+
   async getDocumentVersion(id: DocumentId, version: number): Promise<Document | null> {
     // First check if it's the current version
     const current = await this.get<Document>(id as unknown as ElementId);

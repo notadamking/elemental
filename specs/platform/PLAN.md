@@ -542,11 +542,13 @@ For mutations (create, update, delete):
   - [x] Web: Add Dependencies navigation to sidebar
   - [x] **Verify:** Graph renders with pan/zoom (Playwright tests passing - 8 tests)
 
-- [ ] **TB9: Timeline Lens**
-  - [ ] Server: Add `GET /api/events` endpoint
-  - [ ] Web: Create TimelineLens component
-  - [ ] Web: Event filtering
-  - [ ] **Verify:** Events display with filters
+- [x] **TB9: Timeline Lens**
+  - [x] Server: Add `GET /api/events` endpoint
+  - [x] Server: Add `listEvents()` API method for all-events query
+  - [x] Web: Create TimelineLens component
+  - [x] Web: Event filtering (event type toggles, actor filter, search)
+  - [x] Web: Add Timeline navigation to sidebar
+  - [x] **Verify:** Events display with filters (Playwright tests passing - 15 tests)
 
 ### Phase 4: Core Features
 

@@ -1018,6 +1018,14 @@ export interface ElementalAPI {
   getEvents(id: ElementId, filter?: EventFilter): Promise<Event[]>;
 
   /**
+   * List all events across all elements.
+   *
+   * @param filter - Optional event filter (including elementId filter, event types, actor, time range)
+   * @returns Array of events (newest first)
+   */
+  listEvents(filter?: EventFilter): Promise<Event[]>;
+
+  /**
    * Get a specific version of a document.
    *
    * @param id - Document ID

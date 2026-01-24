@@ -217,6 +217,61 @@ app.get('/api/dependencies/:id', async (c) => {
 });
 
 // ============================================================================
+// Events Endpoints
+// ============================================================================
+
+app.get('/api/events', async (c) => {
+  try {
+    // Parse query parameters for filtering
+    const url = new URL(c.req.url);
+    const eventType = url.searchParams.get('eventType');
+    const actor = url.searchParams.get('actor');
+    const elementId = url.searchParams.get('elementId');
+    const after = url.searchParams.get('after');
+    const before = url.searchParams.get('before');
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    // Build filter object - cast to EventFilter type
+    const filter: Record<string, unknown> = {};
+
+    if (eventType) {
+      // Support comma-separated event types
+      filter.eventType = eventType.includes(',') ? eventType.split(',') : eventType;
+    }
+    if (actor) {
+      filter.actor = actor;
+    }
+    if (elementId) {
+      filter.elementId = elementId;
+    }
+    if (after) {
+      filter.after = after;
+    }
+    if (before) {
+      filter.before = before;
+    }
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    // Default limit if not specified
+    if (!filter.limit) {
+      filter.limit = 100;
+    }
+
+    const events = await api.listEvents(filter as Parameters<typeof api.listEvents>[0]);
+    return c.json(events);
+  } catch (error) {
+    console.error('[elemental] Failed to get events:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get events' } }, 500);
+  }
+});
+
+// ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================
 

@@ -14,6 +14,7 @@ import {
   GitBranch,
   Bot,
   Network,
+  History,
 } from 'lucide-react';
 
 interface NavItem {
@@ -28,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F' },
   { to: '/dashboard/agents', icon: Bot, label: 'Agents', shortcut: 'G A' },
   { to: '/dashboard/dependencies', icon: Network, label: 'Dependencies', shortcut: 'G G' },
+  { to: '/dashboard/timeline', icon: History, label: 'Timeline', shortcut: 'G L' },
   { to: '/tasks', icon: CheckSquare, label: 'Tasks', shortcut: 'G T' },
   { to: '/plans', icon: Folder, label: 'Plans', shortcut: 'G P' },
   { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W' },

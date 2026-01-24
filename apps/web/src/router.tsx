@@ -5,6 +5,7 @@ import { TasksPage } from './routes/tasks';
 import { TaskFlowPage } from './routes/task-flow';
 import { AgentActivityPage } from './routes/agent-activity';
 import { DependencyGraphPage } from './routes/dependency-graph';
+import { TimelinePage } from './routes/timeline';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -53,6 +54,13 @@ const dependencyGraphRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard/dependencies',
   component: DependencyGraphPage,
+});
+
+// Timeline Lens route (Dashboard sub-view)
+const timelineRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/timeline',
+  component: TimelinePage,
 });
 
 // Placeholder routes for future pages
@@ -114,6 +122,7 @@ const routeTree = rootRoute.addChildren([
   taskFlowRoute,
   agentActivityRoute,
   dependencyGraphRoute,
+  timelineRoute,
   tasksRoute,
   plansRoute,
   workflowsRoute,
