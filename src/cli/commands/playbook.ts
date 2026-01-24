@@ -25,7 +25,9 @@ import {
   type PlaybookStep,
   type PlaybookVariable,
   VariableType,
+  type PlaybookLoader,
 } from '../../types/playbook.js';
+import { validatePour } from '../../types/workflow-pour.js';
 import type { Element, ElementId, EntityId } from '../../types/element.js';
 import type { ElementalAPI } from '../../api/types.js';
 
@@ -325,14 +327,68 @@ Examples:
 // Playbook Validate Command
 // ============================================================================
 
+interface PlaybookValidateOptions {
+  var?: string | string[];
+  pour?: boolean;
+}
+
+const playbookValidateOptions: CommandOption[] = [
+  {
+    name: 'var',
+    description: 'Set variable for pour-time validation (name=value, can be repeated)',
+    hasValue: true,
+  },
+  {
+    name: 'pour',
+    short: 'p',
+    description: 'Perform pour-time validation (validates variables can be resolved)',
+    hasValue: false,
+  },
+];
+
+/**
+ * Parses variable arguments in name=value format
+ */
+function parseVariableArgs(varArgs: string | string[] | undefined): Record<string, unknown> {
+  const variables: Record<string, unknown> = {};
+  if (!varArgs) return variables;
+
+  const args = Array.isArray(varArgs) ? varArgs : [varArgs];
+  for (const varArg of args) {
+    const eqIndex = varArg.indexOf('=');
+    if (eqIndex === -1) {
+      throw new Error(`Invalid variable format: ${varArg}. Use name=value`);
+    }
+    const name = varArg.slice(0, eqIndex);
+    const value = varArg.slice(eqIndex + 1);
+
+    // Try to parse as JSON for boolean/number types, otherwise use as string
+    try {
+      if (value === 'true') {
+        variables[name] = true;
+      } else if (value === 'false') {
+        variables[name] = false;
+      } else if (!isNaN(Number(value)) && value.trim() !== '') {
+        variables[name] = Number(value);
+      } else {
+        variables[name] = value;
+      }
+    } catch {
+      variables[name] = value;
+    }
+  }
+
+  return variables;
+}
+
 async function playbookValidateHandler(
   args: string[],
-  options: GlobalOptions
+  options: GlobalOptions & PlaybookValidateOptions
 ): Promise<CommandResult> {
   const [nameOrId] = args;
 
   if (!nameOrId) {
-    return failure('Usage: el playbook validate <name|id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el playbook validate <name|id> [--var name=value] [--pour]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -432,32 +488,88 @@ async function playbookValidateHandler(
       }
     }
 
+    // Pour-time validation - run if --pour flag is set or if --var is provided
+    const shouldDoPourValidation = options.pour || options.var;
+    let pourResult: Awaited<ReturnType<typeof validatePour>> | undefined;
+
+    if (shouldDoPourValidation) {
+      // Parse provided variables
+      let providedVars: Record<string, unknown> = {};
+      try {
+        providedVars = parseVariableArgs(options.var);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return failure(message, ExitCode.VALIDATION);
+      }
+
+      // Create a playbook loader that fetches from the database
+      const allPlaybooks = await api.list<Playbook>({ type: 'playbook' });
+      const playbookLoader: PlaybookLoader = (name: string) => {
+        return allPlaybooks.find((p) => p.name.toLowerCase() === name.toLowerCase());
+      };
+
+      // Validate pour
+      pourResult = await validatePour(playbook, providedVars, playbookLoader);
+
+      if (!pourResult.valid) {
+        issues.push(`Pour-time: ${pourResult.error}`);
+      }
+    }
+
     const mode = getOutputMode(options);
 
+    // Build JSON result
+    const jsonResult: Record<string, unknown> = {
+      valid: issues.length === 0,
+      issues,
+      playbook: { id: playbook.id, name: playbook.name },
+    };
+
+    // Add pour-time validation details if performed
+    if (shouldDoPourValidation && pourResult) {
+      jsonResult.pourValidation = {
+        performed: true,
+        valid: pourResult.valid,
+        ...(pourResult.valid && {
+          resolvedVariables: pourResult.resolvedVariables,
+          includedSteps: pourResult.includedSteps?.map((s) => s.id),
+          skippedSteps: pourResult.skippedSteps,
+        }),
+        ...(pourResult.error && { error: pourResult.error }),
+      };
+    }
+
     if (mode === 'json') {
-      return success({
-        valid: issues.length === 0,
-        issues,
-        playbook: { id: playbook.id, name: playbook.name },
-      });
+      return success(jsonResult);
     }
 
     if (mode === 'quiet') {
       return success(issues.length === 0 ? 'valid' : 'invalid');
     }
 
+    // Human-readable output
+    let output = '';
+
     if (issues.length === 0) {
-      return success(
-        { valid: true, issues: [] },
-        `Playbook '${playbook.name}' is valid`
-      );
+      output = `Playbook '${playbook.name}' is valid`;
+
+      // Add pour-time details if validation was performed
+      if (shouldDoPourValidation && pourResult?.valid) {
+        output += '\n\n--- Pour-time Validation ---';
+        output += '\nVariables resolved successfully';
+        if (pourResult.includedSteps && pourResult.includedSteps.length > 0) {
+          output += `\nIncluded steps: ${pourResult.includedSteps.map((s) => s.id).join(', ')}`;
+        }
+        if (pourResult.skippedSteps && pourResult.skippedSteps.length > 0) {
+          output += `\nSkipped steps: ${pourResult.skippedSteps.join(', ')}`;
+        }
+      }
+    } else {
+      const issueList = issues.map((i, idx) => `  ${idx + 1}. ${i}`).join('\n');
+      output = `Playbook '${playbook.name}' has ${issues.length} issue(s):\n${issueList}`;
     }
 
-    const issueList = issues.map((i, idx) => `  ${idx + 1}. ${i}`).join('\n');
-    return success(
-      { valid: false, issues },
-      `Playbook '${playbook.name}' has ${issues.length} issue(s):\n${issueList}`
-    );
+    return success(jsonResult, output);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to validate playbook: ${message}`, ExitCode.GENERAL_ERROR);
@@ -466,23 +578,37 @@ async function playbookValidateHandler(
 
 const playbookValidateCommand: Command = {
   name: 'validate',
-  description: 'Validate playbook structure',
-  usage: 'el playbook validate <name|id>',
-  help: `Validate a playbook's structure and references.
+  description: 'Validate playbook structure and pour-time variables',
+  usage: 'el playbook validate <name|id> [--var name=value] [--pour]',
+  help: `Validate a playbook's structure and optionally test pour-time variable resolution.
 
-Checks:
+Structure Checks:
 - Required fields are present
 - Step IDs are unique
 - Step dependencies reference existing steps
 - Variables used in templates are defined
 - No circular dependencies
 
+Pour-time Checks (with --pour or --var):
+- All required variables are provided
+- Variable values match their declared types
+- Enum values are within allowed list
+- Variable substitution completes without errors
+- Condition evaluation succeeds
+
 Arguments:
   name|id    Playbook name or identifier
 
+Options:
+      --var <name=value>  Set variable for pour-time validation (can be repeated)
+  -p, --pour              Perform pour-time validation
+
 Examples:
   el playbook validate deploy
-  el playbook validate el-abc123`,
+  el playbook validate deploy --pour
+  el playbook validate deploy --var env=production --var debug=true
+  el playbook validate el-abc123 --var version=1.0.0`,
+  options: playbookValidateOptions,
   handler: playbookValidateHandler as Command['handler'],
 };
 

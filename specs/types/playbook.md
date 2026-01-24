@@ -306,10 +306,10 @@ String replacement with variable values:
 - [x] File reading/writing (readPlaybookFile, loadPlaybookFromFile, writePlaybookFile)
 - [ ] Add file watching (optional, deferred)
 
-### Phase 7: Validation ✅ (partial)
+### Phase 7: Validation ✅
 - [x] Implement playbook validation (validatePlaybook, validateSteps, validateVariables)
-- [ ] Implement pour-time validation
-- [ ] Add validation CLI command
+- [x] Implement pour-time validation (validatePour in workflow-pour.ts)
+- [x] Add validation CLI command (el playbook validate with --var and --pour options)
 
 ### Phase 8: Integration
 - [ ] Integrate with workflow creation
