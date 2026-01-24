@@ -7058,3 +7058,105 @@ This evaluation tested workflow lifecycle commands critical for agent orchestrat
 6. Tombstone handling inconsistent: `el show` returns NOT_FOUND, but squash/burn process the record
 
 The tombstone bugs (el-3hp7, el-5u9n) are part of a broader pattern (el-2yva) where different commands handle tombstoned elements inconsistently. Commands should uniformly treat tombstones as "not found" unless explicitly including deleted elements.
+
+---
+
+### Scenario: Blocked Cache Direction and Cross-Element Blocking Behavior
+
+**Purpose:** Evaluate whether the blocked cache correctly tracks blocking relationships and whether non-task elements can block tasks - critical for understanding how el ready and el blocked determine task readiness
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (CRITICAL FAILURE - Blocked cache direction reversed)
+
+**Checkpoints:**
+
+**Basic Blocking Dependency Semantics:**
+- [x] `el dep add A B --type blocks` creates dependency with sourceId=A, targetId=B
+- [x] Help text says: "Target waits for source to close"
+- [x] Therefore: B (target) should wait for A (source) → B should be blocked
+- [ ] **CRITICAL BUG el-sjam:** Blocked cache records A as blocked, not B
+  - A (source/blocker) marked as status: "blocked"
+  - B (target/blocked) remains status: "open"
+  - A appears in `el blocked` list
+  - B appears in `el ready` list
+  - Direction is completely reversed
+
+**Verification Test:**
+```bash
+el create task --title "A (should be blocker)" --json  # el-xxx
+el create task --title "B (should be blocked)" --json  # el-yyy
+el dep add el-xxx el-yyy --type blocks
+el blocked --json  # Shows el-xxx blocked by el-yyy (WRONG!)
+el ready --json    # Shows el-yyy as ready (WRONG!)
+```
+
+**Unblocking Behavior (Direction Reversal Confirmed):**
+- [ ] **FAIL:** Closing B (incorrectly ready) unblocks A (incorrectly blocked)
+  - When B is closed, A transitions to "open" status
+  - This confirms the entire blocking direction is reversed in implementation
+  - Expected: Closing A should unblock B
+  - Actual: Closing B unblocks A
+
+**Non-Task Element Blocking Dependencies:**
+- [ ] **BUG el-3anv:** Workflow blocking task doesn't update blocked cache
+  - `el dep add <workflow-id> <task-id> --type blocks` creates dependency
+  - Task status remains "open" (should be "blocked")
+  - Task does not appear in `el blocked` list
+  - Task still appears in `el ready` list
+- [ ] Same behavior for plan/document blocking task
+- [x] Only task-to-task blocking updates blocked cache (though direction is wrong)
+
+**Workflow GC Edge Cases:**
+- [x] `el workflow gc --age 0` (immediate) returns 0 when no terminal workflows
+- [x] `el workflow gc --age -1` correctly rejected (parsed as missing value)
+- [x] `el workflow gc --age 1.5` silently truncated to 1 (confirms el-5b46 pattern)
+- [x] `el workflow gc --age invalid` correctly rejected with "Age must be a non-negative number"
+- [ ] **CONFIRMS el-c99l:** `el workflow gc --quiet` outputs nothing
+
+**Workflow Status Transition:**
+- [x] Workflows cannot transition to terminal status via CLI (el-rja0 confirmed)
+- [x] GC can never collect anything because workflows stay in pending status
+- [x] Manual `el update --status` rejected: "Status can only be set on tasks"
+
+**Success Criteria:** Blocked cache correctly tracks which tasks are blocked
+- **CRITICAL FAILURE:** Blocked cache direction is reversed - source marked as blocked instead of target
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-sjam | CRITICAL: Blocked cache direction reversed - source marked blocked instead of target | 1 | bug |
+| el-3anv | BUG: Non-task element blocking dependencies don't update blocked cache | 2 | bug |
+| el-4suy | UX: el workflow gc --quiet outputs nothing (consistent with el-c99l) | 5 | ux |
+
+**Dependencies:**
+- el-sjam → el-64o6 (relates-to: both blocked cache issues)
+- el-3anv → el-sjam (relates-to: both blocked cache issues)
+- el-4suy → el-c99l (relates-to: both quiet mode consistency issues)
+
+**Notes:**
+This evaluation discovered a CRITICAL bug in the blocked cache implementation. The blocking
+relationship direction is completely reversed:
+
+1. When "A blocks B" is created (A is source, B is target)
+2. Help text says "Target waits for source to close" → B should be blocked
+3. BUT: A is marked as blocked, B remains ready
+4. Closing B unblocks A (proving the direction is reversed)
+
+**Impact Assessment:**
+- CRITICAL: The entire blocking system is functionally broken
+- Agents using `el ready` to find unblocked work get wrong results
+- Tasks that should be blocked are worked on prematurely
+- Tasks that should be ready are stuck in blocked state
+- Any workflow relying on blocking dependencies is affected
+
+**Likely Root Cause:**
+The blocked_cache service is swapping source and target when populating the cache.
+When a "blocks" dependency is created, it's recording:
+- blockedId = sourceId (WRONG - should be targetId)
+- blockerId = targetId (WRONG - should be sourceId)
+
+Additionally, non-task elements (workflow, plan, document) are not considered when
+updating the blocked cache, meaning cross-element blocking dependencies are silently
+ignored.
