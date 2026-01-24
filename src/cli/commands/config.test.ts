@@ -124,6 +124,23 @@ describe('config show command', () => {
     });
   });
 
+  test('rejects invalid configuration key', async () => {
+    const options = createTestOptions();
+    const result = await configCommand.subcommands!.show.handler!(['invalidkey'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Unknown configuration key: invalidkey');
+    expect(result.error).toContain('Valid keys:');
+  });
+
+  test('rejects typo in nested configuration key', async () => {
+    const options = createTestOptions();
+    const result = await configCommand.subcommands!.show.handler!(['sync.autoexport'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Unknown configuration key: sync.autoexport');
+  });
+
   test('returns JSON in JSON mode', async () => {
     const options = createTestOptions({ json: true });
     const result = await configCommand.handler!([], options);
@@ -152,6 +169,34 @@ describe('config set command', () => {
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('Usage');
+  });
+
+  test('rejects invalid configuration key', async () => {
+    const options = createTestOptions();
+    const result = await configCommand.subcommands!.set.handler!(['invalidkey', 'somevalue'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Unknown configuration key: invalidkey');
+    expect(result.error).toContain('Valid keys:');
+    expect(result.error).toContain('actor');
+    expect(result.error).toContain('database');
+    expect(result.error).toContain('sync.autoExport');
+  });
+
+  test('rejects typo in nested configuration key', async () => {
+    const options = createTestOptions();
+    const result = await configCommand.subcommands!.set.handler!(['sync.autoexport', 'true'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Unknown configuration key: sync.autoexport');
+  });
+
+  test('rejects non-existent nested key', async () => {
+    const options = createTestOptions();
+    const result = await configCommand.subcommands!.set.handler!(['sync.invalidField', 'value'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Unknown configuration key: sync.invalidField');
   });
 
   test('sets a string value', async () => {
@@ -237,6 +282,23 @@ describe('config unset command', () => {
     expect(result.data).toEqual({
       path: 'actor',
     });
+  });
+
+  test('rejects invalid configuration key', async () => {
+    const options = createTestOptions();
+    const result = await configCommand.subcommands!.unset.handler!(['invalidkey'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Unknown configuration key: invalidkey');
+    expect(result.error).toContain('Valid keys:');
+  });
+
+  test('rejects typo in configuration key', async () => {
+    const options = createTestOptions();
+    const result = await configCommand.subcommands!.unset.handler!(['actorr'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('Unknown configuration key: actorr');
   });
 });
 

@@ -46,7 +46,7 @@ export type {
   EnvVar,
 } from './types.js';
 
-export { EnvVars, ConfigSource as ConfigSourceEnum } from './types.js';
+export { EnvVars, ConfigSource as ConfigSourceEnum, VALID_CONFIG_PATHS, isValidConfigPath } from './types.js';
 
 // Defaults
 export {

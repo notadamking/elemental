@@ -258,20 +258,33 @@ export interface ConfigValidationResult {
 // ============================================================================
 
 /**
+ * Valid configuration paths (as const array for runtime validation)
+ */
+export const VALID_CONFIG_PATHS = [
+  'actor',
+  'database',
+  'sync.autoExport',
+  'sync.exportDebounce',
+  'sync.elementsFile',
+  'sync.dependenciesFile',
+  'playbooks.paths',
+  'tombstone.ttl',
+  'tombstone.minTtl',
+  'identity.mode',
+  'identity.timeTolerance',
+] as const;
+
+/**
  * Dot-notation paths for configuration values
  */
-export type ConfigPath =
-  | 'actor'
-  | 'database'
-  | 'sync.autoExport'
-  | 'sync.exportDebounce'
-  | 'sync.elementsFile'
-  | 'sync.dependenciesFile'
-  | 'playbooks.paths'
-  | 'tombstone.ttl'
-  | 'tombstone.minTtl'
-  | 'identity.mode'
-  | 'identity.timeTolerance';
+export type ConfigPath = (typeof VALID_CONFIG_PATHS)[number];
+
+/**
+ * Type guard to check if a string is a valid ConfigPath
+ */
+export function isValidConfigPath(value: string): value is ConfigPath {
+  return (VALID_CONFIG_PATHS as readonly string[]).includes(value);
+}
 
 /**
  * Maps config paths to their value types

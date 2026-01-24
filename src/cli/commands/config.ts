@@ -20,7 +20,8 @@ import {
   unsetValue,
   getConfigPath,
   getValueSource,
-  type ConfigPath,
+  isValidConfigPath,
+  VALID_CONFIG_PATHS,
 } from '../../config/index.js';
 
 // ============================================================================
@@ -36,8 +37,15 @@ async function configShowHandler(
     const configPath = getConfigPath();
 
     if (args.length > 0) {
-      // Show specific value
-      const path = args[0] as ConfigPath;
+      // Show specific value - validate path first
+      const path = args[0];
+      if (!isValidConfigPath(path)) {
+        const validPaths = VALID_CONFIG_PATHS.join(', ');
+        return failure(
+          `Unknown configuration key: ${path}\nValid keys: ${validPaths}`,
+          ExitCode.VALIDATION
+        );
+      }
       const value = getValue(path);
       const source = getValueSource(path);
       return success(
@@ -85,6 +93,15 @@ async function configSetHandler(
   const [path, ...valueParts] = args;
   const valueStr = valueParts.join(' ');
 
+  // Validate path is a known configuration key
+  if (!isValidConfigPath(path)) {
+    const validPaths = VALID_CONFIG_PATHS.join(', ');
+    return failure(
+      `Unknown configuration key: ${path}\nValid keys: ${validPaths}`,
+      ExitCode.VALIDATION
+    );
+  }
+
   // Try to parse as JSON, fall back to string
   let value: unknown;
   try {
@@ -94,7 +111,7 @@ async function configSetHandler(
   }
 
   try {
-    setValue(path as ConfigPath, value as never);
+    setValue(path, value as never);
     return success(
       { path, value },
       `Set ${path} = ${JSON.stringify(value)}`
@@ -119,8 +136,17 @@ async function configUnsetHandler(
 
   const path = args[0];
 
+  // Validate path is a known configuration key
+  if (!isValidConfigPath(path)) {
+    const validPaths = VALID_CONFIG_PATHS.join(', ');
+    return failure(
+      `Unknown configuration key: ${path}\nValid keys: ${validPaths}`,
+      ExitCode.VALIDATION
+    );
+  }
+
   try {
-    unsetValue(path as ConfigPath);
+    unsetValue(path);
     return success(
       { path },
       `Unset ${path}`
