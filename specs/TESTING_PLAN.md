@@ -3754,6 +3754,83 @@ This is a UX issue rather than a bug since JavaScript's Date behavior matches th
 
 ---
 
+### Scenario: Plan-Task Relationship Visibility and Parent-Child Dependencies
+
+**Purpose:** Evaluate whether tasks in a plan correctly expose their plan membership and whether the parent-child dependency system provides adequate visibility for agent orchestration
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - planId field not hydrated in task output)
+
+**Checkpoints:**
+
+**Plan Creation and Task Addition:**
+- [x] Create plan: `el plan create --title "Feature Sprint" --status active --json`
+  - Returns valid plan ID
+  - Status correctly set to active
+- [x] Create tasks and add to plan via `el plan add-task`
+  - Tasks added successfully
+  - Plan-task relationship stored as `parent-child` dependency
+- [x] Plan progress tracks added tasks correctly
+  - totalTasks incremented
+  - Progress percentage calculated correctly
+
+**planId Field Visibility:**
+- [ ] **FAIL**: `el show <task-id>` includes planId field
+  - **ENHANCEMENT el-2a68:** Returns `planId: null` even when task is in a plan
+- [ ] **FAIL**: `el list task` includes planId field
+  - **ENHANCEMENT el-2a68:** Same issue - planId always null
+- [ ] **FAIL**: `el ready` includes planId field
+  - **ENHANCEMENT el-2a68:** Same issue - planId always null
+- [ ] **FAIL**: `el plan tasks` includes planId field
+  - **ENHANCEMENT el-2a68:** Even plan's own task list doesn't include planId
+
+**Workaround - Dependency Query:**
+- [x] `el dep list <task-id>` shows parent-child dependency to plan
+  - Returns correct sourceId (task) and targetId (plan) with type "parent-child"
+  - Agents can determine plan membership via dependency query
+
+**Dependency Chain Behavior:**
+- [x] Create blocking dependencies between tasks: works correctly
+- [x] Only unblocked tasks appear in ready list
+- [x] Closing blocker correctly unblocks dependent
+- [x] Priority inheritance through dependency chains works
+
+**Task Removal and Deletion:**
+- [x] `el plan remove-task` correctly removes task from plan
+  - Progress recalculated
+  - parent-child dependency removed
+- [x] `el delete` on task in plan correctly updates plan
+  - Plan task count decremented
+  - Progress recalculated
+
+**Task in Multiple Plans:**
+- [x] Task cannot be in multiple plans
+  - Error: "Task is already in plan: el-xxx"
+
+**Success Criteria:** Tasks in plans should expose their planId for easy agent discovery
+- **Partial:** Core plan-task operations work, but planId visibility is missing
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-2a68 | Task output should include planId field when task is in a plan | 4 | enhancement |
+
+**Dependencies:**
+- el-2a68 → el-3gnj (relates-to: both involve plan-task relationship visibility)
+
+**Notes:**
+The plan-task relationship is correctly stored as a `parent-child` dependency, and all
+operations (add, remove, delete, progress tracking) work correctly. However, for agent
+orchestration, it's inconvenient that tasks don't expose their `planId` - agents must
+query `el dep list <task-id>` and filter for `type: parent-child` to discover plan membership.
+
+This scenario confirms that el-3gnj (hierarchical ID CLI command) would also help, as
+tasks created with hierarchical IDs like `el-planid.1` would self-document their ancestry.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
