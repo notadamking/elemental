@@ -12,6 +12,7 @@ import type { Document, DocumentId } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter } from '../types/event.js';
 import type { PlanProgress } from '../types/plan.js';
+import type { Message } from '../types/message.js';
 
 // Re-export PlanProgress for API consumers
 export type { PlanProgress };
@@ -1218,6 +1219,34 @@ export interface FindOrCreateDirectChannelResult {
   channel: Channel;
   /** Whether a new channel was created */
   created: boolean;
+}
+
+/**
+ * Input for sending a direct message
+ */
+export interface SendDirectMessageInput {
+  /** The recipient entity ID */
+  recipient: EntityId;
+  /** Reference to content Document (must be created first) */
+  contentRef: DocumentId;
+  /** Optional: References to attachment Documents */
+  attachments?: DocumentId[];
+  /** Optional: tags */
+  tags?: string[];
+  /** Optional: metadata */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Result of sending a direct message
+ */
+export interface SendDirectMessageResult {
+  /** The created message */
+  message: Message;
+  /** The channel used (existing or newly created) */
+  channel: Channel;
+  /** Whether a new channel was created for this message */
+  channelCreated: boolean;
 }
 
 // ============================================================================

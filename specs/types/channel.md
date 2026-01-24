@@ -269,9 +269,9 @@ Before channel operations:
 - [x] Implement modifier validation (`canModifyMembers`)
 
 ### Phase 6: Message Integration
-- [ ] Validate sender membership (requires Message + Channel integration)
-- [ ] Implement direct message helper
-- [ ] Auto-create direct channels
+- [x] Validate sender membership (`api.create` validates sender is channel member before creating message)
+- [x] Implement direct message helper (`api.sendDirectMessage(sender, input)` convenience method)
+- [x] Auto-create direct channels (sendDirectMessage uses findOrCreateDirectChannel)
 
 ### Phase 7: Queries
 - [x] Implement channel listing utilities (filters, sorting)

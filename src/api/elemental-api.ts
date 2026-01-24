@@ -29,6 +29,8 @@ import {
   NotAMemberError,
   CannotModifyMembersError,
 } from '../types/channel.js';
+import { createMessage } from '../types/message.js';
+import type { Message } from '../types/message.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { SyncService } from '../sync/service.js';
 import { computeContentHashSync } from '../sync/hash.js';
@@ -66,6 +68,8 @@ import {
   type RemoveMemberOptions,
   type MembershipResult,
   type FindOrCreateDirectChannelResult,
+  type SendDirectMessageInput,
+  type SendDirectMessageResult,
 } from './types.js';
 import type { Plan } from '../types/plan.js';
 import { generateChildId } from '../id/generator.js';
@@ -608,6 +612,33 @@ export class ElementalAPIImpl implements ElementalAPI {
             { name: channelData.name, visibility, existingId: existingRow.id }
           );
         }
+      }
+    }
+
+    // Message sender membership validation
+    if (element.type === 'message') {
+      const messageData = element as unknown as Message;
+      // Get the channel
+      const channelRow = this.backend.queryOne<ElementRow>(
+        `SELECT * FROM elements WHERE id = ? AND deleted_at IS NULL`,
+        [messageData.channelId]
+      );
+      if (!channelRow) {
+        throw new NotFoundError(
+          `Channel not found: ${messageData.channelId}`,
+          ErrorCode.NOT_FOUND,
+          { elementId: messageData.channelId }
+        );
+      }
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [channelRow.id]
+      );
+      const tags = tagRows.map((r) => r.tag);
+      const channel = deserializeElement<Channel>(channelRow, tags);
+      // Validate sender is a channel member
+      if (!isMember(channel, messageData.sender)) {
+        throw new NotAMemberError(channel.id, messageData.sender);
       }
     }
 
@@ -2421,6 +2452,50 @@ export class ElementalAPIImpl implements ElementalAPI {
       success: true,
       channel: updatedChannel!,
       entityId: actor,
+    };
+  }
+
+  /**
+   * Send a direct message to another entity
+   *
+   * This is a convenience method that:
+   * 1. Finds or creates the direct channel between sender and recipient
+   * 2. Creates and sends the message in that channel
+   *
+   * @param sender - The entity sending the message
+   * @param input - The message input including recipient, contentRef, etc.
+   * @returns The created message and channel information
+   */
+  async sendDirectMessage(
+    sender: EntityId,
+    input: SendDirectMessageInput
+  ): Promise<SendDirectMessageResult> {
+    // Find or create the direct channel
+    const { channel, created: channelCreated } = await this.findOrCreateDirectChannel(
+      sender,
+      input.recipient,
+      sender
+    );
+
+    // Create the message
+    const message = await createMessage({
+      channelId: channel.id as unknown as import('../types/message.js').ChannelId,
+      sender,
+      contentRef: input.contentRef,
+      attachments: input.attachments,
+      tags: input.tags,
+      metadata: input.metadata,
+    });
+
+    // Persist the message (membership validation happens in create)
+    const createdMessage = await this.create<Message>(
+      message as unknown as Message & Record<string, unknown>
+    );
+
+    return {
+      message: createdMessage,
+      channel,
+      channelCreated,
     };
   }
 
