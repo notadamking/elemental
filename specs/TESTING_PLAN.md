@@ -4310,6 +4310,77 @@ Key findings:
 
 ---
 
+### Scenario: Dependency Metadata and Type Handling
+
+**Purpose:** Evaluate JSON metadata handling on dependencies, dependency type semantics, and cross-element dependency capabilities - critical for agent workflows that need to store structured metadata on relationships
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Pass with UX Issue)
+
+**Checkpoints:**
+
+**Metadata JSON Input:**
+- [x] Simple JSON object: `--metadata '{"key":"value"}'` works correctly
+- [x] Nested JSON: `--metadata '{"nested":{"key":"value"}}'` works correctly
+- [x] JSON arrays in metadata: `--metadata '{"items":[1,2,3]}'` works correctly
+- [x] Unicode in metadata: Japanese, emojis preserved correctly
+- [x] Special characters: quotes, newlines preserved correctly
+- [x] Large metadata (100 keys): accepted and stored correctly
+- [x] Invalid JSON rejected: clear error with exit code 4
+- [x] Deeply nested JSON (5+ levels): accepted and stored correctly
+- [ ] **UX el-5rnx**: Non-object JSON accepted as metadata
+  - Arrays `'[]'`, strings `'"text"'`, numbers `'123'` all accepted
+  - `'null'` converted to `{}` (empty object)
+  - May confuse agents expecting consistent object structure
+
+**Dependency Types:**
+- [x] `blocks` type: correctly blocks dependent task
+- [x] `relates-to` type: does NOT block tasks
+- [x] `awaits` type: does NOT block tasks (different from blocks)
+- [x] `parent-child` type: can be created directly via CLI
+- [x] `assigned-to` type: creates dependency separate from task assignee
+- [x] Multiple types between same elements: allowed correctly
+- [x] Invalid type rejected: clear error listing all valid types
+- [x] Type required: clear error when `--type` omitted
+
+**Dependency List:**
+- [x] `el dep list` shows metadata correctly
+- [x] `el dep list --type` filters by type correctly
+- [x] `el dep list --direction` filters correctly
+
+**Dependency Removal:**
+- [x] Remove existing dependency: succeeds correctly
+- [x] Remove with wrong type: NOT_FOUND error
+- [x] Remove non-existent: NOT_FOUND error with exit code 3
+
+**Cross-Element Dependencies:**
+- [x] Task-to-Entity dependency: allowed (element-agnostic)
+- [x] Task-to-Document dependency: allowed
+- [x] Multiple dependency types between same pair: allowed
+
+**Success Criteria:** Dependency metadata and type handling work correctly for agent workflows
+- **Pass with UX Issue:** Core functionality works; non-object JSON metadata acceptance is unexpected
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5rnx | UX: el dep add --metadata accepts non-object JSON values | 5 | ux |
+
+**Dependencies:**
+- el-5rnx → el-ud5u (relates-to: metadata flag enhancement)
+
+**Notes:**
+This evaluation tested dependency metadata capabilities critical for agent orchestration:
+1. JSON metadata handling is robust - nested objects, arrays, Unicode all work
+2. Dependency types have clear semantics (blocks vs awaits vs relates-to)
+3. Cross-element dependencies are allowed by design
+4. Minor UX issue: non-object JSON values accepted as metadata
+5. `awaits` and `relates-to` types do NOT block tasks - only `blocks` does
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
