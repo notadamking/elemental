@@ -2139,6 +2139,73 @@ The metadata field exists on all elements but cannot be set via CLI. No way to l
 elements. Parser bug el-59p3 continues to affect multiple `--tag` flags on both create and update.
 Deleting elements with dependents leaves orphaned dependency records (consequence of el-s80d bug).
 
+### Bulk Operations and Batch Processing Exploration
+
+**Goal:** Evaluate CLI support for bulk operations on multiple elements - critical for agent orchestration
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - No native support, workarounds exist)
+
+**Exploration prompts:**
+- Can commands accept multiple IDs?
+- Is there stdin/pipe support for bulk input?
+- Does quiet mode work for scripting pipelines?
+- Can xargs be used effectively with elemental?
+- Are there batch commands or --from-file options?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| `el close id1 id2` (multiple IDs) | **FAIL** | Only first ID closed, second silently ignored |
+| `el delete id1 id2` (multiple IDs) | **FAIL** | Only first ID deleted, second silently ignored |
+| `el update id1 id2 --priority 1` | **FAIL** | Only first ID updated, second silently ignored |
+| `el show id1 id2` (multiple IDs) | **FAIL** | Only first ID shown, second silently ignored |
+| `el dep add B A1 A2 --type blocks` | **FAIL** | Only first target added as dependency |
+| `el team add team m1 m2` | **FAIL** | Only first member added |
+| `el library add lib d1 d2` | **FAIL** | Only first document added |
+| `el plan add-task plan t1 t2` | **FAIL** | Only first task added |
+| Stdin support (`echo id \| el close`) | **FAIL** | "Usage: el close <id>" error |
+| `--from-file` option | **FAIL** | Option doesn't exist |
+| `--stdin` option | **FAIL** | Option doesn't exist |
+| `el batch` subcommand | **FAIL** | Command doesn't exist |
+| `--quiet` output for piping | PASS | Outputs IDs only, one per line |
+| xargs compatibility | PASS | `el ready --quiet \| xargs -I{} el close {}` works |
+| Parallel xargs (`-P4`) | PASS | Works correctly for concurrent operations |
+| Error handling in xargs | PASS | Invalid IDs produce errors, valid ones succeed |
+| Filter + bulk pipeline | PASS | `el list --status open --quiet \| xargs ...` works |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-vocx | UX BUG: CLI commands silently ignore extra positional arguments | 3 | ux |
+| el-2jdj | ENHANCEMENT: Add native bulk operation support (--ids flag or stdin) | 4 | enhancement |
+| el-13w7 | DOC: Document bulk operation workarounds using xargs and quiet mode | 5 | documentation |
+
+**Dependencies:**
+- el-vocx → el-59p3 (relates-to: CLI parser concerns)
+- el-2jdj → el-vocx (relates-to: both bulk operation improvements)
+- el-13w7 → el-2jdj (relates-to: workaround docs for enhancement)
+
+**Summary:**
+No native bulk operation support exists. Commands silently ignore extra positional arguments,
+which is confusing for users expecting Unix-style bulk operations. However, effective workarounds
+exist using `--quiet` mode output piped to xargs:
+
+```bash
+# Bulk close all ready tasks
+el ready --quiet | xargs -I{} el close {} --reason "Bulk"
+
+# Parallel bulk operations
+el list task --quiet | xargs -P4 -I{} el show {} --json | jq -s '.'
+
+# Filter then bulk process
+el ready --priority 1 --quiet | xargs -I{} el close {}
+```
+
+These patterns work correctly and should be documented. Future enhancement could add native
+`--ids` or `--stdin` flags for more ergonomic bulk operations.
+
 ---
 
 ### Scenario: Delete Operations and Cascading Effects
