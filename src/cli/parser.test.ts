@@ -206,6 +206,68 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('array options', () => {
+    const arrayOptions: CommandOption[] = [
+      { name: 'tag', short: 't', description: 'Add a tag', hasValue: true, array: true },
+      { name: 'step', short: 's', description: 'Add a step', hasValue: true, array: true },
+      { name: 'single', description: 'Single value', hasValue: true },
+    ];
+
+    it('should accumulate repeated array options into an array', () => {
+      const result = parseArgs(
+        ['create', '--tag', 'first', '--tag', 'second', '--tag', 'third'],
+        arrayOptions
+      );
+      expect(result.commandOptions.tag).toEqual(['first', 'second', 'third']);
+    });
+
+    it('should accumulate repeated short array options into an array', () => {
+      const result = parseArgs(
+        ['create', '-t', 'alpha', '-t', 'beta'],
+        arrayOptions
+      );
+      expect(result.commandOptions.tag).toEqual(['alpha', 'beta']);
+    });
+
+    it('should return single value as array with one element', () => {
+      const result = parseArgs(['create', '--tag', 'only-one'], arrayOptions);
+      expect(result.commandOptions.tag).toEqual(['only-one']);
+    });
+
+    it('should accumulate multiple different array options independently', () => {
+      const result = parseArgs(
+        ['create', '--tag', 'tag1', '--step', 'step1', '--tag', 'tag2', '--step', 'step2'],
+        arrayOptions
+      );
+      expect(result.commandOptions.tag).toEqual(['tag1', 'tag2']);
+      expect(result.commandOptions.step).toEqual(['step1', 'step2']);
+    });
+
+    it('should not accumulate non-array options (overwrite)', () => {
+      const result = parseArgs(
+        ['create', '--single', 'first', '--single', 'second'],
+        arrayOptions
+      );
+      expect(result.commandOptions.single).toBe('second');
+    });
+
+    it('should handle --option=value syntax for array options', () => {
+      const result = parseArgs(
+        ['create', '--tag=first', '--tag=second'],
+        arrayOptions
+      );
+      expect(result.commandOptions.tag).toEqual(['first', 'second']);
+    });
+
+    it('should unescape shell artifacts in array values', () => {
+      const result = parseArgs(
+        ['create', '--tag', 'Hello\\!', '--tag', 'World\\!'],
+        arrayOptions
+      );
+      expect(result.commandOptions.tag).toEqual(['Hello!', 'World!']);
+    });
+  });
+
   describe('error handling', () => {
     it('should throw on unknown option', () => {
       expect(() => parseArgs(['--unknown'])).toThrow('Unknown option: --unknown');

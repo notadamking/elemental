@@ -107,6 +107,7 @@ const workflowPourOptions: CommandOption[] = [
     name: 'var',
     description: 'Set variable (name=value, can be repeated)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'ephemeral',

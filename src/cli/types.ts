@@ -115,6 +115,8 @@ export interface CommandOption {
   required?: boolean;
   /** Default value */
   defaultValue?: unknown;
+  /** Whether option can be repeated to accumulate multiple values into an array */
+  array?: boolean;
 }
 
 // ============================================================================

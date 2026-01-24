@@ -176,6 +176,7 @@ const registerOptions: CommandOption[] = [
     name: 'tag',
     description: 'Tag to add to entity (can be repeated)',
     hasValue: true,
+    array: true,
   },
 ];
 

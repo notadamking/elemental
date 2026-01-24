@@ -111,6 +111,7 @@ const planCreateOptions: CommandOption[] = [
     name: 'tag',
     description: 'Add a tag (can be repeated)',
     hasValue: true,
+    array: true,
   },
 ];
 
@@ -204,6 +205,7 @@ const planListOptions: CommandOption[] = [
     name: 'tag',
     description: 'Filter by tag (can be repeated for AND)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'limit',

@@ -117,6 +117,7 @@ const docCreateOptions: CommandOption[] = [
     name: 'tag',
     description: 'Add tag (can be repeated)',
     hasValue: true,
+    array: true,
   },
 ];
 

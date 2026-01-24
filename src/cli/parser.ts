@@ -82,11 +82,11 @@ export function parseArgs(
   const cmdOptions: Record<string, unknown> = {};
 
   // Build command option lookup
-  const cmdOptDefs: Record<string, { hasValue?: boolean; key: string }> = {};
+  const cmdOptDefs: Record<string, { hasValue?: boolean; key: string; array?: boolean }> = {};
   for (const opt of commandOptions) {
-    cmdOptDefs[`--${opt.name}`] = { hasValue: opt.hasValue, key: opt.name };
+    cmdOptDefs[`--${opt.name}`] = { hasValue: opt.hasValue, key: opt.name, array: opt.array };
     if (opt.short) {
-      cmdOptDefs[`-${opt.short}`] = { hasValue: opt.hasValue, key: opt.name };
+      cmdOptDefs[`-${opt.short}`] = { hasValue: opt.hasValue, key: opt.name, array: opt.array };
     }
     // Set defaults
     if (opt.defaultValue !== undefined) {
@@ -167,7 +167,18 @@ export function parseArgs(
           if (value === undefined || (value.startsWith('-') && value !== '-')) {
             throw new Error(`Option ${optName} requires a value`);
           }
-          cmdOptions[cmdDef.key] = unescapeShellArtifacts(value);
+          const unescapedValue = unescapeShellArtifacts(value);
+          if (cmdDef.array) {
+            // Accumulate values into an array for array options
+            const existing = cmdOptions[cmdDef.key];
+            if (Array.isArray(existing)) {
+              existing.push(unescapedValue);
+            } else {
+              cmdOptions[cmdDef.key] = [unescapedValue];
+            }
+          } else {
+            cmdOptions[cmdDef.key] = unescapedValue;
+          }
         } else {
           cmdOptions[cmdDef.key] = true;
         }

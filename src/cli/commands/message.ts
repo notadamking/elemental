@@ -137,11 +137,13 @@ const msgSendOptions: CommandOption[] = [
     short: 'a',
     description: 'Attach document ID (can be repeated)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'tag',
     description: 'Add tag (can be repeated)',
     hasValue: true,
+    array: true,
   },
 ];
 

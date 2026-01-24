@@ -107,11 +107,13 @@ const teamCreateOptions: CommandOption[] = [
     short: 'm',
     description: 'Add member (can be repeated)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'tag',
     description: 'Add tag (can be repeated)',
     hasValue: true,
+    array: true,
   },
 ];
 

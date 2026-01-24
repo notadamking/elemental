@@ -339,6 +339,7 @@ const playbookValidateOptions: CommandOption[] = [
     name: 'var',
     description: 'Set variable for pour-time validation (name=value, can be repeated)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'pour',
@@ -662,23 +663,27 @@ const playbookCreateOptions: CommandOption[] = [
     short: 's',
     description: 'Add step (format: id:title[:dependsOn,...], can be repeated)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'variable',
     short: 'v',
     description: 'Add variable (format: name:type[:default][:required], can be repeated)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'extends',
     short: 'e',
     description: 'Extend playbook (can be repeated)',
     hasValue: true,
+    array: true,
   },
   {
     name: 'tag',
     description: 'Add tag (can be repeated)',
     hasValue: true,
+    array: true,
   },
 ];
 
