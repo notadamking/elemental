@@ -2442,3 +2442,469 @@ export function getVerifiedMessageSenders<T extends Entity>(
   const withMessages = filterEntitiesWithMessages(entities, messages);
   return withMessages.filter(canCryptographicallySign);
 }
+
+// ============================================================================
+// Task Assignment Integration
+// ============================================================================
+
+/**
+ * Interface for task-like objects (minimal interface for entity queries)
+ * This allows entity module to work with tasks without creating circular dependencies
+ */
+export interface TaskLike {
+  id: string;
+  title: string;
+  status: string;
+  priority: number;
+  complexity: number;
+  assignee?: string;
+  owner?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Validates that an entity exists and can be a task assignee
+ *
+ * In soft identity mode: validates that the entity ID exists in the entities array
+ * This function performs the basic existence check for assignee validation.
+ *
+ * @param entities - Array of entities to search
+ * @param assigneeId - The assignee ID to validate
+ * @returns True if the assignee is a valid entity
+ */
+export function isValidTaskAssignee<T extends Entity>(entities: T[], assigneeId: string): boolean {
+  return entities.some((e) => e.id === assigneeId);
+}
+
+/**
+ * Result of assignee validation
+ */
+export interface AssigneeValidationResult {
+  /** Whether the assignee is valid */
+  valid: boolean;
+  /** Error code if invalid */
+  errorCode?: 'ENTITY_NOT_FOUND' | 'ENTITY_DEACTIVATED';
+  /** Human-readable error message if invalid */
+  errorMessage?: string;
+}
+
+/**
+ * Validates a task assignee with detailed error information
+ *
+ * Performs comprehensive validation:
+ * 1. Checks if the assignee entity exists
+ * 2. Checks if the entity is active (not deactivated)
+ *
+ * @param entities - Array of entities to search
+ * @param assigneeId - The assignee ID to validate
+ * @returns Validation result with error details if invalid
+ */
+export function validateTaskAssignee<T extends Entity>(
+  entities: T[],
+  assigneeId: string
+): AssigneeValidationResult {
+  // Find the assignee entity
+  const assigneeEntity = entities.find((e) => e.id === assigneeId);
+
+  // Check if entity exists
+  if (!assigneeEntity) {
+    return {
+      valid: false,
+      errorCode: 'ENTITY_NOT_FOUND',
+      errorMessage: `Assignee entity '${assigneeId}' not found`,
+    };
+  }
+
+  // Check if entity is active
+  if (isEntityDeactivated(assigneeEntity)) {
+    return {
+      valid: false,
+      errorCode: 'ENTITY_DEACTIVATED',
+      errorMessage: `Assignee entity '${assigneeId}' is deactivated`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Get all tasks assigned to an entity
+ *
+ * @param tasks - Array of tasks to search
+ * @param entityId - The entity ID to filter by
+ * @returns Tasks assigned to the specified entity
+ */
+export function getTasksAssignedTo<T extends TaskLike>(tasks: T[], entityId: string): T[] {
+  return tasks.filter((task) => task.assignee === entityId);
+}
+
+/**
+ * Get all tasks owned by an entity
+ *
+ * @param tasks - Array of tasks to search
+ * @param entityId - The entity ID to filter by
+ * @returns Tasks owned by the specified entity
+ */
+export function getTasksOwnedBy<T extends TaskLike>(tasks: T[], entityId: string): T[] {
+  return tasks.filter((task) => task.owner === entityId);
+}
+
+/**
+ * Get all tasks created by an entity
+ *
+ * @param tasks - Array of tasks to search
+ * @param entityId - The entity ID to filter by
+ * @returns Tasks created by the specified entity
+ */
+export function getTasksCreatedBy<T extends TaskLike>(tasks: T[], entityId: string): T[] {
+  return tasks.filter((task) => task.createdBy === entityId);
+}
+
+/**
+ * Get all tasks where entity is assignee, owner, or creator
+ *
+ * @param tasks - Array of tasks to search
+ * @param entityId - The entity ID to filter by
+ * @returns Tasks where entity is involved
+ */
+export function getTasksInvolvingEntity<T extends TaskLike>(tasks: T[], entityId: string): T[] {
+  return tasks.filter(
+    (task) => task.assignee === entityId || task.owner === entityId || task.createdBy === entityId
+  );
+}
+
+/**
+ * Count tasks assigned to an entity
+ *
+ * @param tasks - Array of tasks to search
+ * @param entityId - The entity ID to count for
+ * @returns Number of tasks assigned to the entity
+ */
+export function countTasksAssignedTo<T extends TaskLike>(tasks: T[], entityId: string): number {
+  return tasks.filter((task) => task.assignee === entityId).length;
+}
+
+/**
+ * Count tasks assigned to each entity
+ *
+ * @param tasks - Array of tasks to analyze
+ * @returns Map of entity ID to task count
+ */
+export function countTasksByAssignee<T extends TaskLike>(tasks: T[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const task of tasks) {
+    if (task.assignee) {
+      counts.set(task.assignee, (counts.get(task.assignee) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * Get entities with the most tasks assigned
+ *
+ * @param tasks - Array of tasks to analyze
+ * @param limit - Maximum number of entities to return
+ * @returns Array of [entityId, count] sorted by count descending
+ */
+export function getTopTaskAssignees<T extends TaskLike>(
+  tasks: T[],
+  limit?: number
+): Array<[string, number]> {
+  const counts = countTasksByAssignee(tasks);
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return limit !== undefined ? sorted.slice(0, limit) : sorted;
+}
+
+/**
+ * Check if an entity has any tasks assigned
+ *
+ * @param tasks - Array of tasks to search
+ * @param entityId - Entity ID to check
+ * @returns True if entity has at least one task assigned
+ */
+export function hasTasksAssigned<T extends TaskLike>(tasks: T[], entityId: string): boolean {
+  return tasks.some((task) => task.assignee === entityId);
+}
+
+/**
+ * Get unassigned tasks (tasks with no assignee)
+ *
+ * @param tasks - Array of tasks to search
+ * @returns Tasks with no assignee
+ */
+export function getUnassignedTasks<T extends TaskLike>(tasks: T[]): T[] {
+  return tasks.filter((task) => task.assignee === undefined);
+}
+
+/**
+ * Get tasks by status for an entity
+ *
+ * @param tasks - Array of tasks to search
+ * @param entityId - The entity ID to filter by
+ * @param status - The status to filter by
+ * @returns Tasks assigned to the entity with the specified status
+ */
+export function getEntityTasksByStatus<T extends TaskLike>(
+  tasks: T[],
+  entityId: string,
+  status: string
+): T[] {
+  return tasks.filter((task) => task.assignee === entityId && task.status === status);
+}
+
+/**
+ * Task assignment statistics for an entity
+ */
+export interface EntityTaskStats {
+  /** Number of tasks assigned to the entity */
+  assignedCount: number;
+  /** Number of tasks owned by the entity */
+  ownedCount: number;
+  /** Number of tasks created by the entity */
+  createdCount: number;
+  /** Total unique tasks the entity is involved with */
+  totalInvolved: number;
+  /** Tasks grouped by status */
+  byStatus: Map<string, number>;
+  /** Average priority of assigned tasks (lower is higher priority) */
+  averagePriority: number | null;
+  /** Total complexity of assigned tasks */
+  totalComplexity: number;
+}
+
+/**
+ * Get comprehensive task statistics for an entity
+ *
+ * @param tasks - Array of tasks to analyze
+ * @param entityId - Entity ID to get stats for
+ * @returns Task statistics
+ */
+export function getEntityTaskStats<T extends TaskLike>(
+  tasks: T[],
+  entityId: string
+): EntityTaskStats {
+  const assignedTasks = tasks.filter((t) => t.assignee === entityId);
+  const ownedTasks = tasks.filter((t) => t.owner === entityId);
+  const createdTasks = tasks.filter((t) => t.createdBy === entityId);
+
+  // Count unique tasks
+  const involvedIds = new Set<string>();
+  for (const task of tasks) {
+    if (task.assignee === entityId || task.owner === entityId || task.createdBy === entityId) {
+      involvedIds.add(task.id);
+    }
+  }
+
+  // Group assigned tasks by status
+  const byStatus = new Map<string, number>();
+  let totalPriority = 0;
+  let totalComplexity = 0;
+
+  for (const task of assignedTasks) {
+    byStatus.set(task.status, (byStatus.get(task.status) ?? 0) + 1);
+    totalPriority += task.priority;
+    totalComplexity += task.complexity;
+  }
+
+  return {
+    assignedCount: assignedTasks.length,
+    ownedCount: ownedTasks.length,
+    createdCount: createdTasks.length,
+    totalInvolved: involvedIds.size,
+    byStatus,
+    averagePriority: assignedTasks.length > 0 ? totalPriority / assignedTasks.length : null,
+    totalComplexity,
+  };
+}
+
+/**
+ * Filter entities that have tasks assigned
+ *
+ * @param entities - Array of entities to filter
+ * @param tasks - Array of tasks to check against
+ * @returns Entities that have at least one task assigned
+ */
+export function filterEntitiesWithTasks<T extends Entity>(
+  entities: T[],
+  tasks: TaskLike[]
+): T[] {
+  const assigneeIds = new Set<string>();
+  for (const task of tasks) {
+    if (task.assignee) {
+      assigneeIds.add(task.assignee);
+    }
+  }
+  return entities.filter((e) => assigneeIds.has(e.id));
+}
+
+/**
+ * Filter entities that have no tasks assigned
+ *
+ * @param entities - Array of entities to filter
+ * @param tasks - Array of tasks to check against
+ * @returns Entities that have no tasks assigned
+ */
+export function filterEntitiesWithoutTasks<T extends Entity>(
+  entities: T[],
+  tasks: TaskLike[]
+): T[] {
+  const assigneeIds = new Set<string>();
+  for (const task of tasks) {
+    if (task.assignee) {
+      assigneeIds.add(task.assignee);
+    }
+  }
+  return entities.filter((e) => !assigneeIds.has(e.id));
+}
+
+/**
+ * Filter entities by task load (number of assigned tasks)
+ *
+ * @param entities - Array of entities to filter
+ * @param tasks - Array of tasks to analyze
+ * @param maxTasks - Maximum number of assigned tasks
+ * @returns Entities with at most maxTasks assigned
+ */
+export function filterEntitiesByTaskLoad<T extends Entity>(
+  entities: T[],
+  tasks: TaskLike[],
+  maxTasks: number
+): T[] {
+  const counts = countTasksByAssignee(tasks);
+  return entities.filter((e) => (counts.get(e.id) ?? 0) <= maxTasks);
+}
+
+/**
+ * Get entities that are available for assignment (active and under capacity)
+ *
+ * @param entities - Array of entities to filter
+ * @param tasks - Array of tasks to analyze
+ * @param maxTasks - Maximum number of assigned tasks for availability
+ * @returns Active entities with fewer than maxTasks assigned
+ */
+export function getAvailableAssignees<T extends Entity>(
+  entities: T[],
+  tasks: TaskLike[],
+  maxTasks: number
+): T[] {
+  const activeEntities = filterActiveEntities(entities);
+  return filterEntitiesByTaskLoad(activeEntities, tasks, maxTasks - 1);
+}
+
+/**
+ * Get workload distribution across entities
+ *
+ * @param entities - Array of entities to analyze
+ * @param tasks - Array of tasks to analyze
+ * @returns Map of entity ID to workload stats
+ */
+export function getEntityWorkloadDistribution<T extends Entity>(
+  entities: T[],
+  tasks: TaskLike[]
+): Map<string, { entityName: string; taskCount: number; totalComplexity: number }> {
+  const distribution = new Map<string, { entityName: string; taskCount: number; totalComplexity: number }>();
+
+  // Initialize all entities with zero counts
+  for (const entity of entities) {
+    distribution.set(entity.id, {
+      entityName: entity.name,
+      taskCount: 0,
+      totalComplexity: 0,
+    });
+  }
+
+  // Count tasks and sum complexity
+  for (const task of tasks) {
+    if (task.assignee) {
+      const current = distribution.get(task.assignee);
+      if (current) {
+        distribution.set(task.assignee, {
+          ...current,
+          taskCount: current.taskCount + 1,
+          totalComplexity: current.totalComplexity + task.complexity,
+        });
+      }
+    }
+  }
+
+  return distribution;
+}
+
+/**
+ * Find the entity with the least workload (fewest assigned tasks)
+ *
+ * @param entities - Array of entities to consider
+ * @param tasks - Array of tasks to analyze
+ * @returns The entity with fewest tasks, or undefined if no entities
+ */
+export function findLeastBusyEntity<T extends Entity>(
+  entities: T[],
+  tasks: TaskLike[]
+): T | undefined {
+  if (entities.length === 0) {
+    return undefined;
+  }
+
+  const counts = countTasksByAssignee(tasks);
+  let leastBusy = entities[0];
+  let leastCount = counts.get(entities[0].id) ?? 0;
+
+  for (let i = 1; i < entities.length; i++) {
+    const count = counts.get(entities[i].id) ?? 0;
+    if (count < leastCount) {
+      leastCount = count;
+      leastBusy = entities[i];
+    }
+  }
+
+  return leastBusy;
+}
+
+/**
+ * Get co-workers (entities that share task assignments on the same tasks)
+ *
+ * Note: Tasks typically have one assignee, so this finds entities that work
+ * on tasks where one is assignee and the other is owner, or both have
+ * assignments in the same parent plan/workflow.
+ *
+ * @param tasks - Array of tasks to analyze
+ * @param entityId - Entity ID to find co-workers for
+ * @returns Array of entity IDs that share task involvement
+ */
+export function getTaskCoworkers<T extends TaskLike>(tasks: T[], entityId: string): string[] {
+  const coworkers = new Set<string>();
+
+  for (const task of tasks) {
+    const isInvolved =
+      task.assignee === entityId || task.owner === entityId || task.createdBy === entityId;
+
+    if (isInvolved) {
+      // Add other involved parties as co-workers
+      if (task.assignee && task.assignee !== entityId) {
+        coworkers.add(task.assignee);
+      }
+      if (task.owner && task.owner !== entityId) {
+        coworkers.add(task.owner);
+      }
+      if (task.createdBy !== entityId) {
+        coworkers.add(task.createdBy);
+      }
+    }
+  }
+
+  return Array.from(coworkers);
+}
+
+/**
+ * Count co-workers for an entity
+ *
+ * @param tasks - Array of tasks to analyze
+ * @param entityId - Entity ID to count co-workers for
+ * @returns Number of unique co-workers
+ */
+export function countTaskCoworkers<T extends TaskLike>(tasks: T[], entityId: string): number {
+  return getTaskCoworkers(tasks, entityId).length;
+}

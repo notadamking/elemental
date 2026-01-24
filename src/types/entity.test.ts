@@ -3840,3 +3840,630 @@ describe('getVerifiedMessageSenders', () => {
     expect(getVerifiedMessageSenders(entities, messages)).toEqual([]);
   });
 });
+
+// ============================================================================
+// Task Assignment Integration Tests
+// ============================================================================
+
+import {
+  type TaskLike,
+  isValidTaskAssignee,
+  validateTaskAssignee,
+  getTasksAssignedTo,
+  getTasksOwnedBy,
+  getTasksCreatedBy,
+  getTasksInvolvingEntity,
+  countTasksAssignedTo,
+  countTasksByAssignee,
+  getTopTaskAssignees,
+  hasTasksAssigned,
+  getUnassignedTasks,
+  getEntityTasksByStatus,
+  getEntityTaskStats,
+  filterEntitiesWithTasks,
+  filterEntitiesWithoutTasks,
+  filterEntitiesByTaskLoad,
+  getAvailableAssignees,
+  getEntityWorkloadDistribution,
+  findLeastBusyEntity,
+  getTaskCoworkers,
+  countTaskCoworkers,
+} from './entity.js';
+
+// Helper to create a valid task for testing
+function createTestTask(overrides: Partial<TaskLike> = {}): TaskLike {
+  return {
+    id: 'task-1',
+    title: 'Test Task',
+    status: 'open',
+    priority: 3,
+    complexity: 2,
+    createdBy: 'entity-system',
+    createdAt: '2025-01-22T10:00:00.000Z',
+    updatedAt: '2025-01-22T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('isValidTaskAssignee', () => {
+  test('returns true when entity exists', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+
+    expect(isValidTaskAssignee(entities, 'entity-a')).toBe(true);
+    expect(isValidTaskAssignee(entities, 'entity-b')).toBe(true);
+  });
+
+  test('returns false when entity does not exist', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+
+    expect(isValidTaskAssignee(entities, 'entity-nonexistent')).toBe(false);
+  });
+
+  test('returns false for empty entities array', () => {
+    expect(isValidTaskAssignee([], 'entity-a')).toBe(false);
+  });
+});
+
+describe('validateTaskAssignee', () => {
+  test('returns valid result for existing active entity', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+
+    const result = validateTaskAssignee(entities, 'entity-a');
+    expect(result.valid).toBe(true);
+    expect(result.errorCode).toBeUndefined();
+    expect(result.errorMessage).toBeUndefined();
+  });
+
+  test('returns ENTITY_NOT_FOUND error when entity does not exist', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+
+    const result = validateTaskAssignee(entities, 'entity-nonexistent');
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('ENTITY_NOT_FOUND');
+    expect(result.errorMessage).toContain('entity-nonexistent');
+  });
+
+  test('returns ENTITY_DEACTIVATED error when entity is deactivated', () => {
+    const entities = [
+      createTestEntity({
+        id: 'entity-a' as ElementId,
+        name: 'Alice',
+        metadata: { active: false, deactivatedAt: '2025-01-22T12:00:00.000Z' },
+      }),
+    ];
+
+    const result = validateTaskAssignee(entities, 'entity-a');
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('ENTITY_DEACTIVATED');
+    expect(result.errorMessage).toContain('deactivated');
+  });
+});
+
+describe('getTasksAssignedTo', () => {
+  test('returns tasks assigned to entity', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-b' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-4' }), // No assignee
+    ];
+
+    const result = getTasksAssignedTo(tasks, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(t => t.id)).toEqual(['task-1', 'task-3']);
+  });
+
+  test('returns empty array when no tasks assigned', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-b' }),
+    ];
+
+    expect(getTasksAssignedTo(tasks, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array for empty tasks', () => {
+    expect(getTasksAssignedTo([], 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getTasksOwnedBy', () => {
+  test('returns tasks owned by entity', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', owner: 'entity-a' }),
+      createTestTask({ id: 'task-2', owner: 'entity-b' }),
+      createTestTask({ id: 'task-3', owner: 'entity-a' }),
+    ];
+
+    const result = getTasksOwnedBy(tasks, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(t => t.id)).toEqual(['task-1', 'task-3']);
+  });
+
+  test('returns empty array when no tasks owned', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', owner: 'entity-b' }),
+    ];
+
+    expect(getTasksOwnedBy(tasks, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getTasksCreatedBy', () => {
+  test('returns tasks created by entity', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', createdBy: 'entity-a' }),
+      createTestTask({ id: 'task-2', createdBy: 'entity-b' }),
+      createTestTask({ id: 'task-3', createdBy: 'entity-a' }),
+    ];
+
+    const result = getTasksCreatedBy(tasks, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(t => t.id)).toEqual(['task-1', 'task-3']);
+  });
+});
+
+describe('getTasksInvolvingEntity', () => {
+  test('returns tasks where entity is assignee, owner, or creator', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', createdBy: 'entity-b' }),
+      createTestTask({ id: 'task-2', owner: 'entity-a', createdBy: 'entity-b' }),
+      createTestTask({ id: 'task-3', createdBy: 'entity-a' }),
+      createTestTask({ id: 'task-4', createdBy: 'entity-b', assignee: 'entity-b' }),
+    ];
+
+    const result = getTasksInvolvingEntity(tasks, 'entity-a');
+    expect(result).toHaveLength(3);
+    expect(result.map(t => t.id)).toEqual(['task-1', 'task-2', 'task-3']);
+  });
+
+  test('returns empty array when entity is not involved', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', createdBy: 'entity-b', assignee: 'entity-c' }),
+    ];
+
+    expect(getTasksInvolvingEntity(tasks, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('countTasksAssignedTo', () => {
+  test('counts tasks assigned to entity', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-b' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-4', assignee: 'entity-a' }),
+    ];
+
+    expect(countTasksAssignedTo(tasks, 'entity-a')).toBe(3);
+    expect(countTasksAssignedTo(tasks, 'entity-b')).toBe(1);
+    expect(countTasksAssignedTo(tasks, 'entity-c')).toBe(0);
+  });
+});
+
+describe('countTasksByAssignee', () => {
+  test('returns map of assignee to count', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-b' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-4' }), // No assignee
+    ];
+
+    const counts = countTasksByAssignee(tasks);
+    expect(counts.get('entity-a')).toBe(2);
+    expect(counts.get('entity-b')).toBe(1);
+    expect(counts.has('entity-c')).toBe(false);
+  });
+
+  test('returns empty map for no assigned tasks', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1' }),
+      createTestTask({ id: 'task-2' }),
+    ];
+
+    const counts = countTasksByAssignee(tasks);
+    expect(counts.size).toBe(0);
+  });
+});
+
+describe('getTopTaskAssignees', () => {
+  test('returns assignees sorted by task count', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-b' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-4', assignee: 'entity-c' }),
+      createTestTask({ id: 'task-5', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-6', assignee: 'entity-b' }),
+    ];
+
+    const top = getTopTaskAssignees(tasks);
+    expect(top).toEqual([
+      ['entity-a', 3],
+      ['entity-b', 2],
+      ['entity-c', 1],
+    ]);
+  });
+
+  test('respects limit parameter', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-b' }),
+      createTestTask({ id: 'task-4', assignee: 'entity-c' }),
+    ];
+
+    const top = getTopTaskAssignees(tasks, 2);
+    expect(top).toHaveLength(2);
+    expect(top[0]).toEqual(['entity-a', 2]);
+  });
+});
+
+describe('hasTasksAssigned', () => {
+  test('returns true when entity has tasks assigned', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-b' }),
+    ];
+
+    expect(hasTasksAssigned(tasks, 'entity-a')).toBe(true);
+  });
+
+  test('returns false when entity has no tasks assigned', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-b' }),
+    ];
+
+    expect(hasTasksAssigned(tasks, 'entity-a')).toBe(false);
+  });
+
+  test('returns false for empty tasks array', () => {
+    expect(hasTasksAssigned([], 'entity-a')).toBe(false);
+  });
+});
+
+describe('getUnassignedTasks', () => {
+  test('returns tasks with no assignee', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2' }),
+      createTestTask({ id: 'task-3' }),
+      createTestTask({ id: 'task-4', assignee: 'entity-b' }),
+    ];
+
+    const result = getUnassignedTasks(tasks);
+    expect(result).toHaveLength(2);
+    expect(result.map(t => t.id)).toEqual(['task-2', 'task-3']);
+  });
+
+  test('returns empty array when all tasks assigned', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-b' }),
+    ];
+
+    expect(getUnassignedTasks(tasks)).toEqual([]);
+  });
+});
+
+describe('getEntityTasksByStatus', () => {
+  test('returns tasks for entity with specified status', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', status: 'open' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a', status: 'in_progress' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-a', status: 'open' }),
+      createTestTask({ id: 'task-4', assignee: 'entity-b', status: 'open' }),
+    ];
+
+    const result = getEntityTasksByStatus(tasks, 'entity-a', 'open');
+    expect(result).toHaveLength(2);
+    expect(result.map(t => t.id)).toEqual(['task-1', 'task-3']);
+  });
+
+  test('returns empty array when no matching tasks', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', status: 'closed' }),
+    ];
+
+    expect(getEntityTasksByStatus(tasks, 'entity-a', 'open')).toEqual([]);
+  });
+});
+
+describe('getEntityTaskStats', () => {
+  test('returns comprehensive task statistics', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', owner: 'entity-b', createdBy: 'entity-c', status: 'open', priority: 2, complexity: 3 }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a', createdBy: 'entity-a', status: 'open', priority: 4, complexity: 1 }),
+      createTestTask({ id: 'task-3', owner: 'entity-a', createdBy: 'entity-b', status: 'closed' }),
+      createTestTask({ id: 'task-4', createdBy: 'entity-a' }),
+      createTestTask({ id: 'task-5', assignee: 'entity-a', status: 'in_progress', priority: 3, complexity: 2 }),
+    ];
+
+    const stats = getEntityTaskStats(tasks, 'entity-a');
+    expect(stats.assignedCount).toBe(3);
+    expect(stats.ownedCount).toBe(1);
+    expect(stats.createdCount).toBe(2);
+    expect(stats.totalInvolved).toBe(5); // task-1, task-2, task-3, task-4, task-5
+    expect(stats.byStatus.get('open')).toBe(2);
+    expect(stats.byStatus.get('in_progress')).toBe(1);
+    expect(stats.averagePriority).toBe(3); // (2+4+3)/3
+    expect(stats.totalComplexity).toBe(6); // 3+1+2
+  });
+
+  test('returns null average priority when no assigned tasks', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', createdBy: 'entity-a' }),
+    ];
+
+    const stats = getEntityTaskStats(tasks, 'entity-a');
+    expect(stats.assignedCount).toBe(0);
+    expect(stats.averagePriority).toBeNull();
+    expect(stats.totalComplexity).toBe(0);
+  });
+
+  test('returns zeros for entity not involved', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', createdBy: 'entity-b', assignee: 'entity-b' }),
+    ];
+
+    const stats = getEntityTaskStats(tasks, 'entity-a');
+    expect(stats.assignedCount).toBe(0);
+    expect(stats.ownedCount).toBe(0);
+    expect(stats.createdCount).toBe(0);
+    expect(stats.totalInvolved).toBe(0);
+  });
+});
+
+describe('filterEntitiesWithTasks', () => {
+  test('returns entities that have tasks assigned', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-c' }),
+    ];
+
+    const result = filterEntitiesWithTasks(entities, tasks);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('returns empty array when no entities have tasks', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1' }), // No assignee
+    ];
+
+    expect(filterEntitiesWithTasks(entities, tasks)).toEqual([]);
+  });
+});
+
+describe('filterEntitiesWithoutTasks', () => {
+  test('returns entities that have no tasks assigned', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+    ];
+
+    const result = filterEntitiesWithoutTasks(entities, tasks);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Bob', 'Charlie']);
+  });
+
+  test('returns all entities when no tasks have assignees', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1' }), // No assignee
+    ];
+
+    expect(filterEntitiesWithoutTasks(entities, tasks)).toHaveLength(1);
+  });
+});
+
+describe('filterEntitiesByTaskLoad', () => {
+  test('returns entities with at most maxTasks assigned', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-4', assignee: 'entity-b' }),
+    ];
+
+    const result = filterEntitiesByTaskLoad(entities, tasks, 2);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Bob', 'Charlie']);
+  });
+
+  test('includes entities with no tasks when maxTasks > 0', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const tasks: TaskLike[] = [];
+
+    expect(filterEntitiesByTaskLoad(entities, tasks, 2)).toHaveLength(1);
+  });
+});
+
+describe('getAvailableAssignees', () => {
+  test('returns active entities under capacity', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob', metadata: { active: false } }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a' }),
+    ];
+
+    const result = getAvailableAssignees(entities, tasks, 2);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Charlie');
+  });
+
+  test('excludes deactivated entities', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice', metadata: { active: false } }),
+    ];
+    const tasks: TaskLike[] = [];
+
+    expect(getAvailableAssignees(entities, tasks, 5)).toEqual([]);
+  });
+});
+
+describe('getEntityWorkloadDistribution', () => {
+  test('returns workload stats for all entities', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', complexity: 3 }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a', complexity: 2 }),
+      createTestTask({ id: 'task-3', assignee: 'entity-b', complexity: 5 }),
+    ];
+
+    const distribution = getEntityWorkloadDistribution(entities, tasks);
+    expect(distribution.get('entity-a')).toEqual({
+      entityName: 'Alice',
+      taskCount: 2,
+      totalComplexity: 5,
+    });
+    expect(distribution.get('entity-b')).toEqual({
+      entityName: 'Bob',
+      taskCount: 1,
+      totalComplexity: 5,
+    });
+  });
+
+  test('includes entities with no tasks', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const tasks: TaskLike[] = [];
+
+    const distribution = getEntityWorkloadDistribution(entities, tasks);
+    expect(distribution.get('entity-a')).toEqual({
+      entityName: 'Alice',
+      taskCount: 0,
+      totalComplexity: 0,
+    });
+  });
+});
+
+describe('findLeastBusyEntity', () => {
+  test('returns entity with fewest tasks', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a' }),
+      createTestTask({ id: 'task-3', assignee: 'entity-b' }),
+    ];
+
+    const result = findLeastBusyEntity(entities, tasks);
+    expect(result?.name).toBe('Charlie');
+  });
+
+  test('returns first entity when all have same task count', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const tasks: TaskLike[] = [];
+
+    const result = findLeastBusyEntity(entities, tasks);
+    expect(result?.name).toBe('Alice');
+  });
+
+  test('returns undefined for empty entities array', () => {
+    expect(findLeastBusyEntity([], [])).toBeUndefined();
+  });
+});
+
+describe('getTaskCoworkers', () => {
+  test('returns entities that share task involvement', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', owner: 'entity-b', createdBy: 'entity-c' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a', createdBy: 'entity-d' }),
+      createTestTask({ id: 'task-3', createdBy: 'entity-a', assignee: 'entity-e' }),
+    ];
+
+    const coworkers = getTaskCoworkers(tasks, 'entity-a');
+    expect(coworkers.sort()).toEqual(['entity-b', 'entity-c', 'entity-d', 'entity-e']);
+  });
+
+  test('does not include the entity itself', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', owner: 'entity-a', createdBy: 'entity-a' }),
+    ];
+
+    const coworkers = getTaskCoworkers(tasks, 'entity-a');
+    expect(coworkers).toEqual([]);
+  });
+
+  test('returns empty array when entity not involved in any tasks', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-b', createdBy: 'entity-c' }),
+    ];
+
+    expect(getTaskCoworkers(tasks, 'entity-a')).toEqual([]);
+  });
+
+  test('returns unique coworkers across multiple tasks', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', owner: 'entity-b', createdBy: 'entity-c' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a', owner: 'entity-b', createdBy: 'entity-c' }),
+    ];
+
+    const coworkers = getTaskCoworkers(tasks, 'entity-a');
+    expect(coworkers.sort()).toEqual(['entity-b', 'entity-c']);
+  });
+});
+
+describe('countTaskCoworkers', () => {
+  test('counts unique coworkers', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', owner: 'entity-b', createdBy: 'entity-c' }),
+      createTestTask({ id: 'task-2', assignee: 'entity-a', createdBy: 'entity-d' }),
+    ];
+
+    expect(countTaskCoworkers(tasks, 'entity-a')).toBe(3);
+  });
+
+  test('returns 0 when no coworkers', () => {
+    const tasks: TaskLike[] = [
+      createTestTask({ id: 'task-1', assignee: 'entity-a', createdBy: 'entity-a' }),
+    ];
+
+    expect(countTaskCoworkers(tasks, 'entity-a')).toBe(0);
+  });
+});
