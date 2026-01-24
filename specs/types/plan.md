@@ -41,8 +41,8 @@ Plans provide:
 
 - `draft` → `active`, `cancelled`
 - `active` → `completed`, `cancelled`
-- `completed` → `active` (reopen)
-- `cancelled` → `draft` (restart)
+- `completed` → `active` (reopen) - **NOT YET IMPLEMENTED (el-6c3v)**
+- `cancelled` → `draft` (restart) - **NOT YET IMPLEMENTED (el-6c3v)**
 
 ### Automatic Completion
 
@@ -108,10 +108,11 @@ Optional: weight by complexity or priority for more accurate progress.
 
 ### Add Tasks
 
-1. Create task with plan as parent
-2. Task gets hierarchical ID
-3. `parent-child` dependency created
-4. Task contributes to plan progress
+1. Verify plan is draft or active (not completed/cancelled) - **BUG el-4uvk: Verification not enforced**
+2. Create task with plan as parent
+3. Task gets hierarchical ID
+4. `parent-child` dependency created
+5. Task contributes to plan progress
 
 ### Remove Tasks
 
@@ -127,10 +128,16 @@ Optional: weight by complexity or priority for more accurate progress.
 
 ### Complete Plan
 
-1. Verify all tasks closed (or force-complete)
+1. Verify all tasks closed (or force-complete with `--force` flag) - **BUG el-g5qk: Verification not enforced**
 2. Change status to `completed`
 3. Record completion time
 4. Emit completion event
+
+### Reopen Plan - **NOT YET IMPLEMENTED (el-6c3v)**
+
+1. Change status from `completed` or `cancelled` to `active`
+2. Clear completedAt/cancelledAt timestamps
+3. Emit reopen event
 
 ### Cancel Plan
 
@@ -210,6 +217,9 @@ When creating task under plan:
 - [x] Implement status transition validation
 - [x] Implement auto-completion detection (canAutoComplete)
 - [x] Create status change event emission ✅ (emits 'closed' event when status changes to completed/cancelled, 'reopened' event when status changes from completed/cancelled - 12 tests)
+- [ ] **BUG el-g5qk**: Enforce task completion validation before plan complete (or require --force)
+- [ ] **BUG el-4uvk**: Reject adding tasks to completed/cancelled plans
+- [ ] **ENHANCEMENT el-6c3v**: Implement `el plan reopen` command
 
 ### Phase 3: Task Association ✅
 - [x] Implement task-to-plan linking (`addTaskToPlan`, `removeTaskFromPlan`, `getTasksInPlan` API methods)

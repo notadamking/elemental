@@ -446,6 +446,69 @@ Step-by-step checklists for validating critical paths.
 
 ---
 
+### Scenario: Plan Lifecycle Management
+
+**Purpose:** Validate plan status transitions and lifecycle constraints
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Missing lifecycle constraints)
+
+**Checkpoints:**
+- [x] Create plan in draft status: `el plan create --title "Test Plan" --json`
+  - Returns plan ID
+  - Status is `draft` by default
+- [x] Create plan directly as active: `el plan create --title "Plan" --status active --json`
+  - Status is `active` immediately
+- [x] Reject invalid initial status: `el plan create --title "Plan" --status completed --json`
+  - Error: "Invalid initial status: completed. Must be one of: draft, active"
+  - Exit code 4
+- [x] Add tasks to plan: `el plan add-task <plan-id> <task-id>`
+  - Tasks can be added to draft or active plans
+- [x] Activate draft plan: `el plan activate <plan-id>`
+  - Status changes to `active`
+- [x] Activating already active plan is idempotent (succeeds, no change)
+- [x] Close partial tasks and check progress
+  - Progress percentage updates correctly
+- [ ] **FAIL**: Complete plan with incomplete tasks: `el plan complete <plan-id>`
+  - **BUG el-g5qk:** Should warn or require --force when tasks remain open
+  - Plan is marked "completed" even with 33% progress
+- [ ] **FAIL**: Add tasks to completed plan: `el plan add-task <completed-plan-id> <task-id>`
+  - **BUG el-4uvk:** Should be rejected, but succeeds
+- [x] Cannot activate completed plan
+  - Error: "Cannot activate plan: current status is 'completed'. Only draft plans can be activated."
+- [x] Cancel draft plan: `el plan cancel <plan-id>`
+  - Status changes to `cancelled`
+  - cancelledAt timestamp set
+- [x] Cannot complete cancelled plan
+  - Error: "Cannot complete plan: current status is 'cancelled'. Only active plans can be completed."
+- [x] Cannot activate cancelled plan
+  - Error: "Cannot activate plan: current status is 'cancelled'. Only draft plans can be activated."
+- [ ] **MISSING**: No `el plan reopen` command (see el-6c3v)
+- [x] Plan list filtering by status: `el plan list --status active --json`
+  - Returns only plans with matching status
+- [x] Plan show includes progress: `el plan show <plan-id> --json`
+  - Returns `{plan: {...}, progress: {...}}`
+- [x] Generic show on plan: `el show <plan-id> --json`
+  - Returns `{element: {...}, progress: {...}}`
+  - **UX el-58d9:** Inconsistent key naming (`element` vs `plan`)
+- [x] Task can only be in one plan at a time
+  - Error: "Task is already in plan: el-xxx"
+- [x] Remove task from plan: `el plan remove-task <plan-id> <task-id>`
+  - Task removed, progress recalculated
+- [x] Plan tags (affected by el-59p3 parser bug)
+  - Multiple `--tag` flags only keeps last value
+
+**Success Criteria:** Plan lifecycle transitions are properly constrained
+
+**Issues Found:**
+- **el-g5qk**: BUG - `el plan complete` allows completing plans with incomplete tasks
+- **el-4uvk**: BUG - `el plan add-task` allows adding tasks to completed plans
+- **el-6c3v**: ENHANCEMENT - Add `el plan reopen` command for reactivating completed/cancelled plans
+- **el-58d9**: UX - Inconsistent JSON structure between `el show` and `el plan show` for plans
+
+---
+
 ### Scenario: Workflow Pour from Playbook
 
 **Purpose:** Validate playbook instantiation creates correct task structure
