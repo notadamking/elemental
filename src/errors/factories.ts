@@ -296,6 +296,22 @@ export function syncConflict(
   );
 }
 
+/**
+ * Creates a ConflictError for concurrent modification (optimistic locking failure)
+ */
+export function concurrentModification(
+  elementId: string,
+  expectedUpdatedAt: string,
+  actualUpdatedAt: string,
+  details: ErrorDetails = {}
+): ConflictError {
+  return new ConflictError(
+    `Element was modified by another process: ${elementId}. Expected updatedAt: ${expectedUpdatedAt}, actual: ${actualUpdatedAt}`,
+    ErrorCode.CONCURRENT_MODIFICATION,
+    { elementId, expectedUpdatedAt, actualUpdatedAt, ...details }
+  );
+}
+
 // =============================================================================
 // Constraint Factories
 // =============================================================================

@@ -414,8 +414,10 @@ async function closeHandler(
       closeReason: options.reason,
     });
 
-    // Save the update
-    await api.update<Task>(id as ElementId, updated);
+    // Save the update with optimistic concurrency control
+    await api.update<Task>(id as ElementId, updated, {
+      expectedUpdatedAt: task.updatedAt,
+    });
 
     // Format output based on mode
     const mode = getOutputMode(options);
@@ -494,8 +496,10 @@ async function reopenHandler(
       status: TaskStatus.OPEN,
     });
 
-    // Save the update
-    await api.update<Task>(id as ElementId, updated);
+    // Save the update with optimistic concurrency control
+    await api.update<Task>(id as ElementId, updated, {
+      expectedUpdatedAt: task.updatedAt,
+    });
 
     // Format output based on mode
     const mode = getOutputMode(options);
@@ -581,8 +585,10 @@ async function assignHandler(
       assignee: options.unassign ? undefined : (assignee as EntityId),
     };
 
-    // Save the update
-    const updated = await api.update<Task>(id as ElementId, updates);
+    // Save the update with optimistic concurrency control
+    const updated = await api.update<Task>(id as ElementId, updates, {
+      expectedUpdatedAt: task.updatedAt,
+    });
 
     // Format output based on mode
     const mode = getOutputMode(options);
@@ -695,8 +701,10 @@ async function deferHandler(
       (updated as Task).scheduledFor = scheduledFor as Task['scheduledFor'];
     }
 
-    // Save the update
-    await api.update<Task>(id as ElementId, updated);
+    // Save the update with optimistic concurrency control
+    await api.update<Task>(id as ElementId, updated, {
+      expectedUpdatedAt: task.updatedAt,
+    });
 
     // Format output based on mode
     const mode = getOutputMode(options);
@@ -781,8 +789,10 @@ async function undeferHandler(
     // Clear scheduledFor
     (updated as Task).scheduledFor = undefined;
 
-    // Save the update
-    await api.update<Task>(id as ElementId, updated);
+    // Save the update with optimistic concurrency control
+    await api.update<Task>(id as ElementId, updated, {
+      expectedUpdatedAt: task.updatedAt,
+    });
 
     // Format output based on mode
     const mode = getOutputMode(options);

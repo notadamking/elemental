@@ -799,8 +799,11 @@ async function updateHandler(
     // Resolve actor for audit trail
     const actor = resolveActor(options);
 
-    // Apply the update
-    const updated = await api.update<Element>(id as ElementId, updates, { actor });
+    // Apply the update with optimistic concurrency control
+    const updated = await api.update<Element>(id as ElementId, updates, {
+      actor,
+      expectedUpdatedAt: element.updatedAt,
+    });
 
     // Format output based on mode
     const mode = getOutputMode(options);

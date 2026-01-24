@@ -1025,6 +1025,15 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     }
 
+    // Optimistic concurrency check - fail if element was modified since it was read
+    if (options?.expectedUpdatedAt && existing.updatedAt !== options.expectedUpdatedAt) {
+      throw new ConflictError(
+        `Element was modified by another process: ${id}. Expected updatedAt: ${options.expectedUpdatedAt}, actual: ${existing.updatedAt}`,
+        ErrorCode.CONCURRENT_MODIFICATION,
+        { elementId: id, expectedUpdatedAt: options.expectedUpdatedAt, actualUpdatedAt: existing.updatedAt }
+      );
+    }
+
     // Check if element is immutable (Messages cannot be updated)
     if (existing.type === 'message') {
       throw new ConstraintError(

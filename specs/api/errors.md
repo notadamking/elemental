@@ -68,6 +68,8 @@ Categorized error codes:
 | `DUPLICATE_NAME` | Name already taken | 409 |
 | `CYCLE_DETECTED` | Dependency cycle | 409 |
 | `SYNC_CONFLICT` | Merge conflict | 409 |
+| `DUPLICATE_DEPENDENCY` | Dependency already exists | 409 |
+| `CONCURRENT_MODIFICATION` | Element modified by another process (optimistic locking failure) | 409 |
 
 ### Constraint Errors
 

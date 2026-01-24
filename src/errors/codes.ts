@@ -65,6 +65,8 @@ export const ConflictErrorCode = {
   SYNC_CONFLICT: 'SYNC_CONFLICT',
   /** Dependency already exists */
   DUPLICATE_DEPENDENCY: 'DUPLICATE_DEPENDENCY',
+  /** Element was modified by another process (optimistic locking failure) */
+  CONCURRENT_MODIFICATION: 'CONCURRENT_MODIFICATION',
 } as const;
 
 export type ConflictErrorCode = typeof ConflictErrorCode[keyof typeof ConflictErrorCode];
@@ -175,6 +177,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.CYCLE_DETECTED]: 409,
   [ErrorCode.SYNC_CONFLICT]: 409,
   [ErrorCode.DUPLICATE_DEPENDENCY]: 409,
+  [ErrorCode.CONCURRENT_MODIFICATION]: 409,
 
   // Constraint errors -> 400/403/409
   [ErrorCode.IMMUTABLE]: 403,

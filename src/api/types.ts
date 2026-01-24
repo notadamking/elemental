@@ -263,7 +263,13 @@ export interface OperationOptions {
  * Options for update operations
  */
 export interface UpdateOptions extends OperationOptions {
-  // Future: add more update-specific options
+  /**
+   * Expected updatedAt timestamp for optimistic concurrency control.
+   * If provided, the update will fail with CONFLICT error if the element's
+   * current updatedAt doesn't match this value, indicating another process
+   * modified the element since it was read.
+   */
+  expectedUpdatedAt?: string;
 }
 
 /**

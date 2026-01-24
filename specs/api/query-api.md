@@ -88,11 +88,46 @@ Update an existing element.
 |-----------|------|-------------|
 | `id` | `ElementId` | Element identifier |
 | `updates` | `Partial<T>` | Fields to update |
+| `options` | `UpdateOptions` | Update options (optional) |
 
 Returns: `Promise<T>`
 
+#### UpdateOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `actor` | `EntityId` | Actor performing the update (for audit trail) |
+| `expectedUpdatedAt` | `string` | Expected updatedAt for optimistic concurrency control |
+
+#### Optimistic Concurrency Control
+
+The `expectedUpdatedAt` option enables optimistic locking. When provided:
+1. The API checks if the element's current `updatedAt` matches `expectedUpdatedAt`
+2. If they match, the update proceeds
+3. If they don't match, throws `CONCURRENT_MODIFICATION` error
+
+This prevents race conditions where two processes read the same element and both try to update it. The second update will fail because the first update changed the `updatedAt` timestamp.
+
+Example usage:
+```typescript
+// Read element
+const task = await api.get(taskId);
+
+// Update with concurrency check
+try {
+  await api.update(taskId, { status: 'closed' }, {
+    expectedUpdatedAt: task.updatedAt
+  });
+} catch (error) {
+  if (error.code === 'CONCURRENT_MODIFICATION') {
+    // Another process modified the task - re-read and retry
+  }
+}
+```
+
 Behavior:
 - Validates element exists
+- Checks `expectedUpdatedAt` if provided (throws `CONCURRENT_MODIFICATION` if mismatch)
 - Validates update is allowed (Messages reject)
 - Applies updates
 - Updates timestamp
