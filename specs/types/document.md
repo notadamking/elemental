@@ -228,7 +228,7 @@ Forward query is more efficient for full history.
 ### Phase 4: History Queries ✅
 - [x] Implement getDocumentVersion (storage layer) ✅ (queries document_versions table)
 - [x] Implement getDocumentHistory (storage layer) ✅ (queries all versions in descending order)
-- [ ] Add version filtering to list queries
+- [x] Add version filtering to list queries ✅ (DocumentFilter with version, minVersion, maxVersion, contentType filters)
 
 ### Phase 5: Content Type Operations
 - [x] Add content type filtering (`filterByContentType`)

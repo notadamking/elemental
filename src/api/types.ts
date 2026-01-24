@@ -8,7 +8,7 @@
 
 import type { Element, ElementId, ElementType, EntityId, Timestamp } from '../types/element.js';
 import type { Task, TaskStatus, Priority, Complexity, TaskTypeValue, CreateTaskInput } from '../types/task.js';
-import type { Document, DocumentId } from '../types/document.js';
+import type { Document, DocumentId, ContentType } from '../types/document.js';
 import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter } from '../types/event.js';
 import type { PlanProgress } from '../types/plan.js';
@@ -102,6 +102,21 @@ export interface TaskFilter extends ElementFilter {
   deadlineBefore?: Timestamp;
   /** Include ephemeral tasks (workflow tasks) */
   includeEphemeral?: boolean;
+}
+
+/**
+ * Extended filter for document queries.
+ * Includes all ElementFilter options plus document-specific filters.
+ */
+export interface DocumentFilter extends ElementFilter {
+  /** Filter by content type(s) */
+  contentType?: ContentType | ContentType[];
+  /** Filter by exact version number */
+  version?: number;
+  /** Filter by minimum version (inclusive) */
+  minVersion?: number;
+  /** Filter by maximum version (inclusive) */
+  maxVersion?: number;
 }
 
 // ============================================================================
@@ -1379,6 +1394,40 @@ export function isValidTaskFilter(value: unknown): value is TaskFilter {
   // Check includeEphemeral is boolean if present
   if (obj.includeEphemeral !== undefined && typeof obj.includeEphemeral !== 'boolean') {
     return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validate a DocumentFilter object
+ */
+export function isValidDocumentFilter(value: unknown): value is DocumentFilter {
+  if (!isValidElementFilter(value)) {
+    return false;
+  }
+
+  const obj = value as Record<string, unknown>;
+
+  // Check version is a positive integer if present
+  if (obj.version !== undefined) {
+    if (typeof obj.version !== 'number' || obj.version < 1 || !Number.isInteger(obj.version)) {
+      return false;
+    }
+  }
+
+  // Check minVersion is a positive integer if present
+  if (obj.minVersion !== undefined) {
+    if (typeof obj.minVersion !== 'number' || obj.minVersion < 1 || !Number.isInteger(obj.minVersion)) {
+      return false;
+    }
+  }
+
+  // Check maxVersion is a positive integer if present
+  if (obj.maxVersion !== undefined) {
+    if (typeof obj.maxVersion !== 'number' || obj.maxVersion < 1 || !Number.isInteger(obj.maxVersion)) {
+      return false;
+    }
   }
 
   return true;

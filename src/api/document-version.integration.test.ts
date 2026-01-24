@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ElementalAPIImpl } from './elemental-api.js';
+import type { DocumentFilter } from './types.js';
 import { createStorage, initializeSchema } from '../storage/index.js';
 import type { StorageBackend } from '../storage/backend.js';
 import type { EntityId, ElementId } from '../types/element.js';
@@ -372,6 +373,263 @@ describe('Document Versioning', () => {
 
       expect(history1.length).toBe(2);
       expect(history2.length).toBe(3);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Version Filtering in List Queries
+  // --------------------------------------------------------------------------
+
+  describe('Version Filtering in List Queries', () => {
+    it('should filter documents by exact version', async () => {
+      // Create documents with different version counts
+      const doc1 = await createTestDocument({ content: 'Doc1' });
+      const created1 = await api.create<Document>(toCreateInput(doc1));
+
+      const doc2 = await createTestDocument({ content: 'Doc2' });
+      const created2 = await api.create<Document>(toCreateInput(doc2));
+      await api.update<Document>(created2.id, { content: 'Doc2 V2' });
+      await api.update<Document>(created2.id, { content: 'Doc2 V3' });
+
+      const doc3 = await createTestDocument({ content: 'Doc3' });
+      const created3 = await api.create<Document>(toCreateInput(doc3));
+      await api.update<Document>(created3.id, { content: 'Doc3 V2' });
+
+      // Filter for documents at version 1 only
+      const v1Docs = await api.list<Document>({
+        type: 'document',
+        version: 1,
+      } as DocumentFilter);
+      expect(v1Docs.length).toBe(1);
+      expect(v1Docs[0].id).toBe(created1.id);
+
+      // Filter for documents at version 2
+      const v2Docs = await api.list<Document>({
+        type: 'document',
+        version: 2,
+      } as DocumentFilter);
+      expect(v2Docs.length).toBe(1);
+      expect(v2Docs[0].id).toBe(created3.id);
+
+      // Filter for documents at version 3
+      const v3Docs = await api.list<Document>({
+        type: 'document',
+        version: 3,
+      } as DocumentFilter);
+      expect(v3Docs.length).toBe(1);
+      expect(v3Docs[0].id).toBe(created2.id);
+    });
+
+    it('should filter documents by minimum version', async () => {
+      const doc1 = await createTestDocument({ content: 'Doc1' });
+      const created1 = await api.create<Document>(toCreateInput(doc1));
+
+      const doc2 = await createTestDocument({ content: 'Doc2' });
+      const created2 = await api.create<Document>(toCreateInput(doc2));
+      await api.update<Document>(created2.id, { content: 'Doc2 V2' });
+
+      const doc3 = await createTestDocument({ content: 'Doc3' });
+      const created3 = await api.create<Document>(toCreateInput(doc3));
+      await api.update<Document>(created3.id, { content: 'Doc3 V2' });
+      await api.update<Document>(created3.id, { content: 'Doc3 V3' });
+
+      // Filter for documents with version >= 2
+      const docs = await api.list<Document>({
+        type: 'document',
+        minVersion: 2,
+      } as DocumentFilter);
+      expect(docs.length).toBe(2);
+      const ids = docs.map((d) => d.id);
+      expect(ids).toContain(created2.id);
+      expect(ids).toContain(created3.id);
+      expect(ids).not.toContain(created1.id);
+    });
+
+    it('should filter documents by maximum version', async () => {
+      const doc1 = await createTestDocument({ content: 'Doc1' });
+      const created1 = await api.create<Document>(toCreateInput(doc1));
+
+      const doc2 = await createTestDocument({ content: 'Doc2' });
+      const created2 = await api.create<Document>(toCreateInput(doc2));
+      await api.update<Document>(created2.id, { content: 'Doc2 V2' });
+      await api.update<Document>(created2.id, { content: 'Doc2 V3' });
+      await api.update<Document>(created2.id, { content: 'Doc2 V4' });
+
+      // Filter for documents with version <= 2
+      const docs = await api.list<Document>({
+        type: 'document',
+        maxVersion: 2,
+      } as DocumentFilter);
+      expect(docs.length).toBe(1);
+      expect(docs[0].id).toBe(created1.id);
+    });
+
+    it('should filter documents by version range', async () => {
+      const doc1 = await createTestDocument({ content: 'Doc1' });
+      const created1 = await api.create<Document>(toCreateInput(doc1));
+
+      const doc2 = await createTestDocument({ content: 'Doc2' });
+      const created2 = await api.create<Document>(toCreateInput(doc2));
+      await api.update<Document>(created2.id, { content: 'Doc2 V2' });
+
+      const doc3 = await createTestDocument({ content: 'Doc3' });
+      const created3 = await api.create<Document>(toCreateInput(doc3));
+      await api.update<Document>(created3.id, { content: 'Doc3 V2' });
+      await api.update<Document>(created3.id, { content: 'Doc3 V3' });
+
+      const doc4 = await createTestDocument({ content: 'Doc4' });
+      const created4 = await api.create<Document>(toCreateInput(doc4));
+      await api.update<Document>(created4.id, { content: 'Doc4 V2' });
+      await api.update<Document>(created4.id, { content: 'Doc4 V3' });
+      await api.update<Document>(created4.id, { content: 'Doc4 V4' });
+      await api.update<Document>(created4.id, { content: 'Doc4 V5' });
+
+      // Filter for documents with version between 2 and 4 (inclusive)
+      const docs = await api.list<Document>({
+        type: 'document',
+        minVersion: 2,
+        maxVersion: 4,
+      } as DocumentFilter);
+      expect(docs.length).toBe(2);
+      const ids = docs.map((d) => d.id);
+      expect(ids).toContain(created2.id);
+      expect(ids).toContain(created3.id);
+      expect(ids).not.toContain(created1.id); // version 1
+      expect(ids).not.toContain(created4.id); // version 5
+    });
+
+    it('should filter documents by content type', async () => {
+      const textDoc = await createTestDocument({
+        content: 'Plain text content',
+        contentType: ContentType.TEXT,
+      });
+      const created1 = await api.create<Document>(toCreateInput(textDoc));
+
+      const markdownDoc = await createTestDocument({
+        content: '# Markdown Header',
+        contentType: ContentType.MARKDOWN,
+      });
+      const created2 = await api.create<Document>(toCreateInput(markdownDoc));
+
+      const jsonDoc = await createTestDocument({
+        content: '{"key": "value"}',
+        contentType: ContentType.JSON,
+      });
+      const created3 = await api.create<Document>(toCreateInput(jsonDoc));
+
+      // Filter by text content type
+      const textDocs = await api.list<Document>({
+        type: 'document',
+        contentType: ContentType.TEXT,
+      } as DocumentFilter);
+      expect(textDocs.length).toBe(1);
+      expect(textDocs[0].id).toBe(created1.id);
+
+      // Filter by markdown content type
+      const markdownDocs = await api.list<Document>({
+        type: 'document',
+        contentType: ContentType.MARKDOWN,
+      } as DocumentFilter);
+      expect(markdownDocs.length).toBe(1);
+      expect(markdownDocs[0].id).toBe(created2.id);
+
+      // Filter by JSON content type
+      const jsonDocs = await api.list<Document>({
+        type: 'document',
+        contentType: ContentType.JSON,
+      } as DocumentFilter);
+      expect(jsonDocs.length).toBe(1);
+      expect(jsonDocs[0].id).toBe(created3.id);
+    });
+
+    it('should filter documents by multiple content types', async () => {
+      const textDoc = await createTestDocument({
+        content: 'Plain text',
+        contentType: ContentType.TEXT,
+      });
+      await api.create<Document>(toCreateInput(textDoc));
+
+      const markdownDoc = await createTestDocument({
+        content: '# Markdown',
+        contentType: ContentType.MARKDOWN,
+      });
+      await api.create<Document>(toCreateInput(markdownDoc));
+
+      const jsonDoc = await createTestDocument({
+        content: '{}',
+        contentType: ContentType.JSON,
+      });
+      const created3 = await api.create<Document>(toCreateInput(jsonDoc));
+
+      // Filter by text or markdown (not JSON)
+      const docs = await api.list<Document>({
+        type: 'document',
+        contentType: [ContentType.TEXT, ContentType.MARKDOWN],
+      } as DocumentFilter);
+      expect(docs.length).toBe(2);
+      const ids = docs.map((d) => d.id);
+      expect(ids).not.toContain(created3.id);
+    });
+
+    it('should combine content type and version filters', async () => {
+      // JSON doc at version 1
+      const jsonDoc1 = await createTestDocument({
+        content: '{"v": 1}',
+        contentType: ContentType.JSON,
+      });
+      await api.create<Document>(toCreateInput(jsonDoc1));
+
+      // JSON doc at version 3
+      const jsonDoc2 = await createTestDocument({
+        content: '{"v": 1}',
+        contentType: ContentType.JSON,
+      });
+      const created2 = await api.create<Document>(toCreateInput(jsonDoc2));
+      await api.update<Document>(created2.id, { content: '{"v": 2}' });
+      await api.update<Document>(created2.id, { content: '{"v": 3}' });
+
+      // Markdown doc at version 3
+      const mdDoc = await createTestDocument({
+        content: '# V1',
+        contentType: ContentType.MARKDOWN,
+      });
+      const created3 = await api.create<Document>(toCreateInput(mdDoc));
+      await api.update<Document>(created3.id, { content: '# V2' });
+      await api.update<Document>(created3.id, { content: '# V3' });
+
+      // Filter for JSON documents with version >= 2
+      const docs = await api.list<Document>({
+        type: 'document',
+        contentType: ContentType.JSON,
+        minVersion: 2,
+      } as DocumentFilter);
+      expect(docs.length).toBe(1);
+      expect(docs[0].id).toBe(created2.id);
+    });
+
+    it('should work with paginated list', async () => {
+      // Create 5 documents with different versions
+      const docs: Document[] = [];
+      for (let i = 1; i <= 5; i++) {
+        const doc = await createTestDocument({ content: `Doc${i}` });
+        const created = await api.create<Document>(toCreateInput(doc));
+        // Update each doc i times (so doc1 has v1, doc2 has v2, etc.)
+        for (let v = 1; v < i; v++) {
+          await api.update<Document>(created.id, { content: `Doc${i} V${v + 1}` });
+        }
+        docs.push(created);
+      }
+
+      // Get paginated results for documents with version >= 3
+      const result = await api.listPaginated<Document>({
+        type: 'document',
+        minVersion: 3,
+        limit: 2,
+      } as DocumentFilter);
+
+      expect(result.total).toBe(3); // docs 3, 4, 5
+      expect(result.items.length).toBe(2);
+      expect(result.hasMore).toBe(true);
     });
   });
 });

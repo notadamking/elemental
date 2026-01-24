@@ -46,6 +46,7 @@ import type {
   ElementFilter,
   TaskFilter,
   ChannelFilter,
+  DocumentFilter,
   GetOptions,
   HydrationOptions,
   BlockedTask,
@@ -376,6 +377,45 @@ function buildChannelWhereClause(
   return { where, params };
 }
 
+/**
+ * Build document-specific WHERE clause additions
+ */
+function buildDocumentWhereClause(
+  filter: DocumentFilter,
+  params: unknown[]
+): { where: string; params: unknown[] } {
+  const conditions: string[] = [];
+
+  // Content type filter
+  if (filter.contentType !== undefined) {
+    const contentTypes = Array.isArray(filter.contentType) ? filter.contentType : [filter.contentType];
+    const typeConditions = contentTypes.map(() => "JSON_EXTRACT(e.data, '$.contentType') = ?").join(' OR ');
+    conditions.push(`(${typeConditions})`);
+    params.push(...contentTypes);
+  }
+
+  // Exact version filter
+  if (filter.version !== undefined) {
+    conditions.push("JSON_EXTRACT(e.data, '$.version') = ?");
+    params.push(filter.version);
+  }
+
+  // Minimum version filter (inclusive)
+  if (filter.minVersion !== undefined) {
+    conditions.push("JSON_EXTRACT(e.data, '$.version') >= ?");
+    params.push(filter.minVersion);
+  }
+
+  // Maximum version filter (inclusive)
+  if (filter.maxVersion !== undefined) {
+    conditions.push("JSON_EXTRACT(e.data, '$.version') <= ?");
+    params.push(filter.maxVersion);
+  }
+
+  const where = conditions.length > 0 ? conditions.join(' AND ') : '';
+  return { where, params };
+}
+
 // ============================================================================
 // ElementalAPI Implementation
 // ============================================================================
@@ -538,6 +578,16 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
     }
 
+    // Build document-specific WHERE clause if filtering documents
+    let documentWhere = '';
+    if (effectiveFilter.type === 'document' || (Array.isArray(effectiveFilter.type) && effectiveFilter.type.includes('document'))) {
+      const documentFilter = effectiveFilter as DocumentFilter;
+      const { where: dw } = buildDocumentWhereClause(documentFilter, params);
+      if (dw) {
+        documentWhere = ` AND ${dw}`;
+      }
+    }
+
     // Handle tag filtering
     let tagJoin = '';
     let tagWhere = '';
@@ -562,7 +612,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     const countSql = `
       SELECT COUNT(DISTINCT e.id) as count
       FROM elements e${tagJoin}
-      WHERE ${baseWhere}${taskWhere}${tagWhere}
+      WHERE ${baseWhere}${taskWhere}${documentWhere}${tagWhere}
     `;
     const countRow = this.backend.queryOne<CountRow>(countSql, params);
     const total = countRow?.count ?? 0;
@@ -580,7 +630,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     const sql = `
       SELECT DISTINCT e.*
       FROM elements e${tagJoin}
-      WHERE ${baseWhere}${taskWhere}${tagWhere}
+      WHERE ${baseWhere}${taskWhere}${documentWhere}${tagWhere}
       ${orderClause}
       LIMIT ? OFFSET ?
     `;
