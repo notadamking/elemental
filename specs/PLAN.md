@@ -1631,7 +1631,7 @@ Recommended implementation sequence:
 - [ ] **types/entity.md Phase 6**: Integrate with Task assignment
 - [ ] **types/entity.md Phase 6**: Integrate with Message sender validation
 - [ ] **types/entity.md Phase 6**: Integrate with Channel membership
-- [ ] **types/entity.md Phase 6**: Integrate with Team membership
+- [x] **types/entity.md Phase 6**: Integrate with Team membership ✅ (getEntityTeamMemberships, countEntityTeamMemberships, isEntityInAnyTeam, isEntityInTeam, getEntityTeamIds, getEntityTeamNames, getTeammates, countTeammates, getEntityTeamMembershipStats, filterEntitiesByTeamMembership, filterEntitiesByAnyTeamMembership, filterEntitiesWithoutTeam, findEntitiesWithSameTeams - 40 tests in entity.test.ts)
 - [x] **types/task.md Phase 2**: Automatic blocked status computation ✅ (BlockedCacheService triggers auto_blocked/auto_unblocked events, stores previous_status in blocked_cache for restoration - 20 tests)
 - [x] **types/task.md Phase 2**: Status change event emission ✅ (closed/reopened/updated events - 9 tests)
 - [x] **types/task.md Phase 3**: Ready/blocked work queries ✅ (api.ready(), api.blocked() - 31 tests), assignment/deadline queries ✅ (TaskFilter.assignee, TaskFilter.owner, TaskFilter.hasDeadline, TaskFilter.deadlineBefore - 16 integration tests)

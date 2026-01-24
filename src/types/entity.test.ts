@@ -2354,3 +2354,425 @@ describe('filterNonRevokedKeyEntities', () => {
     expect(filterNonRevokedKeyEntities(entities)).toHaveLength(2);
   });
 });
+
+// ============================================================================
+// Team Membership Integration Tests
+// ============================================================================
+
+import {
+  TeamLike,
+  getEntityTeamMemberships,
+  countEntityTeamMemberships,
+  isEntityInAnyTeam,
+  isEntityInTeam,
+  getEntityTeamIds,
+  getEntityTeamNames,
+  getTeammates,
+  countTeammates,
+  getEntityTeamMembershipStats,
+  filterEntitiesByTeamMembership,
+  filterEntitiesByAnyTeamMembership,
+  filterEntitiesWithoutTeam,
+  findEntitiesWithSameTeams,
+} from './entity.js';
+
+// Helper to create a minimal team-like object
+function createTestTeam(overrides: Partial<TeamLike> = {}): TeamLike {
+  return {
+    id: 'team-1',
+    name: 'Test Team',
+    members: [],
+    ...overrides,
+  };
+}
+
+describe('getEntityTeamMemberships', () => {
+  test('returns teams that contain the entity', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', name: 'Team A', members: ['entity-a', 'entity-b'] }),
+      createTestTeam({ id: 'team-2', name: 'Team B', members: ['entity-b', 'entity-c'] }),
+      createTestTeam({ id: 'team-3', name: 'Team C', members: ['entity-a', 'entity-c'] }),
+    ];
+
+    const result = getEntityTeamMemberships(teams, 'entity-a');
+    expect(result).toHaveLength(2);
+    expect(result.map(t => t.id)).toEqual(['team-1', 'team-3']);
+  });
+
+  test('returns empty array when entity is not in any team', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-b', 'entity-c'] }),
+    ];
+
+    expect(getEntityTeamMemberships(teams, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array for empty teams array', () => {
+    expect(getEntityTeamMemberships([], 'entity-a')).toEqual([]);
+  });
+});
+
+describe('countEntityTeamMemberships', () => {
+  test('counts teams containing the entity', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a', 'entity-b'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-b'] }),
+      createTestTeam({ id: 'team-3', members: ['entity-a'] }),
+    ];
+
+    expect(countEntityTeamMemberships(teams, 'entity-a')).toBe(2);
+    expect(countEntityTeamMemberships(teams, 'entity-b')).toBe(2);
+    expect(countEntityTeamMemberships(teams, 'entity-c')).toBe(0);
+  });
+
+  test('returns 0 for empty teams array', () => {
+    expect(countEntityTeamMemberships([], 'entity-a')).toBe(0);
+  });
+});
+
+describe('isEntityInAnyTeam', () => {
+  test('returns true when entity is in at least one team', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-b'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-a'] }),
+    ];
+
+    expect(isEntityInAnyTeam(teams, 'entity-a')).toBe(true);
+  });
+
+  test('returns false when entity is not in any team', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-b'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-c'] }),
+    ];
+
+    expect(isEntityInAnyTeam(teams, 'entity-a')).toBe(false);
+  });
+
+  test('returns false for empty teams array', () => {
+    expect(isEntityInAnyTeam([], 'entity-a')).toBe(false);
+  });
+});
+
+describe('isEntityInTeam', () => {
+  test('returns true when entity is a member', () => {
+    const team = createTestTeam({ members: ['entity-a', 'entity-b'] });
+    expect(isEntityInTeam(team, 'entity-a')).toBe(true);
+  });
+
+  test('returns false when entity is not a member', () => {
+    const team = createTestTeam({ members: ['entity-b', 'entity-c'] });
+    expect(isEntityInTeam(team, 'entity-a')).toBe(false);
+  });
+
+  test('returns false for empty members array', () => {
+    const team = createTestTeam({ members: [] });
+    expect(isEntityInTeam(team, 'entity-a')).toBe(false);
+  });
+});
+
+describe('getEntityTeamIds', () => {
+  test('returns IDs of teams containing the entity', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-b'] }),
+      createTestTeam({ id: 'team-3', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    const result = getEntityTeamIds(teams, 'entity-a');
+    expect(result).toEqual(['team-1', 'team-3']);
+  });
+
+  test('returns empty array when entity is not in any team', () => {
+    const teams = [createTestTeam({ id: 'team-1', members: ['entity-b'] })];
+    expect(getEntityTeamIds(teams, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getEntityTeamNames', () => {
+  test('returns names of teams containing the entity', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', name: 'Frontend', members: ['entity-a'] }),
+      createTestTeam({ id: 'team-2', name: 'Backend', members: ['entity-b'] }),
+      createTestTeam({ id: 'team-3', name: 'Full Stack', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    const result = getEntityTeamNames(teams, 'entity-a');
+    expect(result).toEqual(['Frontend', 'Full Stack']);
+  });
+
+  test('returns empty array when entity is not in any team', () => {
+    const teams = [createTestTeam({ id: 'team-1', name: 'Backend', members: ['entity-b'] })];
+    expect(getEntityTeamNames(teams, 'entity-a')).toEqual([]);
+  });
+});
+
+describe('getTeammates', () => {
+  test('returns unique entity IDs that share teams with the given entity', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-a', 'entity-d'] }),
+      createTestTeam({ id: 'team-3', members: ['entity-e', 'entity-f'] }), // entity-a not here
+    ];
+
+    const result = getTeammates(teams, 'entity-a');
+    expect(result.sort()).toEqual(['entity-b', 'entity-c', 'entity-d']);
+  });
+
+  test('does not include the entity itself', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a', 'entity-b'] }),
+    ];
+
+    const result = getTeammates(teams, 'entity-a');
+    expect(result).not.toContain('entity-a');
+    expect(result).toEqual(['entity-b']);
+  });
+
+  test('returns empty array when entity has no teammates', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a'] }), // Only entity-a
+      createTestTeam({ id: 'team-2', members: ['entity-b'] }), // entity-a not here
+    ];
+
+    expect(getTeammates(teams, 'entity-a')).toEqual([]);
+  });
+
+  test('returns empty array when entity is not in any team', () => {
+    const teams = [createTestTeam({ id: 'team-1', members: ['entity-b', 'entity-c'] })];
+    expect(getTeammates(teams, 'entity-a')).toEqual([]);
+  });
+
+  test('deduplicates teammates across multiple shared teams', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a', 'entity-b'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-a', 'entity-b'] }), // Same teammate
+    ];
+
+    const result = getTeammates(teams, 'entity-a');
+    expect(result).toEqual(['entity-b']);
+  });
+});
+
+describe('countTeammates', () => {
+  test('counts unique teammates', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-a', 'entity-d'] }),
+    ];
+
+    expect(countTeammates(teams, 'entity-a')).toBe(3);
+  });
+
+  test('returns 0 when entity has no teammates', () => {
+    const teams = [createTestTeam({ id: 'team-1', members: ['entity-a'] })];
+    expect(countTeammates(teams, 'entity-a')).toBe(0);
+  });
+
+  test('returns 0 when entity is not in any team', () => {
+    const teams = [createTestTeam({ id: 'team-1', members: ['entity-b'] })];
+    expect(countTeammates(teams, 'entity-a')).toBe(0);
+  });
+});
+
+describe('getEntityTeamMembershipStats', () => {
+  test('returns comprehensive statistics', () => {
+    const teams = [
+      createTestTeam({ id: 'team-1', name: 'Frontend', members: ['entity-a', 'entity-b'] }),
+      createTestTeam({ id: 'team-2', name: 'Backend', members: ['entity-a', 'entity-c', 'entity-d'] }),
+      createTestTeam({ id: 'team-3', name: 'DevOps', members: ['entity-e'] }), // entity-a not here
+    ];
+
+    const stats = getEntityTeamMembershipStats(teams, 'entity-a');
+    expect(stats.teamCount).toBe(2);
+    expect(stats.teammateCount).toBe(3); // entity-b, entity-c, entity-d
+    expect(stats.teamIds).toEqual(['team-1', 'team-2']);
+    expect(stats.teamNames).toEqual(['Frontend', 'Backend']);
+  });
+
+  test('returns zeros and empty arrays when entity is not in any team', () => {
+    const teams = [createTestTeam({ id: 'team-1', members: ['entity-b'] })];
+
+    const stats = getEntityTeamMembershipStats(teams, 'entity-a');
+    expect(stats.teamCount).toBe(0);
+    expect(stats.teammateCount).toBe(0);
+    expect(stats.teamIds).toEqual([]);
+    expect(stats.teamNames).toEqual([]);
+  });
+
+  test('handles entity in team with no other members', () => {
+    const teams = [createTestTeam({ id: 'team-1', name: 'Solo', members: ['entity-a'] })];
+
+    const stats = getEntityTeamMembershipStats(teams, 'entity-a');
+    expect(stats.teamCount).toBe(1);
+    expect(stats.teammateCount).toBe(0);
+  });
+});
+
+describe('filterEntitiesByTeamMembership', () => {
+  test('returns entities that are members of the team', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const team = createTestTeam({ members: ['entity-a', 'entity-c'] });
+
+    const result = filterEntitiesByTeamMembership(entities, team);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('returns empty array when no entities are members', () => {
+    const entities = [createTestEntity({ id: 'entity-x' as ElementId, name: 'X' })];
+    const team = createTestTeam({ members: ['entity-a', 'entity-b'] });
+
+    expect(filterEntitiesByTeamMembership(entities, team)).toEqual([]);
+  });
+
+  test('returns empty array for empty entities array', () => {
+    const team = createTestTeam({ members: ['entity-a'] });
+    expect(filterEntitiesByTeamMembership([], team)).toEqual([]);
+  });
+});
+
+describe('filterEntitiesByAnyTeamMembership', () => {
+  test('returns entities that are members of any of the teams', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+      createTestEntity({ id: 'entity-d' as ElementId, name: 'David' }),
+    ];
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-c'] }),
+    ];
+
+    const result = filterEntitiesByAnyTeamMembership(entities, teams);
+    expect(result).toHaveLength(2);
+    expect(result.map(e => e.name)).toEqual(['Alice', 'Charlie']);
+  });
+
+  test('deduplicates entities that are in multiple teams', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-a'] }),
+    ];
+
+    const result = filterEntitiesByAnyTeamMembership(entities, teams);
+    expect(result).toHaveLength(1);
+  });
+
+  test('returns empty array when no entities match', () => {
+    const entities = [createTestEntity({ id: 'entity-x' as ElementId, name: 'X' })];
+    const teams = [createTestTeam({ members: ['entity-a'] })];
+
+    expect(filterEntitiesByAnyTeamMembership(entities, teams)).toEqual([]);
+  });
+
+  test('returns empty array for empty teams array', () => {
+    const entities = [createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' })];
+    expect(filterEntitiesByAnyTeamMembership(entities, [])).toEqual([]);
+  });
+});
+
+describe('filterEntitiesWithoutTeam', () => {
+  test('returns entities that are not in any team', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+    ];
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-c'] }),
+    ];
+
+    const result = filterEntitiesWithoutTeam(entities, teams);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Bob');
+  });
+
+  test('returns all entities when there are no teams', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+
+    const result = filterEntitiesWithoutTeam(entities, []);
+    expect(result).toHaveLength(2);
+  });
+
+  test('returns empty array when all entities are in teams', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const teams = [createTestTeam({ members: ['entity-a'] })];
+
+    expect(filterEntitiesWithoutTeam(entities, teams)).toEqual([]);
+  });
+});
+
+describe('findEntitiesWithSameTeams', () => {
+  test('returns entities with exactly the same team memberships', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+      createTestEntity({ id: 'entity-c' as ElementId, name: 'Charlie' }),
+      createTestEntity({ id: 'entity-d' as ElementId, name: 'David' }),
+    ];
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a', 'entity-b', 'entity-c'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-a', 'entity-b'] }),
+      // entity-a is in team-1 and team-2
+      // entity-b is in team-1 and team-2 (same as entity-a)
+      // entity-c is only in team-1 (different)
+      // entity-d is in neither (different)
+    ];
+
+    const result = findEntitiesWithSameTeams(entities, teams, 'entity-a');
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Bob');
+  });
+
+  test('does not include the entity itself', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+    ];
+    const teams = [createTestTeam({ id: 'team-1', members: ['entity-a'] })];
+
+    const result = findEntitiesWithSameTeams(entities, teams, 'entity-a');
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array when no entities match', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const teams = [
+      createTestTeam({ id: 'team-1', members: ['entity-a'] }),
+      createTestTeam({ id: 'team-2', members: ['entity-b'] }),
+    ];
+
+    const result = findEntitiesWithSameTeams(entities, teams, 'entity-a');
+    expect(result).toEqual([]);
+  });
+
+  test('handles entities not in any team', () => {
+    const entities = [
+      createTestEntity({ id: 'entity-a' as ElementId, name: 'Alice' }),
+      createTestEntity({ id: 'entity-b' as ElementId, name: 'Bob' }),
+    ];
+    const teams: TeamLike[] = []; // No teams
+
+    const result = findEntitiesWithSameTeams(entities, teams, 'entity-a');
+    // entity-b also has zero teams, so they match
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Bob');
+  });
+});

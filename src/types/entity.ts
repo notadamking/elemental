@@ -1473,3 +1473,245 @@ export function getEntityAssignmentStats<T extends Assignable>(
     totalRelated: relatedIds.size,
   };
 }
+
+// ============================================================================
+// Team Membership Integration
+// ============================================================================
+
+/**
+ * Interface for team-like objects (minimal interface for entity queries)
+ * This allows entity module to work with teams without creating circular dependencies
+ */
+export interface TeamLike {
+  id: string;
+  name: string;
+  members: string[];
+}
+
+/**
+ * Get all teams that an entity is a member of
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to find memberships for
+ * @returns Teams that contain the entity as a member
+ */
+export function getEntityTeamMemberships<T extends TeamLike>(teams: T[], entityId: string): T[] {
+  return teams.filter((team) => team.members.includes(entityId));
+}
+
+/**
+ * Count the number of teams an entity belongs to
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to count memberships for
+ * @returns Number of teams the entity is a member of
+ */
+export function countEntityTeamMemberships(teams: TeamLike[], entityId: string): number {
+  return teams.filter((team) => team.members.includes(entityId)).length;
+}
+
+/**
+ * Check if an entity is a member of any team
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to check
+ * @returns True if the entity is a member of at least one team
+ */
+export function isEntityInAnyTeam(teams: TeamLike[], entityId: string): boolean {
+  return teams.some((team) => team.members.includes(entityId));
+}
+
+/**
+ * Check if an entity is a member of a specific team
+ *
+ * @param team - Team to check membership in
+ * @param entityId - The entity ID to check
+ * @returns True if the entity is a member of the team
+ */
+export function isEntityInTeam(team: TeamLike, entityId: string): boolean {
+  return team.members.includes(entityId);
+}
+
+/**
+ * Get all unique team IDs that an entity belongs to
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to find memberships for
+ * @returns Array of team IDs
+ */
+export function getEntityTeamIds<T extends TeamLike>(teams: T[], entityId: string): string[] {
+  return teams.filter((team) => team.members.includes(entityId)).map((team) => team.id);
+}
+
+/**
+ * Get all unique team names that an entity belongs to
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to find memberships for
+ * @returns Array of team names
+ */
+export function getEntityTeamNames<T extends TeamLike>(teams: T[], entityId: string): string[] {
+  return teams.filter((team) => team.members.includes(entityId)).map((team) => team.name);
+}
+
+/**
+ * Get entities that share team membership with a given entity
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to find co-members for
+ * @returns Array of unique entity IDs that share at least one team with the given entity
+ */
+export function getTeammates<T extends TeamLike>(teams: T[], entityId: string): string[] {
+  const teammates = new Set<string>();
+
+  for (const team of teams) {
+    if (team.members.includes(entityId)) {
+      for (const member of team.members) {
+        if (member !== entityId) {
+          teammates.add(member);
+        }
+      }
+    }
+  }
+
+  return Array.from(teammates);
+}
+
+/**
+ * Count the number of teammates (unique entities that share teams with entity)
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to count teammates for
+ * @returns Number of unique teammates
+ */
+export function countTeammates<T extends TeamLike>(teams: T[], entityId: string): number {
+  return getTeammates(teams, entityId).length;
+}
+
+/**
+ * Team membership statistics for an entity
+ */
+export interface EntityTeamMembershipStats {
+  /** Number of teams the entity belongs to */
+  teamCount: number;
+  /** Number of unique teammates (entities that share teams) */
+  teammateCount: number;
+  /** Team IDs the entity belongs to */
+  teamIds: string[];
+  /** Team names the entity belongs to */
+  teamNames: string[];
+}
+
+/**
+ * Get comprehensive team membership statistics for an entity
+ *
+ * @param teams - Array of teams to search
+ * @param entityId - The entity ID to get stats for
+ * @returns Membership statistics
+ */
+export function getEntityTeamMembershipStats<T extends TeamLike>(
+  teams: T[],
+  entityId: string
+): EntityTeamMembershipStats {
+  const entityTeams = teams.filter((team) => team.members.includes(entityId));
+  const teammates = new Set<string>();
+
+  for (const team of entityTeams) {
+    for (const member of team.members) {
+      if (member !== entityId) {
+        teammates.add(member);
+      }
+    }
+  }
+
+  return {
+    teamCount: entityTeams.length,
+    teammateCount: teammates.size,
+    teamIds: entityTeams.map((team) => team.id),
+    teamNames: entityTeams.map((team) => team.name),
+  };
+}
+
+/**
+ * Filter entities that are members of a specific team
+ *
+ * @param entities - Array of entities to filter
+ * @param team - Team to check membership against
+ * @returns Entities that are members of the team
+ */
+export function filterEntitiesByTeamMembership<T extends Entity>(
+  entities: T[],
+  team: TeamLike
+): T[] {
+  return entities.filter((entity) => team.members.includes(entity.id));
+}
+
+/**
+ * Filter entities that are members of any of the specified teams
+ *
+ * @param entities - Array of entities to filter
+ * @param teams - Teams to check membership against
+ * @returns Entities that are members of at least one of the teams
+ */
+export function filterEntitiesByAnyTeamMembership<T extends Entity>(
+  entities: T[],
+  teams: TeamLike[]
+): T[] {
+  const memberIds = new Set<string>();
+  for (const team of teams) {
+    for (const memberId of team.members) {
+      memberIds.add(memberId);
+    }
+  }
+  return entities.filter((entity) => memberIds.has(entity.id));
+}
+
+/**
+ * Filter entities that are not members of any team
+ *
+ * @param entities - Array of entities to filter
+ * @param teams - All teams to check membership against
+ * @returns Entities that are not members of any team
+ */
+export function filterEntitiesWithoutTeam<T extends Entity>(
+  entities: T[],
+  teams: TeamLike[]
+): T[] {
+  const allMemberIds = new Set<string>();
+  for (const team of teams) {
+    for (const memberId of team.members) {
+      allMemberIds.add(memberId);
+    }
+  }
+  return entities.filter((entity) => !allMemberIds.has(entity.id));
+}
+
+/**
+ * Get entities that share the same teams (same team memberships)
+ *
+ * @param entities - Array of entities
+ * @param teams - Array of teams
+ * @param entityId - The entity to find matching entities for
+ * @returns Entities that belong to exactly the same teams
+ */
+export function findEntitiesWithSameTeams<T extends Entity>(
+  entities: T[],
+  teams: TeamLike[],
+  entityId: string
+): T[] {
+  const entityTeamIds = new Set(
+    teams.filter((t) => t.members.includes(entityId)).map((t) => t.id)
+  );
+
+  return entities.filter((entity) => {
+    if (entity.id === entityId) return false;
+    const otherTeamIds = new Set(
+      teams.filter((t) => t.members.includes(entity.id)).map((t) => t.id)
+    );
+    if (entityTeamIds.size !== otherTeamIds.size) return false;
+    for (const id of entityTeamIds) {
+      if (!otherTeamIds.has(id)) return false;
+    }
+    return true;
+  });
+}

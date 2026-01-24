@@ -275,7 +275,7 @@ When enabled:
 - [ ] Integrate with Task assignment
 - [ ] Integrate with Message sender validation
 - [ ] Integrate with Channel membership
-- [ ] Integrate with Team membership
+- [x] Integrate with Team membership ✅ (getEntityTeamMemberships, countEntityTeamMemberships, isEntityInAnyTeam, isEntityInTeam, getEntityTeamIds, getEntityTeamNames, getTeammates, countTeammates, getEntityTeamMembershipStats, filterEntitiesByTeamMembership, filterEntitiesByAnyTeamMembership, filterEntitiesWithoutTeam, findEntitiesWithSameTeams - 40 tests in entity.test.ts)
 - [x] Add CLI commands ✅ (entity register, entity list in src/cli/commands/entity.ts; whoami in src/cli/commands/identity.ts - 40 tests)
 
 ### Phase 7: Testing ✅
