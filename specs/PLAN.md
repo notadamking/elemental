@@ -1673,8 +1673,8 @@ Recommended implementation sequence:
 - [x] **types/channel.md Phase 7**: Channel search ✅ (searchChannels method with storage layer, filters by channelType/visibility/joinPolicy/member - 14 integration tests)
 - [x] **types/message.md Phase 3-5**: Channel membership validation, Document reference validation, thread integrity, content/attachments hydration ✅ (validation in API create, hydration support)
 - [x] **types/message.md Phase 6**: Add pagination support ✅ (MessageFilter interface with channelId, sender, threadId, hasAttachments filters - 13 integration tests)
-- [ ] **types/message.md Phase 7**: Integrate with Channel system
-- [ ] **types/message.md Phase 7**: Integrate with event system
+- [x] **types/message.md Phase 7**: Integrate with Channel system ✅ (channel existence validation, sender membership validation, sendDirectMessage helper, findOrCreateDirectChannel - 26 integration tests)
+- [x] **types/message.md Phase 7**: Integrate with event system ✅ (created events on message creation, dependency_added events for thread replies)
 - [x] **types/library.md Phase 2-5**: Library deletion, document association, hierarchy ✅ (orphan handling on delete, add/remove document, multi-membership, nesting, cycle detection via dependency system, root listing, stats - 36 E2E tests)
 - [x] **types/team.md Phase 2-6**: Team deletion, membership events, task integration, metrics ✅ (soft delete, member_added/removed events, team as assignee, getTasksForTeam, claimTaskFromTeam, getTeamMetrics - 26 integration tests)
 

@@ -216,7 +216,7 @@ To fetch a thread:
 - [x] Add pagination support (MessageFilter interface with channelId, sender, threadId, hasAttachments filters)
 
 ### Phase 7: Integration
-- [ ] Integrate with Channel system
+- [x] Integrate with Channel system (channel existence validation, sender membership validation, sendDirectMessage helper, findOrCreateDirectChannel - 26 integration tests in message-integration.test.ts)
 - [x] Integrate with event system (created events on message creation, dependency_added events for thread replies)
 - [x] Add CLI commands (send, list, thread)
 
