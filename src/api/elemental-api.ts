@@ -76,6 +76,7 @@ import type {
   ReconstructedState,
   ElementTimeline,
   TimelineSnapshot,
+  WorkflowProgress,
 } from './types.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -1663,7 +1664,27 @@ export class ElementalAPIImpl implements ElementalAPI {
       ).map((r) => r.element_id)
     );
 
-    // Filter out scheduled-for-future tasks
+    // Get ephemeral workflow IDs if we need to filter them out
+    let ephemeralTaskIds = new Set<string>();
+    if (filter?.includeEphemeral !== true) {
+      // Find all ephemeral workflows
+      const workflows = await this.list<Workflow>({ type: 'workflow' });
+      const ephemeralWorkflowIds = new Set(
+        workflows.filter((w) => w.ephemeral).map((w) => w.id)
+      );
+
+      // Find all tasks that are children of ephemeral workflows
+      if (ephemeralWorkflowIds.size > 0) {
+        const deps = await this.getAllDependencies();
+        for (const dep of deps) {
+          if (dep.type === 'parent-child' && ephemeralWorkflowIds.has(dep.targetId)) {
+            ephemeralTaskIds.add(dep.sourceId);
+          }
+        }
+      }
+    }
+
+    // Filter out scheduled-for-future tasks and ephemeral tasks
     const now = new Date();
     const readyTasks = tasks.filter((task) => {
       // Not blocked
@@ -1672,6 +1693,10 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
       // Not scheduled for future
       if (task.scheduledFor && new Date(task.scheduledFor) > now) {
+        return false;
+      }
+      // Not ephemeral (unless includeEphemeral is true)
+      if (ephemeralTaskIds.has(task.id)) {
         return false;
       }
       return true;
@@ -2843,6 +2868,194 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     return result;
+  }
+
+  async getTasksInWorkflow(workflowId: ElementId, filter?: TaskFilter): Promise<Task[]> {
+    // Verify workflow exists
+    const workflow = await this.get<Workflow>(workflowId);
+    if (!workflow) {
+      throw new NotFoundError(
+        `Workflow not found: ${workflowId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: workflowId }
+      );
+    }
+    if (workflow.type !== 'workflow') {
+      throw new ConstraintError(
+        `Element is not a workflow: ${workflowId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: workflowId, actualType: workflow.type, expectedType: 'workflow' }
+      );
+    }
+
+    // Get all elements that have parent-child dependency to this workflow
+    const dependents = await this.getDependents(workflowId, ['parent-child']);
+
+    // If no dependents, return empty array
+    if (dependents.length === 0) {
+      return [];
+    }
+
+    // Fetch tasks by their IDs
+    const taskIds = dependents.map((d) => d.sourceId);
+    const tasks: Task[] = [];
+
+    for (const taskId of taskIds) {
+      const task = await this.get<Task>(taskId);
+      if (task && task.type === 'task') {
+        tasks.push(task);
+      }
+    }
+
+    // Apply filters if provided
+    let filteredTasks = tasks;
+
+    if (filter?.status) {
+      const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+      filteredTasks = filteredTasks.filter((t) => statuses.includes(t.status));
+    }
+
+    if (filter?.priority) {
+      const priorities = Array.isArray(filter.priority) ? filter.priority : [filter.priority];
+      filteredTasks = filteredTasks.filter((t) => priorities.includes(t.priority));
+    }
+
+    if (filter?.assignee) {
+      filteredTasks = filteredTasks.filter((t) => t.assignee === filter.assignee);
+    }
+
+    if (filter?.owner) {
+      filteredTasks = filteredTasks.filter((t) => t.owner === filter.owner);
+    }
+
+    if (filter?.tags && filter.tags.length > 0) {
+      filteredTasks = filteredTasks.filter((t) =>
+        filter.tags!.every((tag) => t.tags.includes(tag))
+      );
+    }
+
+    if (filter?.includeDeleted !== true) {
+      filteredTasks = filteredTasks.filter((t) => t.status !== 'tombstone');
+    }
+
+    return filteredTasks;
+  }
+
+  async getReadyTasksInWorkflow(workflowId: ElementId, filter?: TaskFilter): Promise<Task[]> {
+    // Get all tasks in the workflow
+    const tasks = await this.getTasksInWorkflow(workflowId, {
+      ...filter,
+      status: [TaskStatusEnum.OPEN, TaskStatusEnum.IN_PROGRESS],
+    });
+
+    // Filter out blocked tasks
+    const blockedIds = new Set(
+      this.backend.query<{ element_id: string }>(
+        'SELECT element_id FROM blocked_cache'
+      ).map((r) => r.element_id)
+    );
+
+    // Filter out scheduled-for-future tasks
+    const now = new Date();
+    const readyTasks = tasks.filter((task) => {
+      // Not blocked
+      if (blockedIds.has(task.id)) {
+        return false;
+      }
+      // Not scheduled for future
+      if (task.scheduledFor && new Date(task.scheduledFor) > now) {
+        return false;
+      }
+      return true;
+    });
+
+    // Calculate effective priorities and sort
+    const tasksWithPriority = this.priorityService.enhanceTasksWithEffectivePriority(readyTasks);
+    this.priorityService.sortByEffectivePriority(tasksWithPriority);
+
+    // Apply limit after sorting
+    if (filter?.limit !== undefined) {
+      return tasksWithPriority.slice(0, filter.limit);
+    }
+
+    return tasksWithPriority;
+  }
+
+  async getWorkflowProgress(workflowId: ElementId): Promise<WorkflowProgress> {
+    // Verify workflow exists
+    const workflow = await this.get<Workflow>(workflowId);
+    if (!workflow) {
+      throw new NotFoundError(
+        `Workflow not found: ${workflowId}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: workflowId }
+      );
+    }
+    if (workflow.type !== 'workflow') {
+      throw new ConstraintError(
+        `Element is not a workflow: ${workflowId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: workflowId, actualType: workflow.type, expectedType: 'workflow' }
+      );
+    }
+
+    // Get all tasks in the workflow (excluding tombstones)
+    const tasks = await this.getTasksInWorkflow(workflowId, { includeDeleted: false });
+
+    // Count tasks by status
+    const statusCounts: Record<string, number> = {
+      open: 0,
+      in_progress: 0,
+      blocked: 0,
+      closed: 0,
+      deferred: 0,
+      tombstone: 0,
+    };
+
+    for (const task of tasks) {
+      if (task.status in statusCounts) {
+        statusCounts[task.status]++;
+      }
+    }
+
+    // Get blocked and ready counts
+    const blockedIds = new Set(
+      this.backend.query<{ element_id: string }>(
+        'SELECT element_id FROM blocked_cache'
+      ).map((r) => r.element_id)
+    );
+
+    const taskIds = new Set(tasks.map((t) => t.id));
+    const blockedCount = [...blockedIds].filter((id) => taskIds.has(id as ElementId)).length;
+
+    // Ready = open/in_progress, not blocked, not scheduled for future
+    const now = new Date();
+    const readyCount = tasks.filter((task) => {
+      if (task.status !== TaskStatusEnum.OPEN && task.status !== TaskStatusEnum.IN_PROGRESS) {
+        return false;
+      }
+      if (blockedIds.has(task.id)) {
+        return false;
+      }
+      if (task.scheduledFor && new Date(task.scheduledFor) > now) {
+        return false;
+      }
+      return true;
+    }).length;
+
+    // Calculate completion percentage
+    const total = tasks.length;
+    const completed = statusCounts.closed;
+    const completionPercentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return {
+      workflowId,
+      totalTasks: total,
+      statusCounts,
+      completionPercentage,
+      readyTasks: readyCount,
+      blockedTasks: blockedCount,
+    };
   }
 
   /**

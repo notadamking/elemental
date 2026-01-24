@@ -14,6 +14,7 @@ import type { Event, EventFilter } from '../types/event.js';
 import type { PlanProgress } from '../types/plan.js';
 import type { Message } from '../types/message.js';
 import type { Team } from '../types/team.js';
+import type { WorkflowStatus } from '../types/workflow.js';
 
 // Re-export PlanProgress for API consumers
 export type { PlanProgress };
@@ -371,6 +372,37 @@ export interface GarbageCollectionResult {
   dependenciesDeleted: number;
   /** IDs of workflows that were deleted */
   deletedWorkflowIds: ElementId[];
+}
+
+/**
+ * Extended filter for workflow queries.
+ * Includes all ElementFilter options plus workflow-specific filters.
+ */
+export interface WorkflowFilter extends ElementFilter {
+  /** Filter by status(es) */
+  status?: WorkflowStatus | WorkflowStatus[];
+  /** Filter by ephemeral state */
+  ephemeral?: boolean;
+  /** Filter by playbook ID */
+  playbookId?: string;
+}
+
+/**
+ * Progress metrics for a workflow
+ */
+export interface WorkflowProgress {
+  /** Workflow identifier */
+  workflowId: ElementId;
+  /** Total number of tasks in the workflow */
+  totalTasks: number;
+  /** Task counts by status */
+  statusCounts: Record<string, number>;
+  /** Completion percentage (0-100) */
+  completionPercentage: number;
+  /** Number of ready tasks */
+  readyTasks: number;
+  /** Number of blocked tasks */
+  blockedTasks: number;
 }
 
 // ============================================================================
@@ -1160,6 +1192,38 @@ export interface ElementalAPI {
    * @returns Result with counts of deleted elements
    */
   garbageCollectWorkflows(options: GarbageCollectionOptions): Promise<GarbageCollectionResult>;
+
+  /**
+   * Get all tasks in a workflow.
+   * Returns tasks with parent-child dependency to the workflow.
+   *
+   * @param workflowId - The workflow ID
+   * @param filter - Optional task filter constraints
+   * @returns Array of tasks in the workflow
+   * @throws NotFoundError if workflow doesn't exist
+   */
+  getTasksInWorkflow(workflowId: ElementId, filter?: TaskFilter): Promise<Task[]>;
+
+  /**
+   * Get ready tasks in a workflow.
+   * Returns tasks that are ready for work (open/in_progress, not blocked, not scheduled for future).
+   *
+   * @param workflowId - The workflow ID
+   * @param filter - Optional task filter constraints
+   * @returns Array of ready tasks in the workflow
+   * @throws NotFoundError if workflow doesn't exist
+   */
+  getReadyTasksInWorkflow(workflowId: ElementId, filter?: TaskFilter): Promise<Task[]>;
+
+  /**
+   * Get progress metrics for a workflow.
+   * Computes task status counts and completion percentage.
+   *
+   * @param workflowId - The workflow ID
+   * @returns Progress metrics for the workflow
+   * @throws NotFoundError if workflow doesn't exist
+   */
+  getWorkflowProgress(workflowId: ElementId): Promise<WorkflowProgress>;
 
   // --------------------------------------------------------------------------
   // Sync Operations

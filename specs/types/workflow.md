@@ -275,21 +275,25 @@ On export:
 - [x] Implement hierarchical ID generation (src/types/workflow-pour.ts uses generateChildId)
 - [ ] Implement task ordering queries
 
-### Phase 6: Queries
-- [ ] Implement workflow listing
-- [ ] Implement tasks-in-workflow query
-- [ ] Implement ready tasks in workflow
-- [ ] Add ephemeral filtering
+### Phase 6: Queries ✅
+- [x] Implement workflow listing (src/cli/commands/workflow.ts: workflow list)
+- [x] Implement tasks-in-workflow query (src/api/elemental-api.ts: getTasksInWorkflow)
+- [x] Implement ready tasks in workflow (src/api/elemental-api.ts: getReadyTasksInWorkflow)
+- [x] Implement workflow progress query (src/api/elemental-api.ts: getWorkflowProgress)
+- [x] Add ephemeral filtering in ready() (src/api/elemental-api.ts: ready with includeEphemeral)
+- [x] CLI commands: workflow tasks, workflow progress (src/cli/commands/workflow.ts)
+- [x] Integration tests (src/api/workflow-queries.integration.test.ts)
 
 ### Phase 7: Integration
 - [x] Integrate with Playbook system (src/types/workflow-pour.ts uses playbook inheritance)
 - [x] Integrate with dependency system (creates blocks and parent-child dependencies)
 - [ ] Integrate with export system
-- [ ] Add CLI commands (pour, burn, squash, gc)
+- [x] Add CLI commands: pour, burn, squash, gc, list, show, tasks, progress (src/cli/commands/workflow.ts)
 
 ### Phase 8: Testing
 - [x] Unit tests for status transitions (src/types/workflow.test.ts)
 - [x] Unit tests for pouring logic - 59 tests (src/types/workflow-pour.test.ts)
 - [x] Unit tests for ephemeral filtering (src/types/workflow.test.ts)
+- [x] Integration tests for workflow queries - 19 tests (src/api/workflow-queries.integration.test.ts)
 - [ ] Integration tests for full pour flow
 - [ ] E2E tests for workflow lifecycle

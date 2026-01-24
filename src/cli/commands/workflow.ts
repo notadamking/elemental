@@ -5,6 +5,8 @@
  * - workflow pour: Instantiate a playbook into a workflow
  * - workflow list: List workflows with filtering
  * - workflow show: Show workflow details
+ * - workflow tasks: List tasks in a workflow
+ * - workflow progress: Show workflow progress metrics
  * - workflow burn: Delete ephemeral workflow and tasks
  * - workflow squash: Promote ephemeral to durable
  * - workflow gc: Garbage collect old ephemeral workflows
@@ -445,6 +447,219 @@ Examples:
 };
 
 // ============================================================================
+// Workflow Tasks Command
+// ============================================================================
+
+interface WorkflowTasksOptions {
+  ready?: boolean;
+  status?: string;
+  limit?: string;
+}
+
+const workflowTasksOptions: CommandOption[] = [
+  {
+    name: 'ready',
+    short: 'r',
+    description: 'Show only ready tasks (not blocked, not scheduled for future)',
+    hasValue: false,
+  },
+  {
+    name: 'status',
+    short: 's',
+    description: 'Filter by status (open, in_progress, blocked, closed, deferred)',
+    hasValue: true,
+  },
+  {
+    name: 'limit',
+    short: 'l',
+    description: 'Maximum number of results',
+    hasValue: true,
+  },
+];
+
+async function workflowTasksHandler(
+  args: string[],
+  options: GlobalOptions & WorkflowTasksOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el workflow tasks <id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Build filter
+    const filter: Record<string, unknown> = {};
+
+    // Status filter
+    if (options.status) {
+      const validStatuses = ['open', 'in_progress', 'blocked', 'closed', 'deferred', 'tombstone'];
+      if (!validStatuses.includes(options.status)) {
+        return failure(
+          `Invalid status: ${options.status}. Must be one of: ${validStatuses.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
+      filter.status = options.status;
+    }
+
+    // Limit
+    if (options.limit) {
+      const limit = parseInt(options.limit, 10);
+      if (isNaN(limit) || limit < 1) {
+        return failure('Limit must be a positive number', ExitCode.VALIDATION);
+      }
+      filter.limit = limit;
+    }
+
+    // Get tasks based on --ready flag
+    const tasks = options.ready
+      ? await api.getReadyTasksInWorkflow(id as ElementId, filter)
+      : await api.getTasksInWorkflow(id as ElementId, filter);
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(tasks);
+    }
+
+    if (mode === 'quiet') {
+      return success(tasks.map((t) => t.id).join('\n'));
+    }
+
+    if (tasks.length === 0) {
+      return success(null, options.ready ? 'No ready tasks in workflow' : 'No tasks in workflow');
+    }
+
+    // Build table
+    const headers = ['ID', 'TITLE', 'STATUS', 'PRIORITY', 'ASSIGNEE'];
+    const rows = tasks.map((t) => [
+      t.id,
+      t.title.length > 40 ? t.title.substring(0, 37) + '...' : t.title,
+      `${getStatusIcon(t.status)} ${t.status}`,
+      `P${t.priority}`,
+      t.assignee ?? '-',
+    ]);
+
+    const table = formatter.table(headers, rows);
+    const summary = `\n${tasks.length} task(s)`;
+
+    return success(tasks, table + summary);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to list workflow tasks: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowTasksCommand: Command = {
+  name: 'tasks',
+  description: 'List tasks in a workflow',
+  usage: 'el workflow tasks <id> [options]',
+  help: `List all tasks that belong to a workflow.
+
+Arguments:
+  id    Workflow identifier (e.g., el-abc123)
+
+Options:
+  -r, --ready          Show only ready tasks (not blocked, not scheduled for future)
+  -s, --status <s>     Filter by status: open, in_progress, blocked, closed, deferred
+  -l, --limit <n>      Maximum results
+
+Examples:
+  el workflow tasks el-abc123
+  el workflow tasks el-abc123 --ready
+  el workflow tasks el-abc123 --status open
+  el workflow tasks el-abc123 --json`,
+  options: workflowTasksOptions,
+  handler: workflowTasksHandler as Command['handler'],
+};
+
+// ============================================================================
+// Workflow Progress Command
+// ============================================================================
+
+async function workflowProgressHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el workflow progress <id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const progress = await api.getWorkflowProgress(id as ElementId);
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success(progress);
+    }
+
+    if (mode === 'quiet') {
+      return success(`${progress.completionPercentage}%`);
+    }
+
+    // Human-readable output
+    let output = `Workflow Progress: ${id}\n\n`;
+    output += `Total Tasks:   ${progress.totalTasks}\n`;
+    output += `Completion:    ${progress.completionPercentage}%\n`;
+    output += `Ready Tasks:   ${progress.readyTasks}\n`;
+    output += `Blocked Tasks: ${progress.blockedTasks}\n\n`;
+    output += '--- Status Breakdown ---\n';
+
+    const statusOrder = ['open', 'in_progress', 'blocked', 'closed', 'deferred'];
+    for (const status of statusOrder) {
+      const count = progress.statusCounts[status] ?? 0;
+      if (count > 0) {
+        output += `${getStatusIcon(status)} ${status}: ${count}\n`;
+      }
+    }
+
+    // Visual progress bar
+    const barWidth = 30;
+    const filled = Math.round((progress.completionPercentage / 100) * barWidth);
+    const empty = barWidth - filled;
+    const bar = '█'.repeat(filled) + '░'.repeat(empty);
+    output += `\n[${bar}] ${progress.completionPercentage}%`;
+
+    return success(progress, output);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to get workflow progress: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const workflowProgressCommand: Command = {
+  name: 'progress',
+  description: 'Show workflow progress metrics',
+  usage: 'el workflow progress <id>',
+  help: `Display progress metrics for a workflow.
+
+Shows task status counts, completion percentage, and ready/blocked task counts.
+
+Arguments:
+  id    Workflow identifier (e.g., el-abc123)
+
+Examples:
+  el workflow progress el-abc123
+  el workflow progress el-abc123 --json`,
+  handler: workflowProgressHandler as Command['handler'],
+};
+
+// ============================================================================
 // Workflow Burn Command
 // ============================================================================
 
@@ -740,17 +955,22 @@ Workflows can be instantiated from playbook templates or created ad-hoc.
 They support both durable (synced) and ephemeral (temporary) modes.
 
 Subcommands:
-  pour     Instantiate a playbook into a workflow
-  list     List workflows
-  show     Show workflow details
-  burn     Delete ephemeral workflow and tasks
-  squash   Promote ephemeral to durable
-  gc       Garbage collect old ephemeral workflows
+  pour       Instantiate a playbook into a workflow
+  list       List workflows
+  show       Show workflow details
+  tasks      List tasks in a workflow
+  progress   Show workflow progress metrics
+  burn       Delete ephemeral workflow and tasks
+  squash     Promote ephemeral to durable
+  gc         Garbage collect old ephemeral workflows
 
 Examples:
   el workflow pour deploy --var env=prod
   el workflow list --status running
   el workflow show el-abc123
+  el workflow tasks el-abc123
+  el workflow tasks el-abc123 --ready
+  el workflow progress el-abc123
   el workflow burn el-abc123
   el workflow squash el-abc123
   el workflow gc --age 30`,
@@ -758,6 +978,8 @@ Examples:
     pour: workflowPourCommand,
     list: workflowListCommand,
     show: workflowShowCommand,
+    tasks: workflowTasksCommand,
+    progress: workflowProgressCommand,
     burn: workflowBurnCommand,
     squash: workflowSquashCommand,
     gc: workflowGcCommand,
