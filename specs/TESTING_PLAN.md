@@ -1120,6 +1120,65 @@ chains work correctly for blocked status propagation. Three issues found: show c
 doesn't include blocked info, dep tree depth option is ignored, and float priorities are
 silently truncated.
 
+### Filter/Query Capabilities Exploration
+
+**Goal:** Evaluate the agent's ability to filter and query tasks effectively
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Missing key capabilities)
+
+**Exploration prompts:**
+- Can you filter by all task fields (priority, status, assignee, type, complexity)?
+- Can you filter by entity name instead of ID?
+- Can you sort results by different fields?
+- Can you paginate and know the total count?
+- Can you find unassigned tasks?
+- Can you search by title/notes content?
+
+**Test Results:**
+
+| Capability | Command | Result | Notes |
+|------------|---------|--------|-------|
+| Filter by priority | `el list task --priority 1` | PASS | Works correctly |
+| Filter by status | `el list task --status open` | PASS | Works correctly |
+| Filter by assignee (ID) | `el list task --assignee el-xxx` | PASS | Works correctly |
+| **Filter by assignee (name)** | `el list task --assignee agent-alpha` | **FAIL** | Returns empty - no name resolution (el-574h) |
+| Filter by tag | `el list task --tag frontend` | PASS | Works correctly |
+| **Multiple tags (AND)** | `el list task --tag a --tag b` | **FAIL** | Only last tag used (el-59p3 pre-existing) |
+| **Multiple statuses** | `el list task --status open --status in_progress` | **FAIL** | Only last status used (el-59p3 related) |
+| **Filter by taskType (list)** | `el list task --type bug` | **FAIL** | --type filters element type, not taskType (el-4jhl) |
+| Filter by taskType (ready) | `el ready --type bug` | PASS | Works on `el ready` |
+| **Filter by complexity** | `el list task --complexity 3` | **FAIL** | No --complexity flag (el-3908) |
+| Limit results | `el list task --limit 10` | PASS | Works correctly |
+| Offset results | `el list task --offset 5` | PASS | Works correctly |
+| **Sort by field** | `el list task --sort priority` | **FAIL** | No --sort option (el-51fy) |
+| **Pagination metadata** | `el list task --limit 2 --json` | **FAIL** | No total count in JSON (el-46xq) |
+| **Filter unassigned** | `el list task --assignee ''` | **FAIL** | Returns all tasks (el-34n6) |
+| **Text search** | `el search "bug"` | **FAIL** | Command not implemented (el-4aja pre-existing) |
+| Combined filters | `el ready --assignee el-xxx --priority 1` | PASS | Multiple filters work together |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4jhl | `el list --type` filters element type not taskType | 3 | bug |
+| el-574h | --assignee doesn't resolve entity names to IDs | 3 | enhancement |
+| el-51fy | `el list` lacks --sort option | 4 | enhancement |
+| el-46xq | JSON output lacks pagination total count | 4 | enhancement |
+| el-34n6 | Cannot filter for unassigned tasks | 4 | enhancement |
+| el-3908 | No --complexity filter on list/ready | 5 | enhancement |
+
+**Dependencies:**
+- el-4jhl → el-59p3 (relates-to: parser bug affects multiple options)
+- el-574h → el-4kis (relates-to: same name resolution issue)
+- el-34n6 → el-574h (relates-to: assignee handling improvements)
+
+**Summary:**
+Basic filtering by priority, status, single tag, and assignee ID works. However, agents
+cannot: filter by entity name (must use IDs), filter by taskType in `el list`, use multiple
+tags/statuses, sort results, find unassigned tasks, or perform text search. The parser bug
+el-59p3 causes multiple occurrences of the same flag to overwrite instead of accumulate,
+affecting --tag, --status, and potentially other flags.
+
 ---
 
 ## 5. CLI UX Evaluation Checklist
