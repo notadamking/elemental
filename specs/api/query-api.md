@@ -456,4 +456,4 @@ Optional caching for:
 - [x] Unit tests for interface definitions (110 tests)
 - [x] Unit tests for each operation (70 tests in src/api/elemental-api.test.ts including export/import)
 - [x] Integration tests for workflows (included in elemental-api.test.ts)
-- [ ] Performance tests for queries
+- [x] Performance tests for queries (33 tests in src/api/query-performance.test.ts)
