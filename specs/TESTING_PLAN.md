@@ -2139,6 +2139,115 @@ The metadata field exists on all elements but cannot be set via CLI. No way to l
 elements. Parser bug el-59p3 continues to affect multiple `--tag` flags on both create and update.
 Deleting elements with dependents leaves orphaned dependency records (consequence of el-s80d bug).
 
+### Entity Name Resolution and Cross-Command Consistency Exploration
+
+**Goal:** Comprehensive validation of entity name handling across all commands - confirming known issues and verifying patterns
+
+**Status:** TESTED - 2026-01-24 (Confirms known bugs - entity names not resolved anywhere)
+
+**Exploration prompts:**
+- Can entity names be used instead of IDs in commands?
+- Are entity names resolved consistently across all commands?
+- What happens when entity names are used as assignees, members, or filters?
+- Is assignee validation enforced consistently?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| `el assign <task> <entity-name>` | **FAIL** | Error: "Task not found: alpha-agent" (el-4kis confirmed) |
+| `el assign <task> <entity-id>` | PASS | Works correctly |
+| `el ready --assignee <entity-name>` | **FAIL** | Returns empty (el-574h confirmed) |
+| `el ready --assignee <entity-id>` | PASS | Returns correct tasks |
+| `el entity show <entity-name>` | **FAIL** | Returns ALL entities (el-4sdh confirmed) |
+| `el entity show <entity-id>` | PASS | Works correctly |
+| `el entity list --name <name>` | **FAIL** | "Unknown option: --name" (el-36fq confirmed) |
+| `el team add <team> <entity-name>` | **FAIL** | Error: "Team not found: alpha-agent" |
+| `el team add <team> <entity-id>` | PASS | Works correctly |
+| `el channel add <ch> <entity-name>` | **FAIL** | Error: "Channel not found: gamma-human" |
+| `el channel add <ch> <entity-id>` | PASS | Works correctly |
+| `el create task --assignee <name>` | **FAIL-SILENT** | Stores name literally, no validation (el-jqhh) |
+| `el create task --assignee <task-id>` | **FAIL-SILENT** | Accepts task ID as assignee (el-1fnm) |
+| `el create task --assignee <nonexistent>` | **FAIL-SILENT** | Accepts non-existent ID (el-jqhh) |
+
+**Additional Validation Tests:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Entity name stored literally as assignee | **FAIL** | Creates task with `assignee: "alpha-agent"` string |
+| Task ID stored as assignee | **FAIL** | Creates task with task ID as assignee |
+| Non-existent ID stored as assignee | **FAIL** | Creates task with `assignee: "el-zzzz"` |
+| Filter tasks by invalid assignee | INFO | Works (returns matching tasks with invalid assignees) |
+
+**Test Execution Details:**
+
+```bash
+# Test setup (in /tmp/elemental-entity-test)
+el init
+el entity register alpha-agent --type agent  # Returns el-1vfa
+el entity register beta-agent --type agent   # Returns el-fb09
+el entity register gamma-human --type human  # Returns el-4b31
+
+# Confirm el-4kis: assign treats entity name as task ID
+el assign el-2hnu alpha-agent
+# Error: Task not found: alpha-agent
+
+# Confirm el-574h: --assignee doesn't resolve names
+el ready --assignee alpha-agent --json | jq '.data|length'
+# Returns: 0
+
+# Confirm el-4sdh: entity show ignores argument
+el entity show alpha-agent --json | jq '.data|type'
+# Returns: "array" (all 3 entities)
+
+# Confirm el-jqhh: assignee accepts invalid values
+el create task --title "Test" --assignee alpha-agent --json
+# Succeeds! assignee: "alpha-agent" (literal string, not ID)
+
+# Confirm el-1fnm: assignee accepts non-entity elements
+TASK1=$(el list task --json | jq -r '.data[0].id')
+el create task --title "Invalid" --assignee $TASK1 --json
+# Succeeds! assignee is a task ID, not entity ID
+```
+
+**Issues Confirmed:**
+
+| ID | Summary | Status | Notes |
+|----|---------|--------|-------|
+| el-4kis | Parser treats entity names as subcommands | Existing | Confirmed |
+| el-574h | --assignee doesn't resolve entity names | Existing | Confirmed |
+| el-36fq | el entity list needs --name filter | Existing | Confirmed |
+| el-4sdh | el entity show ignores argument | Existing | Confirmed |
+| el-jqhh | Assignee accepts invalid values | Existing | Confirmed |
+| el-1fnm | Assignee accepts non-entity elements | Existing | Confirmed |
+| el-5gjo | Team add accepts non-entity elements | Existing | Related pattern |
+
+**Root Cause Analysis:**
+
+The entity name resolution issue has three distinct patterns:
+
+1. **Parser Confusion (el-4kis)**: The CLI parser's `isSubcommand()` function treats alphanumeric names as potential subcommands, causing positional arguments to be misinterpreted.
+
+2. **No Name-to-ID Resolution (el-574h, el-36fq)**: Commands that accept entity references don't attempt to resolve names to IDs. They only work with IDs in `el-xxxx` format.
+
+3. **No Type Validation (el-jqhh, el-1fnm, el-5gjo)**: Commands that store entity references don't validate that:
+   - The ID exists
+   - The element is the correct type (entity vs task vs document)
+
+**Recommended Fix Priority:**
+
+1. **High**: Fix validation (el-jqhh, el-1fnm) - prevents invalid data
+2. **Medium**: Add name-to-ID resolution utility and use across all commands
+3. **Medium**: Fix parser (el-4kis) - improves UX for positional args
+4. **Low**: Add --name filter (el-36fq) - convenience enhancement
+
+**Summary:**
+Entity names are not usable anywhere in the CLI. All entity-referencing commands require IDs.
+The `el entity show` command is broken (returns all entities regardless of argument).
+Assignee validation is completely missing - any string or ID is accepted without type or existence checking.
+These issues create a pattern where agents must always look up entity IDs first, breaking
+the agent-friendly design principle where names should be the primary way to reference entities.
+
 ### Bulk Operations and Batch Processing Exploration
 
 **Goal:** Evaluate CLI support for bulk operations on multiple elements - critical for agent orchestration
