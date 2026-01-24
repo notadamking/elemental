@@ -582,3 +582,5 @@ User-friendly errors:
 - [ ] **el-4a62** - Main help (`el --help`) missing command groups. The help text only shows Element, Task, Dependency, and Admin operations. Missing: plan, doc, workflow, playbook, channel, msg, entity, library, team. These command groups are documented in this spec but not visible in the CLI help output. Major discoverability issue for agents.
 - [ ] **el-4aja** - `el search` command listed in main help but not implemented. Returns "Unknown command: search". Either implement search or remove from help until ready.
 - [ ] **el-53ot** - `el alias` command not listed in main help. The command works and is documented in this spec, but agents cannot discover it from `el --help`.
+- [ ] **el-1rp0** - `el team members` returns `{members: [], count: 0}` object structure instead of array like other list commands. Minor consistency issue.
+- [ ] **el-18nr** - `el dep list` returns `{dependencies: [], dependents: []}` object structure instead of flat array. May be intentional for bidirectional info but differs from other list commands.

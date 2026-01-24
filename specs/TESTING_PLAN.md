@@ -921,6 +921,8 @@ entities, channels, playbooks, libraries, or teams without external documentatio
 
 **Goal:** Verify JSON output is consistent and parseable
 
+**Status:** TESTED - 2026-01-24 (Pass with Minor Inconsistencies)
+
 **Exploration prompts:**
 - Pick 5 different `list` commands. Are field names consistent?
 - Do all create commands return the same structure?
@@ -928,11 +930,43 @@ entities, channels, playbooks, libraries, or teams without external documentatio
 - Are empty results `[]` or `null` or something else?
 - Do IDs appear in consistent locations across element types?
 
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| 7 list commands field names | PASS | All use consistent camelCase |
+| All list commands use `{success, data: [...]}` | PASS | Consistent structure |
+| All create commands return `{success, data: {...}}` | PASS | ID at `.data.id` |
+| Error JSON validity | PASS | All errors return valid JSON |
+| Empty results format | PASS | Empty arrays `[]`, not null |
+| ID location consistency | PASS | Always `.data.id` for single, `.data[].id` for lists |
+| Timestamps ISO 8601 | PASS | All use `2026-01-24T11:51:50.965Z` format |
+| Boolean/numeric types | PASS | Correct types, not strings |
+| Common fields present | PASS | id, type, createdAt, updatedAt, createdBy, tags, metadata |
+| `el msg send` vs `el msg list` content | INFO | Send returns contentRef, list hydrates content - expected |
+
+**Minor Inconsistencies Found:**
+
+| Command | Structure | Issue |
+|---------|-----------|-------|
+| `el team members` | `{members: [], count: 0}` | Returns object instead of array (el-1rp0) |
+| `el dep list` | `{dependencies: [], dependents: []}` | Returns object for bidirectional info (el-18nr) |
+| `el ready` | Extra fields | Includes effectivePriority, priorityInfluenced (el-50s8) |
+| `el plan show` | Nested `{plan, progress}` | Wraps data in nested structure (el-lxt9) |
+| `el show` blocked task | Missing fields | No blockedBy/blockReason fields (el-pjjg) |
+
 **Things to note:**
 - Inconsistent field naming (camelCase vs snake_case)
 - Missing fields that should be present
 - Extra fields that aren't documented
 - Null vs undefined vs missing field behavior
+
+**Summary:**
+Core JSON output is highly consistent. All list/create/show commands follow the `{success, data}` pattern.
+Field naming is consistently camelCase. All timestamps are ISO 8601. Minor inconsistencies exist in
+specialized commands (`team members`, `dep list`) that return object structures instead of arrays, and
+some commands include extra computed fields (`ready`) or nested structures (`plan show`). These are
+low priority as the patterns are predictable and documented.
 
 ### Error Message Exploration
 
