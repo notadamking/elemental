@@ -3831,6 +3831,106 @@ tasks created with hierarchical IDs like `el-planid.1` would self-document their
 
 ---
 
+### Scenario: Plan-Task Operations Edge Cases and Lifecycle Validation
+
+**Purpose:** Evaluate plan-task operation behaviors across different plan states, including adding/removing tasks from plans in various states (active, completed, cancelled, draft), and dependency cleanup on plan deletion
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Lifecycle validation gaps, orphan dependency bug)
+
+**Checkpoints:**
+
+**Plan Progress Calculation:**
+- [x] Initial progress is 0% with no closed tasks
+- [x] Closing a task correctly updates progress percentage
+- [x] Removing a task recalculates progress correctly
+- [x] Deleting a task in plan recalculates progress correctly
+- [x] Reopening a closed task in plan drops progress
+- [x] Adding closed task to plan correctly calculates progress (100%)
+
+**Task Status in Plans:**
+- [x] Can add open task to active plan
+- [x] Can add closed task to active plan
+- [x] Can add deferred task to active plan
+- [x] Can add in_progress task to active plan
+- [x] Can add blocked task to active plan
+
+**Plan Status Lifecycle:**
+- [ ] **BUG el-48i3 (NEW):** Can add tasks to cancelled plans
+  - Expected: Error "Cannot add task to plan with status 'cancelled'"
+  - Actual: success:true, task added to cancelled plan
+- [ ] **BUG el-4uvk (CONFIRMED):** Can add tasks to completed plans
+  - Same validation gap as cancelled plans
+- [ ] **BUG el-g5qk (CONFIRMED):** Can complete plans with 0% progress
+  - Empty plans can be completed
+  - Plans with all tasks open can be completed
+- [x] Can add tasks to draft plan
+- [x] Can add tasks to active plan
+
+**Plan Deletion and Orphan Cleanup:**
+- [ ] **CRITICAL BUG el-4egr (NEW):** Deleting plan leaves orphan dependencies
+  - `el delete <plan>` removes plan from database
+  - parent-child dependencies from tasks to plan NOT cleaned up
+  - Tasks retain dependency pointing to non-existent element
+  - `el dep list <task>` shows orphan dependency
+- [x] Task still exists after plan deletion
+- [x] Task status unchanged after plan deletion
+
+**el plan remove-task Edge Cases:**
+- [x] Remove task not in plan: correctly rejected with clear error
+- [x] Remove task from cancelled plan: allowed (works)
+- [x] Remove closed task from plan: works, progress recalculated
+
+**Duplicate Prevention:**
+- [x] Adding same task twice: correctly rejected
+- [x] Adding non-task element: correctly rejected with clear error
+- [x] Adding plan to plan: correctly rejected
+
+**Quiet Mode Output:**
+- [ ] **CONFIRMS el-c99l:** `el plan add-task --quiet` outputs nothing
+- [ ] **CONFIRMS el-c99l:** `el plan remove-task --quiet` outputs nothing
+- [x] `el plan tasks --quiet` outputs task IDs one per line
+
+**Success Criteria:** Plan lifecycle operations validate state transitions and clean up relationships
+- **PARTIAL:** Core operations work, but validation gaps for terminal states and orphan cleanup
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-48i3 | BUG: el plan add-task allows adding tasks to cancelled plans | 3 | bug |
+| el-4egr | BUG: el delete plan leaves orphan parent-child dependencies from tasks | 2 | bug |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4uvk | (pre-existing) el plan add-task allows adding to completed plans | 3 | bug |
+| el-g5qk | (pre-existing) el plan complete allows 0% progress | 3 | bug |
+| el-c99l | (pre-existing) Quiet mode inconsistent - relationship ops return nothing | 4 | ux |
+
+**Dependencies:**
+- el-48i3 → el-4uvk (relates-to: same lifecycle validation pattern)
+- el-48i3 → el-g5qk (relates-to: plan lifecycle validation)
+- el-4egr → el-wjo9 (relates-to: similar orphan cleanup pattern for channels)
+
+**Notes:**
+This evaluation tested plan-task operations that agents use for project management workflows.
+Key findings:
+1. Progress calculation works correctly for all task state changes
+2. CRITICAL: Plan lifecycle states (completed, cancelled) not enforced for add-task
+3. CRITICAL: Plan deletion doesn't cascade cleanup of parent-child dependencies
+4. Quiet mode for add-task/remove-task outputs nothing (consistent with el-c99l pattern)
+5. Empty plans can be completed (questionable UX - may be by design)
+
+The orphan dependency bug (el-4egr) is particularly problematic as it:
+- Leaves data integrity issues in the database
+- Can confuse agents traversing dependency graphs
+- Similar to el-wjo9 (channel delete orphans) suggesting broader cascade delete issue
+
+---
+
 ### Scenario: Team Communication Patterns and Group Channel Workflows
 
 **Purpose:** Evaluate multi-agent team communication via group channels, including team membership, channel permissions, message threading, and work distribution patterns
