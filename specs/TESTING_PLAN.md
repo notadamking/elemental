@@ -5052,6 +5052,106 @@ Key findings:
 
 ---
 
+### Scenario: Verbose Mode Consistency and Output Behavior
+
+**Purpose:** Evaluate --verbose flag behavior across all command types, checking for consistency in output format, additional information provided, and interaction with other flags
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Duplicate output issue, inconsistent Details section)
+
+**Checkpoints:**
+
+**Verbose Mode for Create Commands:**
+- [x] `el create task --verbose` shows both summary and Details section
+- [x] `el doc create --verbose` shows both summary and Details section
+- [x] `el plan create --verbose` shows both summary and Details section
+- [x] `el entity register --verbose` shows both summary and Details section
+- [x] `el library create --verbose` shows both summary and Details section
+- [x] `el team create --verbose` shows both summary and Details section
+- [x] `el playbook create --verbose` shows both summary and Details section
+- [x] `el workflow pour --verbose` shows both summary and Details section
+
+**Verbose Mode for Single-Element Commands:**
+- [ ] **FAIL**: `el show --verbose` outputs data twice
+  - **UX el-3taj (NEW):** Shows human-readable table AND "Details:" section with same data
+  - Redundant output provides no additional information
+- [ ] **FAIL**: `el update --verbose` outputs data twice (same pattern)
+- [ ] **FAIL**: `el close --verbose` outputs data twice (same pattern)
+
+**Verbose Mode for List Commands:**
+- [x] `el list --verbose` shows table only (no Details section)
+- [x] `el ready --verbose` shows table only (no Details section)
+- [x] `el blocked --verbose` shows table only (no Details section)
+- [ ] **UX**: Inconsistent with single-element commands which show Details
+
+**Verbose Mode for Admin Commands:**
+- [x] `el stats --verbose` shows summary AND Details section (consistent with create)
+- [x] `el doctor --verbose` shows comprehensive diagnostics and Details
+- [x] `el export --verbose` shows summary and Details
+- [x] `el status --verbose` shows sync status and Details
+- [x] `el whoami --verbose` shows actor info and Details
+- [x] `el config show --verbose` shows config and Details
+- [x] `el alias --verbose` shows table only (consistent with list commands)
+
+**Verbose Mode for Dependency Commands:**
+- [x] `el dep add --verbose` shows summary and Details
+- [x] `el dep list --verbose` shows summary and Details
+- [x] `el dep tree --verbose` shows tree visualization and Details
+
+**Verbose Error Output:**
+- [ ] **FAIL**: Error messages show exit code instead of error code string
+  - **BUG el-3iux (pre-existing):** Shows "Code: 3" instead of "Code: NOT_FOUND"
+  - Verbose errors missing Details field and stack trace
+- [x] Error messages include "For more details, check the application logs"
+- [x] Exit codes are correct in verbose mode
+
+**Flag Interactions:**
+- [x] `--verbose --json`: JSON output wins, verbose ignored (correct)
+- [x] `--verbose --quiet`: quiet wins, verbose ignored (correct)
+- [x] Flag order doesn't matter for precedence
+
+**Verbose Output Format:**
+- [x] Details section uses YAML-like format with indentation
+- [x] Arrays shown as JSON arrays in Details section
+- [x] Timestamps preserved in ISO 8601 format
+- [x] Nested objects shown with proper indentation
+
+**Success Criteria:** Verbose mode provides consistent additional information across all commands
+- **Partial:** Verbose mode works across all commands but has duplicate output issue for single-element commands
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3taj | UX: el show --verbose outputs data twice (human-readable + Details section) | 4 | ux |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3iux | (pre-existing) Verbose error output shows exit code not error code string | 4 | bug |
+
+**Dependencies:**
+- el-3taj → el-3iux (relates-to: both verbose mode output issues)
+- el-3taj → el-50lc (relates-to: both duplicate output patterns)
+
+**Notes:**
+This evaluation tested the --verbose flag behavior across all command types:
+1. Single-element commands (show, update, close) output data twice - redundant
+2. List commands (list, ready, blocked) show only table - inconsistent with above
+3. Admin commands (stats, doctor, export) consistently show summary + Details
+4. Verbose error output missing expected fields (error code string, Details, stack trace)
+5. Flag precedence is correct (json > verbose, quiet > verbose)
+
+The main issue is that "verbose" doesn't actually provide more information - it just duplicates
+the same data in two formats. Consider either:
+- Adding truly verbose data (timing, queries, internal IDs)
+- Using verbose for a different format (JSON-like vs table)
+- Making verbose consistent across all command types
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
