@@ -900,6 +900,49 @@ export class ElementalAPIImpl implements ElementalAPI {
           event.createdAt,
         ]
       );
+
+      // For messages with threadId, create a replies-to dependency
+      if (isMessage(element) && element.threadId !== null) {
+        const now = createTimestamp();
+        tx.run(
+          `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            element.id,
+            element.threadId,
+            'replies-to',
+            now,
+            element.sender,
+            null,
+          ]
+        );
+
+        // Record dependency_added event
+        const depEvent = createEvent({
+          elementId: element.id,
+          eventType: 'dependency_added' as EventType,
+          actor: element.sender,
+          oldValue: null,
+          newValue: {
+            sourceId: element.id,
+            targetId: element.threadId,
+            type: 'replies-to',
+            metadata: {},
+          },
+        });
+        tx.run(
+          `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            depEvent.elementId,
+            depEvent.eventType,
+            depEvent.actor,
+            null,
+            JSON.stringify(depEvent.newValue),
+            depEvent.createdAt,
+          ]
+        );
+      }
     });
 
     // Mark as dirty for sync

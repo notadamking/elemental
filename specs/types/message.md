@@ -201,7 +201,7 @@ To fetch a thread:
 
 ### Phase 4: Threading
 - [x] Implement thread query (getThreadMessages utility)
-- [ ] Implement `replies-to` dependency creation (requires DependencyService integration)
+- [x] Implement `replies-to` dependency creation (integrated in ElementalAPI.create())
 - [x] Add thread integrity constraints
 
 ### Phase 5: Hydration

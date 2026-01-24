@@ -691,4 +691,164 @@ describe('Message Integration', () => {
       expect(contents).toContain('Message 2 content');
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Replies-To Dependency Creation
+  // --------------------------------------------------------------------------
+
+  describe('Replies-To Dependency Creation', () => {
+    it('should create replies-to dependency when message has threadId', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create a root message
+      const rootDoc = await createTestDocument(mockEntityA, 'Root message');
+      const createdRootDoc = await api.create<Document>(toCreateInput(rootDoc));
+      const rootMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdRootDoc.id as unknown as import('../types/document.js').DocumentId,
+      });
+      const createdRootMessage = await api.create<Message>(toCreateInput(rootMessage));
+
+      // Create a reply message
+      const replyDoc = await createTestDocument(mockEntityB, 'Reply message');
+      const createdReplyDoc = await api.create<Document>(toCreateInput(replyDoc));
+      const replyMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityB,
+        contentRef: createdReplyDoc.id as unknown as import('../types/document.js').DocumentId,
+        threadId: createdRootMessage.id as unknown as import('../types/message.js').MessageId,
+      });
+      const createdReplyMessage = await api.create<Message>(toCreateInput(replyMessage));
+
+      // Check that the replies-to dependency was created
+      const dependencies = await api.getDependencies(createdReplyMessage.id);
+      const repliesToDep = dependencies.find((d) => d.type === 'replies-to');
+
+      expect(repliesToDep).toBeDefined();
+      expect(repliesToDep!.sourceId).toBe(createdReplyMessage.id);
+      expect(repliesToDep!.targetId).toBe(createdRootMessage.id);
+    });
+
+    it('should not create replies-to dependency when message has no threadId', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create a root message (no threadId)
+      const rootDoc = await createTestDocument(mockEntityA, 'Root message');
+      const createdRootDoc = await api.create<Document>(toCreateInput(rootDoc));
+      const rootMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdRootDoc.id as unknown as import('../types/document.js').DocumentId,
+      });
+      const createdRootMessage = await api.create<Message>(toCreateInput(rootMessage));
+
+      // Check that no replies-to dependency exists
+      const dependencies = await api.getDependencies(createdRootMessage.id);
+      const repliesToDep = dependencies.find((d) => d.type === 'replies-to');
+
+      expect(repliesToDep).toBeUndefined();
+    });
+
+    it('should record dependency_added event when creating replies-to dependency', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create a root message
+      const rootDoc = await createTestDocument(mockEntityA, 'Root message');
+      const createdRootDoc = await api.create<Document>(toCreateInput(rootDoc));
+      const rootMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdRootDoc.id as unknown as import('../types/document.js').DocumentId,
+      });
+      const createdRootMessage = await api.create<Message>(toCreateInput(rootMessage));
+
+      // Create a reply message
+      const replyDoc = await createTestDocument(mockEntityB, 'Reply message');
+      const createdReplyDoc = await api.create<Document>(toCreateInput(replyDoc));
+      const replyMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityB,
+        contentRef: createdReplyDoc.id as unknown as import('../types/document.js').DocumentId,
+        threadId: createdRootMessage.id as unknown as import('../types/message.js').MessageId,
+      });
+      const createdReplyMessage = await api.create<Message>(toCreateInput(replyMessage));
+
+      // Check that the dependency_added event was recorded
+      const events = await api.getEvents(createdReplyMessage.id);
+      const depAddedEvent = events.find((e) => e.eventType === 'dependency_added');
+
+      expect(depAddedEvent).toBeDefined();
+      expect(depAddedEvent!.actor).toBe(mockEntityB);
+      expect(depAddedEvent!.newValue).toEqual({
+        sourceId: createdReplyMessage.id,
+        targetId: createdRootMessage.id,
+        type: 'replies-to',
+        metadata: {},
+      });
+    });
+
+    it('should allow querying dependents to find replies to a message', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create a root message
+      const rootDoc = await createTestDocument(mockEntityA, 'Root message');
+      const createdRootDoc = await api.create<Document>(toCreateInput(rootDoc));
+      const rootMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdRootDoc.id as unknown as import('../types/document.js').DocumentId,
+      });
+      const createdRootMessage = await api.create<Message>(toCreateInput(rootMessage));
+
+      // Create two replies
+      const reply1Doc = await createTestDocument(mockEntityB, 'Reply 1');
+      const createdReply1Doc = await api.create<Document>(toCreateInput(reply1Doc));
+      const reply1Message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityB,
+        contentRef: createdReply1Doc.id as unknown as import('../types/document.js').DocumentId,
+        threadId: createdRootMessage.id as unknown as import('../types/message.js').MessageId,
+      });
+      const createdReply1 = await api.create<Message>(toCreateInput(reply1Message));
+
+      const reply2Doc = await createTestDocument(mockEntityA, 'Reply 2');
+      const createdReply2Doc = await api.create<Document>(toCreateInput(reply2Doc));
+      const reply2Message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdReply2Doc.id as unknown as import('../types/document.js').DocumentId,
+        threadId: createdRootMessage.id as unknown as import('../types/message.js').MessageId,
+      });
+      const createdReply2 = await api.create<Message>(toCreateInput(reply2Message));
+
+      // Query dependents of the root message to find all replies
+      const dependents = await api.getDependents(createdRootMessage.id, ['replies-to']);
+
+      expect(dependents).toHaveLength(2);
+      const replyIds = dependents.map((d) => d.sourceId);
+      expect(replyIds).toContain(createdReply1.id);
+      expect(replyIds).toContain(createdReply2.id);
+    });
+  });
 });
