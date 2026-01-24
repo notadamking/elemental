@@ -1352,7 +1352,7 @@ automatic based on task status, but:
 
 **Prerequisites:** Initialized workspace
 
-**Status:** TESTED - 2026-01-24 (Pass - Core functionality works, enhancements identified)
+**Status:** TESTED - 2026-01-24 (Partial Pass - Date validation gaps discovered)
 
 **Checkpoints:**
 
@@ -1378,6 +1378,18 @@ automatic based on task status, but:
 - [x] Defer non-task element: rejected with "Element is not a task"
 - [x] Defer already-deferred task: silently succeeds (idempotent)
   - **UX el-4naz:** Should warn or require explicit --update flag when changing schedule
+- [ ] **FAIL**: Invalid dates silently roll over: `el defer <id> --until 2026-02-30`
+  - **UX el-2p2p:** Feb 30 becomes March 2 instead of validation error
+  - Feb 29 in non-leap year (2026) becomes March 1
+  - This can cause confusion for agents expecting exact scheduling
+- [ ] **FAIL**: Past dates accepted without warning: `el defer <id> --until 2025-01-01`
+  - **UX el-3ap6:** Succeeds silently instead of warning about past date
+  - Agents might accidentally defer to past date due to typo
+- [x] Timezone offset conversion: `el defer <id> --until "2026-03-15T15:30:00+05:00"`
+  - Correctly converts to UTC (2026-03-15T10:30:00.000Z)
+- [x] Non-standard date formats: `2026/01/30` or `01/30/2026`
+  - Accepted and parsed (though adds 10:00:00 time component)
+  - EU format `30/01/2026` rejected (good)
 
 **Undefer Command:**
 - [x] Undefer deferred task: `el undefer <id> --json`
@@ -1414,12 +1426,17 @@ automatic based on task status, but:
 
 | ID | Summary | Priority | Category |
 |----|---------|----------|----------|
+| el-2p2p | UX: el defer --until silently rolls over invalid dates (Feb 30 → Mar 2) | 4 | ux |
+| el-3ap6 | UX: el defer --until accepts past dates without warning | 4 | ux |
 | el-66en | ENHANCEMENT: Add relative date support (tomorrow, +1d, +1w) | 4 | enhancement |
 | el-wtu9 | ENHANCEMENT: Add --scheduled-for flag to el create task | 4 | enhancement |
 | el-4sdm | ENHANCEMENT: Add el deferred command to list scheduled tasks | 4 | enhancement |
 | el-4naz | UX: el defer on already-deferred task silently succeeds | 5 | ux |
 
 **Dependencies:**
+- el-2p2p → el-66en (relates-to: date validation improvement)
+- el-3ap6 → el-66en (relates-to: date validation improvement)
+- el-3ap6 → el-2p2p (relates-to: both date validation issues)
 - el-wtu9 → el-66en (relates-to: both date handling improvements)
 - el-4sdm → el-66en (relates-to: both scheduling improvements)
 - el-4naz → el-66en (relates-to: defer command behavior)
