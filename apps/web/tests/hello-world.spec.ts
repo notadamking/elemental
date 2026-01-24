@@ -7,10 +7,10 @@ test.describe('TB1: Hello World Full Stack', () => {
     await expect(page.getByRole('heading', { name: 'Elemental' })).toBeVisible();
   });
 
-  test('connection status shows Connected', async ({ page }) => {
+  test('connection status shows Live', async ({ page }) => {
     await page.goto('/');
-    // Wait for the health check to complete
-    await expect(page.getByText('Connected')).toBeVisible({ timeout: 10000 });
+    // Wait for the WebSocket connection to establish
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 10000 });
   });
 
   test('health endpoint is accessible via proxy', async ({ page }) => {

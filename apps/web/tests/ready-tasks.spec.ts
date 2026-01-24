@@ -55,9 +55,10 @@ test.describe('TB3: Ready Tasks List', () => {
 
     // Check that the first task's title is displayed
     const firstTask = tasks[0];
-    await expect(page.getByText(firstTask.title)).toBeVisible();
+    // Use first() to handle cases where title might match multiple elements
+    await expect(page.getByText(firstTask.title).first()).toBeVisible();
 
-    // Check that the task ID is displayed
+    // Check that the task ID is displayed (IDs are unique so no need for first())
     await expect(page.getByText(firstTask.id)).toBeVisible();
   });
 });

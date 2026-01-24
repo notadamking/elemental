@@ -10,6 +10,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createStorage, createElementalAPI, initializeSchema } from '@elemental/cli';
 import type { ElementalAPI } from '@elemental/cli';
+import type { ServerWebSocket } from 'bun';
+import { initializeBroadcaster } from './ws/broadcaster.js';
+import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
 
 // ============================================================================
 // Server Configuration
@@ -41,6 +44,15 @@ try {
 }
 
 // ============================================================================
+// Initialize Event Broadcaster
+// ============================================================================
+
+const broadcaster = initializeBroadcaster(api);
+broadcaster.start().catch((err) => {
+  console.error('[elemental] Failed to start event broadcaster:', err);
+});
+
+// ============================================================================
 // Create Hono App
 // ============================================================================
 
@@ -66,6 +78,10 @@ app.get('/api/health', (c) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     database: DB_PATH,
+    websocket: {
+      clients: getClientCount(),
+      broadcasting: broadcaster.listenerCount > 0,
+    },
   });
 });
 
@@ -98,7 +114,7 @@ app.get('/api/tasks/ready', async (c) => {
 });
 
 // ============================================================================
-// Start Server
+// Start Server with WebSocket Support
 // ============================================================================
 
 console.log(`[elemental] Starting server on http://${HOST}:${PORT}`);
@@ -106,5 +122,39 @@ console.log(`[elemental] Starting server on http://${HOST}:${PORT}`);
 export default {
   port: PORT,
   hostname: HOST,
-  fetch: app.fetch,
+  fetch(request: Request, server: { upgrade: (request: Request, options?: { data?: ClientData }) => boolean }) {
+    // Handle WebSocket upgrade at the Bun level
+    const url = new URL(request.url);
+    if (url.pathname === '/ws') {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (upgradeHeader?.toLowerCase() === 'websocket') {
+        const success = server.upgrade(request, {
+          data: {} as ClientData,
+        });
+        if (success) {
+          // Bun handles the upgrade, return undefined
+          return undefined;
+        }
+        return new Response('WebSocket upgrade failed', { status: 500 });
+      }
+      return new Response('Expected WebSocket Upgrade request', { status: 426 });
+    }
+
+    // Handle regular HTTP requests with Hono
+    return app.fetch(request);
+  },
+  websocket: {
+    open(ws: ServerWebSocket<ClientData>) {
+      handleOpen(ws);
+    },
+    message(ws: ServerWebSocket<ClientData>, message: string | Buffer) {
+      handleMessage(ws, message);
+    },
+    close(ws: ServerWebSocket<ClientData>) {
+      handleClose(ws);
+    },
+    error(ws: ServerWebSocket<ClientData>, error: Error) {
+      handleError(ws, error);
+    },
+  },
 };

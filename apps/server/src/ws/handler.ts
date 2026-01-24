@@ -1,0 +1,196 @@
+/**
+ * WebSocket Handler
+ *
+ * Handles WebSocket connections, message parsing, and subscription management.
+ */
+
+import type { ServerWebSocket } from 'bun';
+import type { WebSocketEvent, SubscriptionChannel, ServerMessage } from './types.js';
+import { parseClientMessage, getChannelForElementType } from './types.js';
+import { getBroadcaster, type EventListener } from './broadcaster.js';
+
+/**
+ * Client data stored with each WebSocket connection
+ */
+export interface ClientData {
+  id: string;
+  subscriptions: Set<SubscriptionChannel>;
+  eventListener: EventListener;
+}
+
+/**
+ * Track active WebSocket connections
+ */
+const clients = new Map<string, ServerWebSocket<ClientData>>();
+
+/**
+ * Generate a unique client ID
+ */
+function generateClientId(): string {
+  return `client-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+}
+
+/**
+ * Send a message to a specific client
+ */
+function sendToClient(ws: ServerWebSocket<ClientData>, message: ServerMessage): void {
+  try {
+    ws.send(JSON.stringify(message));
+  } catch (err) {
+    console.error('[ws] Error sending message to client:', err);
+  }
+}
+
+/**
+ * Check if a client should receive an event based on their subscriptions
+ */
+function shouldReceiveEvent(
+  subscriptions: Set<SubscriptionChannel>,
+  event: WebSocketEvent
+): boolean {
+  // Wildcard subscription receives all events
+  if (subscriptions.has('*')) {
+    return true;
+  }
+
+  // Check for element type channel
+  const channel = getChannelForElementType(event.elementType);
+  if (channel && subscriptions.has(channel)) {
+    return true;
+  }
+
+  // Check for channel-specific message subscription
+  // For messages, also check messages:${channelId} subscriptions
+  if (event.elementType === 'message' && event.newValue) {
+    const channelId = (event.newValue as Record<string, unknown>).channel as string | undefined;
+    if (channelId && subscriptions.has(`messages:${channelId}` as SubscriptionChannel)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Handle a new WebSocket connection
+ */
+export function handleOpen(ws: ServerWebSocket<ClientData>): void {
+  const clientId = generateClientId();
+  const subscriptions = new Set<SubscriptionChannel>();
+
+  // Create event listener for this client
+  const eventListener: EventListener = (event) => {
+    if (shouldReceiveEvent(subscriptions, event)) {
+      sendToClient(ws, {
+        type: 'event',
+        event,
+      });
+    }
+  };
+
+  // Store client data
+  ws.data = {
+    id: clientId,
+    subscriptions,
+    eventListener,
+  };
+
+  // Register listener with broadcaster
+  const broadcaster = getBroadcaster();
+  if (broadcaster) {
+    broadcaster.addListener(eventListener);
+  }
+
+  // Track this client
+  clients.set(clientId, ws);
+
+  console.log(`[ws] Client connected: ${clientId}`);
+}
+
+/**
+ * Handle WebSocket message from client
+ */
+export function handleMessage(ws: ServerWebSocket<ClientData>, data: string | Buffer): void {
+  const message = typeof data === 'string' ? data : data.toString();
+  const parsed = parseClientMessage(message);
+
+  if (!parsed) {
+    sendToClient(ws, {
+      type: 'error',
+      code: 'INVALID_MESSAGE',
+      message: 'Could not parse message',
+    });
+    return;
+  }
+
+  switch (parsed.type) {
+    case 'ping':
+      sendToClient(ws, { type: 'pong' });
+      break;
+
+    case 'subscribe': {
+      for (const channel of parsed.channels) {
+        ws.data.subscriptions.add(channel);
+      }
+      sendToClient(ws, {
+        type: 'subscribed',
+        channels: parsed.channels,
+      });
+      console.log(`[ws] Client ${ws.data.id} subscribed to: ${parsed.channels.join(', ')}`);
+      break;
+    }
+
+    case 'unsubscribe': {
+      for (const channel of parsed.channels) {
+        ws.data.subscriptions.delete(channel);
+      }
+      sendToClient(ws, {
+        type: 'unsubscribed',
+        channels: parsed.channels,
+      });
+      console.log(`[ws] Client ${ws.data.id} unsubscribed from: ${parsed.channels.join(', ')}`);
+      break;
+    }
+  }
+}
+
+/**
+ * Handle WebSocket connection close
+ */
+export function handleClose(ws: ServerWebSocket<ClientData>): void {
+  const { id, eventListener } = ws.data;
+
+  // Unregister listener from broadcaster
+  const broadcaster = getBroadcaster();
+  if (broadcaster) {
+    broadcaster.removeListener(eventListener);
+  }
+
+  // Remove from tracking
+  clients.delete(id);
+
+  console.log(`[ws] Client disconnected: ${id}`);
+}
+
+/**
+ * Handle WebSocket error
+ */
+export function handleError(ws: ServerWebSocket<ClientData>, error: Error): void {
+  console.error(`[ws] Client ${ws.data?.id ?? 'unknown'} error:`, error.message);
+}
+
+/**
+ * Get the number of connected clients
+ */
+export function getClientCount(): number {
+  return clients.size;
+}
+
+/**
+ * Broadcast a message to all connected clients
+ */
+export function broadcastToAll(message: ServerMessage): void {
+  for (const client of clients.values()) {
+    sendToClient(client, message);
+  }
+}

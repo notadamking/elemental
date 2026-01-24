@@ -484,7 +484,7 @@ For mutations (create, update, delete):
   - [x] Add CORS middleware
   - [x] Create `apps/web/` with Vite + React + Tailwind
   - [x] Fetch and display health status
-  - [x] **Verify:** Both servers run, UI shows "Connected" (Playwright tests passing)
+  - [x] **Verify:** Both servers run, UI shows "Live" (Playwright tests passing)
 
 - [x] **TB2: System Stats Display**
   - [x] Server: Add `GET /api/stats` endpoint
@@ -498,13 +498,13 @@ For mutations (create, update, delete):
   - [x] Web: Add `useReadyTasks()` hook
   - [x] **Verify:** List shows tasks from database (Playwright tests passing)
 
-- [ ] **TB4: Real-time Updates (WebSocket)**
-  - [ ] Server: Add WebSocket endpoint `/ws`
-  - [ ] Server: Implement subscription mechanism
-  - [ ] Server: Hook into ElementalAPI events
-  - [ ] Web: Add WebSocket connection manager
-  - [ ] Web: Invalidate queries on events
-  - [ ] **Verify:** Create task via CLI, UI updates instantly
+- [x] **TB4: Real-time Updates (WebSocket)**
+  - [x] Server: Add WebSocket endpoint `/ws`
+  - [x] Server: Implement subscription mechanism
+  - [x] Server: Hook into ElementalAPI events
+  - [x] Web: Add WebSocket connection manager
+  - [x] Web: Invalidate queries on events
+  - [x] **Verify:** Create task via CLI, UI updates instantly (Playwright tests passing)
 
 ### Phase 2: Navigation & Layout
 

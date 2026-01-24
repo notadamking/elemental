@@ -1,9 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
+import { useRealtimeEvents } from './api/hooks/useRealtimeEvents';
+import type { ConnectionState } from './api/websocket';
 
 interface HealthResponse {
   status: string;
   timestamp: string;
   database: string;
+  websocket?: {
+    clients: number;
+    broadcasting: boolean;
+  };
 }
 
 interface StatsResponse {
@@ -40,7 +46,7 @@ function useHealth() {
       if (!response.ok) throw new Error('Failed to fetch health');
       return response.json();
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000, // Less frequent since we have WebSocket
   });
 }
 
@@ -52,7 +58,7 @@ function useStats() {
       if (!response.ok) throw new Error('Failed to fetch stats');
       return response.json();
     },
-    refetchInterval: 5000,
+    // No refetchInterval - WebSocket will invalidate when needed
   });
 }
 
@@ -64,11 +70,31 @@ function useReadyTasks() {
       if (!response.ok) throw new Error('Failed to fetch ready tasks');
       return response.json();
     },
-    refetchInterval: 5000,
+    // No refetchInterval - WebSocket will invalidate when needed
   });
 }
 
-function ConnectionStatus({ health }: { health: ReturnType<typeof useHealth> }) {
+function ConnectionStatus({ wsState, health }: { wsState: ConnectionState; health: ReturnType<typeof useHealth> }) {
+  // Prioritize WebSocket state for connection indicator
+  if (wsState === 'connecting' || wsState === 'reconnecting') {
+    return (
+      <div className="flex items-center gap-2 text-yellow-600">
+        <div className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse" />
+        <span>{wsState === 'connecting' ? 'Connecting...' : 'Reconnecting...'}</span>
+      </div>
+    );
+  }
+
+  if (wsState === 'connected') {
+    return (
+      <div className="flex items-center gap-2 text-green-600">
+        <div className="w-3 h-3 rounded-full bg-green-500" />
+        <span>Live</span>
+      </div>
+    );
+  }
+
+  // WebSocket disconnected - fall back to health check
   if (health.isLoading) {
     return (
       <div className="flex items-center gap-2 text-gray-500">
@@ -88,9 +114,9 @@ function ConnectionStatus({ health }: { health: ReturnType<typeof useHealth> }) 
   }
 
   return (
-    <div className="flex items-center gap-2 text-green-600">
-      <div className="w-3 h-3 rounded-full bg-green-500" />
-      <span>Connected</span>
+    <div className="flex items-center gap-2 text-orange-500">
+      <div className="w-3 h-3 rounded-full bg-orange-400" />
+      <span>Polling</span>
     </div>
   );
 }
@@ -193,13 +219,18 @@ function App() {
   const health = useHealth();
   const stats = useStats();
 
+  // Connect to WebSocket and subscribe to all events
+  const { connectionState } = useRealtimeEvents({
+    channels: ['*'],
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Elemental</h1>
-          <ConnectionStatus health={health} />
+          <ConnectionStatus wsState={connectionState} health={health} />
         </div>
       </header>
 
@@ -273,6 +304,18 @@ function App() {
                   <dt className="text-gray-500">Last Updated</dt>
                   <dd className="text-gray-700">{new Date(health.data.timestamp).toLocaleString()}</dd>
                 </div>
+                {health.data.websocket && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-gray-500">WebSocket Clients</dt>
+                      <dd className="text-gray-700">{health.data.websocket.clients}</dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-gray-500">Broadcasting</dt>
+                      <dd className="text-gray-700">{health.data.websocket.broadcasting ? 'Yes' : 'No'}</dd>
+                    </div>
+                  </>
+                )}
               </dl>
             </div>
           </div>
