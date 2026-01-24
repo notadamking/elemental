@@ -315,10 +315,10 @@ String replacement with variable values:
 - [ ] Integrate with workflow creation
 - [ ] Add CLI commands (list, show, validate, create)
 
-### Phase 9: Testing ✅ (unit tests complete)
+### Phase 9: Testing ✅
 - [x] Unit tests for variable system (230 tests)
 - [x] Unit tests for condition evaluation
 - [x] Unit tests for substitution
 - [x] Unit tests for inheritance (42 tests covering mergeVariables, mergeSteps, validateMergedSteps, resolveInheritanceChain, resolvePlaybookInheritance, createPlaybookLoader, findByName)
-- [ ] Integration tests for full pour (requires Phase 6-8)
-- [ ] E2E tests for playbook lifecycle (requires Phase 8)
+- [x] Integration tests for full pour (workflow-queries.integration.test.ts - Full Pour Flow Integration + Playbook Inheritance Integration sections)
+- [x] E2E tests for playbook lifecycle (playbook.test.ts - Playbook Lifecycle E2E section)

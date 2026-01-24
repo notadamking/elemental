@@ -1024,4 +1024,432 @@ describe('Workflow Query Integration', () => {
       expect(progress.statusCounts.in_progress).toBe(1);
     });
   });
+
+  // ==========================================================================
+  // Playbook Inheritance Integration Tests
+  // ==========================================================================
+
+  describe('Playbook Inheritance Integration', () => {
+    /**
+     * Helper to create a test playbook (duplicated for this describe block)
+     */
+    async function createTestPlaybookWithInheritance(
+      overrides: Partial<Parameters<typeof createPlaybook>[0]> = {}
+    ): Promise<Playbook> {
+      return createPlaybook({
+        name: 'test_playbook',
+        title: 'Test Playbook',
+        createdBy: mockEntityId,
+        steps: [],
+        variables: [],
+        ...overrides,
+      });
+    }
+
+    /**
+     * Helper to persist pour result to database (duplicated for this describe block)
+     */
+    async function persistPourResultWithInheritance(
+      pourResult: Awaited<ReturnType<typeof pourWorkflow>>
+    ): Promise<void> {
+      // Create workflow
+      await api.create(toCreateInput(pourResult.workflow));
+
+      // Create tasks
+      for (const { task } of pourResult.tasks) {
+        await api.create(toCreateInput(task));
+      }
+
+      // Create parent-child dependencies
+      for (const dep of pourResult.parentChildDependencies) {
+        await api.addDependency({
+          sourceId: dep.sourceId,
+          targetId: dep.targetId,
+          type: dep.type,
+        });
+      }
+
+      // Create blocks dependencies
+      for (const dep of pourResult.blocksDependencies) {
+        await api.addDependency({
+          sourceId: dep.targetId,
+          targetId: dep.sourceId,
+          type: dep.type,
+        });
+      }
+    }
+
+    /**
+     * Create a playbook loader from an array of playbooks
+     */
+    function createTestLoader(playbooks: Playbook[]): (name: string) => Playbook | undefined {
+      return (name: string) => playbooks.find(p => p.name.toLowerCase() === name.toLowerCase());
+    }
+
+    it('should pour workflow with inherited steps from parent playbook', async () => {
+      // Create parent playbook with base steps
+      const parentPlaybook = await createTestPlaybookWithInheritance({
+        name: 'base_pipeline',
+        title: 'Base Pipeline',
+        steps: [
+          { id: 'setup', title: 'Setup Environment' },
+          { id: 'build', title: 'Build', dependsOn: ['setup'] },
+        ],
+        variables: [
+          { name: 'environment', type: VariableType.STRING, required: true },
+        ],
+      });
+
+      // Create child playbook that extends parent and adds more steps
+      // Note: dependsOn can only reference steps in the same playbook at creation time
+      // Cross-inheritance dependencies are validated during pour/resolution
+      const childPlaybook = await createTestPlaybookWithInheritance({
+        name: 'extended_pipeline',
+        title: 'Extended Pipeline for {{environment}}',
+        extends: ['base_pipeline'],
+        steps: [
+          { id: 'test', title: 'Run Tests' },
+          { id: 'deploy', title: 'Deploy to {{environment}}', dependsOn: ['test'] },
+        ],
+        variables: [
+          { name: 'region', type: VariableType.STRING, required: false, default: 'us-east-1' },
+        ],
+      });
+
+      const loader = createTestLoader([parentPlaybook, childPlaybook]);
+
+      const pourResult = await pourWorkflow({
+        playbook: childPlaybook,
+        variables: { environment: 'production' },
+        createdBy: mockEntityId,
+        playbookLoader: loader,
+      });
+
+      await persistPourResultWithInheritance(pourResult);
+
+      // Verify workflow title was substituted
+      expect(pourResult.workflow.title).toBe('Extended Pipeline for production');
+
+      // Verify all 4 steps were created (2 from parent + 2 from child)
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(4);
+      expect(tasks.map(t => t.title)).toContain('Setup Environment');
+      expect(tasks.map(t => t.title)).toContain('Build');
+      expect(tasks.map(t => t.title)).toContain('Run Tests');
+      expect(tasks.map(t => t.title)).toContain('Deploy to production');
+
+      // Verify variables from both playbooks were resolved
+      expect(pourResult.resolvedVariables.environment).toBe('production');
+      expect(pourResult.resolvedVariables.region).toBe('us-east-1');
+    });
+
+    it('should pour workflow where child overrides parent variables and steps', async () => {
+      // Parent playbook with a step and variable
+      const parentPlaybook = await createTestPlaybookWithInheritance({
+        name: 'parent_deploy',
+        title: 'Parent Deployment',
+        steps: [
+          { id: 'deploy', title: 'Deploy version {{version}}', priority: 5 },
+        ],
+        variables: [
+          { name: 'version', type: VariableType.STRING, required: false, default: '1.0.0' },
+        ],
+      });
+
+      // Child overrides the variable default and the step
+      const childPlaybook = await createTestPlaybookWithInheritance({
+        name: 'child_deploy',
+        title: 'Child Deployment',
+        extends: ['parent_deploy'],
+        steps: [
+          { id: 'deploy', title: 'Deploy version {{version}} with hotfix', priority: 1 },
+        ],
+        variables: [
+          { name: 'version', type: VariableType.STRING, required: false, default: '2.0.0' },
+        ],
+      });
+
+      const loader = createTestLoader([parentPlaybook, childPlaybook]);
+
+      const pourResult = await pourWorkflow({
+        playbook: childPlaybook,
+        variables: {},
+        createdBy: mockEntityId,
+        playbookLoader: loader,
+      });
+
+      await persistPourResultWithInheritance(pourResult);
+
+      // Should only have 1 task (child overrides parent's step with same ID)
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0].title).toBe('Deploy version 2.0.0 with hotfix');
+      expect(tasks[0].priority).toBe(1);
+
+      // Child's default should be used
+      expect(pourResult.resolvedVariables.version).toBe('2.0.0');
+    });
+
+    it('should pour workflow with deep inheritance chain (grandparent → parent → child)', async () => {
+      const grandparentPlaybook = await createTestPlaybookWithInheritance({
+        name: 'grandparent',
+        title: 'Grandparent',
+        steps: [
+          { id: 'init', title: 'Initialize' },
+        ],
+        variables: [
+          { name: 'base_var', type: VariableType.STRING, required: false, default: 'gp_value' },
+        ],
+      });
+
+      const parentPlaybook = await createTestPlaybookWithInheritance({
+        name: 'parent',
+        title: 'Parent',
+        extends: ['grandparent'],
+        steps: [
+          { id: 'middle', title: 'Middle Step' },
+        ],
+        variables: [
+          { name: 'parent_var', type: VariableType.NUMBER, required: false, default: 42 },
+        ],
+      });
+
+      const childPlaybook = await createTestPlaybookWithInheritance({
+        name: 'child',
+        title: 'Child',
+        extends: ['parent'],
+        steps: [
+          { id: 'final', title: 'Final Step' },
+        ],
+        variables: [
+          { name: 'child_var', type: VariableType.BOOLEAN, required: false, default: true },
+        ],
+      });
+
+      const loader = createTestLoader([grandparentPlaybook, parentPlaybook, childPlaybook]);
+
+      const pourResult = await pourWorkflow({
+        playbook: childPlaybook,
+        variables: {},
+        createdBy: mockEntityId,
+        playbookLoader: loader,
+      });
+
+      await persistPourResultWithInheritance(pourResult);
+
+      // Verify all 3 steps from the inheritance chain
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(3);
+      expect(tasks.map(t => t.title)).toContain('Initialize');
+      expect(tasks.map(t => t.title)).toContain('Middle Step');
+      expect(tasks.map(t => t.title)).toContain('Final Step');
+
+      // Verify all variables from inheritance chain
+      expect(pourResult.resolvedVariables.base_var).toBe('gp_value');
+      expect(pourResult.resolvedVariables.parent_var).toBe(42);
+      expect(pourResult.resolvedVariables.child_var).toBe(true);
+
+      // Update workflow to COMPLETED so tasks aren't blocked by parent-child
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      // All 3 tasks should be ready since there are no inter-step dependencies
+      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      expect(readyTasks).toHaveLength(3);
+    });
+
+    it('should pour workflow with diamond inheritance pattern', async () => {
+      // Diamond: base → [mixin1, mixin2] → child
+      const basePlaybook = await createTestPlaybookWithInheritance({
+        name: 'base',
+        title: 'Base',
+        steps: [
+          { id: 'base_step', title: 'Base Step' },
+        ],
+        variables: [
+          { name: 'shared', type: VariableType.STRING, required: false, default: 'base' },
+        ],
+      });
+
+      const mixin1Playbook = await createTestPlaybookWithInheritance({
+        name: 'mixin1',
+        title: 'Mixin 1',
+        extends: ['base'],
+        steps: [
+          { id: 'mixin1_step', title: 'Mixin 1 Step' },
+        ],
+        variables: [
+          { name: 'shared', type: VariableType.STRING, required: false, default: 'mixin1' },
+        ],
+      });
+
+      const mixin2Playbook = await createTestPlaybookWithInheritance({
+        name: 'mixin2',
+        title: 'Mixin 2',
+        extends: ['base'],
+        steps: [
+          { id: 'mixin2_step', title: 'Mixin 2 Step' },
+        ],
+        variables: [
+          { name: 'shared', type: VariableType.STRING, required: false, default: 'mixin2' },
+        ],
+      });
+
+      const childPlaybook = await createTestPlaybookWithInheritance({
+        name: 'diamond_child',
+        title: 'Diamond Child',
+        extends: ['mixin1', 'mixin2'],
+        steps: [
+          { id: 'child_step', title: 'Child Step' },
+        ],
+      });
+
+      const loader = createTestLoader([basePlaybook, mixin1Playbook, mixin2Playbook, childPlaybook]);
+
+      const pourResult = await pourWorkflow({
+        playbook: childPlaybook,
+        variables: {},
+        createdBy: mockEntityId,
+        playbookLoader: loader,
+      });
+
+      await persistPourResultWithInheritance(pourResult);
+
+      // Verify all 4 steps (base once + mixin1 + mixin2 + child)
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(4);
+      expect(tasks.map(t => t.title)).toContain('Base Step');
+      expect(tasks.map(t => t.title)).toContain('Mixin 1 Step');
+      expect(tasks.map(t => t.title)).toContain('Mixin 2 Step');
+      expect(tasks.map(t => t.title)).toContain('Child Step');
+
+      // mixin2 comes after mixin1, so its override should win
+      expect(pourResult.resolvedVariables.shared).toBe('mixin2');
+    });
+
+    it('should pour workflow with inherited conditions that filter steps', async () => {
+      const parentPlaybook = await createTestPlaybookWithInheritance({
+        name: 'conditional_parent',
+        title: 'Conditional Parent',
+        steps: [
+          { id: 'always', title: 'Always Run' },
+          { id: 'optional', title: 'Optional Step', condition: '{{includeOptional}}' },
+        ],
+        variables: [
+          { name: 'includeOptional', type: VariableType.BOOLEAN, required: false, default: false },
+        ],
+      });
+
+      const childPlaybook = await createTestPlaybookWithInheritance({
+        name: 'conditional_child',
+        title: 'Conditional Child',
+        extends: ['conditional_parent'],
+        steps: [
+          { id: 'child_step', title: 'Child Step' },
+        ],
+      });
+
+      const loader = createTestLoader([parentPlaybook, childPlaybook]);
+
+      // Pour with includeOptional = false (default)
+      const pourResult = await pourWorkflow({
+        playbook: childPlaybook,
+        variables: {},
+        createdBy: mockEntityId,
+        playbookLoader: loader,
+      });
+
+      await persistPourResultWithInheritance(pourResult);
+
+      // Should have 2 tasks (always + child_step), optional should be skipped
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(2);
+      expect(tasks.map(t => t.title)).toContain('Always Run');
+      expect(tasks.map(t => t.title)).toContain('Child Step');
+      expect(tasks.map(t => t.title)).not.toContain('Optional Step');
+
+      expect(pourResult.skippedSteps).toContain('optional');
+    });
+
+    it('should pour workflow with steps from both parent and child', async () => {
+      // Test simpler case: parent and child each have their own steps
+      const parentPlaybook = await createTestPlaybookWithInheritance({
+        name: 'dep_parent',
+        title: 'Dependency Parent',
+        steps: [
+          { id: 'parent_step', title: 'Parent Step' },
+        ],
+      });
+
+      const childPlaybook = await createTestPlaybookWithInheritance({
+        name: 'dep_child',
+        title: 'Dependency Child',
+        extends: ['dep_parent'],
+        steps: [
+          { id: 'child_step', title: 'Child Step' },
+        ],
+      });
+
+      const loader = createTestLoader([parentPlaybook, childPlaybook]);
+
+      const pourResult = await pourWorkflow({
+        playbook: childPlaybook,
+        variables: {},
+        createdBy: mockEntityId,
+        playbookLoader: loader,
+      });
+
+      await persistPourResultWithInheritance(pourResult);
+
+      // Verify both steps were created
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(2);
+      expect(tasks.map(t => t.title)).toContain('Parent Step');
+      expect(tasks.map(t => t.title)).toContain('Child Step');
+
+      // Update workflow to COMPLETED so tasks aren't blocked by parent-child
+      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+
+      // Both steps should be ready (no inter-step dependencies)
+      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      expect(readyTasks).toHaveLength(2);
+    });
+
+    it('should pour workflow with inherited assignee variable substitution', async () => {
+      const parentPlaybook = await createTestPlaybookWithInheritance({
+        name: 'assignee_parent',
+        title: 'Assignee Parent',
+        steps: [
+          { id: 'task', title: 'Assigned Task', assignee: '{{defaultAssignee}}' },
+        ],
+        variables: [
+          { name: 'defaultAssignee', type: VariableType.STRING, required: false, default: 'user:default' },
+        ],
+      });
+
+      const childPlaybook = await createTestPlaybookWithInheritance({
+        name: 'assignee_child',
+        title: 'Assignee Child',
+        extends: ['assignee_parent'],
+        variables: [
+          // Override the default assignee
+          { name: 'defaultAssignee', type: VariableType.STRING, required: false, default: 'user:team-lead' },
+        ],
+      });
+
+      const loader = createTestLoader([parentPlaybook, childPlaybook]);
+
+      const pourResult = await pourWorkflow({
+        playbook: childPlaybook,
+        variables: {},
+        createdBy: mockEntityId,
+        playbookLoader: loader,
+      });
+
+      await persistPourResultWithInheritance(pourResult);
+
+      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0].assignee).toBe('user:team-lead');
+    });
+  });
 });

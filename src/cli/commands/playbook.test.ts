@@ -530,3 +530,308 @@ describe('playbook create command', () => {
     expect(playbook.variables[1].default).toBe(false);
   });
 });
+
+// ============================================================================
+// Playbook Lifecycle E2E Tests
+// ============================================================================
+
+describe('playbook lifecycle E2E', () => {
+  test('complete lifecycle: create → list → show → validate', async () => {
+    // 1. Create a playbook
+    const createResult = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'e2e_deploy',
+        title: 'E2E Deployment',
+        step: ['build:Build app', 'test:Run tests:build', 'deploy:Deploy app:test'],
+        variable: ['env:string', 'version:string:1.0.0:false'],
+      })
+    );
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const createdPlaybook = createResult.data as { id: string; name: string };
+    expect(createdPlaybook.name).toBe('e2e_deploy');
+
+    // 2. List playbooks and verify ours appears
+    const listResult = await playbookCommand.subcommands!.list.handler(
+      [],
+      createTestOptions()
+    );
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const playbooks = listResult.data as { name: string }[];
+    expect(playbooks.map(p => p.name)).toContain('e2e_deploy');
+
+    // 3. Show the playbook by name
+    const showResult = await playbookCommand.subcommands!.show.handler(
+      ['e2e_deploy'],
+      createTestOptions()
+    );
+    expect(showResult.exitCode).toBe(ExitCode.SUCCESS);
+    const shownPlaybook = showResult.data as {
+      name: string;
+      steps: { id: string }[];
+      variables: { name: string }[];
+    };
+    expect(shownPlaybook.name).toBe('e2e_deploy');
+    expect(shownPlaybook.steps).toHaveLength(3);
+    expect(shownPlaybook.variables).toHaveLength(2);
+
+    // 4. Validate the playbook structure
+    const validateStructureResult = await playbookCommand.subcommands!.validate.handler(
+      ['e2e_deploy'],
+      createTestOptions()
+    );
+    expect(validateStructureResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validateStructureResult.data as { valid: boolean }).valid).toBe(true);
+
+    // 5. Validate pour-time (without required variable - should fail)
+    const validatePourFailResult = await playbookCommand.subcommands!.validate.handler(
+      ['e2e_deploy'],
+      createTestOptions({ pour: true })
+    );
+    expect(validatePourFailResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validatePourFailResult.data as { valid: boolean }).valid).toBe(false);
+
+    // 6. Validate pour-time (with required variable - should pass)
+    const validatePourSuccessResult = await playbookCommand.subcommands!.validate.handler(
+      ['e2e_deploy'],
+      createTestOptions({ var: 'env=production' })
+    );
+    expect(validatePourSuccessResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validatePourSuccessResult.data as { valid: boolean }).valid).toBe(true);
+
+    // Verify pour validation shows correct resolved values
+    const pourValidation = (validatePourSuccessResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    expect(pourValidation.resolvedVariables).toEqual({
+      env: 'production',
+      version: '1.0.0',
+    });
+    expect((pourValidation.includedSteps as string[])).toHaveLength(3);
+  });
+
+  test('playbook inheritance lifecycle: create parent → create child → validate child', async () => {
+    // 1. Create parent playbook with base steps and variables
+    const parentResult = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'base_deploy',
+        title: 'Base Deployment',
+        step: ['init:Initialize', 'build:Build application'],
+        variable: ['environment:string'],
+      })
+    );
+    expect(parentResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 2. Create child playbook that extends parent (using API since CLI doesn't support extends yet)
+    // Note: Child steps should only use their own variables, not parent's,
+    // because structure validation doesn't resolve inheritance (known limitation)
+    const { api } = createTestAPI();
+    const childPlaybook = await createPlaybook({
+      name: 'extended_deploy',
+      title: 'Extended Deployment',
+      createdBy: 'test-user' as EntityId,
+      extends: ['base_deploy'],
+      steps: [
+        { id: 'test', title: 'Run tests in {{region}}' },
+        { id: 'deploy', title: 'Deploy application' },
+      ],
+      variables: [
+        { name: 'region', type: VariableType.STRING, required: false, default: 'us-west-2' },
+      ],
+    });
+    await api.create(childPlaybook as unknown as Element & Record<string, unknown>);
+
+    // 3. Show child playbook
+    const showResult = await playbookCommand.subcommands!.show.handler(
+      ['extended_deploy'],
+      createTestOptions()
+    );
+    expect(showResult.exitCode).toBe(ExitCode.SUCCESS);
+    const shownChild = showResult.data as { extends?: string[] };
+    expect(shownChild.extends).toEqual(['base_deploy']);
+
+    // 4. Validate child with parent variables (env is required from parent)
+    const validateResult = await playbookCommand.subcommands!.validate.handler(
+      ['extended_deploy'],
+      createTestOptions({ pour: true })
+    );
+    expect(validateResult.exitCode).toBe(ExitCode.SUCCESS);
+    // Should fail because 'environment' is required from parent but not provided
+    expect((validateResult.data as { valid: boolean }).valid).toBe(false);
+
+    // 5. Validate with required variable from parent
+    const validateWithVarResult = await playbookCommand.subcommands!.validate.handler(
+      ['extended_deploy'],
+      createTestOptions({ var: 'environment=staging' })
+    );
+    expect(validateWithVarResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validateWithVarResult.data as { valid: boolean }).valid).toBe(true);
+
+    // 6. Verify inheritance resolution in validation
+    const pourValidation = (validateWithVarResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    expect(pourValidation.resolvedVariables).toEqual({
+      environment: 'staging',
+      region: 'us-west-2',
+    });
+    // Should show 4 steps: 2 from parent + 2 from child
+    expect((pourValidation.includedSteps as string[])).toHaveLength(4);
+  });
+
+  test('conditional steps lifecycle: create → validate with conditions', async () => {
+    // Create playbook with conditional steps
+    await createTestPlaybookInDb({
+      name: 'conditional_pipeline',
+      title: 'Conditional Pipeline',
+      steps: [
+        { id: 'build', title: 'Build' },
+        { id: 'unit_tests', title: 'Run Unit Tests' },
+        { id: 'integration_tests', title: 'Run Integration Tests', condition: '{{runIntegration}}' },
+        { id: 'deploy', title: 'Deploy' },
+      ],
+      variables: [
+        { name: 'runIntegration', type: VariableType.BOOLEAN, required: false, default: false },
+      ],
+    });
+
+    // Validate with default (runIntegration=false) - integration tests should be skipped
+    const validateDefaultResult = await playbookCommand.subcommands!.validate.handler(
+      ['conditional_pipeline'],
+      createTestOptions({ pour: true })
+    );
+    expect(validateDefaultResult.exitCode).toBe(ExitCode.SUCCESS);
+    const pourValidation1 = (validateDefaultResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    expect((pourValidation1.skippedSteps as string[])).toContain('integration_tests');
+    expect((pourValidation1.includedSteps as string[])).toHaveLength(3);
+
+    // Validate with runIntegration=true - all steps should be included
+    const validateWithIntegrationResult = await playbookCommand.subcommands!.validate.handler(
+      ['conditional_pipeline'],
+      createTestOptions({ var: 'runIntegration=true' })
+    );
+    expect(validateWithIntegrationResult.exitCode).toBe(ExitCode.SUCCESS);
+    const pourValidation2 = (validateWithIntegrationResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    expect((pourValidation2.skippedSteps as string[])).toHaveLength(0);
+    expect((pourValidation2.includedSteps as string[])).toHaveLength(4);
+  });
+
+  test('multiple variables and complex validation lifecycle', async () => {
+    // Create playbook with multiple variable types
+    await createTestPlaybookInDb({
+      name: 'multi_var_playbook',
+      title: 'Deploy {{service}} v{{version}} to {{environment}}',
+      steps: [
+        { id: 'checkout', title: 'Checkout {{service}}' },
+        { id: 'build', title: 'Build version {{version}}' },
+        { id: 'deploy', title: 'Deploy to {{environment}} (replicas: {{replicas}})' },
+      ],
+      variables: [
+        { name: 'service', type: VariableType.STRING, required: true },
+        { name: 'version', type: VariableType.STRING, required: false, default: '1.0.0' },
+        { name: 'environment', type: VariableType.STRING, required: true, enum: ['dev', 'staging', 'production'] },
+        { name: 'replicas', type: VariableType.NUMBER, required: false, default: 3 },
+      ],
+    });
+
+    // Validate with invalid enum value
+    const validateBadEnumResult = await playbookCommand.subcommands!.validate.handler(
+      ['multi_var_playbook'],
+      createTestOptions({ var: ['service=api', 'environment=invalid'] })
+    );
+    expect(validateBadEnumResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validateBadEnumResult.data as { valid: boolean }).valid).toBe(false);
+
+    // Validate with valid values
+    const validateGoodResult = await playbookCommand.subcommands!.validate.handler(
+      ['multi_var_playbook'],
+      createTestOptions({ var: ['service=api', 'environment=production'] })
+    );
+    expect(validateGoodResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validateGoodResult.data as { valid: boolean }).valid).toBe(true);
+    const pourValidation = (validateGoodResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    expect(pourValidation.resolvedVariables).toEqual({
+      service: 'api',
+      version: '1.0.0',
+      environment: 'production',
+      replicas: 3,
+    });
+  });
+
+  test('multiple playbooks in list with different states', async () => {
+    // Create multiple playbooks with different configurations
+    await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'simple_playbook',
+        title: 'Simple Playbook',
+      })
+    );
+
+    await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'complex_playbook',
+        title: 'Complex Playbook',
+        step: ['step1:Step 1', 'step2:Step 2:step1', 'step3:Step 3:step2'],
+        variable: ['env:string', 'debug:boolean:false:false'],
+      })
+    );
+
+    // List all playbooks
+    const listResult = await playbookCommand.subcommands!.list.handler(
+      [],
+      createTestOptions()
+    );
+    expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
+    const playbooks = listResult.data as { name: string }[];
+    expect(playbooks.length).toBeGreaterThanOrEqual(2);
+    expect(playbooks.map(p => p.name)).toContain('simple_playbook');
+    expect(playbooks.map(p => p.name)).toContain('complex_playbook');
+
+    // Show each and verify structure
+    const simpleResult = await playbookCommand.subcommands!.show.handler(
+      ['simple_playbook'],
+      createTestOptions()
+    );
+    expect((simpleResult.data as { steps: unknown[] }).steps).toHaveLength(0);
+
+    const complexResult = await playbookCommand.subcommands!.show.handler(
+      ['complex_playbook'],
+      createTestOptions()
+    );
+    expect((complexResult.data as { steps: unknown[] }).steps).toHaveLength(3);
+    expect((complexResult.data as { variables: unknown[] }).variables).toHaveLength(2);
+  });
+
+  test('playbook with step dependencies validation', async () => {
+    // Create playbook with step dependency chain
+    await createTestPlaybookInDb({
+      name: 'dependency_chain',
+      title: 'Dependency Chain Test',
+      steps: [
+        { id: 'checkout', title: 'Checkout code' },
+        { id: 'install', title: 'Install dependencies', dependsOn: ['checkout'] },
+        { id: 'build', title: 'Build', dependsOn: ['install'] },
+        { id: 'test', title: 'Test', dependsOn: ['build'] },
+        { id: 'deploy', title: 'Deploy', dependsOn: ['test'] },
+      ],
+    });
+
+    // Validate structure
+    const validateResult = await playbookCommand.subcommands!.validate.handler(
+      ['dependency_chain'],
+      createTestOptions()
+    );
+    expect(validateResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validateResult.data as { valid: boolean }).valid).toBe(true);
+
+    // Validate pour (no variables needed)
+    const pourValidateResult = await playbookCommand.subcommands!.validate.handler(
+      ['dependency_chain'],
+      createTestOptions({ pour: true })
+    );
+    expect(pourValidateResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((pourValidateResult.data as { valid: boolean }).valid).toBe(true);
+    const pourValidation = (pourValidateResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    expect((pourValidation.includedSteps as string[])).toHaveLength(5);
+    expect((pourValidation.skippedSteps as string[])).toHaveLength(0);
+  });
+});
