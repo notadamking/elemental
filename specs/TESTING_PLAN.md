@@ -5152,6 +5152,94 @@ the same data in two formats. Consider either:
 
 ---
 
+### Scenario: Alias Command Behavior and Discoverability
+
+**Purpose:** Evaluate the `el alias` command behavior, alias functionality across the CLI, and discoverability for agent workflows
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Silent failures, scope limitations)
+
+**Checkpoints:**
+
+**Basic Alias Display:**
+- [x] `el alias` shows all built-in aliases in table format
+- [x] `el alias --json` returns JSON map of aliases
+- [x] `el alias --quiet` returns key=value format, one per line
+- [x] `el alias --verbose` shows formatted table with headers
+
+**Top-Level Alias Functionality:**
+- [x] `el add task` works (alias for `el create task`)
+- [x] `el new task` works (alias for `el create task`)
+- [x] `el ls` works (alias for `el list`)
+- [x] `el s <id>` works (alias for `el show`)
+- [x] `el get <id>` works (alias for `el show`)
+- [x] `el todo` works (alias for `el ready`)
+- [x] `el tasks` works (alias for `el ready`)
+- [x] `el done <id>` works (alias for `el close`)
+- [x] `el complete <id>` works (alias for `el close`)
+- [x] `el rm <id>` works (alias for `el delete`)
+- [x] `el remove <id>` works (alias for `el delete`)
+- [x] `el st` works (alias for `el status`)
+
+**Subcommand Alias Behavior:**
+- [ ] **FAIL**: `el doc add` does not work (alias not applied)
+  - **DOC el-5j0s:** Returns "Unknown option" error instead of creating document
+- [ ] **FAIL**: `el doc new` does not work
+- [ ] **FAIL**: `el plan new` does not work
+- [ ] **FAIL**: `el plan add` does not work
+- [ ] **INFO**: Aliases are top-level only by design
+
+**Custom Alias Creation:**
+- [ ] **FAIL**: `el alias set foo bar` silently succeeds but creates nothing
+  - **UX el-3yth:** Returns success with alias list but no alias created
+- [ ] **INFO**: No CLI support for user-defined aliases
+
+**Discoverability:**
+- [ ] **FAIL**: `el --help` does not list the `alias` command
+  - **UX el-53ot:** (pre-existing) Alias command undiscoverable from main help
+- [ ] **FAIL**: `el alias --help` does not mention top-level scope limitation
+  - **DOC el-5j0s:** Should document that aliases are top-level only
+
+**Error Handling:**
+- [x] Using alias with missing type shows correct usage message
+  - `el add` returns "Usage: el create <type> [options]"
+- [x] Using alias with invalid subcommand returns clear error
+- [x] Exit codes match aliased command exit codes
+
+**Success Criteria:** Aliases work correctly and are discoverable
+- **Partial:** Top-level aliases work correctly; subcommand aliases don't work; discoverability poor
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-3yth | UX: el alias set silently ignores arguments | 4 | ux |
+| el-5j0s | DOC: Aliases only work at top-level, not for subcommands | 4 | documentation |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-53ot | (pre-existing) el alias command not listed in main help | 3 | ux |
+
+**Dependencies:**
+- el-3yth → el-53ot (relates-to: both alias command issues)
+- el-5j0s → el-53ot (relates-to: both alias discoverability issues)
+
+**Notes:**
+This evaluation tested alias command behavior critical for agent usability:
+1. All built-in top-level aliases work correctly
+2. Subcommand aliases do NOT work (el doc add, el plan new, etc.)
+3. Custom alias creation silently fails - `el alias set` is misleading
+4. Alias command not discoverable from main help
+5. No documentation that aliases are limited to top-level commands
+
+Agents should use full command names for subcommands (el doc create, not el doc add).
+The alias system is purely cosmetic convenience for top-level commands.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
