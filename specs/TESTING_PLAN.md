@@ -2755,6 +2755,86 @@ to ensure proper field handling.
 
 ---
 
+### Scenario: Ready Work Computation with Complex Filter Combinations
+
+**Purpose:** Comprehensive validation of the ready work computation mechanism - critical for agent orchestration as agents need to accurately find available work
+
+**Prerequisites:** Initialized workspace with registered entities and teams
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Missing --tag filter, taskType validation gap)
+
+**Checkpoints:**
+
+**Basic Ready List Behavior:**
+- [x] All unblocked, open/in_progress tasks appear in ready list
+- [x] Ready list sorted by effectivePriority (lowest number first)
+- [x] Ready list includes effectivePriority and priorityInfluenced fields
+- [x] Closed tasks excluded from ready list
+- [x] Deferred tasks excluded from ready list
+- [x] Blocked tasks excluded from ready list
+- [x] Tasks with future scheduledFor excluded (even if status is open)
+- [x] Tasks with past scheduledFor included in ready list
+- [x] in_progress tasks correctly appear in ready list
+
+**Filter Combinations:**
+- [x] Filter by priority: `el ready --priority 1` returns only P1 tasks
+- [x] Filter by assignee (ID): `el ready --assignee <entity-id>` works correctly
+- [x] Team-assigned tasks visible to team members: `el ready --assignee <member-id>` includes team tasks
+- [x] Combined filters: `el ready --assignee <id> --priority 1` works correctly
+- [x] Filter by taskType: `el ready --type bug` works when tasks have taskType set
+- [x] Limit results: `el ready --limit 3` returns correct number
+- [ ] **FAIL**: Filter by tag: `el ready --tag bug`
+  - **ENHANCEMENT el-8idf:** Option doesn't exist ("Unknown option: --tag")
+- [ ] **FAIL**: Filter by assignee name: `el ready --assignee alpha-agent`
+  - **BUG el-574h:** Returns empty (pre-existing - no name resolution)
+- [ ] **FAIL**: Filter for unassigned tasks: `el ready --assignee ""`
+  - **BUG el-34n6:** Returns all tasks instead of unassigned (pre-existing)
+
+**Validation Behavior:**
+- [x] Invalid priority rejected: `--priority 6` returns error with exit code 4
+- [x] Limit 0 rejected: returns "Limit must be a positive number" with exit code 4
+- [x] Negative limit rejected: parsed as missing value
+- [x] Non-existent assignee: returns empty results (no error)
+- [ ] **FAIL**: Invalid taskType accepted silently: `--type invalid`
+  - **BUG el-1jvk:** Returns empty array with success:true instead of validation error
+
+**Priority Inheritance:**
+- [x] P5 task blocking P1 task gets effectivePriority=1
+- [x] priorityInfluenced=true when effective differs from base
+- [x] Ready list sorting respects effectivePriority
+- [x] Closing blocker recalculates dependent's effectivePriority
+
+**Output Formats:**
+- [x] JSON output: `{success: true, data: [...]}`
+- [x] Quiet mode: outputs IDs only, one per line
+- [x] Human-readable: formatted table with alignment
+
+**Success Criteria:** Ready work computation is accurate and filters work correctly
+- **Partial:** Core behavior is correct, but missing --tag filter and taskType validation gap
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-8idf | ENHANCEMENT: `el ready` needs --tag filter | 4 | enhancement |
+| el-1jvk | BUG: `el ready --type` accepts invalid taskType silently | 4 | bug |
+
+**Dependencies:**
+- el-8idf → el-59p3 (blocks: parser bug affects multiple --tag flags)
+- el-8idf → el-3scb (relates-to: same --tag filter pattern)
+- el-8idf → el-1gg5 (relates-to: same --tag filter pattern)
+- el-1jvk → el-jqhh (relates-to: validation pattern)
+- el-1jvk → el-1t4x (relates-to: config validation pattern)
+
+**Notes:**
+The ready work computation mechanism is fundamentally sound. Priority inheritance works correctly
+through dependency chains. Team assignment correctly propagates to team member queries. Key gaps:
+1. No --tag filter (agents must use jq to filter by tag)
+2. Invalid taskType values silently return empty results (potential source of confusion)
+3. Pre-existing issues with assignee name resolution and unassigned filtering apply here too
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
