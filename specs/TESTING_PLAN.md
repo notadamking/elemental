@@ -1242,6 +1242,72 @@ client-side filtering, `el entity show` doesn't filter correctly, and team membe
 doesn't check that IDs are valid entities. The el-59p3 parser bug also affects `--member`
 flag for team creation.
 
+### Library and Document Organization Exploration
+
+**Goal:** Evaluate library management for knowledge organization scenarios
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical cycle bug, missing features)
+
+**Exploration prompts:**
+- Can you create and manage libraries?
+- Can you add documents to libraries?
+- Can you nest libraries hierarchically?
+- Are library validations enforced (cycles, type checks)?
+- Can you filter and search libraries?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Library creation | PASS | `el library create --name "Name"` works correctly |
+| Library list | PASS | Returns all libraries with correct structure |
+| Library roots | PASS | Returns only non-nested libraries |
+| Library stats | PASS | Shows documentCount and subLibraryCount |
+| Add document to library | PASS | `el library add <lib-id> <doc-id>` works |
+| Remove document from library | PASS | `el library remove <lib-id> <doc-id>` works |
+| Document in multiple libraries | PASS | Same doc can be in multiple libraries |
+| Library nesting | PASS | `el library nest <child> <parent>` works |
+| **Library nesting cycles** | **FAIL** | Allows cycles - all libraries become non-roots (el-u6qd) |
+| Library delete with contents | PASS | Requires --force - good UX |
+| Add non-document to library | PASS | Rejected with clear error |
+| Add non-existent document | PASS | Rejected with NOT_FOUND error |
+| Duplicate document add | PASS | Rejected with "already exists" error |
+| **Library list --name filter** | **FAIL** | No --name filter exists (el-1gg5) |
+| **Library list --tag filter** | **FAIL** | No --tag filter exists (el-1gg5) |
+| **`el library show`** | **FAIL** | Subcommand doesn't exist (el-oyfc) |
+| **`el update --name` for library** | **FAIL** | --name option not supported (el-dkya) |
+| **`el library unnest`** | **FAIL** | No command to remove nesting (el-5m3u) |
+| **`el library children`** | **FAIL** | No command to list nested libraries (el-5ps3) |
+| Update library tags | PASS | `el update <lib-id> --add-tag <tag>` works |
+| `el show <library-id>` | PASS | Works via generic show command |
+| **Multiple --tag flags** | **FAIL** | Only last tag kept (el-59p3 pre-existing) |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-u6qd | CRITICAL: Library nesting allows cycles (same root cause as el-5w9d) | 2 | bug |
+| el-1gg5 | Library list lacks --name and --tag filters | 4 | enhancement |
+| el-oyfc | `el library show` doesn't exist (inconsistent with plan/doc/workflow) | 4 | ux |
+| el-dkya | `el update` doesn't support --name for libraries | 4 | enhancement |
+| el-5m3u | No `el library unnest` command to remove nesting | 3 | enhancement |
+| el-5ps3 | No `el library children` command to list nested libraries | 5 | enhancement |
+
+**Dependencies:**
+- el-u6qd → el-5w9d (relates-to: same cycle detection root cause)
+- el-1gg5 → el-59p3 (blocks: parser bug affects --tag filtering)
+- el-1gg5 → el-36fq (relates-to: similar --name filter enhancement)
+- el-5m3u → el-u6qd (relates-to: unnest needed to fix cycle-corrupted state)
+- el-oyfc → el-4a62 (relates-to: library command discoverability)
+
+**Summary:**
+Core library operations (create, add docs, remove docs, nest, delete) work correctly.
+Type validation is enforced - only documents can be added. Duplicate protection works.
+Critical bug: cycle detection not enforced on nesting, causing all libraries to become
+non-roots with no recovery path. Missing convenience features: filtering, unnesting,
+show subcommand, and listing nested children. The el-59p3 parser bug also affects
+multiple --tag flags during library creation.
+
 ---
 
 ## 5. CLI UX Evaluation Checklist

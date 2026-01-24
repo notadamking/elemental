@@ -117,7 +117,7 @@ A Document can belong to multiple Libraries:
 
 1. Verify both libraries exist
 2. Create `parent-child` dependency from child to parent
-3. Check for cycles
+3. Check for cycles **(BUG el-u6qd: not enforced in CLI/API)**
 4. Emit event
 
 ### Delete Library
@@ -229,7 +229,7 @@ Multiple `parent-child` dependencies:
 
 ### Phase 4: Hierarchy
 - [x] Implement library nesting (via parent-child dependency - CLI library nest)
-- [x] Implement cycle detection (leverage existing dependency cycle detection)
+- [ ] Implement cycle detection (leverage existing dependency cycle detection) - **BUG el-u6qd: not integrated**
 - [x] Implement descendant queries (getDescendantIds function)
 - [x] Implement ancestor queries (getAncestorIds, buildAncestry functions)
 
@@ -249,6 +249,11 @@ Multiple `parent-child` dependencies:
 - [x] library roots (list root libraries)
 - [x] library stats (show library statistics)
 - [x] library delete (delete library with orphan handling)
+- [ ] library show (el-oyfc: use `el show <id>` as workaround)
+- [ ] library unnest (el-5m3u: no way to remove nesting via CLI)
+- [ ] library children (el-5ps3: no way to list nested libraries via CLI)
+- [ ] library list --name filter (el-1gg5)
+- [ ] library list --tag filter (el-1gg5)
 
 ### Phase 7: Testing
 - [x] Unit tests for type definitions (94 tests)
