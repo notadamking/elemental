@@ -257,5 +257,5 @@ Multiple `parent-child` dependencies:
 - [x] Unit tests for utility functions
 - [x] Unit tests for hierarchy functions (26 new tests)
 - [x] Integration tests for document association (existing)
-- [ ] Integration tests for multi-membership
-- [ ] E2E tests for library organization
+- [x] Integration tests for multi-membership (13 tests)
+- [x] E2E tests for library organization (36 tests)
