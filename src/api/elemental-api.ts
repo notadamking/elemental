@@ -3147,6 +3147,127 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   /**
+   * Get tasks in a workflow ordered by execution order (topological sort).
+   *
+   * Tasks are ordered such that blockers come before the tasks they block.
+   * This represents the order in which tasks should be executed.
+   *
+   * @param workflowId - The workflow ID
+   * @param filter - Optional filter to apply to tasks
+   * @returns Tasks in execution order (topological sort based on blocks dependencies)
+   */
+  async getOrderedTasksInWorkflow(workflowId: ElementId, filter?: TaskFilter): Promise<Task[]> {
+    // Get all tasks in the workflow
+    const tasks = await this.getTasksInWorkflow(workflowId, filter);
+
+    if (tasks.length === 0) {
+      return [];
+    }
+
+    // Build task lookup
+    const taskById = new Map<string, Task>();
+    for (const task of tasks) {
+      taskById.set(task.id, task);
+    }
+
+    // Get blocks dependencies between tasks in this workflow
+    const taskIds = tasks.map((t) => t.id);
+    const taskIdSet = new Set(taskIds);
+
+    // Query blocks dependencies where both source and target are in this workflow
+    const placeholders = taskIds.map(() => '?').join(', ');
+    const deps = this.backend.query<{ source_id: string; target_id: string }>(
+      `SELECT source_id, target_id FROM dependencies
+       WHERE type = 'blocks'
+       AND source_id IN (${placeholders})
+       AND target_id IN (${placeholders})`,
+      [...taskIds, ...taskIds]
+    );
+
+    // Build adjacency list: blockedBy[taskId] = list of tasks that block it
+    const blockedBy = new Map<string, string[]>();
+    for (const task of tasks) {
+      blockedBy.set(task.id, []);
+    }
+
+    for (const dep of deps) {
+      // In blocks dependency: sourceId = blocked task, targetId = blocker
+      // So source is blocked by target
+      if (taskIdSet.has(dep.source_id as ElementId) && taskIdSet.has(dep.target_id as ElementId)) {
+        const current = blockedBy.get(dep.source_id) ?? [];
+        current.push(dep.target_id);
+        blockedBy.set(dep.source_id, current);
+      }
+    }
+
+    // Kahn's algorithm for topological sort
+    const inDegree = new Map<string, number>();
+    for (const task of tasks) {
+      inDegree.set(task.id, (blockedBy.get(task.id) ?? []).length);
+    }
+
+    // Start with tasks that have no blockers
+    const queue: string[] = [];
+    for (const task of tasks) {
+      if (inDegree.get(task.id) === 0) {
+        queue.push(task.id);
+      }
+    }
+
+    // Sort queue by priority for consistent ordering of tasks at same level
+    queue.sort((a, b) => {
+      const taskA = taskById.get(a)!;
+      const taskB = taskById.get(b)!;
+      return taskA.priority - taskB.priority;
+    });
+
+    const result: Task[] = [];
+    const processed = new Set<string>();
+
+    while (queue.length > 0) {
+      const taskId = queue.shift()!;
+      if (processed.has(taskId)) {
+        continue;
+      }
+      processed.add(taskId);
+
+      const task = taskById.get(taskId);
+      if (task) {
+        result.push(task);
+      }
+
+      // Find tasks that were blocked by this one (this task is target_id = blocker)
+      // and reduce their in-degree
+      for (const dep of deps) {
+        // dep.source_id = blocked task, dep.target_id = blocker
+        // If this task is the blocker (target_id), the blocked task (source_id) can progress
+        if (dep.target_id === taskId && !processed.has(dep.source_id)) {
+          const newDegree = (inDegree.get(dep.source_id) ?? 1) - 1;
+          inDegree.set(dep.source_id, newDegree);
+          if (newDegree === 0) {
+            queue.push(dep.source_id);
+            // Re-sort queue by priority
+            queue.sort((a, b) => {
+              const taskA = taskById.get(a)!;
+              const taskB = taskById.get(b)!;
+              return taskA.priority - taskB.priority;
+            });
+          }
+        }
+      }
+    }
+
+    // If there are remaining tasks (cycle detected or isolated), append them by priority
+    for (const task of tasks) {
+      if (!processed.has(task.id)) {
+        result.push(task);
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Get all dependencies from storage
    */
   private async getAllDependencies(): Promise<Dependency[]> {

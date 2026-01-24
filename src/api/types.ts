@@ -1237,6 +1237,18 @@ export interface ElementalAPI {
    */
   getWorkflowProgress(workflowId: ElementId): Promise<WorkflowProgress>;
 
+  /**
+   * Get tasks in a workflow ordered by execution order (topological sort).
+   * Tasks are ordered such that blockers come before the tasks they block.
+   * This represents the order in which tasks should be executed.
+   *
+   * @param workflowId - The workflow ID
+   * @param filter - Optional task filter constraints
+   * @returns Tasks in execution order (topological sort based on blocks dependencies)
+   * @throws NotFoundError if workflow doesn't exist
+   */
+  getOrderedTasksInWorkflow(workflowId: ElementId, filter?: TaskFilter): Promise<Task[]>;
+
   // --------------------------------------------------------------------------
   // Sync Operations
   // --------------------------------------------------------------------------

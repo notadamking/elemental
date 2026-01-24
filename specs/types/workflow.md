@@ -273,7 +273,7 @@ On export:
 ### Phase 5: Task Association ✅
 - [x] Implement task-to-workflow linking (src/types/workflow-pour.ts:createParentChildDependencies)
 - [x] Implement hierarchical ID generation (src/types/workflow-pour.ts uses generateChildId)
-- [ ] Implement task ordering queries
+- [x] Implement task ordering queries (src/api/elemental-api.ts:getOrderedTasksInWorkflow)
 
 ### Phase 6: Queries ✅
 - [x] Implement workflow listing (src/cli/commands/workflow.ts: workflow list)

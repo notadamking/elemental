@@ -1452,4 +1452,286 @@ describe('Workflow Query Integration', () => {
       expect(tasks[0].assignee).toBe('user:team-lead');
     });
   });
+
+  // ==========================================================================
+  // getOrderedTasksInWorkflow Tests
+  // ==========================================================================
+
+  describe('getOrderedTasksInWorkflow', () => {
+    it('should return empty array for workflow with no tasks', async () => {
+      const workflow = await createTestWorkflow();
+      await api.create(toCreateInput(workflow));
+
+      const orderedTasks = await api.getOrderedTasksInWorkflow(workflow.id);
+      expect(orderedTasks).toHaveLength(0);
+    });
+
+    it('should return tasks in topological order (blockers first)', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.COMPLETED });
+      await api.create(toCreateInput(workflow));
+
+      // Create tasks
+      const task1 = await createTestTask({ title: 'Task 1' });
+      const task2 = await createTestTask({ title: 'Task 2' });
+      const task3 = await createTestTask({ title: 'Task 3' });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.create(toCreateInput(task3));
+
+      // Link all tasks to workflow
+      for (const task of [task1, task2, task3]) {
+        await api.addDependency({
+          sourceId: task.id,
+          targetId: workflow.id,
+          type: DependencyType.PARENT_CHILD,
+        });
+      }
+
+      // Create linear dependency chain: task1 blocks task2 blocks task3
+      // task1 -> task2 -> task3
+      await api.addDependency({
+        sourceId: task2.id,
+        targetId: task1.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: task3.id,
+        targetId: task2.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const orderedTasks = await api.getOrderedTasksInWorkflow(workflow.id);
+      expect(orderedTasks).toHaveLength(3);
+      // Tasks should be in order: task1 (blocker) first, then task2, then task3
+      expect(orderedTasks[0].id).toBe(task1.id);
+      expect(orderedTasks[1].id).toBe(task2.id);
+      expect(orderedTasks[2].id).toBe(task3.id);
+    });
+
+    it('should return tasks for diamond dependency pattern in correct order', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.COMPLETED });
+      await api.create(toCreateInput(workflow));
+
+      // Diamond: start -> [middle1, middle2] -> end
+      const start = await createTestTask({ title: 'Start', priority: Priority.MEDIUM });
+      const middle1 = await createTestTask({ title: 'Middle 1', priority: Priority.HIGH }); // Priority 2
+      const middle2 = await createTestTask({ title: 'Middle 2', priority: Priority.MEDIUM }); // Priority 3
+      const end = await createTestTask({ title: 'End', priority: Priority.MEDIUM });
+
+      await api.create(toCreateInput(start));
+      await api.create(toCreateInput(middle1));
+      await api.create(toCreateInput(middle2));
+      await api.create(toCreateInput(end));
+
+      // Link all tasks to workflow
+      for (const task of [start, middle1, middle2, end]) {
+        await api.addDependency({
+          sourceId: task.id,
+          targetId: workflow.id,
+          type: DependencyType.PARENT_CHILD,
+        });
+      }
+
+      // Create diamond dependencies
+      await api.addDependency({
+        sourceId: middle1.id,
+        targetId: start.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: middle2.id,
+        targetId: start.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: end.id,
+        targetId: middle1.id,
+        type: DependencyType.BLOCKS,
+      });
+      await api.addDependency({
+        sourceId: end.id,
+        targetId: middle2.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      const orderedTasks = await api.getOrderedTasksInWorkflow(workflow.id);
+      expect(orderedTasks).toHaveLength(4);
+
+      // Start should be first
+      expect(orderedTasks[0].id).toBe(start.id);
+
+      // Middle1 and middle2 should come before end
+      const middleIndex1 = orderedTasks.findIndex((t) => t.id === middle1.id);
+      const middleIndex2 = orderedTasks.findIndex((t) => t.id === middle2.id);
+      const endIndex = orderedTasks.findIndex((t) => t.id === end.id);
+
+      expect(middleIndex1).toBeLessThan(endIndex);
+      expect(middleIndex2).toBeLessThan(endIndex);
+
+      // End should be last
+      expect(orderedTasks[3].id).toBe(end.id);
+    });
+
+    it('should sort independent tasks by priority', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.COMPLETED });
+      await api.create(toCreateInput(workflow));
+
+      // Create independent tasks with different priorities
+      const lowPriority = await createTestTask({ title: 'Low Priority', priority: Priority.MINIMAL }); // 5
+      const highPriority = await createTestTask({ title: 'High Priority', priority: Priority.CRITICAL }); // 1
+      const mediumPriority = await createTestTask({ title: 'Medium Priority', priority: Priority.MEDIUM }); // 3
+
+      await api.create(toCreateInput(lowPriority));
+      await api.create(toCreateInput(highPriority));
+      await api.create(toCreateInput(mediumPriority));
+
+      // Link all tasks to workflow (no blocks dependencies between them)
+      for (const task of [lowPriority, highPriority, mediumPriority]) {
+        await api.addDependency({
+          sourceId: task.id,
+          targetId: workflow.id,
+          type: DependencyType.PARENT_CHILD,
+        });
+      }
+
+      const orderedTasks = await api.getOrderedTasksInWorkflow(workflow.id);
+      expect(orderedTasks).toHaveLength(3);
+
+      // Should be sorted by priority (lower number = higher priority)
+      expect(orderedTasks[0].priority).toBe(Priority.CRITICAL);
+      expect(orderedTasks[1].priority).toBe(Priority.MEDIUM);
+      expect(orderedTasks[2].priority).toBe(Priority.MINIMAL);
+    });
+
+    it('should respect filters when ordering tasks', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.COMPLETED });
+      await api.create(toCreateInput(workflow));
+
+      // Create tasks with different statuses
+      const openTask = await createTestTask({ title: 'Open Task', status: TaskStatus.OPEN });
+      const closedTask = await createTestTask({ title: 'Closed Task', status: TaskStatus.CLOSED });
+      const inProgressTask = await createTestTask({ title: 'In Progress', status: TaskStatus.IN_PROGRESS });
+
+      await api.create(toCreateInput(openTask));
+      await api.create(toCreateInput(closedTask));
+      await api.create(toCreateInput(inProgressTask));
+
+      // Link all tasks to workflow
+      for (const task of [openTask, closedTask, inProgressTask]) {
+        await api.addDependency({
+          sourceId: task.id,
+          targetId: workflow.id,
+          type: DependencyType.PARENT_CHILD,
+        });
+      }
+
+      // Filter only open tasks
+      const orderedOpenTasks = await api.getOrderedTasksInWorkflow(workflow.id, {
+        status: TaskStatus.OPEN,
+      });
+      expect(orderedOpenTasks).toHaveLength(1);
+      expect(orderedOpenTasks[0].id).toBe(openTask.id);
+
+      // Filter open and in_progress tasks
+      const orderedActiveTasks = await api.getOrderedTasksInWorkflow(workflow.id, {
+        status: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS],
+      });
+      expect(orderedActiveTasks).toHaveLength(2);
+    });
+
+    it('should throw NotFoundError for non-existent workflow', async () => {
+      await expect(
+        api.getOrderedTasksInWorkflow('el-nonexistent' as ElementId)
+      ).rejects.toThrow('Workflow not found');
+    });
+
+    it('should throw ConstraintError for non-workflow element', async () => {
+      const task = await createTestTask();
+      await api.create(toCreateInput(task));
+
+      await expect(api.getOrderedTasksInWorkflow(task.id)).rejects.toThrow('is not a workflow');
+    });
+
+    it('should handle poured workflow with sequential dependencies', async () => {
+      const playbook = await createPlaybook({
+        name: 'sequential_pipeline',
+        title: 'Sequential Pipeline',
+        createdBy: mockEntityId,
+        steps: [
+          { id: 'step1', title: 'Step 1' },
+          { id: 'step2', title: 'Step 2', dependsOn: ['step1'] },
+          { id: 'step3', title: 'Step 3', dependsOn: ['step2'] },
+          { id: 'step4', title: 'Step 4', dependsOn: ['step3'] },
+        ],
+        variables: [],
+      });
+
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: {},
+        createdBy: mockEntityId,
+      });
+
+      // Persist the pour result
+      await api.create(toCreateInput(pourResult.workflow));
+      for (const { task } of pourResult.tasks) {
+        await api.create(toCreateInput(task));
+      }
+      for (const dep of pourResult.parentChildDependencies) {
+        await api.addDependency({
+          sourceId: dep.sourceId,
+          targetId: dep.targetId,
+          type: dep.type,
+        });
+      }
+      // Blocks dependencies: swap source/target for correct semantics
+      for (const dep of pourResult.blocksDependencies) {
+        await api.addDependency({
+          sourceId: dep.targetId,
+          targetId: dep.sourceId,
+          type: dep.type,
+        });
+      }
+
+      const orderedTasks = await api.getOrderedTasksInWorkflow(pourResult.workflow.id);
+      expect(orderedTasks).toHaveLength(4);
+
+      // Verify the order matches the step sequence
+      expect(orderedTasks[0].title).toBe('Step 1');
+      expect(orderedTasks[1].title).toBe('Step 2');
+      expect(orderedTasks[2].title).toBe('Step 3');
+      expect(orderedTasks[3].title).toBe('Step 4');
+    });
+
+    it('should handle workflow with no dependencies (all tasks are independent)', async () => {
+      const workflow = await createTestWorkflow({ status: WorkflowStatus.COMPLETED });
+      await api.create(toCreateInput(workflow));
+
+      // Create tasks without dependencies between them
+      const task1 = await createTestTask({ title: 'Task A', priority: Priority.MEDIUM });
+      const task2 = await createTestTask({ title: 'Task B', priority: Priority.HIGH });
+      const task3 = await createTestTask({ title: 'Task C', priority: Priority.LOW });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.create(toCreateInput(task3));
+
+      // Link all tasks to workflow (no blocks dependencies)
+      for (const task of [task1, task2, task3]) {
+        await api.addDependency({
+          sourceId: task.id,
+          targetId: workflow.id,
+          type: DependencyType.PARENT_CHILD,
+        });
+      }
+
+      const orderedTasks = await api.getOrderedTasksInWorkflow(workflow.id);
+      expect(orderedTasks).toHaveLength(3);
+
+      // With no dependencies, should be ordered by priority
+      expect(orderedTasks[0].priority).toBeLessThanOrEqual(orderedTasks[1].priority);
+      expect(orderedTasks[1].priority).toBeLessThanOrEqual(orderedTasks[2].priority);
+    });
+  });
 });
