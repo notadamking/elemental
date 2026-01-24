@@ -428,14 +428,25 @@ async function listHandler(
       return success(null, 'No elements found');
     }
 
-    // Build table data
-    const headers = ['ID', 'TYPE', 'TITLE/NAME', 'STATUS', 'CREATED'];
-    const rows = result.items.map((item) => {
+    // Sort by priority ASC for tasks (P1 is highest priority, comes first)
+    const sortedItems = [...result.items].sort((a, b) => {
+      const dataA = a as unknown as Record<string, unknown>;
+      const dataB = b as unknown as Record<string, unknown>;
+      const priorityA = typeof dataA.priority === 'number' ? dataA.priority : 999;
+      const priorityB = typeof dataB.priority === 'number' ? dataB.priority : 999;
+      return priorityA - priorityB;
+    });
+
+    // Build table data with priority and assignee columns
+    const headers = ['ID', 'TYPE', 'TITLE/NAME', 'STATUS', 'PRIORITY', 'ASSIGNEE', 'CREATED'];
+    const rows = sortedItems.map((item) => {
       const data = item as unknown as Record<string, unknown>;
       const title = data.title ?? data.name ?? '-';
       const status = data.status ? `${getStatusIcon(data.status as string)} ${data.status}` : '-';
+      const priority = typeof data.priority === 'number' ? `P${data.priority}` : '-';
+      const assignee = typeof data.assignee === 'string' ? data.assignee : '-';
       const created = item.createdAt.split('T')[0];
-      return [item.id, item.type, title, status, created];
+      return [item.id, item.type, title, status, priority, assignee, created];
     });
 
     const table = formatter.table(headers, rows);
