@@ -1052,3 +1052,439 @@ export function writePlaybookFile(playbook: Playbook, filePath: string): void {
   const content = `# ${playbook.title}\n# Playbook: ${playbook.name}\n\n${serializePlaybookToYaml(playbook)}`;
   fs.writeFileSync(filePath, content, 'utf-8');
 }
+
+// ============================================================================
+// File Watching
+// ============================================================================
+
+/**
+ * Types of playbook file events
+ */
+export type PlaybookFileEvent = 'added' | 'changed' | 'removed';
+
+/**
+ * Playbook file change event details
+ */
+export interface PlaybookFileChange {
+  /** Type of change */
+  event: PlaybookFileEvent;
+  /** Playbook name (derived from filename) */
+  name: string;
+  /** Full path to the file */
+  path: string;
+  /** Directory containing the file */
+  directory: string;
+  /** Timestamp of the event */
+  timestamp: Date;
+}
+
+/**
+ * Callback for playbook file changes
+ */
+export type PlaybookFileChangeCallback = (change: PlaybookFileChange) => void;
+
+/**
+ * Options for PlaybookFileWatcher
+ */
+export interface PlaybookFileWatcherOptions {
+  /** Additional directories to watch */
+  additionalPaths?: string[];
+  /** Debounce delay in milliseconds (default: 100) */
+  debounceMs?: number;
+  /** Whether to watch recursively within directories */
+  recursive?: boolean;
+}
+
+/**
+ * Internal structure for tracking watched directories
+ */
+interface WatchedDirectory {
+  /** The fs.FSWatcher instance */
+  watcher: fs.FSWatcher;
+  /** Set of known playbook files in this directory */
+  knownFiles: Set<string>;
+}
+
+/**
+ * Watches playbook directories for file changes
+ *
+ * Provides automatic notification when playbook files (.playbook.yaml, .playbook.yml)
+ * are added, modified, or deleted. Uses native file system watching with debouncing
+ * to handle rapid successive changes.
+ *
+ * @example
+ * ```typescript
+ * const watcher = new PlaybookFileWatcher(['.elemental/playbooks']);
+ *
+ * watcher.on('change', (change) => {
+ *   console.log(`Playbook ${change.name} was ${change.event}`);
+ * });
+ *
+ * watcher.start();
+ * // ... later
+ * watcher.stop();
+ * ```
+ */
+export class PlaybookFileWatcher {
+  private readonly searchPaths: string[];
+  private readonly options: Required<Pick<PlaybookFileWatcherOptions, 'debounceMs' | 'recursive'>>;
+  private readonly watchers: Map<string, WatchedDirectory> = new Map();
+  private readonly callbacks: Set<PlaybookFileChangeCallback> = new Set();
+  private readonly debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private _isRunning = false;
+
+  /**
+   * Creates a new PlaybookFileWatcher
+   *
+   * @param searchPaths - Directories to watch for playbook files
+   * @param options - Watcher configuration options
+   */
+  constructor(searchPaths: string[], options: PlaybookFileWatcherOptions = {}) {
+    this.searchPaths = [
+      ...searchPaths.map(expandPath),
+      ...(options.additionalPaths?.map(expandPath) ?? []),
+    ];
+    this.options = {
+      debounceMs: options.debounceMs ?? 100,
+      recursive: options.recursive ?? false,
+    };
+  }
+
+  /**
+   * Whether the watcher is currently running
+   */
+  get isRunning(): boolean {
+    return this._isRunning;
+  }
+
+  /**
+   * Get the list of paths being watched
+   */
+  get watchedPaths(): string[] {
+    return Array.from(this.watchers.keys());
+  }
+
+  /**
+   * Register a callback for playbook file changes
+   *
+   * @param callback - Function to call when a change occurs
+   * @returns Function to unregister the callback
+   */
+  on(event: 'change', callback: PlaybookFileChangeCallback): () => void {
+    if (event !== 'change') {
+      throw new Error(`Unknown event type: ${event}`);
+    }
+    this.callbacks.add(callback);
+    return () => {
+      this.callbacks.delete(callback);
+    };
+  }
+
+  /**
+   * Unregister a callback
+   *
+   * @param callback - The callback to remove
+   */
+  off(callback: PlaybookFileChangeCallback): void {
+    this.callbacks.delete(callback);
+  }
+
+  /**
+   * Start watching for playbook file changes
+   *
+   * Initializes file watchers on all configured directories and begins
+   * emitting change events. Also performs an initial scan to detect
+   * existing playbook files.
+   */
+  start(): void {
+    if (this._isRunning) {
+      return;
+    }
+
+    this._isRunning = true;
+
+    for (const searchPath of this.searchPaths) {
+      this.watchDirectory(searchPath);
+    }
+  }
+
+  /**
+   * Stop watching for changes
+   *
+   * Closes all file watchers and cleans up resources. Pending debounced
+   * events will be cancelled.
+   */
+  stop(): void {
+    if (!this._isRunning) {
+      return;
+    }
+
+    this._isRunning = false;
+
+    // Close all watchers
+    for (const [_path, watched] of this.watchers) {
+      try {
+        watched.watcher.close();
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+    this.watchers.clear();
+
+    // Cancel all pending debounce timers
+    for (const [_key, timer] of this.debounceTimers) {
+      clearTimeout(timer);
+    }
+    this.debounceTimers.clear();
+  }
+
+  /**
+   * Force a rescan of all watched directories
+   *
+   * Useful for detecting files that may have been added or removed
+   * while the watcher was temporarily unable to receive events.
+   */
+  rescan(): void {
+    if (!this._isRunning) {
+      return;
+    }
+
+    for (const searchPath of this.searchPaths) {
+      this.scanDirectory(searchPath);
+    }
+  }
+
+  /**
+   * Get all currently known playbook files
+   *
+   * @returns Array of discovered playbook information
+   */
+  getKnownPlaybooks(): DiscoveredPlaybook[] {
+    const playbooks: DiscoveredPlaybook[] = [];
+
+    for (const [directory, watched] of this.watchers) {
+      for (const filePath of watched.knownFiles) {
+        playbooks.push({
+          path: filePath,
+          name: extractPlaybookName(filePath),
+          directory,
+        });
+      }
+    }
+
+    return playbooks;
+  }
+
+  /**
+   * Start watching a single directory
+   */
+  private watchDirectory(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) {
+      return;
+    }
+
+    const stat = fs.statSync(dirPath);
+    if (!stat.isDirectory()) {
+      return;
+    }
+
+    if (this.watchers.has(dirPath)) {
+      return;
+    }
+
+    try {
+      // Create the watcher
+      const watcher = fs.watch(dirPath, { persistent: false }, (eventType, filename) => {
+        if (filename) {
+          this.handleFileEvent(dirPath, filename, eventType);
+        }
+      });
+
+      watcher.on('error', (_err) => {
+        // Watcher error, try to recover by removing and potentially re-adding
+        this.unwatchDirectory(dirPath);
+      });
+
+      // Track known files
+      const knownFiles = new Set<string>();
+      this.scanDirectoryFiles(dirPath, knownFiles);
+
+      this.watchers.set(dirPath, { watcher, knownFiles });
+
+      // If recursive, also watch subdirectories
+      if (this.options.recursive) {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            this.watchDirectory(path.join(dirPath, entry.name));
+          }
+        }
+      }
+    } catch {
+      // Failed to watch directory, ignore
+    }
+  }
+
+  /**
+   * Stop watching a single directory
+   */
+  private unwatchDirectory(dirPath: string): void {
+    const watched = this.watchers.get(dirPath);
+    if (watched) {
+      try {
+        watched.watcher.close();
+      } catch {
+        // Ignore errors during cleanup
+      }
+      this.watchers.delete(dirPath);
+    }
+  }
+
+  /**
+   * Scan a directory for playbook files
+   */
+  private scanDirectory(dirPath: string): void {
+    const watched = this.watchers.get(dirPath);
+    if (!watched) {
+      return;
+    }
+
+    const currentFiles = new Set<string>();
+    this.scanDirectoryFiles(dirPath, currentFiles);
+
+    // Detect removed files
+    for (const knownFile of watched.knownFiles) {
+      if (!currentFiles.has(knownFile)) {
+        this.emitChange({
+          event: 'removed',
+          name: extractPlaybookName(knownFile),
+          path: knownFile,
+          directory: dirPath,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    // Detect added files
+    for (const currentFile of currentFiles) {
+      if (!watched.knownFiles.has(currentFile)) {
+        this.emitChange({
+          event: 'added',
+          name: extractPlaybookName(currentFile),
+          path: currentFile,
+          directory: dirPath,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    // Update known files
+    watched.knownFiles = currentFiles;
+  }
+
+  /**
+   * Scan directory and populate the file set
+   */
+  private scanDirectoryFiles(dirPath: string, files: Set<string>): void {
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && isPlaybookFile(entry.name)) {
+          files.add(path.join(dirPath, entry.name));
+        } else if (entry.isDirectory() && this.options.recursive) {
+          this.scanDirectoryFiles(path.join(dirPath, entry.name), files);
+        }
+      }
+    } catch {
+      // Directory not readable, ignore
+    }
+  }
+
+  /**
+   * Handle a file system event
+   */
+  private handleFileEvent(directory: string, filename: string, eventType: string): void {
+    const filePath = path.join(directory, filename);
+
+    // Only process playbook files
+    if (!isPlaybookFile(filename)) {
+      // Check if it's a new directory (for recursive watching)
+      if (this.options.recursive && eventType === 'rename') {
+        try {
+          if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+            this.watchDirectory(filePath);
+          }
+        } catch {
+          // Ignore stat errors
+        }
+      }
+      return;
+    }
+
+    // Debounce rapid changes to the same file
+    const debounceKey = filePath;
+    const existingTimer = this.debounceTimers.get(debounceKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    const timer = setTimeout(() => {
+      this.debounceTimers.delete(debounceKey);
+      this.processFileChange(directory, filePath);
+    }, this.options.debounceMs);
+
+    this.debounceTimers.set(debounceKey, timer);
+  }
+
+  /**
+   * Process a file change after debouncing
+   */
+  private processFileChange(directory: string, filePath: string): void {
+    const watched = this.watchers.get(directory);
+    if (!watched) {
+      return;
+    }
+
+    const wasKnown = watched.knownFiles.has(filePath);
+    const exists = fs.existsSync(filePath);
+
+    let event: PlaybookFileEvent;
+
+    if (exists && !wasKnown) {
+      // New file
+      event = 'added';
+      watched.knownFiles.add(filePath);
+    } else if (exists && wasKnown) {
+      // Modified file
+      event = 'changed';
+    } else if (!exists && wasKnown) {
+      // Deleted file
+      event = 'removed';
+      watched.knownFiles.delete(filePath);
+    } else {
+      // File doesn't exist and wasn't known, ignore
+      return;
+    }
+
+    this.emitChange({
+      event,
+      name: extractPlaybookName(filePath),
+      path: filePath,
+      directory,
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Emit a change event to all registered callbacks
+   */
+  private emitChange(change: PlaybookFileChange): void {
+    for (const callback of this.callbacks) {
+      try {
+        callback(change);
+      } catch {
+        // Ignore callback errors
+      }
+    }
+  }
+}

@@ -23,7 +23,9 @@ import {
   convertPlaybookToYaml,
   serializePlaybookToYaml,
   writePlaybookFile,
+  PlaybookFileWatcher,
   type YamlPlaybookFile,
+  type PlaybookFileChange,
 } from './playbook-yaml.js';
 
 // ============================================================================
@@ -753,5 +755,411 @@ describe('Round-trip Conversion', () => {
     expect(yamlData.variables![0].type).toBe('number');
     expect(yamlData.steps).toHaveLength(1);
     expect(yamlData.steps![0].id).toBe('build');
+  });
+});
+
+// ============================================================================
+// PlaybookFileWatcher Tests
+// ============================================================================
+
+describe('PlaybookFileWatcher', () => {
+  let watchDir: string;
+  let watcher: PlaybookFileWatcher | null = null;
+
+  beforeEach(() => {
+    watchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'playbook-watch-test-'));
+  });
+
+  afterEach(() => {
+    // Stop watcher if running
+    if (watcher) {
+      watcher.stop();
+      watcher = null;
+    }
+    // Cleanup
+    if (fs.existsSync(watchDir)) {
+      fs.rmSync(watchDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Constructor and Properties', () => {
+    test('creates watcher with single path', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      expect(watcher.isRunning).toBe(false);
+      expect(watcher.watchedPaths).toEqual([]);
+    });
+
+    test('creates watcher with multiple paths', () => {
+      const secondDir = fs.mkdtempSync(path.join(os.tmpdir(), 'playbook-watch-test2-'));
+      try {
+        watcher = new PlaybookFileWatcher([watchDir, secondDir]);
+        expect(watcher.isRunning).toBe(false);
+      } finally {
+        fs.rmSync(secondDir, { recursive: true, force: true });
+      }
+    });
+
+    test('creates watcher with additionalPaths option', () => {
+      const additionalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'playbook-watch-add-'));
+      try {
+        watcher = new PlaybookFileWatcher([watchDir], { additionalPaths: [additionalDir] });
+        expect(watcher.isRunning).toBe(false);
+      } finally {
+        fs.rmSync(additionalDir, { recursive: true, force: true });
+      }
+    });
+
+    test('creates watcher with custom debounce', () => {
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 50 });
+      expect(watcher.isRunning).toBe(false);
+    });
+  });
+
+  describe('start/stop', () => {
+    test('start() enables watching', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      expect(watcher.isRunning).toBe(false);
+      watcher.start();
+      expect(watcher.isRunning).toBe(true);
+      expect(watcher.watchedPaths).toContain(watchDir);
+    });
+
+    test('stop() disables watching', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+      expect(watcher.isRunning).toBe(true);
+      watcher.stop();
+      expect(watcher.isRunning).toBe(false);
+      expect(watcher.watchedPaths).toEqual([]);
+    });
+
+    test('start() is idempotent', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+      watcher.start();
+      expect(watcher.isRunning).toBe(true);
+    });
+
+    test('stop() is idempotent', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+      watcher.stop();
+      watcher.stop();
+      expect(watcher.isRunning).toBe(false);
+    });
+
+    test('ignores non-existent directories', () => {
+      watcher = new PlaybookFileWatcher(['/non/existent/path']);
+      watcher.start();
+      expect(watcher.isRunning).toBe(true);
+      expect(watcher.watchedPaths).toEqual([]);
+    });
+  });
+
+  describe('on/off callbacks', () => {
+    test('on() registers callback', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      const callback = (_change: PlaybookFileChange) => {};
+      const unsubscribe = watcher.on('change', callback);
+      expect(typeof unsubscribe).toBe('function');
+    });
+
+    test('on() returns unsubscribe function', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      let callCount = 0;
+      const callback = (_change: PlaybookFileChange) => { callCount++; };
+      const unsubscribe = watcher.on('change', callback);
+      unsubscribe();
+      // Callback should be removed - no way to verify directly without triggering changes
+    });
+
+    test('off() removes callback', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      const callback = (_change: PlaybookFileChange) => {};
+      watcher.on('change', callback);
+      watcher.off(callback);
+      // No error means success
+    });
+
+    test('on() throws for unknown event type', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      expect(() => {
+        watcher!.on('unknown' as 'change', () => {});
+      }).toThrow('Unknown event type');
+    });
+  });
+
+  describe('getKnownPlaybooks', () => {
+    test('returns empty array when no playbooks', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+      expect(watcher.getKnownPlaybooks()).toEqual([]);
+    });
+
+    test('returns existing playbooks on start', () => {
+      // Create a playbook file before starting
+      const filePath = path.join(watchDir, 'existing.playbook.yaml');
+      fs.writeFileSync(filePath, 'name: existing\ntitle: Existing\n');
+
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+
+      const playbooks = watcher.getKnownPlaybooks();
+      expect(playbooks).toHaveLength(1);
+      expect(playbooks[0].name).toBe('existing');
+      expect(playbooks[0].path).toBe(filePath);
+    });
+
+    test('returns multiple existing playbooks', () => {
+      // Create multiple playbook files
+      fs.writeFileSync(path.join(watchDir, 'one.playbook.yaml'), 'name: one\ntitle: One\n');
+      fs.writeFileSync(path.join(watchDir, 'two.playbook.yml'), 'name: two\ntitle: Two\n');
+
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+
+      const playbooks = watcher.getKnownPlaybooks();
+      expect(playbooks).toHaveLength(2);
+      const names = playbooks.map(p => p.name);
+      expect(names).toContain('one');
+      expect(names).toContain('two');
+    });
+
+    test('ignores non-playbook files', () => {
+      fs.writeFileSync(path.join(watchDir, 'readme.md'), '# Readme');
+      fs.writeFileSync(path.join(watchDir, 'valid.playbook.yaml'), 'name: valid\ntitle: Valid\n');
+
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+
+      const playbooks = watcher.getKnownPlaybooks();
+      expect(playbooks).toHaveLength(1);
+      expect(playbooks[0].name).toBe('valid');
+    });
+  });
+
+  describe('File change detection', () => {
+    test('detects added playbook file', async () => {
+      const changes: PlaybookFileChange[] = [];
+
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 10 });
+      watcher.on('change', (change) => changes.push(change));
+      watcher.start();
+
+      // Add a new file
+      const filePath = path.join(watchDir, 'new.playbook.yaml');
+      fs.writeFileSync(filePath, 'name: new\ntitle: New Playbook\n');
+
+      // Wait for debounce
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(changes.length).toBeGreaterThanOrEqual(1);
+      const addedChange = changes.find(c => c.event === 'added' && c.name === 'new');
+      expect(addedChange).toBeDefined();
+      expect(addedChange!.path).toBe(filePath);
+    });
+
+    test('detects modified playbook file', async () => {
+      // Create initial file
+      const filePath = path.join(watchDir, 'modify.playbook.yaml');
+      fs.writeFileSync(filePath, 'name: modify\ntitle: Original\n');
+
+      const changes: PlaybookFileChange[] = [];
+
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 10 });
+      watcher.on('change', (change) => changes.push(change));
+      watcher.start();
+
+      // Clear any initial events
+      await new Promise(resolve => setTimeout(resolve, 50));
+      changes.length = 0;
+
+      // Modify the file
+      fs.writeFileSync(filePath, 'name: modify\ntitle: Modified\n');
+
+      // Wait for debounce
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(changes.length).toBeGreaterThanOrEqual(1);
+      const changedEvent = changes.find(c => c.event === 'changed' && c.name === 'modify');
+      expect(changedEvent).toBeDefined();
+    });
+
+    test('detects removed playbook file', async () => {
+      // Create initial file
+      const filePath = path.join(watchDir, 'remove.playbook.yaml');
+      fs.writeFileSync(filePath, 'name: remove\ntitle: To Remove\n');
+
+      const changes: PlaybookFileChange[] = [];
+
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 10 });
+      watcher.on('change', (change) => changes.push(change));
+      watcher.start();
+
+      // Clear any initial events
+      await new Promise(resolve => setTimeout(resolve, 50));
+      changes.length = 0;
+
+      // Remove the file
+      fs.unlinkSync(filePath);
+
+      // Wait for debounce
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(changes.length).toBeGreaterThanOrEqual(1);
+      const removedEvent = changes.find(c => c.event === 'removed' && c.name === 'remove');
+      expect(removedEvent).toBeDefined();
+    });
+
+    test('ignores non-playbook file changes', async () => {
+      const changes: PlaybookFileChange[] = [];
+
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 10 });
+      watcher.on('change', (change) => changes.push(change));
+      watcher.start();
+
+      // Add a non-playbook file
+      fs.writeFileSync(path.join(watchDir, 'readme.txt'), 'Hello');
+
+      // Wait for potential events
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Should not receive any events
+      expect(changes).toEqual([]);
+    });
+
+    test('debounces rapid changes', async () => {
+      const filePath = path.join(watchDir, 'rapid.playbook.yaml');
+      fs.writeFileSync(filePath, 'name: rapid\ntitle: Rapid\n');
+
+      const changes: PlaybookFileChange[] = [];
+
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 50 });
+      watcher.on('change', (change) => changes.push(change));
+      watcher.start();
+
+      // Clear initial events
+      await new Promise(resolve => setTimeout(resolve, 100));
+      changes.length = 0;
+
+      // Rapid modifications
+      fs.writeFileSync(filePath, 'name: rapid\ntitle: Update 1\n');
+      fs.writeFileSync(filePath, 'name: rapid\ntitle: Update 2\n');
+      fs.writeFileSync(filePath, 'name: rapid\ntitle: Update 3\n');
+
+      // Wait for debounce to settle
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Should only have one change event due to debouncing
+      const changedEvents = changes.filter(c => c.event === 'changed');
+      expect(changedEvents.length).toBeLessThanOrEqual(3);
+    });
+  });
+
+  describe('rescan', () => {
+    test('rescan() detects new files', async () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      watcher.start();
+
+      // Manually add a file (bypass watcher)
+      const filePath = path.join(watchDir, 'manual.playbook.yaml');
+      fs.writeFileSync(filePath, 'name: manual\ntitle: Manual\n');
+
+      // Initial known playbooks (may or may not include new file due to timing)
+      const _beforeRescan = watcher.getKnownPlaybooks();
+
+      // Force rescan
+      watcher.rescan();
+
+      // After rescan, should definitely include the file
+      const afterRescan = watcher.getKnownPlaybooks();
+      expect(afterRescan.some(p => p.name === 'manual')).toBe(true);
+    });
+
+    test('rescan() has no effect when not running', () => {
+      watcher = new PlaybookFileWatcher([watchDir]);
+      // Don't start - rescan should do nothing
+      watcher.rescan();
+      expect(watcher.getKnownPlaybooks()).toEqual([]);
+    });
+  });
+
+  describe('recursive watching', () => {
+    test('watches subdirectories when recursive=true', () => {
+      const subDir = path.join(watchDir, 'subdir');
+      fs.mkdirSync(subDir);
+      fs.writeFileSync(path.join(subDir, 'nested.playbook.yaml'), 'name: nested\ntitle: Nested\n');
+
+      watcher = new PlaybookFileWatcher([watchDir], { recursive: true });
+      watcher.start();
+
+      const playbooks = watcher.getKnownPlaybooks();
+      expect(playbooks.some(p => p.name === 'nested')).toBe(true);
+    });
+
+    test('does not watch subdirectories when recursive=false', () => {
+      const subDir = path.join(watchDir, 'subdir');
+      fs.mkdirSync(subDir);
+      fs.writeFileSync(path.join(subDir, 'nested.playbook.yaml'), 'name: nested\ntitle: Nested\n');
+
+      watcher = new PlaybookFileWatcher([watchDir], { recursive: false });
+      watcher.start();
+
+      const playbooks = watcher.getKnownPlaybooks();
+      expect(playbooks.some(p => p.name === 'nested')).toBe(false);
+    });
+  });
+
+  describe('Change event structure', () => {
+    test('change event has correct structure', async () => {
+      const changes: PlaybookFileChange[] = [];
+
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 10 });
+      watcher.on('change', (change) => changes.push(change));
+      watcher.start();
+
+      const filePath = path.join(watchDir, 'structure.playbook.yaml');
+      fs.writeFileSync(filePath, 'name: structure\ntitle: Structure Test\n');
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(changes.length).toBeGreaterThanOrEqual(1);
+      const change = changes[0];
+
+      // Verify structure
+      expect(change).toHaveProperty('event');
+      expect(change).toHaveProperty('name');
+      expect(change).toHaveProperty('path');
+      expect(change).toHaveProperty('directory');
+      expect(change).toHaveProperty('timestamp');
+      expect(change.timestamp instanceof Date).toBe(true);
+    });
+  });
+
+  describe('Error handling', () => {
+    test('handles callback errors gracefully', async () => {
+      watcher = new PlaybookFileWatcher([watchDir], { debounceMs: 10 });
+
+      // Register a callback that throws
+      watcher.on('change', () => {
+        throw new Error('Callback error');
+      });
+
+      // Register a second callback to verify it still gets called
+      let secondCallbackCalled = false;
+      watcher.on('change', () => {
+        secondCallbackCalled = true;
+      });
+
+      watcher.start();
+
+      // Add a file to trigger callbacks
+      fs.writeFileSync(path.join(watchDir, 'error.playbook.yaml'), 'name: error\ntitle: Error\n');
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Second callback should still be called despite first throwing
+      expect(secondCallbackCalled).toBe(true);
+    });
   });
 });

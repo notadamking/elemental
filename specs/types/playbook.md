@@ -304,7 +304,7 @@ String replacement with variable values:
 - [x] Implement YAML parser (parseYamlPlaybook, validateYamlPlaybook, convertYamlToPlaybookInput)
 - [x] Implement file discovery (discoverPlaybookFiles, findPlaybookFile)
 - [x] File reading/writing (readPlaybookFile, loadPlaybookFromFile, writePlaybookFile)
-- [ ] Add file watching (optional, deferred)
+- [x] Add file watching ✅ (PlaybookFileWatcher class with start/stop, change callbacks, debouncing, recursive option - 28 tests)
 
 ### Phase 7: Validation ✅
 - [x] Implement playbook validation (validatePlaybook, validateSteps, validateVariables)
