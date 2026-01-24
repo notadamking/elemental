@@ -3831,6 +3831,110 @@ tasks created with hierarchical IDs like `el-planid.1` would self-document their
 
 ---
 
+### Scenario: Team Communication Patterns and Group Channel Workflows
+
+**Purpose:** Evaluate multi-agent team communication via group channels, including team membership, channel permissions, message threading, and work distribution patterns
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Confirms critical bugs, found new enhancements)
+
+**Checkpoints:**
+
+**Entity and Team Setup:**
+- [x] Register multiple agent entities: works correctly
+- [x] Create team: works correctly
+- [x] Add members to team: works correctly
+- [x] Team members list: returns correct member IDs
+
+**Group Channel Creation:**
+- [ ] **FAIL**: Create group channel with multiple --member flags
+  - **BUG el-2674/el-59p3:** Only first and last members kept
+  - Input: `--member el-a --member el-b --member el-c --member el-d`
+  - Result: members = [el-a, el-d] (el-b, el-c dropped)
+  - Workaround: Create with 2 members, then `el channel add` individually
+- [x] Channel list filters by type: works correctly
+- [x] Channel list filters by member: works correctly
+- [ ] **FAIL**: Channel list has no --name filter
+  - **ENHANCEMENT el-1uhc:** Cannot lookup channels by name
+
+**Channel Messaging:**
+- [x] Send message to group channel: works correctly
+- [x] All members can send messages: works correctly
+- [x] Message threading: works correctly (threadId set)
+- [x] View thread: shows root message and replies
+- [x] Message list shows content hydrated
+
+**Channel Permissions:**
+- [x] Non-modifier add member rejected: correct error message
+- [ ] **FAIL**: Add non-existent entity as member
+  - **BUG el-36li:** Accepts invalid IDs without validation
+- [x] Permission enforcement: non-modifier correctly rejected
+- [ ] **FAIL**: Remove last modifier allowed
+  - **BUG el-63cy:** Channel becomes unmanageable with empty modifyMembers
+- [ ] **FAIL**: No grant-modifier command
+  - **ENHANCEMENT el-6ad2:** Cannot delegate modifier permissions
+
+**Security - Non-Member Access:**
+- [x] Non-member send message: correctly rejected
+- [ ] **CRITICAL FAIL**: Non-member can read channel messages
+  - **BUG el-1rbd:** `el msg list --channel X --actor <non-member>` returns messages
+  - Write operations correctly enforce membership, but read operations do not
+
+**Duplicate Channel Detection:**
+- [ ] **FAIL**: Duplicate direct channels allowed between same entities
+  - **BUG el-53sv:** Can create multiple direct channels between same pair
+
+**Team-Task Integration:**
+- [x] Create task assigned to team: works correctly
+- [x] Team member sees team-assigned task in ready list: works correctly
+- [x] Multiple team members see same task: works correctly
+- [x] Non-team member does NOT see task: works correctly
+- [x] Claim task from team pool (reassign to individual): works correctly
+
+**Channel Deletion:**
+- [x] Delete channel: succeeds
+- [ ] **FAIL**: Orphaned messages after channel deletion
+  - **BUG el-wjo9:** Messages left with invalid channelId, still accessible
+
+**Success Criteria:** Team communication patterns work correctly with proper security
+- **Partial:** Core messaging works, but critical security bug (el-1rbd), parser bug (el-59p3), and missing permission management commands
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-1rbd | SECURITY: Non-members can read channel messages | 1 | bug |
+| el-2674 | Parser bug affects --member flag (only first+last kept) | 2 | bug |
+| el-36li | el channel add accepts non-existent entity IDs | 3 | bug |
+| el-53sv | Duplicate direct channels allowed | 3 | bug |
+| el-63cy | Can remove last modifier, leaving orphaned channel | 3 | bug |
+| el-wjo9 | Channel delete leaves orphaned messages | 2 | bug |
+
+**Issues Created:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-6ad2 | Add el channel grant-modifier command | 4 | enhancement |
+| el-1uhc | Add --name filter to el channel list | 4 | enhancement |
+
+**Dependencies:**
+- el-6ad2 → el-63cy (relates-to: grant-modifier would prevent orphaned channels)
+- el-1uhc → el-3scb (relates-to: same filter pattern as playbook list)
+- el-1uhc → el-36fq (relates-to: same filter pattern as entity list)
+
+**Notes:**
+This evaluation tested multi-agent team communication patterns critical for orchestration.
+Key findings:
+1. Core messaging and threading work correctly
+2. Team-based work distribution (assign to team, claim from pool) works correctly
+3. CRITICAL: Non-members can read private channel messages (el-1rbd)
+4. Parser bug prevents creating channels with >2 members in single command
+5. No way to delegate modifier permissions without el channel grant-modifier command
+6. Multiple direct channels between same entities is allowed (confusing for agents)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
