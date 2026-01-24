@@ -299,3 +299,14 @@ Allow runtime mode switching:
 - [x] Unit tests for time tolerance
 - [x] Integration tests for modes
 - [x] Security tests for impersonation (tampered request detection)
+
+### Known Issues (from manual testing 2026-01-24)
+
+| Issue | Summary | Status |
+|-------|---------|--------|
+| el-533q | **CRITICAL**: `--public-key` flag on entity registration doesn't store key to database | Open |
+| el-3ftq | `el identity mode` shows incorrect 'previous' value after mode change | Open |
+| el-5ec8 | Missing CLI commands for key rotation (`el entity rotate-key`) and revocation (`el entity revoke-key`) | Open |
+| el-5guf | Actor from config file ignored in operations (uses "cli-user" default) | Open |
+
+**Note:** The API-level code for key storage, rotation, and revocation is well-tested, but CLI integration has gaps that prevent cryptographic identity from being used effectively via command line.

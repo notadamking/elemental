@@ -3410,6 +3410,95 @@ this testing. While likely harmless, it demonstrates the complete lack of valida
 
 ---
 
+### Scenario: Cryptographic Identity CLI Operations
+
+**Purpose:** Evaluate cryptographic identity features including key generation, signing, verification, entity registration with keys, and key lifecycle management
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical public key storage bug, missing CLI commands)
+
+**Checkpoints:**
+
+**Key Generation:**
+- [x] `el identity keygen --json` generates valid Ed25519 keypair
+  - Returns publicKey (44 chars base64) and privateKey (PKCS8 format)
+- [x] Generated keys are unique per invocation
+- [x] Output format is consistent `{success, data: {publicKey, privateKey}}`
+
+**Identity Mode Management:**
+- [x] `el identity mode --json` shows current mode and source
+- [x] `el identity mode soft` sets mode correctly
+- [x] `el identity mode cryptographic` sets mode correctly
+- [x] `el identity mode hybrid` sets mode correctly
+- [x] Invalid mode rejected with clear error (exit code 4)
+- [ ] **FAIL**: Mode set shows incorrect "previous" value
+  - **BUG el-3ftq:** After setting mode, `previous` shows new mode value instead of actual previous
+
+**Signing Operations:**
+- [x] `el identity sign --data "text" --sign-key <key> --actor <name>` works correctly
+  - Returns signature, signedAt, actor, requestHash, keySource
+- [x] Sign with file: `--file <path>` works
+- [x] Sign with hash: `--hash <sha256>` works
+- [x] Sign uses configured actor when available
+- [x] Missing data rejected: "No data to sign" with exit code 4
+
+**Verification Operations:**
+- [x] `el identity verify` validates signatures correctly
+  - Requires: --signature, --public-key, --data, --actor, --signed-at
+- [x] Returns `{valid: true}` for valid signatures
+- [x] Returns `{valid: false}` for tampered data
+- [x] Returns `{valid: false}` for wrong actor
+- [x] Invalid signature format rejected with clear error
+
+**Hash Operations:**
+- [x] `el identity hash --data "text"` returns SHA256 hash
+- [x] Returns hash and length fields
+
+**Entity Registration with Public Key:**
+- [ ] **FAIL**: `el entity register <name> --type agent --public-key <key>`
+  - **BUG el-533q (CRITICAL):** Flag is accepted but publicKey NOT stored in database
+  - Entity created successfully but publicKey field is null
+  - Breaks entire cryptographic identity feature
+  - Verified via raw database query: publicKey column is empty
+
+**Key Rotation/Revocation:**
+- [ ] **MISSING**: No `el entity rotate-key` CLI command
+  - **ENHANCEMENT el-5ec8:** API exists (rotateEntityKey) but no CLI
+- [ ] **MISSING**: No `el entity revoke-key` CLI command
+  - **ENHANCEMENT el-5ec8:** API exists (revokeEntityKey) but no CLI
+
+**Actor Configuration:**
+- [x] `el whoami` shows actor from CLI flag when provided
+- [x] `el whoami` shows actor from environment variable (ELEMENTAL_ACTOR)
+- [x] `el whoami` shows actor from config file when set
+- [x] `el whoami` shows identityMode correctly
+- [ ] **FAIL**: Config file actor not used in operations
+  - **BUG el-5guf (CONFIRMED):** createdBy shows "cli-user" instead of configured actor
+- [x] CLI `--actor` flag correctly overrides config
+
+**Success Criteria:** Cryptographic identity operations work correctly for agent verification
+- **CRITICAL FAILURE:** Public key storage broken (el-533q)
+- **Partial:** Core operations (keygen, sign, verify, hash) work correctly
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-533q | CRITICAL: el entity register --public-key does not store key in database | 2 | bug |
+| el-3ftq | el identity mode set shows incorrect 'previous' value | 4 | bug |
+| el-5ec8 | Add el entity rotate-key and revoke-key CLI commands | 4 | enhancement |
+
+**Dependencies:**
+- el-5ec8 → el-533q (blocks: key rotation requires working key storage)
+- el-3ftq → el-1t4x (relates-to: config value handling)
+- el-533q → el-jqhh (relates-to: entity field validation)
+
+**Notes:**
+The cryptographic identity system has well-tested API code (106+ unit tests for signatures, 20+ for rotation, 35+ for revocation) but critical CLI integration is broken. The most severe issue is that --public-key on entity registration silently fails to store the key, making cryptographic verification impossible via CLI. This needs to be fixed before cryptographic identity mode can be used in production.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
