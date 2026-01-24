@@ -382,6 +382,12 @@ async function workflowShowHandler(
       return failure(`Element ${id} is not a workflow (type: ${workflow.type})`, ExitCode.VALIDATION);
     }
 
+    // Check if workflow is deleted (tombstone)
+    const data = workflow as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Workflow not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
     const mode = getOutputMode(options);
     const formatter = getFormatter(mode);
 
@@ -702,6 +708,12 @@ async function workflowBurnHandler(
       return failure(`Element ${id} is not a workflow (type: ${workflow.type})`, ExitCode.VALIDATION);
     }
 
+    // Check if workflow is deleted (tombstone)
+    const data = workflow as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Workflow not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
     if (!workflow.ephemeral && !options.force) {
       return failure(
         `Workflow ${id} is durable. Use --force to burn anyway, or 'el delete ${id}' for soft delete.`,
@@ -774,6 +786,12 @@ async function workflowSquashHandler(
 
     if (workflow.type !== 'workflow') {
       return failure(`Element ${id} is not a workflow (type: ${workflow.type})`, ExitCode.VALIDATION);
+    }
+
+    // Check if workflow is deleted (tombstone)
+    const data = workflow as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Workflow not found: ${id}`, ExitCode.NOT_FOUND);
     }
 
     if (!workflow.ephemeral) {

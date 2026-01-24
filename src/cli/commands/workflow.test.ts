@@ -252,6 +252,24 @@ describe('workflow show command', () => {
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error).toContain('not found');
   });
+
+  test('fails when workflow is tombstoned (soft-deleted)', async () => {
+    // Import delete command to soft-delete the workflow
+    const { deleteCommand } = await import('./crud.js');
+
+    // Create a workflow
+    const workflowId = await createTestWorkflow('deploy');
+
+    // Soft delete the workflow
+    const deleteResult = await deleteCommand.handler([workflowId], createTestOptions({ force: true }));
+    expect(deleteResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Try to show the tombstoned workflow - should fail with NOT_FOUND
+    const result = await showSubCmd.handler([workflowId], createTestOptions());
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Workflow not found');
+  });
 });
 
 // ============================================================================
@@ -292,6 +310,24 @@ describe('workflow burn command', () => {
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('Usage');
+  });
+
+  test('fails when workflow is tombstoned (soft-deleted)', async () => {
+    // Import delete command to soft-delete the workflow
+    const { deleteCommand } = await import('./crud.js');
+
+    // Create an ephemeral workflow
+    const workflowId = await createTestWorkflow('ephemeral', { ephemeral: true });
+
+    // Soft delete the workflow
+    const deleteResult = await deleteCommand.handler([workflowId], createTestOptions({ force: true }));
+    expect(deleteResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Try to burn the tombstoned workflow - should fail with NOT_FOUND
+    const result = await burnSubCmd.handler([workflowId], createTestOptions());
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Workflow not found');
   });
 });
 
@@ -334,6 +370,24 @@ describe('workflow squash command', () => {
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('Usage');
+  });
+
+  test('fails when workflow is tombstoned (soft-deleted)', async () => {
+    // Import delete command to soft-delete the workflow
+    const { deleteCommand } = await import('./crud.js');
+
+    // Create an ephemeral workflow
+    const workflowId = await createTestWorkflow('ephemeral', { ephemeral: true });
+
+    // Soft delete the workflow
+    const deleteResult = await deleteCommand.handler([workflowId], createTestOptions({ force: true }));
+    expect(deleteResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Try to squash the tombstoned workflow - should fail with NOT_FOUND
+    const result = await squashSubCmd.handler([workflowId], createTestOptions());
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Workflow not found');
   });
 });
 
