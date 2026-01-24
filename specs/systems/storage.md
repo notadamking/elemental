@@ -347,3 +347,8 @@ Convert SQLite errors to Elemental errors:
 - [x] Migration tests (src/storage/schema.test.ts - 68 tests)
 - [x] Node.js backend tests (tests/node/node-backend.test.ts - 33 tests using vitest)
 - [x] Browser backend tests (src/storage/browser-backend.test.ts - 35 tests for sql.js adapter)
+- [x] Cross-runtime compatibility tests:
+  - src/storage/cross-runtime.test.ts - 119 tests verifying Bun and Browser backends behave identically
+  - tests/node/cross-runtime.test.ts - 57 tests verifying Node.js backend compatibility
+  - Tests cover: connection management, SQL operations, data types, prepared statements, transactions, schema management, dirty tracking, hierarchical ID support, utilities, and edge cases
+  - Cross-backend data consistency tests verify identical query results and behavior across backends
