@@ -6768,3 +6768,93 @@ The boolean default bug (el-hqky) is particularly problematic because:
 
 The circular inheritance bug (el-bmsw) allows creating playbooks that will always fail at pour time.
 Cycle detection logic exists (used in pour validation) but isn't called during creation.
+
+---
+
+### Scenario: Library and Team Collection Operations with Validation
+
+**Purpose:** Evaluate library and team add/remove operations, including validation of element types, non-existent IDs, and self-referential nesting - critical for agent workflows managing document collections and team membership
+
+**Prerequisites:** Initialized workspace with entities and documents
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Entity validation gaps in team add, self-nesting bug in library)
+
+**Checkpoints:**
+
+**Library Document Operations:**
+- [x] `el library add <lib> <doc>` works correctly for valid document
+- [x] `el library add` duplicate document rejected with "Dependency already exists"
+- [x] `el library add` non-existent document rejected with exit code 3
+- [x] `el library add` non-document element rejected with "is not a document (type: X)" exit code 4
+- [x] `el library docs <lib>` lists documents correctly
+- [x] `el library stats <lib>` shows correct document count
+- [x] `el library remove <lib> <doc>` works correctly
+
+**Library Nesting Operations:**
+- [x] `el library nest <child> <parent>` works correctly for valid libraries
+- [x] `el library nest` with non-existent child rejected with exit code 3
+- [x] `el library nest` with non-existent parent rejected with exit code 3
+- [x] `el library nest` with non-library parent rejected with "is not a library" exit code 4
+- [x] Re-nesting when already has parent rejected with "already has a parent library"
+- [ ] **FAIL - BUG el-32jm**: `el library nest <lib> <lib>` (self-nesting) succeeds
+  - Library nested under itself
+  - `el library stats` shows incorrect subLibraryCount
+  - `el library roots` returns empty (library no longer appears as root)
+  - Data model corrupted
+
+**Team Member Operations:**
+- [x] `el team add <team> <entity>` works correctly for valid entity
+- [x] `el team add` duplicate entity succeeds silently (idempotent)
+- [x] `el team members <team>` lists members correctly
+- [x] `el team remove <team> <entity>` works correctly
+- [ ] **FAIL - BUG el-5rcm**: `el team add` accepts non-existent entity IDs
+  - `el team add <team> el-9999` succeeds
+  - Invalid ID added to members array
+  - Same pattern as el-36li (channel add validation gap)
+- [ ] **FAIL - BUG el-5u1m**: `el team add` accepts non-entity element IDs
+  - Task ID can be added as team member
+  - No type validation unlike `el library add`
+
+**Quiet Mode Consistency:**
+- [x] `el library add --quiet` outputs nothing (consistent)
+- [x] `el library remove --quiet` outputs nothing (consistent)
+- [x] `el team remove --quiet` outputs nothing (consistent)
+- [ ] **FAIL - UX el-56x2**: `el team add --quiet` inconsistent output
+  - New member: outputs nothing
+  - Duplicate member: outputs team ID
+  - Inconsistent behavior within same command
+
+**Success Criteria:** Library and team collection operations validate inputs and handle edge cases correctly
+- **PARTIAL:** Library document operations work correctly. Team member operations missing entity validation. Library self-nesting allowed.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5rcm | BUG: el team add accepts non-existent entity IDs | 3 | bug |
+| el-5u1m | BUG: el team add accepts non-entity element IDs | 3 | bug |
+| el-32jm | BUG: el library nest allows self-nesting | 3 | bug |
+| el-56x2 | UX: el team add --quiet inconsistent output | 5 | ux |
+
+**Dependencies:**
+- el-5rcm → el-36li (relates-to: same entity validation pattern as channel add)
+- el-5u1m → el-5rcm (relates-to: both team add validation issues)
+- el-56x2 → el-c99l (relates-to: quiet mode consistency)
+
+**Notes:**
+This evaluation tested library and team collection operations critical for agent orchestration:
+1. Library document operations work correctly with proper type validation
+2. Library nesting lacks self-reference detection (el-32jm)
+3. Team add lacks entity existence validation (el-5rcm) unlike library add
+4. Team add lacks element type validation (el-5u1m) unlike library add
+5. Quiet mode output inconsistent for duplicate team adds (el-56x2)
+
+Key comparison: `el library add` correctly validates:
+- Document exists (exit code 3 if not found)
+- Element is a document (exit code 4 if not)
+
+But `el team add` validates neither:
+- Entity existence not checked
+- Element type not checked
+
+This inconsistency should be resolved by adding the same validations to team add.
