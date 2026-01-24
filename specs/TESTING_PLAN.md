@@ -2073,6 +2073,83 @@ Deleting elements with dependents leaves orphaned dependency records (consequenc
 
 ---
 
+### Scenario: Delete Operations and Cascading Effects
+
+**Purpose:** Evaluate delete operation behavior and cascading cleanup across all element types and relationships
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Multiple cleanup gaps)
+
+**Checkpoints:**
+
+**Basic Delete:**
+- [x] Delete task: `el delete <id> --reason "Testing"` works correctly
+- [x] Delete returns `{success, data: {id, deleted: true, type}}`
+- [x] Message delete rejected: "Messages cannot be deleted (immutable)"
+
+**Delete with Dependencies:**
+- [x] Delete blocker task: blocked cache correctly updated (dependent becomes ready)
+- [ ] **FAIL**: Dependency records NOT cleaned up (el-4q7w)
+  - Orphaned dependency still points to deleted element
+  - `el dep list` shows stale relationship
+- [x] Delete with relates-to dependency: same behavior (orphaned record)
+
+**Delete Task in Plan:**
+- [x] Delete task in plan: plan tasks count correctly decremented
+- [x] Plan progress correctly recalculated
+
+**Delete Document in Library:**
+- [ ] **FAIL**: Library docs includes tombstoned document (el-2h6o)
+  - Shows document with `status: "tombstone"` and `deletedAt`
+- [ ] **FAIL**: Library stats counts tombstoned document (el-2h6o)
+  - `documentCount: 1` when document is deleted
+
+**Delete Library:**
+- [ ] **FAIL**: Delete library with documents succeeds without --force (el-5hnx)
+  - Should require confirmation like team deletion
+- [x] Delete nested library: child correctly becomes root
+
+**Delete Entity:**
+- [ ] **FAIL**: Team members still shows deleted entity (el-600h)
+- [ ] **FAIL**: Channel members still shows deleted entity (el-600h)
+- [ ] **FAIL**: Task assignee retains deleted entity reference (el-27ay)
+  - `el ready --assignee <deleted>` still returns tasks
+
+**Delete Document with References:**
+- [ ] **FAIL**: Message attachments retain deleted document reference (el-1d9e)
+  - Viewing attachment returns NOT_FOUND
+- [x] Delete document succeeds (no reference blocking)
+
+**Delete Plan/Workflow:**
+- [x] Delete plan: child tasks survive (expected)
+- [x] Delete workflow: correctly tombstoned
+
+**Success Criteria:** Delete operations should clean up or reject based on relationships
+- **Partial:** Basic delete works; cascading cleanup has multiple gaps
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4q7w | Delete leaves orphaned dependency records | 3 | bug |
+| el-2h6o | Library docs/stats include tombstoned documents | 3 | bug |
+| el-5hnx | Library delete succeeds without --force when has documents | 3 | bug |
+| el-600h | Team/channel members include deleted entities | 3 | bug |
+| el-27ay | Task assignee retains deleted entity reference | 3 | bug |
+| el-1d9e | Message attachments retain deleted document reference | 3 | bug |
+
+**Dependencies:**
+- el-4q7w → el-s80d (relates-to: HAS_DEPENDENTS validation)
+- el-2h6o → el-2awx (relates-to: tombstone visibility enhancement)
+- el-5hnx → el-s80d (relates-to: delete validation pattern)
+- el-600h → el-5gjo (relates-to: entity validation pattern)
+- el-27ay → el-1fnm (relates-to: assignee validation)
+- el-27ay → el-jqhh (relates-to: entity existence validation)
+- el-1d9e → el-wjo9 (relates-to: orphaned message references)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
