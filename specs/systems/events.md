@@ -277,7 +277,7 @@ Event and mutation in same transaction:
 - [x] Integrate with element mutations (create, update, delete all record events)
 - [x] Integrate with dependency operations (dependency_added/dependency_removed events recorded in elemental-api.ts addDependency/removeDependency)
 - [x] Integrate with tag operations ✅ (tag changes tracked via element update events - old/new values include tags array, no separate tag_added/removed events needed)
-- [ ] Integrate with membership operations (requires Channel/Team integration - blocked on collection type implementation)
+- [x] Integrate with membership operations ✅ (member_added/member_removed events for Channel and Team - see addChannelMember, removeChannelMember, leaveChannel, addTeamMember, removeTeamMember in elemental-api.ts; 27 tests in channel-membership.integration.test.ts, 26 tests in team-membership.integration.test.ts)
 
 ### Phase 4: Value Capture ✅
 - [x] Implement old value extraction (full element captured in update/delete events)
@@ -304,5 +304,5 @@ Event and mutation in same transaction:
 ### Phase 8: Testing ✅
 - [x] Unit tests for event recording (129 tests in event.test.ts)
 - [x] Unit tests for value capture (computeChangedFields tests)
-- [x] Integration tests for full flow (53 tests in events.integration.test.ts - includes dependency event tests)
+- [x] Integration tests for full flow (53 tests in events.integration.test.ts - includes dependency event tests; 27 tests in channel-membership.integration.test.ts; 26 tests in team-membership.integration.test.ts)
 - [x] Performance tests for high-volume (smoke tests in events.integration.test.ts)
