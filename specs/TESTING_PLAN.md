@@ -968,63 +968,78 @@ Agent-focused criteria for CLI usability.
 
 ### Output Format Support
 
-- [ ] All list commands support `--json` output
-- [ ] All show commands support `--json` output
-- [ ] All create commands support `--json` output
-- [ ] All update commands support `--json` output
-- [ ] Error output is valid JSON when `--json` is specified
-- [ ] `--quiet` mode returns minimal output (IDs only for creates)
-- [ ] Default output is human-readable with alignment
+**Status:** TESTED - 2026-01-24 (Pass)
+
+- [x] All list commands support `--json` output
+- [x] All show commands support `--json` output
+- [x] All create commands support `--json` output
+- [x] All update commands support `--json` output
+- [x] Error output is valid JSON when `--json` is specified
+- [x] `--quiet` mode returns minimal output (IDs only for creates)
+- [x] Default output is human-readable with alignment
 
 ### JSON Output Consistency
 
-- [ ] All IDs use consistent field name (`id`)
-- [ ] All IDs are in consistent location (top-level for single, within array items for lists)
-- [ ] Timestamps use ISO 8601 format consistently
-- [ ] Boolean fields are actual booleans, not strings
-- [ ] Numeric fields are actual numbers, not strings
-- [ ] Empty arrays are `[]`, not `null` or omitted
-- [ ] Optional fields are omitted when null (not `"field": null`)
+**Status:** TESTED - 2026-01-24 (Pass - see Section 6 for detailed audit)
+
+- [x] All IDs use consistent field name (`id`)
+- [x] All IDs are in consistent location (top-level for single, within array items for lists)
+- [x] Timestamps use ISO 8601 format consistently
+- [x] Boolean fields are actual booleans, not strings
+- [x] Numeric fields are actual numbers, not strings
+- [x] Empty arrays are `[]`, not `null` or omitted
+- [x] Optional fields are omitted when null (not `"field": null`)
 
 ### Help Text Quality
 
+**Status:** TESTED - 2026-01-24 (Partial Pass)
+
 - [ ] `el --help` lists all top-level commands with descriptions
-- [ ] Each command group has `--help` (e.g., `el plan --help`)
-- [ ] Each subcommand has `--help` (e.g., `el plan create --help`)
-- [ ] Required flags are marked clearly (e.g., `[required]`)
-- [ ] Flag descriptions include valid values for enums
-- [ ] Examples are provided for complex commands
+  - **BUG el-4a62:** Main help missing 9 command groups (plan, doc, workflow, etc.)
+- [x] Each command group has `--help` (e.g., `el plan --help`)
+- [x] Each subcommand has `--help` (e.g., `el plan create --help`)
+- [x] Required flags are marked clearly (e.g., `[required]`)
+- [x] Flag descriptions include valid values for enums
+- [x] Examples are provided for complex commands
+- [ ] No duplicate sections in help output
+  - **UX el-1luz:** Grouped command help shows Subcommands section twice
 
 ### Command Hierarchy
 
-- [ ] Command groups follow noun-verb pattern (`el plan create`)
-- [ ] Similar operations have similar syntax across types
-- [ ] Common operations have shortcuts (aliases)
-- [ ] Positional arguments are used for the most common parameter
+**Status:** TESTED - 2026-01-24 (Pass)
+
+- [x] Command groups follow noun-verb pattern (`el plan create`)
+- [x] Similar operations have similar syntax across types
+- [x] Common operations have shortcuts (aliases)
+- [x] Positional arguments are used for the most common parameter
 
 ### Error Messaging Quality
 
+**Status:** TESTED - 2026-01-24 (Partial Pass - see Error Recovery Patterns scenario)
+
 | Criteria | Status |
 |----------|--------|
-| Error messages describe what went wrong clearly | [ ] |
-| Error messages include the error code | [ ] |
-| Error messages include human-readable explanation | [ ] |
-| Common mistakes are explained with likely causes | [ ] |
-| Suggested fixes are provided where applicable | [ ] |
-| Validation errors specify which field/value was invalid | [ ] |
-| NOT_FOUND errors include the ID that wasn't found | [ ] |
-| CYCLE_DETECTED errors explain what cycle would be created | [ ] |
+| Error messages describe what went wrong clearly | [x] |
+| Error messages include the error code | [ ] **BUG el-5pwg** |
+| Error messages include human-readable explanation | [x] |
+| Common mistakes are explained with likely causes | [x] |
+| Suggested fixes are provided where applicable | [x] |
+| Validation errors specify which field/value was invalid | [x] |
+| NOT_FOUND errors include the ID that wasn't found | [x] |
+| CYCLE_DETECTED errors explain what cycle would be created | [ ] **BUG el-5w9d** (not enforced) |
 
 ### Exit Codes
 
-| Code | Meaning | Commands to Test |
-|------|---------|-----------------|
-| 0 | Success | Any successful operation |
-| 1 | General error | Database errors |
-| 2 | Invalid arguments | Missing required flags |
-| 3 | Not found | `el show el-nonexistent` |
-| 4 | Validation error | Invalid priority value |
-| 5 | Permission error | (if applicable) |
+**Status:** TESTED - 2026-01-24 (Pass)
+
+| Code | Meaning | Commands to Test | Verified |
+|------|---------|-----------------|----------|
+| 0 | Success | Any successful operation | [x] |
+| 1 | General error | Database errors | [x] |
+| 2 | Invalid arguments | Missing required flags | [x] |
+| 3 | Not found | `el show el-nonexistent` | [x] |
+| 4 | Validation error | Invalid priority value | [x] |
+| 5 | Permission error | (if applicable) | - |
 
 ---
 
