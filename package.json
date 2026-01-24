@@ -15,7 +15,8 @@
     "test:node": "vitest run",
     "test:all": "npm run test && npm run test:node",
     "lint": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "dev:platform": "cd apps/server && bun run start & cd apps/web && bun run dev"
   },
   "engines": {
     "node": ">=18.0.0"
