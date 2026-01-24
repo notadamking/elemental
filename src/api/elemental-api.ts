@@ -536,16 +536,15 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     const rows = this.backend.query<ElementRow>(sql, [...params, limit, offset]);
 
-    // Fetch tags for all returned elements
-    const items: T[] = [];
-    for (const row of rows) {
-      const tagRows = this.backend.query<TagRow>(
-        'SELECT tag FROM tags WHERE element_id = ?',
-        [row.id]
-      );
-      const tags = tagRows.map((r) => r.tag);
-      items.push(deserializeElement<T>(row, tags));
-    }
+    // Batch fetch tags for all returned elements (eliminates N+1 query issue)
+    const elementIds = rows.map((row) => row.id);
+    const tagsMap = this.batchFetchTags(elementIds);
+
+    // Deserialize elements with their tags
+    const items: T[] = rows.map((row) => {
+      const tags = tagsMap.get(row.id) ?? [];
+      return deserializeElement<T>(row, tags);
+    });
 
     // Check if tags filter requires all tags
     let filteredItems = items;
@@ -2955,6 +2954,44 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   // --------------------------------------------------------------------------
+  // Batch Fetch Helpers
+  // --------------------------------------------------------------------------
+
+  /**
+   * Batch fetch tags for multiple elements by their IDs.
+   * Returns a map of element ID to array of tags for efficient lookup.
+   * This eliminates N+1 query issues when fetching tags for multiple elements.
+   */
+  private batchFetchTags(elementIds: string[]): Map<string, string[]> {
+    if (elementIds.length === 0) {
+      return new Map();
+    }
+
+    // Deduplicate IDs
+    const uniqueIds = [...new Set(elementIds)];
+
+    // Build query with placeholders
+    const placeholders = uniqueIds.map(() => '?').join(', ');
+    const sql = `SELECT element_id, tag FROM tags WHERE element_id IN (${placeholders})`;
+
+    const rows = this.backend.query<TagRow>(sql, uniqueIds);
+
+    // Group tags by element ID
+    const tagsMap = new Map<string, string[]>();
+    for (const id of uniqueIds) {
+      tagsMap.set(id, []);
+    }
+    for (const row of rows) {
+      const tags = tagsMap.get(row.element_id);
+      if (tags) {
+        tags.push(row.tag);
+      }
+    }
+
+    return tagsMap;
+  }
+
+  // --------------------------------------------------------------------------
   // Hydration Helpers
   // --------------------------------------------------------------------------
 
@@ -2996,14 +3033,14 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     const rows = this.backend.query<ElementRow>(sql, uniqueIds);
 
+    // Batch fetch tags for all documents (eliminates N+1 query issue)
+    const elementIds = rows.map((row) => row.id);
+    const tagsMap = this.batchFetchTags(elementIds);
+
     // Convert to map
     const documentMap = new Map<ElementId, Document>();
     for (const row of rows) {
-      const tagRows = this.backend.query<TagRow>(
-        'SELECT tag FROM tags WHERE element_id = ?',
-        [row.id]
-      );
-      const tags = tagRows.map((r) => r.tag);
+      const tags = tagsMap.get(row.id) ?? [];
       const doc = deserializeElement<Document>(row, tags);
       documentMap.set(doc.id, doc);
     }

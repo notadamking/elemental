@@ -440,7 +440,7 @@ Optional caching for:
 ### Phase 5: Search and Hydration ✅
 - [x] Implement search (src/api/elemental-api.ts)
 - [x] Implement hydration (src/api/elemental-api.ts)
-- [ ] Optimize batch fetching
+- [x] Optimize batch fetching (batchFetchTags helper eliminates N+1 queries for list operations and hydration)
 
 ### Phase 6: History Operations ✅
 - [x] Implement getEvents (src/api/elemental-api.ts)

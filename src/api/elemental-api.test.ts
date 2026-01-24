@@ -1264,4 +1264,208 @@ describe('ElementalAPI', () => {
       expect(newRow?.content_hash).not.toBe(originalHash);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Batch Fetching Optimization Tests
+  // --------------------------------------------------------------------------
+
+  describe('batch fetching optimization', () => {
+    it('should correctly fetch tags for multiple elements in list()', async () => {
+      // Create multiple tasks with different tags
+      const task1 = await createTestTask({ title: 'Task 1', tags: ['alpha', 'beta'] });
+      const task2 = await createTestTask({ title: 'Task 2', tags: ['gamma'] });
+      const task3 = await createTestTask({ title: 'Task 3', tags: ['alpha', 'gamma', 'delta'] });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.create(toCreateInput(task3));
+
+      // List all tasks and verify tags are correctly associated
+      const tasks = await api.list<Task>({ type: 'task' });
+      expect(tasks.length).toBe(3);
+
+      // Find each task and verify tags
+      const found1 = tasks.find(t => t.title === 'Task 1');
+      const found2 = tasks.find(t => t.title === 'Task 2');
+      const found3 = tasks.find(t => t.title === 'Task 3');
+
+      expect(found1?.tags.sort()).toEqual(['alpha', 'beta']);
+      expect(found2?.tags.sort()).toEqual(['gamma']);
+      expect(found3?.tags.sort()).toEqual(['alpha', 'delta', 'gamma']);
+    });
+
+    it('should correctly fetch tags for elements with no tags', async () => {
+      // Create tasks with and without tags
+      const taskWithTags = await createTestTask({ title: 'With Tags', tags: ['tag1', 'tag2'] });
+      const taskWithoutTags = await createTestTask({ title: 'Without Tags', tags: [] });
+
+      await api.create(toCreateInput(taskWithTags));
+      await api.create(toCreateInput(taskWithoutTags));
+
+      // List and verify
+      const tasks = await api.list<Task>({ type: 'task' });
+      expect(tasks.length).toBe(2);
+
+      const withTags = tasks.find(t => t.title === 'With Tags');
+      const withoutTags = tasks.find(t => t.title === 'Without Tags');
+
+      expect(withTags?.tags.sort()).toEqual(['tag1', 'tag2']);
+      expect(withoutTags?.tags).toEqual([]);
+    });
+
+    it('should batch hydrate tasks with correct document content', async () => {
+      // Create description documents
+      const desc1 = await createTestDocument({ content: 'Description 1' });
+      const desc2 = await createTestDocument({ content: 'Description 2' });
+      const desc3 = await createTestDocument({ content: 'Description 3' });
+
+      await api.create(toCreateInput(desc1));
+      await api.create(toCreateInput(desc2));
+      await api.create(toCreateInput(desc3));
+
+      // Create tasks with document references and tags
+      const task1 = await createTestTask({
+        title: 'Task 1',
+        descriptionRef: desc1.id as DocumentId,
+        tags: ['test1'],
+      });
+      const task2 = await createTestTask({
+        title: 'Task 2',
+        descriptionRef: desc2.id as DocumentId,
+        tags: ['test2'],
+      });
+      const task3 = await createTestTask({
+        title: 'Task 3',
+        descriptionRef: desc3.id as DocumentId,
+        tags: ['test3'],
+      });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.create(toCreateInput(task3));
+
+      // List with hydration
+      const tasks = await api.list<HydratedTask>({
+        type: 'task',
+        hydrate: { description: true },
+      });
+
+      // Verify all tasks have correct hydrated content
+      expect(tasks.length).toBe(3);
+
+      const hydrated1 = tasks.find(t => t.title === 'Task 1');
+      const hydrated2 = tasks.find(t => t.title === 'Task 2');
+      const hydrated3 = tasks.find(t => t.title === 'Task 3');
+
+      expect(hydrated1?.description).toBe('Description 1');
+      expect(hydrated1?.tags).toEqual(['test1']);
+      expect(hydrated2?.description).toBe('Description 2');
+      expect(hydrated2?.tags).toEqual(['test2']);
+      expect(hydrated3?.description).toBe('Description 3');
+      expect(hydrated3?.tags).toEqual(['test3']);
+    });
+
+    it('should handle batch fetching with large number of elements', async () => {
+      // Create 50 tasks with unique tags
+      const tasks: Task[] = [];
+      for (let i = 0; i < 50; i++) {
+        const task = await createTestTask({
+          title: `Task ${i}`,
+          tags: [`tag-${i}`, `category-${i % 5}`, 'all'],
+        });
+        await api.create(toCreateInput(task));
+        tasks.push(task);
+      }
+
+      // List all and verify tags are correctly associated
+      const listed = await api.list<Task>({ type: 'task' });
+      expect(listed.length).toBe(50);
+
+      // Verify each task has correct tags
+      for (let i = 0; i < 50; i++) {
+        const found = listed.find(t => t.title === `Task ${i}`);
+        expect(found).toBeDefined();
+        expect(found?.tags.sort()).toEqual([`category-${i % 5}`, `tag-${i}`, 'all'].sort());
+      }
+    });
+
+    it('should correctly paginate with batch tag fetching', async () => {
+      // Create 10 tasks
+      for (let i = 0; i < 10; i++) {
+        const task = await createTestTask({
+          title: `Task ${String(i).padStart(2, '0')}`, // Pad for consistent ordering
+          tags: [`tag-${i}`],
+        });
+        await api.create(toCreateInput(task));
+      }
+
+      // Fetch in pages and verify tags
+      const page1 = await api.listPaginated<Task>({ type: 'task', limit: 4, offset: 0 });
+      const page2 = await api.listPaginated<Task>({ type: 'task', limit: 4, offset: 4 });
+      const page3 = await api.listPaginated<Task>({ type: 'task', limit: 4, offset: 8 });
+
+      expect(page1.items.length).toBe(4);
+      expect(page2.items.length).toBe(4);
+      expect(page3.items.length).toBe(2);
+
+      // Verify each item has exactly one tag
+      [...page1.items, ...page2.items, ...page3.items].forEach(task => {
+        expect(task.tags.length).toBe(1);
+        expect(task.tags[0]).toMatch(/^tag-\d$/);
+      });
+    });
+
+    it('should handle batch fetching with shared tags across elements', async () => {
+      // Create tasks that share some tags
+      const task1 = await createTestTask({ title: 'Task 1', tags: ['shared', 'unique-1'] });
+      const task2 = await createTestTask({ title: 'Task 2', tags: ['shared', 'unique-2'] });
+      const task3 = await createTestTask({ title: 'Task 3', tags: ['shared', 'unique-3', 'extra'] });
+
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+      await api.create(toCreateInput(task3));
+
+      // List and verify each task has correct tags without cross-contamination
+      const tasks = await api.list<Task>({ type: 'task' });
+
+      const found1 = tasks.find(t => t.title === 'Task 1');
+      const found2 = tasks.find(t => t.title === 'Task 2');
+      const found3 = tasks.find(t => t.title === 'Task 3');
+
+      expect(found1?.tags.sort()).toEqual(['shared', 'unique-1'].sort());
+      expect(found2?.tags.sort()).toEqual(['shared', 'unique-2'].sort());
+      expect(found3?.tags.sort()).toEqual(['extra', 'shared', 'unique-3'].sort());
+    });
+
+    it('should batch fetch document tags during hydration', async () => {
+      // Create documents with tags
+      const desc = await createTestDocument({
+        content: 'Task description',
+        tags: ['doc-tag-1', 'doc-tag-2'],
+      });
+      await api.create(toCreateInput(desc));
+
+      // Create task referencing document
+      const task = await createTestTask({
+        title: 'Task with doc',
+        descriptionRef: desc.id as DocumentId,
+        tags: ['task-tag'],
+      });
+      await api.create(toCreateInput(task));
+
+      // List with hydration - both task and underlying document should have correct tags
+      const tasks = await api.list<HydratedTask>({
+        type: 'task',
+        hydrate: { description: true },
+      });
+
+      expect(tasks.length).toBe(1);
+      expect(tasks[0].description).toBe('Task description');
+      expect(tasks[0].tags).toEqual(['task-tag']);
+
+      // Verify the document itself still has its tags
+      const doc = await api.get<Document>(desc.id);
+      expect(doc?.tags.sort()).toEqual(['doc-tag-1', 'doc-tag-2']);
+    });
+  });
 });
