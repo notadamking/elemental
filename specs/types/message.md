@@ -217,7 +217,7 @@ To fetch a thread:
 
 ### Phase 7: Integration
 - [ ] Integrate with Channel system
-- [ ] Integrate with event system
+- [x] Integrate with event system (created events on message creation, dependency_added events for thread replies)
 - [x] Add CLI commands (send, list, thread)
 
 ### Phase 8: Testing
