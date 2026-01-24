@@ -854,6 +854,8 @@ entities, channels, playbooks, libraries, or teams without external documentatio
 
 **Goal:** Verify aliases work as expected and are intuitive
 
+**Status:** TESTED - 2026-01-24 (Partial Pass)
+
 **Exploration prompts:**
 - Run `el alias` to see all aliases
 - Try each alias and verify it works
@@ -868,6 +870,30 @@ entities, channels, playbooks, libraries, or teams without external documentatio
 - `todo`, `tasks` → `ready`
 - `done`, `complete` → `close`
 - `st` → `status`
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| All 12 aliases work correctly | PASS | All resolve to target commands |
+| Aliases accept same flags | PASS | --json, --priority, etc. work |
+| Alias help shows target help | PASS | `el add --help` shows create help |
+| `el alias` command works | PASS | Lists all aliases in table format |
+| `el alias --json` works | PASS | Returns JSON alias map |
+| Aliases discoverable from main help | FAIL | el-53ot (pre-existing) |
+| Help mentions alias relationship | FAIL | New issue el-3ct2 |
+| Case sensitivity | INFO | Aliases are lowercase only |
+| Missing intuitive aliases | ENHANCEMENT | el-4o53 (del, edit, view, finish) |
+
+**Issues Found:**
+- **el-53ot**: (pre-existing) `el alias` not listed in main help
+- **el-3ct2**: Alias help doesn't indicate it's an alias for another command
+- **el-4o53**: Enhancement - add more intuitive aliases (del, edit, view, finish)
+
+**Summary:**
+All 12 existing aliases work correctly and accept the same flags as their target commands.
+Help text is inherited properly. Main discoverability gap is that `el alias` isn't listed in
+main help, and alias help doesn't mention the alias relationship.
 
 ### Edge Cases Exploration
 
