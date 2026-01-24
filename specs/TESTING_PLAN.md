@@ -2150,6 +2150,64 @@ Deleting elements with dependents leaves orphaned dependency records (consequenc
 
 ---
 
+### Scenario: Priority Inheritance and Ready List Behavior
+
+**Purpose:** Validate that priority inheritance through dependency chains works correctly and ready list respects effective priority
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Filter uses base priority, show missing fields)
+
+**Checkpoints:**
+
+**Basic Priority Ordering:**
+- [x] Tasks created with different priorities (1-5)
+- [x] Ready list sorted by priority (lowest number first)
+- [x] Ready list includes `effectivePriority` and `priorityInfluenced` fields
+
+**Priority Inheritance through Blocks:**
+- [x] When task A blocks critical task B, A inherits B's priority
+  - Example: P5 task blocking P1 task gets effectivePriority=1
+  - `priorityInfluenced: true` when effective differs from base
+- [x] Priority inheritance propagates through chains (A→B→C→D)
+  - Root task inherits highest priority from entire chain
+- [x] Multiple dependents: blocker inherits highest (lowest number) priority
+  - Task blocking P1 and P3 gets effectivePriority=1
+- [x] `relates-to` dependencies do NOT affect priority (only `blocks`)
+- [x] Priority recalculates correctly when blocker is closed
+  - Next task in chain inherits correct effective priority
+
+**Ready List Behavior:**
+- [x] Ready list is sorted by effectivePriority (not base priority)
+- [x] Tasks with same effectivePriority sorted by createdAt
+- [ ] **FAIL**: `--priority` filter uses base priority, not effectivePriority
+  - **ENHANCEMENT el-4d1e:** Cannot filter ready list by effective priority
+  - P5 task with effectivePriority=1 not returned by `--priority 1`
+
+**Field Consistency:**
+- [x] `el ready --json` includes effectivePriority and priorityInfluenced
+- [ ] **FAIL**: `el list task --json` does NOT include effectivePriority
+  - **BUG el-50s8:** (pre-existing) Inconsistency between ready and list
+- [ ] **FAIL**: `el show <task-id> --json` does NOT include effectivePriority
+  - **ENHANCEMENT el-2a9n:** Show should include computed priority fields
+
+**Success Criteria:** Priority inheritance works correctly; ready list respects effective priority
+- **Partial:** Inheritance works correctly, but filtering and show command don't expose computed fields
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4d1e | `el ready --priority` should filter by effectivePriority | 4 | enhancement |
+| el-2a9n | `el show` should include effectivePriority/priorityInfluenced | 4 | enhancement |
+| el-50s8 | (pre-existing) `el ready` vs `el list` field inconsistency | 3 | bug |
+
+**Dependencies:**
+- el-2a9n → el-50s8 (relates-to: same inconsistency pattern)
+- el-4d1e → el-50s8 (relates-to: priority field exposure)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.

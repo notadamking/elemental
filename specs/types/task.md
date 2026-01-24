@@ -123,6 +123,17 @@ The effective priority is the minimum (highest urgency) of:
 
 This ensures that blockers for critical work are surfaced appropriately.
 
+### CLI Exposure
+
+**Note:** The `effectivePriority` and `priorityInfluenced` fields are computed and returned by the `el ready` command, but have some gaps:
+
+| Command | Includes effectivePriority | Notes |
+|---------|---------------------------|-------|
+| `el ready --json` | Yes | Shows both fields |
+| `el list task --json` | No | Only base priority (el-50s8) |
+| `el show <task-id> --json` | No | Only base priority (el-2a9n) |
+| `el ready --priority N` | N/A | Filters by base priority, not effective (el-4d1e) |
+
 ### Example
 
 ```
