@@ -638,3 +638,454 @@ describe('plan root command', () => {
     expect(result.error ?? '').toContain('Unknown subcommand');
   });
 });
+
+// ============================================================================
+// Plan Lifecycle E2E Tests
+// ============================================================================
+
+describe('plan lifecycle scenarios', () => {
+  const createSubCmd = planCommand.subcommands!['create'];
+  const showSubCmd = planCommand.subcommands!['show'];
+  const activateSubCmd = planCommand.subcommands!['activate'];
+  const completeSubCmd = planCommand.subcommands!['complete'];
+  const cancelSubCmd = planCommand.subcommands!['cancel'];
+  const addTaskSubCmd = planCommand.subcommands!['add-task'];
+  const removeTaskSubCmd = planCommand.subcommands!['remove-task'];
+  const tasksSubCmd = planCommand.subcommands!['tasks'];
+
+  test('complete plan lifecycle: draft → active → complete', async () => {
+    // 1. Create plan in draft status
+    const createResult = await createSubCmd.handler([], createTestOptions({ title: 'Lifecycle Plan' }));
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const planId = (createResult.data as Plan).id;
+    expect((createResult.data as Plan).status).toBe(PlanStatus.DRAFT);
+
+    // 2. Add tasks to plan
+    const task1Id = await createTestTask('Task 1');
+    const task2Id = await createTestTask('Task 2');
+    await addTaskSubCmd.handler([planId, task1Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task2Id], createTestOptions());
+
+    // 3. Verify tasks are in plan
+    const tasksResult = await tasksSubCmd.handler([planId], createTestOptions({ json: true }));
+    expect((tasksResult.data as Task[]).length).toBe(2);
+
+    // 4. Activate the plan
+    const activateResult = await activateSubCmd.handler([planId], createTestOptions());
+    expect(activateResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(activateResult.message).toContain('Activated');
+
+    // 5. Verify plan is now active
+    const showActiveResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    expect((showActiveResult.data as { plan: Plan }).plan.status).toBe(PlanStatus.ACTIVE);
+
+    // 6. Complete the plan
+    const completeResult = await completeSubCmd.handler([planId], createTestOptions());
+    expect(completeResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(completeResult.message).toContain('Completed');
+
+    // 7. Verify plan is completed with timestamp
+    const showCompletedResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    const completedPlan = (showCompletedResult.data as { plan: Plan }).plan;
+    expect(completedPlan.status).toBe(PlanStatus.COMPLETED);
+    expect(completedPlan.completedAt).toBeDefined();
+  });
+
+  test('plan lifecycle: draft → active → cancel', async () => {
+    // 1. Create and activate plan
+    const planId = await createTestPlan('Cancel Test Plan');
+    await activateSubCmd.handler([planId], createTestOptions());
+
+    // 2. Verify plan is active
+    let showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    expect((showResult.data as { plan: Plan }).plan.status).toBe(PlanStatus.ACTIVE);
+
+    // 3. Cancel the plan with reason
+    const cancelResult = await cancelSubCmd.handler([planId], createTestOptions({ reason: 'Project priorities changed' }));
+    expect(cancelResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(cancelResult.message).toContain('Cancelled');
+
+    // 4. Verify plan is cancelled with reason
+    showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    const cancelledPlan = (showResult.data as { plan: Plan }).plan;
+    expect(cancelledPlan.status).toBe(PlanStatus.CANCELLED);
+    expect(cancelledPlan.cancelledAt).toBeDefined();
+    expect(cancelledPlan.cancelReason).toBe('Project priorities changed');
+  });
+
+  test('plan lifecycle: draft → cancel → restart (draft)', async () => {
+    // 1. Create plan
+    const createResult = await createSubCmd.handler([], createTestOptions({ title: 'Restart Plan' }));
+    const planId = (createResult.data as Plan).id;
+
+    // 2. Cancel the draft plan
+    await cancelSubCmd.handler([planId], createTestOptions());
+    let showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    expect((showResult.data as { plan: Plan }).plan.status).toBe(PlanStatus.CANCELLED);
+
+    // 3. Restart the plan (not currently supported via CLI, testing API directly)
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Update status back to draft (restart)
+    await api.update(planId as unknown as import('../../types/element.js').ElementId, { status: PlanStatus.DRAFT });
+
+    showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    expect((showResult.data as { plan: Plan }).plan.status).toBe(PlanStatus.DRAFT);
+
+    backend.close();
+  });
+
+  test('reopen completed plan', async () => {
+    // 1. Create and complete a plan
+    const planId = await createTestPlan('Reopen Plan', { status: 'active' });
+    await completeSubCmd.handler([planId], createTestOptions());
+
+    // 2. Verify completed
+    let showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    expect((showResult.data as { plan: Plan }).plan.status).toBe(PlanStatus.COMPLETED);
+
+    // 3. Reopen the plan (via API)
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    await api.update(planId as unknown as import('../../types/element.js').ElementId, { status: PlanStatus.ACTIVE });
+
+    showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    expect((showResult.data as { plan: Plan }).plan.status).toBe(PlanStatus.ACTIVE);
+
+    backend.close();
+  });
+});
+
+// ============================================================================
+// Plan Progress Tracking E2E Tests
+// ============================================================================
+
+describe('plan progress tracking scenarios', () => {
+  const showSubCmd = planCommand.subcommands!['show'];
+  const addTaskSubCmd = planCommand.subcommands!['add-task'];
+  const removeTaskSubCmd = planCommand.subcommands!['remove-task'];
+
+  test('progress updates as tasks are added and completed', async () => {
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const { TaskStatus } = await import('../../types/task.js');
+
+    // Create plan
+    const planId = await createTestPlan('Progress Plan');
+
+    // Initial progress should be 0
+    let showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    let progress = (showResult.data as { progress: { totalTasks: number; completionPercentage: number } }).progress;
+    expect(progress.totalTasks).toBe(0);
+    expect(progress.completionPercentage).toBe(0);
+
+    // Add tasks
+    const task1Id = await createTestTask('Task 1');
+    const task2Id = await createTestTask('Task 2');
+    const task3Id = await createTestTask('Task 3');
+    const task4Id = await createTestTask('Task 4');
+
+    await addTaskSubCmd.handler([planId, task1Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task2Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task3Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task4Id], createTestOptions());
+
+    // Progress should be 0% (4 tasks, none complete)
+    showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    progress = (showResult.data as { progress: { totalTasks: number; completionPercentage: number } }).progress;
+    expect(progress.totalTasks).toBe(4);
+    expect(progress.completionPercentage).toBe(0);
+
+    // Complete 2 tasks via API
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    await api.update(task1Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.CLOSED });
+    await api.update(task2Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.CLOSED });
+
+    // Progress should be 50%
+    showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    progress = (showResult.data as { progress: { totalTasks: number; completionPercentage: number; completedTasks: number } }).progress;
+    expect(progress.completedTasks).toBe(2);
+    expect(progress.completionPercentage).toBe(50);
+
+    // Complete remaining tasks
+    await api.update(task3Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.CLOSED });
+    await api.update(task4Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.CLOSED });
+
+    // Progress should be 100%
+    showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    progress = (showResult.data as { progress: { completionPercentage: number; completedTasks: number } }).progress;
+    expect(progress.completedTasks).toBe(4);
+    expect(progress.completionPercentage).toBe(100);
+
+    backend.close();
+  });
+
+  test('progress updates when task is removed from plan', async () => {
+    // Create plan with tasks
+    const planId = await createTestPlan('Remove Task Progress');
+
+    const task1Id = await createTestTask('Task 1');
+    const task2Id = await createTestTask('Task 2');
+
+    await addTaskSubCmd.handler([planId, task1Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task2Id], createTestOptions());
+
+    // Complete one task
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const { TaskStatus } = await import('../../types/task.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    await api.update(task1Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.CLOSED });
+
+    // Progress should be 50%
+    let showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    let progress = (showResult.data as { progress: { completionPercentage: number } }).progress;
+    expect(progress.completionPercentage).toBe(50);
+
+    // Remove the incomplete task
+    await removeTaskSubCmd.handler([planId, task2Id], createTestOptions());
+
+    // Progress should now be 100% (only completed task remains)
+    showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    progress = (showResult.data as { progress: { totalTasks: number; completionPercentage: number } }).progress;
+    expect(progress.totalTasks).toBe(1);
+    expect(progress.completionPercentage).toBe(100);
+
+    backend.close();
+  });
+
+  test('progress tracks blocked and in-progress tasks', async () => {
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const { TaskStatus } = await import('../../types/task.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create plan
+    const planId = await createTestPlan('Mixed Status Plan');
+
+    // Create tasks with different statuses
+    const task1Id = await createTestTask('Open Task');
+    const task2Id = await createTestTask('In Progress Task');
+    const task3Id = await createTestTask('Blocked Task');
+    const task4Id = await createTestTask('Completed Task');
+
+    await addTaskSubCmd.handler([planId, task1Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task2Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task3Id], createTestOptions());
+    await addTaskSubCmd.handler([planId, task4Id], createTestOptions());
+
+    // Update statuses
+    await api.update(task2Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.IN_PROGRESS });
+    await api.update(task3Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.BLOCKED });
+    await api.update(task4Id as unknown as import('../../types/element.js').ElementId, { status: TaskStatus.CLOSED });
+
+    // Check progress
+    const showResult = await showSubCmd.handler([planId], createTestOptions({ json: true }));
+    const progress = (showResult.data as { progress: {
+      totalTasks: number;
+      completedTasks: number;
+      inProgressTasks: number;
+      blockedTasks: number;
+      remainingTasks: number;
+      completionPercentage: number;
+    } }).progress;
+
+    expect(progress.totalTasks).toBe(4);
+    expect(progress.completedTasks).toBe(1);
+    expect(progress.inProgressTasks).toBe(1);
+    expect(progress.blockedTasks).toBe(1);
+    expect(progress.remainingTasks).toBe(1); // open task
+    expect(progress.completionPercentage).toBe(25);
+
+    backend.close();
+  });
+});
+
+// ============================================================================
+// Plan Task Management E2E Tests
+// ============================================================================
+
+describe('plan task management scenarios', () => {
+  const addTaskSubCmd = planCommand.subcommands!['add-task'];
+  const removeTaskSubCmd = planCommand.subcommands!['remove-task'];
+  const tasksSubCmd = planCommand.subcommands!['tasks'];
+  const showSubCmd = planCommand.subcommands!['show'];
+
+  test('task can be moved between plans', async () => {
+    const plan1Id = await createTestPlan('Plan 1');
+    const plan2Id = await createTestPlan('Plan 2');
+    const taskId = await createTestTask('Movable Task');
+
+    // Add task to plan 1
+    await addTaskSubCmd.handler([plan1Id, taskId], createTestOptions());
+
+    // Verify task is in plan 1
+    let tasksResult = await tasksSubCmd.handler([plan1Id], createTestOptions({ json: true }));
+    expect((tasksResult.data as Task[]).map((t) => t.id)).toContain(taskId);
+
+    // Remove from plan 1
+    await removeTaskSubCmd.handler([plan1Id, taskId], createTestOptions());
+
+    // Verify task is no longer in plan 1
+    tasksResult = await tasksSubCmd.handler([plan1Id], createTestOptions({ json: true }));
+    expect((tasksResult.data as Task[]).length).toBe(0);
+
+    // Add task to plan 2
+    const addResult = await addTaskSubCmd.handler([plan2Id, taskId], createTestOptions());
+    expect(addResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Verify task is in plan 2
+    tasksResult = await tasksSubCmd.handler([plan2Id], createTestOptions({ json: true }));
+    expect((tasksResult.data as Task[]).map((t) => t.id)).toContain(taskId);
+  });
+
+  test('cannot add task to multiple plans simultaneously', async () => {
+    const plan1Id = await createTestPlan('Plan A');
+    const plan2Id = await createTestPlan('Plan B');
+    const taskId = await createTestTask('Single Plan Task');
+
+    // Add task to plan 1
+    await addTaskSubCmd.handler([plan1Id, taskId], createTestOptions());
+
+    // Try to add same task to plan 2 - should fail
+    const addResult = await addTaskSubCmd.handler([plan2Id, taskId], createTestOptions());
+    expect(addResult.exitCode).toBe(ExitCode.GENERAL_ERROR);
+    expect(addResult.error).toContain('already');
+  });
+
+  test('adding multiple tasks to a plan preserves order', async () => {
+    const planId = await createTestPlan('Ordered Plan');
+
+    // Create and add tasks in order
+    const taskIds: string[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const taskId = await createTestTask(`Task ${i}`);
+      taskIds.push(taskId);
+      await addTaskSubCmd.handler([planId, taskId], createTestOptions());
+    }
+
+    // Get tasks from plan
+    const tasksResult = await tasksSubCmd.handler([planId], createTestOptions({ json: true }));
+    const tasks = tasksResult.data as Task[];
+    expect(tasks.length).toBe(5);
+
+    // Verify all tasks are present
+    for (const taskId of taskIds) {
+      expect(tasks.map((t) => t.id)).toContain(taskId);
+    }
+  });
+
+  test('hierarchical task creation with createTaskInPlan', async () => {
+    const { createElementalAPI } = await import('../../api/elemental-api.js');
+    const { createStorage, initializeSchema } = await import('../../storage/index.js');
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create plan
+    const planId = await createTestPlan('Hierarchical Plan');
+
+    // Create tasks in plan using API (generates hierarchical IDs)
+    const task1 = await api.createTaskInPlan(planId as unknown as import('../../types/element.js').ElementId, {
+      title: 'Subtask 1',
+      createdBy: 'test-user' as import('../../types/element.js').EntityId,
+    });
+
+    const task2 = await api.createTaskInPlan(planId as unknown as import('../../types/element.js').ElementId, {
+      title: 'Subtask 2',
+      createdBy: 'test-user' as import('../../types/element.js').EntityId,
+    });
+
+    // Verify hierarchical IDs
+    expect(task1.id).toBe(`${planId}.1`);
+    expect(task2.id).toBe(`${planId}.2`);
+
+    // Verify tasks appear in plan
+    const tasksResult = await tasksSubCmd.handler([planId], createTestOptions({ json: true }));
+    const tasks = tasksResult.data as Task[];
+    expect(tasks.length).toBe(2);
+    expect(tasks.map((t) => t.id)).toContain(task1.id);
+    expect(tasks.map((t) => t.id)).toContain(task2.id);
+
+    backend.close();
+  });
+});
+
+// ============================================================================
+// Plan with Multiple Status Transitions E2E Tests
+// ============================================================================
+
+describe('plan status transition validation scenarios', () => {
+  const showSubCmd = planCommand.subcommands!['show'];
+  const activateSubCmd = planCommand.subcommands!['activate'];
+  const completeSubCmd = planCommand.subcommands!['complete'];
+  const cancelSubCmd = planCommand.subcommands!['cancel'];
+
+  test('cannot complete a draft plan', async () => {
+    const planId = await createTestPlan('Draft Plan');
+
+    const completeResult = await completeSubCmd.handler([planId], createTestOptions());
+    expect(completeResult.exitCode).toBe(ExitCode.VALIDATION);
+    expect(completeResult.error).toContain('Cannot complete');
+  });
+
+  test('cannot activate a completed plan', async () => {
+    const planId = await createTestPlan('Complete Then Activate', { status: 'active' });
+    await completeSubCmd.handler([planId], createTestOptions());
+
+    const activateResult = await activateSubCmd.handler([planId], createTestOptions());
+    expect(activateResult.exitCode).toBe(ExitCode.VALIDATION);
+    expect(activateResult.error).toContain('Cannot activate');
+  });
+
+  test('cannot cancel a completed plan', async () => {
+    const planId = await createTestPlan('Complete Then Cancel', { status: 'active' });
+    await completeSubCmd.handler([planId], createTestOptions());
+
+    const cancelResult = await cancelSubCmd.handler([planId], createTestOptions());
+    expect(cancelResult.exitCode).toBe(ExitCode.VALIDATION);
+    expect(cancelResult.error).toContain('Cannot cancel');
+  });
+
+  test('already active plan returns success message', async () => {
+    const planId = await createTestPlan('Already Active', { status: 'active' });
+
+    const activateResult = await activateSubCmd.handler([planId], createTestOptions());
+    expect(activateResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(activateResult.message).toContain('already active');
+  });
+
+  test('already completed plan returns success message', async () => {
+    const planId = await createTestPlan('Already Completed', { status: 'active' });
+    await completeSubCmd.handler([planId], createTestOptions());
+
+    const completeResult = await completeSubCmd.handler([planId], createTestOptions());
+    expect(completeResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(completeResult.message).toContain('already completed');
+  });
+
+  test('already cancelled plan returns success message', async () => {
+    const planId = await createTestPlan('Already Cancelled');
+    await cancelSubCmd.handler([planId], createTestOptions());
+
+    const cancelResult = await cancelSubCmd.handler([planId], createTestOptions());
+    expect(cancelResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(cancelResult.message).toContain('already cancelled');
+  });
+});

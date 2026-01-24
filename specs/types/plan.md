@@ -232,7 +232,7 @@ When creating task under plan:
 - [x] Implement plan listing (src/cli/commands/plan.ts:planListHandler - lists plans with status filtering, tag filtering, and limit)
 - [x] Implement tasks-in-plan query (src/cli/commands/plan.ts:planTasksHandler - lists tasks with status filtering)
 - [x] Add progress to list results (plan list shows PROGRESS column, plan show shows detailed progress breakdown)
-- [x] CLI tests - 40 tests (src/cli/commands/plan.test.ts)
+- [x] CLI tests - 57 tests (src/cli/commands/plan.test.ts)
 
 ### Phase 7: Integration ✅
 - [x] Integrate with task creation (createTaskInPlan API)
@@ -244,4 +244,4 @@ When creating task under plan:
 - [x] Unit tests for progress calculation (API integration tests)
 - [x] Integration tests for task association (plan-task-linking.integration.test.ts - 31 tests)
 - [x] CLI integration tests (src/cli/commands/plan.test.ts - 40 tests)
-- [ ] E2E tests for plan lifecycle
+- [x] E2E tests for plan lifecycle (src/cli/commands/plan.test.ts - 17 tests covering lifecycle scenarios, progress tracking, task management, and status transitions)
