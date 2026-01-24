@@ -6029,6 +6029,97 @@ The orphan dependency issue (el-nyh7) extends the pattern found in el-4egr (plan
 
 ---
 
+### Scenario: Direct Channel Operations and Messaging Edge Cases
+
+**Purpose:** Evaluate direct channel (DM) creation, messaging, and access control - critical for private agent-to-agent communication patterns in multi-agent orchestration
+
+**Prerequisites:** Initialized workspace with multiple entities
+
+**Status:** TESTED - 2026-01-24 (Confirms Known Issues - No New Bugs Found)
+
+**Checkpoints:**
+
+**Direct Channel Creation:**
+- [x] Create direct channel with entity IDs: `el channel create --type direct --direct <entity-id> --actor <entity-id>` works correctly
+- [x] Direct channel has auto-generated name: `entityA:entityB` format
+- [x] Both entities automatically added as members
+- [x] Self-messaging rejected: "Direct channel requires two different entities"
+- [ ] **CONFIRMS el-53sv:** Duplicate direct channels allowed between same entity pair
+  - Can create multiple direct channels between same two entities
+  - Both have identical names but different IDs
+- [ ] **CONFIRMS el-36li:** Non-existent entity IDs accepted for direct channels
+  - `--direct el-9999` succeeds even if entity doesn't exist
+  - Channel created with invalid member
+
+**Entity Name Resolution:**
+- [ ] **CONFIRMS el-574h/el-4kis:** Entity names don't work for --actor flag
+  - `--actor bob` produces "entityA has invalid format" error
+- [ ] **CONFIRMS el-574h/el-4kis:** Entity names don't work for --direct flag
+  - `--direct charlie` produces "entityB has invalid format" error
+- [ ] **UX:** Error message is misleading when using entity names with --actor for messaging
+  - Using `--actor bob` with `el msg send` returns "You are not a member of channel"
+  - Actual issue is name resolution, not membership
+
+**Direct Channel Messaging:**
+- [x] Members can send messages to direct channel
+- [x] Messages correctly attributed to sender
+- [x] Content hydrated in msg list output
+- [x] Threading works in direct channels
+
+**Access Control (Security - CRITICAL):**
+- [ ] **CONFIRMS el-1rbd (CRITICAL):** Non-members can read direct channel messages
+  - Non-member can execute `el msg list --channel <direct-channel>`
+  - All messages returned including private content
+  - Write correctly blocked: "You are not a member of channel"
+  - Read operations have no membership enforcement
+
+**Direct Channel Membership:**
+- [x] Cannot add third member to direct channel: "Cannot modify members of a direct channel"
+- [x] Cannot remove member from direct channel: "Cannot modify members of a direct channel"
+
+**Channel List Filtering:**
+- [x] `el channel list --type direct` returns only direct channels
+- [x] `el channel list --member <id>` filters by member correctly
+- [x] Combined `--type direct --member <id1> --member <id2>` finds specific DM
+
+**Channel Deletion:**
+- [ ] **CONFIRMS el-wjo9:** Deleting direct channel leaves orphan messages
+  - Messages still accessible via msg list with deleted channel ID
+  - Messages show channelId pointing to non-existent channel
+
+**Success Criteria:** Direct channels provide secure private messaging between entity pairs
+- **PARTIAL:** Core messaging works, but CRITICAL security bug (el-1rbd) allows unauthorized read access
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-1rbd | SECURITY: Non-members can read direct channel messages | 1 | bug |
+| el-53sv | Duplicate direct channels allowed between same entities | 3 | bug |
+| el-36li | el channel create accepts non-existent entity IDs | 3 | bug |
+| el-wjo9 | Channel delete leaves orphan messages | 2 | bug |
+| el-574h | --actor and --direct flags don't resolve entity names | 3 | enhancement |
+
+**Notes:**
+This evaluation tested direct channel (DM) operations critical for private agent-to-agent communication:
+1. Direct channel creation works correctly with entity IDs
+2. Duplicate DM prevention not implemented (el-53sv)
+3. CRITICAL: Non-members can read private DMs (el-1rbd)
+4. Entity name resolution doesn't work for channel operations
+5. Orphan messages left after channel deletion (el-wjo9)
+
+For agent orchestration, agents MUST:
+- Use entity IDs (el-xxx format), not entity names
+- Be aware that "private" channels are not actually private for reads
+- Handle potential duplicate channels when looking up DMs
+
+The security bug el-1rbd is particularly severe for direct messages because:
+- DMs are inherently expected to be private
+- Any agent can read DM content if they know the channel ID
+- Channel IDs are predictable (entityA:entityB format)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
