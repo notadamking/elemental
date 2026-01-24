@@ -1717,7 +1717,7 @@ Recommended implementation sequence:
 - [x] **types/document.md Phase 7** (partial): Integration tests for history queries ✅ (document-version.integration.test.ts - 19 tests)
 - [ ] **types/document.md Phase 7**: E2E tests for Document lifecycle
 - [x] **types/entity.md Phase 7** (partial): Integration tests for uniqueness ✅ (6 tests), signature verification tests ✅ (148 tests)
-- [ ] **types/entity.md Phase 7**: E2E tests for entity lifecycle (deactivation, reactivation, assignment, membership)
+- [x] **types/entity.md Phase 7**: E2E tests for entity lifecycle ✅ (10 E2E tests in src/cli/commands/entity.test.ts covering registration, update, deactivation, reactivation, persistence, tags, uniqueness, special characters)
 - [x] **types/plan.md Phase 8**: Unit tests for status transitions, progress calculation; integration tests; E2E tests ✅ (103 unit tests, 31 integration tests, 17 E2E tests)
 - [x] **types/workflow.md Phase 8**: Unit tests for pouring logic; integration tests for full pour flow; E2E tests ✅ (121 unit tests, 59 pour tests, 31 integration tests, 11 E2E tests)
 - [x] **types/playbook.md Phase 9**: Unit tests for inheritance; integration tests for full pour; E2E tests ✅ (230 unit tests, 42 inheritance tests, integration tests in workflow-queries.integration.test.ts, E2E tests in playbook.test.ts)
