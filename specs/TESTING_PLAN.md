@@ -1457,6 +1457,68 @@ Key gaps: no native unassigned filter, no entity name resolution, no complexity 
 validation bug: assignee field accepts any element ID without type checking, matching the team
 membership validation gap (el-5gjo).
 
+### Configuration System Exploration
+
+**Goal:** Evaluate configuration management CLI commands and precedence behavior
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical actor config bug)
+
+**Exploration prompts:**
+- Can you set and get configuration values?
+- Does precedence work (CLI > env > file > default)?
+- Are invalid values rejected during set?
+- Can you manage identity settings?
+- Does the configured actor apply to operations?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| `el init` creates config.yaml | PASS | Created with sensible defaults |
+| `el config show` displays all config | PASS | Shows all sections correctly |
+| `el config show <path>` shows specific value | PASS | Works for valid paths |
+| `el config set actor <name>` | PASS | Updates config file correctly |
+| `el config unset <path>` | PASS | Removes value from config file |
+| `el whoami` shows configured actor | PASS | Correct actor and source displayed |
+| Environment variable precedence | PASS | ELEMENTAL_ACTOR overrides file |
+| **CLI flag --actor used for operations** | **PASS** | Creates element with specified actor |
+| **Config file actor used for operations** | **FAIL** | Ignores config, uses "cli-user" default (el-5guf) |
+| **`el config show` CLI flag source** | **FAIL** | Doesn't show "(from cli)" for --actor (el-4fud) |
+| `el config set identity.mode <mode>` | PASS | Sets identity mode correctly |
+| Invalid identity mode rejected | PASS | Error with exit code 4 |
+| **`el config set tombstone.ttl 500`** | **FAIL** | Succeeds but corrupts config (el-1t4x) |
+| **`el config show nonexistent.path`** | **FAIL** | Internal error instead of graceful message (el-3weu) |
+| **`el config set sync.auto_export true`** | **FAIL** | Says "Set" but doesn't write (snake_case) (el-5p5f) |
+| `el config set sync.autoExport true` | PASS | camelCase path works correctly |
+| `el identity keygen` | PASS | Generates valid Ed25519 keypair |
+| `el identity sign` | PASS | Signs data correctly |
+| `el identity verify` | PASS | Verifies signatures correctly |
+| `el identity mode` | PASS | Shows and sets identity mode |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5guf | CRITICAL: CLI operations ignore actor from config file | 2 | bug |
+| el-1t4x | `el config set` accepts invalid values without validation | 3 | bug |
+| el-3weu | `el config show <invalid-path>` throws internal error | 4 | bug |
+| el-4fud | `el config show` doesn't include CLI flag values in source | 4 | bug |
+| el-5p5f | `el config set` with snake_case path appears to succeed but doesn't write | 4 | ux |
+
+**Dependencies:**
+- el-5guf → el-5zan (relates-to: both involve actor default behavior)
+- el-1t4x → el-3weu (relates-to: both config validation issues)
+- el-5p5f → el-1t4x (relates-to: config set validation)
+- el-4fud → el-5guf (relates-to: actor config display)
+
+**Summary:**
+Configuration file creation, reading, and identity commands work correctly. Identity keygen/sign/verify
+commands function properly. Critical bug: the configured actor in config.yaml is ignored by CLI
+operations - they fall back to "cli-user" default instead. This makes the actor configuration
+feature non-functional for its primary use case. Additionally, `el config set` doesn't validate
+values before writing, allowing invalid values that corrupt the config. The snake_case vs camelCase
+path handling is inconsistent - snake_case paths silently fail to write.
+
 ---
 
 ## 5. CLI UX Evaluation Checklist
