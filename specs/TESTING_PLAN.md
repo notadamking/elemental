@@ -799,6 +799,74 @@ Core orchestration pattern works but requires workarounds:
 
 ---
 
+### Scenario: Sync Operations (Export/Import/Status)
+
+**Purpose:** Validate data synchronization between workspaces via JSONL files
+
+**Prerequisites:** Initialized workspace with test data
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Critical blocked cache bug)
+
+**Checkpoints:**
+- [x] Check sync status on fresh workspace: `el status --json`
+  - Returns valid structure with zero counts ✓
+  - `hasPendingChanges: false` ✓
+  - `syncDirectoryExists: false` ✓
+- [x] Create test data (tasks, dependencies, documents)
+  - Status updates to show dirty elements ✓
+- [x] Export elements: `el export --json`
+  - Creates `.elemental/sync/elements.jsonl` ✓
+  - Creates `.elemental/sync/dependencies.jsonl` ✓
+  - Dirty flag cleared after export ✓
+- [x] Full export: `el export --full --json`
+  - Exports all elements regardless of dirty flag ✓
+- [x] Export to custom directory: `el export -o /custom/path --json`
+  - Creates files in specified directory ✓
+- [x] Incremental export only exports dirty elements
+  - After modifying one element, only that element exported ✓
+- [x] Import to new workspace: `el import --json`
+  - Elements imported correctly ✓
+  - Dependencies imported ✓
+  - **BUG el-1dwc:** Blocked cache NOT rebuilt - `el blocked` shows empty
+- [x] Dry run import: `el import --dry-run --json`
+  - Shows what would be imported without making changes ✓
+- [x] Import from custom directory: `el import -i /custom/path --json`
+  - Works correctly ✓
+- [x] Force import: `el import --force --json`
+  - **BUG el-53d4:** Conflict resolution message incorrect (says local_wins, applies remote)
+- [x] Conflict resolution (LWW strategy)
+  - Local changes with later timestamps are preserved ✓
+  - Conflict details included in response ✓
+- [x] Import with missing files
+  - **BUG el-6c3k:** `dependenciesSkipped: -1` when dependencies.jsonl missing
+- [x] Import from non-existent directory
+  - Returns clear error with exit code 3 ✓
+- [x] Quiet output modes work
+  - `el export --quiet`: "0:1" format ✓
+  - `el import --quiet`: "0:0" format ✓
+  - `el status --quiet`: "0" format ✓
+  - **UX el-389k:** Format undocumented in help
+
+**Success Criteria:** Data can be reliably synced between workspaces
+- **Partial:** Export works correctly, import has critical blocked cache bug
+
+**Issues Found:**
+| ID | Summary | Priority |
+|----|---------|----------|
+| el-1dwc | CRITICAL: Import doesn't rebuild blocked cache - imported blocked tasks not in `el blocked` | 2 |
+| el-53d4 | Import conflict resolution message incorrect (local_wins but remote applied) | 3 |
+| el-6c3k | Import returns dependenciesSkipped: -1 when file missing | 4 |
+| el-5nbq | Sync commands (export, import, status) not in main help | 3 |
+| el-389k | Quiet output format undocumented | 5 |
+
+**Notes:**
+- Export functionality works correctly
+- Import has critical bug: blocked cache not rebuilt, causing imported tasks with dependencies to be permanently stuck
+- Sync commands are not discoverable from main help (related to el-4a62)
+- LWW conflict resolution works but message is misleading
+
+---
+
 ## 4. Exploratory Testing Guides
 
 Areas for freeform exploration without strict scripts.
@@ -1448,9 +1516,14 @@ el messages <channel> --json                 # List messages
 
 ### Sync Operations
 ```bash
-el export                                    # Export to JSONL
-el import                                    # Import from JSONL
-el status                                    # Sync status
+el status --json                             # Check sync status
+el export                                    # Incremental export (dirty elements only)
+el export --full                             # Full export (all elements)
+el export -o /custom/path                    # Export to custom directory
+el import                                    # Import from .elemental/sync/
+el import -i /custom/path                    # Import from custom directory
+el import --dry-run                          # Preview what would be imported
+el import --force                            # Force import (remote wins conflicts)
 ```
 
 ---
