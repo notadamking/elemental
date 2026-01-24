@@ -517,6 +517,11 @@ async function libraryNestHandler(
       return failure(`Element ${parentLibraryId} is not a library (type: ${parentLib.type})`, ExitCode.VALIDATION);
     }
 
+    // Prevent self-nesting
+    if (childLibraryId === parentLibraryId) {
+      return failure('Library cannot be nested under itself', ExitCode.VALIDATION);
+    }
+
     // Check if child already has a parent (libraries can only have one parent)
     const existingParent = await api.getDependencies(childLibraryId as ElementId, ['parent-child']);
     // Check if any parent-child dependency points to a library

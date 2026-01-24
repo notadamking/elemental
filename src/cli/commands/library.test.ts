@@ -361,6 +361,16 @@ describe('library nest command', () => {
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
     expect(result.error).toContain('already has a parent');
   });
+
+  test('fails when trying to nest library under itself', async () => {
+    const lib = await createTestLibrary('Self Reference');
+    const options = createTestOptions();
+
+    const result = await nestSubCmd.handler([lib, lib], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('cannot be nested under itself');
+  });
 });
 
 // ============================================================================

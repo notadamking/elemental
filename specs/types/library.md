@@ -116,9 +116,10 @@ A Document can belong to multiple Libraries:
 ### Nest Library
 
 1. Verify both libraries exist
-2. Create `parent-child` dependency from child to parent
-3. Check for cycles **(BUG el-u6qd: not enforced in CLI/API)**
-4. Emit event
+2. Reject self-nesting (library cannot be nested under itself)
+3. Create `parent-child` dependency from child to parent
+4. Check for cycles **(BUG el-u6qd: not enforced in CLI/API)**
+5. Emit event
 
 ### Delete Library
 
@@ -229,6 +230,7 @@ Multiple `parent-child` dependencies:
 
 ### Phase 4: Hierarchy
 - [x] Implement library nesting (via parent-child dependency - CLI library nest)
+- [x] Implement self-nesting prevention (library cannot be nested under itself - BUG el-32jm fixed)
 - [ ] Implement cycle detection (leverage existing dependency cycle detection) - **BUG el-u6qd: not integrated**
 - [x] Implement descendant queries (getDescendantIds function)
 - [x] Implement ancestor queries (getAncestorIds, buildAncestry functions)
