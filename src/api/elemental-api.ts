@@ -1208,6 +1208,18 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     const now = createTimestamp();
 
+    // Collect elements that will need cache updates BEFORE deleting dependencies
+    // For `blocks` deps: when deleting the source (blocker), targets become unblocked
+    const affectedTargets = this.backend.query<{ target_id: string }>(
+      `SELECT DISTINCT target_id FROM dependencies WHERE source_id = ? AND type = 'blocks'`,
+      [id]
+    ).map(row => row.target_id as ElementId);
+    // For `parent-child` and `awaits` deps: when deleting the target, sources need recheck
+    const affectedSources = this.backend.query<{ source_id: string }>(
+      `SELECT DISTINCT source_id FROM dependencies WHERE target_id = ? AND type IN ('parent-child', 'awaits')`,
+      [id]
+    ).map(row => row.source_id as ElementId);
+
     // Soft delete by setting deleted_at and updating status to tombstone
     this.backend.transaction((tx) => {
       // Get current data and update status
@@ -1223,6 +1235,11 @@ export class ElementalAPIImpl implements ElementalAPI {
          WHERE id = ?`,
         [JSON.stringify(data), now, now, id]
       );
+
+      // Cascade delete: Remove all dependencies where this element is the source or target
+      // This prevents orphan dependency records pointing to/from deleted elements
+      tx.run('DELETE FROM dependencies WHERE source_id = ?', [id]);
+      tx.run('DELETE FROM dependencies WHERE target_id = ?', [id]);
 
       // Record delete event with the resolved actor
       const event = createEvent({
@@ -1249,8 +1266,15 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Mark as dirty for sync
     this.backend.markDirty(id);
 
-    // Update blocked cache - deletion unblocks dependents
-    this.blockedCache.onElementDeleted(id);
+    // Update blocked cache for the deleted element and all affected elements
+    // This must happen AFTER the transaction so the element is already tombstoned
+    this.blockedCache.removeBlocked(id);
+    for (const targetId of affectedTargets) {
+      this.blockedCache.invalidateElement(targetId);
+    }
+    for (const sourceId of affectedSources) {
+      this.blockedCache.invalidateElement(sourceId);
+    }
   }
 
   // --------------------------------------------------------------------------

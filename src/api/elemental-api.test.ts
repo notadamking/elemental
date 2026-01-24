@@ -405,6 +405,126 @@ describe('ElementalAPI', () => {
       const deleteEvents = events.filter((e) => e.eventType === 'deleted');
       expect(deleteEvents.length).toBe(1);
     });
+
+    it('should cascade delete dependencies where element is source', async () => {
+      // Create blocker and blocked tasks
+      const blocker = await createTestTask({ title: 'Blocker' });
+      const blocked = await createTestTask({ title: 'Blocked' });
+      await api.create(toCreateInput(blocker));
+      await api.create(toCreateInput(blocked));
+
+      // Add blocking dependency: blocker -> blocks -> blocked
+      await api.addDependency({
+        sourceId: blocker.id,
+        targetId: blocked.id,
+        type: 'blocks',
+      });
+
+      // Verify dependency exists
+      const depsBefore = await api.getDependencies(blocker.id);
+      expect(depsBefore.length).toBe(1);
+
+      // Delete the blocker
+      await api.delete(blocker.id);
+
+      // Verify dependency was cascade deleted
+      const depsAfter = await api.getDependencies(blocker.id);
+      expect(depsAfter.length).toBe(0);
+
+      // Also verify no orphan dependency pointing to blocked
+      const reverseAfter = await api.getDependents(blocked.id);
+      expect(reverseAfter.length).toBe(0);
+    });
+
+    it('should cascade delete dependencies where element is target', async () => {
+      // Create a plan and task
+      const now = new Date().toISOString();
+      const planId = 'el-plan-123' as ElementId;
+      const task = await createTestTask({ title: 'Task in plan' });
+
+      // Insert plan directly
+      backend.run(
+        `INSERT INTO elements (id, type, data, created_at, updated_at, created_by)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          planId,
+          'plan',
+          JSON.stringify({ title: 'Test Plan', status: 'active' }),
+          now,
+          now,
+          mockEntityId,
+        ]
+      );
+      await api.create(toCreateInput(task));
+
+      // Add parent-child dependency: task -> parent-child -> plan
+      await api.addDependency({
+        sourceId: task.id,
+        targetId: planId,
+        type: 'parent-child',
+      });
+
+      // Verify dependency exists
+      const depsBefore = await api.getDependencies(task.id);
+      expect(depsBefore.length).toBe(1);
+      expect(depsBefore[0].targetId).toBe(planId);
+
+      // Delete the plan
+      await api.delete(planId);
+
+      // Verify dependency was cascade deleted - no orphan dependency from task to deleted plan
+      const depsAfter = await api.getDependencies(task.id);
+      expect(depsAfter.length).toBe(0);
+    });
+
+    it('should cascade delete all dependencies in both directions', async () => {
+      // Create three tasks: A relates-to B, B blocks C
+      const taskA = await createTestTask({ title: 'Task A' });
+      const taskB = await createTestTask({ title: 'Task B' });
+      const taskC = await createTestTask({ title: 'Task C' });
+      await api.create(toCreateInput(taskA));
+      await api.create(toCreateInput(taskB));
+      await api.create(toCreateInput(taskC));
+
+      // A relates-to B
+      await api.addDependency({
+        sourceId: taskA.id,
+        targetId: taskB.id,
+        type: 'relates-to',
+      });
+
+      // B blocks C
+      await api.addDependency({
+        sourceId: taskB.id,
+        targetId: taskC.id,
+        type: 'blocks',
+      });
+
+      // Verify dependencies exist
+      const bDeps = await api.getDependencies(taskB.id);
+      expect(bDeps.length).toBe(1); // B -> blocks -> C
+
+      const bDependents = await api.getDependents(taskB.id);
+      expect(bDependents.length).toBe(1); // A -> relates-to -> B
+
+      // Delete task B
+      await api.delete(taskB.id);
+
+      // Verify all dependencies involving B are gone
+      const bDepsAfter = await api.getDependencies(taskB.id);
+      expect(bDepsAfter.length).toBe(0);
+
+      const bDependentsAfter = await api.getDependents(taskB.id);
+      expect(bDependentsAfter.length).toBe(0);
+
+      // Task C should no longer have any dependents
+      const cDependentsAfter = await api.getDependents(taskC.id);
+      expect(cDependentsAfter.length).toBe(0);
+
+      // Task A should no longer have any outgoing dependencies (relates-to was bidirectional)
+      const aDepsAfter = await api.getDependencies(taskA.id);
+      expect(aDepsAfter.length).toBe(0);
+    });
   });
 
   // --------------------------------------------------------------------------
