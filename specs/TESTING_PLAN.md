@@ -2009,6 +2009,68 @@ Several missing flags: --notes for updating task notes, --name for updating enti
 names. Status transitions via `el update --status` behave differently from dedicated
 commands like `el reopen`, which may confuse users.
 
+### Generic CRUD Operations and Metadata Exploration
+
+**Goal:** Evaluate generic create/show/list/delete commands and metadata handling across all element types
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Generic create limited, metadata unsupported)
+
+**Exploration prompts:**
+- Does `el create` support all element types?
+- Is metadata settable via CLI?
+- Does `el list` support comprehensive filtering?
+- Can tombstoned elements be viewed?
+- Does `el delete` properly clean up dependencies?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| `el create task` | PASS | Works correctly with title, priority, tags, etc. |
+| **`el create plan`** | **FAIL** | "Unsupported element type: plan. Currently supported: task" |
+| **`el create document`** | **FAIL** | Same - must use `el doc create` |
+| **`el create entity`** | **FAIL** | Same - must use `el entity register` |
+| `el show <any-id>` | PASS | Works for all element types |
+| `el show <plan-id>` | INFO | Returns nested `{element, progress}` structure |
+| `el list` all elements | PASS | Returns all element types correctly |
+| `el list --type <type>` | PASS | Filters correctly |
+| `el list --tag <tag>` | PASS | Filters correctly |
+| **`el list --createdBy`** | **FAIL** | Option doesn't exist (el-5g7m) |
+| **`el list --deleted`** | **FAIL** | Cannot view tombstoned elements (el-2awx) |
+| `el delete <id>` | PASS | Soft deletes correctly |
+| `el delete <message>` | PASS | Properly rejects with "immutable" error |
+| Delete reason captured | PASS | `--reason` flag works |
+| **`el create --metadata`** | **FAIL** | Option doesn't exist (el-ud5u) |
+| **`el update --metadata`** | **FAIL** | Option doesn't exist (el-ud5u) |
+| **Multiple `--tag` on create** | **FAIL** | Only last tag kept (el-59p3 pre-existing) |
+| **Multiple `--add-tag` on update** | **FAIL** | Only last tag kept (el-59p3 pre-existing) |
+| Delete with dependents | INFO | Succeeds (el-s80d bug), leaves orphaned dependency records |
+| Priority validation on update | PASS | Rejects 0 and 6 with clear error |
+| Type restrictions on update | PASS | Priority/status only on tasks enforced |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-ud5u | ENHANCEMENT: Add --metadata flag to el create and el update | 4 | enhancement |
+| el-1so7 | ENHANCEMENT: el create should support all element types | 4 | enhancement |
+| el-2awx | ENHANCEMENT: Add --include-deleted flag to el list for tombstones | 5 | enhancement |
+| el-5g7m | ENHANCEMENT: Add --createdBy filter to el list | 5 | enhancement |
+
+**Dependencies:**
+- el-ud5u → el-59p3 (relates-to: multiple --metadata flags would need parser fix)
+- el-1so7 → el-4a62 (relates-to: help discoverability)
+- el-5g7m → el-46xq (relates-to: list pagination improvements)
+- el-5g7m → el-51fy (relates-to: list sorting improvements)
+
+**Summary:**
+Generic show and delete commands work correctly across all element types. Generic `el list`
+provides basic filtering by type and tag. Critical gap: `el create` only supports `task` type -
+all other element types require specialized subcommands (`el doc create`, `el plan create`, etc.).
+The metadata field exists on all elements but cannot be set via CLI. No way to list tombstoned
+elements. Parser bug el-59p3 continues to affect multiple `--tag` flags on both create and update.
+Deleting elements with dependents leaves orphaned dependency records (consequence of el-s80d bug).
+
 ---
 
 ## 5. CLI UX Evaluation Checklist
