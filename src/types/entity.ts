@@ -702,6 +702,297 @@ export function prepareKeyRotation(
 }
 
 // ============================================================================
+// Key Revocation (Cryptographic Identity)
+// ============================================================================
+
+/**
+ * Input for revoking an entity's public key
+ *
+ * Key revocation removes the public key from an entity, converting it
+ * to a soft-identity entity. This requires proof of ownership via signature.
+ */
+export interface KeyRevocationInput {
+  /** Reason for revoking the key */
+  reason?: string;
+  /** Signature of the revocation request using the CURRENT private key */
+  signature: string;
+  /** Timestamp when the revocation was signed (ISO 8601) */
+  signedAt: string;
+}
+
+/**
+ * Result of a key revocation operation
+ */
+export interface KeyRevocationResult {
+  /** Whether the revocation was successful */
+  success: boolean;
+  /** The updated entity (if successful) */
+  entity?: Entity;
+  /** Error message (if failed) */
+  error?: string;
+  /** Error code for programmatic handling */
+  errorCode?: 'NO_CURRENT_KEY' | 'INVALID_SIGNATURE' | 'SIGNATURE_EXPIRED' | 'ALREADY_REVOKED';
+}
+
+/**
+ * Constructs the message to be signed for key revocation
+ *
+ * The message format is: "revoke-key:{entityId}:{timestamp}"
+ *
+ * @param entityId - The entity whose key is being revoked
+ * @param timestamp - ISO 8601 timestamp of the revocation
+ * @returns The string to be signed
+ */
+export function constructKeyRevocationMessage(
+  entityId: ElementId,
+  timestamp: string
+): string {
+  return `revoke-key:${entityId}:${timestamp}`;
+}
+
+/**
+ * Options for key revocation validation
+ */
+export interface KeyRevocationOptions {
+  /** Maximum age of signature in milliseconds (default: 5 minutes) */
+  maxSignatureAge?: number;
+  /** Whether to skip signature age validation (for testing) */
+  skipTimestampValidation?: boolean;
+}
+
+/**
+ * Validates key revocation input fields
+ *
+ * @param input - Key revocation input to validate
+ * @throws ValidationError if input is invalid
+ */
+export function validateKeyRevocationInput(input: unknown): KeyRevocationInput {
+  if (typeof input !== 'object' || input === null) {
+    throw new ValidationError(
+      'Key revocation input must be an object',
+      ErrorCode.INVALID_INPUT,
+      { value: input }
+    );
+  }
+
+  const obj = input as Record<string, unknown>;
+
+  if (typeof obj.signature !== 'string' || obj.signature.length === 0) {
+    throw new ValidationError(
+      'signature is required',
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      { field: 'signature' }
+    );
+  }
+
+  if (typeof obj.signedAt !== 'string' || obj.signedAt.length === 0) {
+    throw new ValidationError(
+      'signedAt is required',
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      { field: 'signedAt' }
+    );
+  }
+
+  // Validate timestamp format
+  const timestamp = new Date(obj.signedAt);
+  if (isNaN(timestamp.getTime())) {
+    throw new ValidationError(
+      'signedAt must be a valid ISO 8601 timestamp',
+      ErrorCode.INVALID_INPUT,
+      { field: 'signedAt', value: obj.signedAt }
+    );
+  }
+
+  return input as KeyRevocationInput;
+}
+
+/**
+ * Revokes an entity's public key with cryptographic verification
+ *
+ * This function requires:
+ * 1. The entity to have an existing public key
+ * 2. A valid signature of the revocation request using the CURRENT private key
+ * 3. The signature timestamp to be within the allowed window
+ *
+ * After revocation:
+ * - The entity's publicKey is removed
+ * - The entity becomes a soft-identity entity
+ * - Revocation details are stored in metadata for audit
+ * - Previous key hash is preserved for reference
+ *
+ * @param entity - The entity whose key is being revoked
+ * @param input - Key revocation input with signature
+ * @param verifySignature - Function to verify Ed25519 signatures
+ * @param options - Optional validation options
+ * @returns Key revocation result
+ */
+export async function revokeEntityKey(
+  entity: Entity,
+  input: KeyRevocationInput,
+  verifySignature: (message: string, signature: string, publicKey: string) => Promise<boolean>,
+  options: KeyRevocationOptions = {}
+): Promise<KeyRevocationResult> {
+  const maxAge = options.maxSignatureAge ?? DEFAULT_MAX_SIGNATURE_AGE;
+
+  // Check if entity has a current public key
+  if (!entity.publicKey) {
+    // Check if key was previously revoked
+    if (entity.metadata?.keyRevokedAt) {
+      return {
+        success: false,
+        error: 'Entity key has already been revoked',
+        errorCode: 'ALREADY_REVOKED',
+      };
+    }
+    return {
+      success: false,
+      error: 'Entity does not have a public key to revoke',
+      errorCode: 'NO_CURRENT_KEY',
+    };
+  }
+
+  // Check signature timestamp if not skipped
+  if (!options.skipTimestampValidation) {
+    const signedTime = new Date(input.signedAt).getTime();
+    const now = Date.now();
+    if (now - signedTime > maxAge) {
+      return {
+        success: false,
+        error: `Signature has expired (signed ${Math.round((now - signedTime) / 1000)}s ago, max ${maxAge / 1000}s)`,
+        errorCode: 'SIGNATURE_EXPIRED',
+      };
+    }
+    if (signedTime > now + 60000) { // Allow 1 minute clock skew
+      return {
+        success: false,
+        error: 'Signature timestamp is in the future',
+        errorCode: 'INVALID_SIGNATURE',
+      };
+    }
+  }
+
+  // Construct the message that should have been signed
+  const message = constructKeyRevocationMessage(entity.id, input.signedAt);
+
+  // Verify the signature using the CURRENT public key
+  let isValid: boolean;
+  try {
+    isValid = await verifySignature(message, input.signature, entity.publicKey);
+  } catch (err) {
+    return {
+      success: false,
+      error: `Signature verification failed: ${err instanceof Error ? err.message : String(err)}`,
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
+
+  if (!isValid) {
+    return {
+      success: false,
+      error: 'Signature verification failed - not signed by current key holder',
+      errorCode: 'INVALID_SIGNATURE',
+    };
+  }
+
+  // All checks passed - perform the key revocation
+  const now = createTimestamp();
+
+  // Remove publicKey and add revocation metadata
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { publicKey: _removedKey, ...entityWithoutKey } = entity;
+
+  const updatedEntity: Entity = {
+    ...entityWithoutKey,
+    updatedAt: now,
+    metadata: {
+      ...entity.metadata,
+      keyRevokedAt: now,
+      revokedKeyHash: hashPublicKey(entity.publicKey),
+      ...(input.reason && { keyRevocationReason: input.reason }),
+    },
+  };
+
+  return {
+    success: true,
+    entity: updatedEntity,
+  };
+}
+
+/**
+ * Prepares a key revocation request for signing
+ *
+ * This is a convenience function that creates the data structure
+ * needed to sign a key revocation request.
+ *
+ * @param entity - The entity whose key is being revoked
+ * @returns Object with message to sign and timestamp to use
+ */
+export function prepareKeyRevocation(
+  entity: Entity
+): { message: string; timestamp: string } {
+  const timestamp = createTimestamp();
+  const message = constructKeyRevocationMessage(entity.id, timestamp);
+  return { message, timestamp };
+}
+
+/**
+ * Checks if an entity's key has been revoked
+ *
+ * @param entity - The entity to check
+ * @returns True if the entity's key has been revoked
+ */
+export function isKeyRevoked(entity: Entity): boolean {
+  return entity.metadata?.keyRevokedAt !== undefined && !entity.publicKey;
+}
+
+/**
+ * Gets key revocation details from an entity
+ *
+ * @param entity - The entity to get revocation details from
+ * @returns Revocation details or null if not revoked
+ */
+export function getKeyRevocationDetails(entity: Entity): {
+  revokedAt: string;
+  revokedKeyHash: string;
+  reason?: string;
+} | null {
+  if (!isKeyRevoked(entity)) {
+    return null;
+  }
+
+  const metadata = entity.metadata as {
+    keyRevokedAt?: string;
+    revokedKeyHash?: string;
+    keyRevocationReason?: string;
+  };
+
+  if (!metadata.keyRevokedAt || !metadata.revokedKeyHash) {
+    return null;
+  }
+
+  return {
+    revokedAt: metadata.keyRevokedAt,
+    revokedKeyHash: metadata.revokedKeyHash,
+    reason: metadata.keyRevocationReason,
+  };
+}
+
+/**
+ * Filter entities whose keys have been revoked
+ */
+export function filterRevokedKeyEntities<T extends Entity>(entities: T[]): T[] {
+  return entities.filter(isKeyRevoked);
+}
+
+/**
+ * Filter entities whose keys have NOT been revoked
+ * (includes entities that never had keys and those with active keys)
+ */
+export function filterNonRevokedKeyEntities<T extends Entity>(entities: T[]): T[] {
+  return entities.filter((e) => !isKeyRevoked(e));
+}
+
+// ============================================================================
 // Entity Deactivation
 // ============================================================================
 

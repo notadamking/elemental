@@ -1939,3 +1939,418 @@ describe('getEntityAssignmentStats', () => {
     expect(stats.totalRelated).toBe(0);
   });
 });
+
+// ============================================================================
+// Key Revocation Tests
+// ============================================================================
+
+import {
+  revokeEntityKey,
+  constructKeyRevocationMessage,
+  validateKeyRevocationInput,
+  prepareKeyRevocation,
+  isKeyRevoked,
+  getKeyRevocationDetails,
+  filterRevokedKeyEntities,
+  filterNonRevokedKeyEntities,
+  type KeyRevocationInput,
+} from './entity.js';
+
+describe('constructKeyRevocationMessage', () => {
+  test('constructs correct message format', () => {
+    const message = constructKeyRevocationMessage(
+      'el-test123' as ElementId,
+      '2025-01-22T10:00:00.000Z'
+    );
+    expect(message).toBe('revoke-key:el-test123:2025-01-22T10:00:00.000Z');
+  });
+
+  test('handles different entity IDs', () => {
+    const message1 = constructKeyRevocationMessage('el-abc' as ElementId, '2025-01-01T00:00:00.000Z');
+    const message2 = constructKeyRevocationMessage('el-xyz' as ElementId, '2025-01-01T00:00:00.000Z');
+    expect(message1).not.toBe(message2);
+    expect(message1).toContain('el-abc');
+    expect(message2).toContain('el-xyz');
+  });
+});
+
+describe('validateKeyRevocationInput', () => {
+  const validInput: KeyRevocationInput = {
+    signature: 'dGVzdC1zaWduYXR1cmU=',
+    signedAt: new Date().toISOString(),
+    reason: 'Key compromised',
+  };
+
+  test('accepts valid input', () => {
+    const result = validateKeyRevocationInput(validInput);
+    expect(result).toEqual(validInput);
+  });
+
+  test('accepts input without reason', () => {
+    const inputWithoutReason = { ...validInput };
+    delete (inputWithoutReason as Record<string, unknown>).reason;
+    const result = validateKeyRevocationInput(inputWithoutReason);
+    expect(result.signature).toBe(validInput.signature);
+  });
+
+  test('throws on null/non-object', () => {
+    expect(() => validateKeyRevocationInput(null)).toThrow(ValidationError);
+    expect(() => validateKeyRevocationInput('string')).toThrow(ValidationError);
+  });
+
+  test('throws on missing signature', () => {
+    expect(() => validateKeyRevocationInput({ ...validInput, signature: undefined })).toThrow(ValidationError);
+    expect(() => validateKeyRevocationInput({ ...validInput, signature: '' })).toThrow(ValidationError);
+  });
+
+  test('throws on missing signedAt', () => {
+    expect(() => validateKeyRevocationInput({ ...validInput, signedAt: undefined })).toThrow(ValidationError);
+    expect(() => validateKeyRevocationInput({ ...validInput, signedAt: '' })).toThrow(ValidationError);
+  });
+
+  test('throws on invalid timestamp format', () => {
+    expect(() => validateKeyRevocationInput({ ...validInput, signedAt: 'invalid-date' })).toThrow(ValidationError);
+  });
+});
+
+describe('prepareKeyRevocation', () => {
+  test('returns message and timestamp', () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = prepareKeyRevocation(entity);
+
+    expect(result.message).toContain('revoke-key:');
+    expect(result.message).toContain(entity.id);
+    expect(result.timestamp).toBeDefined();
+  });
+
+  test('generates valid ISO timestamp', () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = prepareKeyRevocation(entity);
+
+    // Should be a valid ISO date
+    const parsed = new Date(result.timestamp);
+    expect(isNaN(parsed.getTime())).toBe(false);
+  });
+});
+
+describe('revokeEntityKey', () => {
+  // Mock signature verifier
+  const createMockVerifier = (shouldPass: boolean) => {
+    return async (_message: string, _signature: string, _publicKey: string): Promise<boolean> => {
+      return shouldPass;
+    };
+  };
+
+  const validRevocationInput: KeyRevocationInput = {
+    signature: 'dGVzdC1zaWduYXR1cmU=',
+    signedAt: new Date().toISOString(),
+    reason: 'Key compromised',
+  };
+
+  test('fails when entity has no public key', async () => {
+    const entity = createTestEntity(); // No public key
+    const result = await revokeEntityKey(entity, validRevocationInput, createMockVerifier(true));
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('NO_CURRENT_KEY');
+  });
+
+  test('fails when key was already revoked', async () => {
+    const entity = createTestEntity({
+      // No publicKey
+      metadata: { keyRevokedAt: '2025-01-22T10:00:00.000Z', revokedKeyHash: 'AAAA...' },
+    });
+    const result = await revokeEntityKey(entity, validRevocationInput, createMockVerifier(true));
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('ALREADY_REVOKED');
+  });
+
+  test('fails when signature is expired', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const oldTimestamp = new Date(Date.now() - DEFAULT_MAX_SIGNATURE_AGE - 60000).toISOString();
+    const result = await revokeEntityKey(
+      entity,
+      { ...validRevocationInput, signedAt: oldTimestamp },
+      createMockVerifier(true),
+      { maxSignatureAge: DEFAULT_MAX_SIGNATURE_AGE }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('SIGNATURE_EXPIRED');
+  });
+
+  test('fails when signature timestamp is in future', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const futureTimestamp = new Date(Date.now() + 120000).toISOString(); // 2 minutes in future
+    const result = await revokeEntityKey(
+      entity,
+      { ...validRevocationInput, signedAt: futureTimestamp },
+      createMockVerifier(true)
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_SIGNATURE');
+  });
+
+  test('fails when signature verification fails', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await revokeEntityKey(
+      entity,
+      validRevocationInput,
+      createMockVerifier(false),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_SIGNATURE');
+  });
+
+  test('fails when verifier throws', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const throwingVerifier = async () => { throw new Error('Crypto error'); };
+    const result = await revokeEntityKey(
+      entity,
+      validRevocationInput,
+      throwingVerifier,
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_SIGNATURE');
+    expect(result.error).toContain('Crypto error');
+  });
+
+  test('succeeds with valid signature', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await revokeEntityKey(
+      entity,
+      validRevocationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.entity).toBeDefined();
+    expect(result.entity?.publicKey).toBeUndefined(); // Key is removed
+  });
+
+  test('records revocation metadata', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await revokeEntityKey(
+      entity,
+      validRevocationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.entity?.metadata.keyRevokedAt).toBeDefined();
+    expect(result.entity?.metadata.revokedKeyHash).toBeDefined();
+    expect(result.entity?.metadata.revokedKeyHash).toContain('...');
+  });
+
+  test('records revocation reason when provided', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const result = await revokeEntityKey(
+      entity,
+      { ...validRevocationInput, reason: 'Key was compromised' },
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.entity?.metadata.keyRevocationReason).toBe('Key was compromised');
+  });
+
+  test('does not record reason when not provided', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const inputWithoutReason: KeyRevocationInput = {
+      signature: validRevocationInput.signature,
+      signedAt: validRevocationInput.signedAt,
+    };
+    const result = await revokeEntityKey(
+      entity,
+      inputWithoutReason,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.entity?.metadata.keyRevocationReason).toBeUndefined();
+  });
+
+  test('updates updatedAt timestamp', async () => {
+    const entity = createTestEntity({
+      publicKey: VALID_PUBLIC_KEY,
+      updatedAt: '2020-01-01T00:00:00.000Z' as Timestamp,
+    });
+    const before = new Date().toISOString();
+
+    const result = await revokeEntityKey(
+      entity,
+      validRevocationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    const after = new Date().toISOString();
+    expect(result.entity?.updatedAt >= before).toBe(true);
+    expect(result.entity?.updatedAt <= after).toBe(true);
+  });
+
+  test('preserves existing metadata', async () => {
+    const entity = createTestEntity({
+      publicKey: VALID_PUBLIC_KEY,
+      metadata: { customField: 'preserved', existing: true },
+    });
+
+    const result = await revokeEntityKey(
+      entity,
+      validRevocationInput,
+      createMockVerifier(true),
+      { skipTimestampValidation: true }
+    );
+
+    expect(result.entity?.metadata.customField).toBe('preserved');
+    expect(result.entity?.metadata.existing).toBe(true);
+    expect(result.entity?.metadata.keyRevokedAt).toBeDefined();
+  });
+
+  test('respects custom maxSignatureAge', async () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    const recentTimestamp = new Date(Date.now() - 1000).toISOString(); // 1 second ago
+
+    const result = await revokeEntityKey(
+      entity,
+      { ...validRevocationInput, signedAt: recentTimestamp },
+      createMockVerifier(true),
+      { maxSignatureAge: 500 } // 500ms - signature should be expired
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('SIGNATURE_EXPIRED');
+  });
+});
+
+describe('isKeyRevoked', () => {
+  test('returns true for entity with revoked key metadata and no public key', () => {
+    const entity = createTestEntity({
+      metadata: { keyRevokedAt: '2025-01-22T10:00:00.000Z', revokedKeyHash: 'AAAA...' },
+    });
+    expect(isKeyRevoked(entity)).toBe(true);
+  });
+
+  test('returns false for entity with public key', () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    expect(isKeyRevoked(entity)).toBe(false);
+  });
+
+  test('returns false for entity without public key and no revocation metadata', () => {
+    const entity = createTestEntity();
+    expect(isKeyRevoked(entity)).toBe(false);
+  });
+
+  test('returns false for entity with public key even if it has revocation metadata', () => {
+    // Edge case: entity has both public key AND revocation metadata
+    // This shouldn't happen in practice but we check for key presence
+    const entity = createTestEntity({
+      publicKey: VALID_PUBLIC_KEY,
+      metadata: { keyRevokedAt: '2025-01-22T10:00:00.000Z', revokedKeyHash: 'AAAA...' },
+    });
+    expect(isKeyRevoked(entity)).toBe(false);
+  });
+});
+
+describe('getKeyRevocationDetails', () => {
+  test('returns revocation details for revoked entity', () => {
+    const entity = createTestEntity({
+      metadata: {
+        keyRevokedAt: '2025-01-22T10:00:00.000Z',
+        revokedKeyHash: 'AAAA...',
+        keyRevocationReason: 'Key compromised',
+      },
+    });
+
+    const details = getKeyRevocationDetails(entity);
+    expect(details).toEqual({
+      revokedAt: '2025-01-22T10:00:00.000Z',
+      revokedKeyHash: 'AAAA...',
+      reason: 'Key compromised',
+    });
+  });
+
+  test('returns details without reason when not provided', () => {
+    const entity = createTestEntity({
+      metadata: {
+        keyRevokedAt: '2025-01-22T10:00:00.000Z',
+        revokedKeyHash: 'AAAA...',
+      },
+    });
+
+    const details = getKeyRevocationDetails(entity);
+    expect(details).toEqual({
+      revokedAt: '2025-01-22T10:00:00.000Z',
+      revokedKeyHash: 'AAAA...',
+      reason: undefined,
+    });
+  });
+
+  test('returns null for entity with public key', () => {
+    const entity = createTestEntity({ publicKey: VALID_PUBLIC_KEY });
+    expect(getKeyRevocationDetails(entity)).toBeNull();
+  });
+
+  test('returns null for entity without revocation metadata', () => {
+    const entity = createTestEntity();
+    expect(getKeyRevocationDetails(entity)).toBeNull();
+  });
+});
+
+describe('filterRevokedKeyEntities', () => {
+  test('filters only revoked key entities', () => {
+    const entities = [
+      createTestEntity({ name: 'entity1', metadata: { keyRevokedAt: '2025-01-22T10:00:00.000Z', revokedKeyHash: 'AAA...' } }),
+      createTestEntity({ name: 'entity2', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ name: 'entity3' }),
+      createTestEntity({ name: 'entity4', metadata: { keyRevokedAt: '2025-01-23T10:00:00.000Z', revokedKeyHash: 'BBB...' } }),
+    ];
+
+    const revoked = filterRevokedKeyEntities(entities);
+    expect(revoked).toHaveLength(2);
+    expect(revoked.map(e => e.name)).toEqual(['entity1', 'entity4']);
+  });
+
+  test('returns empty array when no entities have revoked keys', () => {
+    const entities = [
+      createTestEntity({ name: 'entity1', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ name: 'entity2' }),
+    ];
+
+    expect(filterRevokedKeyEntities(entities)).toEqual([]);
+  });
+});
+
+describe('filterNonRevokedKeyEntities', () => {
+  test('filters out revoked key entities', () => {
+    const entities = [
+      createTestEntity({ name: 'entity1', metadata: { keyRevokedAt: '2025-01-22T10:00:00.000Z', revokedKeyHash: 'AAA...' } }),
+      createTestEntity({ name: 'entity2', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ name: 'entity3' }),
+      createTestEntity({ name: 'entity4', metadata: { keyRevokedAt: '2025-01-23T10:00:00.000Z', revokedKeyHash: 'BBB...' } }),
+    ];
+
+    const nonRevoked = filterNonRevokedKeyEntities(entities);
+    expect(nonRevoked).toHaveLength(2);
+    expect(nonRevoked.map(e => e.name)).toEqual(['entity2', 'entity3']);
+  });
+
+  test('returns all entities when none have revoked keys', () => {
+    const entities = [
+      createTestEntity({ name: 'entity1', publicKey: VALID_PUBLIC_KEY }),
+      createTestEntity({ name: 'entity2' }),
+    ];
+
+    expect(filterNonRevokedKeyEntities(entities)).toHaveLength(2);
+  });
+});

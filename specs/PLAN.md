@@ -1620,7 +1620,7 @@ Recommended implementation sequence:
 - [x] **systems/identity.md Phase 2**: Soft identity (actor context management, name-based lookup, add actor to all operations) ✅ (ActorContext, resolveActor, validateSoftActor, lookupEntityByName, actor param)
 - [x] **systems/identity.md Phase 4**: Verification middleware integration ✅ (createVerificationMiddleware - 11 tests)
 - [x] **systems/identity.md Phase 5**: Key management ✅ (registration via createEntity, signed key rotation via rotateEntityKey with verification - 20 tests)
-- [ ] **systems/identity.md Phase 5**: Implement key revocation (future/optional)
+- [x] **systems/identity.md Phase 5**: Key revocation ✅ (revokeEntityKey with signature verification, constructKeyRevocationMessage, validateKeyRevocationInput, prepareKeyRevocation, isKeyRevoked, getKeyRevocationDetails, filterRevokedKeyEntities, filterNonRevokedKeyEntities - 35 tests)
 - [x] **systems/identity.md Phase 6**: Document configuration ✅ (specs/api/configuration.md - identity modes, environment variables, CLI commands, examples)
 - [x] **systems/identity.md Phase 7**: CLI support ✅ (--actor global flag, identity mode config via el identity mode, whoami command showing actor/source/mode/verification - 39 tests)
 - [x] **systems/identity.md Phase 7**: Add signature for cryptographic mode ✅ (--sign-key, --sign-key-file global flags; el identity sign/verify/keygen/hash commands - 92 tests)

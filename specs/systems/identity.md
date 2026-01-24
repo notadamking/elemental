@@ -279,7 +279,7 @@ Allow runtime mode switching:
 ### Phase 5: Key Management ✅
 - [x] Implement key registration ✅ (createEntity with publicKey validation, entity register --public-key CLI)
 - [x] Implement key update (signed) ✅ (rotateEntityKey with signature verification, constructKeyRotationMessage, validateKeyRotationInput, prepareKeyRotation - 20 tests)
-- [ ] Implement key revocation (future/optional)
+- [x] Implement key revocation ✅ (revokeEntityKey with signature verification, constructKeyRevocationMessage, validateKeyRevocationInput, prepareKeyRevocation, isKeyRevoked, getKeyRevocationDetails, filterRevokedKeyEntities, filterNonRevokedKeyEntities - 35 tests)
 
 ### Phase 6: Configuration ✅
 - [x] Add identity mode config (IdentityConfig type)
