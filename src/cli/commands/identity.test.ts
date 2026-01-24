@@ -823,6 +823,40 @@ describe('signCommand', () => {
       const data = result.data as { signature: string; requestHash: string };
       expect(data.requestHash).toBe(hash);
     });
+
+    it('should reject invalid hash format - too short', async () => {
+      const result = await signCommand.handler([], {
+        ...DEFAULT_GLOBAL_OPTIONS,
+        actor: 'alice',
+        signKey: testKeypair.privateKey,
+        hash: 'abc123',
+      });
+      expect(result.exitCode).toBe(ExitCode.VALIDATION);
+      expect(result.error).toContain('Invalid hash format');
+      expect(result.error).toContain('64-character hex-encoded SHA256');
+    });
+
+    it('should reject invalid hash format - non-hex characters', async () => {
+      const result = await signCommand.handler([], {
+        ...DEFAULT_GLOBAL_OPTIONS,
+        actor: 'alice',
+        signKey: testKeypair.privateKey,
+        hash: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz',
+      });
+      expect(result.exitCode).toBe(ExitCode.VALIDATION);
+      expect(result.error).toContain('Invalid hash format');
+    });
+
+    it('should reject invalid hash format - too long', async () => {
+      const result = await signCommand.handler([], {
+        ...DEFAULT_GLOBAL_OPTIONS,
+        actor: 'alice',
+        signKey: testKeypair.privateKey,
+        hash: 'a'.repeat(128),
+      });
+      expect(result.exitCode).toBe(ExitCode.VALIDATION);
+      expect(result.error).toContain('Invalid hash format');
+    });
   });
 
   describe('key source', () => {
@@ -1013,6 +1047,49 @@ describe('verifyCommand', () => {
       });
       expect(result.exitCode).toBe(ExitCode.VALIDATION);
       expect(result.error).toContain('Must provide --data, --file, or --hash');
+    });
+
+    it('should reject invalid hash format - too short', async () => {
+      const validSig = 'A'.repeat(86) + '==';
+      const result = await verifyCommand.handler([], {
+        ...DEFAULT_GLOBAL_OPTIONS,
+        actor: 'alice',
+        signature: validSig,
+        'public-key': testKeypair.publicKey,
+        'signed-at': new Date().toISOString(),
+        hash: 'abc123',
+      });
+      expect(result.exitCode).toBe(ExitCode.VALIDATION);
+      expect(result.error).toContain('Invalid hash format');
+      expect(result.error).toContain('64-character hex-encoded SHA256');
+    });
+
+    it('should reject invalid hash format - non-hex characters', async () => {
+      const validSig = 'A'.repeat(86) + '==';
+      const result = await verifyCommand.handler([], {
+        ...DEFAULT_GLOBAL_OPTIONS,
+        actor: 'alice',
+        signature: validSig,
+        'public-key': testKeypair.publicKey,
+        'signed-at': new Date().toISOString(),
+        hash: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz',
+      });
+      expect(result.exitCode).toBe(ExitCode.VALIDATION);
+      expect(result.error).toContain('Invalid hash format');
+    });
+
+    it('should reject invalid hash format - too long', async () => {
+      const validSig = 'A'.repeat(86) + '==';
+      const result = await verifyCommand.handler([], {
+        ...DEFAULT_GLOBAL_OPTIONS,
+        actor: 'alice',
+        signature: validSig,
+        'public-key': testKeypair.publicKey,
+        'signed-at': new Date().toISOString(),
+        hash: 'a'.repeat(128),
+      });
+      expect(result.exitCode).toBe(ExitCode.VALIDATION);
+      expect(result.error).toContain('Invalid hash format');
     });
   });
 

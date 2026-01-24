@@ -24,6 +24,7 @@ import {
   hashRequestBody,
   isValidPublicKey,
   isValidSignature,
+  isValidRequestHash,
   type PublicKey,
   type Signature,
 } from '../../systems/identity.js';
@@ -343,7 +344,13 @@ async function signHandler(
   let requestHash: string;
 
   if (options.hash) {
-    // Use pre-computed hash
+    // Validate pre-computed hash format
+    if (!isValidRequestHash(options.hash)) {
+      return failure(
+        'Invalid hash format. Expected 64-character hex-encoded SHA256 hash',
+        ExitCode.VALIDATION
+      );
+    }
     requestHash = options.hash;
   } else if (options.data) {
     // Hash the provided data
@@ -534,6 +541,13 @@ async function verifyHandler(
   let requestHash: string;
 
   if (options.hash) {
+    // Validate pre-computed hash format
+    if (!isValidRequestHash(options.hash)) {
+      return failure(
+        'Invalid hash format. Expected 64-character hex-encoded SHA256 hash',
+        ExitCode.VALIDATION
+      );
+    }
     requestHash = options.hash;
   } else if (options.data) {
     requestHash = await hashRequestBody(options.data);
