@@ -4747,6 +4747,101 @@ This evaluation tested quiet mode and pipeline ergonomics critical for agent orc
 
 ---
 
+### Scenario: Generic el show Command Consistency Across Element Types
+
+**Purpose:** Validate that the generic `el show` command behaves consistently across all element types, exposing the same fields and following the same patterns as type-specific show commands
+
+**Prerequisites:** Initialized workspace with all element types
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Inconsistencies found)
+
+**Checkpoints:**
+
+**Basic el show Behavior:**
+- [x] `el show <task-id>` returns `.data` with element fields directly
+- [x] `el show <document-id>` returns `.data` with element fields directly
+- [ ] **FAIL**: `el show <plan-id>` returns nested `.data.element` structure
+  - **BUG el-58d9/el-lxt9:** Wraps in `{element: {...}, progress: {...}}`
+- [x] `el show <entity-id>` returns `.data` with element fields directly
+- [x] `el show <library-id>` returns `.data` with element fields directly
+- [x] `el show <team-id>` returns `.data` with element fields directly
+- [x] `el show <playbook-id>` returns `.data` with element fields directly
+- [x] `el show <workflow-id>` returns `.data` with element fields directly
+- [x] `el show <channel-id>` returns `.data` with element fields directly
+- [x] `el show <message-id>` returns `.data` with element fields directly
+
+**Content Hydration:**
+- [ ] **FAIL**: `el show <message-id>` does not hydrate content from contentRef
+  - **BUG el-51z2:** Returns `content: null` with `contentRef` populated
+  - `el msg list` correctly hydrates content for same message
+  - Forces agents to make a second call to fetch message content
+
+**Field Consistency:**
+- [x] All types include common fields: id, type, createdAt, updatedAt, createdBy, tags, metadata
+- [x] Timestamps use ISO 8601 format consistently
+- [x] IDs use `el-xxxx` format consistently
+- [x] Tags are arrays consistently
+- [x] Metadata is object consistently
+
+**Blocked Task Fields:**
+- [ ] **FAIL**: `el show <blocked-task>` missing blockedBy and blockReason fields
+  - **BUG el-pjjg:** (pre-existing) Only available in `el blocked` output
+  - Task shows `status: "blocked"` but no way to see blocker via show
+
+**Tombstone Behavior:**
+- [ ] **FAIL**: `el show <deleted-element>` returns NOT_FOUND
+  - **BUG el-2yva:** (pre-existing) `el doc show` returns deleted documents with deletedAt
+  - Inconsistent behavior between generic and type-specific show
+
+**Edge Cases:**
+- [x] Non-existent ID: returns NOT_FOUND with exit code 3
+- [x] Invalid ID format: returns NOT_FOUND with exit code 3
+- [x] Missing ID argument: returns usage error with exit code 2
+- [x] Multiple IDs provided: silently ignores second ID (pre-existing el-vocx)
+
+**Comparison with Type-Specific Commands:**
+- [x] `el show <doc>` vs `el doc show <doc>`: field consistency ✓
+- [ ] **FAIL**: `el show <plan>` vs `el plan show <plan>`: different key names
+  - `el show` uses `element` key, `el plan show` uses `plan` key
+  - Related to el-58d9 (inconsistent JSON structure)
+- [x] `el show <workflow>` vs `el workflow show <workflow>`: field consistency ✓
+- [x] `el show <playbook>` vs `el playbook show <playbook>`: field consistency ✓
+
+**Success Criteria:** el show behaves consistently across all element types
+- **Partial:** Most types consistent, but plan wrapping, message content hydration, and blocked fields missing
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-51z2 | BUG: el show on message does not hydrate content from contentRef | 4 | bug |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-pjjg | (pre-existing) el show missing blockedBy/blockReason for blocked tasks | 3 | bug |
+| el-2yva | (pre-existing) el doc show returns deleted docs but el show returns NOT_FOUND | 3 | bug |
+| el-58d9 | (pre-existing) Inconsistent JSON structure between el show and el plan show | 4 | ux |
+| el-lxt9 | (pre-existing) el plan show wraps data in nested structure | 3 | bug |
+| el-vocx | (pre-existing) CLI silently ignores extra positional arguments | 3 | ux |
+
+**Dependencies:**
+- el-51z2 → el-50s8 (relates-to: inconsistent field exposure across show/list)
+- el-51z2 → el-2yva (relates-to: el show vs type-specific command behavior)
+
+**Notes:**
+This evaluation tested the generic `el show` command which agents frequently use to inspect elements.
+Key findings:
+1. Most element types are consistent with direct `.data` field access
+2. Plans are wrapped in nested structure (el-lxt9) with different key naming (el-58d9)
+3. Messages don't hydrate content (new el-51z2) - agents must use el msg list for content
+4. Blocked tasks don't include blocking information (el-pjjg)
+5. Tombstoned elements return NOT_FOUND vs type-specific show returning data (el-2yva)
+6. Multiple ID arguments silently ignored (el-vocx)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
