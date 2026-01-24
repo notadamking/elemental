@@ -29,8 +29,8 @@ import {
   NotAMemberError,
   CannotModifyMembersError,
 } from '../types/channel.js';
-import { createMessage } from '../types/message.js';
-import type { Message } from '../types/message.js';
+import { createMessage, isMessage } from '../types/message.js';
+import type { Message, HydratedMessage, ChannelId as MessageChannelId } from '../types/message.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { SyncService } from '../sync/service.js';
 import { computeContentHashSync } from '../sync/hash.js';
@@ -442,8 +442,12 @@ export class ElementalAPIImpl implements ElementalAPI {
     let element = deserializeElement<T>(row, tags);
 
     // Handle hydration if requested
-    if (options?.hydrate && isTask(element)) {
-      element = await this.hydrateTask(element as unknown as Task, options.hydrate) as unknown as T;
+    if (options?.hydrate) {
+      if (isTask(element)) {
+        element = await this.hydrateTask(element as unknown as Task, options.hydrate) as unknown as T;
+      } else if (isMessage(element)) {
+        element = await this.hydrateMessage(element as unknown as Message, options.hydrate) as unknown as T;
+      }
     }
 
     return element;
@@ -540,9 +544,10 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     }
 
-    // Apply hydration if requested and items are tasks
+    // Apply hydration if requested
     let finalItems: T[] = filteredItems;
     if (effectiveFilter.hydrate) {
+      // Hydrate tasks
       const tasks = filteredItems.filter((item): item is Task & T => isTask(item));
       if (tasks.length > 0) {
         const hydratedTasks = this.hydrateTasks(tasks, effectiveFilter.hydrate);
@@ -551,6 +556,19 @@ export class ElementalAPIImpl implements ElementalAPI {
         // Replace tasks with hydrated versions, keeping non-tasks as-is
         finalItems = filteredItems.map((item) => {
           const hydrated = hydratedMap.get(item.id);
+          return hydrated ? (hydrated as unknown as T) : item;
+        });
+      }
+
+      // Hydrate messages
+      const messages = filteredItems.filter((item): item is Message & T => isMessage(item));
+      if (messages.length > 0) {
+        const hydratedMessages = this.hydrateMessages(messages, effectiveFilter.hydrate);
+        // Create a map for efficient lookup
+        const hydratedMsgMap = new Map(hydratedMessages.map((m) => [m.id, m]));
+        // Replace messages with hydrated versions
+        finalItems = finalItems.map((item) => {
+          const hydrated = hydratedMsgMap.get(item.id);
           return hydrated ? (hydrated as unknown as T) : item;
         });
       }
@@ -615,10 +633,11 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
     }
 
-    // Message sender membership validation
+    // Message validation (sender membership, document refs, thread integrity)
     if (element.type === 'message') {
       const messageData = element as unknown as Message;
-      // Get the channel
+
+      // 1. Validate channel exists and sender is a member
       const channelRow = this.backend.queryOne<ElementRow>(
         `SELECT * FROM elements WHERE id = ? AND deleted_at IS NULL`,
         [messageData.channelId]
@@ -639,6 +658,69 @@ export class ElementalAPIImpl implements ElementalAPI {
       // Validate sender is a channel member
       if (!isMember(channel, messageData.sender)) {
         throw new NotAMemberError(channel.id, messageData.sender);
+      }
+
+      // 2. Validate contentRef points to a valid Document
+      const contentDoc = this.backend.queryOne<ElementRow>(
+        `SELECT * FROM elements WHERE id = ? AND type = 'document' AND deleted_at IS NULL`,
+        [messageData.contentRef]
+      );
+      if (!contentDoc) {
+        throw new NotFoundError(
+          `Content document not found: ${messageData.contentRef}`,
+          ErrorCode.DOCUMENT_NOT_FOUND,
+          { elementId: messageData.contentRef, field: 'contentRef' }
+        );
+      }
+
+      // 3. Validate all attachments point to valid Documents
+      if (messageData.attachments && messageData.attachments.length > 0) {
+        for (const attachmentId of messageData.attachments) {
+          const attachmentDoc = this.backend.queryOne<ElementRow>(
+            `SELECT * FROM elements WHERE id = ? AND type = 'document' AND deleted_at IS NULL`,
+            [attachmentId]
+          );
+          if (!attachmentDoc) {
+            throw new NotFoundError(
+              `Attachment document not found: ${attachmentId}`,
+              ErrorCode.DOCUMENT_NOT_FOUND,
+              { elementId: attachmentId, field: 'attachments' }
+            );
+          }
+        }
+      }
+
+      // 4. Validate threadId (if present) points to a message in the same channel
+      if (messageData.threadId !== null) {
+        const threadParent = this.backend.queryOne<ElementRow>(
+          `SELECT * FROM elements WHERE id = ? AND type = 'message' AND deleted_at IS NULL`,
+          [messageData.threadId]
+        );
+        if (!threadParent) {
+          throw new NotFoundError(
+            `Thread parent message not found: ${messageData.threadId}`,
+            ErrorCode.NOT_FOUND,
+            { elementId: messageData.threadId, field: 'threadId' }
+          );
+        }
+        // Deserialize to check channel
+        const parentTags = this.backend.query<TagRow>(
+          'SELECT tag FROM tags WHERE element_id = ?',
+          [threadParent.id]
+        );
+        const parentMessage = deserializeElement<Message>(threadParent, parentTags.map(r => r.tag));
+        if (parentMessage.channelId !== messageData.channelId) {
+          throw new ConstraintError(
+            `Thread parent message is in a different channel`,
+            ErrorCode.INVALID_PARENT,
+            {
+              field: 'threadId',
+              threadId: messageData.threadId,
+              threadChannelId: parentMessage.channelId,
+              messageChannelId: messageData.channelId,
+            }
+          );
+        }
       }
     }
 
@@ -2783,6 +2865,87 @@ export class ElementalAPIImpl implements ElementalAPI {
         if (doc) {
           result.design = doc.content;
         }
+      }
+
+      return result;
+    });
+
+    return hydrated;
+  }
+
+  /**
+   * Hydrate a single message with its document references.
+   * Resolves contentRef -> content and attachments -> attachmentContents.
+   */
+  private async hydrateMessage(message: Message, options: HydrationOptions): Promise<HydratedMessage> {
+    const hydrated: HydratedMessage = { ...message };
+
+    if (options.content && message.contentRef) {
+      const doc = await this.get<Document>(message.contentRef as unknown as ElementId);
+      if (doc) {
+        hydrated.content = doc.content;
+      }
+    }
+
+    if (options.attachments && message.attachments && message.attachments.length > 0) {
+      const attachmentContents: string[] = [];
+      for (const attachmentId of message.attachments) {
+        const doc = await this.get<Document>(attachmentId as unknown as ElementId);
+        if (doc) {
+          attachmentContents.push(doc.content);
+        }
+      }
+      hydrated.attachmentContents = attachmentContents;
+    }
+
+    return hydrated;
+  }
+
+  /**
+   * Batch hydrate messages with their document references.
+   * Collects all document IDs, fetches them in a single query, then populates.
+   */
+  private hydrateMessages(messages: Message[], options: HydrationOptions): HydratedMessage[] {
+    if (messages.length === 0) {
+      return [];
+    }
+
+    // Collect all document IDs to fetch
+    const documentIds: ElementId[] = [];
+    for (const message of messages) {
+      if (options.content && message.contentRef) {
+        documentIds.push(message.contentRef as unknown as ElementId);
+      }
+      if (options.attachments && message.attachments) {
+        for (const attachmentId of message.attachments) {
+          documentIds.push(attachmentId as unknown as ElementId);
+        }
+      }
+    }
+
+    // Batch fetch all documents
+    const documentMap = this.batchFetchDocuments(documentIds);
+
+    // Hydrate each message
+    const hydrated: HydratedMessage[] = messages.map((message) => {
+      const result: HydratedMessage = { ...message };
+
+      if (options.content && message.contentRef) {
+        const doc = documentMap.get(message.contentRef as unknown as ElementId);
+        if (doc) {
+          result.content = doc.content;
+        }
+      }
+
+      if (options.attachments && message.attachments && message.attachments.length > 0) {
+        const attachmentContents: string[] = [];
+        for (const attachmentId of message.attachments) {
+          const doc = documentMap.get(attachmentId as unknown as ElementId);
+          if (doc) {
+            attachmentContents.push(doc.content);
+          }
+        }
+        result.attachmentContents = attachmentContents;
       }
 
       return result;

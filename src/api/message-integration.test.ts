@@ -358,4 +358,337 @@ describe('Message Integration', () => {
       expect(result1.channel.id).toBe(result2.channel.id);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Document Reference Validation
+  // --------------------------------------------------------------------------
+
+  describe('Document Reference Validation', () => {
+    it('should reject message creation when contentRef document does not exist', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Try to create a message with non-existent contentRef
+      const message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: 'el-abc123' as unknown as import('../types/document.js').DocumentId,
+      });
+
+      // Should throw NotFoundError for document
+      await expect(api.create<Message>(toCreateInput(message))).rejects.toThrow(NotFoundError);
+    });
+
+    it('should reject message creation when attachment document does not exist', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create a valid content document
+      const contentDoc = await createTestDocument(mockEntityA);
+      const createdContentDoc = await api.create<Document>(toCreateInput(contentDoc));
+
+      // Try to create a message with non-existent attachment
+      const message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdContentDoc.id as unknown as import('../types/document.js').DocumentId,
+        attachments: ['el-xyz789' as unknown as import('../types/document.js').DocumentId],
+      });
+
+      // Should throw NotFoundError for attachment document
+      await expect(api.create<Message>(toCreateInput(message))).rejects.toThrow(NotFoundError);
+    });
+
+    it('should accept message with valid contentRef and attachments', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create content and attachment documents
+      const contentDoc = await createTestDocument(mockEntityA, 'Message content');
+      const createdContentDoc = await api.create<Document>(toCreateInput(contentDoc));
+      const attachmentDoc = await createTestDocument(mockEntityA, 'Attachment content');
+      const createdAttachmentDoc = await api.create<Document>(toCreateInput(attachmentDoc));
+
+      // Create message with valid refs
+      const message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdContentDoc.id as unknown as import('../types/document.js').DocumentId,
+        attachments: [createdAttachmentDoc.id as unknown as import('../types/document.js').DocumentId],
+      });
+
+      // Should succeed
+      const createdMessage = await api.create<Message>(toCreateInput(message));
+      expect(createdMessage).toBeDefined();
+      expect(createdMessage.contentRef).toBe(createdContentDoc.id);
+      expect(createdMessage.attachments).toHaveLength(1);
+      expect(createdMessage.attachments[0]).toBe(createdAttachmentDoc.id);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Thread Integrity Validation
+  // --------------------------------------------------------------------------
+
+  describe('Thread Integrity Validation', () => {
+    it('should reject reply when threadId message does not exist', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create a valid content document
+      const contentDoc = await createTestDocument(mockEntityA);
+      const createdContentDoc = await api.create<Document>(toCreateInput(contentDoc));
+
+      // Try to create a message replying to non-existent thread parent
+      const message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdContentDoc.id as unknown as import('../types/document.js').DocumentId,
+        threadId: 'el-noexist' as unknown as import('../types/message.js').MessageId,
+      });
+
+      // Should throw NotFoundError for thread parent
+      await expect(api.create<Message>(toCreateInput(message))).rejects.toThrow(NotFoundError);
+    });
+
+    it('should reject reply when threadId message is in a different channel', async () => {
+      // Create two group channels
+      const channel1 = await createTestGroupChannel({
+        name: 'channel-1',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel1 = await api.create<Channel>(toCreateInput(channel1));
+
+      const channel2 = await createTestGroupChannel({
+        name: 'channel-2',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel2 = await api.create<Channel>(toCreateInput(channel2));
+
+      // Create a root message in channel 1
+      const rootDoc = await createTestDocument(mockEntityA, 'Root message');
+      const createdRootDoc = await api.create<Document>(toCreateInput(rootDoc));
+      const rootMessage = await createMessage({
+        channelId: createdChannel1.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdRootDoc.id as unknown as import('../types/document.js').DocumentId,
+      });
+      const createdRootMessage = await api.create<Message>(toCreateInput(rootMessage));
+
+      // Try to create a reply in channel 2 referencing message in channel 1
+      const replyDoc = await createTestDocument(mockEntityA, 'Reply message');
+      const createdReplyDoc = await api.create<Document>(toCreateInput(replyDoc));
+      const replyMessage = await createMessage({
+        channelId: createdChannel2.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdReplyDoc.id as unknown as import('../types/document.js').DocumentId,
+        threadId: createdRootMessage.id as unknown as import('../types/message.js').MessageId,
+      });
+
+      // Should throw ConstraintError for cross-channel threading
+      await expect(api.create<Message>(toCreateInput(replyMessage))).rejects.toThrow(
+        'Thread parent message is in a different channel'
+      );
+    });
+
+    it('should allow valid thread reply in same channel', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create a root message
+      const rootDoc = await createTestDocument(mockEntityA, 'Root message');
+      const createdRootDoc = await api.create<Document>(toCreateInput(rootDoc));
+      const rootMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdRootDoc.id as unknown as import('../types/document.js').DocumentId,
+      });
+      const createdRootMessage = await api.create<Message>(toCreateInput(rootMessage));
+
+      // Create a reply in the same channel
+      const replyDoc = await createTestDocument(mockEntityB, 'Reply message');
+      const createdReplyDoc = await api.create<Document>(toCreateInput(replyDoc));
+      const replyMessage = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityB,
+        contentRef: createdReplyDoc.id as unknown as import('../types/document.js').DocumentId,
+        threadId: createdRootMessage.id as unknown as import('../types/message.js').MessageId,
+      });
+
+      // Should succeed
+      const createdReplyMessage = await api.create<Message>(toCreateInput(replyMessage));
+      expect(createdReplyMessage).toBeDefined();
+      expect(createdReplyMessage.threadId).toBe(createdRootMessage.id);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Message Hydration
+  // --------------------------------------------------------------------------
+
+  describe('Message Hydration', () => {
+    it('should hydrate message content on get()', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create content document with specific content
+      const contentDoc = await createTestDocument(mockEntityA, 'Hydrated content text');
+      const createdContentDoc = await api.create<Document>(toCreateInput(contentDoc));
+
+      // Create message
+      const message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdContentDoc.id as unknown as import('../types/document.js').DocumentId,
+      });
+      const createdMessage = await api.create<Message>(toCreateInput(message));
+
+      // Fetch with hydration
+      const hydratedMessage = await api.get<Message>(createdMessage.id, {
+        hydrate: { content: true },
+      }) as import('../types/message.js').HydratedMessage;
+
+      expect(hydratedMessage).toBeDefined();
+      expect(hydratedMessage.content).toBe('Hydrated content text');
+    });
+
+    it('should hydrate message attachments on get()', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create content and attachment documents
+      const contentDoc = await createTestDocument(mockEntityA, 'Message content');
+      const createdContentDoc = await api.create<Document>(toCreateInput(contentDoc));
+      const attachment1 = await createTestDocument(mockEntityA, 'Attachment 1 content');
+      const createdAttachment1 = await api.create<Document>(toCreateInput(attachment1));
+      const attachment2 = await createTestDocument(mockEntityA, 'Attachment 2 content');
+      const createdAttachment2 = await api.create<Document>(toCreateInput(attachment2));
+
+      // Create message with attachments
+      const message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdContentDoc.id as unknown as import('../types/document.js').DocumentId,
+        attachments: [
+          createdAttachment1.id as unknown as import('../types/document.js').DocumentId,
+          createdAttachment2.id as unknown as import('../types/document.js').DocumentId,
+        ],
+      });
+      const createdMessage = await api.create<Message>(toCreateInput(message));
+
+      // Fetch with attachment hydration
+      const hydratedMessage = await api.get<Message>(createdMessage.id, {
+        hydrate: { attachments: true },
+      }) as import('../types/message.js').HydratedMessage;
+
+      expect(hydratedMessage).toBeDefined();
+      expect(hydratedMessage.attachmentContents).toHaveLength(2);
+      expect(hydratedMessage.attachmentContents).toContain('Attachment 1 content');
+      expect(hydratedMessage.attachmentContents).toContain('Attachment 2 content');
+    });
+
+    it('should hydrate both content and attachments on get()', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create content and attachment documents
+      const contentDoc = await createTestDocument(mockEntityA, 'The main content');
+      const createdContentDoc = await api.create<Document>(toCreateInput(contentDoc));
+      const attachmentDoc = await createTestDocument(mockEntityA, 'The attachment');
+      const createdAttachmentDoc = await api.create<Document>(toCreateInput(attachmentDoc));
+
+      // Create message
+      const message = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdContentDoc.id as unknown as import('../types/document.js').DocumentId,
+        attachments: [createdAttachmentDoc.id as unknown as import('../types/document.js').DocumentId],
+      });
+      const createdMessage = await api.create<Message>(toCreateInput(message));
+
+      // Fetch with full hydration
+      const hydratedMessage = await api.get<Message>(createdMessage.id, {
+        hydrate: { content: true, attachments: true },
+      }) as import('../types/message.js').HydratedMessage;
+
+      expect(hydratedMessage.content).toBe('The main content');
+      expect(hydratedMessage.attachmentContents).toHaveLength(1);
+      expect(hydratedMessage.attachmentContents![0]).toBe('The attachment');
+    });
+
+    it('should hydrate messages in list()', async () => {
+      // Create a group channel
+      const channel = await createTestGroupChannel({
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const createdChannel = await api.create<Channel>(toCreateInput(channel));
+
+      // Create content documents
+      const contentDoc1 = await createTestDocument(mockEntityA, 'Message 1 content');
+      const createdContentDoc1 = await api.create<Document>(toCreateInput(contentDoc1));
+      const contentDoc2 = await createTestDocument(mockEntityB, 'Message 2 content');
+      const createdContentDoc2 = await api.create<Document>(toCreateInput(contentDoc2));
+
+      // Create messages
+      const message1 = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityA,
+        contentRef: createdContentDoc1.id as unknown as import('../types/document.js').DocumentId,
+      });
+      await api.create<Message>(toCreateInput(message1));
+
+      const message2 = await createMessage({
+        channelId: createdChannel.id as unknown as import('../types/message.js').ChannelId,
+        sender: mockEntityB,
+        contentRef: createdContentDoc2.id as unknown as import('../types/document.js').DocumentId,
+      });
+      await api.create<Message>(toCreateInput(message2));
+
+      // List with hydration
+      const messages = await api.list<Message>({
+        type: 'message',
+        hydrate: { content: true },
+      }) as import('../types/message.js').HydratedMessage[];
+
+      expect(messages).toHaveLength(2);
+      const contents = messages.map((m) => m.content);
+      expect(contents).toContain('Message 1 content');
+      expect(contents).toContain('Message 2 content');
+    });
+  });
 });

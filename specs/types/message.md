@@ -195,19 +195,19 @@ To fetch a thread:
 - [x] Add immutability tests
 
 ### Phase 3: Validation
-- [ ] Validate channel membership on send (requires Channel type)
-- [ ] Validate Document references (requires storage layer)
-- [ ] Validate thread parent in same channel (requires storage layer)
+- [x] Validate channel membership on send
+- [x] Validate Document references (contentRef, attachments)
+- [x] Validate thread parent in same channel
 
 ### Phase 4: Threading
 - [x] Implement thread query (getThreadMessages utility)
 - [ ] Implement `replies-to` dependency creation (requires DependencyService integration)
-- [ ] Add thread integrity constraints (requires storage layer)
+- [x] Add thread integrity constraints
 
 ### Phase 5: Hydration
-- [ ] Implement content hydration
-- [ ] Implement attachments hydration
-- [ ] Add batch hydration for message lists
+- [x] Implement content hydration
+- [x] Implement attachments hydration
+- [x] Add batch hydration for message lists
 
 ### Phase 6: Queries
 - [x] Implement channel message listing (filterByChannel utility)
@@ -223,5 +223,5 @@ To fetch a thread:
 ### Phase 8: Testing
 - [x] Unit tests for immutability enforcement
 - [x] Unit tests for validation
-- [ ] Integration tests for threading
+- [x] Integration tests for threading
 - [ ] E2E tests for message flows
