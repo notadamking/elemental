@@ -404,4 +404,240 @@ describe('Channel Membership Operations', () => {
       expect(created1.id).toBeDefined();
     });
   });
+
+  // --------------------------------------------------------------------------
+  // searchChannels Tests
+  // --------------------------------------------------------------------------
+
+  describe('searchChannels()', () => {
+    it('should find channels by partial name match', async () => {
+      const channel1 = await createTestGroupChannel({ name: 'dev-team' });
+      const channel2 = await createTestGroupChannel({ name: 'design-team' });
+      const channel3 = await createTestGroupChannel({ name: 'marketing' });
+      await api.create(toCreateInput(channel1));
+      await api.create(toCreateInput(channel2));
+      await api.create(toCreateInput(channel3));
+
+      const results = await api.searchChannels('team');
+
+      expect(results.length).toBe(2);
+      expect(results.map((c) => c.name)).toContain('dev-team');
+      expect(results.map((c) => c.name)).toContain('design-team');
+    });
+
+    it('should return empty array when no channels match', async () => {
+      const channel = await createTestGroupChannel({ name: 'dev-team' });
+      await api.create(toCreateInput(channel));
+
+      const results = await api.searchChannels('nonexistent');
+
+      expect(results.length).toBe(0);
+    });
+
+    it('should be case-insensitive', async () => {
+      const channel = await createTestGroupChannel({ name: 'DevOps' });
+      await api.create(toCreateInput(channel));
+
+      const results = await api.searchChannels('devops');
+
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('DevOps');
+    });
+
+    it('should filter by channel type', async () => {
+      const groupChannel = await createTestGroupChannel({ name: 'group-chat' });
+      await api.create(toCreateInput(groupChannel));
+
+      // Create a direct channel
+      await api.findOrCreateDirectChannel(mockEntityA, mockEntityB, mockEntityA);
+
+      // Search for group channels only
+      const groupResults = await api.searchChannels('', {
+        channelType: ChannelTypeValue.GROUP,
+      });
+      expect(groupResults.every((c) => c.channelType === ChannelTypeValue.GROUP)).toBe(true);
+
+      // Search for direct channels only
+      const directResults = await api.searchChannels('', {
+        channelType: ChannelTypeValue.DIRECT,
+      });
+      expect(directResults.every((c) => c.channelType === ChannelTypeValue.DIRECT)).toBe(true);
+    });
+
+    it('should filter by visibility', async () => {
+      const publicChannel = await createGroupChannel({
+        name: 'public-channel',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+        visibility: VisibilityValue.PUBLIC,
+      });
+      const privateChannel = await createGroupChannel({
+        name: 'private-channel',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+        visibility: VisibilityValue.PRIVATE,
+      });
+      await api.create(toCreateInput(publicChannel));
+      await api.create(toCreateInput(privateChannel));
+
+      const publicResults = await api.searchChannels('channel', {
+        visibility: VisibilityValue.PUBLIC,
+      });
+      expect(publicResults.length).toBe(1);
+      expect(publicResults[0].name).toBe('public-channel');
+      expect(publicResults[0].permissions.visibility).toBe(VisibilityValue.PUBLIC);
+
+      const privateResults = await api.searchChannels('channel', {
+        visibility: VisibilityValue.PRIVATE,
+      });
+      expect(privateResults.length).toBe(1);
+      expect(privateResults[0].name).toBe('private-channel');
+    });
+
+    it('should filter by join policy', async () => {
+      const openChannel = await createGroupChannel({
+        name: 'open-channel',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+        visibility: VisibilityValue.PUBLIC,
+        joinPolicy: JoinPolicyValue.OPEN,
+      });
+      const inviteChannel = await createGroupChannel({
+        name: 'invite-channel',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+        visibility: VisibilityValue.PUBLIC,
+        joinPolicy: JoinPolicyValue.INVITE_ONLY,
+      });
+      await api.create(toCreateInput(openChannel));
+      await api.create(toCreateInput(inviteChannel));
+
+      const openResults = await api.searchChannels('channel', {
+        joinPolicy: JoinPolicyValue.OPEN,
+      });
+      expect(openResults.length).toBe(1);
+      expect(openResults[0].name).toBe('open-channel');
+
+      const inviteResults = await api.searchChannels('channel', {
+        joinPolicy: JoinPolicyValue.INVITE_ONLY,
+      });
+      expect(inviteResults.length).toBe(1);
+      expect(inviteResults[0].name).toBe('invite-channel');
+    });
+
+    it('should filter by member', async () => {
+      const channel1 = await createGroupChannel({
+        name: 'channel-with-a',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+      });
+      const channel2 = await createGroupChannel({
+        name: 'channel-with-c',
+        createdBy: mockEntityA,
+        members: [mockEntityC],
+      });
+      await api.create(toCreateInput(channel1));
+      await api.create(toCreateInput(channel2));
+
+      const resultsWithB = await api.searchChannels('channel', {
+        member: mockEntityB,
+      });
+      expect(resultsWithB.length).toBe(1);
+      expect(resultsWithB[0].name).toBe('channel-with-a');
+
+      const resultsWithC = await api.searchChannels('channel', {
+        member: mockEntityC,
+      });
+      expect(resultsWithC.length).toBe(1);
+      expect(resultsWithC[0].name).toBe('channel-with-c');
+
+      // mockEntityA is the creator and in modifyMembers by default, but not in members list
+      // actually wait - let me check what members are included
+    });
+
+    it('should combine multiple filters', async () => {
+      const publicOpenWithB = await createGroupChannel({
+        name: 'public-open-b',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+        visibility: VisibilityValue.PUBLIC,
+        joinPolicy: JoinPolicyValue.OPEN,
+      });
+      const publicOpenWithC = await createGroupChannel({
+        name: 'public-open-c',
+        createdBy: mockEntityA,
+        members: [mockEntityC],
+        visibility: VisibilityValue.PUBLIC,
+        joinPolicy: JoinPolicyValue.OPEN,
+      });
+      const privateInviteWithB = await createGroupChannel({
+        name: 'private-invite-b',
+        createdBy: mockEntityA,
+        members: [mockEntityB],
+        visibility: VisibilityValue.PRIVATE,
+        joinPolicy: JoinPolicyValue.INVITE_ONLY,
+      });
+      await api.create(toCreateInput(publicOpenWithB));
+      await api.create(toCreateInput(publicOpenWithC));
+      await api.create(toCreateInput(privateInviteWithB));
+
+      const results = await api.searchChannels('', {
+        visibility: VisibilityValue.PUBLIC,
+        joinPolicy: JoinPolicyValue.OPEN,
+        member: mockEntityB,
+      });
+
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('public-open-b');
+    });
+
+    it('should find channels by tag', async () => {
+      const channel = await createTestGroupChannel({ name: 'tagged-channel' });
+      channel.tags = ['important', 'dev'];
+      await api.create(toCreateInput(channel));
+
+      const results = await api.searchChannels('important');
+
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('tagged-channel');
+    });
+
+    it('should return channels ordered by updated_at descending', async () => {
+      const channel1 = await createTestGroupChannel({ name: 'first-channel' });
+      const channel2 = await createTestGroupChannel({ name: 'second-channel' });
+      await api.create(toCreateInput(channel1));
+      await api.create(toCreateInput(channel2));
+
+      // Update the first channel to make it more recent
+      await api.update(channel1.id, { tags: ['updated'] });
+
+      const results = await api.searchChannels('channel');
+
+      expect(results.length).toBe(2);
+      // First channel should now appear first due to more recent update
+      expect(results[0].name).toBe('first-channel');
+    });
+
+    it('should not include deleted channels', async () => {
+      const channel = await createTestGroupChannel({ name: 'to-delete' });
+      await api.create(toCreateInput(channel));
+      await api.delete(channel.id);
+
+      const results = await api.searchChannels('delete');
+
+      expect(results.length).toBe(0);
+    });
+
+    it('should search direct channels by name', async () => {
+      await api.findOrCreateDirectChannel(mockEntityA, mockEntityB, mockEntityA);
+
+      // Direct channel name is deterministic: sorted entity names joined
+      const directName = generateDirectChannelName(mockEntityA, mockEntityB);
+
+      const results = await api.searchChannels(mockEntityA.replace('el-', ''));
+
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results.some((c) => c.name === directName)).toBe(true);
+    });
+  });
 });

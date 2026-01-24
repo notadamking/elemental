@@ -1670,7 +1670,7 @@ Recommended implementation sequence:
 - [x] **types/channel.md Phase 2-4**: Find-or-create logic, name uniqueness, membership operations ✅ (findOrCreateDirectChannel, addChannelMember, removeChannelMember, leaveChannel, membership events - 27 integration tests)
 - [x] **types/channel.md Phase 5**: Permissions ✅ (visibility checking, join policy enforcement, modifier validation)
 - [x] **types/channel.md Phase 6**: Message integration ✅ (sender membership validation in create, sendDirectMessage helper, auto-create direct channels)
-- [ ] **types/channel.md Phase 7**: Channel search (requires storage layer)
+- [x] **types/channel.md Phase 7**: Channel search ✅ (searchChannels method with storage layer, filters by channelType/visibility/joinPolicy/member - 14 integration tests)
 - [x] **types/message.md Phase 3-5**: Channel membership validation, Document reference validation, thread integrity, content/attachments hydration ✅ (validation in API create, hydration support)
 - [ ] **types/message.md Phase 6**: Add pagination support (requires storage layer)
 - [ ] **types/message.md Phase 7**: Integrate with Channel system

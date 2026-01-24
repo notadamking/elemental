@@ -1094,6 +1094,18 @@ export interface ElementalAPI {
    */
   leaveChannel(channelId: ElementId, actor: EntityId): Promise<MembershipResult>;
 
+  /**
+   * Search for channels by name, with optional filtering.
+   *
+   * Searches channel names using pattern matching and allows filtering by
+   * channel type, visibility, join policy, and membership.
+   *
+   * @param query - Search text to match against channel names
+   * @param filter - Optional filter constraints (channelType, visibility, joinPolicy, member)
+   * @returns Array of matching channels (up to 100 results, newest first)
+   */
+  searchChannels(query: string, filter?: ChannelFilter): Promise<Channel[]>;
+
   // --------------------------------------------------------------------------
   // Team Operations
   // --------------------------------------------------------------------------

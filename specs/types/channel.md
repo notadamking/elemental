@@ -276,7 +276,7 @@ Before channel operations:
 ### Phase 7: Queries
 - [x] Implement channel listing utilities (filters, sorting)
 - [x] Implement member-based queries (`filterByMember`, `getDirectChannelsForEntity`)
-- [ ] Implement channel search (requires storage layer)
+- [x] Implement channel search (`api.searchChannels` with storage layer support)
 
 ### Phase 8: CLI Commands
 - [x] channel create

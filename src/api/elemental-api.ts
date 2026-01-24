@@ -45,6 +45,7 @@ import type {
   ElementalAPI,
   ElementFilter,
   TaskFilter,
+  ChannelFilter,
   GetOptions,
   HydrationOptions,
   BlockedTask,
@@ -330,6 +331,44 @@ function buildTaskWhereClause(
   if (filter.deadlineBefore !== undefined) {
     conditions.push("JSON_EXTRACT(e.data, '$.deadline') < ?");
     params.push(filter.deadlineBefore);
+  }
+
+  const where = conditions.length > 0 ? conditions.join(' AND ') : '';
+  return { where, params };
+}
+
+/**
+ * Build channel-specific WHERE clause additions
+ */
+function buildChannelWhereClause(
+  filter: ChannelFilter,
+  params: unknown[]
+): { where: string; params: unknown[] } {
+  const conditions: string[] = [];
+
+  // Channel type filter (direct or group)
+  if (filter.channelType !== undefined) {
+    conditions.push("JSON_EXTRACT(e.data, '$.channelType') = ?");
+    params.push(filter.channelType);
+  }
+
+  // Visibility filter
+  if (filter.visibility !== undefined) {
+    conditions.push("JSON_EXTRACT(e.data, '$.permissions.visibility') = ?");
+    params.push(filter.visibility);
+  }
+
+  // Join policy filter
+  if (filter.joinPolicy !== undefined) {
+    conditions.push("JSON_EXTRACT(e.data, '$.permissions.joinPolicy') = ?");
+    params.push(filter.joinPolicy);
+  }
+
+  // Member filter - check if entity is in members array
+  if (filter.member !== undefined) {
+    // Using LIKE for JSON array membership check
+    conditions.push("JSON_EXTRACT(e.data, '$.members') LIKE ?");
+    params.push(`%"${filter.member}"%`);
   }
 
   const where = conditions.length > 0 ? conditions.join(' AND ') : '';
@@ -2113,6 +2152,55 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
       const tags = tagRows.map((r) => r.tag);
       results.push(deserializeElement<Element>(row, tags));
+    }
+
+    return results;
+  }
+
+  async searchChannels(query: string, filter?: ChannelFilter): Promise<Channel[]> {
+    const searchPattern = `%${query}%`;
+    const params: unknown[] = [];
+
+    // Build base WHERE clause from filter (params accumulates in place)
+    // Force type to 'channel'
+    const channelFilter = { ...filter, type: 'channel' as const };
+    const { where: filterWhere } = buildWhereClause(channelFilter, params);
+
+    // Build channel-specific WHERE clause
+    const { where: channelWhere } = buildChannelWhereClause(filter ?? {}, params);
+
+    // Combine base and channel-specific conditions
+    let fullWhere = filterWhere;
+    if (channelWhere) {
+      fullWhere = `${filterWhere} AND ${channelWhere}`;
+    }
+
+    // Search in channel name
+    const sql = `
+      SELECT DISTINCT e.*
+      FROM elements e
+      LEFT JOIN tags t ON e.id = t.element_id
+      WHERE ${fullWhere}
+        AND (
+          JSON_EXTRACT(e.data, '$.name') LIKE ?
+          OR t.tag LIKE ?
+        )
+      ORDER BY e.updated_at DESC
+      LIMIT 100
+    `;
+    params.push(searchPattern, searchPattern);
+
+    const rows = this.backend.query<ElementRow>(sql, params);
+
+    // Fetch tags and deserialize
+    const results: Channel[] = [];
+    for (const row of rows) {
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [row.id]
+      );
+      const tags = tagRows.map((r) => r.tag);
+      results.push(deserializeElement<Channel>(row, tags));
     }
 
     return results;
