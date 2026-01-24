@@ -4542,6 +4542,95 @@ silent truncation instead.
 
 ---
 
+### Scenario: Help System Consistency and Command Discoverability
+
+**Purpose:** Evaluate consistency of CLI help output, discover undocumented commands, and verify help text accurately reflects command behavior
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Multiple consistency issues found)
+
+**Checkpoints:**
+
+**Main Help Coverage:**
+- [x] `el --help` shows Element Operations section
+- [x] `el --help` shows Task Operations section
+- [x] `el --help` shows Dependency Operations section
+- [x] `el --help` shows Admin Operations section
+- [ ] **FAIL**: Main help missing 9 command groups
+  - **BUG el-4a62:** (pre-existing) plan, doc, workflow, channel, entity, msg, playbook, library, team all missing
+- [ ] **FAIL**: `el search` listed in help but not implemented
+  - **BUG el-4aja:** (pre-existing) Returns "Unknown command: search"
+
+**Subcommand Help Structure:**
+- [x] All hidden commands have `--help` support (doc, plan, workflow, etc.)
+- [x] All subcommand `--help` shows Usage line
+- [x] All subcommand `--help` shows Options
+- [x] All subcommand `--help` shows Examples
+- [ ] **FAIL**: Help output shows duplicate Options sections
+  - **UX el-50lc:** Options listed twice - once compact, once verbose
+  - Affects: `el doc create`, `el plan create`, `el create task`, and all other subcommands
+  - Example: `el doc create --help` shows `--content` option at lines 8 AND 19
+
+**Help Text Accuracy:**
+- [ ] **FAIL**: Help claims `--tag` "can be repeated" but parser bug prevents this
+  - **DOC el-10vo:** Help text is misleading due to el-59p3 parser bug
+  - Affects: `--tag`, `--step`, `--variable`, `--extends`, `--member` flags
+  - `el create task --tag a --tag b --tag c` only keeps last tag
+
+**Undocumented Commands:**
+- [ ] **FAIL**: `el entity show` exists but not listed in `el entity --help`
+  - **DOC el-5y97:** Command works but is undocumented
+  - Also affected by el-4sdh (returns all entities, ignoring argument)
+- [x] `el channel show` does NOT exist (correctly not listed)
+- [x] `el msg show` does NOT exist (correctly not listed)
+- [x] `el library show` does NOT exist (correctly not listed)
+- [x] `el team show` does NOT exist (correctly not listed)
+
+**Global Options Consistency:**
+- [x] `--json` available on all commands
+- [x] `--quiet` available on all commands
+- [x] `--verbose` available on all commands
+- [x] `--actor` available on all commands
+- [x] `--db` available on all commands
+
+**Success Criteria:** Help text is consistent, accurate, and complete
+- **Partial:** Core help structure works, but duplicate sections, misleading "can be repeated" claims, and undocumented commands affect discoverability
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-50lc | UX: Help output shows duplicate Options sections for all subcommands | 4 | ux |
+| el-10vo | DOC: Help text says 'can be repeated' for --tag but only last value is kept | 3 | documentation |
+| el-5y97 | DOC: el entity show subcommand exists but is undocumented | 4 | documentation |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4a62 | (pre-existing) Main help missing 9 command groups | 3 | bug |
+| el-4aja | (pre-existing) el search listed in help but not implemented | 3 | bug |
+| el-59p3 | (pre-existing) Parser bug affects multiple --tag flags | 2 | bug |
+| el-4sdh | (pre-existing) el entity show ignores argument | 3 | bug |
+
+**Dependencies:**
+- el-10vo → el-59p3 (relates-to: misleading help due to parser bug)
+- el-10vo → el-5y97 (relates-to: both documentation consistency issues)
+- el-50lc → el-10vo (relates-to: both help output consistency issues)
+- el-5y97 → el-4sdh (relates-to: undocumented command is also broken)
+
+**Notes:**
+This evaluation discovered that while individual commands have good help text, there are
+systemic consistency issues:
+1. All subcommand help shows options twice (duplicate sections)
+2. Help text claims flag repetition works when it doesn't (parser bug el-59p3)
+3. At least one subcommand (`el entity show`) exists but isn't documented
+4. Main help is missing 9 major command groups (el-4a62)
+5. `el search` is advertised but not implemented (el-4aja)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
@@ -4582,7 +4671,9 @@ Agent-focused criteria for CLI usability.
 - [x] Flag descriptions include valid values for enums
 - [x] Examples are provided for complex commands
 - [ ] No duplicate sections in help output
-  - **UX el-1luz:** Grouped command help shows Subcommands section twice
+  - **UX el-50lc:** All subcommand help shows Options section twice (compact then verbose)
+- [ ] Help text accurately reflects command behavior
+  - **DOC el-10vo:** Help claims --tag 'can be repeated' but parser bug only keeps last value
 
 ### Command Hierarchy
 
