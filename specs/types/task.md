@@ -267,4 +267,4 @@ Tasks under Plans use hierarchical IDs:
 - [x] Unit tests for ready/blocked computation (with dependencies) ✅ (priority-service.test.ts - 21 tests)
 - [x] Integration tests for hydration ✅ (task-hydration.integration.test.ts - 18 tests)
 - [x] Integration tests for dependency-based priority ✅ (ready-blocked.integration.test.ts - 5 tests)
-- [ ] E2E tests for task lifecycle
+- [x] E2E tests for task lifecycle ✅ (task.test.ts - 12 E2E lifecycle tests covering: complete lifecycle, deferral, blocking/unblocking, reopen, priority ordering, soft delete, assignment filtering, dependency chains, cascading unblock, multiple blockers, task type filtering, close reason persistence)

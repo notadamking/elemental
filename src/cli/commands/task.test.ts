@@ -29,7 +29,7 @@ import { ExitCode } from '../types.js';
 import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import { DependencyType } from '../../types/dependency.js';
-import type { ElementId, EntityId } from '../../types/element.js';
+import type { ElementId } from '../../types/element.js';
 
 // ============================================================================
 // Test Utilities
@@ -875,5 +875,421 @@ describe('task command integration', () => {
     const readyTasks = readyResult.data as { id: string }[];
     expect(readyTasks.some((t) => t.id === blockedTaskId)).toBe(false);
     expect(readyTasks.some((t) => t.id === blockerTaskId)).toBe(true);
+  });
+});
+
+// ============================================================================
+// Task Lifecycle E2E Tests
+// ============================================================================
+
+describe('task lifecycle E2E scenarios', () => {
+  test('complete task lifecycle: create → assign → work → close', async () => {
+    // 1. Create a task
+    const createResult = await createCommand.handler(['task'], createTestOptions({
+      title: 'E2E Lifecycle Task',
+      priority: '2',
+      complexity: '3',
+      type: 'feature',
+    }));
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const task = createResult.data as { id: string; status: string; priority: number };
+    expect(task.status).toBe('open');
+    expect(task.priority).toBe(2);
+
+    // 2. Verify task appears in ready list
+    let readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === task.id)).toBe(true);
+
+    // 3. Assign to a developer
+    const assignResult = await assignCommand.handler([task.id, 'dev-alice'], createTestOptions());
+    expect(assignResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 4. Verify task still appears in ready list (assigned tasks are still ready)
+    readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === task.id)).toBe(true);
+
+    // 5. Move to in_progress via API
+    const { api, backend } = createTestAPI();
+    await api.update(task.id as ElementId, { status: 'in_progress' });
+    backend.close();
+
+    // 6. Verify task still appears in ready list (in_progress is still "ready for work")
+    readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === task.id)).toBe(true);
+
+    // 7. Close the task with a reason
+    const closeResult = await closeCommand.handler([task.id], createTestOptions({
+      reason: 'Feature completed and merged in PR #123',
+    }));
+    expect(closeResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 8. Verify task no longer appears in ready list
+    readyResult = await readyCommand.handler([], createTestOptions());
+    const readyAfterClose = (readyResult.data as { id: string }[] | null) ?? [];
+    expect(readyAfterClose.some(t => t.id === task.id)).toBe(false);
+
+    // 9. Verify final state
+    const showResult = await showCommand.handler([task.id], createTestOptions({ json: true }));
+    const finalTask = showResult.data as {
+      status: string;
+      closeReason: string;
+      closedAt: string;
+      assignee: string;
+    };
+    expect(finalTask.status).toBe('closed');
+    expect(finalTask.closeReason).toBe('Feature completed and merged in PR #123');
+    expect(finalTask.closedAt).toBeDefined();
+    expect(finalTask.assignee).toBe('dev-alice');
+  });
+
+  test('task deferral lifecycle: create → defer → not ready → undefer → ready', async () => {
+    // 1. Create a task
+    const createResult = await createCommand.handler(['task'], createTestOptions({
+      title: 'Deferred Task',
+    }));
+    const task = createResult.data as { id: string };
+
+    // 2. Verify task is initially ready
+    let readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === task.id)).toBe(true);
+
+    // 3. Defer the task with a future date
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 7);
+    const deferResult = await deferCommand.handler([task.id], createTestOptions({
+      until: futureDate.toISOString(),
+    }));
+    expect(deferResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 4. Verify task is no longer in ready list
+    readyResult = await readyCommand.handler([], createTestOptions());
+    const readyAfterDefer = (readyResult.data as { id: string }[] | null) ?? [];
+    expect(readyAfterDefer.some(t => t.id === task.id)).toBe(false);
+
+    // 5. Verify task status is deferred
+    let showResult = await showCommand.handler([task.id], createTestOptions({ json: true }));
+    expect((showResult.data as { status: string }).status).toBe('deferred');
+
+    // 6. Undefer the task
+    const undeferResult = await undeferCommand.handler([task.id], createTestOptions());
+    expect(undeferResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 7. Verify task is back in ready list
+    readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === task.id)).toBe(true);
+
+    // 8. Verify task status is open
+    showResult = await showCommand.handler([task.id], createTestOptions({ json: true }));
+    expect((showResult.data as { status: string }).status).toBe('open');
+  });
+
+  test('blocked task lifecycle: create tasks → block → unblock via completion → ready', async () => {
+    // 1. Create a task that will be blocked
+    const blockedTaskId = await createTestTask('Feature Implementation');
+
+    // 2. Create a blocker task
+    const blockerTaskId = await createTestTask('Design Review');
+
+    // 3. Add blocking dependency
+    const { api, backend } = createTestAPI();
+    await api.addDependency({
+      sourceId: blockedTaskId as ElementId,
+      targetId: blockerTaskId as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+
+    // 4. Verify blocked task is in blocked list
+    let blockedResult = await blockedCommand.handler([], createTestOptions());
+    let blockedTasks = blockedResult.data as { id: string; blockedBy: string }[];
+    expect(blockedTasks.some(t => t.id === blockedTaskId)).toBe(true);
+    expect(blockedTasks.find(t => t.id === blockedTaskId)?.blockedBy).toBe(blockerTaskId);
+
+    // 5. Verify blocked task is NOT in ready list
+    let readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === blockedTaskId)).toBe(false);
+
+    // 6. Verify blocker task IS in ready list
+    expect((readyResult.data as { id: string }[]).some(t => t.id === blockerTaskId)).toBe(true);
+
+    // 7. Close the blocker task (completing the dependency)
+    const closeResult = await closeCommand.handler([blockerTaskId], createTestOptions({
+      reason: 'Design approved',
+    }));
+    expect(closeResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 8. Need to refresh API to see blocked cache updates
+    backend.close();
+
+    // 9. Verify previously blocked task is now ready
+    readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === blockedTaskId)).toBe(true);
+
+    // 10. Verify blocked list no longer contains the task
+    blockedResult = await blockedCommand.handler([], createTestOptions());
+    const blockedAfterClose = (blockedResult.data as { id: string }[] | null) ?? [];
+    expect(blockedAfterClose.some(t => t.id === blockedTaskId)).toBe(false);
+  });
+
+  test('task reopen lifecycle: create → close → verify not ready → reopen → ready', async () => {
+    // 1. Create and immediately close a task
+    const taskId = await createTestTask('Prematurely Closed Task');
+    await closeCommand.handler([taskId], createTestOptions({ reason: 'Thought it was done' }));
+
+    // 2. Verify task is not in ready list
+    let readyResult = await readyCommand.handler([], createTestOptions());
+    const readyAfterClose = (readyResult.data as { id: string }[] | null) ?? [];
+    expect(readyAfterClose.some(t => t.id === taskId)).toBe(false);
+
+    // 3. Verify task is closed
+    let showResult = await showCommand.handler([taskId], createTestOptions({ json: true }));
+    expect((showResult.data as { status: string }).status).toBe('closed');
+
+    // 4. Reopen the task
+    const reopenResult = await reopenCommand.handler([taskId], createTestOptions());
+    expect(reopenResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 5. Verify task is back in ready list
+    readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === taskId)).toBe(true);
+
+    // 6. Verify task status is open
+    showResult = await showCommand.handler([taskId], createTestOptions({ json: true }));
+    expect((showResult.data as { status: string }).status).toBe('open');
+  });
+
+  test('priority-based ready ordering: high priority tasks appear first', async () => {
+    // 1. Create tasks with different priorities
+    await createTestTask('Low Priority', { priority: '5' });
+    await createTestTask('Critical Priority', { priority: '1' });
+    await createTestTask('Medium Priority', { priority: '3' });
+
+    // 2. Get ready tasks
+    const readyResult = await readyCommand.handler([], createTestOptions());
+    const tasks = readyResult.data as { title: string; priority: number }[];
+
+    // 3. Verify tasks are ordered by priority (lowest number = highest priority first)
+    expect(tasks.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < tasks.length; i++) {
+      expect(tasks[i].priority).toBeGreaterThanOrEqual(tasks[i - 1].priority);
+    }
+
+    // 4. Verify Critical Priority is first
+    expect(tasks[0].priority).toBe(1);
+  });
+
+  test('soft delete lifecycle: create → delete → not in ready → not visible', async () => {
+    // 1. Create a task
+    const taskId = await createTestTask('Task to Delete');
+
+    // 2. Verify task is in ready list
+    let readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === taskId)).toBe(true);
+
+    // 3. Soft delete the task
+    const { api, backend } = createTestAPI();
+    await api.delete(taskId as ElementId);
+    backend.close();
+
+    // 4. Verify task is no longer in ready list
+    readyResult = await readyCommand.handler([], createTestOptions());
+    const readyAfterDelete = (readyResult.data as { id: string }[] | null) ?? [];
+    expect(readyAfterDelete.some(t => t.id === taskId)).toBe(false);
+
+    // 5. Verify task is not visible via show (tombstone elements return NOT_FOUND)
+    const showResult = await showCommand.handler([taskId], createTestOptions({ json: true }));
+    expect(showResult.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(showResult.error).toContain('not found');
+  });
+
+  test('assignment filtering: filter ready tasks by assignee', async () => {
+    // 1. Create tasks for different assignees
+    await createTestTask('Alice Task 1', { assignee: 'alice' });
+    await createTestTask('Alice Task 2', { assignee: 'alice' });
+    await createTestTask('Bob Task', { assignee: 'bob' });
+    await createTestTask('Unassigned Task');
+
+    // 2. Filter by alice
+    let readyResult = await readyCommand.handler([], createTestOptions({ assignee: 'alice' }));
+    let tasks = readyResult.data as { assignee: string }[];
+    expect(tasks.length).toBe(2);
+    expect(tasks.every(t => t.assignee === 'alice')).toBe(true);
+
+    // 3. Filter by bob
+    readyResult = await readyCommand.handler([], createTestOptions({ assignee: 'bob' }));
+    tasks = readyResult.data as { assignee: string }[];
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].assignee).toBe('bob');
+  });
+
+  test('complex dependency chain: A blocks B blocks C → only A is ready', async () => {
+    // 1. Create a chain of tasks: C → B → A (C depends on B depends on A)
+    const taskA = await createTestTask('Task A - Foundation');
+    const taskB = await createTestTask('Task B - Middleware');
+    const taskC = await createTestTask('Task C - Feature');
+
+    // 2. Add dependencies
+    const { api, backend } = createTestAPI();
+    // B depends on A (A blocks B)
+    await api.addDependency({
+      sourceId: taskB as ElementId,
+      targetId: taskA as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+    // C depends on B (B blocks C)
+    await api.addDependency({
+      sourceId: taskC as ElementId,
+      targetId: taskB as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+    backend.close();
+
+    // 3. Verify only A is in ready list
+    const readyResult = await readyCommand.handler([], createTestOptions());
+    const readyTasks = readyResult.data as { id: string }[];
+    expect(readyTasks.some(t => t.id === taskA)).toBe(true);
+    expect(readyTasks.some(t => t.id === taskB)).toBe(false);
+    expect(readyTasks.some(t => t.id === taskC)).toBe(false);
+
+    // 4. Verify both B and C are in blocked list
+    const blockedResult = await blockedCommand.handler([], createTestOptions());
+    const blockedTasks = blockedResult.data as { id: string }[];
+    expect(blockedTasks.some(t => t.id === taskB)).toBe(true);
+    expect(blockedTasks.some(t => t.id === taskC)).toBe(true);
+  });
+
+  test('unblock chain: completing blockers cascades to unblock dependents', async () => {
+    // 1. Create a chain: C → B → A
+    const taskA = await createTestTask('Foundation Task');
+    const taskB = await createTestTask('Middle Task');
+    const taskC = await createTestTask('Final Task');
+
+    // 2. Add dependencies
+    let { api, backend } = createTestAPI();
+    await api.addDependency({
+      sourceId: taskB as ElementId,
+      targetId: taskA as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+    await api.addDependency({
+      sourceId: taskC as ElementId,
+      targetId: taskB as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+    backend.close();
+
+    // 3. Complete Task A
+    await closeCommand.handler([taskA], createTestOptions({ reason: 'Foundation complete' }));
+
+    // 4. Verify B is now ready (but C is still blocked by B)
+    let readyResult = await readyCommand.handler([], createTestOptions());
+    let readyTasks = readyResult.data as { id: string }[];
+    expect(readyTasks.some(t => t.id === taskB)).toBe(true);
+    expect(readyTasks.some(t => t.id === taskC)).toBe(false);
+
+    // 5. Complete Task B
+    await closeCommand.handler([taskB], createTestOptions({ reason: 'Middle complete' }));
+
+    // 6. Verify C is now ready
+    readyResult = await readyCommand.handler([], createTestOptions());
+    readyTasks = readyResult.data as { id: string }[];
+    expect(readyTasks.some(t => t.id === taskC)).toBe(true);
+  });
+
+  test('multiple blockers: task blocked by multiple dependencies', async () => {
+    // 1. Create tasks where one task depends on multiple blockers
+    const blockerA = await createTestTask('Blocker A - Database Schema');
+    const blockerB = await createTestTask('Blocker B - API Design');
+    const blockerC = await createTestTask('Blocker C - Auth Setup');
+    const mainTask = await createTestTask('Main Feature - Needs All Blockers');
+
+    // 2. Add multiple blocking dependencies
+    const { api, backend } = createTestAPI();
+    await api.addDependency({
+      sourceId: mainTask as ElementId,
+      targetId: blockerA as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+    await api.addDependency({
+      sourceId: mainTask as ElementId,
+      targetId: blockerB as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+    await api.addDependency({
+      sourceId: mainTask as ElementId,
+      targetId: blockerC as ElementId,
+      type: DependencyType.BLOCKS,
+    });
+    backend.close();
+
+    // 3. Verify main task is blocked
+    let readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === mainTask)).toBe(false);
+
+    // 4. Complete first two blockers
+    await closeCommand.handler([blockerA], createTestOptions());
+    await closeCommand.handler([blockerB], createTestOptions());
+
+    // 5. Main task should still be blocked (blockerC is still open)
+    readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === mainTask)).toBe(false);
+
+    // 6. Complete final blocker
+    await closeCommand.handler([blockerC], createTestOptions());
+
+    // 7. Main task should now be ready
+    readyResult = await readyCommand.handler([], createTestOptions());
+    expect((readyResult.data as { id: string }[]).some(t => t.id === mainTask)).toBe(true);
+  });
+
+  test('task type filtering in ready list', async () => {
+    // 1. Create tasks of different types
+    await createTestTask('Bug Fix', { type: 'bug' });
+    await createTestTask('New Feature', { type: 'feature' });
+    await createTestTask('Tech Debt', { type: 'chore' });
+
+    // 2. Filter by bug type
+    let readyResult = await readyCommand.handler([], createTestOptions({ type: 'bug' }));
+    let tasks = readyResult.data as { taskType: string }[];
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].taskType).toBe('bug');
+
+    // 3. Filter by feature type
+    readyResult = await readyCommand.handler([], createTestOptions({ type: 'feature' }));
+    tasks = readyResult.data as { taskType: string }[];
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].taskType).toBe('feature');
+
+    // 4. Filter by chore type
+    readyResult = await readyCommand.handler([], createTestOptions({ type: 'chore' }));
+    tasks = readyResult.data as { taskType: string }[];
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].taskType).toBe('chore');
+  });
+
+  test('task close reason persists through lifecycle', async () => {
+    // 1. Create a basic task
+    const taskId = await createTestTask('Task with Close Reason');
+
+    // 2. Assign the task
+    await assignCommand.handler([taskId, 'developer-1'], createTestOptions());
+
+    // 3. Close the task with a detailed reason
+    const closeResult = await closeCommand.handler([taskId], createTestOptions({
+      reason: 'Fixed in commit abc123, verified in staging',
+    }));
+    expect(closeResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // 4. Verify the close reason is persisted
+    const showResult = await showCommand.handler([taskId], createTestOptions({ json: true }));
+    const task = showResult.data as {
+      status: string;
+      closeReason: string;
+      closedAt: string;
+      assignee: string;
+    };
+    expect(task.status).toBe('closed');
+    expect(task.closeReason).toBe('Fixed in commit abc123, verified in staging');
+    expect(task.closedAt).toBeDefined();
+    expect(task.assignee).toBe('developer-1');
   });
 });
