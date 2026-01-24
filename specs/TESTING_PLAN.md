@@ -7097,13 +7097,14 @@ el ready --json    # Shows el-xxx as ready (CORRECT!)
   - This confirms the blocking direction is now correct
 
 **Non-Task Element Blocking Dependencies:**
-- [ ] **BUG el-3anv:** Workflow blocking task doesn't update blocked cache
+- [x] **FIXED el-3anv:** Workflow blocking task now correctly updates blocked cache
   - `el dep add <workflow-id> <task-id> --type blocks` creates dependency
-  - Task status remains "open" (should be "blocked")
-  - Task does not appear in `el blocked` list
-  - Task still appears in `el ready` list
-- [ ] Same behavior for plan/document blocking task
-- [x] Only task-to-task blocking updates blocked cache
+  - Task status correctly transitions to "blocked"
+  - Task appears in `el blocked` list
+  - Task correctly removed from `el ready` list
+- [x] Plan blocking task works correctly (same behavior as workflow)
+- [x] Document blocking task works correctly (same behavior as workflow)
+- [x] Cross-element blocking (non-task → task) fully functional
 
 **Workflow GC Edge Cases:**
 - [x] `el workflow gc --age 0` (immediate) returns 0 when no terminal workflows
@@ -7125,34 +7126,30 @@ el ready --json    # Shows el-xxx as ready (CORRECT!)
 | ID | Summary | Priority | Category |
 |----|---------|----------|----------|
 | el-sjam | ~~FIXED: Blocked cache direction reversed~~ | 1 | bug (fixed) |
-| el-3anv | BUG: Non-task element blocking dependencies don't update blocked cache | 2 | bug |
+| el-3anv | ~~FIXED: Non-task element blocking dependencies now correctly update blocked cache~~ | 2 | bug (fixed) |
 | el-4suy | UX: el workflow gc --quiet outputs nothing (consistent with el-c99l) | 5 | ux |
 
 **Dependencies:**
-- el-3anv (still open - non-task blocking)
+- el-sjam (fixed)
+- el-3anv (fixed as part of el-sjam direction fix)
 - el-4suy → el-c99l (relates-to: both quiet mode consistency issues)
 
 **Notes:**
-The CRITICAL blocked cache direction bug (el-sjam) has been fixed. The blocking
-relationship direction is now correct:
+Both the CRITICAL blocked cache direction bug (el-sjam) and the non-task element
+blocking bug (el-3anv) have been fixed. The blocking system now works correctly:
 
 1. When "A blocks B" is created (A is source, B is target)
 2. Help text says "Target waits for source to close" → B should be blocked
 3. NOW: B is marked as blocked, A remains ready
 4. Closing A unblocks B (correct behavior)
-- Tasks that should be blocked are worked on prematurely
-- Tasks that should be ready are stuck in blocked state
-- Any workflow relying on blocking dependencies is affected
+5. Non-task elements (workflows, plans, documents) can now correctly block tasks
 
-**Likely Root Cause:**
-The blocked_cache service is swapping source and target when populating the cache.
-When a "blocks" dependency is created, it's recording:
-- blockedId = sourceId (WRONG - should be targetId)
-- blockerId = targetId (WRONG - should be sourceId)
-
-Additionally, non-task elements (workflow, plan, document) are not considered when
-updating the blocked cache, meaning cross-element blocking dependencies are silently
-ignored.
+**Verification (2026-01-24):**
+Cross-element blocking verified working:
+- Workflow blocks task: task correctly blocked, appears in `el blocked`
+- Plan blocks task: task correctly blocked, appears in `el blocked`
+- Document blocks task: task correctly blocked, appears in `el blocked`
+- All blocked tasks correctly removed from `el ready` list
 
 ---
 
