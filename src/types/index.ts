@@ -198,9 +198,9 @@ export {
 // Note: hasDescription is also in channel.js but with a different implementation for channels
 export {
   // Library type and interfaces
-  Library,
-  HydratedLibrary,
-  LibraryId,
+  type Library,
+  type HydratedLibrary,
+  type LibraryId,
   // Constants
   MIN_LIBRARY_NAME_LENGTH,
   MAX_LIBRARY_NAME_LENGTH,
@@ -214,9 +214,9 @@ export {
   validateLibrary,
   // Factory functions
   createLibrary,
-  CreateLibraryInput,
+  type CreateLibraryInput,
   updateLibrary,
-  UpdateLibraryInput,
+  type UpdateLibraryInput,
   // Utility functions (note: some may conflict with channel.js)
   hasDescription as libraryHasDescription,
   getLibraryDisplayName,
@@ -236,9 +236,9 @@ export {
 // Team exports - exclude duplicates
 export {
   // Team type and interfaces
-  Team,
-  HydratedTeam,
-  TeamId,
+  type Team,
+  type HydratedTeam,
+  type TeamId,
   // Constants
   MIN_TEAM_NAME_LENGTH,
   MAX_TEAM_NAME_LENGTH,
@@ -255,9 +255,9 @@ export {
   validateTeam,
   // Factory functions
   createTeam,
-  CreateTeamInput,
+  type CreateTeamInput,
   updateTeam,
-  UpdateTeamInput,
+  type UpdateTeamInput,
   // Membership operations
   MembershipError,
   addMember as addTeamMember,
@@ -293,15 +293,15 @@ export {
 // sortByCreatedAtDesc is in both message.js and channel.js (different implementations)
 export {
   // Channel type and enums
-  Channel,
-  HydratedChannel,
-  ChannelType,
+  type Channel,
+  type HydratedChannel,
+  type ChannelType,
   ChannelTypeValue,
-  Visibility,
+  type Visibility,
   VisibilityValue,
-  JoinPolicy,
+  type JoinPolicy,
   JoinPolicyValue,
-  ChannelPermissions,
+  type ChannelPermissions,
   // Constants
   MAX_CHANNEL_NAME_LENGTH,
   MIN_CHANNEL_NAME_LENGTH,
@@ -337,9 +337,9 @@ export {
   parseDirectChannelName,
   // Factory functions
   createGroupChannel,
-  CreateGroupChannelInput,
+  type CreateGroupChannelInput,
   createDirectChannel,
-  CreateDirectChannelInput,
+  type CreateDirectChannelInput,
   // Error classes
   DirectChannelMembershipError,
   NotAMemberError,
@@ -369,7 +369,7 @@ export {
   getDirectChannelsForEntity,
   validateDirectChannelConstraints,
   // Channel's ChannelId and validation functions (aliased to avoid conflict)
-  ChannelId as ChannelChannelId,
+  type ChannelId as ChannelChannelId,
   isValidChannelId as isValidChannelChannelId,
   validateChannelId as validateChannelChannelId,
 } from './channel.js';

@@ -25,3 +25,7 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Playwright test results
+test-results/
+playwright-report/

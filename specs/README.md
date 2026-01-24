@@ -16,7 +16,7 @@ This directory contains all technical specifications for the Elemental library. 
 | Path | Description | Keywords |
 |------|-------------|----------|
 | [PLAN.md](./PLAN.md) | Complete technical specification for Elemental core | overview, architecture, design, types, storage, api, cli |
-| [PLATFORM_PLAN.md](./PLATFORM_PLAN.md) | Web platform specification | web, ui, dashboard, react, hono, websocket, real-time |
+| [platform/PLAN.md](./platform/PLAN.md) | Web platform specification | web, ui, dashboard, react, hono, websocket, real-time |
 
 ---
 
