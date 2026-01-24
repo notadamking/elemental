@@ -8,6 +8,7 @@ import {
   validateRequiredOptions,
   getGlobalOptionsHelp,
   getCommandOptionsHelp,
+  unescapeShellArtifacts,
 } from './parser.js';
 import type { CommandOption } from './types.js';
 
@@ -293,5 +294,80 @@ describe('getCommandOptionsHelp', () => {
     expect(help).toContain('(required)');
     expect(help).toContain('--force');
     expect(help).toContain('-f');
+  });
+});
+
+describe('unescapeShellArtifacts', () => {
+  it('should unescape single backslash-exclamation', () => {
+    expect(unescapeShellArtifacts('Hello\\!')).toBe('Hello!');
+  });
+
+  it('should unescape double backslash-exclamation', () => {
+    expect(unescapeShellArtifacts('Hello\\\\!')).toBe('Hello!');
+  });
+
+  it('should unescape quadruple backslash-exclamation', () => {
+    expect(unescapeShellArtifacts('Hello\\\\\\\\!')).toBe('Hello!');
+  });
+
+  it('should unescape multiple escaped exclamations in one string', () => {
+    expect(unescapeShellArtifacts('Hello\\! World\\!')).toBe('Hello! World!');
+  });
+
+  it('should leave regular exclamation marks alone', () => {
+    expect(unescapeShellArtifacts('Hello!')).toBe('Hello!');
+  });
+
+  it('should leave strings without exclamation marks alone', () => {
+    expect(unescapeShellArtifacts('Hello World')).toBe('Hello World');
+  });
+
+  it('should leave backslashes that are not before exclamation marks alone', () => {
+    expect(unescapeShellArtifacts('path\\to\\file')).toBe('path\\to\\file');
+  });
+
+  it('should handle mixed content', () => {
+    expect(unescapeShellArtifacts('Say \\!hello to path\\to\\file')).toBe('Say !hello to path\\to\\file');
+  });
+
+  it('should handle empty string', () => {
+    expect(unescapeShellArtifacts('')).toBe('');
+  });
+});
+
+describe('parseArgs shell escape handling', () => {
+  it('should unescape exclamation marks in command option values', () => {
+    const cmdOptions: CommandOption[] = [
+      { name: 'title', short: 't', description: 'Title', hasValue: true },
+    ];
+    const result = parseArgs(['create', '--title', 'Hello\\!'], cmdOptions);
+    expect(result.commandOptions.title).toBe('Hello!');
+  });
+
+  it('should unescape exclamation marks in positional arguments', () => {
+    // Use element IDs to ensure they're treated as positional args, not commands
+    const result = parseArgs(['show', 'el-abc\\!']);
+    expect(result.args).toEqual(['el-abc!']);
+  });
+
+  it('should unescape exclamation marks in arguments after --', () => {
+    const result = parseArgs(['search', '--', 'term\\!']);
+    expect(result.args).toEqual(['term!']);
+  });
+
+  it('should unescape multiple levels of escape', () => {
+    const cmdOptions: CommandOption[] = [
+      { name: 'title', short: 't', description: 'Title', hasValue: true },
+    ];
+    const result = parseArgs(['create', '--title', 'Hello\\\\!'], cmdOptions);
+    expect(result.commandOptions.title).toBe('Hello!');
+  });
+
+  it('should unescape in --option=value syntax', () => {
+    const cmdOptions: CommandOption[] = [
+      { name: 'title', short: 't', description: 'Title', hasValue: true },
+    ];
+    const result = parseArgs(['create', '--title=Hello\\!'], cmdOptions);
+    expect(result.commandOptions.title).toBe('Hello!');
   });
 });

@@ -8,6 +8,32 @@ import type { GlobalOptions, ParsedCommandLine, CommandOption } from './types.js
 import { DEFAULT_GLOBAL_OPTIONS } from './types.js';
 
 // ============================================================================
+// Shell Escape Handling
+// ============================================================================
+
+/**
+ * Unescapes common shell escape sequences that shells may add.
+ *
+ * Shells like bash and zsh often escape exclamation marks (!) with backslashes
+ * to disable history expansion. When running commands through nested shells or
+ * through tools like Claude Code, multiple layers of escaping can occur,
+ * resulting in sequences like \\! or even \\\\!
+ *
+ * This function removes those unnecessary escapes to provide the expected user input.
+ *
+ * @param value - The string value to unescape
+ * @returns The unescaped string
+ */
+export function unescapeShellArtifacts(value: string): string {
+  // Unescape any sequence of one or more backslashes followed by exclamation mark
+  // to just the exclamation mark. This handles:
+  // - \! -> !  (single escape from shell history expansion)
+  // - \\! -> ! (double escape from nested shells)
+  // - \\\\! -> ! (quadruple escape from multiple layers)
+  return value.replace(/\\+!/g, '!');
+}
+
+// ============================================================================
 // Global Option Definitions
 // ============================================================================
 
@@ -79,7 +105,7 @@ export function parseArgs(
       i++;
       // Add all remaining arguments as positional args
       while (i < argv.length) {
-        args.push(argv[i]);
+        args.push(unescapeShellArtifacts(argv[i]));
         i++;
       }
       break;
@@ -125,7 +151,7 @@ export function parseArgs(
           if (value === undefined || value.startsWith('-')) {
             throw new Error(`Option ${optName} requires a value`);
           }
-          (options[globalDef.key] as string) = value;
+          (options[globalDef.key] as string) = unescapeShellArtifacts(value);
         } else {
           (options[globalDef.key] as boolean) = true;
         }
@@ -141,7 +167,7 @@ export function parseArgs(
           if (value === undefined || (value.startsWith('-') && value !== '-')) {
             throw new Error(`Option ${optName} requires a value`);
           }
-          cmdOptions[cmdDef.key] = value;
+          cmdOptions[cmdDef.key] = unescapeShellArtifacts(value);
         } else {
           cmdOptions[cmdDef.key] = true;
         }
@@ -163,7 +189,7 @@ export function parseArgs(
     if (command.length === 0 || isSubcommand(arg)) {
       command.push(arg);
     } else {
-      args.push(arg);
+      args.push(unescapeShellArtifacts(arg));
     }
     i++;
   }
