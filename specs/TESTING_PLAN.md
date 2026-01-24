@@ -1342,6 +1342,58 @@ non-roots with no recovery path. Missing convenience features: filtering, unnest
 show subcommand, and listing nested children. The el-59p3 parser bug also affects
 multiple --tag flags during library creation.
 
+### Task Assignment and Work Distribution Exploration
+
+**Goal:** Evaluate multi-agent work distribution patterns
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Validation gaps)
+
+**Exploration prompts:**
+- Can agents find assigned work using entity name or ID?
+- Can agents find unassigned work to claim?
+- Does team assignment propagate to team members?
+- Can tasks be reassigned between agents?
+- Is assignee validation enforced?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Register multiple entities | PASS | agent, human, system types work correctly |
+| Create tasks with assignee (ID) | PASS | Works correctly |
+| Filter ready by assignee (ID) | PASS | Returns correct subset |
+| **Filter ready by assignee (name)** | **FAIL** | Returns empty (el-574h pre-existing) |
+| **Filter for unassigned tasks** | **FAIL** | --assignee "" returns all (el-34n6 pre-existing) |
+| Combined priority + assignee filter | PASS | Multiple filters work together |
+| **Filter by taskType on list** | **FAIL** | --type filters element type not taskType (el-4jhl pre-existing) |
+| Filter by taskType on ready | PASS | --type bug works on `el ready` |
+| Team creation and membership | PASS | Works correctly |
+| Task assigned to team | PASS | Team members see team-assigned tasks |
+| Task reassignment | PASS | `el assign <task> <new-entity>` works |
+| Task unassignment | PASS | `el update <task> --assignee ""` clears assignee |
+| **Assign to non-existent entity** | **FAIL** | Accepts invalid IDs (el-jqhh pre-existing) |
+| **Assign to non-entity (task)** | **FAIL** | Accepts task IDs as assignee (el-1fnm new) |
+| Work claiming pattern | PASS | Requires jq filtering for unassigned + priority sort |
+| Work handoff pattern | PASS | Close task, create follow-up with dependency works |
+| Blocking dependency | PASS | Blocked tasks correctly excluded from ready |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-1fnm | NEW: `el assign` accepts non-entity IDs (tasks, docs) as assignee | 3 | bug |
+
+**Dependencies:**
+- el-1fnm → el-5gjo (relates-to: same type validation root cause)
+- el-1fnm → el-jqhh (relates-to: same assignee validation theme)
+
+**Summary:**
+Core work distribution patterns (assign, reassign, unassign, team assignment) function correctly.
+Team-assigned tasks are visible to team members. Work handoff with dependencies works as expected.
+Key gaps: no native unassigned filter, no entity name resolution, no complexity filter. Critical
+validation bug: assignee field accepts any element ID without type checking, matching the team
+membership validation gap (el-5gjo).
+
 ---
 
 ## 5. CLI UX Evaluation Checklist
