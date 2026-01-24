@@ -218,7 +218,7 @@ To fetch a thread:
 ### Phase 7: Integration
 - [ ] Integrate with Channel system
 - [ ] Integrate with event system
-- [ ] Add CLI commands (send, thread)
+- [x] Add CLI commands (send, list, thread)
 
 ### Phase 8: Testing
 - [x] Unit tests for immutability enforcement
