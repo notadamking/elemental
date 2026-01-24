@@ -182,6 +182,52 @@ app.get('/api/tasks/:id', async (c) => {
   }
 });
 
+app.patch('/api/tasks/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // First verify it's a task
+    const existing = await api.get(id);
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if (existing.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Extract allowed updates (prevent changing immutable fields)
+    const updates: Record<string, unknown> = {};
+    const allowedFields = [
+      'title', 'status', 'priority', 'complexity', 'taskType',
+      'assignee', 'owner', 'deadline', 'scheduledFor', 'tags', 'metadata'
+    ];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field];
+      }
+    }
+
+    // Update the task
+    const updated = await api.update(id, updates);
+
+    return c.json(updated);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if ((error as { code?: string }).code === 'CONCURRENT_MODIFICATION') {
+      return c.json({ error: { code: 'CONFLICT', message: 'Task was modified by another process' } }, 409);
+    }
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to update task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update task' } }, 500);
+  }
+});
+
 // ============================================================================
 // Entities Endpoints
 // ============================================================================

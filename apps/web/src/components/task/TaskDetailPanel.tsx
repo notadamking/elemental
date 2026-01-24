@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2 } from 'lucide-react';
 
 interface Dependency {
   sourceId: string;
@@ -54,6 +55,60 @@ function useTaskDetail(taskId: string) {
   });
 }
 
+function useUpdateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<TaskDetail> }) => {
+      const response = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to update task');
+      }
+
+      return response.json();
+    },
+    onMutate: async ({ id, updates }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['tasks', id] });
+
+      // Snapshot previous value
+      const previousTask = queryClient.getQueryData<TaskDetail>(['tasks', id]);
+
+      // Optimistically update the cache
+      if (previousTask) {
+        queryClient.setQueryData<TaskDetail>(['tasks', id], {
+          ...previousTask,
+          ...updates,
+        });
+      }
+
+      return { previousTask };
+    },
+    onError: (_error, { id }, context) => {
+      // Rollback on error
+      if (context?.previousTask) {
+        queryClient.setQueryData(['tasks', id], context.previousTask);
+      }
+    },
+    onSettled: (_data, _error, { id }) => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'ready'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'blocked'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'completed'] });
+    },
+  });
+}
+
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
   1: { label: 'Critical', color: 'bg-red-100 text-red-800 border-red-200' },
   2: { label: 'High', color: 'bg-orange-100 text-orange-800 border-orange-200' },
@@ -78,6 +133,10 @@ const COMPLEXITY_LABELS: Record<number, string> = {
   4: 'Complex',
   5: 'Very Complex',
 };
+
+const STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'deferred'];
+const PRIORITY_OPTIONS = [1, 2, 3, 4, 5];
+const COMPLEXITY_OPTIONS = [1, 2, 3, 4, 5];
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -129,8 +188,296 @@ function DependencyList({ dependencies, title, type }: { dependencies: Dependenc
   );
 }
 
+// Inline editable title component
+function EditableTitle({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value: string;
+  onSave: (value: string) => void;
+  isUpdating: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditValue(value);
+  }, [value]);
+
+  const handleSave = () => {
+    if (editValue.trim() && editValue !== value) {
+      onSave(editValue.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditValue(value);
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="flex-1 text-lg font-semibold text-gray-900 border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          data-testid="task-title-input"
+        />
+        {isUpdating && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 group">
+      <h2
+        className="text-lg font-semibold text-gray-900 truncate cursor-pointer hover:text-blue-600"
+        onClick={() => setIsEditing(true)}
+        data-testid="task-detail-title"
+      >
+        {value}
+      </h2>
+      <button
+        onClick={() => setIsEditing(true)}
+        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded transition-opacity"
+        aria-label="Edit title"
+        data-testid="task-title-edit-button"
+      >
+        <Pencil className="w-3.5 h-3.5 text-gray-400" />
+      </button>
+      {isUpdating && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+    </div>
+  );
+}
+
+// Status dropdown component
+function StatusDropdown({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value: string;
+  onSave: (value: string) => void;
+  isUpdating: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const status = STATUS_CONFIG[value] || STATUS_CONFIG.open;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded cursor-pointer hover:ring-2 hover:ring-blue-300 ${status.color}`}
+        disabled={isUpdating}
+        data-testid="task-status-dropdown"
+      >
+        {status.icon}
+        {status.label}
+        {isUpdating && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
+      </button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[120px]" data-testid="task-status-options">
+          {STATUS_OPTIONS.map((statusOption) => {
+            const config = STATUS_CONFIG[statusOption] || STATUS_CONFIG.open;
+            return (
+              <button
+                key={statusOption}
+                onClick={() => {
+                  if (statusOption !== value) {
+                    onSave(statusOption);
+                  }
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 ${statusOption === value ? 'bg-gray-50' : ''}`}
+                data-testid={`task-status-option-${statusOption}`}
+              >
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${config.color}`}>
+                  {config.icon}
+                  {config.label}
+                </span>
+                {statusOption === value && <Check className="w-3 h-3 text-blue-600 ml-auto" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Priority dropdown component
+function PriorityDropdown({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value: number;
+  onSave: (value: number) => void;
+  isUpdating: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const priority = PRIORITY_LABELS[value] || PRIORITY_LABELS[3];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`px-2 py-0.5 text-xs font-medium rounded border cursor-pointer hover:ring-2 hover:ring-blue-300 ${priority.color}`}
+        disabled={isUpdating}
+        data-testid="task-priority-dropdown"
+      >
+        {priority.label}
+        {isUpdating && <Loader2 className="w-3 h-3 animate-spin ml-1 inline" />}
+      </button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[100px]" data-testid="task-priority-options">
+          {PRIORITY_OPTIONS.map((priorityOption) => {
+            const config = PRIORITY_LABELS[priorityOption] || PRIORITY_LABELS[3];
+            return (
+              <button
+                key={priorityOption}
+                onClick={() => {
+                  if (priorityOption !== value) {
+                    onSave(priorityOption);
+                  }
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 ${priorityOption === value ? 'bg-gray-50' : ''}`}
+                data-testid={`task-priority-option-${priorityOption}`}
+              >
+                <span className={`px-2 py-0.5 rounded border ${config.color}`}>
+                  {config.label}
+                </span>
+                {priorityOption === value && <Check className="w-3 h-3 text-blue-600 ml-auto" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Complexity dropdown component
+function ComplexityDropdown({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value: number;
+  onSave: (value: number) => void;
+  isUpdating: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const complexity = COMPLEXITY_LABELS[value] || COMPLEXITY_LABELS[3];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="text-sm text-gray-900 cursor-pointer hover:text-blue-600 hover:underline"
+        disabled={isUpdating}
+        data-testid="task-complexity-dropdown"
+      >
+        {complexity}
+        {isUpdating && <Loader2 className="w-3 h-3 animate-spin ml-1 inline" />}
+      </button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[100px]" data-testid="task-complexity-options">
+          {COMPLEXITY_OPTIONS.map((complexityOption) => {
+            const label = COMPLEXITY_LABELS[complexityOption] || COMPLEXITY_LABELS[3];
+            return (
+              <button
+                key={complexityOption}
+                onClick={() => {
+                  if (complexityOption !== value) {
+                    onSave(complexityOption);
+                  }
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center justify-between ${complexityOption === value ? 'bg-gray-50' : ''}`}
+                data-testid={`task-complexity-option-${complexityOption}`}
+              >
+                <span>{label}</span>
+                {complexityOption === value && <Check className="w-3 h-3 text-blue-600" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const { data: task, isLoading, isError, error } = useTaskDetail(taskId);
+  const updateTask = useUpdateTask();
+  const [updateField, setUpdateField] = useState<string | null>(null);
+
+  const handleUpdate = (updates: Partial<TaskDetail>, fieldName: string) => {
+    setUpdateField(fieldName);
+    updateTask.mutate(
+      { id: taskId, updates },
+      {
+        onSettled: () => setUpdateField(null),
+      }
+    );
+  };
 
   if (isLoading) {
     return (
@@ -157,10 +504,6 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
     );
   }
 
-  const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
-  const status = STATUS_CONFIG[task.status] || STATUS_CONFIG.open;
-  const complexity = COMPLEXITY_LABELS[task.complexity] || COMPLEXITY_LABELS[3];
-
   // Separate dependencies by type
   const blockers = task._dependencies.filter(d => d.type === 'blocks' || d.type === 'awaits');
   const blocking = task._dependents.filter(d => d.type === 'blocks' || d.type === 'awaits');
@@ -171,17 +514,22 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
       <div className="flex items-start justify-between p-4 border-b border-gray-200">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${status.color}`}>
-              {status.icon}
-              {status.label}
-            </span>
-            <span className={`px-2 py-0.5 text-xs font-medium rounded border ${priority.color}`}>
-              {priority.label}
-            </span>
+            <StatusDropdown
+              value={task.status}
+              onSave={(status) => handleUpdate({ status }, 'status')}
+              isUpdating={updateField === 'status'}
+            />
+            <PriorityDropdown
+              value={task.priority}
+              onSave={(priority) => handleUpdate({ priority }, 'priority')}
+              isUpdating={updateField === 'priority'}
+            />
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 truncate" data-testid="task-detail-title">
-            {task.title}
-          </h2>
+          <EditableTitle
+            value={task.title}
+            onSave={(title) => handleUpdate({ title }, 'title')}
+            isUpdating={updateField === 'title'}
+          />
           <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 font-mono">
             <span data-testid="task-detail-id">{task.id}</span>
           </div>
@@ -206,7 +554,11 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           </div>
           <div>
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Complexity</div>
-            <div className="text-sm text-gray-900">{complexity}</div>
+            <ComplexityDropdown
+              value={task.complexity}
+              onSave={(complexity) => handleUpdate({ complexity }, 'complexity')}
+              isUpdating={updateField === 'complexity'}
+            />
           </div>
           {task.assignee && (
             <div>
@@ -304,6 +656,13 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
             </div>
           </div>
         </div>
+
+        {/* Update error display */}
+        {updateTask.isError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" data-testid="task-update-error">
+            Failed to update task: {(updateTask.error as Error)?.message}
+          </div>
+        )}
       </div>
     </div>
   );

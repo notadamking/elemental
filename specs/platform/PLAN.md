@@ -564,11 +564,11 @@ For mutations (create, update, delete):
   - [x] Web: Split view layout with task selection
   - [x] **Verify:** Click task shows detail panel (Playwright tests passing - 12 tests)
 
-- [ ] **TB12: Edit Task**
-  - [ ] Server: Add `PATCH /api/tasks/:id` endpoint
-  - [ ] Web: Make TaskDetailPanel editable
-  - [ ] Web: Optimistic updates
-  - [ ] **Verify:** Edit persists, other tabs update via WS
+- [x] **TB12: Edit Task**
+  - [x] Server: Add `PATCH /api/tasks/:id` endpoint
+  - [x] Web: Make TaskDetailPanel editable
+  - [x] Web: Optimistic updates
+  - [x] **Verify:** Edit persists, other tabs update via WS (Playwright tests passing - 15 tests)
 
 ### Phase 5: Tasks Feature Complete
 
