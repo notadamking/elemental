@@ -1954,9 +1954,13 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   async blocked(filter?: TaskFilter): Promise<BlockedTask[]> {
+    // Extract limit to apply after filtering
+    const limit = filter?.limit;
+
     const effectiveFilter: TaskFilter = {
       ...filter,
       type: 'task',
+      limit: undefined, // Don't limit at DB level - we'll apply after filtering
     };
 
     // Get tasks matching filter
@@ -1979,6 +1983,11 @@ export class ElementalAPIImpl implements ElementalAPI {
           blockReason: blockInfo.reason ?? 'Blocked by dependency',
         });
       }
+    }
+
+    // Apply limit after filtering
+    if (limit !== undefined) {
+      return blockedTasks.slice(0, limit);
     }
 
     return blockedTasks;

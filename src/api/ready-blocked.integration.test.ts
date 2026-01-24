@@ -1446,4 +1446,111 @@ describe('Ready/Blocked Work Query Integration', () => {
       expect(readyTasks[0].priority).toBe(Priority.HIGH);
     });
   });
+
+  // ==========================================================================
+  // Limit Filter Tests
+  // ==========================================================================
+
+  describe('Limit Filter', () => {
+    it('should limit ready tasks correctly', async () => {
+      // Create 5 ready tasks
+      const tasks = await Promise.all([
+        createTestTask({ title: 'Task 1' }),
+        createTestTask({ title: 'Task 2' }),
+        createTestTask({ title: 'Task 3' }),
+        createTestTask({ title: 'Task 4' }),
+        createTestTask({ title: 'Task 5' }),
+      ]);
+      for (const task of tasks) {
+        await api.create(toCreateInput(task));
+      }
+
+      // Verify no limit returns all
+      const allTasks = await api.ready();
+      expect(allTasks.length).toBe(5);
+
+      // Verify limit works correctly
+      const limited = await api.ready({ limit: 3 });
+      expect(limited.length).toBe(3);
+
+      const limited1 = await api.ready({ limit: 1 });
+      expect(limited1.length).toBe(1);
+    });
+
+    it('should limit blocked tasks correctly', async () => {
+      const blocker = await createTestTask({ title: 'Blocker' });
+      await api.create(toCreateInput(blocker));
+
+      // Create 5 blocked tasks
+      const tasks = await Promise.all([
+        createTestTask({ title: 'Blocked 1' }),
+        createTestTask({ title: 'Blocked 2' }),
+        createTestTask({ title: 'Blocked 3' }),
+        createTestTask({ title: 'Blocked 4' }),
+        createTestTask({ title: 'Blocked 5' }),
+      ]);
+      for (const task of tasks) {
+        await api.create(toCreateInput(task));
+        await api.addDependency({
+          sourceId: blocker.id,
+          targetId: task.id,
+          type: DependencyType.BLOCKS,
+        });
+      }
+
+      // Verify no limit returns all blocked tasks
+      const allBlocked = await api.blocked();
+      expect(allBlocked.length).toBe(5);
+
+      // Verify limit returns exactly N results (regression test for off-by-one bug)
+      const limited3 = await api.blocked({ limit: 3 });
+      expect(limited3.length).toBe(3);
+
+      const limited2 = await api.blocked({ limit: 2 });
+      expect(limited2.length).toBe(2);
+
+      const limited1 = await api.blocked({ limit: 1 });
+      expect(limited1.length).toBe(1);
+
+      // Edge case: limit higher than count returns all
+      const limited10 = await api.blocked({ limit: 10 });
+      expect(limited10.length).toBe(5);
+    });
+
+    it('should apply limit after filtering for blocked tasks', async () => {
+      // This test ensures limit is applied AFTER filtering for blocked status
+      // Regression test for bug where limit was applied before blocked filtering
+      const blocker = await createTestTask({ title: 'Blocker' });
+      await api.create(toCreateInput(blocker));
+
+      // Create a mix of blocked and non-blocked tasks
+      const blocked1 = await createTestTask({ title: 'Blocked 1' });
+      const blocked2 = await createTestTask({ title: 'Blocked 2' });
+      const blocked3 = await createTestTask({ title: 'Blocked 3' });
+      const blocked4 = await createTestTask({ title: 'Blocked 4' });
+
+      await api.create(toCreateInput(blocked1));
+      await api.create(toCreateInput(blocked2));
+      await api.create(toCreateInput(blocked3));
+      await api.create(toCreateInput(blocked4));
+
+      // Block all 4 tasks
+      for (const task of [blocked1, blocked2, blocked3, blocked4]) {
+        await api.addDependency({
+          sourceId: blocker.id,
+          targetId: task.id,
+          type: DependencyType.BLOCKS,
+        });
+      }
+
+      // Request limit 2 - should get exactly 2 blocked tasks
+      const limited = await api.blocked({ limit: 2 });
+      expect(limited.length).toBe(2);
+      // All results should be from our blocked tasks
+      const blockedIds = new Set([blocked1.id, blocked2.id, blocked3.id, blocked4.id]);
+      for (const task of limited) {
+        expect(blockedIds.has(task.id)).toBe(true);
+      }
+    });
+  });
 });
