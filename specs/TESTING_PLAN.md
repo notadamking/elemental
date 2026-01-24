@@ -2676,6 +2676,85 @@ These patterns work correctly and should be documented. Future enhancement could
 
 ---
 
+### Scenario: Task Lifecycle State Transitions and Field Persistence
+
+**Purpose:** Comprehensive validation of task state transitions and field persistence across status changes - testing el update vs dedicated commands (reopen, close, defer, undefer)
+
+**Prerequisites:** Initialized workspace with registered entity
+
+**Status:** TESTED - 2026-01-24 (Pass - Confirmed existing issues)
+
+**Checkpoints:**
+
+**Basic State Transitions via el update:**
+- [x] open → in_progress: works correctly
+- [x] in_progress → open: works correctly
+- [x] open → blocked (manual): works (questionable UX)
+- [x] blocked → open: works correctly
+- [x] open → deferred (via el update): works but prefer `el defer`
+- [x] deferred → open: works but prefer `el undefer`
+- [x] open → closed: works but prefer `el close`
+- [x] closed → open: works but does NOT clear closedAt (el-4e6g)
+- [x] closed → in_progress: works but does NOT clear closedAt (el-4e6g)
+- [ ] **FAIL**: closed → blocked: allowed, creates inconsistent state (el-4odk)
+
+**Dedicated Commands vs el update:**
+- [x] `el close` correctly sets closedAt and closeReason
+- [x] `el reopen` correctly clears closedAt but NOT closeReason (el-2deb)
+- [x] `el defer` correctly sets status to deferred
+- [x] `el defer --until <date>` correctly sets scheduledFor
+- [x] `el undefer` correctly clears scheduledFor and sets status to open
+- [ ] **FAIL**: `el update --status open` from closed does NOT clear closedAt (el-4e6g)
+  - Creates inconsistent state where task is "open" but has closedAt timestamp
+  - Different behavior from `el reopen` which clears closedAt
+
+**Reopen Command Restrictions:**
+- [x] `el reopen` on closed task: works correctly
+- [x] `el reopen` on deferred task: correctly rejected ("Task is not closed")
+- [x] `el reopen` on blocked task: correctly rejected
+- [x] `el reopen` on in_progress task: correctly rejected
+- [x] `el reopen` on open task: correctly rejected
+- [x] `el reopen` on tombstoned task: correctly rejected ("Task is not closed")
+
+**Close/Defer Restrictions:**
+- [x] `el close` on deferred task: correctly rejected ("Cannot close task with status 'deferred'")
+- [x] `el defer` on closed task: correctly rejected
+- [x] `el undefer` on non-deferred task: correctly rejected
+
+**Blocked Status with Dependencies:**
+- [x] Adding dependency auto-sets blocked status
+- [x] Manual status change to "open" on blocked task succeeds but doesn't affect ready list
+- [x] Closing a task that is blocked by dependencies is allowed (questionable)
+- [x] Closing blocker correctly unblocks dependent and updates ready list
+
+**Field Persistence Issues:**
+- [x] `closeReason` persists after `el reopen` (el-2deb confirmed)
+- [x] `closedAt` NOT cleared when using `el update --status open` (el-4e6g confirmed)
+- [x] `scheduledFor` correctly cleared by `el undefer`
+
+**Success Criteria:** State transitions behave consistently between dedicated commands and el update
+- **CONFIRMED:** Known issues el-4odk, el-4e6g, el-2deb affect state consistency
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4odk | Closed → blocked transition allowed (creates inconsistent state) | 2 | bug |
+| el-4e6g | `el update --status open` doesn't clear closedAt unlike `el reopen` | 4 | ux |
+| el-2deb | closeReason persists after task is reopened | 5 | ux |
+
+**Dependencies:**
+- el-4e6g → el-4odk (relates-to: both involve status transition field handling)
+- el-4e6g → el-2deb (relates-to: field cleanup on status change)
+
+**Notes:**
+This scenario provides a comprehensive state transition matrix and confirms that the existing issues
+(el-4odk, el-4e6g, el-2deb) affect task lifecycle consistency. Key finding: agents should use
+dedicated commands (`el close`, `el reopen`, `el defer`, `el undefer`) rather than `el update --status`
+to ensure proper field handling.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
