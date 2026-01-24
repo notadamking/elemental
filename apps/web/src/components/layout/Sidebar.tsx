@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  GitBranch,
 } from 'lucide-react';
 
 interface NavItem {
@@ -22,6 +23,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', shortcut: 'G H' },
+  { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F' },
   { to: '/tasks', icon: CheckSquare, label: 'Tasks', shortcut: 'G T' },
   { to: '/plans', icon: Folder, label: 'Plans', shortcut: 'G P' },
   { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W' },

@@ -517,11 +517,13 @@ For mutations (create, update, delete):
 
 ### Phase 3: Dashboard MVP
 
-- [ ] **TB6: Task Flow Lens**
-  - [ ] Server: Add `GET /api/tasks/blocked` endpoint
-  - [ ] Web: Create TaskFlowLens component
-  - [ ] Web: Three-column layout (ready/blocked/completed)
-  - [ ] **Verify:** All three columns show correct data
+- [x] **TB6: Task Flow Lens**
+  - [x] Server: Add `GET /api/tasks/blocked` endpoint
+  - [x] Server: Add `GET /api/tasks/completed` endpoint
+  - [x] Web: Create TaskFlowLens component
+  - [x] Web: Three-column layout (ready/blocked/completed)
+  - [x] Web: Add Task Flow navigation to sidebar
+  - [x] **Verify:** All three columns show correct data (Playwright tests passing - 9 tests)
 
 - [ ] **TB7: Agent Activity Lens**
   - [ ] Server: Add `GET /api/entities` endpoint

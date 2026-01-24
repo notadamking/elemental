@@ -26,6 +26,7 @@ function getQueryKeysForEvent(event: WebSocketEvent): string[][] {
       keys.push(['tasks', event.elementId]);
       keys.push(['tasks', 'ready']);
       keys.push(['tasks', 'blocked']);
+      keys.push(['tasks', 'completed']);
       keys.push(['stats']); // Stats include ready/blocked counts
       break;
 

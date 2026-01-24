@@ -113,6 +113,34 @@ app.get('/api/tasks/ready', async (c) => {
   }
 });
 
+app.get('/api/tasks/blocked', async (c) => {
+  try {
+    const tasks = await api.blocked();
+    return c.json(tasks);
+  } catch (error) {
+    console.error('[elemental] Failed to get blocked tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get blocked tasks' } }, 500);
+  }
+});
+
+app.get('/api/tasks/completed', async (c) => {
+  try {
+    // Get tasks with completed or cancelled status, sorted by updated_at desc
+    // The API accepts TaskFilter when type is 'task', but TypeScript signature is ElementFilter
+    const tasks = await api.list({
+      type: 'task',
+      status: ['completed', 'cancelled'],
+      orderBy: 'updated_at',
+      orderDir: 'desc',
+      limit: 20,
+    } as Parameters<typeof api.list>[0]);
+    return c.json(tasks);
+  } catch (error) {
+    console.error('[elemental] Failed to get completed tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get completed tasks' } }, 500);
+  }
+});
+
 // ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================

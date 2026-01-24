@@ -2,6 +2,7 @@ import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/
 import { AppShell } from './components/layout';
 import { DashboardPage } from './routes/dashboard';
 import { TasksPage } from './routes/tasks';
+import { TaskFlowPage } from './routes/task-flow';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -29,6 +30,13 @@ const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tasks',
   component: TasksPage,
+});
+
+// Task Flow Lens route (Dashboard sub-view)
+const taskFlowRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/task-flow',
+  component: TaskFlowPage,
 });
 
 // Placeholder routes for future pages
@@ -87,6 +95,7 @@ const settingsRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   dashboardRoute,
+  taskFlowRoute,
   tasksRoute,
   plansRoute,
   workflowsRoute,
