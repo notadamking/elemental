@@ -4842,6 +4842,100 @@ Key findings:
 
 ---
 
+### Scenario: Input Encoding and Special Character Handling
+
+**Purpose:** Exploratory evaluation of how the CLI handles various input encodings, special characters, shell metacharacters, and edge cases across all text fields - critical for agent workflows that process arbitrary text content
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Exclamation mark escape bug found)
+
+**Checkpoints:**
+
+**Shell Metacharacter Handling:**
+- [x] Backslash in title: `C:\Users\test\file.txt` preserved correctly
+- [x] Dollar sign in title: `$100.50 and $VAR_REF` preserved correctly
+- [x] Backticks in title: preserved but with extra escaping
+- [x] Double quotes in title: preserved correctly with escaping
+- [x] Semicolon in title: preserved correctly (no shell injection)
+- [x] Pipe character in title: preserved correctly
+- [x] Asterisk and other glob chars: preserved correctly
+
+**UTF-8 and Unicode:**
+- [x] Special symbols (← → • © ®): preserved correctly
+- [x] RTL text (Arabic, Hebrew): preserved correctly
+- [x] Zero-width characters: preserved correctly
+- [x] CJK characters: preserved correctly
+- [x] Emoji: preserved correctly
+
+**Control Characters:**
+- [x] Newlines in notes: preserved correctly
+- [x] Tab characters: preserved correctly
+- [x] Bell and escape chars: escaped as Unicode (\\u0007, \\u001b)
+- [ ] **FAIL**: Exclamation marks incorrectly escaped
+  - **BUG el-4eaq (NEW):** `!` stored as `\!` in all text fields
+  - Affects: task title, task notes, document content, message content, close reason
+  - Input `Hello!` stored as `Hello\!` in database
+
+**JSON Metadata:**
+- [x] Nested objects: stored correctly
+- [x] Arrays in values: stored correctly
+- [x] Unicode in values: preserved correctly
+- [x] Special chars in keys (hyphens, underscores, dots): preserved
+- [x] Boolean/null/number values: typed correctly
+- [ ] **FAIL**: Non-object JSON accepted as metadata (confirms el-5rnx)
+  - Arrays `[]`, strings `"text"`, numbers `42`, booleans `true` all accepted
+
+**Document Content:**
+- [x] Code blocks with shell chars: preserved correctly
+- [x] JSON content type: stored as string (not parsed)
+- [x] Markdown content: preserved with newlines
+
+**Entity/Channel Names:**
+- [x] Hyphens and underscores allowed
+- [x] Colons allowed in channel names
+- [x] Numeric prefix rejected with clear error
+- [x] Spaces rejected with clear error
+
+**Length Limits:**
+- [x] 500-char title accepted
+- [x] 501-char title rejected with clear error
+
+**Success Criteria:** Special characters preserved correctly in all text fields
+- **PARTIAL:** Most characters handled correctly, but exclamation marks incorrectly escaped
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4eaq | BUG: Exclamation marks incorrectly escaped with backslash in all text fields | 3 | bug |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5rnx | (pre-existing) Metadata accepts non-object JSON values | 5 | ux |
+
+**Dependencies:**
+- el-4eaq → el-5zw4 (relates-to: both input encoding/special character handling issues)
+
+**Notes:**
+This exploratory evaluation tested input encoding edge cases critical for agent orchestration:
+1. Most shell metacharacters are handled correctly without injection risks
+2. UTF-8 and Unicode support is comprehensive
+3. JSON metadata handling is robust for nested structures
+4. CRITICAL: Exclamation marks are incorrectly escaped with backslash
+5. Non-object metadata values are accepted (confirms el-5rnx)
+
+The exclamation mark bug (el-4eaq) affects all text fields and will corrupt any content
+containing `!`. This is particularly problematic for:
+- Commit messages with emphasis
+- Error messages
+- Natural language text
+- Markdown content with emphasis
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
