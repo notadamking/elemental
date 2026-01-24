@@ -299,11 +299,12 @@ String replacement with variable values:
 - [x] Detect circular inheritance (self-extension check in createPlaybook/updatePlaybook)
 - [x] Main entry point (resolvePlaybookInheritance)
 
-### Phase 6: YAML Support
-- [ ] Define YAML schema
-- [ ] Implement YAML parser
-- [ ] Implement file discovery
-- [ ] Add file watching (optional)
+### Phase 6: YAML Support ✅
+- [x] Define YAML schema (YamlPlaybookFile, YamlPlaybookVariable, YamlPlaybookStep interfaces)
+- [x] Implement YAML parser (parseYamlPlaybook, validateYamlPlaybook, convertYamlToPlaybookInput)
+- [x] Implement file discovery (discoverPlaybookFiles, findPlaybookFile)
+- [x] File reading/writing (readPlaybookFile, loadPlaybookFromFile, writePlaybookFile)
+- [ ] Add file watching (optional, deferred)
 
 ### Phase 7: Validation ✅ (partial)
 - [x] Implement playbook validation (validatePlaybook, validateSteps, validateVariables)

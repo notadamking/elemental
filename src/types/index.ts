@@ -161,6 +161,39 @@ export {
   createPlaybookLoader,
 } from './playbook.js';
 
+// Playbook YAML exports
+export {
+  // Constants
+  PLAYBOOK_FILE_EXTENSION,
+  PLAYBOOK_FILE_EXTENSION_ALT,
+  DEFAULT_PLAYBOOK_DIRS,
+  // YAML Schema Types
+  type YamlPlaybookVariable,
+  type YamlPlaybookStep,
+  type YamlPlaybookFile,
+  // Discovery Types
+  type DiscoveredPlaybook,
+  type PlaybookDiscoveryOptions,
+  // Path Utilities
+  expandPath as expandPlaybookPath,
+  extractPlaybookName,
+  isPlaybookFile,
+  // YAML Parsing
+  parseYamlPlaybook,
+  convertYamlToPlaybookInput,
+  validateYamlPlaybook,
+  // File Discovery
+  discoverPlaybookFiles,
+  findPlaybookFile,
+  // File Loading
+  readPlaybookFile,
+  loadPlaybookFromFile,
+  // YAML Conversion
+  convertPlaybookToYaml,
+  serializePlaybookToYaml,
+  writePlaybookFile,
+} from './playbook-yaml.js';
+
 // Library exports - exclude duplicates
 // Note: hasDescription is also in channel.js but with a different implementation for channels
 export {
