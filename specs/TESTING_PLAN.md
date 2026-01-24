@@ -1092,6 +1092,115 @@ Core orchestration pattern works but requires workarounds:
 
 ---
 
+### Scenario: Workflow Management Operations
+
+**Purpose:** Evaluate workflow lifecycle management commands (list, show, tasks, progress, burn, squash, gc)
+
+**Prerequisites:** Initialized workspace with at least one playbook
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Validation gaps, exit code inconsistencies)
+
+**Note:** This scenario tests workflow management AFTER creation, not the pour process itself (which is blocked by el-18ug).
+
+**Checkpoints:**
+
+**Workflow Creation (via pour):**
+- [x] Pour creates workflow with correct title: `el workflow pour <playbook> --json`
+  - Returns valid workflow ID
+  - Title is "Workflow from <playbook-name>"
+  - Status is `pending`
+- [x] Pour with --ephemeral flag: `el workflow pour <playbook> --ephemeral --json`
+  - ephemeral field is `true`
+- [x] Pour with --var substitution
+  - Variables stored in workflow data
+- [ ] **FAIL**: Pour validates playbook exists
+  - **BUG el-5rrv:** Accepts non-existent playbook names, creates empty workflow
+- [ ] **FAIL**: Pour validates playbook type
+  - **BUG el-5ldi:** Accepts task/document IDs instead of playbook names
+
+**Workflow Listing:**
+- [x] List all workflows: `el workflow list --json`
+  - Returns consistent `{success, data: [...]}` structure
+- [x] Filter by status: `el workflow list --status pending --json`
+  - Returns only matching workflows
+- [x] Filter ephemeral: `el workflow list --ephemeral --json`
+  - Returns only ephemeral workflows
+- [x] Filter durable: `el workflow list --durable --json`
+  - Returns only durable workflows
+- [x] Invalid status rejected: `el workflow list --status invalid`
+  - Returns clear error with valid status list
+
+**Workflow Show:**
+- [x] Show by ID: `el workflow show <id> --json`
+  - Returns full workflow data
+- [x] Show non-existent: `el workflow show el-nonexistent --json`
+  - Returns NOT_FOUND with exit code 3
+
+**Workflow Tasks:**
+- [x] List tasks: `el workflow tasks <id> --json`
+  - Returns `{success, data: []}` (empty since pour doesn't create tasks - el-18ug)
+- [x] Filter by ready: `el workflow tasks <id> --ready --json`
+  - Works correctly
+- [x] Filter by status: `el workflow tasks <id> --status open --json`
+  - Works correctly
+- [ ] **FAIL**: Non-existent workflow returns exit code 3
+  - **BUG el-uwzm:** Returns exit code 1 instead of 3
+
+**Workflow Progress:**
+- [x] Get progress: `el workflow progress <id> --json`
+  - Returns structure with totalTasks, statusCounts, completionPercentage, readyTasks, blockedTasks
+  - Works correctly (shows 0 tasks since pour doesn't create them)
+- [ ] **FAIL**: Non-existent workflow returns exit code 3
+  - **BUG el-uwzm:** Returns exit code 1 instead of 3
+
+**Workflow Burn:**
+- [x] Burn ephemeral: `el workflow burn <ephemeral-id> --json`
+  - Workflow and tasks deleted
+  - Returns tasksDeleted and dependenciesDeleted counts
+- [x] Burn durable rejected without --force
+  - Clear error: "Workflow is durable. Use --force to burn anyway, or 'el delete' for soft delete."
+  - Exit code 4
+- [x] Burn non-existent: exit code 3
+
+**Workflow Squash:**
+- [x] Squash ephemeral: `el workflow squash <ephemeral-id> --json`
+  - ephemeral changes to false
+- [x] Squash already durable: idempotent (succeeds)
+- [x] Squash non-existent: exit code 3
+
+**Workflow GC:**
+- [x] Dry run: `el workflow gc --dry-run --json`
+  - Returns count without deleting
+- [x] GC with --age: `el workflow gc --age 7 --json`
+  - Works correctly (no eligible workflows in test)
+
+**Workflow Task Management:**
+- [ ] **MISSING**: No `el workflow add-task` command
+  - **ENHANCEMENT el-2gdi:** Cannot manually add tasks to workflow
+- [ ] **MISSING**: No `el workflow remove-task` command
+  - **ENHANCEMENT el-2gdi:** Cannot manually remove tasks from workflow
+
+**Success Criteria:** Workflow management operations work with proper validation
+- **Partial:** Core list/show/burn/squash/gc work correctly. Validation gaps in pour (accepts invalid playbook references). Exit code inconsistencies in tasks/progress commands. No manual task management.
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5rrv | `el workflow pour` accepts non-existent playbook names | 3 | bug |
+| el-5ldi | `el workflow pour` accepts non-playbook element IDs | 3 | bug |
+| el-uwzm | `el workflow tasks/progress` return exit code 1 for NOT_FOUND | 4 | bug |
+| el-2gdi | No `el workflow add-task/remove-task` commands | 4 | enhancement |
+
+**Dependencies:**
+- el-5rrv → el-18ug (relates-to: pour implementation)
+- el-5ldi → el-18ug (relates-to: pour implementation)
+- el-5ldi → el-5rrv (relates-to: both validation gaps)
+- el-uwzm → el-66ln (relates-to: exit code inconsistency pattern)
+- el-2gdi → el-18ug (blocks: workaround needed while pour is broken)
+
+---
+
 ## 4. Exploratory Testing Guides
 
 Areas for freeform exploration without strict scripts.
