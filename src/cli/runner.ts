@@ -94,7 +94,7 @@ export async function run(argv: string[]): Promise<number> {
     return ExitCode.INVALID_ARGUMENTS;
   }
 
-  const { command: commandPath, args: parsedArgs, options } = parsed;
+  const { command: commandPath, options } = parsed;
 
   // Handle version flag
   if (options.version) {
@@ -126,9 +126,7 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   // Resolve command
-  const { command, args: subcommandArgs } = resolveCommand(commandPath);
-  // Combine any args from subcommand resolution with parsed positional args
-  const resolvedArgs = [...subcommandArgs, ...parsedArgs];
+  const { command } = resolveCommand(commandPath);
 
   if (!command) {
     const result = failure(
@@ -154,9 +152,14 @@ export async function run(argv: string[]): Promise<number> {
       validateRequiredOptions(fullParsed.commandOptions, command.options);
     }
 
+    // Re-resolve args from full parse to handle command options correctly
+    // The first parse may have included option values as positional args
+    const { args: fullSubcommandArgs } = resolveCommand(fullParsed.command);
+    const fullResolvedArgs = [...fullSubcommandArgs, ...fullParsed.args];
+
     // Execute command
     const result = await command.handler(
-      resolvedArgs,
+      fullResolvedArgs,
       { ...fullParsed.options, ...fullParsed.commandOptions }
     );
 

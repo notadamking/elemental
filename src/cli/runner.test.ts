@@ -298,4 +298,100 @@ describe('run', () => {
       expect(consoleOutput.some(line => line.includes('Test command help'))).toBe(true);
     });
   });
+
+  describe('command options with values', () => {
+    it('should not treat option values as positional args', async () => {
+      let receivedArgs: string[] = [];
+      let receivedOptions: Record<string, unknown> = {};
+      const cmd: Command = {
+        name: 'test-opt-values',
+        description: 'Test option values',
+        usage: 'el test-opt-values <id> [options]',
+        options: [
+          { name: 'reason', short: 'r', description: 'A reason', hasValue: true },
+        ],
+        handler: (args, opts) => {
+          receivedArgs = args;
+          receivedOptions = opts as Record<string, unknown>;
+          return success();
+        },
+      };
+      registerCommand(cmd);
+
+      await run(['test-opt-values', 'el-abc123', '--reason', 'Test reason']);
+      expect(receivedArgs).toEqual(['el-abc123']);
+      expect(receivedOptions.reason).toBe('Test reason');
+    });
+
+    it('should not treat short option values as positional args', async () => {
+      let receivedArgs: string[] = [];
+      let receivedOptions: Record<string, unknown> = {};
+      const cmd: Command = {
+        name: 'test-short-opt',
+        description: 'Test short option',
+        usage: 'el test-short-opt <id> [options]',
+        options: [
+          { name: 'message', short: 'm', description: 'A message', hasValue: true },
+        ],
+        handler: (args, opts) => {
+          receivedArgs = args;
+          receivedOptions = opts as Record<string, unknown>;
+          return success();
+        },
+      };
+      registerCommand(cmd);
+
+      await run(['test-short-opt', 'el-xyz456', '-m', 'Hello world']);
+      expect(receivedArgs).toEqual(['el-xyz456']);
+      expect(receivedOptions.message).toBe('Hello world');
+    });
+
+    it('should handle option values with equals syntax', async () => {
+      let receivedArgs: string[] = [];
+      let receivedOptions: Record<string, unknown> = {};
+      const cmd: Command = {
+        name: 'test-equals-opt',
+        description: 'Test equals syntax',
+        usage: 'el test-equals-opt <id> [options]',
+        options: [
+          { name: 'name', short: 'n', description: 'A name', hasValue: true },
+        ],
+        handler: (args, opts) => {
+          receivedArgs = args;
+          receivedOptions = opts as Record<string, unknown>;
+          return success();
+        },
+      };
+      registerCommand(cmd);
+
+      await run(['test-equals-opt', 'el-test123', '--name=MyValue']);
+      expect(receivedArgs).toEqual(['el-test123']);
+      expect(receivedOptions.name).toBe('MyValue');
+    });
+
+    it('should handle multiple option values correctly', async () => {
+      let receivedArgs: string[] = [];
+      let receivedOptions: Record<string, unknown> = {};
+      const cmd: Command = {
+        name: 'test-multi-opts',
+        description: 'Test multiple options',
+        usage: 'el test-multi-opts <id> [options]',
+        options: [
+          { name: 'title', short: 't', description: 'Title', hasValue: true },
+          { name: 'priority', short: 'p', description: 'Priority', hasValue: true },
+        ],
+        handler: (args, opts) => {
+          receivedArgs = args;
+          receivedOptions = opts as Record<string, unknown>;
+          return success();
+        },
+      };
+      registerCommand(cmd);
+
+      await run(['test-multi-opts', 'el-multi', '--title', 'My Title', '-p', '1']);
+      expect(receivedArgs).toEqual(['el-multi']);
+      expect(receivedOptions.title).toBe('My Title');
+      expect(receivedOptions.priority).toBe('1');
+    });
+  });
 });
