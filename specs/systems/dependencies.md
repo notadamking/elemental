@@ -330,4 +330,4 @@ Function `isBlocked(elementId)`:
 - [x] Unit tests for cache invalidation (blocked-cache.test.ts - invalidation tests)
 - [x] Integration tests for ready work (blocked-cache.test.ts - rebuild tests, API integration)
 - [x] Integration tests for ready/blocked queries (31 tests in ready-blocked.integration.test.ts)
-- [ ] Performance tests for large graphs
+- [x] Performance tests for large graphs (22 tests in dependency.perf.test.ts - cycle detection, cache rebuild, query benchmarks)
