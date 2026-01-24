@@ -2228,6 +2228,70 @@ feature non-functional for its primary use case. Additionally, `el config set` d
 values before writing, allowing invalid values that corrupt the config. The snake_case vs camelCase
 path handling is inconsistent - snake_case paths silently fail to write.
 
+### Workspace Initialization and Recovery Exploration
+
+**Goal:** Evaluate workspace initialization, reinitialisation, and recovery from corrupted state
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Missing reinit/repair, config not validated)
+
+**Exploration prompts:**
+- Does `el init` work correctly in fresh directories?
+- What happens when reinitializing an existing workspace?
+- How does the system handle corrupted config files?
+- Is there a way to repair a partially corrupted workspace?
+- Does the `--name` and `--actor` flags work as expected?
+
+**Test Results:**
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Fresh init creates .elemental/ | PASS | Creates config.yaml, .gitignore, playbooks/ |
+| Fresh init with --json | PASS | Returns `{success: true, data: {path: ...}}` |
+| Reinit on existing workspace | PASS | Correctly rejects with exit code 4 |
+| `el init --force` for reinit | **FAIL** | Option doesn't exist (el-5ohn) |
+| `el init --name "Project"` | **FAIL** | Flag accepted but has no effect (el-5kd7) |
+| `el init --actor "agent"` | PASS | Actor correctly written to config.yaml |
+| Actor from config used in operations | **FAIL** | Ignores config, uses cli-user (el-5guf) |
+| Init in subdirectory of workspace | PASS | Creates isolated nested workspace |
+| Corrupted config.yaml silently ignored | INFO | Commands work with defaults |
+| Empty config.yaml silently ignored | INFO | Commands work with defaults |
+| `el doctor` with corrupted config | **FAIL** | Reports healthy:true (el-frj5) |
+| `el doctor` with missing config | **FAIL** | Reports healthy:true (el-frj5) |
+| Empty .elemental/ directory | PASS | Commands lazily create database |
+| Init in empty .elemental/ dir | PASS | Correctly rejects (dir exists) |
+| `el ready` creates db lazily | PASS | Database created on first command |
+| `el doctor` creates db lazily | PASS | For connection check |
+| Corrupted database detected | PASS | Doctor reports connection error |
+| WAL corruption detected | PASS | "file is not a database" error |
+| `--db` flag with init | PASS | Works, creates db at custom path |
+| Custom db isolation | PASS | Data stored only in custom db |
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-5kd7 | `el init --name` flag has no visible effect | 4 | ux |
+| el-5ohn | No `--force` flag for workspace reinit/repair | 4 | enhancement |
+| el-frj5 | `el doctor` doesn't validate config.yaml | 4 | enhancement |
+
+**Dependencies:**
+- el-5kd7 → el-5ohn (relates-to: both init improvements)
+- el-frj5 → el-5ohn (relates-to: both recovery-related)
+- el-frj5 → el-1t4x (relates-to: config validation)
+- el-frj5 → el-3weu (relates-to: config error handling)
+- el-5ohn → el-v69e (relates-to: init database creation)
+
+**Summary:**
+Basic workspace initialization works correctly. The database is lazily created on first command
+that needs it (not by `el init` itself - see el-v69e). Nested workspaces are properly isolated.
+Corrupted databases are detected by doctor. Key gaps:
+1. No way to reinitialize or repair a corrupted workspace (`--force` flag missing)
+2. The `--name` flag on init has no effect (workspace name not stored)
+3. Config.yaml is completely ignored by doctor - corrupted configs pass health check
+4. Actor from config file is ignored in operations (el-5guf)
+
+---
+
 ### Element Update Command Evaluation
 
 **Goal:** Systematically test the `el update` command across element types and validate field updates
