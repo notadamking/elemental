@@ -557,7 +557,7 @@ async function showHandler(
       output += `Completed:   ${planProgress.completedTasks}\n`;
       output += `In Progress: ${planProgress.inProgressTasks}\n`;
       output += `Blocked:     ${planProgress.blockedTasks}\n`;
-      output += `Remaining:   ${planProgress.remainingTasks}\n`;
+      output += `Ready:       ${planProgress.remainingTasks}\n`;
       output += `Progress:    ${planProgress.completionPercentage}%`;
     }
 
