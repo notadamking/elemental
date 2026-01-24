@@ -410,14 +410,53 @@ export class SyncService {
     // Query all elements
     let sql = 'SELECT * FROM elements WHERE deleted_at IS NULL';
     if (!includeEphemeral) {
-      // Exclude ephemeral elements (workflows with ephemeral: true and their tasks)
+      // Exclude ephemeral workflows (with ephemeral: true)
       sql += " AND JSON_EXTRACT(data, '$.ephemeral') IS NOT true";
     }
     sql += ' ORDER BY created_at';
 
     const rows = this.backend.query<ElementRow>(sql);
+    let elements = rows.map((row) => this.rowToElement(row));
 
-    return rows.map((row) => this.rowToElement(row));
+    // If not including ephemeral, also filter out tasks that are children of ephemeral workflows
+    if (!includeEphemeral) {
+      elements = this.filterOutEphemeralTasks(elements);
+    }
+
+    return elements;
+  }
+
+  /**
+   * Filter out tasks that are children of ephemeral workflows
+   */
+  private filterOutEphemeralTasks(elements: Element[]): Element[] {
+    // Find ephemeral workflow IDs
+    const ephemeralWorkflowIds = new Set<string>();
+    for (const el of elements) {
+      if (el.type === 'workflow' && (el as unknown as { ephemeral?: boolean }).ephemeral) {
+        ephemeralWorkflowIds.add(el.id);
+      }
+    }
+
+    if (ephemeralWorkflowIds.size === 0) {
+      return elements;
+    }
+
+    // Find task IDs that are children of ephemeral workflows via parent-child dependency
+    const ephemeralTaskIds = new Set<string>();
+    const depRows = this.backend.query<DependencyRow>(
+      "SELECT * FROM dependencies WHERE type = 'parent-child'"
+    );
+
+    for (const row of depRows) {
+      // In parent-child, sourceId is the child (task), targetId is the parent (workflow)
+      if (ephemeralWorkflowIds.has(row.target_id)) {
+        ephemeralTaskIds.add(row.source_id);
+      }
+    }
+
+    // Filter out ephemeral workflows (already filtered) and their tasks
+    return elements.filter((el) => !ephemeralTaskIds.has(el.id));
   }
 
   /**

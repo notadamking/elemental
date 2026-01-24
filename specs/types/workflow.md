@@ -262,10 +262,13 @@ On export:
 - [x] Implement validatePour for dry-run validation (src/types/workflow-pour.ts:validatePour)
 - [x] Unit tests - 59 tests (src/types/workflow-pour.test.ts)
 
-### Phase 4: Ephemeral Support
-- [ ] Implement ephemeral filtering in export
-- [ ] Implement `burn` operation (delete workflow and tasks)
-- [ ] Implement garbage collection service
+### Phase 4: Ephemeral Support ✅
+- [x] Implement ephemeral filtering in export (src/sync/service.ts:filterOutEphemeralTasks)
+- [x] Implement `burn` operation (src/api/elemental-api.ts:burnWorkflow)
+- [x] Implement garbage collection service (src/api/elemental-api.ts:garbageCollectWorkflows)
+- [x] Helper functions (src/types/workflow-ops.ts: getEphemeralElementIds, filterOutEphemeral, getGarbageCollectionCandidates)
+- [x] CLI commands (src/cli/commands/workflow.ts: burn, gc, squash)
+- [x] Unit tests - 14 tests (src/types/workflow-ops.test.ts)
 
 ### Phase 5: Task Association ✅
 - [x] Implement task-to-workflow linking (src/types/workflow-pour.ts:createParentChildDependencies)

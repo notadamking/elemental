@@ -321,6 +321,58 @@ export interface BulkOperationResult {
 }
 
 // ============================================================================
+// Workflow Operations Types
+// ============================================================================
+
+/**
+ * Options for burning a workflow
+ */
+export interface BurnWorkflowOptions {
+  /** Actor performing the burn operation */
+  actor?: EntityId;
+}
+
+/**
+ * Result of burning a workflow
+ */
+export interface BurnWorkflowResult {
+  /** ID of the workflow that was burned */
+  workflowId: ElementId;
+  /** Number of tasks that were deleted */
+  tasksDeleted: number;
+  /** Number of dependencies that were deleted */
+  dependenciesDeleted: number;
+  /** Whether the workflow was ephemeral */
+  wasEphemeral: boolean;
+}
+
+/**
+ * Options for garbage collection
+ */
+export interface GarbageCollectionOptions {
+  /** Maximum age in milliseconds for workflows to be eligible */
+  maxAgeMs: number;
+  /** Whether to run in dry-run mode (no actual deletion) */
+  dryRun?: boolean;
+  /** Maximum number of workflows to delete in one run */
+  limit?: number;
+}
+
+/**
+ * Result of garbage collection
+ */
+export interface GarbageCollectionResult {
+  /** Number of workflows that were deleted */
+  workflowsDeleted: number;
+  /** Number of tasks that were deleted */
+  tasksDeleted: number;
+  /** Number of dependencies that were deleted */
+  dependenciesDeleted: number;
+  /** IDs of workflows that were deleted */
+  deletedWorkflowIds: ElementId[];
+}
+
+// ============================================================================
 // Sync Types
 // ============================================================================
 
@@ -933,6 +985,30 @@ export interface ElementalAPI {
    * @throws ConstraintError if actor is not a member
    */
   leaveChannel(channelId: ElementId, actor: EntityId): Promise<MembershipResult>;
+
+  // --------------------------------------------------------------------------
+  // Workflow Operations
+  // --------------------------------------------------------------------------
+
+  /**
+   * Burn a workflow and all its child tasks.
+   * This is a hard delete that removes the workflow, all its tasks, and their dependencies.
+   *
+   * @param workflowId - The workflow to burn
+   * @param options - Operation options including actor
+   * @returns Result with counts of deleted elements
+   * @throws NotFoundError if workflow doesn't exist
+   */
+  burnWorkflow(workflowId: ElementId, options?: BurnWorkflowOptions): Promise<BurnWorkflowResult>;
+
+  /**
+   * Run garbage collection on ephemeral workflows.
+   * Deletes ephemeral workflows that are in terminal state and older than maxAgeMs.
+   *
+   * @param options - GC configuration including maxAgeMs
+   * @returns Result with counts of deleted elements
+   */
+  garbageCollectWorkflows(options: GarbageCollectionOptions): Promise<GarbageCollectionResult>;
 
   // --------------------------------------------------------------------------
   // Sync Operations

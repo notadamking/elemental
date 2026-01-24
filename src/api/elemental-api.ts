@@ -59,6 +59,10 @@ import type {
   BulkReassignOptions,
   BulkTagOptions,
   BulkOperationResult,
+  BurnWorkflowOptions,
+  BurnWorkflowResult,
+  GarbageCollectionOptions,
+  GarbageCollectionResult,
 } from './types.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -72,6 +76,7 @@ import {
   type SendDirectMessageResult,
 } from './types.js';
 import type { Plan } from '../types/plan.js';
+import type { Workflow } from '../types/workflow.js';
 import { generateChildId } from '../id/generator.js';
 import type { CreateTaskInput } from '../types/task.js';
 import { createTask } from '../types/task.js';
@@ -2579,6 +2584,161 @@ export class ElementalAPIImpl implements ElementalAPI {
       channel,
       channelCreated,
     };
+  }
+
+  // --------------------------------------------------------------------------
+  // Workflow Operations
+  // --------------------------------------------------------------------------
+
+  async burnWorkflow(
+    workflowId: ElementId,
+    options?: BurnWorkflowOptions
+  ): Promise<BurnWorkflowResult> {
+    // Get the workflow
+    const workflow = await this.get<Workflow>(workflowId);
+    if (!workflow) {
+      throw new NotFoundError(`Workflow not found: ${workflowId}`, ErrorCode.NOT_FOUND, { id: workflowId });
+    }
+
+    if (workflow.type !== 'workflow') {
+      throw new ValidationError(
+        `Element ${workflowId} is not a workflow (type: ${workflow.type})`,
+        ErrorCode.INVALID_INPUT,
+        { field: 'workflowId', value: workflowId }
+      );
+    }
+
+    const wasEphemeral = workflow.ephemeral ?? false;
+
+    // Get all dependencies to find tasks
+    const allDependencies = await this.getAllDependencies();
+
+    // Find task IDs that are children of this workflow
+    const taskIds: ElementId[] = [];
+    for (const dep of allDependencies) {
+      if (dep.type === 'parent-child' && dep.targetId === workflowId) {
+        taskIds.push(dep.sourceId);
+      }
+    }
+
+    // Find all dependencies involving the workflow or its tasks
+    const elementIds = new Set([workflowId, ...taskIds]);
+    const depsToDelete = allDependencies.filter(
+      (dep) => elementIds.has(dep.sourceId) || elementIds.has(dep.targetId)
+    );
+
+    // Delete dependencies first
+    for (const dep of depsToDelete) {
+      try {
+        await this.removeDependency(dep.sourceId, dep.targetId, dep.type, options?.actor);
+      } catch {
+        // Ignore errors for dependencies that don't exist
+      }
+    }
+
+    // Delete tasks
+    for (const taskId of taskIds) {
+      try {
+        // Hard delete via SQL since we're burning
+        this.backend.run('DELETE FROM elements WHERE id = ?', [taskId]);
+        this.backend.run('DELETE FROM tags WHERE element_id = ?', [taskId]);
+        this.backend.run('DELETE FROM events WHERE element_id = ?', [taskId]);
+      } catch {
+        // Ignore errors for tasks that don't exist
+      }
+    }
+
+    // Delete the workflow itself
+    this.backend.run('DELETE FROM elements WHERE id = ?', [workflowId]);
+    this.backend.run('DELETE FROM tags WHERE element_id = ?', [workflowId]);
+    this.backend.run('DELETE FROM events WHERE element_id = ?', [workflowId]);
+
+    return {
+      workflowId,
+      tasksDeleted: taskIds.length,
+      dependenciesDeleted: depsToDelete.length,
+      wasEphemeral,
+    };
+  }
+
+  async garbageCollectWorkflows(options: GarbageCollectionOptions): Promise<GarbageCollectionResult> {
+    const now = Date.now();
+    const result: GarbageCollectionResult = {
+      workflowsDeleted: 0,
+      tasksDeleted: 0,
+      dependenciesDeleted: 0,
+      deletedWorkflowIds: [],
+    };
+
+    // Find all ephemeral workflows in terminal state
+    const workflows = await this.list<Workflow>({ type: 'workflow' });
+    const candidates: Workflow[] = [];
+
+    for (const workflow of workflows) {
+      // Must be ephemeral
+      if (!workflow.ephemeral) continue;
+
+      // Must be in terminal state
+      const terminalStatuses = ['completed', 'failed', 'cancelled'];
+      if (!terminalStatuses.includes(workflow.status)) continue;
+
+      // Must have finished
+      if (!workflow.finishedAt) continue;
+
+      // Must be old enough
+      const finishedTime = new Date(workflow.finishedAt).getTime();
+      const age = now - finishedTime;
+      if (age < options.maxAgeMs) continue;
+
+      candidates.push(workflow);
+    }
+
+    // Apply limit if specified
+    const toDelete = options.limit ? candidates.slice(0, options.limit) : candidates;
+
+    // If dry run, just return what would be deleted
+    if (options.dryRun) {
+      // Count what would be deleted
+      const allDeps = await this.getAllDependencies();
+      for (const workflow of toDelete) {
+        result.deletedWorkflowIds.push(workflow.id);
+        result.workflowsDeleted++;
+
+        // Count tasks
+        for (const dep of allDeps) {
+          if (dep.type === 'parent-child' && dep.targetId === workflow.id) {
+            result.tasksDeleted++;
+          }
+        }
+      }
+      return result;
+    }
+
+    // Actually delete
+    for (const workflow of toDelete) {
+      const burnResult = await this.burnWorkflow(workflow.id);
+      result.workflowsDeleted++;
+      result.tasksDeleted += burnResult.tasksDeleted;
+      result.dependenciesDeleted += burnResult.dependenciesDeleted;
+      result.deletedWorkflowIds.push(workflow.id);
+    }
+
+    return result;
+  }
+
+  /**
+   * Get all dependencies from storage
+   */
+  private async getAllDependencies(): Promise<Dependency[]> {
+    const rows = this.backend.query<DependencyRow>('SELECT * FROM dependencies');
+    return rows.map((row) => ({
+      sourceId: row.source_id as ElementId,
+      targetId: row.target_id as ElementId,
+      type: row.type as DependencyType,
+      createdAt: row.created_at as Timestamp,
+      createdBy: row.created_by as EntityId,
+      metadata: row.metadata ? JSON.parse(row.metadata) : {},
+    }));
   }
 
   // --------------------------------------------------------------------------

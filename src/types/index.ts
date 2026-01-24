@@ -391,3 +391,25 @@ export {
   pourWorkflow,
   validatePour,
 } from './workflow-pour.js';
+
+// Workflow operations exports
+export {
+  // Types
+  type BurnWorkflowResult as WorkflowBurnResult,
+  type GarbageCollectionResult as WorkflowGCResult,
+  type GarbageCollectionOptions as WorkflowGCOptions,
+  type EphemeralFilterResult,
+  // Ephemeral filtering
+  getEphemeralElementIds,
+  filterOutEphemeral,
+  isEphemeralElement,
+  // Workflow-task relationships
+  getTaskIdsInWorkflow,
+  getDependenciesInWorkflow,
+  // GC helpers
+  getGarbageCollectionCandidates,
+  prepareGarbageCollection,
+  // Burn helpers
+  canBurnWorkflow,
+  prepareBurnWorkflow,
+} from './workflow-ops.js';

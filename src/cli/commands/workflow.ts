@@ -448,9 +448,22 @@ Examples:
 // Workflow Burn Command
 // ============================================================================
 
+interface WorkflowBurnOptions {
+  force?: boolean;
+}
+
+const workflowBurnOptions: CommandOption[] = [
+  {
+    name: 'force',
+    short: 'f',
+    description: 'Force burn even for durable workflows',
+    hasValue: false,
+  },
+];
+
 async function workflowBurnHandler(
   args: string[],
-  options: GlobalOptions
+  options: GlobalOptions & WorkflowBurnOptions
 ): Promise<CommandResult> {
   const [id] = args;
 
@@ -474,21 +487,22 @@ async function workflowBurnHandler(
       return failure(`Element ${id} is not a workflow (type: ${workflow.type})`, ExitCode.VALIDATION);
     }
 
-    if (!workflow.ephemeral) {
+    if (!workflow.ephemeral && !options.force) {
       return failure(
-        `Workflow ${id} is durable. Use 'el delete ${id}' instead, or first convert with 'el workflow squash'.`,
+        `Workflow ${id} is durable. Use --force to burn anyway, or 'el delete ${id}' for soft delete.`,
         ExitCode.VALIDATION
       );
     }
 
     const actor = resolveActor(options);
 
-    // TODO: Delete child tasks first when task association is implemented
+    // Use burnWorkflow API to delete workflow and all its tasks
+    const result = await api.burnWorkflow(id as ElementId, { actor });
 
-    // Delete the workflow
-    await api.delete(id as ElementId, { actor, reason: 'Burned ephemeral workflow' });
-
-    return success({ id }, `Burned workflow ${id} and its tasks`);
+    return success(
+      result,
+      `Burned workflow ${id}: ${result.tasksDeleted} task(s), ${result.dependenciesDeleted} dependency(ies) deleted`
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to burn workflow: ${message}`, ExitCode.GENERAL_ERROR);
@@ -497,18 +511,23 @@ async function workflowBurnHandler(
 
 const workflowBurnCommand: Command = {
   name: 'burn',
-  description: 'Delete ephemeral workflow and tasks',
+  description: 'Delete workflow and all its tasks',
   usage: 'el workflow burn <id>',
-  help: `Delete an ephemeral workflow and all its tasks immediately.
+  help: `Delete a workflow and all its tasks immediately (hard delete).
 
-This command only works on ephemeral workflows. For durable workflows,
-use the standard delete command.
+By default, only ephemeral workflows can be burned. Use --force to burn
+durable workflows as well.
 
 Arguments:
   id    Workflow identifier
 
+Options:
+  -f, --force    Force burn even for durable workflows
+
 Examples:
-  el workflow burn el-abc123`,
+  el workflow burn el-abc123
+  el workflow burn el-abc123 --force`,
+  options: workflowBurnOptions,
   handler: workflowBurnHandler as Command['handler'],
 };
 
@@ -626,17 +645,18 @@ async function workflowGcHandler(
 
     const maxAgeMs = ageDays * MS_PER_DAY;
 
-    // Get all workflows
-    const result = await api.list<Workflow>({ type: 'workflow' });
-
-    // Filter to those eligible for GC
-    const eligible = filterGarbageCollectionByAge(result, maxAgeMs);
-
-    if (eligible.length === 0) {
-      return success({ deleted: 0 }, 'No workflows eligible for garbage collection');
-    }
-
+    // Check if dry run by getting eligible workflows first
     if (options.dryRun) {
+      // Get all workflows for preview
+      const allWorkflows = await api.list<Workflow>({ type: 'workflow' });
+
+      // Filter to those eligible for GC
+      const eligible = filterGarbageCollectionByAge(allWorkflows, maxAgeMs);
+
+      if (eligible.length === 0) {
+        return success({ deleted: 0 }, 'No workflows eligible for garbage collection');
+      }
+
       const mode = getOutputMode(options);
       const formatter = getFormatter(mode);
 
@@ -663,35 +683,20 @@ async function workflowGcHandler(
       );
     }
 
-    // Delete eligible workflows
-    const actor = resolveActor(options);
-    let deleted = 0;
-    const errors: string[] = [];
+    // Use garbageCollectWorkflows API
+    const gcResult = await api.garbageCollectWorkflows({
+      maxAgeMs,
+      dryRun: false,
+    });
 
-    for (const workflow of eligible) {
-      try {
-        // TODO: Delete child tasks first when task association is implemented
-        await api.delete(workflow.id, { actor, reason: 'Garbage collected' });
-        deleted++;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`${workflow.id}: ${msg}`);
-      }
+    if (gcResult.workflowsDeleted === 0) {
+      return success({ deleted: 0 }, 'No workflows eligible for garbage collection');
     }
 
-    const result2 = {
-      deleted,
-      errors: errors.length > 0 ? errors : undefined,
-    };
-
-    if (errors.length > 0) {
-      return success(
-        result2,
-        `Garbage collected ${deleted} workflow(s), ${errors.length} error(s):\n${errors.join('\n')}`
-      );
-    }
-
-    return success(result2, `Garbage collected ${deleted} workflow(s)`);
+    return success(
+      gcResult,
+      `Garbage collected ${gcResult.workflowsDeleted} workflow(s), ${gcResult.tasksDeleted} task(s), ${gcResult.dependenciesDeleted} dependency(ies)`
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to garbage collect: ${message}`, ExitCode.GENERAL_ERROR);
