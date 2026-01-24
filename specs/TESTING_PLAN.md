@@ -5803,6 +5803,61 @@ The flag inconsistency is particularly confusing:
 
 ---
 
+### Scenario: Playbook Step Creation with Dependencies
+
+**Purpose:** Evaluate playbook creation via CLI with multiple steps and inter-step dependencies - critical for agent workflows using workflow templates
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (FAIL - Parser bug prevents multi-step playbooks via CLI)
+
+**Checkpoints:**
+
+**Single Step Creation:**
+- [x] `el playbook create --name test --title "Test" --step "setup:Setup"` works correctly
+  - Single step is created properly
+- [x] Step ID and title parsed correctly from format `id:title`
+
+**Multiple Steps - No Dependencies:**
+- [ ] **FAIL**: `el playbook create --step "a:Step A" --step "b:Step B"` only creates step "b"
+  - **BUG el-59p3 (CONFIRMED):** Parser overwrites repeated options
+  - All --step flags are parsed but only last one is kept
+  - Same pattern as --tag, --member, --variable flags
+
+**Multiple Steps - With Dependencies:**
+- [ ] **FAIL**: `el playbook create --step "a:Step A" --step "b:Step B:a"` fails with "unknown step 'a'"
+  - **BUG el-59p3 (CONFIRMED):** Parser only keeps last --step
+  - Error message misleads about the cause (suggests step ordering issue)
+  - Actual cause: step "a" never registered due to parser bug
+
+**Workaround Testing:**
+- [x] Single-step playbooks work correctly
+- [x] Playbooks can be created without steps then modified via database
+- [ ] **MISSING**: No `el playbook add-step` command to add steps after creation
+
+**Success Criteria:** Playbooks can be created with multiple dependent steps via CLI
+- **CRITICAL FAILURE:** Parser bug prevents creating multi-step playbooks via CLI
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-59p3 | (pre-existing) Parser bug affects multiple --step flags | 2 | bug |
+
+**Notes:**
+This evaluation confirmed that el-59p3 severely impacts playbook creation:
+1. Single-step playbooks work correctly
+2. Multi-step playbooks fail silently (only last step kept)
+3. Dependencies between steps produce confusing "unknown step" errors
+4. No workaround exists via CLI - must use database directly or YAML files
+
+The error message "depends on unknown step 'a'" is misleading because it suggests
+the step was defined incorrectly, when the actual issue is the parser discarding
+earlier --step flags. This is a particularly impactful manifestation of el-59p3
+since playbooks are intended to have multiple interdependent steps.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
