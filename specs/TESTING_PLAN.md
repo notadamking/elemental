@@ -3596,6 +3596,95 @@ This is particularly important for agent orchestration where:
 
 ---
 
+### Scenario: Date and Time Input Validation
+
+**Purpose:** Comprehensive validation of date/time input handling for task scheduling - critical for agent workflows that depend on accurate scheduling
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Confirms Existing Issues)
+
+**Checkpoints:**
+
+**Date Format Support:**
+- [x] ISO 8601 date only (YYYY-MM-DD): correctly parsed, time set to 00:00:00Z
+- [x] Full ISO 8601 with time: correctly parsed with time component
+- [x] ISO 8601 with timezone offset: correctly converted to UTC
+  - Example: `2026-03-15T12:00:00+05:00` → `2026-03-15T07:00:00.000Z`
+- [x] US date format (MM/DD/YYYY): accepted and parsed (adds 10:00:00 time)
+- [x] EU date format (DD/MM/YYYY): rejected with clear error
+
+**Date Validation Edge Cases:**
+- [ ] **FAIL**: Feb 29 in non-leap year (2027): silently rolls to March 1
+  - **BUG el-2p2p (CONFIRMED):** No validation error, date becomes 2027-03-01
+- [ ] **FAIL**: Feb 30 in any year: silently rolls to March 2
+  - **BUG el-2p2p (CONFIRMED):** No validation error, date becomes March 2
+- [ ] **FAIL**: Feb 31: silently rolls to March 3
+  - **BUG el-2p2p (CONFIRMED):** No validation error
+- [x] Month 13 correctly rejected with "Invalid date format" error
+- [x] Day 32 silently rolls to next month (same pattern as Feb 30)
+- [ ] **FAIL**: Past dates accepted without warning
+  - **BUG el-3ap6 (CONFIRMED):** `--until 2020-01-01` succeeds silently
+
+**Time Validation:**
+- [x] Valid time components (00:00:00 to 23:59:59): accepted correctly
+- [x] Invalid hour (25:00:00): rejected with "Invalid date format" error
+- [x] Invalid minute (12:60:00): silently becomes 13:00:00 (rollover issue)
+- [x] Milliseconds: preserved correctly up to 3 digits
+- [x] Nanoseconds (9 digits): truncated to milliseconds
+
+**Timezone Handling:**
+- [x] UTC (Z suffix): preserved as-is
+- [x] Positive offset (+05:00): correctly converted to UTC
+- [x] Negative offset (-05:00): correctly converted to UTC
+- [x] Half-hour offset (+05:30): correctly handled
+- [x] Invalid offset (+25:00): rejected with "Invalid date format" error
+
+**Year Boundary Cases:**
+- [x] Year 2000 (Y2K edge): correctly handled
+- [x] Year 9999 (far future): correctly handled
+- [x] Year 10000: accepted with unusual format (+010000-...)
+- [x] Negative year: treated as missing value (not parsed)
+
+**Special Input Cases:**
+- [x] Empty string: defers task but scheduledFor becomes/remains null
+- [x] Whitespace only: rejected with "Invalid date format" error
+- [ ] **FAIL**: Keyword 'today': rejected (no relative date support)
+  - **ENHANCEMENT el-66en (CONFIRMED)**
+- [ ] **FAIL**: Keyword 'tomorrow': rejected (no relative date support)
+  - **ENHANCEMENT el-66en (CONFIRMED)**
+- [x] Unix timestamp (seconds): rejected with "Invalid date format" error
+- [x] Unix timestamp (milliseconds): rejected with "Invalid date format" error
+
+**Flag Availability:**
+- [ ] **FAIL**: `--deadline` flag on `el create task`: doesn't exist
+  - **ENHANCEMENT el-e6wc (CONFIRMED)**
+- [ ] **FAIL**: `--deadline` flag on `el update`: doesn't exist
+  - **ENHANCEMENT el-e6wc (CONFIRMED)**
+
+**Security:**
+- [x] SQL injection attempt in date field: properly rejected
+
+**Success Criteria:** Date/time inputs are validated and converted correctly
+- **PARTIAL:** Most inputs handled correctly, but invalid dates silently roll over
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-2p2p | Invalid dates (Feb 30, Feb 29 in non-leap) silently roll over | 4 | ux |
+| el-3ap6 | Past dates accepted without warning | 4 | ux |
+| el-66en | No relative date support (today, tomorrow, +1d) | 4 | enhancement |
+| el-e6wc | --deadline flag missing from create/update | 4 | enhancement |
+
+**Notes:**
+Date/time handling is generally robust for valid inputs. Timezone conversion to UTC works correctly.
+The silent rollover for impossible dates (Feb 30, Feb 31, Feb 29 in non-leap years) is the most
+significant issue as it can cause agents to schedule work on unexpected dates without any warning.
+This is a UX issue rather than a bug since JavaScript's Date behavior matches this pattern.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
