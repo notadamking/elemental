@@ -206,7 +206,7 @@ describe('doctor command', () => {
     expect(fkDiag.status).toBe('ok');
   });
 
-  test('checks blocked cache', async () => {
+  test('checks blocked cache - reports ok when empty and no blocked tasks', async () => {
     const backend = createStorage({ path: DB_PATH, create: true });
     initializeSchema(backend);
 
@@ -218,6 +218,128 @@ describe('doctor command', () => {
     );
     expect(cacheDiag).toBeDefined();
     expect(cacheDiag.status).toBe('ok');
+  });
+
+  test('checks blocked cache - reports warning when tasks have blocked status but no cache entry', async () => {
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+
+    // Create a task with status='blocked' but no blocked_cache entry
+    // This simulates the state after an import without cache rebuild
+    const taskId = 'el-test1';
+    const taskData = {
+      title: 'Test blocked task',
+      status: 'blocked',
+      priority: 2,
+    };
+    backend.run(
+      `INSERT INTO elements (id, type, data, created_at, updated_at, created_by)
+       VALUES (?, 'task', ?, datetime('now'), datetime('now'), 'test')`,
+      [taskId, JSON.stringify(taskData)]
+    );
+
+    // Verify blocked_cache is empty
+    const cacheCount = backend.query<{ count: number }>('SELECT COUNT(*) as count FROM blocked_cache');
+    expect(cacheCount[0].count).toBe(0);
+
+    const options = createTestOptions();
+    const result = await doctorCommand.handler([], options);
+
+    const cacheDiag = result.data.diagnostics.find(
+      (d: { name: string }) => d.name === 'blocked_cache'
+    );
+    expect(cacheDiag).toBeDefined();
+    expect(cacheDiag.status).toBe('warning');
+    expect(cacheDiag.message).toContain('inconsistent');
+    expect(cacheDiag.message).toContain('blocked tasks missing from cache');
+    expect(cacheDiag.details.missingCacheCount).toBe(1);
+  });
+
+  test('checks blocked cache - reports ok when tasks have blocked status with matching cache entry', async () => {
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+
+    // Create a blocker task (open)
+    const blockerId = 'el-blocker';
+    const blockerData = {
+      title: 'Blocker task',
+      status: 'open',
+      priority: 2,
+    };
+    backend.run(
+      `INSERT INTO elements (id, type, data, created_at, updated_at, created_by)
+       VALUES (?, 'task', ?, datetime('now'), datetime('now'), 'test')`,
+      [blockerId, JSON.stringify(blockerData)]
+    );
+
+    // Create a blocked task with matching cache entry
+    const blockedId = 'el-blocked';
+    const blockedData = {
+      title: 'Blocked task',
+      status: 'blocked',
+      priority: 2,
+    };
+    backend.run(
+      `INSERT INTO elements (id, type, data, created_at, updated_at, created_by)
+       VALUES (?, 'task', ?, datetime('now'), datetime('now'), 'test')`,
+      [blockedId, JSON.stringify(blockedData)]
+    );
+
+    // Add blocked_cache entry
+    backend.run(
+      `INSERT INTO blocked_cache (element_id, blocked_by, reason) VALUES (?, ?, ?)`,
+      [blockedId, blockerId, 'Blocked by test']
+    );
+
+    const options = createTestOptions();
+    const result = await doctorCommand.handler([], options);
+
+    const cacheDiag = result.data.diagnostics.find(
+      (d: { name: string }) => d.name === 'blocked_cache'
+    );
+    expect(cacheDiag).toBeDefined();
+    expect(cacheDiag.status).toBe('ok');
+    expect(cacheDiag.message).toBe('Blocked cache is consistent');
+  });
+
+  test('checks blocked cache - reports warning for orphaned cache entries', async () => {
+    const backend = createStorage({ path: DB_PATH, create: true });
+    initializeSchema(backend);
+
+    // Create an element so we can insert cache entry (FK constraint)
+    const taskId = 'el-orphan';
+    const taskData = {
+      title: 'Test task',
+      status: 'open',
+      priority: 2,
+    };
+    backend.run(
+      `INSERT INTO elements (id, type, data, created_at, updated_at, created_by)
+       VALUES (?, 'task', ?, datetime('now'), datetime('now'), 'test')`,
+      [taskId, JSON.stringify(taskData)]
+    );
+
+    // Add blocked_cache entry
+    backend.run(
+      `INSERT INTO blocked_cache (element_id, blocked_by, reason) VALUES (?, ?, ?)`,
+      [taskId, 'el-nonexistent', 'Orphan test']
+    );
+
+    // Now delete the element to create an orphan (FK cascade should clean this up,
+    // but let's verify the check works by disabling FK temporarily)
+    backend.run('PRAGMA foreign_keys = OFF');
+    backend.run('DELETE FROM elements WHERE id = ?', [taskId]);
+    backend.run('PRAGMA foreign_keys = ON');
+
+    const options = createTestOptions();
+    const result = await doctorCommand.handler([], options);
+
+    const cacheDiag = result.data.diagnostics.find(
+      (d: { name: string }) => d.name === 'blocked_cache'
+    );
+    expect(cacheDiag).toBeDefined();
+    expect(cacheDiag.status).toBe('warning');
+    expect(cacheDiag.message).toContain('orphaned cache entries');
   });
 
   test('reports storage stats', async () => {

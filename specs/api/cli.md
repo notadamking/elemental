@@ -565,7 +565,7 @@ User-friendly errors:
 ### Phase 7: Admin Commands ✅
 - [x] Implement config (src/cli/commands/config.ts - show, set, unset subcommands)
 - [x] Implement stats (src/cli/commands/stats.ts - workspace statistics, 11 tests)
-- [x] Implement doctor (src/cli/commands/admin.ts - health checks, schema validation, integrity checks, 31 tests)
+- [x] Implement doctor (src/cli/commands/admin.ts - health checks, schema validation, integrity checks, blocked cache consistency, 34 tests)
 - [x] Implement migrate (src/cli/commands/admin.ts - schema migration with dry-run support)
 
 ### Phase 8: Polish ✅

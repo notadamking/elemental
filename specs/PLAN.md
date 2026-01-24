@@ -1690,7 +1690,7 @@ Recommended implementation sequence:
 
 - [x] **api/cli.md Phase 5**: Collection commands ✅ (plan create/list/show/activate/complete/cancel/add-task/remove-task/tasks, workflow pour/list/show/burn/squash/gc/tasks/progress, playbook list/show/validate/create, channel create/join/leave/list/members/add/remove, library create/list/add/remove/docs/nest/roots/stats/delete, team create/add/remove/list/members/delete)
 - [x] **api/cli.md Phase 6**: Sync commands ✅ (export, import, status - 46 tests)
-- [x] **api/cli.md Phase 7**: Admin commands ✅ (config show/set/unset, stats - 11 tests, doctor - health checks, schema validation, integrity checks, 31 tests, migrate - schema migration with dry-run)
+- [x] **api/cli.md Phase 7**: Admin commands ✅ (config show/set/unset, stats - 11 tests, doctor - health checks, schema validation, integrity checks, blocked cache consistency, 34 tests, migrate - schema migration with dry-run)
 - [x] **api/cli.md Phase 8**: Shell completion, command aliases ✅ (bash/zsh/fish completion via el completion, 12 default aliases via el alias - 925+ tests)
 - [x] **api/configuration.md Phase 6**: CLI commands ✅ (config show, set, unset, edit implemented in src/cli/commands/config.ts - 28 tests)
 - [x] **types/task.md Phase 5 (partial)**: CLI commands for task operations ✅ (ready, blocked, close, reopen, assign, defer, undefer - 58 tests)

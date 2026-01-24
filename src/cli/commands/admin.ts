@@ -270,7 +270,7 @@ async function doctorHandler(
 
   // 8. Check blocked cache consistency
   try {
-    // Check if all cached blocked elements still exist
+    // Check 1: Orphaned entries - cache entries referencing elements that don't exist
     const orphanedCache = backend.query<{ count: number }>(`
       SELECT COUNT(*) as count
       FROM blocked_cache bc
@@ -278,18 +278,60 @@ async function doctorHandler(
       WHERE e.id IS NULL
     `);
 
-    if (orphanedCache[0].count === 0) {
+    // Check 2: Tasks with status='blocked' but no blocked_cache entry
+    // These are tasks that have blocked status but the cache doesn't know about them
+    const tasksWithBlockedStatusMissingCache = backend.query<{ count: number }>(`
+      SELECT COUNT(*) as count
+      FROM elements e
+      WHERE e.deleted_at IS NULL
+        AND e.type = 'task'
+        AND json_extract(e.data, '$.status') = 'blocked'
+        AND e.id NOT IN (SELECT element_id FROM blocked_cache)
+    `);
+
+    // Check 3: Get total counts for diagnostics
+    const blockedCacheCount = backend.query<{ count: number }>(
+      'SELECT COUNT(*) as count FROM blocked_cache'
+    );
+    const blockedStatusCount = backend.query<{ count: number }>(`
+      SELECT COUNT(*) as count
+      FROM elements e
+      WHERE e.deleted_at IS NULL
+        AND e.type = 'task'
+        AND json_extract(e.data, '$.status') = 'blocked'
+    `);
+
+    const orphanCount = orphanedCache[0].count;
+    const missingCacheCount = tasksWithBlockedStatusMissingCache[0].count;
+    const cacheEntries = blockedCacheCount[0].count;
+    const tasksWithBlockedStatus = blockedStatusCount[0].count;
+
+    if (orphanCount === 0 && missingCacheCount === 0) {
       diagnostics.push({
         name: 'blocked_cache',
         status: 'ok',
         message: 'Blocked cache is consistent',
+        details: options.verbose ? { cacheEntries, tasksWithBlockedStatus } : undefined,
       });
     } else {
+      const issues: string[] = [];
+      const details: Record<string, unknown> = { cacheEntries, tasksWithBlockedStatus };
+
+      if (orphanCount > 0) {
+        issues.push(`${orphanCount} orphaned cache entries`);
+        details.orphanedCount = orphanCount;
+      }
+
+      if (missingCacheCount > 0) {
+        issues.push(`${missingCacheCount} blocked tasks missing from cache`);
+        details.missingCacheCount = missingCacheCount;
+      }
+
       diagnostics.push({
         name: 'blocked_cache',
         status: 'warning',
-        message: `${orphanedCache[0].count} orphaned entries in blocked cache`,
-        details: { orphanedCount: orphanedCache[0].count },
+        message: `Blocked cache inconsistent: ${issues.join(', ')}. Cache may need rebuild.`,
+        details,
       });
     }
   } catch (err) {
