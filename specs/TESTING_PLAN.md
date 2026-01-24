@@ -3685,6 +3685,75 @@ This is a UX issue rather than a bug since JavaScript's Date behavior matches th
 
 ---
 
+### Scenario: Blocked List Command Behavior and Filtering
+
+**Purpose:** Evaluate the `el blocked` command's filtering capabilities, output consistency, and edge case handling for agent orchestration
+
+**Prerequisites:** Initialized workspace with dependency chains
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Limit bug found, missing filters)
+
+**Checkpoints:**
+
+**Basic Blocked List:**
+- [x] `el blocked --json` returns all blocked tasks with correct structure
+- [x] Output includes `blockedBy` and `blockReason` fields
+- [x] Blocked list updates correctly when blockers are closed
+- [x] Tasks correctly move to ready list when unblocked
+
+**Filtering Options:**
+- [x] Filter by priority: `el blocked --priority 2` works correctly
+- [x] Filter by assignee (ID): `el blocked --assignee el-xxx` works correctly
+- [ ] **FAIL**: Filter by assignee (name): returns empty (el-574h - same as other commands)
+- [x] Combined filters: `el blocked --priority 1 --assignee el-xxx` works correctly
+- [ ] **FAIL**: Filter by tag: `el blocked --tag frontend`
+  - **ENHANCEMENT el-1kt1:** Option doesn't exist ("Unknown option: --tag")
+- [ ] **FAIL**: Filter by taskType: `el blocked --type bug`
+  - **ENHANCEMENT el-1kt1:** Option doesn't exist ("Unknown option: --type")
+
+**Limit Option:**
+- [ ] **FAIL - BUG el-46sa**: `el blocked --limit N` returns N-1 results
+  - With 4 blocked tasks:
+  - `--limit 1` returns 0 results (expected: 1)
+  - `--limit 2` returns 1 result (expected: 2)
+  - `--limit 3` returns 2 results (expected: 3)
+  - `--limit 4` returns 3 results (expected: 4)
+  - **Note:** `el ready --limit` works correctly (bug is specific to blocked)
+- [x] Limit 0 correctly rejected with "Limit must be a positive number"
+- [x] Non-existent assignee returns empty results (not an error)
+
+**Output Formats:**
+- [x] JSON output: `{success: true, data: [...]}`
+- [x] Quiet mode: outputs IDs only, one per line
+- [x] Human-readable: formatted table with alignment
+
+**Multi-Blocker Handling:**
+- [ ] **FAIL - UX el-19gz**: Tasks with multiple blockers only show first blocker
+  - `blockedBy` shows single ID even when task is blocked by multiple elements
+  - Users cannot see all blocking dependencies without `el dep list`
+  - Misleading for complex dependency chains
+
+**Sorting Behavior:**
+- [x] Blocked list sorted by priority (ascending)
+- [x] Secondary sort by createdAt for same priority
+
+**Success Criteria:** Blocked command provides accurate filtering and complete blocking information
+- **PARTIAL:** Core behavior works, but limit bug and missing filters affect agent usability
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-46sa | BUG: `el blocked --limit N` returns N-1 results (off-by-one) | 3 | bug |
+| el-19gz | UX: `el blocked` shows only first blocker for multi-blocked tasks | 4 | ux |
+| el-1kt1 | ENHANCEMENT: `el blocked` needs --tag and --type filters | 4 | enhancement |
+
+**Dependencies:**
+- el-1kt1 → el-59p3 (relates-to: parser bug affects --tag filtering)
+- el-1kt1 → el-8idf (relates-to: same --tag filter pattern as el ready)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
