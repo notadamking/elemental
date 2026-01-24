@@ -4936,6 +4936,122 @@ containing `!`. This is particularly problematic for:
 
 ---
 
+### Scenario: Task Close/Reopen Command Edge Cases
+
+**Purpose:** Comprehensive evaluation of el close and el reopen command behavior, edge cases, and validation - critical for agent orchestration where tasks transition through lifecycle states
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Pass with One New UX Issue)
+
+**Checkpoints:**
+
+**Basic Close Behavior:**
+- [x] Close task with reason: `el close <id> --reason "Completed"` works correctly
+  - Sets status to `closed`, closedAt timestamp, and closeReason
+- [x] Close without reason: `el close <id>` works, closeReason is null
+- [x] Empty string reason: `el close <id> --reason ""` normalized to null (good)
+- [ ] **FAIL**: Whitespace-only reason: `el close <id> --reason "   "`
+  - **UX el-2i4m:** Stores literal whitespace instead of normalizing to null
+- [x] Close already closed task: correctly rejected with exit code 4
+  - Error: "Task is already closed: el-xxx"
+
+**Close From Different States:**
+- [x] Close from open status: works correctly
+- [x] Close from in_progress status: works correctly
+- [x] Close from blocked status: works correctly (allowed - questionable UX)
+  - Note: Agents can close blocked tasks despite having unmet dependencies
+- [x] Close from deferred status: correctly rejected
+  - Error: "Cannot close task with status 'deferred'"
+- [x] Close from tombstone status: correctly rejected
+  - Error: "Cannot close task with status 'tombstone'"
+
+**Reopen Behavior:**
+- [x] Reopen closed task: correctly sets status to open and clears closedAt
+- [ ] **FAIL**: closeReason persists after reopen
+  - **UX el-2deb:** (pre-existing) Task shows closeReason even when open
+- [x] Reopen open task: correctly rejected with exit code 4
+  - Error: "Task is not closed (status: open)"
+- [x] Reopen deferred task: correctly rejected
+  - Error: "Task is not closed (status: deferred)"
+- [x] Reopen in_progress task: correctly rejected
+- [x] Reopen tombstoned task: correctly rejected
+
+**Reason Length Validation:**
+- [x] Reason at 1000 chars: accepted correctly
+- [x] Reason over 1000 chars: rejected with clear error
+  - Error: "closeReason exceeds maximum length of 1000 characters"
+
+**Special Character Handling:**
+- [x] HTML/SQL injection in reason: safely escaped and stored
+- [ ] **FAIL**: Exclamation marks escaped with backslash
+  - **BUG el-4eaq:** (pre-existing) "Great!" becomes "Great\!"
+- [x] Unicode in reason: preserved correctly
+- [x] Newlines in reason: preserved correctly
+
+**Edge Cases:**
+- [x] Close non-existent task: exit code 3, "Task not found"
+- [x] Close non-task element: exit code 4, "Element is not a task"
+- [x] Reopen non-existent task: exit code 3, "Task not found"
+- [x] Multiple task IDs: only first closed, second silently ignored (el-vocx pre-existing)
+- [x] Missing ID argument: exit code 2, shows usage
+
+**Ready/Blocked List Integration:**
+- [x] Closed task removed from ready list
+- [x] Closing blocker unblocks dependent task
+- [x] Reopened task appears in ready list (if no blockers)
+
+**Output Formats:**
+- [x] JSON output: consistent `{success, data: {...}}` structure
+- [x] Quiet mode: returns element ID only
+- [x] closedAt timestamp in ISO 8601 format
+
+**Aliases:**
+- [x] `el done` alias: works identically to `el close`
+- [x] `el complete` alias: works identically to `el close`
+
+**--actor Flag:**
+- [x] Close with --actor: accepted (entity name or ID)
+- [x] Reopen with --actor: accepted
+
+**Help Text:**
+- [x] `el close --help`: shows correct usage
+- [x] `el reopen --help`: shows correct usage
+
+**Success Criteria:** Close/reopen commands handle lifecycle transitions correctly
+- **Pass** with one new UX issue (whitespace closeReason)
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-2i4m | UX: el close --reason accepts whitespace-only content | 5 | ux |
+
+**Issues Confirmed:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-2deb | (pre-existing) closeReason persists after task is reopened | 5 | ux |
+| el-4eaq | (pre-existing) Exclamation marks incorrectly escaped in close reason | 3 | bug |
+| el-vocx | (pre-existing) CLI silently ignores extra positional arguments | 3 | ux |
+
+**Dependencies:**
+- el-2i4m → el-3v7z (relates-to: same whitespace validation pattern)
+- el-2i4m → el-5ha0 (relates-to: same whitespace validation pattern)
+- el-2i4m → el-2aqg (relates-to: same whitespace validation pattern)
+
+**Notes:**
+This evaluation tested the close/reopen commands critical for agent task lifecycle management.
+Key findings:
+1. Core close/reopen functionality works correctly
+2. Validation is proper for status transitions (can't close deferred/tombstone, can't reopen non-closed)
+3. Closing blocked tasks is allowed (design decision - may want to warn)
+4. closeReason length limit of 1000 chars is enforced
+5. Pre-existing exclamation mark escape bug affects closeReason
+6. Whitespace-only closeReason should be normalized to null for consistency
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
