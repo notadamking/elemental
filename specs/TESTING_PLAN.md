@@ -2912,6 +2912,80 @@ through dependency chains. Team assignment correctly propagates to team member q
 
 ---
 
+### Scenario: Actor Attribution and Multi-Entity Operations
+
+**Purpose:** Validate that actor attribution (createdBy field) works correctly across all operations and that --actor flag properly validates entity references
+
+**Prerequisites:** Initialized workspace
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Multiple attribution and validation bugs found)
+
+**Checkpoints:**
+
+**Actor Attribution on Create:**
+- [x] Create task with --actor: correctly sets createdBy to specified entity ID
+- [x] Create task without --actor: defaults to cli-user
+- [ ] **FAIL**: Create task with --actor after config set actor: ignores config (el-5guf confirmed)
+  - `el whoami` shows actor from config, but task created with `createdBy: cli-user`
+- [x] Create document with --actor: correctly sets createdBy
+- [x] Create plan with --actor: correctly sets createdBy
+- [x] Create channel with --actor: correctly sets createdBy
+- [x] Create team with --actor: correctly sets createdBy
+- [x] Create library with --actor: correctly sets createdBy
+- [x] Create playbook with --actor: correctly sets createdBy
+- [x] Pour workflow with --actor: correctly sets createdBy
+- [x] Send message with --actor: correctly sets createdBy and sender
+
+**Actor Validation:**
+- [ ] **FAIL**: --actor accepts non-existent entity IDs (el-2lmf NEW)
+  - `el create task --title "Test" --actor el-nonexistent` succeeds
+  - createdBy stores invalid ID without validation
+- [ ] **FAIL**: --actor accepts non-entity element IDs (el-37v7 NEW)
+  - `el create task --title "Test" --actor <task-id>` succeeds
+  - createdBy stores task ID instead of entity ID
+
+**Dependency Operations:**
+- [ ] **FAIL**: `el dep add --actor` flag completely ignored (el-19vr NEW)
+  - Specified `--actor el-5zi6` but createdBy shows `cli-user`
+  - Dependencies don't respect actor flag for attribution
+
+**Update Attribution:**
+- [x] `el update --actor` works for element updates
+- [ ] **INFO**: No updatedBy field to track who made updates
+  - createdBy never changes after element creation
+
+**Close/Reopen Attribution:**
+- [x] `el close --actor` works correctly
+- [x] `el reopen --actor` works correctly
+- [ ] **INFO**: No closedBy field to track who closed tasks
+
+**Success Criteria:** Actor attribution works consistently and validates entity references
+- **Partial:** Most create operations respect --actor, but validation missing and dep add broken
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-19vr | `el dep add` ignores --actor flag | 3 | bug |
+| el-2lmf | --actor accepts non-existent entity IDs | 3 | bug |
+| el-37v7 | --actor accepts non-entity element IDs | 3 | bug |
+
+**Dependencies:**
+- el-19vr → el-5guf (relates-to: actor attribution theme)
+- el-2lmf → el-jqhh (relates-to: entity validation pattern)
+- el-37v7 → el-1fnm (relates-to: entity type validation pattern)
+- el-37v7 → el-5gjo (relates-to: entity type validation pattern)
+
+**Notes:**
+Actor attribution is critical for multi-agent orchestration - agents need to know who created/modified
+elements. Current issues:
+1. Config file actor setting is completely non-functional (el-5guf)
+2. --actor flag works for most commands but NOT for dep add (el-19vr)
+3. No validation of actor value - any string/ID accepted (el-2lmf, el-37v7)
+4. No tracking of who updates/closes elements (no updatedBy, closedBy fields)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
