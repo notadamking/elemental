@@ -552,11 +552,11 @@ For mutations (create, update, delete):
 
 ### Phase 4: Core Features
 
-- [ ] **TB10: Command Palette**
-  - [ ] Web: Add cmdk
-  - [ ] Web: Create CommandPalette component
-  - [ ] Web: Wire up navigation actions
-  - [ ] **Verify:** Cmd+K opens, navigation works
+- [x] **TB10: Command Palette**
+  - [x] Web: Add cmdk
+  - [x] Web: Create CommandPalette component
+  - [x] Web: Wire up navigation actions
+  - [x] **Verify:** Cmd+K opens, navigation works (Playwright tests passing - 11 tests)
 
 - [ ] **TB11: Task Detail Panel**
   - [ ] Server: Add hydration to `GET /api/tasks/:id`

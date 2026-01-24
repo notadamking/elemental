@@ -121,8 +121,8 @@ test.describe('TB9: Timeline Lens', () => {
     await page.goto('/dashboard/timeline');
     await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
 
-    // Wait for events to load
-    await expect(page.getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+    // Wait for events to load - use specific locator to avoid matching both count and list loading states
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
 
     // Get the element ID from the first event
     const firstEventElementId = events[0].elementId;

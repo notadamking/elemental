@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
+import { CommandPalette } from '../navigation';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
 import type { ConnectionState } from '../../api/websocket';
@@ -79,6 +80,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen bg-gray-50" data-testid="app-shell">
+      <CommandPalette />
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
