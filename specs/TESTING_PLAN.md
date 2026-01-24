@@ -2986,6 +2986,84 @@ elements. Current issues:
 
 ---
 
+### Scenario: Plan-Workflow Integration and Task Coordination
+
+**Purpose:** Comprehensive validation of plan-workflow interactions, task lifecycle within plans, dependency chain behavior, and playbook/workflow validation - testing critical multi-agent orchestration patterns
+
+**Prerequisites:** Initialized workspace with registered entities
+
+**Status:** TESTED - 2026-01-24 (Validation Confirms Known Bugs)
+
+**Checkpoints:**
+
+**Plan and Task Coordination:**
+- [x] Create plan with active status: `el plan create --title "Feature" --status active --actor <entity>`
+- [x] Create tasks with different priorities and assignees
+- [x] Add tasks to plan via `el plan add-task`
+- [x] Progress tracking works correctly (totalTasks, completedTasks, completionPercentage)
+- [x] Closing tasks updates plan progress correctly
+- [x] Priority inheritance through dependency chains works correctly
+  - P5 task blocking P1 task correctly inherits effectivePriority=1
+  - priorityInfluenced=true when effective differs from base
+
+**Dependency Chain Behavior:**
+- [x] Create multi-task dependency chain (Design → Implement → Test → Review)
+- [x] Only unblocked tasks appear in ready list
+- [x] Blocked tasks correctly show blockedBy and blockReason
+- [x] Closing blocker correctly unblocks dependent (blocked cache updates)
+- [x] Priority inheritance propagates through entire chain
+
+**Plan Lifecycle Validation Gaps (Confirms el-g5qk):**
+- [ ] **FAIL**: `el plan complete` allows completing plans with open tasks
+  - **BUG el-g5qk:** Confirmed - plan with 33% progress marked "completed"
+  - Plan with 1 closed, 1 in_progress, 1 deferred task can be completed
+  - No warning or --force required
+- [ ] **FAIL**: Tasks can be added to completed plans
+  - **BUG el-4uvk:** Confirmed - `el plan add-task` succeeds after plan completion
+  - Progress drops from 25% to 20% when 5th task added to "completed" plan
+
+**Plan Status Transitions:**
+- [x] Cancel active plan: `el plan cancel` works correctly
+- [x] Re-activate cancelled plan: correctly rejected
+- [x] Complete cancelled plan: correctly rejected
+
+**Playbook Validation Gaps:**
+- [ ] **FAIL**: Multiple `--step` flags only keeps last step
+  - **BUG el-59p3:** Confirmed - `--step a:A --step b:B --step c:C` creates only step c
+- [ ] **FAIL**: Duplicate playbook names allowed
+  - **BUG el-32y1:** Confirmed - second "deploy-workflow" created successfully
+
+**Workflow Pour Validation Gaps:**
+- [ ] **FAIL**: `el workflow pour` accepts non-existent playbook names
+  - **BUG el-5rrv:** Confirmed - creates empty workflow with invalid playbook reference
+- [ ] **FAIL**: `el workflow pour` accepts non-playbook element IDs
+  - **BUG el-5ldi:** Confirmed - task ID accepted as playbook name
+- [ ] **FAIL**: `el workflow pour` doesn't create tasks from playbook
+  - **BUG el-18ug:** Confirmed - workflow tasks list empty
+- [ ] **FAIL**: No workflow status transition commands
+  - **ENHANCEMENT el-rja0:** Confirmed - no start/complete/fail/cancel commands
+
+**Dependency Edge Cases:**
+- [x] Self-referential dependency allowed (task blocks itself)
+  - **BUG el-4pyu:** Confirmed - task permanently blocks itself
+- [x] Cross-element dependencies allowed (by design - element-agnostic)
+  - Document-to-task blocks dependency works
+  - Entity can be dependency target
+
+**Success Criteria:** Plan-workflow coordination validates orchestration patterns
+- **Confirms Known Bugs:** el-g5qk, el-4uvk, el-59p3, el-32y1, el-5rrv, el-5ldi, el-18ug, el-rja0, el-4pyu
+
+**Notes:**
+This evaluation provides comprehensive validation that existing tracked bugs are real and reproducible.
+Key findings:
+1. Plan completion lacks validation - any plan can be "completed" regardless of task status
+2. Playbook/workflow subsystem has multiple critical validation gaps
+3. Dependency system allows self-referential and cyclic dependencies
+4. Priority inheritance through dependency chains works correctly (positive finding)
+5. Basic plan progress tracking works correctly (positive finding)
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.

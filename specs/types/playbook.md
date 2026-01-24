@@ -230,7 +230,7 @@ All steps occur in a transaction:
 Playbooks stored in `elements` table:
 - `type = 'playbook'`
 - Steps and variables in JSON `data`
-- Name uniqueness enforced
+- Name uniqueness enforced - **BUG el-32y1: Uniqueness not currently enforced**
 
 ### Variable Resolution
 

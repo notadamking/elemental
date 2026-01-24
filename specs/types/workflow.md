@@ -217,7 +217,7 @@ Workflows stored in `elements` table with:
 
 ### Pouring Process
 
-1. Validate playbook exists
+1. Validate playbook exists - **BUG el-5rrv: Validation not enforced in CLI**
 2. Validate all required variables
 3. Begin transaction
 4. Create workflow element
@@ -228,6 +228,11 @@ Workflows stored in `elements` table with:
    - Create blocks dependency
 7. Commit transaction
 8. Emit workflow_created event
+
+**Known Issues:**
+- **BUG el-18ug:** CLI `workflow pour` handler does not call pourWorkflow() - creates empty workflow
+- **BUG el-5rrv:** CLI accepts non-existent playbook names without validation
+- **BUG el-5ldi:** CLI accepts non-playbook element IDs as playbook names
 
 ### Ephemeral Handling
 
