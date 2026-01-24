@@ -375,6 +375,12 @@ async function docHistoryHandler(
       return failure(`Element ${docId} is not a document (type: ${current.type})`, ExitCode.VALIDATION);
     }
 
+    // Check if document is deleted (tombstone)
+    const data = current as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
+    }
+
     // Get version history
     const history = await api.getDocumentHistory(current.id as unknown as DocumentId);
 
@@ -480,6 +486,12 @@ async function docRollbackHandler(
       return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
     }
 
+    // Check if document is deleted (tombstone)
+    const data = current as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Cannot rollback deleted document: ${docId}`, ExitCode.NOT_FOUND);
+    }
+
     // Already at that version?
     if (current.version === version) {
       return success(current, `Document is already at version ${version}`);
@@ -573,6 +585,12 @@ async function docShowHandler(
       if (doc.type !== 'document') {
         return failure(`Element ${docId} is not a document (type: ${doc.type})`, ExitCode.VALIDATION);
       }
+    }
+
+    // Check if document is deleted (tombstone)
+    const data = doc as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
     }
 
     const mode = getOutputMode(options);

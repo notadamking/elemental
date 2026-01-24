@@ -683,3 +683,85 @@ describe('document edge cases', () => {
     expect(history[0].content).toBe('Update 20');
   });
 });
+
+// ============================================================================
+// Document Tombstone Handling Tests
+// ============================================================================
+
+describe('document tombstone handling', () => {
+  test('rollback fails on tombstoned document', async () => {
+    // Create document with version history
+    const doc = await createTestDocument('Version 1');
+    const { api, backend } = createTestAPI();
+    await api.update<Document>(doc.id as ElementId, { content: 'Version 2' });
+
+    // Soft-delete the document
+    await api.delete(doc.id as ElementId, { reason: 'Testing tombstone' });
+    backend.close();
+
+    // Try to rollback - should fail
+    const result = await documentCommand.subcommands!.rollback.handler!(
+      [doc.id, '1'],
+      createTestOptions()
+    );
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Cannot rollback deleted document');
+  });
+
+  test('history fails on tombstoned document', async () => {
+    const doc = await createTestDocument('Some content');
+    const { api, backend } = createTestAPI();
+
+    // Soft-delete the document
+    await api.delete(doc.id as ElementId, { reason: 'Testing tombstone' });
+    backend.close();
+
+    // Try to view history - should fail
+    const result = await documentCommand.subcommands!.history.handler!(
+      [doc.id],
+      createTestOptions()
+    );
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Document not found');
+  });
+
+  test('show fails on tombstoned document', async () => {
+    const doc = await createTestDocument('Show me');
+    const { api, backend } = createTestAPI();
+
+    // Soft-delete the document
+    await api.delete(doc.id as ElementId, { reason: 'Testing tombstone' });
+    backend.close();
+
+    // Try to show - should fail
+    const result = await documentCommand.subcommands!.show.handler!(
+      [doc.id],
+      createTestOptions()
+    );
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('Document not found');
+  });
+
+  test('list excludes tombstoned documents', async () => {
+    // Create two documents
+    const doc1 = await createTestDocument('Doc 1');
+    const doc2 = await createTestDocument('Doc 2');
+
+    // Soft-delete one
+    const { api, backend } = createTestAPI();
+    await api.delete(doc1.id as ElementId, { reason: 'Testing' });
+    backend.close();
+
+    // List should only show the non-deleted document
+    const listOptions = createTestOptions({ json: true });
+    const result = await documentCommand.subcommands!.list.handler!([], listOptions);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const docs = result.data as Document[];
+    expect(docs.length).toBe(1);
+    expect(docs[0].id).toBe(doc2.id);
+  });
+});
