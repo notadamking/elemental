@@ -376,10 +376,10 @@ Import in transaction:
 - [x] Unit tests ✅ (46 tests in sync.test.ts)
 
 ### Phase 8: Browser Sync
-- [ ] Implement HTTP endpoints
-- [ ] Implement browser export
-- [ ] Implement browser import
-- [ ] Test cross-platform
+- [x] Implement HTTP endpoints ✅ (SyncHttpHandlers with pull, push, exchange endpoints)
+- [x] Implement browser export ✅ (pull() method returns JSONL for client)
+- [x] Implement browser import ✅ (push() method imports JSONL from client)
+- [x] Test cross-platform ✅ (24 tests in sync-handlers.test.ts covering all operations)
 
 ### Phase 9: Testing
 - [x] Unit tests for serialization ✅ (87 tests covering all serialization functions)

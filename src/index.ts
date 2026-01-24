@@ -72,3 +72,63 @@ export {
 
 // Re-export the storage isConstraintError with a different name for SQLite-specific checks
 export { isConstraintError as isSqliteConstraintError } from './storage/index.js';
+
+// Export HTTP handlers for browser sync
+export * from './http/index.js';
+
+// Export sync module (excluding types that conflict with api/types.ts)
+// Use SyncExportOptions, SyncImportOptions, SyncImportResult for sync-specific types
+export {
+  // Types - renamed to avoid conflicts with API types
+  type ExportOptions as SyncExportOptions,
+  type ImportOptions as SyncImportOptions,
+  type ImportResult as SyncImportResult,
+  // Other types
+  type SerializedElement,
+  type SerializedDependency,
+  type ContentHashResult,
+  MergeResolution,
+  type ConflictRecord,
+  type DependencyConflictRecord,
+  type ExportResult,
+  type ImportError,
+  type DirtyElement as SyncDirtyElement,
+  type DirtyDependency,
+  type SyncStatus,
+  type TombstoneStatus,
+  type ElementWithTombstoneStatus,
+  ELEMENT_TYPE_PRIORITY,
+  getTypePriority,
+  HASH_EXCLUDED_FIELDS,
+  // Serialization
+  serializeElement,
+  serializeDependency,
+  parseElement,
+  parseDependency,
+  tryParseElement,
+  tryParseDependency,
+  serializeElements,
+  serializeDependencies,
+  parseElements,
+  parseDependencies,
+  sortElementsForExport,
+  sortDependenciesForExport,
+  isSerializedElement,
+  isSerializedDependency,
+  type ParseError,
+  // Hashing
+  computeContentHash,
+  computeContentHashSync,
+  hasSameContentHash,
+  matchesContentHash,
+  // Merge
+  mergeElements,
+  mergeTags,
+  mergeDependencies,
+  getTombstoneStatus,
+  type ElementMergeResult,
+  type DependencyMergeResult,
+  // Service
+  SyncService,
+  createSyncService,
+} from './sync/index.js';
