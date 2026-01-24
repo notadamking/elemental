@@ -240,7 +240,7 @@ Cache current length threshold:
 - [x] Implement collision check (via checkCollision callback)
 - [x] Implement nonce iteration (MAX_NONCE = 9)
 - [x] Implement length increase fallback
-- [ ] Add collision metrics/logging (deferred)
+- [x] Add collision metrics/logging ✅ (DefaultIdMetricsCollector, ConsoleIdLogger, metrics tracking for collisions/nonces/length increases - 19 tests)
 
 ### Phase 5: Hierarchical IDs ✅
 - [x] Implement child counter table ✅ (src/storage/schema.ts migration001)

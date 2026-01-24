@@ -1730,5 +1730,5 @@ Recommended implementation sequence:
 
 ### Deferred/Optional Items (Priority: Low)
 
-- [ ] **systems/id-generation.md Phase 4**: Add collision metrics/logging (deferred)
+- [x] **systems/id-generation.md Phase 4**: Add collision metrics/logging ✅ (DefaultIdMetricsCollector, ConsoleIdLogger - 19 tests)
 - [x] **types/playbook.md Phase 6**: Add file watching for automatic playbook reload on change ✅ (PlaybookFileWatcher class - 28 tests)

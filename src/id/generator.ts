@@ -98,6 +98,281 @@ export interface IdGeneratorConfig {
   checkCollision?: (id: ElementId) => boolean | Promise<boolean>;
   /** Current element count (for adaptive length) */
   elementCount?: number;
+  /** Metrics collector for tracking collisions */
+  metrics?: IdMetricsCollector;
+  /** Logger for collision events */
+  logger?: IdGeneratorLogger;
+}
+
+// ============================================================================
+// Collision Metrics Types
+// ============================================================================
+
+/**
+ * Log level for ID generation events
+ */
+export type IdLogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+/**
+ * Logger interface for ID generation events
+ */
+export interface IdGeneratorLogger {
+  /**
+   * Log a message at the specified level
+   */
+  log(level: IdLogLevel, message: string, data?: Record<string, unknown>): void;
+}
+
+/**
+ * Event types for collision metrics
+ */
+export type IdMetricsEventType =
+  | 'generation_started'
+  | 'generation_completed'
+  | 'collision_detected'
+  | 'nonce_increment'
+  | 'length_increase'
+  | 'generation_failed';
+
+/**
+ * Event data for collision metrics
+ */
+export interface IdMetricsEvent {
+  /** Type of event */
+  type: IdMetricsEventType;
+  /** Timestamp of the event */
+  timestamp: Date;
+  /** ID that was being generated (partial or complete) */
+  id?: string;
+  /** Input identifier used */
+  identifier?: string;
+  /** Current nonce value */
+  nonce?: number;
+  /** Current hash length */
+  hashLength?: number;
+  /** Duration in milliseconds (for completed/failed events) */
+  durationMs?: number;
+  /** Additional context */
+  context?: Record<string, unknown>;
+}
+
+/**
+ * Snapshot of current metrics
+ */
+export interface IdMetricsSnapshot {
+  /** Total number of ID generation attempts */
+  totalGenerations: number;
+  /** Number of successful generations */
+  successfulGenerations: number;
+  /** Number of failed generations */
+  failedGenerations: number;
+  /** Total number of collisions detected */
+  totalCollisions: number;
+  /** Number of times nonce was incremented */
+  nonceIncrements: number;
+  /** Number of times length was increased */
+  lengthIncreases: number;
+  /** Average generation time in milliseconds */
+  avgGenerationTimeMs: number;
+  /** Maximum generation time in milliseconds */
+  maxGenerationTimeMs: number;
+  /** Collisions by hash length */
+  collisionsByLength: Record<number, number>;
+  /** Timestamp of when metrics collection started */
+  startedAt: Date;
+  /** Timestamp of last event */
+  lastEventAt?: Date;
+}
+
+/**
+ * Interface for collecting ID generation metrics
+ */
+export interface IdMetricsCollector {
+  /**
+   * Record a metrics event
+   */
+  record(event: IdMetricsEvent): void;
+
+  /**
+   * Get current metrics snapshot
+   */
+  getSnapshot(): IdMetricsSnapshot;
+
+  /**
+   * Reset all metrics
+   */
+  reset(): void;
+}
+
+/**
+ * Default implementation of IdMetricsCollector
+ *
+ * Tracks collision metrics and generation statistics.
+ * Thread-safe for single-threaded JavaScript environments.
+ *
+ * @example
+ * ```typescript
+ * const metrics = new DefaultIdMetricsCollector();
+ *
+ * const id = await generateId(
+ *   { identifier: 'test', createdBy: 'user-1' as EntityId },
+ *   { metrics, checkCollision: (id) => existsInDb(id) }
+ * );
+ *
+ * console.log(metrics.getSnapshot());
+ * ```
+ */
+export class DefaultIdMetricsCollector implements IdMetricsCollector {
+  private totalGenerations = 0;
+  private successfulGenerations = 0;
+  private failedGenerations = 0;
+  private totalCollisions = 0;
+  private nonceIncrements = 0;
+  private lengthIncreases = 0;
+  private totalGenerationTimeMs = 0;
+  private maxGenerationTimeMs = 0;
+  private collisionsByLength: Map<number, number> = new Map();
+  private startedAt: Date = new Date();
+  private lastEventAt?: Date;
+
+  record(event: IdMetricsEvent): void {
+    this.lastEventAt = event.timestamp;
+
+    switch (event.type) {
+      case 'generation_started':
+        this.totalGenerations++;
+        break;
+
+      case 'generation_completed':
+        this.successfulGenerations++;
+        if (event.durationMs !== undefined) {
+          this.totalGenerationTimeMs += event.durationMs;
+          this.maxGenerationTimeMs = Math.max(this.maxGenerationTimeMs, event.durationMs);
+        }
+        break;
+
+      case 'generation_failed':
+        this.failedGenerations++;
+        if (event.durationMs !== undefined) {
+          this.totalGenerationTimeMs += event.durationMs;
+          this.maxGenerationTimeMs = Math.max(this.maxGenerationTimeMs, event.durationMs);
+        }
+        break;
+
+      case 'collision_detected':
+        this.totalCollisions++;
+        if (event.hashLength !== undefined) {
+          const current = this.collisionsByLength.get(event.hashLength) ?? 0;
+          this.collisionsByLength.set(event.hashLength, current + 1);
+        }
+        break;
+
+      case 'nonce_increment':
+        this.nonceIncrements++;
+        break;
+
+      case 'length_increase':
+        this.lengthIncreases++;
+        break;
+    }
+  }
+
+  getSnapshot(): IdMetricsSnapshot {
+    const completedGenerations = this.successfulGenerations + this.failedGenerations;
+
+    return {
+      totalGenerations: this.totalGenerations,
+      successfulGenerations: this.successfulGenerations,
+      failedGenerations: this.failedGenerations,
+      totalCollisions: this.totalCollisions,
+      nonceIncrements: this.nonceIncrements,
+      lengthIncreases: this.lengthIncreases,
+      avgGenerationTimeMs:
+        completedGenerations > 0 ? this.totalGenerationTimeMs / completedGenerations : 0,
+      maxGenerationTimeMs: this.maxGenerationTimeMs,
+      collisionsByLength: Object.fromEntries(this.collisionsByLength),
+      startedAt: this.startedAt,
+      lastEventAt: this.lastEventAt,
+    };
+  }
+
+  reset(): void {
+    this.totalGenerations = 0;
+    this.successfulGenerations = 0;
+    this.failedGenerations = 0;
+    this.totalCollisions = 0;
+    this.nonceIncrements = 0;
+    this.lengthIncreases = 0;
+    this.totalGenerationTimeMs = 0;
+    this.maxGenerationTimeMs = 0;
+    this.collisionsByLength.clear();
+    this.startedAt = new Date();
+    this.lastEventAt = undefined;
+  }
+}
+
+/**
+ * Console-based logger implementation
+ *
+ * Logs ID generation events to the console with structured data.
+ *
+ * @example
+ * ```typescript
+ * const logger = new ConsoleIdLogger({ minLevel: 'info' });
+ *
+ * const id = await generateId(
+ *   { identifier: 'test', createdBy: 'user-1' as EntityId },
+ *   { logger }
+ * );
+ * ```
+ */
+export class ConsoleIdLogger implements IdGeneratorLogger {
+  private readonly minLevel: IdLogLevel;
+  private readonly levels: IdLogLevel[] = ['debug', 'info', 'warn', 'error'];
+
+  constructor(options: { minLevel?: IdLogLevel } = {}) {
+    this.minLevel = options.minLevel ?? 'info';
+  }
+
+  log(level: IdLogLevel, message: string, data?: Record<string, unknown>): void {
+    if (this.levels.indexOf(level) < this.levels.indexOf(this.minLevel)) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const prefix = `[${timestamp}] [id-gen] [${level.toUpperCase()}]`;
+
+    switch (level) {
+      case 'debug':
+        if (data) {
+          console.debug(prefix, message, data);
+        } else {
+          console.debug(prefix, message);
+        }
+        break;
+      case 'info':
+        if (data) {
+          console.info(prefix, message, data);
+        } else {
+          console.info(prefix, message);
+        }
+        break;
+      case 'warn':
+        if (data) {
+          console.warn(prefix, message, data);
+        } else {
+          console.warn(prefix, message);
+        }
+        break;
+      case 'error':
+        if (data) {
+          console.error(prefix, message, data);
+        } else {
+          console.error(prefix, message);
+        }
+        break;
+    }
+  }
 }
 
 // ============================================================================
@@ -334,6 +609,10 @@ function getTimestampNs(date?: Date): bigint {
  * 5. Check for collision
  * 6. If collision, increment nonce and retry
  * 7. If nonce exhausted, increase length and retry
+ *
+ * @param input - Input for ID generation
+ * @param config - Configuration options including metrics and logging
+ * @returns Generated element ID
  */
 export async function generateId(
   input: IdGeneratorInput,
@@ -344,11 +623,31 @@ export async function generateId(
       ? calculateIdLength(config.elementCount)
       : MIN_HASH_LENGTH + 1, // Default to 4 for reasonable collision resistance
     checkCollision,
+    metrics,
+    logger,
   } = config;
 
+  const startTime = Date.now();
   const timestampNs = getTimestampNs(input.timestamp);
   let currentLength = hashLength;
   let nonce = 0;
+
+  // Record generation started
+  if (metrics) {
+    metrics.record({
+      type: 'generation_started',
+      timestamp: new Date(),
+      identifier: input.identifier,
+      hashLength: currentLength,
+    });
+  }
+
+  if (logger) {
+    logger.log('debug', 'Starting ID generation', {
+      identifier: input.identifier,
+      hashLength: currentLength,
+    });
+  }
 
   while (currentLength <= MAX_HASH_LENGTH) {
     while (nonce <= MAX_NONCE) {
@@ -365,24 +664,159 @@ export async function generateId(
 
       // If no collision checker provided, assume no collision
       if (!checkCollision) {
+        const durationMs = Date.now() - startTime;
+
+        if (metrics) {
+          metrics.record({
+            type: 'generation_completed',
+            timestamp: new Date(),
+            id,
+            identifier: input.identifier,
+            nonce,
+            hashLength: currentLength,
+            durationMs,
+          });
+        }
+
+        if (logger) {
+          logger.log('debug', 'ID generated successfully (no collision check)', {
+            id,
+            durationMs,
+          });
+        }
+
         return id;
       }
 
       // Check for collision
       const hasCollision = await checkCollision(id);
       if (!hasCollision) {
+        const durationMs = Date.now() - startTime;
+
+        if (metrics) {
+          metrics.record({
+            type: 'generation_completed',
+            timestamp: new Date(),
+            id,
+            identifier: input.identifier,
+            nonce,
+            hashLength: currentLength,
+            durationMs,
+          });
+        }
+
+        if (logger) {
+          if (nonce > 0 || currentLength > hashLength) {
+            logger.log('info', 'ID generated after collision resolution', {
+              id,
+              nonce,
+              hashLength: currentLength,
+              originalHashLength: hashLength,
+              durationMs,
+            });
+          } else {
+            logger.log('debug', 'ID generated successfully', {
+              id,
+              durationMs,
+            });
+          }
+        }
+
         return id;
       }
 
+      // Record collision
+      if (metrics) {
+        metrics.record({
+          type: 'collision_detected',
+          timestamp: new Date(),
+          id,
+          identifier: input.identifier,
+          nonce,
+          hashLength: currentLength,
+        });
+      }
+
+      if (logger) {
+        logger.log('warn', 'Collision detected', {
+          id,
+          identifier: input.identifier,
+          nonce,
+          hashLength: currentLength,
+        });
+      }
+
+      // Increment nonce
       nonce++;
+
+      if (nonce <= MAX_NONCE) {
+        if (metrics) {
+          metrics.record({
+            type: 'nonce_increment',
+            timestamp: new Date(),
+            identifier: input.identifier,
+            nonce,
+            hashLength: currentLength,
+          });
+        }
+
+        if (logger) {
+          logger.log('debug', 'Incrementing nonce for collision resolution', {
+            nonce,
+            hashLength: currentLength,
+          });
+        }
+      }
     }
 
     // All nonces exhausted, increase length
+    const previousLength = currentLength;
     currentLength++;
     nonce = 0;
+
+    if (currentLength <= MAX_HASH_LENGTH) {
+      if (metrics) {
+        metrics.record({
+          type: 'length_increase',
+          timestamp: new Date(),
+          identifier: input.identifier,
+          hashLength: currentLength,
+          context: { previousLength },
+        });
+      }
+
+      if (logger) {
+        logger.log('warn', 'Increasing hash length for collision resolution', {
+          previousLength,
+          newLength: currentLength,
+          identifier: input.identifier,
+        });
+      }
+    }
   }
 
   // This should be extremely rare - max length with all nonces exhausted
+  const durationMs = Date.now() - startTime;
+
+  if (metrics) {
+    metrics.record({
+      type: 'generation_failed',
+      timestamp: new Date(),
+      identifier: input.identifier,
+      hashLength: currentLength,
+      durationMs,
+    });
+  }
+
+  if (logger) {
+    logger.log('error', 'ID generation failed - exhausted all collision resolution attempts', {
+      identifier: input.identifier,
+      maxHashLength: MAX_HASH_LENGTH,
+      maxNonce: MAX_NONCE,
+      durationMs,
+    });
+  }
+
   throw new ConflictError(
     'Unable to generate unique ID after exhausting all collision resolution attempts',
     ErrorCode.ALREADY_EXISTS,

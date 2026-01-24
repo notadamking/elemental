@@ -35,6 +35,14 @@ import {
 
   // Length calculation
   calculateIdLength,
+
+  // Metrics and Logging
+  DefaultIdMetricsCollector,
+  ConsoleIdLogger,
+  type IdMetricsEvent,
+  type IdMetricsSnapshot,
+  type IdGeneratorLogger,
+  type IdLogLevel,
 } from './generator.js';
 import { ValidationError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
@@ -800,5 +808,312 @@ describe('Uniqueness tests', () => {
     }
 
     expect(ids.size).toBe(50);
+  });
+});
+
+// ============================================================================
+// Collision Metrics Tests
+// ============================================================================
+
+describe('DefaultIdMetricsCollector', () => {
+  test('initializes with zero counts', () => {
+    const metrics = new DefaultIdMetricsCollector();
+    const snapshot = metrics.getSnapshot();
+
+    expect(snapshot.totalGenerations).toBe(0);
+    expect(snapshot.successfulGenerations).toBe(0);
+    expect(snapshot.failedGenerations).toBe(0);
+    expect(snapshot.totalCollisions).toBe(0);
+    expect(snapshot.nonceIncrements).toBe(0);
+    expect(snapshot.lengthIncreases).toBe(0);
+    expect(snapshot.avgGenerationTimeMs).toBe(0);
+    expect(snapshot.maxGenerationTimeMs).toBe(0);
+    expect(Object.keys(snapshot.collisionsByLength)).toHaveLength(0);
+    expect(snapshot.startedAt instanceof Date).toBe(true);
+    expect(snapshot.lastEventAt).toBeUndefined();
+  });
+
+  test('records generation_started event', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({
+      type: 'generation_started',
+      timestamp: new Date(),
+      identifier: 'test',
+      hashLength: 4,
+    });
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.totalGenerations).toBe(1);
+    expect(snapshot.lastEventAt).toBeDefined();
+  });
+
+  test('records generation_completed event', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({
+      type: 'generation_completed',
+      timestamp: new Date(),
+      id: 'el-test',
+      durationMs: 5,
+    });
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.successfulGenerations).toBe(1);
+    expect(snapshot.avgGenerationTimeMs).toBe(5);
+    expect(snapshot.maxGenerationTimeMs).toBe(5);
+  });
+
+  test('records generation_failed event', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({
+      type: 'generation_failed',
+      timestamp: new Date(),
+      durationMs: 100,
+    });
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.failedGenerations).toBe(1);
+    expect(snapshot.avgGenerationTimeMs).toBe(100);
+    expect(snapshot.maxGenerationTimeMs).toBe(100);
+  });
+
+  test('records collision_detected event', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({
+      type: 'collision_detected',
+      timestamp: new Date(),
+      id: 'el-coll',
+      hashLength: 4,
+    });
+
+    metrics.record({
+      type: 'collision_detected',
+      timestamp: new Date(),
+      id: 'el-coll2',
+      hashLength: 4,
+    });
+
+    metrics.record({
+      type: 'collision_detected',
+      timestamp: new Date(),
+      id: 'el-coll3',
+      hashLength: 5,
+    });
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.totalCollisions).toBe(3);
+    expect(snapshot.collisionsByLength[4]).toBe(2);
+    expect(snapshot.collisionsByLength[5]).toBe(1);
+  });
+
+  test('records nonce_increment event', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({ type: 'nonce_increment', timestamp: new Date() });
+    metrics.record({ type: 'nonce_increment', timestamp: new Date() });
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.nonceIncrements).toBe(2);
+  });
+
+  test('records length_increase event', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({ type: 'length_increase', timestamp: new Date() });
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.lengthIncreases).toBe(1);
+  });
+
+  test('calculates average generation time correctly', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({ type: 'generation_completed', timestamp: new Date(), durationMs: 10 });
+    metrics.record({ type: 'generation_completed', timestamp: new Date(), durationMs: 20 });
+    metrics.record({ type: 'generation_failed', timestamp: new Date(), durationMs: 30 });
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.avgGenerationTimeMs).toBe(20); // (10 + 20 + 30) / 3
+    expect(snapshot.maxGenerationTimeMs).toBe(30);
+  });
+
+  test('reset clears all metrics', () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    metrics.record({ type: 'generation_started', timestamp: new Date() });
+    metrics.record({ type: 'generation_completed', timestamp: new Date(), durationMs: 5 });
+    metrics.record({ type: 'collision_detected', timestamp: new Date(), hashLength: 4 });
+
+    metrics.reset();
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.totalGenerations).toBe(0);
+    expect(snapshot.successfulGenerations).toBe(0);
+    expect(snapshot.totalCollisions).toBe(0);
+    expect(Object.keys(snapshot.collisionsByLength)).toHaveLength(0);
+    expect(snapshot.lastEventAt).toBeUndefined();
+  });
+});
+
+describe('ConsoleIdLogger', () => {
+  test('creates logger with default minLevel', () => {
+    const logger = new ConsoleIdLogger();
+    // Just verify it doesn't throw
+    expect(logger).toBeDefined();
+  });
+
+  test('creates logger with custom minLevel', () => {
+    const logger = new ConsoleIdLogger({ minLevel: 'warn' });
+    expect(logger).toBeDefined();
+  });
+
+  test('log method accepts all log levels', () => {
+    const logger = new ConsoleIdLogger({ minLevel: 'debug' });
+
+    // These should not throw
+    logger.log('debug', 'Debug message');
+    logger.log('info', 'Info message');
+    logger.log('warn', 'Warning message');
+    logger.log('error', 'Error message');
+  });
+
+  test('log method accepts data parameter', () => {
+    const logger = new ConsoleIdLogger({ minLevel: 'debug' });
+
+    // Should not throw
+    logger.log('info', 'Message with data', { key: 'value', number: 42 });
+  });
+});
+
+describe('ID Generation with Metrics', () => {
+  test('tracks successful generation', async () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    await generateId(
+      { identifier: 'Test', createdBy: 'el-user1' as EntityId },
+      { metrics }
+    );
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.totalGenerations).toBe(1);
+    expect(snapshot.successfulGenerations).toBe(1);
+    expect(snapshot.failedGenerations).toBe(0);
+    expect(snapshot.avgGenerationTimeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  test('tracks collisions when they occur', async () => {
+    const metrics = new DefaultIdMetricsCollector();
+    const generatedIds = new Set<string>();
+    let collisionCount = 0;
+
+    // Create a collision checker that forces a collision on the first attempt
+    const checkCollision = (id: string): boolean => {
+      if (generatedIds.has(id)) {
+        collisionCount++;
+        return true;
+      }
+      // Force collision on first attempt
+      if (generatedIds.size === 0) {
+        generatedIds.add(id);
+        collisionCount++;
+        return true;
+      }
+      return false;
+    };
+
+    await generateId(
+      { identifier: 'Test', createdBy: 'el-user1' as EntityId },
+      { metrics, checkCollision }
+    );
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.totalCollisions).toBe(1);
+    expect(snapshot.nonceIncrements).toBeGreaterThanOrEqual(1);
+  });
+
+  test('tracks multiple generations', async () => {
+    const metrics = new DefaultIdMetricsCollector();
+
+    for (let i = 0; i < 5; i++) {
+      await generateId(
+        { identifier: `Test ${i}`, createdBy: 'el-user1' as EntityId },
+        { metrics }
+      );
+    }
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.totalGenerations).toBe(5);
+    expect(snapshot.successfulGenerations).toBe(5);
+  });
+});
+
+describe('ID Generation with Logging', () => {
+  test('calls logger for successful generation', async () => {
+    const logMessages: { level: IdLogLevel; message: string; data?: Record<string, unknown> }[] = [];
+    const logger: IdGeneratorLogger = {
+      log(level, message, data) {
+        logMessages.push({ level, message, data });
+      },
+    };
+
+    await generateId(
+      { identifier: 'Test', createdBy: 'el-user1' as EntityId },
+      { logger }
+    );
+
+    expect(logMessages.length).toBeGreaterThan(0);
+    expect(logMessages.some(m => m.message.includes('Starting ID generation'))).toBe(true);
+    expect(logMessages.some(m => m.message.includes('generated'))).toBe(true);
+  });
+
+  test('calls logger for collision events', async () => {
+    const logMessages: { level: IdLogLevel; message: string; data?: Record<string, unknown> }[] = [];
+    const logger: IdGeneratorLogger = {
+      log(level, message, data) {
+        logMessages.push({ level, message, data });
+      },
+    };
+
+    let firstCall = true;
+    const checkCollision = (): boolean => {
+      if (firstCall) {
+        firstCall = false;
+        return true; // Force one collision
+      }
+      return false;
+    };
+
+    await generateId(
+      { identifier: 'Test', createdBy: 'el-user1' as EntityId },
+      { logger, checkCollision }
+    );
+
+    expect(logMessages.some(m => m.message.includes('Collision detected'))).toBe(true);
+    expect(logMessages.some(m => m.level === 'warn')).toBe(true);
+  });
+});
+
+describe('ID Generation with Metrics and Logging Combined', () => {
+  test('tracks metrics and logs simultaneously', async () => {
+    const metrics = new DefaultIdMetricsCollector();
+    const logMessages: string[] = [];
+    const logger: IdGeneratorLogger = {
+      log(_level, message) {
+        logMessages.push(message);
+      },
+    };
+
+    await generateId(
+      { identifier: 'Combined Test', createdBy: 'el-user1' as EntityId },
+      { metrics, logger }
+    );
+
+    const snapshot = metrics.getSnapshot();
+    expect(snapshot.totalGenerations).toBe(1);
+    expect(snapshot.successfulGenerations).toBe(1);
+    expect(logMessages.length).toBeGreaterThan(0);
   });
 });

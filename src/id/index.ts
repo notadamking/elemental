@@ -12,6 +12,12 @@ export {
   type ParsedId,
   type IdGeneratorInput,
   type IdGeneratorConfig,
+  type IdLogLevel,
+  type IdGeneratorLogger,
+  type IdMetricsEventType,
+  type IdMetricsEvent,
+  type IdMetricsSnapshot,
+  type IdMetricsCollector,
 
   // Constants
   ID_PREFIX,
@@ -47,4 +53,8 @@ export {
 
   // Length calculation
   calculateIdLength,
+
+  // Metrics and Logging
+  DefaultIdMetricsCollector,
+  ConsoleIdLogger,
 } from './generator.js';
