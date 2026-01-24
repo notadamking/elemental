@@ -6643,7 +6643,7 @@ el workflow pour testing-workflow \
 
 **Prerequisites:** Initialized workspace
 
-**Status:** TESTED - 2026-01-24 (Partial Pass - Boolean default validation gap, circular inheritance allowed at creation)
+**Status:** TESTED - 2026-01-24 (Partial Pass - Boolean default validation gap)
 
 **Checkpoints:**
 
@@ -6697,11 +6697,11 @@ el workflow pour testing-workflow \
 **Circular Inheritance:**
 - [x] Self-extension: `--extends self-name` correctly rejected at creation
   - Error: "Playbook cannot extend itself"
-- [ ] **FAIL - BUG el-bmsw (NEW):** Indirect cycle allowed at creation time
-  - A extends B, then B extends A: both creations succeed
-  - Basic validation (`el playbook validate`) passes
-  - Only pour-time validation detects: "Circular inheritance detected: A -> B -> A"
-  - Should be rejected at creation time
+- [x] **FIXED (el-bmsw):** Indirect cycle now rejected at creation time
+  - A extends B, then attempting B extends A: correctly rejected
+  - Error: "Creating playbook would create circular inheritance: playbook_b -> playbook_a -> playbook_b"
+  - Base validation (`el playbook validate`) now detects cycles even without --pour
+  - Transitive cycles (A -> B -> C -> A) also detected
 
 **Variable Inheritance Resolution:**
 - [x] Child inherits parent variables via dependency resolution
@@ -6728,14 +6728,14 @@ el workflow pour testing-workflow \
   - May be by design (lazy task creation)
 
 **Success Criteria:** Playbook variables work correctly with proper type validation and inheritance
-- **PARTIAL:** Core variable types and inheritance work. Boolean default validation gap. Circular inheritance detected too late.
+- **PARTIAL:** Core variable types and inheritance work. Boolean default validation gap remains.
 
 **Issues Found:**
 
 | ID | Summary | Priority | Category |
 |----|---------|----------|----------|
 | el-hqky | BUG: Playbook boolean variable default silently accepts invalid values | 3 | bug |
-| el-bmsw | BUG: Circular playbook inheritance allowed at creation time | 3 | bug |
+| ~~el-bmsw~~ | ~~BUG: Circular playbook inheritance allowed at creation time~~ | ~~3~~ | ~~bug~~ (FIXED) |
 
 **Issues Confirmed:**
 
@@ -6760,7 +6760,7 @@ Key findings:
 2. Number default validation is robust - invalid values rejected
 3. **CRITICAL GAP:** Boolean default validation is missing - only "true"/"false" strings work
 4. Inheritance resolution works correctly at pour time
-5. **CRITICAL GAP:** Circular inheritance allowed at creation (detected only at pour)
+5. ~~**CRITICAL GAP:** Circular inheritance allowed at creation (detected only at pour)~~ (FIXED)
 6. Parser bug el-59p3 severely impacts playbook creation via CLI
 7. Workflow pour doesn't auto-generate tasks from steps (may be by design)
 
@@ -6768,9 +6768,6 @@ The boolean default bug (el-hqky) is particularly problematic because:
 - Values like "1", "yes", "on" intuitively should be truthy but become false
 - No error message alerts the user to the unexpected conversion
 - Inconsistent with number validation which properly rejects invalid values
-
-The circular inheritance bug (el-bmsw) allows creating playbooks that will always fail at pour time.
-Cycle detection logic exists (used in pour validation) but isn't called during creation.
 
 ---
 

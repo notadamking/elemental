@@ -246,6 +246,42 @@ describe('playbook validate command', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect((result.data as { valid: boolean }).valid).toBe(true);
   });
+
+  test('detects circular inheritance during base validation (without --pour)', async () => {
+    // Create playbooks that form a cycle: A -> B -> A
+    const { api } = createTestAPI();
+    const playbookA = await createPlaybook({
+      name: 'cycle_a',
+      title: 'Cycle A',
+      createdBy: 'test-user' as EntityId,
+      extends: ['cycle_b'],
+      steps: [{ id: 'step1', title: 'Step 1' }],
+      variables: [],
+    });
+    await api.create(playbookA as unknown as Element & Record<string, unknown>);
+
+    const playbookB = await createPlaybook({
+      name: 'cycle_b',
+      title: 'Cycle B',
+      createdBy: 'test-user' as EntityId,
+      extends: ['cycle_a'],
+      steps: [{ id: 'step2', title: 'Step 2' }],
+      variables: [],
+    });
+    await api.create(playbookB as unknown as Element & Record<string, unknown>);
+
+    // Validate should detect the cycle even without --pour flag
+    const result = await playbookCommand.subcommands!.validate.handler(
+      ['cycle_a'],
+      createTestOptions()
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { valid: boolean }).valid).toBe(false);
+    expect((result.data as { issues: string[] }).issues).toContainEqual(
+      expect.stringContaining('Circular inheritance')
+    );
+  });
 });
 
 // ============================================================================
@@ -528,6 +564,96 @@ describe('playbook create command', () => {
     expect(playbook.variables[1].name).toBe('debug');
     expect(playbook.variables[1].required).toBe(false);
     expect(playbook.variables[1].default).toBe(false);
+  });
+
+  test('rejects circular inheritance during creation', async () => {
+    // Create playbook A that extends playbook B (B doesn't exist yet - allowed)
+    const { api } = createTestAPI();
+    const playbookA = await createPlaybook({
+      name: 'playbook_a',
+      title: 'Playbook A',
+      createdBy: 'test-user' as EntityId,
+      extends: ['playbook_b'],
+      steps: [{ id: 'step1', title: 'Step 1' }],
+      variables: [],
+    });
+    await api.create(playbookA as unknown as Element & Record<string, unknown>);
+
+    // Now try to create playbook B that extends playbook A - would create cycle
+    const result = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'playbook_b',
+        title: 'Playbook B',
+        extends: 'playbook_a',
+      })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('circular inheritance');
+  });
+
+  test('allows valid inheritance chain during creation', async () => {
+    // Create base playbook
+    await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'base',
+        title: 'Base Playbook',
+        step: 'init:Initialize',
+      })
+    );
+
+    // Create playbook that extends base - should succeed
+    const result = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'child',
+        title: 'Child Playbook',
+        extends: 'base',
+        step: 'deploy:Deploy',
+      })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as { extends: string[] }).extends).toEqual(['base']);
+  });
+
+  test('detects transitive circular inheritance during creation', async () => {
+    // Create A extends B, B extends C
+    const { api } = createTestAPI();
+    const playbookA = await createPlaybook({
+      name: 'playbook_a',
+      title: 'Playbook A',
+      createdBy: 'test-user' as EntityId,
+      extends: ['playbook_b'],
+      steps: [],
+      variables: [],
+    });
+    await api.create(playbookA as unknown as Element & Record<string, unknown>);
+
+    const playbookB = await createPlaybook({
+      name: 'playbook_b',
+      title: 'Playbook B',
+      createdBy: 'test-user' as EntityId,
+      extends: ['playbook_c'],
+      steps: [],
+      variables: [],
+    });
+    await api.create(playbookB as unknown as Element & Record<string, unknown>);
+
+    // Now try to create C extends A - would create A -> B -> C -> A cycle
+    const result = await playbookCommand.subcommands!.create.handler(
+      [],
+      createTestOptions({
+        name: 'playbook_c',
+        title: 'Playbook C',
+        extends: 'playbook_a',
+      })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+    expect(result.error).toContain('circular inheritance');
   });
 });
 

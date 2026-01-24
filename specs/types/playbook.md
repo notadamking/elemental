@@ -297,6 +297,7 @@ String replacement with variable values:
 - [x] Implement variable merging (mergeVariables)
 - [x] Implement step merging (mergeSteps, validateMergedSteps)
 - [x] Detect circular inheritance (self-extension check in createPlaybook/updatePlaybook)
+- [x] Detect circular inheritance at creation time (validateNoCircularInheritance in CLI - el-bmsw)
 - [x] Main entry point (resolvePlaybookInheritance)
 
 ### Phase 6: YAML Support ✅

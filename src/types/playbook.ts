@@ -2016,3 +2016,126 @@ export async function resolvePlaybookInheritance(
 export function createPlaybookLoader(playbooks: Playbook[]): PlaybookLoader {
   return (name: string) => findByName(playbooks, name);
 }
+
+// ============================================================================
+// Circular Inheritance Detection at Creation Time
+// ============================================================================
+
+/**
+ * Validates that creating a playbook with the given name and extends would not
+ * create circular inheritance.
+ *
+ * This is used during playbook creation to detect cycles BEFORE the playbook
+ * is actually created and stored.
+ *
+ * @param name - The name of the playbook being created
+ * @param extendsArray - The playbooks this new playbook will extend
+ * @param loader - Function to load existing playbooks by name
+ * @returns Object with valid flag and optional error message with cycle path
+ * @throws ConflictError if circular inheritance would be created
+ */
+export async function validateNoCircularInheritance(
+  name: string,
+  extendsArray: string[] | undefined,
+  loader: PlaybookLoader
+): Promise<{ valid: true } | { valid: false; error: string; cycle: string[] }> {
+  // No extends means no possibility of circular inheritance
+  if (!extendsArray || extendsArray.length === 0) {
+    return { valid: true };
+  }
+
+  const normalizedName = name.toLowerCase();
+
+  // Check for self-extension (already handled in createPlaybook but good to be safe)
+  if (extendsArray.some(ext => ext.toLowerCase() === normalizedName)) {
+    return {
+      valid: false,
+      error: `Playbook '${name}' cannot extend itself`,
+      cycle: [name, name],
+    };
+  }
+
+  // For each parent, check if following its inheritance chain would eventually
+  // lead back to the playbook we're creating
+  for (const parentName of extendsArray) {
+    const cycleCheck = await detectCycleFromParent(normalizedName, parentName, loader);
+    if (cycleCheck.hasCycle) {
+      return {
+        valid: false,
+        error: `Creating playbook would create circular inheritance: ${cycleCheck.cycle.join(' -> ')}`,
+        cycle: cycleCheck.cycle,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Checks if following the inheritance chain from a parent playbook would
+ * create a cycle back to the target playbook name.
+ *
+ * @param targetName - The name of the playbook being created
+ * @param parentName - The name of a parent playbook to check
+ * @param loader - Function to load playbooks by name
+ * @returns Object indicating if a cycle exists and the path
+ */
+async function detectCycleFromParent(
+  targetName: string,
+  parentName: string,
+  loader: PlaybookLoader
+): Promise<{ hasCycle: false } | { hasCycle: true; cycle: string[] }> {
+  const visited = new Set<string>();
+  const path: string[] = [targetName];
+  // targetName is already normalized (lowercase) by the caller
+
+  async function traverse(currentName: string): Promise<boolean> {
+    const normalizedCurrent = currentName.toLowerCase();
+
+    // If we've reached a playbook that extends the target, we have a cycle
+    // This happens when an existing playbook already extends the one we're creating
+    // OR when following the chain leads back to the target
+    if (normalizedCurrent === targetName) {
+      return true;
+    }
+
+    // Already visited this node in this traversal (existing cycle in DB - skip)
+    if (visited.has(normalizedCurrent)) {
+      return false;
+    }
+
+    visited.add(normalizedCurrent);
+    path.push(currentName);
+
+    // Load the playbook
+    const playbook = await Promise.resolve(loader(currentName));
+
+    // If the playbook doesn't exist, no cycle possible from this branch
+    // (the extends validation for non-existent playbooks is a separate concern)
+    if (!playbook) {
+      path.pop();
+      return false;
+    }
+
+    // Check all of this playbook's parents
+    if (playbook.extends && playbook.extends.length > 0) {
+      for (const grandparentName of playbook.extends) {
+        if (await traverse(grandparentName)) {
+          return true;
+        }
+      }
+    }
+
+    path.pop();
+    return false;
+  }
+
+  // Start traversal from the parent
+  const hasCycle = await traverse(parentName);
+
+  if (hasCycle) {
+    return { hasCycle: true, cycle: path };
+  }
+
+  return { hasCycle: false };
+}

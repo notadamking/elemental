@@ -20,6 +20,8 @@ import {
   validatePlaybook,
   validateSteps,
   validateVariables,
+  validateNoCircularInheritance,
+  resolveInheritanceChain,
   type Playbook,
   type CreatePlaybookInput,
   type PlaybookStep,
@@ -488,6 +490,21 @@ async function playbookValidateHandler(
       }
     }
 
+    // Check for circular inheritance (always, not just pour-time)
+    if (playbook.extends && playbook.extends.length > 0) {
+      const allPlaybooks = await api.list<Playbook>({ type: 'playbook' });
+      const playbookLoader: PlaybookLoader = (name: string) => {
+        return allPlaybooks.find((p) => p.name.toLowerCase() === name.toLowerCase());
+      };
+
+      try {
+        await resolveInheritanceChain(playbook, playbookLoader);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        issues.push(`Inheritance: ${message}`);
+      }
+    }
+
     // Pour-time validation - run if --pour flag is set or if --var is provided
     const shouldDoPourValidation = options.pour || options.var;
     let pourResult: Awaited<ReturnType<typeof validatePour>> | undefined;
@@ -788,6 +805,24 @@ async function playbookCreateHandler(
     let tags: string[] | undefined;
     if (options.tag) {
       tags = Array.isArray(options.tag) ? options.tag : [options.tag];
+    }
+
+    // Validate that creating this playbook won't create circular inheritance
+    if (extendsPlaybooks && extendsPlaybooks.length > 0) {
+      const allPlaybooks = await api.list<Playbook>({ type: 'playbook' });
+      const playbookLoader: PlaybookLoader = (name: string) => {
+        return allPlaybooks.find((p) => p.name.toLowerCase() === name.toLowerCase());
+      };
+
+      const cycleCheck = await validateNoCircularInheritance(
+        options.name,
+        extendsPlaybooks,
+        playbookLoader
+      );
+
+      if (!cycleCheck.valid) {
+        return failure(cycleCheck.error, ExitCode.VALIDATION);
+      }
     }
 
     const input: CreatePlaybookInput = {

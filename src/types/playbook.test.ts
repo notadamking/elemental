@@ -110,6 +110,7 @@ import {
   validateMergedSteps,
   resolvePlaybookInheritance,
   createPlaybookLoader,
+  validateNoCircularInheritance,
 } from './playbook.js';
 import { ElementType, type EntityId, type Timestamp } from './element.js';
 import { type DocumentId } from './document.js';
@@ -2258,5 +2259,148 @@ describe('createPlaybookLoader', () => {
 
     expect(loader('myplaybook')).toBeDefined();
     expect(loader('MYPLAYBOOK')).toBeDefined();
+  });
+});
+
+// ============================================================================
+// validateNoCircularInheritance Tests
+// ============================================================================
+
+describe('validateNoCircularInheritance', () => {
+  test('returns valid for playbook with no extends', async () => {
+    const loader = createPlaybookLoader([]);
+    const result = await validateNoCircularInheritance('new_playbook', undefined, loader);
+    expect(result.valid).toBe(true);
+  });
+
+  test('returns valid for playbook with empty extends array', async () => {
+    const loader = createPlaybookLoader([]);
+    const result = await validateNoCircularInheritance('new_playbook', [], loader);
+    expect(result.valid).toBe(true);
+  });
+
+  test('returns invalid for self-extension', async () => {
+    const loader = createPlaybookLoader([]);
+    const result = await validateNoCircularInheritance('self_extend', ['self_extend'], loader);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain('cannot extend itself');
+      expect(result.cycle).toEqual(['self_extend', 'self_extend']);
+    }
+  });
+
+  test('returns valid when extending non-existent playbook (no cycle possible)', async () => {
+    const loader = createPlaybookLoader([]);
+    // Extending a non-existent playbook is not a cycle - it's a different validation
+    const result = await validateNoCircularInheritance('new_playbook', ['nonexistent'], loader);
+    expect(result.valid).toBe(true);
+  });
+
+  test('returns valid for simple valid inheritance', async () => {
+    const base = createTestPlaybook({ name: 'base' });
+    const loader = createPlaybookLoader([base]);
+
+    const result = await validateNoCircularInheritance('child', ['base'], loader);
+    expect(result.valid).toBe(true);
+  });
+
+  test('detects direct circular inheritance (A extends B, creating B extends A)', async () => {
+    // Scenario: playbook-a extends playbook-b
+    // Now we're trying to create playbook-b that extends playbook-a
+    // This would create: playbook-b -> playbook-a -> playbook-b (cycle)
+    const playbookA = createTestPlaybook({
+      name: 'playbook_a',
+      extends: ['playbook_b'],
+    });
+    const loader = createPlaybookLoader([playbookA]);
+
+    const result = await validateNoCircularInheritance('playbook_b', ['playbook_a'], loader);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain('circular inheritance');
+      expect(result.cycle).toContain('playbook_b');
+      expect(result.cycle).toContain('playbook_a');
+    }
+  });
+
+  test('detects transitive circular inheritance (A extends B extends C, creating C extends A)', async () => {
+    // Scenario: A extends B, B extends C
+    // Now we're trying to create C that extends A
+    // This would create: C -> A -> B -> C (cycle)
+    const playbookA = createTestPlaybook({
+      name: 'playbook_a',
+      extends: ['playbook_b'],
+    });
+    const playbookB = createTestPlaybook({
+      name: 'playbook_b',
+      extends: ['playbook_c'],
+    });
+    const loader = createPlaybookLoader([playbookA, playbookB]);
+
+    const result = await validateNoCircularInheritance('playbook_c', ['playbook_a'], loader);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain('circular inheritance');
+    }
+  });
+
+  test('returns valid for deep but acyclic inheritance', async () => {
+    const base = createTestPlaybook({ name: 'base' });
+    const middle = createTestPlaybook({ name: 'middle', extends: ['base'] });
+    const loader = createPlaybookLoader([base, middle]);
+
+    // Creating 'leaf' that extends 'middle' - no cycle
+    const result = await validateNoCircularInheritance('leaf', ['middle'], loader);
+    expect(result.valid).toBe(true);
+  });
+
+  test('detects cycle when extending multiple parents where one creates cycle', async () => {
+    // Scenario: playbook_a exists with extends: ['new_playbook']
+    // Creating new_playbook that extends ['base', 'playbook_a']
+    // The 'base' parent is fine, but 'playbook_a' creates a cycle
+    const base = createTestPlaybook({ name: 'base' });
+    const playbookA = createTestPlaybook({
+      name: 'playbook_a',
+      extends: ['new_playbook'],
+    });
+    const loader = createPlaybookLoader([base, playbookA]);
+
+    const result = await validateNoCircularInheritance('new_playbook', ['base', 'playbook_a'], loader);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain('circular inheritance');
+    }
+  });
+
+  test('handles diamond inheritance without cycle', async () => {
+    // Diamond: D extends B and C, both B and C extend A
+    // Creating D should be valid (no cycle, just shared ancestor)
+    const base = createTestPlaybook({ name: 'base' });
+    const middle1 = createTestPlaybook({ name: 'middle1', extends: ['base'] });
+    const middle2 = createTestPlaybook({ name: 'middle2', extends: ['base'] });
+    const loader = createPlaybookLoader([base, middle1, middle2]);
+
+    const result = await validateNoCircularInheritance('diamond', ['middle1', 'middle2'], loader);
+    expect(result.valid).toBe(true);
+  });
+
+  test('handles case-insensitive playbook names', async () => {
+    const playbookA = createTestPlaybook({
+      name: 'Playbook_A',
+      extends: ['Playbook_B'],
+    });
+    const loader = createPlaybookLoader([playbookA]);
+
+    // Using lowercase should still detect the cycle
+    const result = await validateNoCircularInheritance('playbook_b', ['playbook_a'], loader);
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain('circular inheritance');
+    }
   });
 });
