@@ -357,24 +357,35 @@ Step-by-step checklists for validating critical paths.
 
 **Prerequisites:** Initialized workspace with registered entity
 
+**Status:** TESTED - 2026-01-24 (Partial Pass)
+
 **Checkpoints:**
-- [ ] Create task: `el create task "Test Task" --priority 2 --json`
+- [x] Create task: `el create task --title "Test Task" --priority 2 --json`
   - Returns valid ID in `el-xxx` format
   - JSON includes all expected fields
-- [ ] Task appears in ready list: `el ready --json`
-- [ ] Assign task: `el assign <id> --to <entity>`
+  - **Note:** Requires `--title` flag, not positional argument
+- [x] Task appears in ready list: `el ready --json`
+- [x] Assign task: `el assign <id> <entity-id>` (use entity ID, not name)
   - Task still appears in ready (assignment doesn't block)
-- [ ] Start work: `el update <id> --status in_progress`
+  - **BUG el-4kis:** Using entity name fails due to isSubcommand() parser bug
+  - **DOC el-1m9b:** Docs show `--to` flag but actual syntax is positional
+- [x] Start work: `el update <id> --status in_progress`
   - Status reflects change
-- [ ] Complete task: `el close <id> --reason "Done"`
+- [x] Complete task: `el close <id> --reason "Done"`
   - Task no longer in ready list
   - `closedAt` timestamp is set
   - `closeReason` is captured
-- [ ] Reopen if needed: `el reopen <id>`
+- [x] Reopen if needed: `el reopen <id>`
   - Status returns to `open`
   - Task reappears in ready list
+  - **UX el-2deb:** `closeReason` persists after reopen (minor)
 
 **Success Criteria:** Task transitions through all states correctly
+
+**Issues Found:**
+- **el-4kis**: Parser isSubcommand() treats entity names as subcommands
+- **el-1m9b**: TESTING_PLAN.md uses incorrect `--to` syntax for assign
+- **el-2deb**: closeReason persists after task is reopened
 
 ---
 
