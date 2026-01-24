@@ -4012,6 +4012,100 @@ Potential future enhancement: tracking assignment history for handoff auditing.
 
 ---
 
+### Scenario: Message List Pagination and Filtering
+
+**Purpose:** Evaluate message list pagination capabilities, filtering options, and edge case handling - critical for agents managing high-volume communication channels
+
+**Prerequisites:** Initialized workspace with multiple entities and a channel with messages
+
+**Status:** TESTED - 2026-01-24 (Partial Pass - Missing pagination and time filter options)
+
+**Checkpoints:**
+
+**Basic Message Listing:**
+- [x] `el msg list -c <channel> --json` returns all messages in channel
+- [x] Output includes `{success: true, data: [...]}` structure
+- [x] Messages sorted chronologically (earliest first)
+- [x] Content is hydrated from contentRef
+- [x] Empty channel returns empty array `[]`
+- [x] Non-existent channel returns exit code 3 with clear error
+
+**Limit Option:**
+- [x] `--limit N` returns first N messages
+- [x] `--limit 0` correctly rejected with "Limit must be a positive number"
+- [x] `--limit -1` correctly rejected (parsed as missing value)
+- [x] `--limit abc` (non-numeric) correctly rejected
+- [x] `--limit 2.5` (float) silently truncated to 2 (consistent with other commands)
+- [x] Very large limit returns all available messages
+
+**Offset Option:**
+- [ ] **FAIL**: `--offset` option does not exist
+  - **ENHANCEMENT el-4ayv:** Cannot paginate through large message lists
+  - Without offset, agents cannot fetch page 2, 3, etc. of a channel's messages
+  - Workaround: None - agents must fetch all messages and filter client-side
+
+**Time-Based Filtering:**
+- [ ] **FAIL**: `--after <datetime>` option does not exist
+  - **ENHANCEMENT el-34jh:** Cannot filter messages by time
+- [ ] **FAIL**: `--before <datetime>` option does not exist
+  - **ENHANCEMENT el-34jh:** Cannot filter messages by time window
+
+**Sender Filtering:**
+- [x] `--sender <entity-id>` returns only messages from specified sender
+- [x] Invalid sender ID returns empty array (no error)
+- [x] Non-member sender filter returns empty array
+
+**Root Only Filter:**
+- [x] `--rootOnly` flag excludes threaded replies
+- [x] Without flag, all messages including replies are returned
+- [x] Reply count correctly different between with/without rootOnly
+
+**Output Formats:**
+- [x] JSON output: `{success: true, data: [...]}`
+- [x] Quiet mode: outputs message IDs only, one per line
+- [x] Human-readable: formatted table with sender, content preview, date
+
+**Pagination Metadata:**
+- [ ] **FAIL**: JSON output lacks total count or hasMore indicator
+  - **Related el-46xq:** No way to know total messages without fetching all
+  - Agents cannot efficiently paginate without knowing total count
+
+**Security - Access Control (Confirms el-1rbd):**
+- [x] Non-member send correctly rejected
+- [ ] **SECURITY BUG**: Non-member can read channel messages via `el msg list`
+  - **BUG el-1rbd:** (pre-existing) Read access not enforced for msg list
+
+**Success Criteria:** Message listing supports pagination and filtering for efficient agent polling
+- **Partial:** Basic listing and --limit work, but --offset and time filters missing
+
+**Issues Found:**
+
+| ID | Summary | Priority | Category |
+|----|---------|----------|----------|
+| el-4ayv | ENHANCEMENT: Add --offset option to el msg list for pagination | 4 | enhancement |
+| el-34jh | ENHANCEMENT: Add --after and --before time filters to el msg list | 4 | enhancement |
+
+**Dependencies:**
+- el-4ayv → el-46xq (relates-to: both pagination improvements)
+- el-34jh → el-4ayv (relates-to: both message filtering improvements)
+
+**Notes:**
+This evaluation tested message listing capabilities critical for agent orchestration patterns
+where agents need to poll channels for new messages. Key findings:
+1. Basic message listing works correctly with proper JSON output
+2. --limit option works correctly with proper validation
+3. --sender and --rootOnly filters work correctly
+4. CRITICAL GAP: No --offset option prevents proper pagination
+5. CRITICAL GAP: No time-based filters prevent efficient polling for new messages
+6. Confirmed el-1rbd: non-members can read private channel messages
+7. No pagination metadata (total count, hasMore) in JSON output
+
+Agents can work around the offset limitation by fetching all messages and filtering
+client-side, but this is inefficient for high-volume channels. Time-based filtering
+would enable efficient "messages since last check" polling patterns.
+
+---
+
 ## 5. CLI UX Evaluation Checklist
 
 Agent-focused criteria for CLI usability.
