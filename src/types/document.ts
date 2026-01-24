@@ -603,3 +603,236 @@ export function filterByContentType<T extends Document>(
 export function hasSameContent(a: Document, b: Document): boolean {
   return a.content === b.content && a.contentType === b.contentType;
 }
+
+// ============================================================================
+// Content Type Migration
+// ============================================================================
+
+/**
+ * Content type migration options
+ */
+export interface MigrateContentTypeOptions {
+  /** For json → markdown: use code block formatting (default: true) */
+  useCodeBlock?: boolean;
+  /** For json → text: pretty print (default: true) */
+  prettyPrint?: boolean;
+}
+
+/**
+ * Strip common markdown formatting to convert to plain text
+ */
+function stripMarkdown(markdown: string): string {
+  let result = markdown;
+
+  // Remove code blocks (both fenced and indented)
+  result = result.replace(/```[\s\S]*?```/g, (match) => {
+    // Extract content between triple backticks
+    const content = match.replace(/```\w*\n?/g, '').replace(/```$/g, '');
+    return content.trim();
+  });
+
+  // Remove inline code
+  result = result.replace(/`([^`]+)`/g, '$1');
+
+  // Remove headers (keep the text)
+  result = result.replace(/^#{1,6}\s+/gm, '');
+
+  // Remove bold/italic markers
+  result = result.replace(/\*\*\*(.+?)\*\*\*/g, '$1'); // bold italic
+  result = result.replace(/\*\*(.+?)\*\*/g, '$1'); // bold
+  result = result.replace(/\*(.+?)\*/g, '$1'); // italic
+  result = result.replace(/___(.+?)___/g, '$1'); // bold italic underscore
+  result = result.replace(/__(.+?)__/g, '$1'); // bold underscore
+  result = result.replace(/_(.+?)_/g, '$1'); // italic underscore
+
+  // Remove images ![alt](url) → alt (must be before links)
+  result = result.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+  // Remove links, keep text [text](url) → text
+  result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+  // Remove blockquotes
+  result = result.replace(/^>\s?/gm, '');
+
+  // Remove horizontal rules
+  result = result.replace(/^[-*_]{3,}\s*$/gm, '');
+
+  // Remove unordered list markers
+  result = result.replace(/^[\s]*[-*+]\s+/gm, '');
+
+  // Remove ordered list markers
+  result = result.replace(/^[\s]*\d+\.\s+/gm, '');
+
+  // Remove strikethrough
+  result = result.replace(/~~(.+?)~~/g, '$1');
+
+  return result.trim();
+}
+
+/**
+ * Convert text to JSON format
+ */
+function textToJson(text: string): string {
+  return JSON.stringify({ text });
+}
+
+/**
+ * Convert markdown to JSON format
+ */
+function markdownToJson(markdown: string): string {
+  return JSON.stringify({ markdown });
+}
+
+/**
+ * Convert JSON to text format
+ */
+function jsonToText(json: string, prettyPrint: boolean): string {
+  try {
+    const parsed = JSON.parse(json);
+    return prettyPrint ? JSON.stringify(parsed, null, 2) : JSON.stringify(parsed);
+  } catch {
+    // If parsing fails, return as-is
+    return json;
+  }
+}
+
+/**
+ * Convert JSON to markdown format
+ */
+function jsonToMarkdown(json: string, useCodeBlock: boolean): string {
+  try {
+    const parsed = JSON.parse(json);
+    const formatted = JSON.stringify(parsed, null, 2);
+    if (useCodeBlock) {
+      return '```json\n' + formatted + '\n```';
+    }
+    return formatted;
+  } catch {
+    // If parsing fails, return as-is (possibly in code block)
+    if (useCodeBlock) {
+      return '```\n' + json + '\n```';
+    }
+    return json;
+  }
+}
+
+/**
+ * Migrate a document's content type to a new type
+ *
+ * Supported migrations:
+ * - text → markdown: Direct passthrough (markdown is superset of text)
+ * - text → json: Wraps content in {"text": "..."}
+ * - markdown → text: Strips markdown formatting
+ * - markdown → json: Wraps content in {"markdown": "..."}
+ * - json → text: Pretty-prints the JSON
+ * - json → markdown: Formats as markdown code block
+ *
+ * @param document - The document to migrate
+ * @param targetType - The target content type
+ * @param options - Migration options
+ * @returns The migrated document (new version)
+ */
+export function migrateContentType(
+  document: Document,
+  targetType: ContentType,
+  options: MigrateContentTypeOptions = {}
+): Document {
+  const { useCodeBlock = true, prettyPrint = true } = options;
+
+  // If same type, no migration needed
+  if (document.contentType === targetType) {
+    return document;
+  }
+
+  let migratedContent: string;
+
+  // Determine migration path
+  switch (document.contentType) {
+    case ContentType.TEXT:
+      switch (targetType) {
+        case ContentType.MARKDOWN:
+          // Text is valid markdown as-is
+          migratedContent = document.content;
+          break;
+        case ContentType.JSON:
+          migratedContent = textToJson(document.content);
+          break;
+        default:
+          migratedContent = document.content;
+      }
+      break;
+
+    case ContentType.MARKDOWN:
+      switch (targetType) {
+        case ContentType.TEXT:
+          migratedContent = stripMarkdown(document.content);
+          break;
+        case ContentType.JSON:
+          migratedContent = markdownToJson(document.content);
+          break;
+        default:
+          migratedContent = document.content;
+      }
+      break;
+
+    case ContentType.JSON:
+      switch (targetType) {
+        case ContentType.TEXT:
+          migratedContent = jsonToText(document.content, prettyPrint);
+          break;
+        case ContentType.MARKDOWN:
+          migratedContent = jsonToMarkdown(document.content, useCodeBlock);
+          break;
+        default:
+          migratedContent = document.content;
+      }
+      break;
+
+    default:
+      migratedContent = document.content;
+  }
+
+  // Validate the migrated content
+  validateContent(migratedContent, targetType);
+
+  // Create the updated document using updateDocumentContent
+  return updateDocumentContent(document, {
+    content: migratedContent,
+    contentType: targetType,
+  });
+}
+
+/**
+ * Check if a migration between content types is supported
+ */
+export function isMigrationSupported(
+  fromType: ContentType,
+  toType: ContentType
+): boolean {
+  // All migrations are supported
+  return isValidContentType(fromType) && isValidContentType(toType);
+}
+
+/**
+ * Get a description of what a migration will do
+ */
+export function getMigrationDescription(
+  fromType: ContentType,
+  toType: ContentType
+): string {
+  if (fromType === toType) {
+    return 'No migration needed (same type)';
+  }
+
+  const descriptions: Record<string, string> = {
+    'text→markdown': 'Direct passthrough (markdown is a superset of text)',
+    'text→json': 'Wraps content in {"text": "..."}',
+    'markdown→text': 'Strips markdown formatting',
+    'markdown→json': 'Wraps content in {"markdown": "..."}',
+    'json→text': 'Pretty-prints the JSON',
+    'json→markdown': 'Formats as markdown code block',
+  };
+
+  const key = `${fromType}→${toType}`;
+  return descriptions[key] || `Convert from ${fromType} to ${toType}`;
+}

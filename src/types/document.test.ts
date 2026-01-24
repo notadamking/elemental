@@ -29,6 +29,9 @@ import {
   parseJsonContent,
   filterByContentType,
   hasSameContent,
+  migrateContentType,
+  isMigrationSupported,
+  getMigrationDescription,
 } from './document.js';
 import { ElementId, EntityId, ElementType, Timestamp } from './element.js';
 import { ValidationError } from '../errors/error.js';
@@ -957,6 +960,373 @@ describe('Version chain integrity', () => {
     // Version > 1 without previousVersionId should fail
     expect(isDocument(createTestDocument({ version: 2, previousVersionId: null }))).toBe(
       false
+    );
+  });
+});
+
+// ============================================================================
+// Content Type Migration Tests
+// ============================================================================
+
+describe('migrateContentType', () => {
+  describe('text to other types', () => {
+    test('text → markdown: passthrough', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: 'Hello world',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.MARKDOWN);
+
+      expect(migrated.contentType).toBe(ContentType.MARKDOWN);
+      expect(migrated.content).toBe('Hello world');
+      expect(migrated.version).toBe(2);
+    });
+
+    test('text → json: wraps in object', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: 'Hello world',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.JSON);
+
+      expect(migrated.contentType).toBe(ContentType.JSON);
+      expect(migrated.content).toBe('{"text":"Hello world"}');
+      expect(JSON.parse(migrated.content)).toEqual({ text: 'Hello world' });
+    });
+
+    test('text → json: handles special characters', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: 'Hello "world"\nNew line',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.JSON);
+
+      expect(migrated.contentType).toBe(ContentType.JSON);
+      const parsed = JSON.parse(migrated.content);
+      expect(parsed.text).toBe('Hello "world"\nNew line');
+    });
+  });
+
+  describe('markdown to other types', () => {
+    test('markdown → text: strips headers', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: '# Heading\n\nParagraph text',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.contentType).toBe(ContentType.TEXT);
+      expect(migrated.content).toBe('Heading\n\nParagraph text');
+    });
+
+    test('markdown → text: strips bold and italic', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: '**bold** and *italic* and ***both***',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).toBe('bold and italic and both');
+    });
+
+    test('markdown → text: strips links', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: 'Check [this link](https://example.com) out',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).toBe('Check this link out');
+    });
+
+    test('markdown → text: strips images', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: 'See ![alt text](https://example.com/img.png) here',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).toBe('See alt text here');
+    });
+
+    test('markdown → text: strips code blocks', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: 'Code:\n```javascript\nconsole.log("hi");\n```\nEnd',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).toContain('console.log("hi");');
+      expect(migrated.content).not.toContain('```');
+    });
+
+    test('markdown → text: strips inline code', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: 'Use `console.log()` for debugging',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).toBe('Use console.log() for debugging');
+    });
+
+    test('markdown → text: strips blockquotes', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: '> This is a quote\n> More quote',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).toBe('This is a quote\nMore quote');
+    });
+
+    test('markdown → text: strips list markers', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: '- Item 1\n- Item 2\n1. First\n2. Second',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).toBe('Item 1\nItem 2\nFirst\nSecond');
+    });
+
+    test('markdown → json: wraps in object', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: '# Hello\n\n**World**',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.JSON);
+
+      expect(migrated.contentType).toBe(ContentType.JSON);
+      const parsed = JSON.parse(migrated.content);
+      expect(parsed.markdown).toBe('# Hello\n\n**World**');
+    });
+  });
+
+  describe('json to other types', () => {
+    test('json → text: pretty prints by default', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.JSON,
+        content: '{"key":"value","nested":{"a":1}}',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.contentType).toBe(ContentType.TEXT);
+      expect(migrated.content).toBe(JSON.stringify({ key: 'value', nested: { a: 1 } }, null, 2));
+    });
+
+    test('json → text: can disable pretty print', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.JSON,
+        content: '{"key":"value"}',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT, { prettyPrint: false });
+
+      expect(migrated.content).toBe('{"key":"value"}');
+    });
+
+    test('json → markdown: uses code block by default', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.JSON,
+        content: '{"key":"value"}',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.MARKDOWN);
+
+      expect(migrated.contentType).toBe(ContentType.MARKDOWN);
+      expect(migrated.content).toContain('```json');
+      expect(migrated.content).toContain('```');
+      expect(migrated.content).toContain('"key"');
+    });
+
+    test('json → markdown: can disable code block', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.JSON,
+        content: '{"key":"value"}',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.MARKDOWN, { useCodeBlock: false });
+
+      expect(migrated.content).not.toContain('```');
+      expect(migrated.content).toContain('"key"');
+    });
+  });
+
+  describe('same type migration', () => {
+    test('returns same document when types match', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: 'Hello',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated).toBe(doc);
+      expect(migrated.version).toBe(1); // No version increment
+    });
+  });
+
+  describe('version handling', () => {
+    test('migration increments version', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: 'Hello',
+        version: 3,
+        previousVersionId: 'el-prev' as DocumentId,
+      });
+
+      const migrated = migrateContentType(doc, ContentType.MARKDOWN);
+
+      expect(migrated.version).toBe(4);
+      expect(migrated.previousVersionId).toBe(doc.id as unknown as DocumentId);
+    });
+
+    test('migration updates timestamp', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: 'Hello',
+        updatedAt: '2024-01-01T00:00:00.000Z' as Timestamp,
+      });
+
+      const migrated = migrateContentType(doc, ContentType.MARKDOWN);
+
+      expect(migrated.updatedAt).not.toBe(doc.updatedAt);
+    });
+  });
+
+  describe('preserves document properties', () => {
+    test('preserves id, tags, metadata', () => {
+      const doc = createTestDocument({
+        id: 'el-test123' as ElementId,
+        contentType: ContentType.TEXT,
+        content: 'Hello',
+        tags: ['important', 'test'],
+        metadata: { author: 'test-user' },
+      });
+
+      const migrated = migrateContentType(doc, ContentType.MARKDOWN);
+
+      expect(migrated.id).toBe('el-test123' as ElementId);
+      expect(migrated.tags).toEqual(['important', 'test']);
+      expect(migrated.metadata).toEqual({ author: 'test-user' });
+    });
+  });
+
+  describe('edge cases', () => {
+    test('handles empty content', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: '',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.JSON);
+
+      expect(migrated.content).toBe('{"text":""}');
+    });
+
+    test('handles unicode content', () => {
+      const doc = createTestDocument({
+        contentType: ContentType.TEXT,
+        content: '你好世界 🌍',
+      });
+
+      const migrated = migrateContentType(doc, ContentType.JSON);
+
+      const parsed = JSON.parse(migrated.content);
+      expect(parsed.text).toBe('你好世界 🌍');
+    });
+
+    test('handles complex markdown', () => {
+      const complexMarkdown = `# Title
+
+## Section 1
+
+This is a paragraph with **bold**, *italic*, and ***bold italic*** text.
+
+- List item 1
+- List item 2
+
+> A blockquote
+
+\`\`\`typescript
+const x = 1;
+\`\`\`
+
+[A link](https://example.com) and ![an image](img.png)`;
+
+      const doc = createTestDocument({
+        contentType: ContentType.MARKDOWN,
+        content: complexMarkdown,
+      });
+
+      const migrated = migrateContentType(doc, ContentType.TEXT);
+
+      expect(migrated.content).not.toContain('#');
+      expect(migrated.content).not.toContain('**');
+      expect(migrated.content).not.toContain('[A link]');
+      expect(migrated.content).toContain('Title');
+      expect(migrated.content).toContain('bold');
+      expect(migrated.content).toContain('A link');
+    });
+  });
+});
+
+describe('isMigrationSupported', () => {
+  test('all valid content type combinations are supported', () => {
+    const types = [ContentType.TEXT, ContentType.MARKDOWN, ContentType.JSON];
+
+    for (const from of types) {
+      for (const to of types) {
+        expect(isMigrationSupported(from, to)).toBe(true);
+      }
+    }
+  });
+
+  test('invalid content types return false', () => {
+    expect(isMigrationSupported('invalid' as ContentType, ContentType.TEXT)).toBe(false);
+    expect(isMigrationSupported(ContentType.TEXT, 'invalid' as ContentType)).toBe(false);
+  });
+});
+
+describe('getMigrationDescription', () => {
+  test('returns description for same type', () => {
+    expect(getMigrationDescription(ContentType.TEXT, ContentType.TEXT)).toBe(
+      'No migration needed (same type)'
+    );
+  });
+
+  test('returns descriptions for all migrations', () => {
+    expect(getMigrationDescription(ContentType.TEXT, ContentType.MARKDOWN)).toBe(
+      'Direct passthrough (markdown is a superset of text)'
+    );
+    expect(getMigrationDescription(ContentType.TEXT, ContentType.JSON)).toBe(
+      'Wraps content in {"text": "..."}'
+    );
+    expect(getMigrationDescription(ContentType.MARKDOWN, ContentType.TEXT)).toBe(
+      'Strips markdown formatting'
+    );
+    expect(getMigrationDescription(ContentType.MARKDOWN, ContentType.JSON)).toBe(
+      'Wraps content in {"markdown": "..."}'
+    );
+    expect(getMigrationDescription(ContentType.JSON, ContentType.TEXT)).toBe(
+      'Pretty-prints the JSON'
+    );
+    expect(getMigrationDescription(ContentType.JSON, ContentType.MARKDOWN)).toBe(
+      'Formats as markdown code block'
     );
   });
 });

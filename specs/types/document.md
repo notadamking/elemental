@@ -232,7 +232,7 @@ Forward query is more efficient for full history.
 
 ### Phase 5: Content Type Operations
 - [x] Add content type filtering (`filterByContentType`)
-- [ ] Implement content type migration (optional)
+- [x] Implement content type migration (`migrateContentType`) ✅
 - [x] Add content type constraints (JSON validation)
 
 ### Phase 6: Integration ✅

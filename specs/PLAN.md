@@ -1646,8 +1646,8 @@ Recommended implementation sequence:
 - [x] **types/entity.md Phase 5** (partial): Entity search/filter ✅ (filterByCreator, filterWithPublicKey, filterByTag, sortByName, groupByEntityType, searchByName, findByName, countByEntityType - 30 tests)
 - [x] **types/entity.md Phase 5**: Entity assignment queries ✅ (getAssignedTo, getCreatedBy, getRelatedTo, countAssignmentsByEntity, getTopAssignees, hasAssignments, getUnassigned, getEntityAssignmentStats - 21 tests)
 - [x] **types/document.md Phase 3-4**: Version table schema integration ✅ (schema migration 1), getDocumentVersion/getDocumentHistory ✅ (API implementation - 19 integration tests)
-- [ ] **types/document.md Phase 4**: Add version filtering to list queries
-- [ ] **types/document.md Phase 5**: Implement content type migration (optional)
+- [x] **types/document.md Phase 4**: Add version filtering to list queries ✅ (DocumentFilter with version, minVersion, maxVersion, contentType filters)
+- [x] **types/document.md Phase 5**: Implement content type migration ✅ (migrateContentType function with text↔markdown↔json conversions - 28 tests)
 - [x] **types/document.md Phase 6**: Integration with Task (description, design), Message (content, attachments), Library (parent-child) ✅ (hydration support in API, Document reference validation in message creation, library document association via parent-child dependencies)
 
 ### Collection Type Integration (Priority: Medium)
