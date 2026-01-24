@@ -99,12 +99,12 @@ describe('PriorityService', () => {
       const task1 = createTestTask('el-task1', Priority.LOW);
       const task2 = createTestTask('el-task2', Priority.HIGH);
 
-      // task2 blocks until task1 is done (task2 depends on task1)
-      // In our model: sourceId blocks until targetId is closed
-      // So task2 -> task1 means task2 waits for task1
+      // task1 blocks task2 (task2 waits for task1 to close)
+      // Semantics: "target waits for source to close"
+      // So task1 -> task2 means task2 depends on task1
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -118,24 +118,25 @@ describe('PriorityService', () => {
     });
 
     test('inherits CRITICAL priority from chain of dependents', () => {
-      // Chain: task1 (LOW) <- task2 (MEDIUM) <- task3 (CRITICAL)
+      // Chain: task1 (LOW) -> task2 (MEDIUM) -> task3 (CRITICAL)
+      // task1 blocks task2 blocks task3
       // task1 should have effective priority CRITICAL
       const task1 = createTestTask('el-task1', Priority.LOW);
       const task2 = createTestTask('el-task2', Priority.MEDIUM);
       const task3 = createTestTask('el-task3', Priority.CRITICAL);
 
-      // task2 waits for task1
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
-      // task3 waits for task2
+      // task2 blocks task3 (task3 waits for task2)
       depService.addDependency({
-        sourceId: task3.id,
-        targetId: task2.id,
+        sourceId: task2.id,
+        targetId: task3.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -149,13 +150,14 @@ describe('PriorityService', () => {
 
     test('does not lower priority from dependent', () => {
       // task1 (HIGH) blocks task2 (LOW)
-      // task1 should keep HIGH priority
+      // task1 should keep HIGH priority (not lowered to LOW)
       const task1 = createTestTask('el-task1', Priority.HIGH);
       const task2 = createTestTask('el-task2', Priority.LOW);
 
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -176,11 +178,12 @@ describe('PriorityService', () => {
         );
       }
 
-      // Chain them: task0 <- task1 <- task2 <- ... <- task14 (CRITICAL)
-      for (let i = 1; i < tasks.length; i++) {
+      // Chain them: task0 -> task1 -> task2 -> ... -> task14 (CRITICAL)
+      // task0 blocks all others transitively
+      for (let i = 0; i < tasks.length - 1; i++) {
         depService.addDependency({
           sourceId: tasks[i].id,
-          targetId: tasks[i - 1].id,
+          targetId: tasks[i + 1].id,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
@@ -205,16 +208,18 @@ describe('PriorityService', () => {
       const task2 = createTestTask('el-task2', Priority.HIGH);
       const task3 = createTestTask('el-task3', Priority.CRITICAL);
 
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
+      // task1 blocks task3 (task3 waits for task1)
       depService.addDependency({
-        sourceId: task3.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task3.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -253,13 +258,15 @@ describe('PriorityService', () => {
 
     test('sums complexity of blocking tasks', () => {
       // task1 (SIMPLE=2) waits for task2 (MEDIUM=3)
+      // task2 blocks task1
       // Aggregate for task1 = 2 + 3 = 5
       const task1 = createTestTask('el-task1', Priority.MEDIUM, Complexity.SIMPLE);
       const task2 = createTestTask('el-task2', Priority.MEDIUM, Complexity.MEDIUM);
 
+      // task2 blocks task1 (task1 waits for task2)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        sourceId: task2.id,
+        targetId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -275,6 +282,7 @@ describe('PriorityService', () => {
     });
 
     test('sums complexity transitively', () => {
+      // task3 blocks task2, task2 blocks task1
       // task1 waits for task2, task2 waits for task3
       // All have SIMPLE (2) complexity
       // Aggregate for task1 = 2 + 2 + 2 = 6
@@ -282,16 +290,18 @@ describe('PriorityService', () => {
       const task2 = createTestTask('el-task2', Priority.MEDIUM, Complexity.SIMPLE);
       const task3 = createTestTask('el-task3', Priority.MEDIUM, Complexity.SIMPLE);
 
+      // task2 blocks task1 (task1 waits for task2)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        sourceId: task2.id,
+        targetId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
+      // task3 blocks task2 (task2 waits for task3)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task3.id,
+        sourceId: task3.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -304,16 +314,18 @@ describe('PriorityService', () => {
     });
 
     test('respects maxDepth configuration', () => {
-      // Create chain: task0 -> task1 -> ... -> task14 (all SIMPLE=2)
+      // Create chain: task14 blocks task13 blocks ... blocks task0
+      // (task0 waits for task1 waits for task2 ... waits for task14)
       const tasks: Task[] = [];
       for (let i = 0; i < 15; i++) {
         tasks.push(createTestTask(`el-task${i}`, Priority.MEDIUM, Complexity.SIMPLE));
       }
 
+      // task[i+1] blocks task[i] (task[i] waits for task[i+1])
       for (let i = 0; i < tasks.length - 1; i++) {
         depService.addDependency({
-          sourceId: tasks[i].id,
-          targetId: tasks[i + 1].id,
+          sourceId: tasks[i + 1].id,
+          targetId: tasks[i].id,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
@@ -335,9 +347,10 @@ describe('PriorityService', () => {
       const task1 = createTestTask('el-task1', Priority.LOW);
       const task2 = createTestTask('el-task2', Priority.HIGH);
 
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -360,9 +373,10 @@ describe('PriorityService', () => {
       const task1 = createTestTask('el-task1', Priority.LOW);
       const task2 = createTestTask('el-task2', Priority.HIGH);
 
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -390,9 +404,10 @@ describe('PriorityService', () => {
       const task2 = createTestTask('el-task2', Priority.HIGH);
       const task3 = createTestTask('el-task3', Priority.LOW);
 
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -413,9 +428,10 @@ describe('PriorityService', () => {
       const task1 = createTestTask('el-task1', Priority.LOW);
       const task2 = createTestTask('el-task2', Priority.HIGH);
 
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -435,42 +451,42 @@ describe('PriorityService', () => {
 
   describe('edge cases', () => {
     test('handles diamond dependency pattern', () => {
-      // Diamond: task1 <- task2 and task3 <- task4
-      //          task2 and task3 both depend on task1
-      //          task4 depends on both task2 and task3
+      // Diamond: task1 -> task2 and task3 -> task4
+      //          task1 blocks task2 and task3
+      //          task2 and task3 block task4
       const task1 = createTestTask('el-task1', Priority.LOW);
       const task2 = createTestTask('el-task2', Priority.MEDIUM);
       const task3 = createTestTask('el-task3', Priority.MEDIUM);
       const task4 = createTestTask('el-task4', Priority.CRITICAL);
 
-      // task2 depends on task1
+      // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
-        type: DependencyType.BLOCKS,
-        createdBy: testEntity,
-      });
-
-      // task3 depends on task1
-      depService.addDependency({
-        sourceId: task3.id,
-        targetId: task1.id,
-        type: DependencyType.BLOCKS,
-        createdBy: testEntity,
-      });
-
-      // task4 depends on task2
-      depService.addDependency({
-        sourceId: task4.id,
+        sourceId: task1.id,
         targetId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
-      // task4 depends on task3
+      // task1 blocks task3 (task3 waits for task1)
       depService.addDependency({
-        sourceId: task4.id,
+        sourceId: task1.id,
         targetId: task3.id,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // task2 blocks task4 (task4 waits for task2)
+      depService.addDependency({
+        sourceId: task2.id,
+        targetId: task4.id,
+        type: DependencyType.BLOCKS,
+        createdBy: testEntity,
+      });
+
+      // task3 blocks task4 (task4 waits for task3)
+      depService.addDependency({
+        sourceId: task3.id,
+        targetId: task4.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -486,10 +502,10 @@ describe('PriorityService', () => {
       const task1 = createTestTask('el-task1', Priority.LOW);
       const task2 = createTestTask('el-task2', Priority.CRITICAL);
 
-      // task2 relates to task1 (not blocking)
+      // task1 relates to task2 (not blocking)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        sourceId: task1.id,
+        targetId: task2.id,
         type: DependencyType.RELATES_TO,
         createdBy: testEntity,
       });
@@ -502,20 +518,21 @@ describe('PriorityService', () => {
     });
 
     test('handles task with no dependents but has blockers', () => {
-      // task1 is blocked by task2, but nothing depends on task1
+      // task2 blocks task1, but nothing depends on task1
       const task1 = createTestTask('el-task1', Priority.HIGH);
       const task2 = createTestTask('el-task2', Priority.LOW);
 
+      // task2 blocks task1 (task1 waits for task2)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        sourceId: task2.id,
+        targetId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
       const result = service.calculateEffectivePriority(task1.id);
 
-      // task1 should keep its own priority
+      // task1 should keep its own priority (nothing depends on it)
       expect(result.effectivePriority).toBe(Priority.HIGH);
       expect(result.isInfluenced).toBe(false);
     });

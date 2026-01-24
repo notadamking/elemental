@@ -776,9 +776,11 @@ describe('dependency workflow integration', () => {
     const blockedTask = await createTestTask('Blocked Task');
     const blockerTask = await createTestTask('Blocker Task');
 
-    // Add blocking dependency
+    // Add blocking dependency: blockerTask blocks blockedTask
+    // CLI args: [source, target] with --type blocks
+    // Semantics: target waits for source to close
     const result = await depAddCommand.handler(
-      [blockedTask, blockerTask],
+      [blockerTask, blockedTask],
       createTestOptions({ type: 'blocks' })
     );
     expect(result.exitCode).toBe(ExitCode.SUCCESS);

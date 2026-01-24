@@ -849,6 +849,7 @@ describe('Events System Integration', () => {
 
     describe('Dependency Event Ordering', () => {
       it('should maintain chronological order with other events', async () => {
+        // task1 = blocker, task2 = blocked (target waits for source to close)
         const task1 = await createTestTask({ title: 'Task 1' });
         const task2 = await createTestTask({ title: 'Task 2' });
 
@@ -856,6 +857,7 @@ describe('Events System Integration', () => {
         await api.create(toCreateInput(task2));
 
         await delay(5);
+        // task1 blocks task2 (task2 waits for task1 to close)
         await api.addDependency({
           sourceId: task1.id,
           targetId: task2.id,
@@ -868,43 +870,44 @@ describe('Events System Integration', () => {
         await delay(5);
         await api.removeDependency(task1.id, task2.id, 'blocks');
 
-        const events = await api.getEvents(task1.id);
+        // Check events on task1 (the source/blocker) - it gets dependency_added, updated, dependency_removed
+        const task1Events = await api.getEvents(task1.id);
+        const task1EventTypes = task1Events.map((e) => e.eventType);
+
+        // Verify all expected event types are present on task1
+        expect(task1EventTypes).toContain(EventType.CREATED);
+        expect(task1EventTypes).toContain(EventType.DEPENDENCY_ADDED);
+        expect(task1EventTypes).toContain(EventType.UPDATED);
+        expect(task1EventTypes).toContain(EventType.DEPENDENCY_REMOVED);
+        expect(task1Events.length).toBe(4);
+
+        // Check events on task2 (the target/blocked) - it gets auto_blocked and auto_unblocked
+        const task2Events = await api.getEvents(task2.id);
+        const task2EventTypes = task2Events.map((e) => e.eventType);
+
+        // task2 gets: created, auto_blocked, auto_unblocked
+        expect(task2EventTypes).toContain(EventType.CREATED);
+        expect(task2EventTypes).toContain(EventType.AUTO_BLOCKED);
+        expect(task2EventTypes).toContain(EventType.AUTO_UNBLOCKED);
 
         // Events should be in descending order (most recent first)
-        // With automatic blocking, the sequence is:
-        // 1. created
-        // 2. dependency_added + auto_blocked (when blocking dep added) - same timestamp, order may vary
-        // 3. updated (title change)
-        // 4. dependency_removed + auto_unblocked (when dep removed) - same timestamp, order may vary
-        //
-        // We verify:
-        // - All expected events exist
-        // - The chronological groups are correct (newest events first)
-        // - created is always last
-        const eventTypes = events.map((e) => e.eventType);
-
-        // Verify all expected event types are present
-        expect(eventTypes).toContain(EventType.CREATED);
-        expect(eventTypes).toContain(EventType.DEPENDENCY_ADDED);
-        expect(eventTypes).toContain(EventType.AUTO_BLOCKED);
-        expect(eventTypes).toContain(EventType.UPDATED);
-        expect(eventTypes).toContain(EventType.DEPENDENCY_REMOVED);
-        expect(eventTypes).toContain(EventType.AUTO_UNBLOCKED);
-        expect(events.length).toBe(6);
-
         // created should be last (oldest)
-        expect(events[events.length - 1].eventType).toBe(EventType.CREATED);
+        expect(task1Events[task1Events.length - 1].eventType).toBe(EventType.CREATED);
+        expect(task2Events[task2Events.length - 1].eventType).toBe(EventType.CREATED);
 
-        // updated should be in the middle (after created but before the final dependency_removed events)
-        const updatedIndex = eventTypes.indexOf(EventType.UPDATED);
-        const createdIndex = eventTypes.indexOf(EventType.CREATED);
+        // For task1: updated should be in the middle (after created but before dependency_removed)
+        const updatedIndex = task1EventTypes.indexOf(EventType.UPDATED);
+        const createdIndex = task1EventTypes.indexOf(EventType.CREATED);
         expect(updatedIndex).toBeLessThan(createdIndex); // updated is more recent than created
 
-        // dependency_removed and auto_unblocked should be more recent than updated
-        const depRemovedIndex = eventTypes.indexOf(EventType.DEPENDENCY_REMOVED);
-        const autoUnblockedIndex = eventTypes.indexOf(EventType.AUTO_UNBLOCKED);
+        // dependency_removed should be most recent
+        const depRemovedIndex = task1EventTypes.indexOf(EventType.DEPENDENCY_REMOVED);
         expect(depRemovedIndex).toBeLessThan(updatedIndex);
-        expect(autoUnblockedIndex).toBeLessThan(updatedIndex);
+
+        // For task2: auto_unblocked should be most recent
+        const autoUnblockedIndex = task2EventTypes.indexOf(EventType.AUTO_UNBLOCKED);
+        const autoBlockedIndex = task2EventTypes.indexOf(EventType.AUTO_BLOCKED);
+        expect(autoUnblockedIndex).toBeLessThan(autoBlockedIndex); // unblocked is more recent than blocked
       });
     });
 

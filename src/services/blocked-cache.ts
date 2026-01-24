@@ -6,7 +6,7 @@
  * recursive dependency checks on every query.
  *
  * Blocking Rules:
- * - `blocks` dependency: Source is blocked if target is not closed/tombstone
+ * - `blocks` dependency: Target waits for source to close (target is blocked until source completes)
  * - `parent-child` dependency: Source inherits blocked state from parent (transitive)
  * - `awaits` dependency: Source is blocked until gate is satisfied (timer, approval, etc.)
  *
@@ -257,18 +257,18 @@ export class BlockedCacheService {
   // --------------------------------------------------------------------------
 
   /**
-   * Check if a target element is in a completed state (doesn't block others)
+   * Check if an element is in a completed state (doesn't block others)
    *
-   * @param targetId - Element to check
-   * @returns true if target is completed/closed/tombstone
+   * @param elementId - Element to check
+   * @returns true if element is completed/closed/tombstone
    */
-  isTargetCompleted(targetId: ElementId): boolean {
+  private isElementCompleted(elementId: ElementId): boolean {
     const row = this.db.queryOne<ElementRow>(
       'SELECT id, data, deleted_at FROM elements WHERE id = ?',
-      [targetId]
+      [elementId]
     );
 
-    // Target doesn't exist - treat as non-blocking (external reference)
+    // Element doesn't exist - treat as non-blocking (external reference)
     if (!row) {
       return true;
     }
@@ -286,6 +286,31 @@ export class BlockedCacheService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Check if a source element (blocker) is in a completed state
+   *
+   * For `blocks` dependencies: source is the blocker, target waits for source to close.
+   * This checks if the source (blocker) is completed, meaning the target can proceed.
+   *
+   * @param sourceId - The blocker element to check
+   * @returns true if source is completed/closed/tombstone (no longer blocking)
+   */
+  isSourceCompleted(sourceId: ElementId): boolean {
+    return this.isElementCompleted(sourceId);
+  }
+
+  /**
+   * Check if a target element is in a completed state (doesn't block others)
+   *
+   * For `parent-child` and `awaits` dependencies where element (source) depends on target.
+   *
+   * @param targetId - Element to check
+   * @returns true if target is completed/closed/tombstone
+   */
+  isTargetCompleted(targetId: ElementId): boolean {
+    return this.isElementCompleted(targetId);
   }
 
   /**
@@ -383,29 +408,40 @@ export class BlockedCacheService {
     elementId: ElementId,
     options: GateCheckOptions = {}
   ): BlockingInfo | null {
-    // Get all blocking dependencies for this element
-    const deps = this.db.query<DependencyRow>(
+    // Check for `blocks` dependencies where this element is the TARGET
+    // Semantics: "Target waits for source to close"
+    // So if A blocks B (A is source, B is target), B is blocked until A closes
+    const blocksDeps = this.db.query<DependencyRow>(
       `SELECT * FROM dependencies
-       WHERE source_id = ? AND type IN (?, ?, ?)`,
-      [elementId, DT.BLOCKS, DT.PARENT_CHILD, DT.AWAITS]
+       WHERE target_id = ? AND type = ?`,
+      [elementId, DT.BLOCKS]
     );
 
-    for (const dep of deps) {
+    for (const dep of blocksDeps) {
+      const sourceId = dep.source_id as ElementId;
+      // Check if source (the blocker) is completed
+      if (!this.isSourceCompleted(sourceId)) {
+        return {
+          elementId,
+          blockedBy: sourceId,
+          reason: `Blocked by ${sourceId} (blocks dependency)`,
+        };
+      }
+    }
+
+    // Check for `parent-child` and `awaits` dependencies where this element is the SOURCE
+    // (element depends on target for these types)
+    const otherDeps = this.db.query<DependencyRow>(
+      `SELECT * FROM dependencies
+       WHERE source_id = ? AND type IN (?, ?)`,
+      [elementId, DT.PARENT_CHILD, DT.AWAITS]
+    );
+
+    for (const dep of otherDeps) {
       const targetId = dep.target_id as ElementId;
       const type = dep.type as DependencyType;
 
       switch (type) {
-        case DT.BLOCKS:
-          // Check if target is completed
-          if (!this.isTargetCompleted(targetId)) {
-            return {
-              elementId,
-              blockedBy: targetId,
-              reason: `Blocked by ${targetId} (blocks dependency)`,
-            };
-          }
-          break;
-
         case DT.PARENT_CHILD:
           // Check if parent is blocked (transitive)
           const parentBlocked = this.isBlocked(targetId);
@@ -538,21 +574,35 @@ export class BlockedCacheService {
   }
 
   /**
-   * Update blocking state for all elements that depend on a target
-   * Called when target's status changes
+   * Update blocking state for all elements that depend on a changed element
+   * Called when an element's status changes (especially when completing)
    *
-   * @param targetId - Element whose status changed
+   * @param changedId - Element whose status changed
    * @param options - Gate check options
    */
-  invalidateDependents(targetId: ElementId, options: GateCheckOptions = {}): void {
-    // Find all elements that have blocking dependencies on this target
-    const deps = this.db.query<DependencyRow>(
-      `SELECT DISTINCT source_id FROM dependencies
-       WHERE target_id = ? AND type IN (?, ?, ?)`,
-      [targetId, DT.BLOCKS, DT.PARENT_CHILD, DT.AWAITS]
+  invalidateDependents(changedId: ElementId, options: GateCheckOptions = {}): void {
+    // For `blocks` dependencies: when the SOURCE (blocker) completes,
+    // we need to invalidate the TARGETS (which were waiting for the source)
+    const blocksDeps = this.db.query<DependencyRow>(
+      `SELECT DISTINCT target_id FROM dependencies
+       WHERE source_id = ? AND type = ?`,
+      [changedId, DT.BLOCKS]
     );
 
-    for (const dep of deps) {
+    for (const dep of blocksDeps) {
+      const targetId = dep.target_id as ElementId;
+      this.invalidateElement(targetId, options);
+    }
+
+    // For `parent-child` and `awaits` dependencies: when the TARGET changes,
+    // we need to invalidate the SOURCES (which depend on the target)
+    const otherDeps = this.db.query<DependencyRow>(
+      `SELECT DISTINCT source_id, type FROM dependencies
+       WHERE target_id = ? AND type IN (?, ?)`,
+      [changedId, DT.PARENT_CHILD, DT.AWAITS]
+    );
+
+    for (const dep of otherDeps) {
       const sourceId = dep.source_id as ElementId;
       this.invalidateElement(sourceId, options);
 
@@ -849,12 +899,28 @@ export class BlockedCacheService {
     // Clear existing cache
     this.clear();
 
-    // Get all elements with blocking dependencies
-    const elementsWithBlockingDeps = this.db.query<{ source_id: string }>(
-      `SELECT DISTINCT source_id FROM dependencies
-       WHERE type IN (?, ?, ?)`,
-      [DT.BLOCKS, DT.PARENT_CHILD, DT.AWAITS]
+    // Get all elements that could potentially be blocked:
+    // 1. Targets of `blocks` dependencies (target waits for source to close)
+    // 2. Sources of `parent-child` dependencies (child waits for parent)
+    // 3. Sources of `awaits` dependencies (element waits for gate)
+    const blocksTargets = this.db.query<{ element_id: string }>(
+      `SELECT DISTINCT target_id as element_id FROM dependencies WHERE type = ?`,
+      [DT.BLOCKS]
     );
+    const parentChildSources = this.db.query<{ element_id: string }>(
+      `SELECT DISTINCT source_id as element_id FROM dependencies WHERE type = ?`,
+      [DT.PARENT_CHILD]
+    );
+    const awaitsSources = this.db.query<{ element_id: string }>(
+      `SELECT DISTINCT source_id as element_id FROM dependencies WHERE type = ?`,
+      [DT.AWAITS]
+    );
+
+    // Combine all potentially blocked elements
+    const allElements = new Set<string>();
+    for (const e of blocksTargets) allElements.add(e.element_id);
+    for (const e of parentChildSources) allElements.add(e.element_id);
+    for (const e of awaitsSources) allElements.add(e.element_id);
 
     let elementsChecked = 0;
     let elementsBlocked = 0;
@@ -864,28 +930,26 @@ export class BlockedCacheService {
     const processed = new Set<string>();
     const queue: ElementId[] = [];
 
-    // First pass: Find all elements and compute which have no unprocessed parents
-    const elementSet = new Set(elementsWithBlockingDeps.map((e) => e.source_id));
+    // First pass: Find parent relationships for topological ordering
     const parentOf = new Map<string, string[]>(); // child -> parents
 
-    for (const elem of elementsWithBlockingDeps) {
-      const sourceId = elem.source_id;
+    for (const elementId of allElements) {
       const parents = this.db.query<DependencyRow>(
         `SELECT target_id FROM dependencies
          WHERE source_id = ? AND type = ?`,
-        [sourceId, DT.PARENT_CHILD]
+        [elementId, DT.PARENT_CHILD]
       );
       parentOf.set(
-        sourceId,
-        parents.map((p) => p.target_id).filter((p) => elementSet.has(p))
+        elementId,
+        parents.map((p) => p.target_id).filter((p) => allElements.has(p))
       );
     }
 
     // Start with elements that have no parents in our set
-    for (const elem of elementsWithBlockingDeps) {
-      const parents = parentOf.get(elem.source_id) ?? [];
+    for (const elementId of allElements) {
+      const parents = parentOf.get(elementId) ?? [];
       if (parents.length === 0) {
-        queue.push(elem.source_id as ElementId);
+        queue.push(elementId as ElementId);
       }
     }
 
@@ -931,10 +995,10 @@ export class BlockedCacheService {
     }
 
     // Handle any remaining elements (shouldn't happen if graph is consistent)
-    for (const elem of elementsWithBlockingDeps) {
-      if (!processed.has(elem.source_id)) {
+    for (const elementId of allElements) {
+      if (!processed.has(elementId)) {
         elementsChecked++;
-        const blocking = this.computeBlockingState(elem.source_id as ElementId, options);
+        const blocking = this.computeBlockingState(elementId as ElementId, options);
         if (blocking) {
           this.addBlocked(blocking.elementId, blocking.blockedBy, blocking.reason);
           elementsBlocked++;
@@ -966,7 +1030,7 @@ export class BlockedCacheService {
    */
   onDependencyAdded(
     sourceId: ElementId,
-    _targetId: ElementId,
+    targetId: ElementId,
     type: DependencyType,
     _metadata?: Record<string, unknown>,
     options: GateCheckOptions = {}
@@ -976,12 +1040,19 @@ export class BlockedCacheService {
       return;
     }
 
-    // Recompute blocking state for the source element
-    this.invalidateElement(sourceId, options);
+    if (type === DT.BLOCKS) {
+      // For blocks: target waits for source to close
+      // So we invalidate the TARGET (it's the one that becomes blocked)
+      this.invalidateElement(targetId, options);
+    } else {
+      // For parent-child and awaits: source depends on target
+      // So we invalidate the SOURCE
+      this.invalidateElement(sourceId, options);
 
-    // For parent-child, also invalidate all children (transitive)
-    if (type === DT.PARENT_CHILD) {
-      this.invalidateChildren(sourceId, options);
+      // For parent-child, also invalidate all children (transitive)
+      if (type === DT.PARENT_CHILD) {
+        this.invalidateChildren(sourceId, options);
+      }
     }
   }
 
@@ -995,7 +1066,7 @@ export class BlockedCacheService {
    */
   onDependencyRemoved(
     sourceId: ElementId,
-    _targetId: ElementId,
+    targetId: ElementId,
     type: DependencyType,
     options: GateCheckOptions = {}
   ): void {
@@ -1004,12 +1075,19 @@ export class BlockedCacheService {
       return;
     }
 
-    // Recompute blocking state for the source element
-    this.invalidateElement(sourceId, options);
+    if (type === DT.BLOCKS) {
+      // For blocks: target waits for source to close
+      // So we invalidate the TARGET (it may become unblocked)
+      this.invalidateElement(targetId, options);
+    } else {
+      // For parent-child and awaits: source depends on target
+      // So we invalidate the SOURCE
+      this.invalidateElement(sourceId, options);
 
-    // For parent-child, also invalidate all children
-    if (type === DT.PARENT_CHILD) {
-      this.invalidateChildren(sourceId, options);
+      // For parent-child, also invalidate all children
+      if (type === DT.PARENT_CHILD) {
+        this.invalidateChildren(sourceId, options);
+      }
     }
   }
 

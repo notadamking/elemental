@@ -511,10 +511,10 @@ describe('Plan-Task Linking', () => {
         title: 'Blocked Task',
       });
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: 'blocks',
       });
 

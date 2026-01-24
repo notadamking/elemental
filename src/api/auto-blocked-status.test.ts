@@ -75,10 +75,10 @@ describe('Automatic Blocked Status Computation', () => {
       const taskBefore = await api.get<Task>(task.id);
       expect(taskBefore?.status).toBe(TaskStatus.OPEN);
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -98,10 +98,10 @@ describe('Automatic Blocked Status Computation', () => {
       const taskBefore = await api.get<Task>(task.id);
       expect(taskBefore?.status).toBe(TaskStatus.IN_PROGRESS);
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -117,10 +117,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -136,10 +136,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -155,10 +155,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -184,10 +184,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -210,10 +210,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -236,10 +236,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -248,7 +248,7 @@ describe('Automatic Blocked Status Computation', () => {
       expect(taskState?.status).toBe(TaskStatus.BLOCKED);
 
       // Remove the dependency
-      await api.removeDependency(task.id, blocker.id, DependencyType.BLOCKS);
+      await api.removeDependency(blocker.id, task.id, DependencyType.BLOCKS);
 
       // Verify original status restored
       taskState = await api.get<Task>(task.id);
@@ -262,10 +262,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -295,15 +295,15 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker2));
       await api.create(toCreateInput(task));
 
-      // Add two blocking dependencies
+      // Add two blocking dependencies (blockers block task - task waits for blockers to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker1.id,
+        sourceId: blocker1.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker2.id,
+        sourceId: blocker2.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -348,10 +348,10 @@ describe('Automatic Blocked Status Computation', () => {
         type: DependencyType.PARENT_CHILD,
       });
 
-      // Block the parent
+      // Block the parent (blocker blocks parent - parent waits for blocker to close)
       await api.addDependency({
-        sourceId: parent.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: parent.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -378,10 +378,10 @@ describe('Automatic Blocked Status Computation', () => {
         type: DependencyType.PARENT_CHILD,
       });
 
-      // Block the parent
+      // Block the parent (blocker blocks parent - parent waits for blocker to close)
       await api.addDependency({
-        sourceId: parent.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: parent.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -466,10 +466,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency to already-closed blocker
+      // Add blocking dependency to already-closed blocker (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -485,10 +485,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -536,9 +536,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(entity));
 
       // Add blocking dependency to entity (unusual but allowed)
+      // blocker blocks entity - entity waits for blocker to close
       await api.addDependency({
-        sourceId: entity.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: entity.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -562,10 +563,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -582,10 +583,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -601,10 +602,10 @@ describe('Automatic Blocked Status Computation', () => {
       await api.create(toCreateInput(blocker));
       await api.create(toCreateInput(task));
 
-      // Add blocking dependency
+      // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: DependencyType.BLOCKS,
       });
 

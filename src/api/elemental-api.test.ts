@@ -418,12 +418,12 @@ describe('ElementalAPI', () => {
       await api.create(toCreateInput(task1));
       await api.create(toCreateInput(task2));
 
-      // Block task2
+      // Block task2 (blocker blocks task2 - task2 waits for blocker to close)
       const blocker = await createTestTask({ title: 'Blocker' });
       await api.create(toCreateInput(blocker));
       await api.addDependency({
-        sourceId: task2.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task2.id,
         type: 'blocks',
       });
 
@@ -456,9 +456,10 @@ describe('ElementalAPI', () => {
 
       await api.create(toCreateInput(task));
       await api.create(toCreateInput(blocker));
+      // blocker blocks task - task waits for blocker to close
       await api.addDependency({
-        sourceId: task.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task.id,
         type: 'blocks',
       });
 
@@ -524,6 +525,7 @@ describe('ElementalAPI', () => {
       });
 
       it('should update blocked cache for blocking dependencies', async () => {
+        // task1 blocks task2 - task2 waits for task1 to close
         await api.addDependency({
           sourceId: task1.id,
           targetId: task2.id,
@@ -531,12 +533,13 @@ describe('ElementalAPI', () => {
         });
 
         const blockedTasks = await api.blocked();
-        expect(blockedTasks.find((t) => t.id === task1.id)).toBeDefined();
+        expect(blockedTasks.find((t) => t.id === task2.id)).toBeDefined();
       });
     });
 
     describe('removeDependency()', () => {
       it('should remove an existing dependency', async () => {
+        // task1 blocks task2 - task2 waits for task1 to close
         await api.addDependency({
           sourceId: task1.id,
           targetId: task2.id,
@@ -556,6 +559,7 @@ describe('ElementalAPI', () => {
       });
 
       it('should update blocked cache when dependency removed', async () => {
+        // task1 blocks task2 - task2 waits for task1 to close
         await api.addDependency({
           sourceId: task1.id,
           targetId: task2.id,
@@ -565,7 +569,7 @@ describe('ElementalAPI', () => {
         await api.removeDependency(task1.id, task2.id, 'blocks');
 
         const blockedTasks = await api.blocked();
-        expect(blockedTasks.find((t) => t.id === task1.id)).toBeUndefined();
+        expect(blockedTasks.find((t) => t.id === task2.id)).toBeUndefined();
       });
     });
 
@@ -755,9 +759,10 @@ describe('ElementalAPI', () => {
       await api.create(toCreateInput(task2));
       await api.create(toCreateInput(blocker));
 
+      // blocker blocks task2 - task2 waits for blocker to close
       await api.addDependency({
-        sourceId: task2.id,
-        targetId: blocker.id,
+        sourceId: blocker.id,
+        targetId: task2.id,
         type: 'blocks',
       });
 

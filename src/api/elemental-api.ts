@@ -3363,12 +3363,12 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     for (const dep of deps) {
-      // In blocks dependency: sourceId = blocked task, targetId = blocker
-      // So source is blocked by target
+      // In blocks dependency: sourceId = blocker, targetId = blocked (target waits for source)
+      // So target is blocked by source
       if (taskIdSet.has(dep.source_id as ElementId) && taskIdSet.has(dep.target_id as ElementId)) {
-        const current = blockedBy.get(dep.source_id) ?? [];
-        current.push(dep.target_id);
-        blockedBy.set(dep.source_id, current);
+        const current = blockedBy.get(dep.target_id) ?? [];
+        current.push(dep.source_id);
+        blockedBy.set(dep.target_id, current);
       }
     }
 
@@ -3408,16 +3408,16 @@ export class ElementalAPIImpl implements ElementalAPI {
         result.push(task);
       }
 
-      // Find tasks that were blocked by this one (this task is target_id = blocker)
+      // Find tasks that were blocked by this one (this task is source_id = blocker)
       // and reduce their in-degree
       for (const dep of deps) {
-        // dep.source_id = blocked task, dep.target_id = blocker
-        // If this task is the blocker (target_id), the blocked task (source_id) can progress
-        if (dep.target_id === taskId && !processed.has(dep.source_id)) {
-          const newDegree = (inDegree.get(dep.source_id) ?? 1) - 1;
-          inDegree.set(dep.source_id, newDegree);
+        // dep.source_id = blocker, dep.target_id = blocked (target waits for source)
+        // If this task is the blocker (source_id), the blocked task (target_id) can progress
+        if (dep.source_id === taskId && !processed.has(dep.target_id)) {
+          const newDegree = (inDegree.get(dep.target_id) ?? 1) - 1;
+          inDegree.set(dep.target_id, newDegree);
           if (newDegree === 0) {
-            queue.push(dep.source_id);
+            queue.push(dep.target_id);
             // Re-sort queue by priority
             queue.sort((a, b) => {
               const taskA = taskById.get(a)!;

@@ -309,7 +309,10 @@ export class PriorityService {
 
   /**
    * Collect priorities of all tasks that depend on a given task (transitively).
-   * This traverses "blocks" dependencies where the target is our task.
+   *
+   * With blocks dependency semantics: "target waits for source to close"
+   * - If current task is the SOURCE of a blocks dependency, then TARGET depends on it
+   * - So we query for dependencies where source_id = current.id
    */
   private collectDependentPriorities(
     taskId: ElementId,
@@ -327,26 +330,25 @@ export class PriorityService {
       }
       visited.add(current.id);
 
-      // Find tasks that have this task as their blocking target
-      // i.e., tasks where: task.blocks -> current.id (target)
-      // In the dependency model: sourceId blocks until targetId is closed
-      // So dependents are: where targetId = current.id
+      // Find tasks that depend on this task (i.e., are blocked by it)
+      // Semantics: "target waits for source to close"
+      // So if current.id is the SOURCE, then the TARGETs are waiting for it
       const dependents = this.db.query<DependencyRow>(
         `SELECT d.source_id, d.target_id, d.type
          FROM dependencies d
-         WHERE d.target_id = ? AND d.type = ?`,
+         WHERE d.source_id = ? AND d.type = ?`,
         [current.id, DT.BLOCKS]
       );
 
       for (const dep of dependents) {
-        const sourceId = dep.source_id as ElementId;
-        if (!visited.has(sourceId)) {
+        const targetId = dep.target_id as ElementId;
+        if (!visited.has(targetId)) {
           // Get the priority of the dependent task
-          const task = this.getTaskPriority(sourceId);
+          const task = this.getTaskPriority(targetId);
           if (task) {
-            result.push({ id: sourceId, priority: task.priority });
+            result.push({ id: targetId, priority: task.priority });
             // Continue traversing
-            queue.push({ id: sourceId, depth: current.depth + 1 });
+            queue.push({ id: targetId, depth: current.depth + 1 });
           }
         }
       }
@@ -357,7 +359,10 @@ export class PriorityService {
 
   /**
    * Collect complexities of all tasks that this task depends on (blockers, transitively).
-   * This traverses "blocks" dependencies where the source is our task.
+   *
+   * With blocks dependency semantics: "target waits for source to close"
+   * - If current task is the TARGET of a blocks dependency, then SOURCE is blocking it
+   * - So we query for dependencies where target_id = current.id
    */
   private collectBlockerComplexities(
     taskId: ElementId,
@@ -375,25 +380,25 @@ export class PriorityService {
       }
       visited.add(current.id);
 
-      // Find tasks that block this task (where this task is the source and waits for target)
-      // In the dependency model: sourceId blocks until targetId is closed
-      // So blockers are: where sourceId = current.id
+      // Find tasks that block this task (where this task is waiting for them)
+      // Semantics: "target waits for source to close"
+      // So if current.id is the TARGET, then the SOURCEs are blocking it
       const blockers = this.db.query<DependencyRow>(
         `SELECT d.source_id, d.target_id, d.type
          FROM dependencies d
-         WHERE d.source_id = ? AND d.type = ?`,
+         WHERE d.target_id = ? AND d.type = ?`,
         [current.id, DT.BLOCKS]
       );
 
       for (const dep of blockers) {
-        const targetId = dep.target_id as ElementId;
-        if (!visited.has(targetId)) {
+        const sourceId = dep.source_id as ElementId;
+        if (!visited.has(sourceId)) {
           // Get the complexity of the blocker task
-          const task = this.getTaskPriority(targetId);
+          const task = this.getTaskPriority(sourceId);
           if (task) {
-            result.push({ id: targetId, complexity: task.complexity });
+            result.push({ id: sourceId, complexity: task.complexity });
             // Continue traversing
-            queue.push({ id: targetId, depth: current.depth + 1 });
+            queue.push({ id: sourceId, depth: current.depth + 1 });
           }
         }
       }
