@@ -507,31 +507,47 @@ el playbook create --name test-workflow --title "Test Workflow" \
 - Initialized workspace
 - Two entities: `agent-a`, `agent-b`
 
-**Checkpoints:**
-- [ ] Register entities
-  ```bash
-  el entity register --name agent-a --type agent
-  el entity register --name agent-b --type agent
-  ```
-- [ ] Send direct message (creates channel automatically)
-  ```bash
-  el send --to agent-b --content "Hello from A" --actor agent-a --json
-  ```
-  - Returns message ID
-  - Creates direct channel
-- [ ] Recipient can see message
-  ```bash
-  el messages --to agent-a --actor agent-b --json
-  ```
-  - Message appears in list
-- [ ] Reply to message
-  ```bash
-  el thread <message-id> --content "Reply from B" --actor agent-b
-  ```
-  - Thread relationship created
-- [ ] View conversation: both messages visible
+**Status:** TESTED - 2026-01-24 (Partial Pass - Command syntax differs from docs)
 
-**Success Criteria:** Agents can communicate bidirectionally with threading
+**Checkpoints:**
+- [x] Register entities
+  ```bash
+  el entity register agent-a --type agent
+  el entity register agent-b --type agent
+  ```
+  - **DOC el-6auj:** Original docs used `--name` flag but actual syntax is positional
+- [x] Create direct channel and send message
+  - **LIMITATION:** No `el send --to` auto-create; requires explicit channel
+  - **DOC el-4xe1:** Docs show `el send --to` but actual flow is:
+  ```bash
+  CHANNEL=$(el channel create --type direct --direct <agent-b-id> --actor <agent-a-id> --json | jq -r '.data.id')
+  el msg send --channel $CHANNEL --content "Hello from A" --actor <agent-a-id> --json
+  ```
+  - **Enhancement el-1p4u:** Add `--to` convenience flag for direct messaging
+  - Returns message ID
+  - Channel created with both members
+- [x] Recipient can see message
+  ```bash
+  el msg list --channel <channel-id> --actor <agent-b-id> --json
+  ```
+  - Message appears with hydrated content
+- [x] Reply to message (threading)
+  ```bash
+  el msg send --channel <channel-id> --content "Reply from B" --thread <message-id> --actor <agent-b-id>
+  ```
+  - Thread relationship created (threadId set)
+- [x] View conversation
+  ```bash
+  el msg thread <root-message-id> --json
+  ```
+  - Both messages visible with content hydrated
+
+**Success Criteria:** Agents can communicate bidirectionally with threading ✓
+
+**Notes:**
+- Core messaging functionality works correctly
+- Documentation uses convenience syntax that doesn't exist yet
+- Actor flag requires entity IDs, not names
 
 ---
 

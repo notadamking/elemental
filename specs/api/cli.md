@@ -72,9 +72,9 @@ Task-specific commands:
 
 | Command | Description |
 |---------|-------------|
-| `send <channel>` | Send message |
-| `thread <id>` | Reply to message |
-| `messages <channel>` | List channel messages |
+| `msg send` | Send message to channel |
+| `msg thread <id>` | View message thread |
+| `msg list` | List channel messages |
 
 ### Document Operations
 
