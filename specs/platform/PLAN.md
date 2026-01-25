@@ -630,10 +630,14 @@ For mutations (create, update, delete):
   - [x] Web: AllDocumentsView for when no libraries exist
   - [x] **Verify:** Tree navigation works (Playwright tests passing - 10 tests + 8 skipped due to no libraries)
 
-- [ ] **TB21: Document Display**
+- [x] **TB21: Document Display**
   - [x] Server: Add `GET /api/documents/:id` endpoint (added in TB20)
-  - [ ] Web: Create DocumentView component with content rendering
-  - [ ] **Verify:** Document content displays
+  - [x] Web: Create DocumentDetailPanel component with content rendering
+  - [x] Web: Create DocumentRenderer component for text/markdown/json content types
+  - [x] Web: Add useDocument hook for fetching individual documents
+  - [x] Web: Update DocumentListItem to be clickable with selection state
+  - [x] Web: Update DocumentsPage with document selection state and split-panel layout
+  - [x] **Verify:** Document content displays (Playwright tests passing - 13 tests + 3 skipped due to content type)
 
 - [ ] **TB22: Block Editor**
   - [ ] Web: Add Tiptap

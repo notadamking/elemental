@@ -6,6 +6,7 @@
  * - Library selection
  * - Document list
  * - Nested library navigation
+ * - Document detail display (TB21)
  */
 
 import { useState } from 'react';
@@ -17,6 +18,13 @@ import {
   ChevronDown,
   FolderOpen,
   Folder,
+  X,
+  User,
+  Tag,
+  Clock,
+  Hash,
+  Code,
+  FileType,
 } from 'lucide-react';
 
 // ============================================================================
@@ -41,6 +49,7 @@ interface DocumentType {
   title?: string;
   content?: string;
   contentType: string;
+  version?: number;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -109,6 +118,22 @@ function useDocuments() {
       }
       return response.json();
     },
+  });
+}
+
+function useDocument(documentId: string | null) {
+  return useQuery<DocumentType>({
+    queryKey: ['documents', documentId],
+    queryFn: async () => {
+      if (!documentId) throw new Error('No document selected');
+      const response = await fetch(`/api/documents/${documentId}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch document');
+      }
+      return response.json();
+    },
+    enabled: !!documentId,
   });
 }
 
@@ -282,20 +307,33 @@ function LibraryPlaceholder() {
   );
 }
 
-function DocumentListItem({ document }: { document: DocumentType }) {
+function DocumentListItem({
+  document,
+  isSelected,
+  onClick,
+}: {
+  document: DocumentType;
+  isSelected?: boolean;
+  onClick?: (id: string) => void;
+}) {
   const formattedDate = new Date(document.updatedAt).toLocaleDateString();
   const title = document.title || `Document ${document.id}`;
 
   return (
     <div
       data-testid={`document-item-${document.id}`}
-      className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+      onClick={() => onClick?.(document.id)}
+      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+        isSelected
+          ? 'border-blue-300 bg-blue-50'
+          : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+      }`}
     >
-      <FileText className="w-8 h-8 text-blue-400 flex-shrink-0" />
+      <FileText className={`w-8 h-8 flex-shrink-0 ${isSelected ? 'text-blue-500' : 'text-blue-400'}`} />
       <div className="flex-1 min-w-0">
         <p
           data-testid={`document-title-${document.id}`}
-          className="font-medium text-gray-900 truncate"
+          className={`font-medium truncate ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}
         >
           {title}
         </p>
@@ -313,7 +351,15 @@ function DocumentListItem({ document }: { document: DocumentType }) {
   );
 }
 
-function LibraryView({ libraryId }: { libraryId: string }) {
+function LibraryView({
+  libraryId,
+  selectedDocumentId,
+  onSelectDocument,
+}: {
+  libraryId: string;
+  selectedDocumentId: string | null;
+  onSelectDocument: (id: string) => void;
+}) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
 
@@ -424,7 +470,12 @@ function LibraryView({ libraryId }: { libraryId: string }) {
         ) : (
           <div data-testid="documents-list" className="space-y-2">
             {allDocuments.map((doc) => (
-              <DocumentListItem key={doc.id} document={doc} />
+              <DocumentListItem
+                key={doc.id}
+                document={doc}
+                isSelected={selectedDocumentId === doc.id}
+                onClick={onSelectDocument}
+              />
             ))}
           </div>
         )}
@@ -433,7 +484,286 @@ function LibraryView({ libraryId }: { libraryId: string }) {
   );
 }
 
-function AllDocumentsView() {
+// ============================================================================
+// Document Detail Components (TB21)
+// ============================================================================
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return formatDate(dateString);
+}
+
+const CONTENT_TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+  text: { label: 'Plain Text', icon: <FileType className="w-4 h-4" />, color: 'bg-gray-100 text-gray-700' },
+  markdown: { label: 'Markdown', icon: <Hash className="w-4 h-4" />, color: 'bg-purple-100 text-purple-700' },
+  json: { label: 'JSON', icon: <Code className="w-4 h-4" />, color: 'bg-blue-100 text-blue-700' },
+};
+
+/**
+ * Renders document content based on its contentType
+ */
+function DocumentRenderer({
+  content,
+  contentType,
+}: {
+  content: string;
+  contentType: string;
+}) {
+  if (!content) {
+    return (
+      <div data-testid="document-content-empty" className="text-gray-400 italic">
+        No content
+      </div>
+    );
+  }
+
+  switch (contentType) {
+    case 'json':
+      // Pretty-print JSON with syntax highlighting colors
+      try {
+        const formatted = JSON.stringify(JSON.parse(content), null, 2);
+        return (
+          <pre
+            data-testid="document-content-json"
+            className="whitespace-pre-wrap font-mono text-sm bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto"
+          >
+            <code>{formatted}</code>
+          </pre>
+        );
+      } catch {
+        // If JSON parsing fails, show as plain text
+        return (
+          <pre
+            data-testid="document-content-json"
+            className="whitespace-pre-wrap font-mono text-sm bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto"
+          >
+            <code>{content}</code>
+          </pre>
+        );
+      }
+
+    case 'markdown':
+      // For now, render markdown as plain text with better formatting
+      // A full markdown renderer would require a library like react-markdown
+      return (
+        <div
+          data-testid="document-content-markdown"
+          className="prose prose-sm max-w-none text-gray-700"
+        >
+          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+            {content}
+          </pre>
+        </div>
+      );
+
+    case 'text':
+    default:
+      return (
+        <div
+          data-testid="document-content-text"
+          className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed"
+        >
+          {content}
+        </div>
+      );
+  }
+}
+
+/**
+ * Document Detail Panel - Shows full document content and metadata
+ */
+function DocumentDetailPanel({
+  documentId,
+  onClose,
+}: {
+  documentId: string;
+  onClose: () => void;
+}) {
+  const { data: document, isLoading, isError, error } = useDocument(documentId);
+
+  if (isLoading) {
+    return (
+      <div
+        data-testid="document-detail-loading"
+        className="h-full flex items-center justify-center bg-white"
+      >
+        <div className="text-gray-500">Loading document...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div
+        data-testid="document-detail-error"
+        className="h-full flex flex-col items-center justify-center bg-white"
+      >
+        <div className="text-red-600 mb-2">Failed to load document</div>
+        <div className="text-sm text-gray-500">{(error as Error)?.message}</div>
+      </div>
+    );
+  }
+
+  if (!document) {
+    return (
+      <div
+        data-testid="document-detail-not-found"
+        className="h-full flex items-center justify-center bg-white"
+      >
+        <div className="text-gray-500">Document not found</div>
+      </div>
+    );
+  }
+
+  const title = document.title || `Document ${document.id}`;
+  const typeConfig = CONTENT_TYPE_CONFIG[document.contentType] || CONTENT_TYPE_CONFIG.text;
+
+  return (
+    <div
+      data-testid="document-detail-panel"
+      className="h-full flex flex-col bg-white border-l border-gray-200"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 border-b border-gray-200">
+        <div className="flex-1 min-w-0">
+          {/* Content type badge */}
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              data-testid="document-detail-type"
+              className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${typeConfig.color}`}
+            >
+              {typeConfig.icon}
+              {typeConfig.label}
+            </span>
+            {document.version !== undefined && (
+              <span
+                data-testid="document-detail-version"
+                className="text-xs text-gray-500"
+              >
+                v{document.version}
+              </span>
+            )}
+          </div>
+
+          {/* Title */}
+          <h2
+            data-testid="document-detail-title"
+            className="text-lg font-semibold text-gray-900 truncate"
+          >
+            {title}
+          </h2>
+
+          {/* ID */}
+          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 font-mono">
+            <span data-testid="document-detail-id">{document.id}</span>
+          </div>
+        </div>
+
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+          aria-label="Close panel"
+          data-testid="document-detail-close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* Document Content */}
+        <div data-testid="document-content" className="mb-6">
+          <DocumentRenderer
+            content={document.content || ''}
+            contentType={document.contentType}
+          />
+        </div>
+
+        {/* Tags */}
+        {document.tags && document.tags.length > 0 && (
+          <div className="mb-6">
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <Tag className="w-3 h-3" />
+              Tags
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {document.tags.map((tag) => (
+                <span
+                  key={tag}
+                  data-testid={`document-tag-${tag}`}
+                  className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Metadata */}
+        <div className="pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <Clock className="w-3 h-3" />
+                <span className="font-medium">Created:</span>
+              </div>
+              <span title={formatDate(document.createdAt)}>
+                {formatRelativeTime(document.createdAt)}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <Clock className="w-3 h-3" />
+                <span className="font-medium">Updated:</span>
+              </div>
+              <span title={formatDate(document.updatedAt)}>
+                {formatRelativeTime(document.updatedAt)}
+              </span>
+            </div>
+            <div className="col-span-2">
+              <div className="flex items-center gap-1 mb-1">
+                <User className="w-3 h-3" />
+                <span className="font-medium">Created by:</span>
+              </div>
+              <span className="font-mono">{document.createdBy}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AllDocumentsView({
+  selectedDocumentId,
+  onSelectDocument,
+}: {
+  selectedDocumentId: string | null;
+  onSelectDocument: (id: string) => void;
+}) {
   const { data: documents = [], isLoading, error } = useDocuments();
 
   return (
@@ -493,7 +823,12 @@ function AllDocumentsView() {
         ) : (
           <div data-testid="all-documents-list" className="space-y-2">
             {documents.map((doc) => (
-              <DocumentListItem key={doc.id} document={doc} />
+              <DocumentListItem
+                key={doc.id}
+                document={doc}
+                isSelected={selectedDocumentId === doc.id}
+                onClick={onSelectDocument}
+              />
             ))}
           </div>
         )}
@@ -509,6 +844,21 @@ function AllDocumentsView() {
 export function DocumentsPage() {
   const { data: libraries = [], isLoading, error } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+
+  // Clear document selection when library changes
+  const handleSelectLibrary = (libraryId: string) => {
+    setSelectedLibraryId(libraryId);
+    setSelectedDocumentId(null);
+  };
+
+  const handleSelectDocument = (documentId: string) => {
+    setSelectedDocumentId(documentId);
+  };
+
+  const handleCloseDocument = () => {
+    setSelectedDocumentId(null);
+  };
 
   if (error) {
     return (
@@ -524,8 +874,33 @@ export function DocumentsPage() {
     );
   }
 
+  // Determine the main content view
+  const renderMainContent = () => {
+    if (selectedLibraryId) {
+      return (
+        <LibraryView
+          libraryId={selectedLibraryId}
+          selectedDocumentId={selectedDocumentId}
+          onSelectDocument={handleSelectDocument}
+        />
+      );
+    }
+
+    if (libraries.length > 0) {
+      return <LibraryPlaceholder />;
+    }
+
+    return (
+      <AllDocumentsView
+        selectedDocumentId={selectedDocumentId}
+        onSelectDocument={handleSelectDocument}
+      />
+    );
+  };
+
   return (
     <div data-testid="documents-page" className="flex h-full">
+      {/* Library Tree Sidebar */}
       {isLoading ? (
         <div
           data-testid="libraries-loading"
@@ -537,17 +912,27 @@ export function DocumentsPage() {
         <LibraryTree
           libraries={libraries}
           selectedLibraryId={selectedLibraryId}
-          onSelectLibrary={setSelectedLibraryId}
+          onSelectLibrary={handleSelectLibrary}
         />
       )}
 
-      {selectedLibraryId ? (
-        <LibraryView libraryId={selectedLibraryId} />
-      ) : libraries.length > 0 ? (
-        <LibraryPlaceholder />
-      ) : (
-        <AllDocumentsView />
-      )}
+      {/* Main Content Area - with or without document detail panel */}
+      <div className="flex-1 flex">
+        {/* Document List / Library View */}
+        <div className={`flex-1 ${selectedDocumentId ? 'border-r border-gray-200' : ''}`}>
+          {renderMainContent()}
+        </div>
+
+        {/* Document Detail Panel */}
+        {selectedDocumentId && (
+          <div className="w-[480px] flex-shrink-0">
+            <DocumentDetailPanel
+              documentId={selectedDocumentId}
+              onClose={handleCloseDocument}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -119,10 +119,7 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
     await expect(page.getByText(/coming soon/i)).toBeVisible();
 
     // Messages page is now implemented (TB16), skip placeholder check
-
-    await page.goto('/documents');
-    await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
+    // Documents page is now implemented (TB20/TB21), skip placeholder check
 
     await page.goto('/entities');
     await expect(page.getByRole('heading', { name: 'Entities' })).toBeVisible();
