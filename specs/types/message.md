@@ -98,6 +98,43 @@ Attachments are additional Documents associated with the message:
 - **Reference Documents**: Attach existing Documents from Libraries
 - **Mixed**: Combination of new and existing Documents
 
+## Entity Mentions
+
+Messages support `@entity-name` mentions to tag entities within message content.
+
+### Mention Format
+
+**Pattern**: `@entity-name` where name matches `/^[a-zA-Z][a-zA-Z0-9_-]*$/`
+
+Mentions are parsed from the message content document and create `mentions` dependencies.
+
+### Mention Processing
+
+When a message is created:
+1. Fetch content document by `contentRef`
+2. Parse content for `@entity-name` patterns
+3. Look up each mentioned name → EntityId
+4. For valid mentions:
+   - Create `mentions` dependency: message → entity
+   - Create inbox item for that entity (source: `mention`)
+5. Invalid mentions (non-existent entities) are silently ignored
+
+### Message Extension
+
+```typescript
+interface Message extends Element {
+  // ... existing fields
+  readonly mentions?: readonly EntityId[];  // Denormalized for quick access
+}
+```
+
+The `mentions` array is populated during message creation for efficient queries.
+
+### Mention Queries
+
+- `getMessagesTagging(entityId)` - Messages that mention an entity
+- `getMentionedEntities(messageId)` - Entities mentioned in a message
+
 ## Hydration
 
 Messages support hydration of Document references:

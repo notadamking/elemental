@@ -413,3 +413,42 @@ export {
   canBurnWorkflow,
   prepareBurnWorkflow,
 } from './workflow-ops.js';
+
+// Inbox exports
+export {
+  // Types and interfaces
+  type InboxItem,
+  type HydratedInboxItem,
+  type InboxFilter,
+  type CreateInboxItemInput,
+  // Enums
+  InboxSourceType,
+  InboxStatus,
+  // Validation
+  isValidInboxSourceType,
+  validateInboxSourceType,
+  isValidInboxStatus,
+  validateInboxStatus,
+  isValidInboxItemId,
+  validateInboxItemId,
+  // Type guards
+  isInboxItem,
+  validateInboxItem,
+  // Utility functions
+  filterByStatus as filterInboxByStatus,
+  filterBySourceType as filterInboxBySourceType,
+  sortByCreatedAt as sortInboxByCreatedAt,
+  sortByCreatedAtAsc as sortInboxByCreatedAtAsc,
+  getUnread as getUnreadInboxItems,
+  getRead as getReadInboxItems,
+  getArchived as getArchivedInboxItems,
+  isUnread as isInboxItemUnread,
+  isRead as isInboxItemRead,
+  isArchived as isInboxItemArchived,
+  isFromDirectMessage,
+  isFromMention,
+  groupByChannel as groupInboxByChannel,
+  groupByStatus as groupInboxByStatus,
+  groupBySourceType as groupInboxBySourceType,
+  countUnread as countUnreadInboxItems,
+} from './inbox.js';

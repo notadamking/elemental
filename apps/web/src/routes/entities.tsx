@@ -2,13 +2,13 @@
  * Entities Page
  *
  * Lists all entities with filtering by type and search functionality.
- * Includes detail panel with stats and activity timeline.
+ * Includes detail panel with stats, activity timeline, and inbox.
  */
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, MailOpen, Archive, AtSign, CheckCheck } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 
 interface Entity {
@@ -51,6 +51,17 @@ interface ElementalEvent {
 }
 
 type EntityTypeFilter = 'all' | 'agent' | 'human' | 'system';
+
+interface InboxItem {
+  id: string;
+  recipientId: string;
+  messageId: string;
+  channelId: string;
+  sourceType: 'direct' | 'mention';
+  status: 'unread' | 'read' | 'archived';
+  readAt: string | null;
+  createdAt: string;
+}
 
 interface PaginatedResult<T> {
   items: T[];
@@ -140,6 +151,70 @@ function useEntityEvents(id: string | null) {
       return response.json();
     },
     enabled: !!id,
+  });
+}
+
+function useEntityInbox(id: string | null, status?: 'unread' | 'read' | 'archived' | 'all') {
+  return useQuery<PaginatedResult<InboxItem>>({
+    queryKey: ['entities', id, 'inbox', status],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '50' });
+      if (status && status !== 'all') {
+        params.set('status', status);
+      }
+      const response = await fetch(`/api/entities/${id}/inbox?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch inbox');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useEntityInboxCount(id: string | null) {
+  return useQuery<{ count: number }>({
+    queryKey: ['entities', id, 'inbox', 'count'],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/inbox/count`);
+      if (!response.ok) throw new Error('Failed to fetch inbox count');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useMarkInboxRead(entityId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ itemId, status }: { itemId: string; status: 'read' | 'unread' | 'archived' }) => {
+      const response = await fetch(`/api/inbox/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) throw new Error('Failed to update inbox item');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entities', entityId, 'inbox'] });
+    },
+  });
+}
+
+function useMarkAllInboxRead(entityId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/entities/${entityId}/inbox/mark-all-read`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to mark all as read');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entities', entityId, 'inbox'] });
+    },
   });
 }
 
@@ -691,6 +766,133 @@ function EventItem({ event }: { event: ElementalEvent }) {
   );
 }
 
+function InboxItemCard({
+  item,
+  onMarkRead,
+  onMarkUnread,
+  onArchive,
+  isPending,
+}: {
+  item: InboxItem;
+  onMarkRead: () => void;
+  onMarkUnread: () => void;
+  onArchive: () => void;
+  isPending: boolean;
+}) {
+  const isUnread = item.status === 'unread';
+  const isArchived = item.status === 'archived';
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  return (
+    <div
+      className={`bg-white border rounded-lg p-3 transition-colors ${
+        isUnread ? 'border-blue-200 bg-blue-50/50' : 'border-gray-100'
+      } ${isArchived ? 'opacity-50' : ''}`}
+      data-testid={`inbox-item-${item.id}`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Unread indicator */}
+        <div className="mt-1">
+          {isUnread ? (
+            <Mail className="w-4 h-4 text-blue-500" />
+          ) : (
+            <MailOpen className="w-4 h-4 text-gray-400" />
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Source type badge */}
+          <div className="flex items-center gap-2 mb-1">
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded ${
+                item.sourceType === 'mention'
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-blue-100 text-blue-700'
+              }`}
+            >
+              {item.sourceType === 'mention' ? (
+                <>
+                  <AtSign className="w-3 h-3" />
+                  Mention
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="w-3 h-3" />
+                  Direct
+                </>
+              )}
+            </span>
+            <span className="text-xs text-gray-400">{formatTime(item.createdAt)}</span>
+          </div>
+
+          {/* Message and channel IDs */}
+          <p className="text-xs text-gray-500 font-mono truncate">
+            Message: {item.messageId}
+          </p>
+          <p className="text-xs text-gray-400 font-mono truncate">
+            Channel: {item.channelId}
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1">
+          {isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+          ) : (
+            <>
+              {isUnread ? (
+                <button
+                  onClick={onMarkRead}
+                  className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title="Mark as read"
+                  data-testid={`inbox-mark-read-${item.id}`}
+                >
+                  <CheckCheck className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={onMarkUnread}
+                  className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title="Mark as unread"
+                  data-testid={`inbox-mark-unread-${item.id}`}
+                >
+                  <Mail className="w-4 h-4" />
+                </button>
+              )}
+              {!isArchived && (
+                <button
+                  onClick={onArchive}
+                  className="p-1 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                  title="Archive"
+                  data-testid={`inbox-archive-${item.id}`}
+                >
+                  <Archive className="w-4 h-4" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type EntityDetailTab = 'overview' | 'inbox';
+
 function EntityDetailPanel({
   entityId,
   onClose,
@@ -702,12 +904,18 @@ function EntityDetailPanel({
   const { data: stats, isLoading: statsLoading } = useEntityStats(entityId);
   const { data: tasks, isLoading: tasksLoading } = useEntityTasks(entityId);
   const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
+  const { data: inboxCount } = useEntityInboxCount(entityId);
+  const { data: inboxData, isLoading: inboxLoading } = useEntityInbox(entityId);
   const updateEntity = useUpdateEntity(entityId);
+  const markInboxRead = useMarkInboxRead(entityId);
+  const markAllRead = useMarkAllInboxRead(entityId);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editTags, setEditTags] = useState('');
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<EntityDetailTab>('overview');
+  const [pendingItemId, setPendingItemId] = useState<string | null>(null);
 
   // Initialize edit values when entity loads or editing starts
   useEffect(() => {
@@ -717,11 +925,43 @@ function EntityDetailPanel({
     }
   }, [entity, isEditing]);
 
-  // Reset edit mode when entity changes
+  // Reset edit mode and tab when entity changes
   useEffect(() => {
     setIsEditing(false);
     setShowDeactivateConfirm(false);
+    setActiveTab('overview');
   }, [entityId]);
+
+  const handleMarkInboxRead = async (itemId: string) => {
+    setPendingItemId(itemId);
+    try {
+      await markInboxRead.mutateAsync({ itemId, status: 'read' });
+    } finally {
+      setPendingItemId(null);
+    }
+  };
+
+  const handleMarkInboxUnread = async (itemId: string) => {
+    setPendingItemId(itemId);
+    try {
+      await markInboxRead.mutateAsync({ itemId, status: 'unread' });
+    } finally {
+      setPendingItemId(null);
+    }
+  };
+
+  const handleArchiveInbox = async (itemId: string) => {
+    setPendingItemId(itemId);
+    try {
+      await markInboxRead.mutateAsync({ itemId, status: 'archived' });
+    } finally {
+      setPendingItemId(null);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    await markAllRead.mutateAsync();
+  };
 
   const handleSave = async () => {
     if (!entity) return;
@@ -870,8 +1110,42 @@ function EntityDetailPanel({
         </div>
       )}
 
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 px-4" data-testid="entity-detail-tabs">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'overview'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          data-testid="entity-tab-overview"
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('inbox')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'inbox'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          data-testid="entity-tab-inbox"
+        >
+          <Inbox className="w-4 h-4" />
+          Inbox
+          {inboxCount && inboxCount.count > 0 && (
+            <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full" data-testid="inbox-count-badge">
+              {inboxCount.count}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-6">
+        {activeTab === 'overview' ? (
+          <>
         {/* Entity Info */}
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -1039,6 +1313,70 @@ function EntityDetailPanel({
           <div>Created: {new Date(entity.createdAt).toLocaleString()}</div>
           <div>Updated: {new Date(entity.updatedAt).toLocaleString()}</div>
         </div>
+          </>
+        ) : (
+          /* Inbox Tab Content */
+          <div data-testid="entity-inbox-tab">
+            {/* Inbox Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                <Inbox className="w-4 h-4" />
+                Inbox
+                {inboxCount && inboxCount.count > 0 && (
+                  <span className="text-xs text-gray-500">
+                    ({inboxCount.count} unread)
+                  </span>
+                )}
+              </h3>
+              {inboxCount && inboxCount.count > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  disabled={markAllRead.isPending}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+                  data-testid="inbox-mark-all-read"
+                >
+                  {markAllRead.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <CheckCheck className="w-3 h-3" />
+                  )}
+                  Mark all read
+                </button>
+              )}
+            </div>
+
+            {/* Inbox Items */}
+            {inboxLoading ? (
+              <div className="text-sm text-gray-500">Loading inbox...</div>
+            ) : !inboxData || inboxData.items.length === 0 ? (
+              <div className="text-center py-8" data-testid="inbox-empty">
+                <Inbox className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No messages in inbox</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Direct messages and @mentions will appear here
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="inbox-items-list">
+                {inboxData.items.map((item) => (
+                  <InboxItemCard
+                    key={item.id}
+                    item={item}
+                    onMarkRead={() => handleMarkInboxRead(item.id)}
+                    onMarkUnread={() => handleMarkInboxUnread(item.id)}
+                    onArchive={() => handleArchiveInbox(item.id)}
+                    isPending={pendingItemId === item.id}
+                  />
+                ))}
+                {inboxData.hasMore && (
+                  <div className="text-center text-xs text-gray-500 pt-2">
+                    Showing {inboxData.items.length} of {inboxData.total} items
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

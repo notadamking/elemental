@@ -26,6 +26,7 @@ import {
   createDirectChannel,
   isMember,
   canModifyMembers,
+  isDirectChannel,
   DirectChannelMembershipError,
   NotAMemberError,
   CannotModifyMembersError,
@@ -39,6 +40,9 @@ import { isDeleted as isTeamDeleted, TeamStatus } from '../types/team.js';
 import { isMember as isTeamMember } from '../types/team.js';
 import { BlockedCacheService, createBlockedCacheService } from '../services/blocked-cache.js';
 import { PriorityService, createPriorityService } from '../services/priority-service.js';
+import { InboxService, createInboxService } from '../services/inbox.js';
+import { extractMentionedNames, validateMentions } from '../utils/mentions.js';
+import { InboxSourceType } from '../types/inbox.js';
 import { SyncService } from '../sync/service.js';
 import { computeContentHashSync } from '../sync/hash.js';
 import type {
@@ -98,6 +102,15 @@ import { isWorkflow, WorkflowStatus as WorkflowStatusEnum } from '../types/workf
 import { generateChildId } from '../id/generator.js';
 import type { CreateTaskInput } from '../types/task.js';
 import { createTask } from '../types/task.js';
+import type { Entity } from '../types/entity.js';
+import {
+  validateManager,
+  getManagementChain as getManagementChainUtil,
+  buildOrgChart,
+  updateEntity,
+  isEntityActive,
+  type OrgChartNode,
+} from '../types/entity.js';
 
 // ============================================================================
 // Database Row Types
@@ -480,11 +493,13 @@ export class ElementalAPIImpl implements ElementalAPI {
   private blockedCache: BlockedCacheService;
   private priorityService: PriorityService;
   private syncService: SyncService;
+  private inboxService: InboxService;
 
   constructor(private backend: StorageBackend) {
     this.blockedCache = createBlockedCacheService(backend);
     this.priorityService = createPriorityService(backend);
     this.syncService = new SyncService(backend);
+    this.inboxService = createInboxService(backend);
 
     // Set up automatic status transitions for blocked/unblocked states
     this.blockedCache.setStatusTransitionCallback({
@@ -1030,6 +1045,109 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
     });
 
+    // Process mentions and inbox for messages
+    if (isMessage(element)) {
+      const messageData = element as unknown as Message;
+
+      // Get the channel to determine type and members
+      const channelRow = this.backend.queryOne<ElementRow>(
+        `SELECT * FROM elements WHERE id = ? AND deleted_at IS NULL`,
+        [messageData.channelId]
+      );
+      if (channelRow) {
+        const channelTags = this.backend.query<TagRow>(
+          'SELECT tag FROM tags WHERE element_id = ?',
+          [channelRow.id]
+        );
+        const channel = deserializeElement<Channel>(channelRow, channelTags.map((r) => r.tag));
+
+        // For direct channels: Create inbox item for the OTHER member (not the sender)
+        if (isDirectChannel(channel)) {
+          for (const memberId of channel.members) {
+            // Skip the sender - they don't need an inbox item for their own message
+            if (memberId !== messageData.sender) {
+              try {
+                this.inboxService.addToInbox({
+                  recipientId: memberId as EntityId,
+                  messageId: messageData.id as unknown as import('../types/message.js').MessageId,
+                  channelId: messageData.channelId as unknown as import('../types/message.js').ChannelId,
+                  sourceType: InboxSourceType.DIRECT,
+                  createdBy: messageData.sender,
+                });
+              } catch {
+                // Ignore errors (e.g., duplicate inbox item)
+              }
+            }
+          }
+        }
+
+        // Parse and process @mentions from the content document
+        const contentDocRow = this.backend.queryOne<ElementRow>(
+          `SELECT * FROM elements WHERE id = ? AND type = 'document' AND deleted_at IS NULL`,
+          [messageData.contentRef]
+        );
+        if (contentDocRow) {
+          const contentDoc = deserializeElement<Document>(contentDocRow, []);
+          const mentionedNames = extractMentionedNames(contentDoc.content);
+
+          if (mentionedNames.length > 0) {
+            // Get all entities to validate mentions against
+            const entityRows = this.backend.query<ElementRow>(
+              `SELECT * FROM elements WHERE type = 'entity' AND deleted_at IS NULL`,
+              []
+            );
+            const entities: Entity[] = [];
+            for (const row of entityRows) {
+              const entityTags = this.backend.query<TagRow>(
+                'SELECT tag FROM tags WHERE element_id = ?',
+                [row.id]
+              );
+              entities.push(deserializeElement<Entity>(row, entityTags.map((r) => r.tag)));
+            }
+
+            const { valid: validMentionIds } = validateMentions(mentionedNames, entities);
+
+            // Create mentions dependencies and inbox items for each valid mention
+            const now = createTimestamp();
+            for (const mentionedEntityId of validMentionIds) {
+              // Create 'mentions' dependency: message -> entity
+              try {
+                this.backend.run(
+                  `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+                   VALUES (?, ?, ?, ?, ?, ?)`,
+                  [
+                    messageData.id,
+                    mentionedEntityId,
+                    'mentions',
+                    now,
+                    messageData.sender,
+                    null,
+                  ]
+                );
+              } catch {
+                // Ignore duplicate dependency errors
+              }
+
+              // Create inbox item for the mentioned entity (if not the sender)
+              if (mentionedEntityId !== messageData.sender) {
+                try {
+                  this.inboxService.addToInbox({
+                    recipientId: mentionedEntityId,
+                    messageId: messageData.id as unknown as import('../types/message.js').MessageId,
+                    channelId: messageData.channelId as unknown as import('../types/message.js').ChannelId,
+                    sourceType: InboxSourceType.MENTION,
+                    createdBy: messageData.sender,
+                  });
+                } catch {
+                  // Ignore errors (e.g., duplicate inbox item if already added for direct message)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Mark as dirty for sync
     this.backend.markDirty(element.id);
 
@@ -1334,6 +1452,238 @@ export class ElementalAPIImpl implements ElementalAPI {
     const tags = tagRows.map((r) => r.tag);
 
     return deserializeElement<Element>(row, tags);
+  }
+
+  /**
+   * Sets the manager (reportsTo) for an entity.
+   *
+   * Validates:
+   * - Entity exists and is an entity type
+   * - Manager entity exists and is active
+   * - No self-reference (entity cannot report to itself)
+   * - No circular chains
+   *
+   * @param entityId - The entity to set the manager for
+   * @param managerId - The manager entity ID
+   * @param actor - Entity performing this action (for audit trail)
+   * @returns The updated entity
+   */
+  async setEntityManager(
+    entityId: EntityId,
+    managerId: EntityId,
+    actor: EntityId
+  ): Promise<Entity> {
+    // Get the entity (cast through unknown since EntityId and ElementId are different branded types)
+    const entity = await this.get<Entity>(entityId as unknown as ElementId);
+    if (!entity) {
+      throw new NotFoundError(
+        `Entity not found: ${entityId}`,
+        ErrorCode.ENTITY_NOT_FOUND,
+        { elementId: entityId }
+      );
+    }
+    if (entity.type !== 'entity') {
+      throw new ConstraintError(
+        `Element is not an entity: ${entityId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: entityId, actualType: entity.type, expectedType: 'entity' }
+      );
+    }
+
+    // Create a getEntity function for validation
+    const getEntity = (id: EntityId): Entity | null => {
+      const row = this.backend.queryOne<ElementRow>(
+        `SELECT * FROM elements WHERE id = ? AND type = 'entity' AND deleted_at IS NULL`,
+        [id]
+      );
+      if (!row) return null;
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [row.id]
+      );
+      return deserializeElement<Entity>(row, tagRows.map((r) => r.tag));
+    };
+
+    // Validate the manager assignment
+    const validation = validateManager(entityId, managerId, getEntity);
+    if (!validation.valid) {
+      switch (validation.errorCode) {
+        case 'SELF_REFERENCE':
+          throw new ValidationError(
+            validation.errorMessage!,
+            ErrorCode.INVALID_INPUT,
+            { entityId, managerId }
+          );
+        case 'ENTITY_NOT_FOUND':
+          throw new NotFoundError(
+            validation.errorMessage!,
+            ErrorCode.ENTITY_NOT_FOUND,
+            { elementId: managerId }
+          );
+        case 'ENTITY_DEACTIVATED':
+          throw new ValidationError(
+            validation.errorMessage!,
+            ErrorCode.INVALID_INPUT,
+            { entityId, managerId, reason: 'manager_deactivated' }
+          );
+        case 'CYCLE_DETECTED':
+          throw new ConflictError(
+            validation.errorMessage!,
+            ErrorCode.CYCLE_DETECTED,
+            { entityId, managerId, cyclePath: validation.cyclePath }
+          );
+      }
+    }
+
+    // Update the entity with the new reportsTo value
+    const updatedEntity = updateEntity(entity, { reportsTo: managerId });
+
+    // Save the updated entity
+    await this.update<Entity>(entityId as unknown as ElementId, updatedEntity as unknown as Partial<Entity>, { actor });
+
+    return updatedEntity;
+  }
+
+  /**
+   * Clears the manager (reportsTo) for an entity.
+   *
+   * @param entityId - The entity to clear the manager for
+   * @param actor - Entity performing this action (for audit trail)
+   * @returns The updated entity
+   */
+  async clearEntityManager(
+    entityId: EntityId,
+    actor: EntityId
+  ): Promise<Entity> {
+    // Get the entity (cast through unknown since EntityId and ElementId are different branded types)
+    const entity = await this.get<Entity>(entityId as unknown as ElementId);
+    if (!entity) {
+      throw new NotFoundError(
+        `Entity not found: ${entityId}`,
+        ErrorCode.ENTITY_NOT_FOUND,
+        { elementId: entityId }
+      );
+    }
+    if (entity.type !== 'entity') {
+      throw new ConstraintError(
+        `Element is not an entity: ${entityId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: entityId, actualType: entity.type, expectedType: 'entity' }
+      );
+    }
+
+    // Update the entity with null reportsTo (clears it)
+    const updatedEntity = updateEntity(entity, { reportsTo: null });
+
+    // Save the updated entity
+    await this.update<Entity>(entityId as unknown as ElementId, updatedEntity as unknown as Partial<Entity>, { actor });
+
+    return updatedEntity;
+  }
+
+  /**
+   * Gets all entities that report directly to a manager.
+   *
+   * @param managerId - The manager entity ID
+   * @returns Array of entities that report to the manager
+   */
+  async getDirectReports(managerId: EntityId): Promise<Entity[]> {
+    // Query for entities where reportsTo matches the managerId
+    const rows = this.backend.query<ElementRow>(
+      `SELECT * FROM elements
+       WHERE type = 'entity'
+       AND JSON_EXTRACT(data, '$.reportsTo') = ?
+       AND deleted_at IS NULL`,
+      [managerId]
+    );
+
+    // Get tags for each entity
+    const entities: Entity[] = [];
+    for (const row of rows) {
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [row.id]
+      );
+      entities.push(deserializeElement<Entity>(row, tagRows.map((r) => r.tag)));
+    }
+
+    return entities;
+  }
+
+  /**
+   * Gets the management chain for an entity (from entity up to root).
+   *
+   * Returns an ordered array starting with the entity's direct manager
+   * and ending with the root entity (an entity with no reportsTo).
+   *
+   * @param entityId - The entity to get the management chain for
+   * @returns Array of entities in the management chain (empty if no manager)
+   */
+  async getManagementChain(entityId: EntityId): Promise<Entity[]> {
+    // Get the entity (cast through unknown since EntityId and ElementId are different branded types)
+    const entity = await this.get<Entity>(entityId as unknown as ElementId);
+    if (!entity) {
+      throw new NotFoundError(
+        `Entity not found: ${entityId}`,
+        ErrorCode.ENTITY_NOT_FOUND,
+        { elementId: entityId }
+      );
+    }
+    if (entity.type !== 'entity') {
+      throw new ConstraintError(
+        `Element is not an entity: ${entityId}`,
+        ErrorCode.TYPE_MISMATCH,
+        { elementId: entityId, actualType: entity.type, expectedType: 'entity' }
+      );
+    }
+
+    // Create a getEntity function
+    const getEntity = (id: EntityId): Entity | null => {
+      const row = this.backend.queryOne<ElementRow>(
+        `SELECT * FROM elements WHERE id = ? AND type = 'entity' AND deleted_at IS NULL`,
+        [id]
+      );
+      if (!row) return null;
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [row.id]
+      );
+      return deserializeElement<Entity>(row, tagRows.map((r) => r.tag));
+    };
+
+    return getManagementChainUtil(entity, getEntity);
+  }
+
+  /**
+   * Gets the organizational chart structure.
+   *
+   * @param rootId - Optional root entity ID (if not provided, returns all root entities)
+   * @returns Array of org chart nodes (hierarchical structure)
+   */
+  async getOrgChart(rootId?: EntityId): Promise<OrgChartNode[]> {
+    // Get all entities
+    const rows = this.backend.query<ElementRow>(
+      `SELECT * FROM elements
+       WHERE type = 'entity'
+       AND deleted_at IS NULL`,
+      []
+    );
+
+    // Get all entities with tags
+    const entities: Entity[] = [];
+    for (const row of rows) {
+      const tagRows = this.backend.query<TagRow>(
+        'SELECT tag FROM tags WHERE element_id = ?',
+        [row.id]
+      );
+      const entity = deserializeElement<Entity>(row, tagRows.map((r) => r.tag));
+      // Only include active entities
+      if (isEntityActive(entity)) {
+        entities.push(entity);
+      }
+    }
+
+    return buildOrgChart(entities, rootId);
   }
 
   // --------------------------------------------------------------------------

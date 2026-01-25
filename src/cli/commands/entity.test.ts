@@ -864,3 +864,354 @@ describe('entity lifecycle E2E scenarios', () => {
     backend2.close();
   });
 });
+
+// ============================================================================
+// Entity Manager Commands Tests
+// ============================================================================
+
+import {
+  setManagerCommand,
+  clearManagerCommand,
+  reportsCommand,
+  chainCommand,
+} from './entity.js';
+
+describe('entity manager commands', () => {
+  test('set-manager: fails without arguments', async () => {
+    const options = createTestOptions();
+    const result = await setManagerCommand.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+    expect(result.error).toContain('Usage');
+  });
+
+  test('set-manager: fails with only one argument', async () => {
+    const options = createTestOptions();
+    const result = await setManagerCommand.handler!(['alice'], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('set-manager: sets manager relationship', async () => {
+    // Create manager and employee entities
+    const manager = await registerEntity('manager-1');
+    const employee = await registerEntity('employee-1');
+
+    const options = createTestOptions();
+    const result = await setManagerCommand.handler!(['employee-1', 'manager-1'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.data).toBeDefined();
+    expect((result.data as Entity).reportsTo).toBe(manager.id);
+  });
+
+  test('set-manager: works with entity IDs', async () => {
+    const manager = await registerEntity('manager-id');
+    const employee = await registerEntity('employee-id');
+
+    const options = createTestOptions();
+    const result = await setManagerCommand.handler!([employee.id, manager.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+  });
+
+  test('set-manager: fails with non-existent entity', async () => {
+    await registerEntity('real-manager');
+
+    const options = createTestOptions();
+    const result = await setManagerCommand.handler!(['nonexistent', 'real-manager'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+    expect(result.error).toContain('not found');
+  });
+
+  test('set-manager: fails with non-existent manager', async () => {
+    await registerEntity('real-employee');
+
+    const options = createTestOptions();
+    const result = await setManagerCommand.handler!(['real-employee', 'nonexistent-mgr'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('set-manager: fails with self-reference', async () => {
+    await registerEntity('self-ref');
+
+    const options = createTestOptions();
+    const result = await setManagerCommand.handler!(['self-ref', 'self-ref'], options);
+
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+  });
+
+  test('set-manager: outputs JSON in JSON mode', async () => {
+    await registerEntity('json-manager');
+    await registerEntity('json-employee');
+
+    const options = createTestOptions({ json: true });
+    const result = await setManagerCommand.handler!(['json-employee', 'json-manager'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(typeof result.data).toBe('object');
+    expect((result.data as Entity).name).toBe('json-employee');
+  });
+
+  test('set-manager: outputs ID in quiet mode', async () => {
+    await registerEntity('quiet-manager');
+    await registerEntity('quiet-employee');
+
+    const options = createTestOptions({ quiet: true });
+    const result = await setManagerCommand.handler!(['quiet-employee', 'quiet-manager'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(typeof result.data).toBe('string');
+    expect(result.data).toMatch(/^el-/);
+  });
+});
+
+describe('clear-manager command', () => {
+  test('fails without argument', async () => {
+    const options = createTestOptions();
+    const result = await clearManagerCommand.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+    expect(result.error).toContain('Usage');
+  });
+
+  test('clears manager relationship', async () => {
+    // Set up manager relationship first
+    const manager = await registerEntity('clear-manager');
+    const employee = await registerEntity('clear-employee');
+
+    const options = createTestOptions();
+    await setManagerCommand.handler!(['clear-employee', 'clear-manager'], options);
+
+    // Clear the manager
+    const result = await clearManagerCommand.handler!(['clear-employee'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as Entity).reportsTo).toBeUndefined();
+  });
+
+  test('works with entity ID', async () => {
+    const manager = await registerEntity('clear-mgr-2');
+    const employee = await registerEntity('clear-emp-2');
+
+    const options = createTestOptions();
+    await setManagerCommand.handler!([employee.id, manager.id], options);
+
+    const result = await clearManagerCommand.handler!([employee.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+  });
+
+  test('fails with non-existent entity', async () => {
+    const options = createTestOptions();
+    const result = await clearManagerCommand.handler!(['nonexistent-clear'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+});
+
+describe('reports command (direct reports)', () => {
+  test('fails without argument', async () => {
+    const options = createTestOptions();
+    const result = await reportsCommand.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+    expect(result.error).toContain('Usage');
+  });
+
+  test('returns empty for manager with no reports', async () => {
+    await registerEntity('lonely-manager');
+
+    const options = createTestOptions();
+    const result = await reportsCommand.handler!(['lonely-manager'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(Array.isArray(result.data)).toBe(true);
+    expect((result.data as Entity[]).length).toBe(0);
+  });
+
+  test('returns direct reports', async () => {
+    const manager = await registerEntity('reports-manager');
+    await registerEntity('report-1');
+    await registerEntity('report-2');
+
+    const options = createTestOptions();
+    await setManagerCommand.handler!(['report-1', 'reports-manager'], options);
+    await setManagerCommand.handler!(['report-2', 'reports-manager'], options);
+
+    const result = await reportsCommand.handler!(['reports-manager'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect((result.data as Entity[]).length).toBe(2);
+  });
+
+  test('works with entity ID', async () => {
+    const manager = await registerEntity('reports-mgr-id');
+
+    const options = createTestOptions();
+    const result = await reportsCommand.handler!([manager.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+  });
+
+  test('fails with non-existent manager', async () => {
+    const options = createTestOptions();
+    const result = await reportsCommand.handler!(['nonexistent-reports-mgr'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('outputs JSON in JSON mode', async () => {
+    await registerEntity('json-reports-mgr');
+
+    const options = createTestOptions({ json: true });
+    const result = await reportsCommand.handler!(['json-reports-mgr'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(Array.isArray(result.data)).toBe(true);
+  });
+
+  test('outputs IDs in quiet mode', async () => {
+    const manager = await registerEntity('quiet-reports-mgr');
+    await registerEntity('quiet-report');
+    await setManagerCommand.handler!(['quiet-report', 'quiet-reports-mgr'], createTestOptions());
+
+    const options = createTestOptions({ quiet: true });
+    const result = await reportsCommand.handler!(['quiet-reports-mgr'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(typeof result.data).toBe('string');
+    expect(result.data).toMatch(/^el-/);
+  });
+});
+
+describe('chain command (management chain)', () => {
+  test('fails without argument', async () => {
+    const options = createTestOptions();
+    const result = await chainCommand.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+    expect(result.error).toContain('Usage');
+  });
+
+  test('returns empty chain for entity with no manager', async () => {
+    await registerEntity('no-chain-entity');
+
+    const options = createTestOptions();
+    const result = await chainCommand.handler!(['no-chain-entity'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(Array.isArray(result.data)).toBe(true);
+    expect((result.data as Entity[]).length).toBe(0);
+    expect(result.message).toContain('no manager');
+  });
+
+  test('returns management chain', async () => {
+    await registerEntity('ceo');
+    await registerEntity('vp');
+    await registerEntity('manager-chain');
+    await registerEntity('employee-chain');
+
+    const options = createTestOptions();
+    await setManagerCommand.handler!(['vp', 'ceo'], options);
+    await setManagerCommand.handler!(['manager-chain', 'vp'], options);
+    await setManagerCommand.handler!(['employee-chain', 'manager-chain'], options);
+
+    const result = await chainCommand.handler!(['employee-chain'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const chain = result.data as Entity[];
+    expect(chain.length).toBe(3); // manager-chain -> vp -> ceo
+    expect(chain[0].name).toBe('manager-chain');
+    expect(chain[1].name).toBe('vp');
+    expect(chain[2].name).toBe('ceo');
+  });
+
+  test('displays visual chain in human format', async () => {
+    await registerEntity('visual-ceo');
+    await registerEntity('visual-emp');
+    await setManagerCommand.handler!(['visual-emp', 'visual-ceo'], createTestOptions());
+
+    const options = createTestOptions();
+    const result = await chainCommand.handler!(['visual-emp'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toContain('visual-emp');
+    expect(result.message).toContain('->');
+    expect(result.message).toContain('visual-ceo');
+  });
+
+  test('works with entity ID', async () => {
+    const entity = await registerEntity('chain-id-test');
+
+    const options = createTestOptions();
+    const result = await chainCommand.handler!([entity.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+  });
+
+  test('fails with non-existent entity', async () => {
+    const options = createTestOptions();
+    const result = await chainCommand.handler!(['nonexistent-chain'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('outputs JSON in JSON mode', async () => {
+    await registerEntity('json-chain');
+
+    const options = createTestOptions({ json: true });
+    const result = await chainCommand.handler!(['json-chain'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(Array.isArray(result.data)).toBe(true);
+  });
+
+  test('outputs IDs in quiet mode', async () => {
+    await registerEntity('quiet-ceo');
+    await registerEntity('quiet-chain-emp');
+    await setManagerCommand.handler!(['quiet-chain-emp', 'quiet-ceo'], createTestOptions());
+
+    const options = createTestOptions({ quiet: true });
+    const result = await chainCommand.handler!(['quiet-chain-emp'], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(typeof result.data).toBe('string');
+    expect(result.data).toMatch(/^el-/);
+  });
+});
+
+describe('entity manager command structure', () => {
+  test('set-manager has correct name', () => {
+    expect(setManagerCommand.name).toBe('set-manager');
+  });
+
+  test('set-manager has description', () => {
+    expect(setManagerCommand.description).toBeDefined();
+  });
+
+  test('set-manager has help', () => {
+    expect(setManagerCommand.help).toContain('manager');
+  });
+
+  test('clear-manager has correct name', () => {
+    expect(clearManagerCommand.name).toBe('clear-manager');
+  });
+
+  test('reports has correct name', () => {
+    expect(reportsCommand.name).toBe('reports');
+  });
+
+  test('chain has correct name', () => {
+    expect(chainCommand.name).toBe('chain');
+  });
+
+  test('entity command has manager subcommands', () => {
+    expect(entityCommand.subcommands!['set-manager']).toBeDefined();
+    expect(entityCommand.subcommands!['clear-manager']).toBeDefined();
+    expect(entityCommand.subcommands!.reports).toBeDefined();
+    expect(entityCommand.subcommands!.chain).toBeDefined();
+  });
+});

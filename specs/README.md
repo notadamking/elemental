@@ -44,6 +44,7 @@ Specifications for all element types in the system.
 | [types/channel.md](./types/channel.md) | Message containers | channel, direct, group, membership, permissions, visibility |
 | [types/library.md](./types/library.md) | Document collections | library, knowledge, hierarchy, organization, nested |
 | [types/team.md](./types/team.md) | Entity collections | team, members, group, assignment, pool |
+| [types/inbox.md](./types/inbox.md) | Entity inbox system | inbox, messages, mentions, unread, notifications |
 
 ---
 

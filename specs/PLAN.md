@@ -1728,6 +1728,17 @@ Recommended implementation sequence:
 - [x] **api/configuration.md Phase 8**: Integration tests for CLI ✅ (20 tests in src/cli/commands/config.test.ts)
 - [x] **api/errors.md Phase 7**: Integration tests for propagation, CLI output tests ✅ (propagation.integration.test.ts, errors-output.test.ts)
 
+### Entity Inbox & Management Hierarchy (Priority: Medium)
+
+- [ ] **types/entity.md Phase 8**: Management hierarchy - Add `reportsTo` field to Entity, cycle detection, getDirectReports, getManagementChain, getOrgChart API methods
+- [ ] **types/entity.md Phase 8**: Entity manager CLI commands - `el entity set-manager`, `clear-manager`, `reports`, `chain`
+- [ ] **types/inbox.md Phase 1-2**: Inbox system types and schema - InboxItem interface, InboxSourceType/InboxStatus enums, inbox_items table migration
+- [ ] **types/inbox.md Phase 3**: InboxService - CRUD operations, query methods, status updates
+- [ ] **types/inbox.md Phase 4**: Message integration - Parse @mentions, create inbox items for direct messages and mentions
+- [ ] **types/inbox.md Phase 5**: Inbox CLI commands - `el inbox <entity>`, `el inbox read/unread/archive`, `el inbox count`
+- [ ] **types/message.md Phase 9**: Entity mentions - Parse @entity-name from content, create `mentions` dependencies, denormalized mentions array
+- [ ] **systems/dependencies.md Phase 9**: Add `mentions` dependency type for message → entity tagging
+
 ### Deferred/Optional Items (Priority: Low)
 
 - [x] **systems/id-generation.md Phase 4**: Add collision metrics/logging ✅ (DefaultIdMetricsCollector, ConsoleIdLogger - 19 tests)

@@ -68,6 +68,19 @@ Support message conversations.
 |------|-----------|-------------|
 | `replies-to` | Thread parent | Message |
 
+### Mention Dependencies
+
+Track entity mentions in messages.
+
+| Type | Semantics | Target Type |
+|------|-----------|-------------|
+| `mentions` | Message tags entity | Entity |
+
+The `mentions` dependency is:
+- **Non-blocking**: Does not affect work readiness
+- **Unidirectional**: Message → Entity
+- **Associative**: Creates knowledge graph connections for queries
+
 ## Blocking Semantics
 
 ### Blocked State

@@ -14,8 +14,9 @@ import { getOutputMode } from '../formatter.js';
 import { createStorage, initializeSchema } from '../../storage/index.js';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import { createEntity, EntityTypeValue, type Entity, type CreateEntityInput } from '../../types/entity.js';
-import type { Element, EntityId } from '../../types/element.js';
+import type { Element, ElementId, EntityId } from '../../types/element.js';
 import type { ElementalAPI } from '../../api/types.js';
+import { getFormatter } from '../formatter.js';
 import { ValidationError, ConflictError } from '../../errors/error.js';
 import { getValue, loadConfig } from '../../config/index.js';
 import { isValidPublicKey } from '../../systems/identity.js';
@@ -299,6 +300,361 @@ const listOptions: CommandOption[] = [
 ];
 
 // ============================================================================
+// Entity Lookup Helper
+// ============================================================================
+
+/**
+ * Resolves an entity by ID or name.
+ * If the value starts with 'el-', it's treated as an ID.
+ * Otherwise, it's looked up by name.
+ */
+async function resolveEntity(api: ElementalAPI, idOrName: string): Promise<Entity | null> {
+  if (idOrName.startsWith('el-')) {
+    // Treat as ID
+    return api.get<Entity>(idOrName as ElementId);
+  }
+
+  // Look up by name
+  const entity = await api.lookupEntityByName(idOrName);
+  return entity as Entity | null;
+}
+
+// ============================================================================
+// Set Manager Command
+// ============================================================================
+
+async function setManagerHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  if (args.length < 2) {
+    return failure(
+      'Usage: el entity set-manager <entity> <manager>',
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  const [entityArg, managerArg] = args;
+
+  try {
+    const api = await createAPI(options);
+    if (!api) {
+      return failure(
+        'No workspace found. Run "el init" to initialize a workspace.',
+        ExitCode.NOT_FOUND
+      );
+    }
+
+    // Resolve entity
+    const entity = await resolveEntity(api, entityArg);
+    if (!entity) {
+      return failure(`Entity not found: ${entityArg}`, ExitCode.NOT_FOUND);
+    }
+
+    // Resolve manager
+    const manager = await resolveEntity(api, managerArg);
+    if (!manager) {
+      return failure(`Manager entity not found: ${managerArg}`, ExitCode.NOT_FOUND);
+    }
+
+    const actor = getActor(options);
+
+    // Set the manager
+    const updated = await api.setEntityManager(
+      entity.id as unknown as EntityId,
+      manager.id as unknown as EntityId,
+      actor as EntityId
+    );
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success(updated);
+    }
+
+    if (mode === 'quiet') {
+      return success(updated.id);
+    }
+
+    return success(
+      updated,
+      `Set ${entity.name}'s manager to ${manager.name}`
+    );
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return failure(`Validation error: ${err.message}`, ExitCode.VALIDATION);
+    }
+    if (err instanceof ConflictError) {
+      return failure(`Conflict: ${err.message}`, ExitCode.VALIDATION);
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to set manager: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const setManagerCommand: Command = {
+  name: 'set-manager',
+  description: 'Set an entity\'s manager',
+  usage: 'el entity set-manager <entity> <manager>',
+  help: `Set the manager for an entity.
+
+Arguments:
+  entity    Entity ID or name to update
+  manager   Manager entity ID or name
+
+The entity will report to the specified manager.
+Validates that:
+- Both entities exist
+- No self-reference
+- No circular management chains
+
+Examples:
+  el entity set-manager alice bob
+  el entity set-manager el-abc123 el-def456`,
+  options: [],
+  handler: setManagerHandler as Command['handler'],
+};
+
+// ============================================================================
+// Clear Manager Command
+// ============================================================================
+
+async function clearManagerHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  if (args.length < 1) {
+    return failure(
+      'Usage: el entity clear-manager <entity>',
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  const [entityArg] = args;
+
+  try {
+    const api = await createAPI(options);
+    if (!api) {
+      return failure(
+        'No workspace found. Run "el init" to initialize a workspace.',
+        ExitCode.NOT_FOUND
+      );
+    }
+
+    // Resolve entity
+    const entity = await resolveEntity(api, entityArg);
+    if (!entity) {
+      return failure(`Entity not found: ${entityArg}`, ExitCode.NOT_FOUND);
+    }
+
+    const actor = getActor(options);
+
+    // Clear the manager
+    const updated = await api.clearEntityManager(
+      entity.id as unknown as EntityId,
+      actor as EntityId
+    );
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success(updated);
+    }
+
+    if (mode === 'quiet') {
+      return success(updated.id);
+    }
+
+    return success(updated, `Cleared manager for ${entity.name}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to clear manager: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const clearManagerCommand: Command = {
+  name: 'clear-manager',
+  description: 'Clear an entity\'s manager',
+  usage: 'el entity clear-manager <entity>',
+  help: `Clear the manager for an entity.
+
+Arguments:
+  entity    Entity ID or name to update
+
+Removes the reporting relationship for the entity.
+
+Examples:
+  el entity clear-manager alice
+  el entity clear-manager el-abc123`,
+  options: [],
+  handler: clearManagerHandler as Command['handler'],
+};
+
+// ============================================================================
+// Reports Command (Direct Reports)
+// ============================================================================
+
+async function reportsHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  if (args.length < 1) {
+    return failure(
+      'Usage: el entity reports <manager>',
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  const [managerArg] = args;
+
+  try {
+    const api = await createAPI(options);
+    if (!api) {
+      return failure(
+        'No workspace found. Run "el init" to initialize a workspace.',
+        ExitCode.NOT_FOUND
+      );
+    }
+
+    // Resolve manager
+    const manager = await resolveEntity(api, managerArg);
+    if (!manager) {
+      return failure(`Manager entity not found: ${managerArg}`, ExitCode.NOT_FOUND);
+    }
+
+    // Get direct reports
+    const reports = await api.getDirectReports(manager.id as unknown as EntityId);
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(reports);
+    }
+
+    if (mode === 'quiet') {
+      return success(reports.map((e) => e.id).join('\n'));
+    }
+
+    if (reports.length === 0) {
+      return success(reports, `No direct reports for ${manager.name}`);
+    }
+
+    // Human-readable table output
+    const headers = ['ID', 'NAME', 'TYPE'];
+    const rows = reports.map((entity) => {
+      const e = entity as Entity;
+      return [e.id, e.name, e.entityType];
+    });
+
+    const table = formatter.table(headers, rows);
+    const summary = `\n${reports.length} direct report(s) for ${manager.name}`;
+
+    return success(reports, table + summary);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to get direct reports: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const reportsCommand: Command = {
+  name: 'reports',
+  description: 'List direct reports for a manager',
+  usage: 'el entity reports <manager>',
+  help: `List entities that report directly to a manager.
+
+Arguments:
+  manager    Manager entity ID or name
+
+Examples:
+  el entity reports bob
+  el entity reports el-abc123
+  el entity reports bob --json`,
+  options: [],
+  handler: reportsHandler as Command['handler'],
+};
+
+// ============================================================================
+// Chain Command (Management Chain)
+// ============================================================================
+
+async function chainHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  if (args.length < 1) {
+    return failure(
+      'Usage: el entity chain <entity>',
+      ExitCode.INVALID_ARGUMENTS
+    );
+  }
+
+  const [entityArg] = args;
+
+  try {
+    const api = await createAPI(options);
+    if (!api) {
+      return failure(
+        'No workspace found. Run "el init" to initialize a workspace.',
+        ExitCode.NOT_FOUND
+      );
+    }
+
+    // Resolve entity
+    const entity = await resolveEntity(api, entityArg);
+    if (!entity) {
+      return failure(`Entity not found: ${entityArg}`, ExitCode.NOT_FOUND);
+    }
+
+    // Get management chain
+    const chain = await api.getManagementChain(entity.id as unknown as EntityId);
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success(chain);
+    }
+
+    if (mode === 'quiet') {
+      return success(chain.map((e) => e.id).join('\n'));
+    }
+
+    if (chain.length === 0) {
+      return success(chain, `${entity.name} has no manager`);
+    }
+
+    // Human-readable visual chain
+    const names = [entity.name, ...chain.map((e) => (e as Entity).name)];
+    const chainDisplay = names.join(' -> ');
+
+    return success(chain, `Management chain: ${chainDisplay}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to get management chain: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const chainCommand: Command = {
+  name: 'chain',
+  description: 'Show management chain for an entity',
+  usage: 'el entity chain <entity>',
+  help: `Show the management chain for an entity.
+
+Arguments:
+  entity    Entity ID or name
+
+Displays the chain from the entity up to the root (CEO/top-level).
+Output format: entity -> manager -> manager's manager -> ... -> root
+
+Examples:
+  el entity chain alice
+  el entity chain el-abc123
+  el entity chain alice --json`,
+  options: [],
+  handler: chainHandler as Command['handler'],
+};
+
+// ============================================================================
 // Command Definitions
 // ============================================================================
 
@@ -354,13 +710,20 @@ Entities represent identities - AI agents, humans, or system processes.
 They are used for attribution, assignment, and access control.
 
 Subcommands:
-  register    Register a new entity
-  list        List all registered entities
+  register       Register a new entity
+  list           List all registered entities
+  set-manager    Set an entity's manager
+  clear-manager  Clear an entity's manager
+  reports        List direct reports for a manager
+  chain          Show management chain for an entity
 
 Examples:
   el entity register claude --type agent
   el entity list
-  el entity list --type human`,
+  el entity list --type human
+  el entity set-manager alice bob
+  el entity reports bob
+  el entity chain alice`,
   handler: async (args: string[], options: GlobalOptions): Promise<CommandResult> => {
     // Default to list if no subcommand
     return entityListHandler(args, options as ListOptions);
@@ -368,5 +731,9 @@ Examples:
   subcommands: {
     register: entityRegisterCommand,
     list: entityListCommand,
+    'set-manager': setManagerCommand,
+    'clear-manager': clearManagerCommand,
+    reports: reportsCommand,
+    chain: chainCommand,
   },
 };

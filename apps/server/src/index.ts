@@ -8,9 +8,9 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService } from '@elemental/cli';
-import type { SyncService } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService, createInboxService } from '@elemental/cli';
+import type { SyncService, InboxService } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow, InboxFilter, InboxStatus } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -34,6 +34,7 @@ const DB_PATH = process.env.ELEMENTAL_DB_PATH || DEFAULT_DB_PATH;
 
 let api: ElementalAPI;
 let syncService: SyncService;
+let inboxService: InboxService;
 let storageBackend: ReturnType<typeof createStorage>;
 
 try {
@@ -41,6 +42,7 @@ try {
   initializeSchema(storageBackend);
   api = createElementalAPI(storageBackend);
   syncService = createSyncService(storageBackend);
+  inboxService = createInboxService(storageBackend);
   console.log(`[elemental] Connected to database: ${DB_PATH}`);
 } catch (error) {
   console.error('[elemental] Failed to initialize database:', error);
@@ -1000,6 +1002,154 @@ app.get('/api/entities/:id/events', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get entity events:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity events' } }, 500);
+  }
+});
+
+// ============================================================================
+// Inbox Endpoints
+// ============================================================================
+
+// GET /api/entities/:id/inbox - Get entity's inbox with pagination
+app.get('/api/entities/:id/inbox', async (c) => {
+  try {
+    const id = c.req.param('id') as EntityId;
+    const url = new URL(c.req.url);
+
+    // Parse pagination params
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const statusParam = url.searchParams.get('status');
+    const sourceTypeParam = url.searchParams.get('sourceType');
+
+    // Verify entity exists
+    const entity = await api.get(id as unknown as ElementId);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // Build filter
+    const filter: InboxFilter = {
+      limit: limitParam ? parseInt(limitParam, 10) : 25,
+      offset: offsetParam ? parseInt(offsetParam, 10) : 0,
+    };
+
+    // Handle status filter (can be comma-separated for multiple values)
+    if (statusParam) {
+      const statuses = statusParam.split(',') as InboxStatus[];
+      filter.status = statuses.length === 1 ? statuses[0] : statuses;
+    }
+
+    // Handle source type filter
+    if (sourceTypeParam) {
+      filter.sourceType = sourceTypeParam as 'direct' | 'mention';
+    }
+
+    // Get paginated inbox items
+    const result = inboxService.getInboxPaginated(id, filter);
+
+    return c.json({
+      items: result.items,
+      total: result.total,
+      offset: filter.offset ?? 0,
+      limit: filter.limit ?? 25,
+      hasMore: (filter.offset ?? 0) + result.items.length < result.total,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get entity inbox:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity inbox' } }, 500);
+  }
+});
+
+// GET /api/entities/:id/inbox/count - Get unread inbox count
+app.get('/api/entities/:id/inbox/count', async (c) => {
+  try {
+    const id = c.req.param('id') as EntityId;
+
+    // Verify entity exists
+    const entity = await api.get(id as unknown as ElementId);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    const count = inboxService.getUnreadCount(id);
+    return c.json({ count });
+  } catch (error) {
+    console.error('[elemental] Failed to get inbox count:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get inbox count' } }, 500);
+  }
+});
+
+// POST /api/entities/:id/inbox/mark-all-read - Mark all inbox items as read
+app.post('/api/entities/:id/inbox/mark-all-read', async (c) => {
+  try {
+    const id = c.req.param('id') as EntityId;
+
+    // Verify entity exists
+    const entity = await api.get(id as unknown as ElementId);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    const count = inboxService.markAllAsRead(id);
+    return c.json({ markedCount: count });
+  } catch (error) {
+    console.error('[elemental] Failed to mark all as read:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to mark all as read' } }, 500);
+  }
+});
+
+// PATCH /api/inbox/:itemId - Update inbox item status
+app.patch('/api/inbox/:itemId', async (c) => {
+  try {
+    const itemId = c.req.param('itemId');
+    const body = await c.req.json<{
+      status: 'read' | 'unread' | 'archived';
+    }>();
+
+    if (!body.status) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'status is required' } }, 400);
+    }
+
+    let item;
+    switch (body.status) {
+      case 'read':
+        item = inboxService.markAsRead(itemId);
+        break;
+      case 'unread':
+        item = inboxService.markAsUnread(itemId);
+        break;
+      case 'archived':
+        item = inboxService.archive(itemId);
+        break;
+      default:
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid status. Must be read, unread, or archived' } }, 400);
+    }
+
+    return c.json(item);
+  } catch (error) {
+    const errorObj = error as { code?: string };
+    if (errorObj.code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Inbox item not found' } }, 404);
+    }
+    console.error('[elemental] Failed to update inbox item:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update inbox item' } }, 500);
+  }
+});
+
+// GET /api/inbox/:itemId - Get single inbox item
+app.get('/api/inbox/:itemId', async (c) => {
+  try {
+    const itemId = c.req.param('itemId');
+    const item = inboxService.getInboxItem(itemId);
+
+    if (!item) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Inbox item not found' } }, 404);
+    }
+
+    return c.json(item);
+  } catch (error) {
+    console.error('[elemental] Failed to get inbox item:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get inbox item' } }, 500);
   }
 });
 

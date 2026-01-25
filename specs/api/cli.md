@@ -91,7 +91,22 @@ Task-specific commands:
 |---------|-------------|
 | `entity register` | Register entity |
 | `entity list` | List entities |
+| `entity set-manager <entity> <manager>` | Set entity's manager |
+| `entity clear-manager <entity>` | Clear entity's manager |
+| `entity reports <manager>` | List direct reports |
+| `entity chain <entity>` | Show management chain |
 | `whoami` | Show current actor |
+
+### Inbox Operations
+
+| Command | Description |
+|---------|-------------|
+| `inbox <entity>` | List entity's inbox |
+| `inbox read <item-id>` | Mark item as read |
+| `inbox read-all <entity>` | Mark all as read |
+| `inbox unread <item-id>` | Mark item as unread |
+| `inbox archive <item-id>` | Archive inbox item |
+| `inbox count <entity>` | Get unread count |
 
 ### Plan Operations
 

@@ -738,6 +738,53 @@ export interface ElementalAPI {
    */
   lookupEntityByName(name: string): Promise<Element | null>;
 
+  /**
+   * Sets the manager (reportsTo) for an entity.
+   *
+   * @param entityId - The entity to set the manager for
+   * @param managerId - The manager entity ID
+   * @param actor - Entity performing this action (for audit trail)
+   * @returns The updated entity
+   * @throws NotFoundError if entity or manager doesn't exist
+   * @throws ValidationError if self-reference or manager is deactivated
+   * @throws ConflictError if circular chain would be created
+   */
+  setEntityManager(
+    entityId: EntityId,
+    managerId: EntityId,
+    actor: EntityId
+  ): Promise<Element>;
+
+  /**
+   * Clears the manager (reportsTo) for an entity.
+   *
+   * @param entityId - The entity to clear the manager for
+   * @param actor - Entity performing this action (for audit trail)
+   * @returns The updated entity
+   * @throws NotFoundError if entity doesn't exist
+   */
+  clearEntityManager(
+    entityId: EntityId,
+    actor: EntityId
+  ): Promise<Element>;
+
+  /**
+   * Gets all entities that report directly to a manager.
+   *
+   * @param managerId - The manager entity ID
+   * @returns Array of entities that report to the manager
+   */
+  getDirectReports(managerId: EntityId): Promise<Element[]>;
+
+  /**
+   * Gets the management chain for an entity (from entity up to root).
+   *
+   * @param entityId - The entity to get the management chain for
+   * @returns Array of entities in the management chain (empty if no manager)
+   * @throws NotFoundError if entity doesn't exist
+   */
+  getManagementChain(entityId: EntityId): Promise<Element[]>;
+
   // --------------------------------------------------------------------------
   // Task Operations
   // --------------------------------------------------------------------------

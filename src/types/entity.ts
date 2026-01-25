@@ -67,6 +67,8 @@ export interface Entity extends Element {
   readonly entityType: EntityTypeValue;
   /** Optional Ed25519 public key, base64 encoded (for cryptographic identity) */
   readonly publicKey?: string;
+  /** Optional manager entity reference (for organizational hierarchy) */
+  readonly reportsTo?: EntityId;
 }
 
 // ============================================================================
@@ -345,6 +347,8 @@ export interface CreateEntityInput {
   createdBy: EntityId;
   /** Optional Ed25519 public key, base64 encoded */
   publicKey?: string;
+  /** Optional manager entity reference (for organizational hierarchy) */
+  reportsTo?: EntityId;
   /** Optional tags */
   tags?: string[];
   /** Optional metadata */
@@ -387,6 +391,7 @@ export async function createEntity(
     name,
     entityType,
     ...(input.publicKey !== undefined && { publicKey: input.publicKey }),
+    ...(input.reportsTo !== undefined && { reportsTo: input.reportsTo }),
   };
 
   return entity;
@@ -399,6 +404,8 @@ export async function createEntity(
 export interface UpdateEntityInput {
   /** Optional new Ed25519 public key, base64 encoded */
   publicKey?: string;
+  /** Optional manager entity reference (null to clear, undefined to keep unchanged) */
+  reportsTo?: EntityId | null;
   /** Optional tags to merge or replace */
   tags?: string[];
   /** Optional metadata to merge */
@@ -410,6 +417,7 @@ export interface UpdateEntityInput {
  *
  * Can update:
  * - publicKey: Add or update cryptographic identity
+ * - reportsTo: Set or clear manager reference (null to clear)
  * - tags: Replace tags
  * - metadata: Merge with existing metadata
  *
@@ -429,15 +437,32 @@ export function updateEntity(entity: Entity, input: UpdateEntityInput): Entity {
 
   const now = createTimestamp();
 
-  // Build the updated entity
+  // Handle reportsTo - null means clear, undefined means keep existing
+  let reportsToValue: EntityId | undefined;
+  if (input.reportsTo === null) {
+    // Explicitly clear reportsTo - don't include it in the result
+    reportsToValue = undefined;
+  } else if (input.reportsTo !== undefined) {
+    // Set new reportsTo value
+    reportsToValue = input.reportsTo;
+  } else {
+    // Keep existing value
+    reportsToValue = entity.reportsTo;
+  }
+
+  // Build the updated entity, excluding reportsTo from spread then conditionally adding it
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { reportsTo: _existingReportsTo, ...entityWithoutReportsTo } = entity;
+
   const updated: Entity = {
-    ...entity,
+    ...entityWithoutReportsTo,
     updatedAt: now,
     tags: input.tags !== undefined ? input.tags : entity.tags,
     metadata: input.metadata !== undefined
       ? { ...entity.metadata, ...input.metadata }
       : entity.metadata,
     ...(input.publicKey !== undefined && { publicKey: input.publicKey }),
+    ...(reportsToValue !== undefined && { reportsTo: reportsToValue }),
     // If publicKey is explicitly undefined, keep existing
     // If publicKey is explicitly null, we would need to handle key removal
   };
@@ -2907,4 +2932,397 @@ export function getTaskCoworkers<T extends TaskLike>(tasks: T[], entityId: strin
  */
 export function countTaskCoworkers<T extends TaskLike>(tasks: T[], entityId: string): number {
   return getTaskCoworkers(tasks, entityId).length;
+}
+
+// ============================================================================
+// Management Hierarchy (reportsTo)
+// ============================================================================
+
+/**
+ * Maximum depth for cycle detection to prevent infinite loops
+ */
+export const MAX_REPORTING_CHAIN_DEPTH = 100;
+
+/**
+ * Result of cycle detection when checking management hierarchy
+ */
+export interface CycleDetectionResult {
+  /** Whether a cycle was detected */
+  hasCycle: boolean;
+  /** The path of entity IDs that form the cycle (if hasCycle is true) */
+  cyclePath?: EntityId[];
+}
+
+/**
+ * Detects if setting a manager would create a circular reporting chain.
+ *
+ * Uses BFS to traverse the reportsTo chain from the proposed manager upward.
+ * If the original entity is found in that chain, a cycle would result.
+ *
+ * @param entityId - The entity that would report to a new manager
+ * @param proposedManagerId - The proposed manager entity ID
+ * @param getEntity - Function to retrieve an entity by ID
+ * @returns Result indicating if a cycle exists and the path if so
+ */
+export function detectReportingCycle(
+  entityId: EntityId,
+  proposedManagerId: EntityId,
+  getEntity: (id: EntityId) => Entity | null
+): CycleDetectionResult {
+  // Self-reference is a trivial cycle
+  if (entityId === proposedManagerId) {
+    return {
+      hasCycle: true,
+      cyclePath: [entityId, proposedManagerId],
+    };
+  }
+
+  // BFS from proposed manager upward through reportsTo chain
+  const visited = new Set<EntityId>();
+  const queue: Array<{ id: EntityId; path: EntityId[] }> = [];
+
+  queue.push({ id: proposedManagerId, path: [entityId, proposedManagerId] });
+  visited.add(proposedManagerId);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    // Depth limit check
+    if (current.path.length > MAX_REPORTING_CHAIN_DEPTH) {
+      // Treat exceeding depth limit as no cycle (unusual but safe)
+      continue;
+    }
+
+    const entity = getEntity(current.id);
+    if (!entity) {
+      // Entity not found, can't continue this path
+      continue;
+    }
+
+    if (entity.reportsTo) {
+      // Found a cycle - the proposed manager's chain leads back to entityId
+      if (entity.reportsTo === entityId) {
+        return {
+          hasCycle: true,
+          cyclePath: [...current.path, entityId],
+        };
+      }
+
+      // Continue traversing if not already visited
+      if (!visited.has(entity.reportsTo)) {
+        visited.add(entity.reportsTo);
+        queue.push({
+          id: entity.reportsTo,
+          path: [...current.path, entity.reportsTo],
+        });
+      }
+    }
+  }
+
+  return { hasCycle: false };
+}
+
+/**
+ * Result of manager validation
+ */
+export interface ManagerValidationResult {
+  /** Whether the manager assignment is valid */
+  valid: boolean;
+  /** Error code if invalid */
+  errorCode?: 'SELF_REFERENCE' | 'ENTITY_NOT_FOUND' | 'ENTITY_DEACTIVATED' | 'CYCLE_DETECTED';
+  /** Human-readable error message if invalid */
+  errorMessage?: string;
+  /** The cycle path if a cycle was detected */
+  cyclePath?: EntityId[];
+}
+
+/**
+ * Validates that an entity can be set as a manager for another entity.
+ *
+ * Validation rules:
+ * 1. Cannot self-reference (entity cannot report to itself)
+ * 2. Manager entity must exist
+ * 3. Manager entity must be active (not deactivated)
+ * 4. No circular chains allowed
+ *
+ * @param entityId - The entity that would report to the manager
+ * @param managerId - The proposed manager entity ID
+ * @param getEntity - Function to retrieve an entity by ID
+ * @returns Validation result with error details if invalid
+ */
+export function validateManager(
+  entityId: EntityId,
+  managerId: EntityId,
+  getEntity: (id: EntityId) => Entity | null
+): ManagerValidationResult {
+  // Check for self-reference
+  if (entityId === managerId) {
+    return {
+      valid: false,
+      errorCode: 'SELF_REFERENCE',
+      errorMessage: 'Entity cannot report to itself',
+    };
+  }
+
+  // Check if manager entity exists
+  const managerEntity = getEntity(managerId);
+  if (!managerEntity) {
+    return {
+      valid: false,
+      errorCode: 'ENTITY_NOT_FOUND',
+      errorMessage: `Manager entity '${managerId}' not found`,
+    };
+  }
+
+  // Check if manager is active
+  if (isEntityDeactivated(managerEntity)) {
+    return {
+      valid: false,
+      errorCode: 'ENTITY_DEACTIVATED',
+      errorMessage: `Manager entity '${managerId}' is deactivated`,
+    };
+  }
+
+  // Check for cycles
+  const cycleResult = detectReportingCycle(entityId, managerId, getEntity);
+  if (cycleResult.hasCycle) {
+    return {
+      valid: false,
+      errorCode: 'CYCLE_DETECTED',
+      errorMessage: `Setting '${managerId}' as manager would create a cycle: ${cycleResult.cyclePath?.join(' -> ')}`,
+      cyclePath: cycleResult.cyclePath,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Gets the management chain for an entity (from entity up to root).
+ *
+ * Returns an ordered array starting with the entity's direct manager
+ * and ending with the root entity (an entity with no reportsTo).
+ *
+ * @param entity - The entity to get the management chain for
+ * @param getEntity - Function to retrieve an entity by ID
+ * @returns Array of entities in the management chain (empty if no manager)
+ */
+export function getManagementChain(
+  entity: Entity,
+  getEntity: (id: EntityId) => Entity | null
+): Entity[] {
+  const chain: Entity[] = [];
+  const visited = new Set<EntityId>();
+
+  let currentId = entity.reportsTo;
+
+  while (currentId && chain.length < MAX_REPORTING_CHAIN_DEPTH) {
+    // Prevent infinite loops from data corruption
+    if (visited.has(currentId)) {
+      break;
+    }
+    visited.add(currentId);
+
+    const manager = getEntity(currentId);
+    if (!manager) {
+      break;
+    }
+
+    chain.push(manager);
+    currentId = manager.reportsTo;
+  }
+
+  return chain;
+}
+
+/**
+ * Gets the direct reports for an entity (entities where reportsTo = managerId).
+ *
+ * @param entities - Array of entities to search
+ * @param managerId - The manager entity ID
+ * @returns Array of entities that report to the specified manager
+ */
+export function getDirectReports<T extends Entity>(entities: T[], managerId: EntityId): T[] {
+  return entities.filter((e) => e.reportsTo === managerId);
+}
+
+/**
+ * Node in an organizational chart tree structure
+ */
+export interface OrgChartNode {
+  /** The entity at this node */
+  entity: Entity;
+  /** Direct reports (children in the org chart) */
+  directReports: OrgChartNode[];
+}
+
+/**
+ * Builds an organizational chart tree from a set of entities.
+ *
+ * @param entities - All entities to include in the org chart
+ * @param rootId - Optional root entity ID (if not provided, returns all root entities)
+ * @returns Array of org chart nodes (root entities with their report trees)
+ */
+export function buildOrgChart<T extends Entity>(
+  entities: T[],
+  rootId?: EntityId
+): OrgChartNode[] {
+  // Build a map for quick lookup (use string keys since entity.id is ElementId)
+  const entityMap = new Map<string, T>();
+  for (const entity of entities) {
+    entityMap.set(entity.id, entity);
+  }
+
+  // Build children map (managerId -> direct reports)
+  const childrenMap = new Map<string, T[]>();
+  const rootEntities: T[] = [];
+
+  for (const entity of entities) {
+    if (entity.reportsTo) {
+      const children = childrenMap.get(entity.reportsTo) ?? [];
+      children.push(entity);
+      childrenMap.set(entity.reportsTo, children);
+    } else {
+      rootEntities.push(entity);
+    }
+  }
+
+  // Recursive function to build tree node
+  function buildNode(entity: T): OrgChartNode {
+    const children = childrenMap.get(entity.id) ?? [];
+    return {
+      entity,
+      directReports: children.map(buildNode),
+    };
+  }
+
+  // If a specific root is requested
+  if (rootId) {
+    const rootEntity = entityMap.get(rootId);
+    if (!rootEntity) {
+      return [];
+    }
+    return [buildNode(rootEntity)];
+  }
+
+  // Return all root entities (those with no manager)
+  return rootEntities.map(buildNode);
+}
+
+/**
+ * Checks if an entity has any direct reports.
+ *
+ * @param entities - Array of entities to search
+ * @param entityId - The entity ID to check
+ * @returns True if the entity has at least one direct report
+ */
+export function hasDirectReports<T extends Entity>(entities: T[], entityId: EntityId): boolean {
+  return entities.some((e) => e.reportsTo === entityId);
+}
+
+/**
+ * Counts the number of direct reports for an entity.
+ *
+ * @param entities - Array of entities to search
+ * @param entityId - The entity ID to count reports for
+ * @returns Number of direct reports
+ */
+export function countDirectReports<T extends Entity>(entities: T[], entityId: EntityId): number {
+  return entities.filter((e) => e.reportsTo === entityId).length;
+}
+
+/**
+ * Gets all entities in the subtree under a manager (all reports, recursively).
+ *
+ * @param entities - Array of entities to search
+ * @param managerId - The root manager entity ID
+ * @returns Array of all entities in the subtree (not including the manager)
+ */
+export function getAllReports<T extends Entity>(entities: T[], managerId: EntityId): T[] {
+  const result: T[] = [];
+  const visited = new Set<string>();
+  const queue: string[] = [managerId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+
+    if (visited.has(currentId)) {
+      continue;
+    }
+    visited.add(currentId);
+
+    // Find direct reports of current entity
+    const directReports = entities.filter((e) => e.reportsTo === currentId);
+
+    for (const report of directReports) {
+      if (!visited.has(report.id)) {
+        result.push(report);
+        queue.push(report.id);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Gets the root manager for an entity (the entity at the top of the chain).
+ *
+ * @param entity - The entity to find the root for
+ * @param getEntity - Function to retrieve an entity by ID
+ * @returns The root manager entity, or null if the entity has no manager
+ */
+export function getRootManager(
+  entity: Entity,
+  getEntity: (id: EntityId) => Entity | null
+): Entity | null {
+  if (!entity.reportsTo) {
+    return null;
+  }
+
+  const chain = getManagementChain(entity, getEntity);
+  return chain.length > 0 ? chain[chain.length - 1] : null;
+}
+
+/**
+ * Checks if entityA is a manager of entityB (directly or indirectly).
+ *
+ * @param managerId - The potential manager entity ID
+ * @param reportId - The potential report entity ID
+ * @param getEntity - Function to retrieve an entity by ID
+ * @returns True if managerId is in reportId's management chain
+ */
+export function isManagerOf(
+  managerId: EntityId,
+  reportId: EntityId,
+  getEntity: (id: EntityId) => Entity | null
+): boolean {
+  const report = getEntity(reportId);
+  if (!report) {
+    return false;
+  }
+
+  const chain = getManagementChain(report, getEntity);
+  // Use string comparison since entity.id is ElementId but managerId is EntityId
+  return chain.some((m) => (m.id as string) === (managerId as string));
+}
+
+/**
+ * Gets entities that have no manager (root entities in the org hierarchy).
+ *
+ * @param entities - Array of entities to filter
+ * @returns Entities with no reportsTo value
+ */
+export function getRootEntities<T extends Entity>(entities: T[]): T[] {
+  return entities.filter((e) => !e.reportsTo);
+}
+
+/**
+ * Gets entities that have a manager.
+ *
+ * @param entities - Array of entities to filter
+ * @returns Entities with a reportsTo value
+ */
+export function getEntitiesWithManager<T extends Entity>(entities: T[]): T[] {
+  return entities.filter((e) => e.reportsTo !== undefined);
 }

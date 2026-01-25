@@ -1594,3 +1594,569 @@ describe('ElementalAPI', () => {
     });
   });
 });
+
+// ============================================================================
+// Entity Management Hierarchy Tests
+// ============================================================================
+
+import { createEntity, type Entity, EntityTypeValue, deactivateEntity } from '../types/entity.js';
+
+describe('Entity Management Hierarchy API', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+
+  beforeEach(async () => {
+    backend = createStorage(':memory:');
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+  });
+
+  afterEach(() => {
+    backend.close();
+  });
+
+  // Helper to create test entities
+  async function createTestEntity(name: string, reportsTo?: EntityId): Promise<Entity> {
+    const entity = await createEntity({
+      name,
+      entityType: EntityTypeValue.HUMAN,
+      createdBy: mockEntityId,
+      reportsTo,
+    });
+    await api.create(toCreateInput(entity));
+    return entity;
+  }
+
+  describe('setEntityManager', () => {
+    it('sets the manager for an entity', async () => {
+      const manager = await createTestEntity('manager');
+      const employee = await createTestEntity('employee');
+
+      const updated = await api.setEntityManager(
+        employee.id as EntityId,
+        manager.id as EntityId,
+        mockEntityId
+      );
+
+      expect(updated.reportsTo).toBe(manager.id);
+    });
+
+    it('throws NotFoundError when entity does not exist', async () => {
+      const manager = await createTestEntity('manager');
+
+      await expect(
+        api.setEntityManager(
+          'el-nonexistent' as EntityId,
+          manager.id as EntityId,
+          mockEntityId
+        )
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it('throws NotFoundError when manager does not exist', async () => {
+      const employee = await createTestEntity('employee');
+
+      await expect(
+        api.setEntityManager(
+          employee.id as EntityId,
+          'el-nonexistent' as EntityId,
+          mockEntityId
+        )
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it('throws ValidationError for self-reference', async () => {
+      const employee = await createTestEntity('employee');
+
+      await expect(
+        api.setEntityManager(
+          employee.id as EntityId,
+          employee.id as EntityId,
+          mockEntityId
+        )
+      ).rejects.toThrow();
+    });
+
+    it('throws ConflictError for cycle detection', async () => {
+      const manager = await createTestEntity('manager');
+      const employee = await createTestEntity('employee', manager.id as EntityId);
+
+      // Try to make manager report to employee (creates cycle)
+      await expect(
+        api.setEntityManager(
+          manager.id as EntityId,
+          employee.id as EntityId,
+          mockEntityId
+        )
+      ).rejects.toThrow(ConflictError);
+    });
+
+    it('throws ValidationError when manager is deactivated', async () => {
+      const manager = await createTestEntity('manager');
+      const employee = await createTestEntity('employee');
+
+      // Deactivate the manager
+      const deactivatedManager = deactivateEntity(manager, {
+        deactivatedBy: mockEntityId,
+        reason: 'left company',
+      });
+      await api.update(manager.id, deactivatedManager as unknown as Partial<Element>);
+
+      await expect(
+        api.setEntityManager(
+          employee.id as EntityId,
+          manager.id as EntityId,
+          mockEntityId
+        )
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('clearEntityManager', () => {
+    it('clears the manager for an entity', async () => {
+      const manager = await createTestEntity('manager');
+      const employee = await createTestEntity('employee', manager.id as EntityId);
+
+      const updated = await api.clearEntityManager(
+        employee.id as EntityId,
+        mockEntityId
+      );
+
+      expect(updated.reportsTo).toBeUndefined();
+    });
+
+    it('is idempotent - clearing when no manager is set', async () => {
+      const employee = await createTestEntity('employee');
+
+      const updated = await api.clearEntityManager(
+        employee.id as EntityId,
+        mockEntityId
+      );
+
+      expect(updated.reportsTo).toBeUndefined();
+    });
+
+    it('throws NotFoundError when entity does not exist', async () => {
+      await expect(
+        api.clearEntityManager(
+          'el-nonexistent' as EntityId,
+          mockEntityId
+        )
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('getDirectReports', () => {
+    it('returns all entities reporting to a manager', async () => {
+      const manager = await createTestEntity('manager');
+      await createTestEntity('employee1', manager.id as EntityId);
+      await createTestEntity('employee2', manager.id as EntityId);
+      await createTestEntity('unrelated');
+
+      const reports = await api.getDirectReports(manager.id as EntityId);
+
+      expect(reports).toHaveLength(2);
+      expect(reports.map((e) => e.name).sort()).toEqual(['employee1', 'employee2']);
+    });
+
+    it('returns empty array when no direct reports', async () => {
+      const manager = await createTestEntity('manager');
+
+      const reports = await api.getDirectReports(manager.id as EntityId);
+
+      expect(reports).toEqual([]);
+    });
+
+    it('returns only direct reports, not indirect ones', async () => {
+      const ceo = await createTestEntity('ceo');
+      const manager = await createTestEntity('manager', ceo.id as EntityId);
+      await createTestEntity('employee', manager.id as EntityId);
+
+      const reports = await api.getDirectReports(ceo.id as EntityId);
+
+      expect(reports).toHaveLength(1);
+      expect(reports[0].name).toBe('manager');
+    });
+  });
+
+  describe('getManagementChain', () => {
+    it('returns the management chain from entity to root', async () => {
+      const ceo = await createTestEntity('ceo');
+      const vp = await createTestEntity('vp', ceo.id as EntityId);
+      const manager = await createTestEntity('manager', vp.id as EntityId);
+      const employee = await createTestEntity('employee', manager.id as EntityId);
+
+      const chain = await api.getManagementChain(employee.id as EntityId);
+
+      expect(chain).toHaveLength(3);
+      expect(chain[0].name).toBe('manager');
+      expect(chain[1].name).toBe('vp');
+      expect(chain[2].name).toBe('ceo');
+    });
+
+    it('returns empty array when entity has no manager', async () => {
+      const employee = await createTestEntity('employee');
+
+      const chain = await api.getManagementChain(employee.id as EntityId);
+
+      expect(chain).toEqual([]);
+    });
+
+    it('throws NotFoundError when entity does not exist', async () => {
+      await expect(
+        api.getManagementChain('el-nonexistent' as EntityId)
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('getOrgChart', () => {
+    it('returns all root entities when no rootId specified', async () => {
+      const ceo1 = await createTestEntity('ceo1');
+      const ceo2 = await createTestEntity('ceo2');
+      await createTestEntity('employee', ceo1.id as EntityId);
+
+      const chart = await api.getOrgChart();
+
+      expect(chart).toHaveLength(2);
+      expect(chart.map((n) => n.entity.name).sort()).toEqual(['ceo1', 'ceo2']);
+    });
+
+    it('returns specific subtree when rootId specified', async () => {
+      const ceo = await createTestEntity('ceo');
+      const vp = await createTestEntity('vp', ceo.id as EntityId);
+      const manager = await createTestEntity('manager', vp.id as EntityId);
+
+      const chart = await api.getOrgChart(vp.id as EntityId);
+
+      expect(chart).toHaveLength(1);
+      expect(chart[0].entity.name).toBe('vp');
+      expect(chart[0].directReports).toHaveLength(1);
+      expect(chart[0].directReports[0].entity.name).toBe('manager');
+    });
+
+    it('builds nested hierarchy correctly', async () => {
+      const ceo = await createTestEntity('ceo');
+      const vp1 = await createTestEntity('vp1', ceo.id as EntityId);
+      const vp2 = await createTestEntity('vp2', ceo.id as EntityId);
+      await createTestEntity('mgr1', vp1.id as EntityId);
+
+      const chart = await api.getOrgChart(ceo.id as EntityId);
+
+      expect(chart).toHaveLength(1);
+      expect(chart[0].directReports).toHaveLength(2);
+    });
+
+    it('excludes deactivated entities', async () => {
+      const ceo = await createTestEntity('ceo');
+      const activeVp = await createTestEntity('active-vp', ceo.id as EntityId);
+      const deactivatedVp = await createTestEntity('deactivated-vp', ceo.id as EntityId);
+
+      // Deactivate one VP
+      const deactivated = deactivateEntity(deactivatedVp, {
+        deactivatedBy: mockEntityId,
+        reason: 'left company',
+      });
+      await api.update(deactivatedVp.id, deactivated as unknown as Partial<Element>);
+
+      const chart = await api.getOrgChart(ceo.id as EntityId);
+
+      expect(chart).toHaveLength(1);
+      expect(chart[0].directReports).toHaveLength(1);
+      expect(chart[0].directReports[0].entity.name).toBe('active-vp');
+    });
+
+    it('returns empty array when rootId not found', async () => {
+      await createTestEntity('ceo');
+
+      const chart = await api.getOrgChart('el-nonexistent' as EntityId);
+
+      expect(chart).toEqual([]);
+    });
+  });
+});
+
+// ============================================================================
+// Message Inbox Integration Tests (Phase 4)
+// ============================================================================
+
+import { createDirectChannel } from '../types/channel.js';
+import { createMessage } from '../types/message.js';
+import { createInboxService, type InboxService } from '../services/inbox.js';
+import { InboxSourceType } from '../types/inbox.js';
+
+describe('Message Inbox Integration', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+  let inboxService: InboxService;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+    inboxService = createInboxService(backend);
+  });
+
+  afterEach(() => {
+    backend.close();
+  });
+
+  /**
+   * Helper to create a test entity
+   */
+  async function createTestEntityForInbox(name: string): Promise<Element> {
+    const entity = await createEntity({
+      name,
+      entityType: EntityTypeValue.AGENT,
+      createdBy: 'el-system' as EntityId,
+    });
+    return api.create(toCreateInput(entity));
+  }
+
+  /**
+   * Helper to create a test document
+   */
+  async function createContentDoc(content: string, createdBy: EntityId): Promise<Element> {
+    const doc = await createDocument({
+      contentType: ContentType.TEXT,
+      content,
+      createdBy,
+    });
+    return api.create(toCreateInput(doc));
+  }
+
+  describe('Direct Message Inbox', () => {
+    it('creates inbox item for recipient when sending direct message', async () => {
+      // Create two entities
+      const alice = await createTestEntityForInbox('alice');
+      const bob = await createTestEntityForInbox('bob');
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+
+      // Create a direct channel between alice and bob
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create a content document for the message
+      const contentDoc = await createContentDoc('Hello Bob!', aliceId);
+
+      // Create a message from alice to bob (in the direct channel)
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      await api.create(toCreateInput(message));
+
+      // Check that bob has an inbox item
+      const bobInbox = inboxService.getInbox(bobId);
+      expect(bobInbox.length).toBe(1);
+      expect(bobInbox[0].sourceType).toBe(InboxSourceType.DIRECT);
+      expect(bobInbox[0].recipientId).toBe(bobId);
+
+      // Alice should NOT have an inbox item (she sent it)
+      const aliceInbox = inboxService.getInbox(aliceId);
+      expect(aliceInbox.length).toBe(0);
+    });
+
+    it('does not create inbox item for sender in direct message', async () => {
+      // Create two entities
+      const alice = await createTestEntityForInbox('alice-sender');
+      const bob = await createTestEntityForInbox('bob-recipient');
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+
+      // Create a direct channel
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create and send message
+      const contentDoc = await createContentDoc('Test message', aliceId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      await api.create(toCreateInput(message));
+
+      // Sender (alice) should not have inbox item
+      const aliceInbox = inboxService.getInbox(aliceId);
+      expect(aliceInbox.length).toBe(0);
+    });
+  });
+
+  describe('@Mention Processing', () => {
+    it('creates inbox item with mention source type for @mentioned entity', async () => {
+      // Create entities
+      const alice = await createTestEntityForInbox('alice-mention');
+      const bob = await createTestEntityForInbox('bob-mention');
+      const charlie = await createTestEntityForInbox('charlie-mention');
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+      const charlieId = charlie.id as unknown as EntityId;
+
+      // Create a direct channel between alice and bob
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create a message that @mentions charlie
+      const contentDoc = await createContentDoc('Hey @charlie-mention check this out!', aliceId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      await api.create(toCreateInput(message));
+
+      // Charlie should have an inbox item from the mention
+      const charlieInbox = inboxService.getInbox(charlieId);
+      expect(charlieInbox.length).toBe(1);
+      expect(charlieInbox[0].sourceType).toBe(InboxSourceType.MENTION);
+
+      // Bob should have inbox item from direct message
+      const bobInbox = inboxService.getInbox(bobId);
+      expect(bobInbox.length).toBe(1);
+      expect(bobInbox[0].sourceType).toBe(InboxSourceType.DIRECT);
+    });
+
+    it('creates mentions dependency for @mentioned entity', async () => {
+      // Create entities
+      const alice = await createTestEntityForInbox('alice-dep');
+      const bob = await createTestEntityForInbox('bob-dep');
+      const charlieId = (await createTestEntityForInbox('charlie-dep')).id;
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+
+      // Create a direct channel
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Create a message mentioning charlie
+      const contentDoc = await createContentDoc('Cc @charlie-dep for review', aliceId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      const createdMessage = await api.create(toCreateInput(message));
+
+      // Check that a mentions dependency was created
+      const deps = await api.getDependencies(createdMessage.id);
+      const mentionDep = deps.find(d => d.type === 'mentions' && d.targetId === charlieId);
+      expect(mentionDep).toBeDefined();
+      expect(mentionDep?.sourceId).toBe(createdMessage.id);
+    });
+
+    it('does not create inbox for self-mention', async () => {
+      // Create entities
+      const alice = await createTestEntityForInbox('alice-self');
+      const bob = await createTestEntityForInbox('bob-self');
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+
+      // Create a direct channel
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Alice mentions herself in the message
+      const contentDoc = await createContentDoc('I @alice-self did this', aliceId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      await api.create(toCreateInput(message));
+
+      // Alice should NOT have an inbox item (can't inbox yourself)
+      const aliceInbox = inboxService.getInbox(aliceId);
+      expect(aliceInbox.length).toBe(0);
+    });
+
+    it('handles multiple @mentions in same message', async () => {
+      // Create entities
+      const alice = await createTestEntityForInbox('alice-multi');
+      const bob = await createTestEntityForInbox('bob-multi');
+      const charlie = await createTestEntityForInbox('charlie-multi');
+      const david = await createTestEntityForInbox('david-multi');
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+      const charlieId = charlie.id as unknown as EntityId;
+      const davidId = david.id as unknown as EntityId;
+
+      // Create a direct channel between alice and bob
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Message mentioning both charlie and david
+      const contentDoc = await createContentDoc('@charlie-multi @david-multi please review', aliceId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      await api.create(toCreateInput(message));
+
+      // Both charlie and david should have inbox items
+      const charlieInbox = inboxService.getInbox(charlieId);
+      expect(charlieInbox.length).toBe(1);
+      expect(charlieInbox[0].sourceType).toBe(InboxSourceType.MENTION);
+
+      const davidInbox = inboxService.getInbox(davidId);
+      expect(davidInbox.length).toBe(1);
+      expect(davidInbox[0].sourceType).toBe(InboxSourceType.MENTION);
+    });
+
+    it('ignores invalid @mentions (non-existent entities)', async () => {
+      // Create entities
+      const alice = await createTestEntityForInbox('alice-invalid');
+      const bob = await createTestEntityForInbox('bob-invalid');
+      const aliceId = alice.id as unknown as EntityId;
+      const bobId = bob.id as unknown as EntityId;
+
+      // Create a direct channel
+      const channel = await createDirectChannel({
+        entityA: aliceId,
+        entityB: bobId,
+        createdBy: aliceId,
+      });
+      const createdChannel = await api.create(toCreateInput(channel));
+
+      // Message with invalid mention
+      const contentDoc = await createContentDoc('@nonexistent-entity please help', aliceId);
+      const message = await createMessage({
+        channelId: createdChannel.id as any,
+        sender: aliceId,
+        contentRef: contentDoc.id as any,
+      });
+      const createdMessage = await api.create(toCreateInput(message));
+
+      // No mentions dependency should be created for non-existent entity
+      const deps = await api.getDependencies(createdMessage.id);
+      const mentionDeps = deps.filter(d => d.type === 'mentions');
+      expect(mentionDeps.length).toBe(0);
+    });
+  });
+});

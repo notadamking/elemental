@@ -26,6 +26,12 @@ Entities provide:
 |----------|------|----------|-------------|
 | `publicKey` | `string` | No | Ed25519 public key, base64 encoded |
 
+### Management Hierarchy
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `reportsTo` | `EntityId` | No | Manager entity reference (for org hierarchy) |
+
 ## Entity Types
 
 ### agent
@@ -168,6 +174,52 @@ Systems can operate in hybrid mode:
 - Some entities use soft identity (unverified)
 - Queries can filter by verification status
 - Gradual migration path
+
+## Management Hierarchy
+
+The `reportsTo` field creates an optional management hierarchy between entities.
+
+### Hierarchy Rules
+
+- **No self-reference**: An entity cannot report to itself
+- **Cycle detection**: BFS traversal ensures no circular reporting chains (A→B→C→A)
+- **No type restrictions**: Any entity type can report to any other entity type
+- **Reference validation**: The target entity must exist and be active
+- **Optional**: Most entities won't have a manager
+
+### Hierarchy Operations
+
+| Operation | Description |
+|-----------|-------------|
+| `setEntityManager(entityId, managerId, actor)` | Set reports_to reference |
+| `clearEntityManager(entityId, actor)` | Clear reports_to (set to null) |
+| `getDirectReports(managerId)` | Get entities reporting to manager |
+| `getManagementChain(entityId)` | Get chain of managers up to root |
+| `getOrgChart(rootId?)` | Get hierarchical org structure |
+
+### Cycle Detection Algorithm
+
+Before setting `reportsTo`, verify no cycle would result:
+1. Start BFS from proposed manager
+2. Follow `reportsTo` chain upward
+3. If original entity is found in chain, reject with `CYCLE_DETECTED`
+4. Depth limit: 100 levels (configurable)
+
+### CLI Commands
+
+```bash
+# Set manager
+el entity set-manager <entity-id> <manager-id>
+
+# Clear manager
+el entity clear-manager <entity-id>
+
+# List direct reports
+el entity reports <manager-id>
+
+# Show management chain
+el entity chain <entity-id>
+```
 
 ## Entity Lifecycle
 

@@ -1038,6 +1038,35 @@ For mutations (create, update, delete):
   - [x] Server: Add `POST /api/sync/export` and `POST /api/sync/import` endpoints
   - [x] **Verify:** Playwright tests passing (12 TB63 tests)
 
+### Phase 16: Entity Inbox UI
+
+- [ ] **TB64: Entity Inbox Tab**
+  - [ ] Server: Add `GET /api/entities/:id/inbox` endpoint (with hydration support)
+  - [ ] Server: Add `GET /api/entities/:id/inbox/count` endpoint
+  - [ ] Web: Add "Inbox" tab to EntityDetailPanel
+  - [ ] Web: Create InboxTab component with unread count badge in tab
+  - [ ] Web: InboxItemCard component showing: sender avatar, sender name, channel name, message preview, timestamp, source badge (direct/mention), read indicator
+  - [ ] Web: Click item → navigate to message in channel
+  - [ ] **Verify:** Playwright tests passing
+
+- [ ] **TB65: Inbox Actions**
+  - [ ] Server: Add `PATCH /api/inbox/:itemId` endpoint (status update)
+  - [ ] Server: Add `POST /api/inbox/mark-all-read` endpoint
+  - [ ] Web: Mark as read/unread toggle on inbox items
+  - [ ] Web: "Mark all read" bulk action button
+  - [ ] Web: Archive action on inbox items
+  - [ ] Web: WebSocket events for real-time inbox updates
+  - [ ] **Verify:** Playwright tests passing
+
+- [ ] **TB66: Entity Management Hierarchy**
+  - [ ] Server: Add `GET /api/entities/:id/reports` endpoint (direct reports)
+  - [ ] Server: Add `GET /api/entities/:id/chain` endpoint (management chain)
+  - [ ] Server: Add `PATCH /api/entities/:id/manager` endpoint (set/clear manager)
+  - [ ] Web: Add "Reports To" field in EntityDetailPanel (editable)
+  - [ ] Web: Add "Direct Reports" section showing entities reporting to this one
+  - [ ] Web: Org chart visualization (tree view of hierarchy)
+  - [ ] **Verify:** Playwright tests passing
+
 ---
 
 ## 8. Verification Approach

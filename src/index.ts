@@ -132,3 +132,6 @@ export {
   SyncService,
   createSyncService,
 } from './sync/index.js';
+
+// Export services
+export { InboxService, createInboxService } from './services/inbox.js';

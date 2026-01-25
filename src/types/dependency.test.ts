@@ -50,6 +50,7 @@ import {
   isAssociativeDependency,
   isAttributionDependency,
   isThreadingDependency,
+  isMentionsDependency,
   participatesInCycleDetection,
   getAwaitsMetadata,
   getValidatesMetadata,
@@ -105,10 +106,11 @@ describe('AssociativeDependencyType', () => {
     expect(AssociativeDependencyType.DUPLICATES).toBe('duplicates');
     expect(AssociativeDependencyType.CAUSED_BY).toBe('caused-by');
     expect(AssociativeDependencyType.VALIDATES).toBe('validates');
+    expect(AssociativeDependencyType.MENTIONS).toBe('mentions');
   });
 
-  test('has exactly 6 types', () => {
-    expect(Object.keys(AssociativeDependencyType)).toHaveLength(6);
+  test('has exactly 7 types', () => {
+    expect(Object.keys(AssociativeDependencyType)).toHaveLength(7);
   });
 });
 
@@ -147,6 +149,7 @@ describe('DependencyType', () => {
     expect(DependencyType.DUPLICATES).toBe('duplicates');
     expect(DependencyType.CAUSED_BY).toBe('caused-by');
     expect(DependencyType.VALIDATES).toBe('validates');
+    expect(DependencyType.MENTIONS).toBe('mentions');
     // Attribution
     expect(DependencyType.AUTHORED_BY).toBe('authored-by');
     expect(DependencyType.ASSIGNED_TO).toBe('assigned-to');
@@ -155,9 +158,9 @@ describe('DependencyType', () => {
     expect(DependencyType.REPLIES_TO).toBe('replies-to');
   });
 
-  test('has exactly 13 types total', () => {
-    expect(Object.keys(DependencyType)).toHaveLength(13);
-    expect(VALID_DEPENDENCY_TYPES).toHaveLength(13);
+  test('has exactly 14 types total', () => {
+    expect(Object.keys(DependencyType)).toHaveLength(14);
+    expect(VALID_DEPENDENCY_TYPES).toHaveLength(14);
   });
 });
 
@@ -268,6 +271,7 @@ describe('isAssociativeDependencyType', () => {
     expect(isAssociativeDependencyType('duplicates')).toBe(true);
     expect(isAssociativeDependencyType('caused-by')).toBe(true);
     expect(isAssociativeDependencyType('validates')).toBe(true);
+    expect(isAssociativeDependencyType('mentions')).toBe(true);
   });
 
   test('rejects non-associative types', () => {
@@ -1300,6 +1304,27 @@ describe('isThreadingDependency', () => {
   });
 });
 
+describe('isMentionsDependency', () => {
+  test('returns true for mentions type', () => {
+    expect(isMentionsDependency(createTestDependency({ type: DependencyType.MENTIONS }))).toBe(
+      true
+    );
+  });
+
+  test('returns false for non-mentions types', () => {
+    expect(isMentionsDependency(createTestDependency({ type: DependencyType.BLOCKS }))).toBe(false);
+    expect(isMentionsDependency(createTestDependency({ type: DependencyType.RELATES_TO }))).toBe(
+      false
+    );
+    expect(isMentionsDependency(createTestDependency({ type: DependencyType.AUTHORED_BY }))).toBe(
+      false
+    );
+    expect(isMentionsDependency(createTestDependency({ type: DependencyType.REPLIES_TO }))).toBe(
+      false
+    );
+  });
+});
+
 describe('participatesInCycleDetection', () => {
   test('returns true for blocking types', () => {
     expect(participatesInCycleDetection(DependencyType.BLOCKS)).toBe(true);
@@ -1476,6 +1501,7 @@ describe('getDependencyTypeDisplayName', () => {
     expect(getDependencyTypeDisplayName(DependencyType.DUPLICATES)).toBe('Duplicates');
     expect(getDependencyTypeDisplayName(DependencyType.CAUSED_BY)).toBe('Caused By');
     expect(getDependencyTypeDisplayName(DependencyType.VALIDATES)).toBe('Validates');
+    expect(getDependencyTypeDisplayName(DependencyType.MENTIONS)).toBe('Mentions');
     expect(getDependencyTypeDisplayName(DependencyType.AUTHORED_BY)).toBe('Authored By');
     expect(getDependencyTypeDisplayName(DependencyType.ASSIGNED_TO)).toBe('Assigned To');
     expect(getDependencyTypeDisplayName(DependencyType.APPROVED_BY)).toBe('Approved By');

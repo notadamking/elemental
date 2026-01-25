@@ -253,6 +253,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { teamCommand } = await import('./commands/team.js');
   const { documentCommand } = await import('./commands/document.js');
   const { messageCommand } = await import('./commands/message.js');
+  const { inboxCommand } = await import('./commands/inbox.js');
   const { completionCommand } = await import('./commands/completion.js');
   const { aliasCommand } = await import('./commands/alias.js');
 
@@ -308,6 +309,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(teamCommand);
   registerCommand(documentCommand);
   registerCommand(messageCommand);
+  registerCommand(inboxCommand);
 
   // Completion command
   registerCommand(completionCommand);

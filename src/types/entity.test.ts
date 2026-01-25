@@ -46,6 +46,20 @@ import {
   isNameUnique,
   getUniqueTags,
   countByEntityType,
+  // Management hierarchy functions
+  detectReportingCycle,
+  validateManager,
+  getManagementChain,
+  getDirectReports,
+  buildOrgChart,
+  hasDirectReports,
+  countDirectReports,
+  getAllReports,
+  getRootManager,
+  isManagerOf,
+  getRootEntities,
+  getEntitiesWithManager,
+  MAX_REPORTING_CHAIN_DEPTH,
 } from './entity.js';
 import { ElementId, EntityId, ElementType, Timestamp } from './element.js';
 import { ValidationError } from '../errors/error.js';
@@ -4465,5 +4479,636 @@ describe('countTaskCoworkers', () => {
     ];
 
     expect(countTaskCoworkers(tasks, 'entity-a')).toBe(0);
+  });
+});
+
+// ============================================================================
+// Management Hierarchy (reportsTo) Tests
+// ============================================================================
+
+// Helper to create entities with reportsTo
+function createTestEntityWithManager(id: string, name: string, reportsTo?: string): Entity {
+  return {
+    id: id as ElementId,
+    type: ElementType.ENTITY,
+    createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+    updatedAt: '2025-01-22T10:00:00.000Z' as Timestamp,
+    createdBy: 'el-system1' as EntityId,
+    tags: [],
+    metadata: {},
+    name,
+    entityType: EntityTypeValue.HUMAN,
+    ...(reportsTo && { reportsTo: reportsTo as EntityId }),
+  };
+}
+
+describe('detectReportingCycle', () => {
+  test('detects self-reference as a cycle', () => {
+    const entityId = 'el-alice' as EntityId;
+    const getEntity = (): Entity | null => null;
+
+    const result = detectReportingCycle(entityId, entityId, getEntity);
+
+    expect(result.hasCycle).toBe(true);
+    expect(result.cyclePath).toEqual([entityId, entityId]);
+  });
+
+  test('detects no cycle when manager has no reportsTo', () => {
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const bob = createTestEntityWithManager('el-bob', 'bob');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-bob') return bob;
+      return null;
+    };
+
+    const result = detectReportingCycle(
+      'el-alice' as EntityId,
+      'el-bob' as EntityId,
+      getEntity
+    );
+
+    expect(result.hasCycle).toBe(false);
+    expect(result.cyclePath).toBeUndefined();
+  });
+
+  test('detects cycle when proposed manager reports to the entity', () => {
+    // Alice wants to report to Bob, but Bob already reports to Alice
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const bob = createTestEntityWithManager('el-bob', 'bob', 'el-alice');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      if (id === 'el-bob') return bob;
+      return null;
+    };
+
+    const result = detectReportingCycle(
+      'el-alice' as EntityId,
+      'el-bob' as EntityId,
+      getEntity
+    );
+
+    expect(result.hasCycle).toBe(true);
+    expect(result.cyclePath).toContain('el-alice');
+    expect(result.cyclePath).toContain('el-bob');
+  });
+
+  test('detects cycle in longer chain', () => {
+    // Alice -> Bob -> Carol -> (proposing Carol reports to Alice creates cycle)
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const bob = createTestEntityWithManager('el-bob', 'bob', 'el-alice');
+    const carol = createTestEntityWithManager('el-carol', 'carol', 'el-bob');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      if (id === 'el-bob') return bob;
+      if (id === 'el-carol') return carol;
+      return null;
+    };
+
+    // If Carol tries to set Alice as manager, it would create: Alice -> Bob -> Carol -> Alice
+    const result = detectReportingCycle(
+      'el-alice' as EntityId,
+      'el-carol' as EntityId,
+      getEntity
+    );
+
+    expect(result.hasCycle).toBe(true);
+    expect(result.cyclePath?.length).toBeGreaterThan(2);
+  });
+
+  test('returns no cycle when manager chain does not include the entity', () => {
+    // Dave wants to report to Carol, Carol -> Bob -> Alice (no cycle)
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const bob = createTestEntityWithManager('el-bob', 'bob', 'el-alice');
+    const carol = createTestEntityWithManager('el-carol', 'carol', 'el-bob');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      if (id === 'el-bob') return bob;
+      if (id === 'el-carol') return carol;
+      return null;
+    };
+
+    const result = detectReportingCycle(
+      'el-dave' as EntityId,
+      'el-carol' as EntityId,
+      getEntity
+    );
+
+    expect(result.hasCycle).toBe(false);
+  });
+
+  test('handles missing entities gracefully', () => {
+    const getEntity = (): Entity | null => null;
+
+    const result = detectReportingCycle(
+      'el-alice' as EntityId,
+      'el-nonexistent' as EntityId,
+      getEntity
+    );
+
+    expect(result.hasCycle).toBe(false);
+  });
+});
+
+describe('validateManager', () => {
+  test('rejects self-reference', () => {
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      return null;
+    };
+
+    const result = validateManager('el-alice' as EntityId, 'el-alice' as EntityId, getEntity);
+
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('SELF_REFERENCE');
+    expect(result.errorMessage).toContain('cannot report to itself');
+  });
+
+  test('rejects non-existent manager', () => {
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      return null;
+    };
+
+    const result = validateManager('el-alice' as EntityId, 'el-nonexistent' as EntityId, getEntity);
+
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('ENTITY_NOT_FOUND');
+    expect(result.errorMessage).toContain('not found');
+  });
+
+  test('rejects deactivated manager', () => {
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const bob: Entity = {
+      ...createTestEntityWithManager('el-bob', 'bob'),
+      metadata: { active: false, deactivatedAt: '2025-01-22T10:00:00.000Z' },
+    };
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      if (id === 'el-bob') return bob;
+      return null;
+    };
+
+    const result = validateManager('el-alice' as EntityId, 'el-bob' as EntityId, getEntity);
+
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('ENTITY_DEACTIVATED');
+    expect(result.errorMessage).toContain('deactivated');
+  });
+
+  test('rejects cycle', () => {
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const bob = createTestEntityWithManager('el-bob', 'bob', 'el-alice');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      if (id === 'el-bob') return bob;
+      return null;
+    };
+
+    const result = validateManager('el-alice' as EntityId, 'el-bob' as EntityId, getEntity);
+
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('CYCLE_DETECTED');
+    expect(result.cyclePath).toBeDefined();
+  });
+
+  test('accepts valid manager assignment', () => {
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const bob = createTestEntityWithManager('el-bob', 'bob');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-alice') return alice;
+      if (id === 'el-bob') return bob;
+      return null;
+    };
+
+    const result = validateManager('el-alice' as EntityId, 'el-bob' as EntityId, getEntity);
+
+    expect(result.valid).toBe(true);
+    expect(result.errorCode).toBeUndefined();
+    expect(result.errorMessage).toBeUndefined();
+  });
+});
+
+describe('getManagementChain', () => {
+  test('returns empty array when entity has no manager', () => {
+    const alice = createTestEntityWithManager('el-alice', 'alice');
+    const getEntity = (): Entity | null => null;
+
+    const chain = getManagementChain(alice, getEntity);
+
+    expect(chain).toEqual([]);
+  });
+
+  test('returns single manager when one level up', () => {
+    const bob = createTestEntityWithManager('el-bob', 'bob');
+    const alice = createTestEntityWithManager('el-alice', 'alice', 'el-bob');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-bob') return bob;
+      return null;
+    };
+
+    const chain = getManagementChain(alice, getEntity);
+
+    expect(chain).toHaveLength(1);
+    expect(chain[0].id).toBe('el-bob');
+  });
+
+  test('returns full chain in order from direct manager to root', () => {
+    const ceo = createTestEntityWithManager('el-ceo', 'ceo');
+    const vp = createTestEntityWithManager('el-vp', 'vp', 'el-ceo');
+    const manager = createTestEntityWithManager('el-manager', 'manager', 'el-vp');
+    const employee = createTestEntityWithManager('el-employee', 'employee', 'el-manager');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-ceo') return ceo;
+      if (id === 'el-vp') return vp;
+      if (id === 'el-manager') return manager;
+      return null;
+    };
+
+    const chain = getManagementChain(employee, getEntity);
+
+    expect(chain).toHaveLength(3);
+    expect(chain[0].name).toBe('manager');
+    expect(chain[1].name).toBe('vp');
+    expect(chain[2].name).toBe('ceo');
+  });
+
+  test('handles missing entities in chain gracefully', () => {
+    const manager = createTestEntityWithManager('el-manager', 'manager', 'el-missing');
+    const employee = createTestEntityWithManager('el-employee', 'employee', 'el-manager');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-manager') return manager;
+      return null;
+    };
+
+    const chain = getManagementChain(employee, getEntity);
+
+    expect(chain).toHaveLength(1);
+    expect(chain[0].name).toBe('manager');
+  });
+});
+
+describe('getDirectReports', () => {
+  test('returns empty array when no one reports to entity', () => {
+    const entities = [
+      createTestEntityWithManager('el-alice', 'alice'),
+      createTestEntityWithManager('el-bob', 'bob'),
+    ];
+
+    const reports = getDirectReports(entities, 'el-carol' as EntityId);
+
+    expect(reports).toEqual([]);
+  });
+
+  test('returns entities that report to the manager', () => {
+    const entities = [
+      createTestEntityWithManager('el-manager', 'manager'),
+      createTestEntityWithManager('el-alice', 'alice', 'el-manager'),
+      createTestEntityWithManager('el-bob', 'bob', 'el-manager'),
+      createTestEntityWithManager('el-carol', 'carol'),
+    ];
+
+    const reports = getDirectReports(entities, 'el-manager' as EntityId);
+
+    expect(reports).toHaveLength(2);
+    expect(reports.map((e) => e.name).sort()).toEqual(['alice', 'bob']);
+  });
+
+  test('returns only direct reports, not indirect ones', () => {
+    const entities = [
+      createTestEntityWithManager('el-ceo', 'ceo'),
+      createTestEntityWithManager('el-manager', 'manager', 'el-ceo'),
+      createTestEntityWithManager('el-employee', 'employee', 'el-manager'),
+    ];
+
+    const reports = getDirectReports(entities, 'el-ceo' as EntityId);
+
+    expect(reports).toHaveLength(1);
+    expect(reports[0].name).toBe('manager');
+  });
+});
+
+describe('buildOrgChart', () => {
+  test('returns empty array when no entities', () => {
+    const chart = buildOrgChart([]);
+
+    expect(chart).toEqual([]);
+  });
+
+  test('returns all root entities when no rootId specified', () => {
+    const entities = [
+      createTestEntityWithManager('el-ceo1', 'ceo1'),
+      createTestEntityWithManager('el-ceo2', 'ceo2'),
+      createTestEntityWithManager('el-employee', 'employee', 'el-ceo1'),
+    ];
+
+    const chart = buildOrgChart(entities);
+
+    expect(chart).toHaveLength(2);
+    expect(chart.map((n) => n.entity.name).sort()).toEqual(['ceo1', 'ceo2']);
+  });
+
+  test('returns specific subtree when rootId specified', () => {
+    const entities = [
+      createTestEntityWithManager('el-ceo', 'ceo'),
+      createTestEntityWithManager('el-vp', 'vp', 'el-ceo'),
+      createTestEntityWithManager('el-manager', 'manager', 'el-vp'),
+    ];
+
+    const chart = buildOrgChart(entities, 'el-vp' as EntityId);
+
+    expect(chart).toHaveLength(1);
+    expect(chart[0].entity.name).toBe('vp');
+    expect(chart[0].directReports).toHaveLength(1);
+    expect(chart[0].directReports[0].entity.name).toBe('manager');
+  });
+
+  test('builds nested hierarchy correctly', () => {
+    const entities = [
+      createTestEntityWithManager('el-ceo', 'ceo'),
+      createTestEntityWithManager('el-vp1', 'vp1', 'el-ceo'),
+      createTestEntityWithManager('el-vp2', 'vp2', 'el-ceo'),
+      createTestEntityWithManager('el-mgr1', 'mgr1', 'el-vp1'),
+      createTestEntityWithManager('el-mgr2', 'mgr2', 'el-vp1'),
+      createTestEntityWithManager('el-emp1', 'emp1', 'el-mgr1'),
+    ];
+
+    const chart = buildOrgChart(entities, 'el-ceo' as EntityId);
+
+    expect(chart).toHaveLength(1);
+    expect(chart[0].entity.name).toBe('ceo');
+    expect(chart[0].directReports).toHaveLength(2);
+
+    const vp1 = chart[0].directReports.find((n) => n.entity.name === 'vp1');
+    expect(vp1?.directReports).toHaveLength(2);
+
+    const mgr1 = vp1?.directReports.find((n) => n.entity.name === 'mgr1');
+    expect(mgr1?.directReports).toHaveLength(1);
+    expect(mgr1?.directReports[0].entity.name).toBe('emp1');
+  });
+
+  test('returns empty array when rootId not found', () => {
+    const entities = [
+      createTestEntityWithManager('el-alice', 'alice'),
+    ];
+
+    const chart = buildOrgChart(entities, 'el-nonexistent' as EntityId);
+
+    expect(chart).toEqual([]);
+  });
+});
+
+describe('hasDirectReports', () => {
+  test('returns true when entity has direct reports', () => {
+    const entities = [
+      createTestEntityWithManager('el-manager', 'manager'),
+      createTestEntityWithManager('el-employee', 'employee', 'el-manager'),
+    ];
+
+    expect(hasDirectReports(entities, 'el-manager' as EntityId)).toBe(true);
+  });
+
+  test('returns false when entity has no direct reports', () => {
+    const entities = [
+      createTestEntityWithManager('el-manager', 'manager'),
+      createTestEntityWithManager('el-employee', 'employee'),
+    ];
+
+    expect(hasDirectReports(entities, 'el-manager' as EntityId)).toBe(false);
+  });
+});
+
+describe('countDirectReports', () => {
+  test('counts direct reports correctly', () => {
+    const entities = [
+      createTestEntityWithManager('el-manager', 'manager'),
+      createTestEntityWithManager('el-emp1', 'emp1', 'el-manager'),
+      createTestEntityWithManager('el-emp2', 'emp2', 'el-manager'),
+      createTestEntityWithManager('el-emp3', 'emp3', 'el-manager'),
+    ];
+
+    expect(countDirectReports(entities, 'el-manager' as EntityId)).toBe(3);
+  });
+
+  test('returns 0 when no direct reports', () => {
+    const entities = [
+      createTestEntityWithManager('el-manager', 'manager'),
+    ];
+
+    expect(countDirectReports(entities, 'el-manager' as EntityId)).toBe(0);
+  });
+});
+
+describe('getAllReports', () => {
+  test('returns all reports recursively', () => {
+    const entities = [
+      createTestEntityWithManager('el-ceo', 'ceo'),
+      createTestEntityWithManager('el-vp', 'vp', 'el-ceo'),
+      createTestEntityWithManager('el-manager', 'manager', 'el-vp'),
+      createTestEntityWithManager('el-employee', 'employee', 'el-manager'),
+    ];
+
+    const reports = getAllReports(entities, 'el-ceo' as EntityId);
+
+    expect(reports).toHaveLength(3);
+    expect(reports.map((e) => e.name).sort()).toEqual(['employee', 'manager', 'vp']);
+  });
+
+  test('returns empty array when no reports', () => {
+    const entities = [
+      createTestEntityWithManager('el-alice', 'alice'),
+      createTestEntityWithManager('el-bob', 'bob'),
+    ];
+
+    const reports = getAllReports(entities, 'el-alice' as EntityId);
+
+    expect(reports).toEqual([]);
+  });
+});
+
+describe('getRootManager', () => {
+  test('returns null when entity has no manager', () => {
+    const entity = createTestEntityWithManager('el-alice', 'alice');
+    const getEntity = (): Entity | null => null;
+
+    const root = getRootManager(entity, getEntity);
+
+    expect(root).toBeNull();
+  });
+
+  test('returns the root of the management chain', () => {
+    const ceo = createTestEntityWithManager('el-ceo', 'ceo');
+    const vp = createTestEntityWithManager('el-vp', 'vp', 'el-ceo');
+    const manager = createTestEntityWithManager('el-manager', 'manager', 'el-vp');
+    const employee = createTestEntityWithManager('el-employee', 'employee', 'el-manager');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-ceo') return ceo;
+      if (id === 'el-vp') return vp;
+      if (id === 'el-manager') return manager;
+      return null;
+    };
+
+    const root = getRootManager(employee, getEntity);
+
+    expect(root).not.toBeNull();
+    expect(root?.name).toBe('ceo');
+  });
+});
+
+describe('isManagerOf', () => {
+  test('returns true when manager is in report chain', () => {
+    const ceo = createTestEntityWithManager('el-ceo', 'ceo');
+    const manager = createTestEntityWithManager('el-manager', 'manager', 'el-ceo');
+    const employee = createTestEntityWithManager('el-employee', 'employee', 'el-manager');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-ceo') return ceo;
+      if (id === 'el-manager') return manager;
+      if (id === 'el-employee') return employee;
+      return null;
+    };
+
+    expect(isManagerOf('el-ceo' as EntityId, 'el-employee' as EntityId, getEntity)).toBe(true);
+    expect(isManagerOf('el-manager' as EntityId, 'el-employee' as EntityId, getEntity)).toBe(true);
+  });
+
+  test('returns false when not in management chain', () => {
+    const ceo = createTestEntityWithManager('el-ceo', 'ceo');
+    const employee = createTestEntityWithManager('el-employee', 'employee');
+
+    const getEntity = (id: EntityId): Entity | null => {
+      if (id === 'el-ceo') return ceo;
+      if (id === 'el-employee') return employee;
+      return null;
+    };
+
+    expect(isManagerOf('el-ceo' as EntityId, 'el-employee' as EntityId, getEntity)).toBe(false);
+  });
+
+  test('returns false when report entity not found', () => {
+    const getEntity = (): Entity | null => null;
+
+    expect(isManagerOf('el-ceo' as EntityId, 'el-nonexistent' as EntityId, getEntity)).toBe(false);
+  });
+});
+
+describe('getRootEntities', () => {
+  test('returns entities with no manager', () => {
+    const entities = [
+      createTestEntityWithManager('el-ceo', 'ceo'),
+      createTestEntityWithManager('el-manager', 'manager', 'el-ceo'),
+      createTestEntityWithManager('el-freelancer', 'freelancer'),
+    ];
+
+    const roots = getRootEntities(entities);
+
+    expect(roots).toHaveLength(2);
+    expect(roots.map((e) => e.name).sort()).toEqual(['ceo', 'freelancer']);
+  });
+
+  test('returns all entities when none have managers', () => {
+    const entities = [
+      createTestEntityWithManager('el-alice', 'alice'),
+      createTestEntityWithManager('el-bob', 'bob'),
+    ];
+
+    const roots = getRootEntities(entities);
+
+    expect(roots).toHaveLength(2);
+  });
+});
+
+describe('getEntitiesWithManager', () => {
+  test('returns entities that have a manager', () => {
+    const entities = [
+      createTestEntityWithManager('el-ceo', 'ceo'),
+      createTestEntityWithManager('el-manager', 'manager', 'el-ceo'),
+      createTestEntityWithManager('el-employee', 'employee', 'el-manager'),
+    ];
+
+    const withManager = getEntitiesWithManager(entities);
+
+    expect(withManager).toHaveLength(2);
+    expect(withManager.map((e) => e.name).sort()).toEqual(['employee', 'manager']);
+  });
+
+  test('returns empty array when no one has a manager', () => {
+    const entities = [
+      createTestEntityWithManager('el-alice', 'alice'),
+      createTestEntityWithManager('el-bob', 'bob'),
+    ];
+
+    const withManager = getEntitiesWithManager(entities);
+
+    expect(withManager).toEqual([]);
+  });
+});
+
+describe('createEntity with reportsTo', () => {
+  test('creates entity with reportsTo', async () => {
+    const entity = await createEntity({
+      name: 'employee',
+      entityType: EntityTypeValue.HUMAN,
+      createdBy: 'el-system' as EntityId,
+      reportsTo: 'el-manager' as EntityId,
+    });
+
+    expect(entity.reportsTo).toBe('el-manager');
+  });
+
+  test('creates entity without reportsTo when not specified', async () => {
+    const entity = await createEntity({
+      name: 'independent',
+      entityType: EntityTypeValue.HUMAN,
+      createdBy: 'el-system' as EntityId,
+    });
+
+    expect(entity.reportsTo).toBeUndefined();
+  });
+});
+
+describe('updateEntity with reportsTo', () => {
+  test('sets reportsTo when provided', () => {
+    const entity = createTestEntityWithManager('el-alice', 'alice');
+
+    const updated = updateEntity(entity, { reportsTo: 'el-manager' as EntityId });
+
+    expect(updated.reportsTo).toBe('el-manager');
+  });
+
+  test('clears reportsTo when set to null', () => {
+    const entity = createTestEntityWithManager('el-alice', 'alice', 'el-manager');
+
+    const updated = updateEntity(entity, { reportsTo: null });
+
+    expect(updated.reportsTo).toBeUndefined();
+  });
+
+  test('keeps existing reportsTo when not specified', () => {
+    const entity = createTestEntityWithManager('el-alice', 'alice', 'el-manager');
+
+    const updated = updateEntity(entity, { tags: ['new-tag'] });
+
+    expect(updated.reportsTo).toBe('el-manager');
+  });
+
+  test('keeps no reportsTo when entity has none and not specified', () => {
+    const entity = createTestEntityWithManager('el-alice', 'alice');
+
+    const updated = updateEntity(entity, { tags: ['new-tag'] });
+
+    expect(updated.reportsTo).toBeUndefined();
   });
 });

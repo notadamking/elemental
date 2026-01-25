@@ -57,6 +57,8 @@ export const AssociativeDependencyType = {
   CAUSED_BY: 'caused-by',
   /** Test verification link */
   VALIDATES: 'validates',
+  /** @mention link from message to entity */
+  MENTIONS: 'mentions',
 } as const;
 
 export type AssociativeDependencyType =
@@ -348,6 +350,13 @@ export function isThreadingDependencyType(value: unknown): value is ThreadingDep
     typeof value === 'string' &&
     THREADING_DEPENDENCY_TYPES.includes(value as ThreadingDependencyType)
   );
+}
+
+/**
+ * Check if a dependency type is MENTIONS
+ */
+export function isMentionsDependency(dependency: Dependency): boolean {
+  return dependency.type === DependencyType.MENTIONS;
 }
 
 /**
@@ -1076,6 +1085,8 @@ export function getDependencyTypeDisplayName(type: DependencyType): string {
       return 'Caused By';
     case DependencyType.VALIDATES:
       return 'Validates';
+    case DependencyType.MENTIONS:
+      return 'Mentions';
     case DependencyType.AUTHORED_BY:
       return 'Authored By';
     case DependencyType.ASSIGNED_TO:

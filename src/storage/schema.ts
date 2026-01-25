@@ -14,7 +14,7 @@ import type { Migration, MigrationResult, StorageBackend } from './index.js';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 // ============================================================================
 // Migrations
@@ -184,9 +184,55 @@ ALTER TABLE blocked_cache_new RENAME TO blocked_cache;
 };
 
 /**
+ * Migration 4: Add inbox_items table for unified notifications
+ *
+ * Creates the inbox system for tracking notifications to entities.
+ * Inbox items are created when:
+ * - A message is sent directly to an entity
+ * - An entity is mentioned in a message
+ */
+const migration004: Migration = {
+  version: 4,
+  description: 'Add inbox_items table for unified notifications',
+  up: `
+-- Inbox items for entity notifications
+CREATE TABLE inbox_items (
+    id TEXT PRIMARY KEY,
+    recipient_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    source_type TEXT NOT NULL CHECK (source_type IN ('direct', 'mention')),
+    status TEXT NOT NULL DEFAULT 'unread' CHECK (status IN ('unread', 'read', 'archived')),
+    read_at TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (message_id) REFERENCES elements(id) ON DELETE CASCADE,
+    UNIQUE(recipient_id, message_id)
+);
+
+-- Index for querying inbox by recipient and status (primary use case)
+CREATE INDEX idx_inbox_recipient_status ON inbox_items(recipient_id, status);
+
+-- Index for querying inbox by recipient ordered by creation time
+CREATE INDEX idx_inbox_recipient_created ON inbox_items(recipient_id, created_at DESC);
+
+-- Index for cascade deletion when message is deleted
+CREATE INDEX idx_inbox_message ON inbox_items(message_id);
+`,
+  down: `
+-- Drop indexes first
+DROP INDEX IF EXISTS idx_inbox_message;
+DROP INDEX IF EXISTS idx_inbox_recipient_created;
+DROP INDEX IF EXISTS idx_inbox_recipient_status;
+
+-- Drop table
+DROP TABLE IF EXISTS inbox_items;
+`,
+};
+
+/**
  * All migrations in order
  */
-export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003];
+export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003, migration004];
 
 // ============================================================================
 // Schema Functions
@@ -271,6 +317,7 @@ export const EXPECTED_TABLES = [
   'dirty_elements', // Created by backend initialization
   'child_counters',
   'blocked_cache',
+  'inbox_items',
 ] as const;
 
 /**
