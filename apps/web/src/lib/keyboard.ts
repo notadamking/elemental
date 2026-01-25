@@ -12,6 +12,119 @@ export interface Shortcut {
   handler: ShortcutHandler;
   /** Description for accessibility/help */
   description?: string;
+  /** Category for grouping shortcuts */
+  category?: ShortcutCategory;
+  /** Action ID for customizable shortcuts */
+  actionId?: string;
+}
+
+export type ShortcutCategory = 'navigation' | 'actions' | 'views' | 'editing' | 'other';
+
+/** Default shortcuts mapping action IDs to their default key bindings */
+export const DEFAULT_SHORTCUTS: Record<string, { keys: string; description: string; category: ShortcutCategory }> = {
+  // Navigation
+  'nav.dashboard': { keys: 'G H', description: 'Go to Dashboard', category: 'navigation' },
+  'nav.taskFlow': { keys: 'G F', description: 'Go to Task Flow', category: 'navigation' },
+  'nav.agents': { keys: 'G A', description: 'Go to Agents', category: 'navigation' },
+  'nav.dependencies': { keys: 'G G', description: 'Go to Dependencies', category: 'navigation' },
+  'nav.timeline': { keys: 'G L', description: 'Go to Timeline', category: 'navigation' },
+  'nav.tasks': { keys: 'G T', description: 'Go to Tasks', category: 'navigation' },
+  'nav.plans': { keys: 'G P', description: 'Go to Plans', category: 'navigation' },
+  'nav.workflows': { keys: 'G W', description: 'Go to Workflows', category: 'navigation' },
+  'nav.messages': { keys: 'G M', description: 'Go to Messages', category: 'navigation' },
+  'nav.documents': { keys: 'G D', description: 'Go to Documents', category: 'navigation' },
+  'nav.entities': { keys: 'G E', description: 'Go to Entities', category: 'navigation' },
+  'nav.teams': { keys: 'G R', description: 'Go to Teams', category: 'navigation' },
+  'nav.settings': { keys: 'G S', description: 'Go to Settings', category: 'navigation' },
+  // Actions
+  'action.commandPalette': { keys: 'Cmd+K', description: 'Open Command Palette', category: 'actions' },
+  'action.toggleSidebar': { keys: 'Cmd+B', description: 'Toggle Sidebar', category: 'actions' },
+  // Views
+  'view.list': { keys: 'V L', description: 'List View', category: 'views' },
+  'view.kanban': { keys: 'V K', description: 'Kanban View', category: 'views' },
+};
+
+const CUSTOM_SHORTCUTS_KEY = 'settings.customShortcuts';
+
+/**
+ * Get custom shortcuts from localStorage
+ */
+export function getCustomShortcuts(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const stored = localStorage.getItem(CUSTOM_SHORTCUTS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Save custom shortcuts to localStorage
+ */
+export function setCustomShortcuts(shortcuts: Record<string, string>): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(CUSTOM_SHORTCUTS_KEY, JSON.stringify(shortcuts));
+}
+
+/**
+ * Get the current binding for an action (custom or default)
+ */
+export function getCurrentBinding(actionId: string): string {
+  const custom = getCustomShortcuts();
+  if (custom[actionId]) return custom[actionId];
+  return DEFAULT_SHORTCUTS[actionId]?.keys || '';
+}
+
+/**
+ * Check if a key binding conflicts with existing bindings
+ * Returns the action ID of the conflicting shortcut, or null if no conflict
+ */
+export function checkShortcutConflict(keys: string, excludeActionId?: string): string | null {
+  const custom = getCustomShortcuts();
+  const normalizedKeys = keys.toLowerCase().trim();
+
+  for (const [actionId, defaultConfig] of Object.entries(DEFAULT_SHORTCUTS)) {
+    if (actionId === excludeActionId) continue;
+
+    const currentKeys = custom[actionId] || defaultConfig.keys;
+    if (currentKeys.toLowerCase().trim() === normalizedKeys) {
+      return actionId;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Reset all shortcuts to defaults
+ */
+export function resetAllShortcuts(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(CUSTOM_SHORTCUTS_KEY);
+}
+
+/**
+ * Update a single custom shortcut
+ */
+export function setCustomShortcut(actionId: string, keys: string): void {
+  const custom = getCustomShortcuts();
+  if (keys === DEFAULT_SHORTCUTS[actionId]?.keys) {
+    // If setting to default, remove the custom entry
+    delete custom[actionId];
+  } else {
+    custom[actionId] = keys;
+  }
+  setCustomShortcuts(custom);
+}
+
+/**
+ * Remove a custom shortcut (revert to default)
+ */
+export function removeCustomShortcut(actionId: string): void {
+  const custom = getCustomShortcuts();
+  delete custom[actionId];
+  setCustomShortcuts(custom);
 }
 
 interface ParsedShortcut {

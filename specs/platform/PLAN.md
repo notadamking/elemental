@@ -983,14 +983,14 @@ For mutations (create, update, delete):
   - [x] Web: System option uses `prefers-color-scheme` media query
   - [x] **Verify:** Playwright tests passing (17 TB59 tests)
 
-- [ ] **TB60: Settings Page - Keyboard Shortcuts**
-  - [ ] Web: Shortcuts section listing all available shortcuts with current bindings
-  - [ ] Web: Categories: Navigation (G T, G P, etc.), Actions (C, E, X), Views (V L, V K)
-  - [ ] Web: "Customize" button per shortcut opens modal with key capture
-  - [ ] Web: Conflict detection (warn if shortcut already used)
-  - [ ] Web: "Reset to Defaults" button
-  - [ ] Web: Persist custom shortcuts in localStorage
-  - [ ] **Verify:** Change "Go to Tasks" shortcut, use new shortcut, navigation works
+- [x] **TB60: Settings Page - Keyboard Shortcuts**
+  - [x] Web: Shortcuts section listing all available shortcuts with current bindings
+  - [x] Web: Categories: Navigation (G T, G P, etc.), Actions (C, E, X), Views (V L, V K)
+  - [x] Web: "Customize" button per shortcut opens modal with key capture
+  - [x] Web: Conflict detection (warn if shortcut already used)
+  - [x] Web: "Reset to Defaults" button
+  - [x] Web: Persist custom shortcuts in localStorage
+  - [x] **Verify:** Playwright tests passing (22 TB60 tests)
 
 - [ ] **TB61: Settings Page - Default Views**
   - [ ] Web: Default view preferences section:

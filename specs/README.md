@@ -86,6 +86,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB56-drag-drop-blocks.md](./platform/TB56-drag-drop-blocks.md) | Drag-and-drop block reordering in document editor | editor, tiptap, drag, drop, blocks, reorder, handle |
 | [platform/TB58-inline-formatting.md](./platform/TB58-inline-formatting.md) | Inline code styling and selection bubble menu | editor, tiptap, bubble menu, inline code, formatting, highlight |
 | [platform/TB59-settings-theme.md](./platform/TB59-settings-theme.md) | Settings page with theme selection (light, dark, system) | settings, theme, dark mode, light mode, preferences, localStorage |
+| [platform/TB60-settings-shortcuts.md](./platform/TB60-settings-shortcuts.md) | Settings page keyboard shortcuts section with customization | settings, keyboard, shortcuts, customize, key capture, conflict detection |
 
 ---
 
