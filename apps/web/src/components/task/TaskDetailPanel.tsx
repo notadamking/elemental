@@ -607,7 +607,7 @@ function ExpandableDocumentCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <a
-              href={`/documents?doc=${doc.id}`}
+              href={`/documents?selected=${doc.id}`}
               className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate"
               data-testid={`attachment-link-${doc.id}`}
             >

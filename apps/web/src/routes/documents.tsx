@@ -439,7 +439,9 @@ function useAllDocuments() {
         const error = await response.json();
         throw new Error(error.error?.message || 'Failed to fetch documents');
       }
-      return response.json();
+      const data = await response.json();
+      // Handle paginated response format
+      return data.items || data;
     },
   });
 }

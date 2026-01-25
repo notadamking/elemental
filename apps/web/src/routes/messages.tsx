@@ -512,7 +512,7 @@ function MessageBubble({
             {message._attachments.map((doc) => (
               <a
                 key={doc.id}
-                href={`/documents?doc=${doc.id}`}
+                href={`/documents?selected=${doc.id}`}
                 className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
                 data-testid={`message-attachment-${doc.id}`}
               >
