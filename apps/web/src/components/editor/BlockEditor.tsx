@@ -85,21 +85,52 @@ export function BlockEditor({
   placeholder = 'Start writing...',
   readOnly = false,
 }: BlockEditorProps) {
+  // Convert plain text to HTML paragraphs for Tiptap
+  const textToHtml = useCallback((text: string) => {
+    if (!text) return '';
+    // Split by newlines and wrap each line in a paragraph
+    // Empty lines become empty paragraphs to preserve spacing
+    return text
+      .split('\n')
+      .map(line => `<p>${line || '<br>'}</p>`)
+      .join('');
+  }, []);
+
+  // Convert HTML back to plain text with newlines
+  const htmlToText = useCallback((html: string) => {
+    if (!html) return '';
+    // Create a temporary div to parse HTML
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    // Get text content, preserving block structure
+    const blocks: string[] = [];
+    div.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre').forEach(el => {
+      blocks.push(el.textContent || '');
+    });
+    // If no blocks found, just get the text content
+    if (blocks.length === 0) {
+      return div.textContent || '';
+    }
+    return blocks.join('\n');
+  }, []);
+
   // Determine initial content format
   const getInitialContent = useCallback(() => {
     if (!content) return '';
 
-    // For JSON content, pretty-print it
+    // For JSON content, pretty-print it and wrap in code block
     if (contentType === 'json') {
       try {
-        return JSON.stringify(JSON.parse(content), null, 2);
+        const formatted = JSON.stringify(JSON.parse(content), null, 2);
+        return `<pre><code>${formatted}</code></pre>`;
       } catch {
-        return content;
+        return textToHtml(content);
       }
     }
 
-    return content;
-  }, [content, contentType]);
+    // Convert plain text with newlines to HTML paragraphs
+    return textToHtml(content);
+  }, [content, contentType, textToHtml]);
 
   const editor = useEditor({
     extensions: [
@@ -117,7 +148,9 @@ export function BlockEditor({
     content: getInitialContent(),
     editable: !readOnly,
     onUpdate: ({ editor }) => {
-      const text = editor.getText();
+      // Get HTML and convert back to plain text with newlines
+      const html = editor.getHTML();
+      const text = htmlToText(html);
       onChange(text);
     },
     editorProps: {
