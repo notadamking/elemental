@@ -2140,6 +2140,175 @@ app.post('/api/documents/:id/clone', async (c) => {
 });
 
 // ============================================================================
+// Document Links Endpoints (TB53)
+// ============================================================================
+
+/**
+ * GET /api/documents/:id/links
+ * Returns documents linked from this document (outgoing) and documents linking to it (incoming)
+ * Query params:
+ *   - direction: 'outgoing' | 'incoming' | 'both' (default: 'both')
+ */
+app.get('/api/documents/:id/links', async (c) => {
+  try {
+    const documentId = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const direction = url.searchParams.get('direction') || 'both';
+
+    // Verify document exists
+    const doc = await api.get(documentId);
+    if (!doc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (doc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Fetch document details based on direction
+    let outgoing: (typeof doc)[] = [];
+    let incoming: (typeof doc)[] = [];
+
+    if (direction === 'outgoing' || direction === 'both') {
+      // Outgoing links: documents this document references (sourceId = this document)
+      const outgoingDeps = await api.getDependencies(documentId, ['references']);
+      const outgoingDocs = await Promise.all(
+        outgoingDeps.map(async (dep) => {
+          const linkedDoc = await api.get(dep.targetId as ElementId);
+          if (linkedDoc && linkedDoc.type === 'document') {
+            return linkedDoc;
+          }
+          return null;
+        })
+      );
+      outgoing = outgoingDocs.filter(Boolean) as (typeof doc)[];
+    }
+
+    if (direction === 'incoming' || direction === 'both') {
+      // Incoming links: documents that reference this document (targetId = this document)
+      // Use getDependents to query by target_id
+      const incomingDeps = await api.getDependents(documentId, ['references']);
+      const incomingDocs = await Promise.all(
+        incomingDeps.map(async (dep) => {
+          const linkedDoc = await api.get(dep.sourceId as ElementId);
+          if (linkedDoc && linkedDoc.type === 'document') {
+            return linkedDoc;
+          }
+          return null;
+        })
+      );
+      incoming = incomingDocs.filter(Boolean) as (typeof doc)[];
+    }
+
+    return c.json({ outgoing, incoming });
+  } catch (error) {
+    console.error('[elemental] Failed to get document links:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get document links' } }, 500);
+  }
+});
+
+/**
+ * POST /api/documents/:id/links
+ * Creates a link from this document to another document
+ * Body: { targetDocumentId: string, actor?: string }
+ */
+app.post('/api/documents/:id/links', async (c) => {
+  try {
+    const sourceId = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // Validate target document ID
+    if (!body.targetDocumentId || typeof body.targetDocumentId !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'targetDocumentId is required' } }, 400);
+    }
+
+    const targetId = body.targetDocumentId as ElementId;
+
+    // Prevent self-reference
+    if (sourceId === targetId) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Cannot link a document to itself' } }, 400);
+    }
+
+    // Verify source document exists
+    const sourceDoc = await api.get(sourceId);
+    if (!sourceDoc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Source document not found' } }, 404);
+    }
+    if (sourceDoc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Source document not found' } }, 404);
+    }
+
+    // Verify target document exists
+    const targetDoc = await api.get(targetId);
+    if (!targetDoc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Target document not found' } }, 404);
+    }
+    if (targetDoc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Target document not found' } }, 404);
+    }
+
+    // Check if link already exists
+    const existingDeps = await api.getDependencies(sourceId);
+    const alreadyLinked = existingDeps.some(
+      (dep) => dep.sourceId === sourceId && dep.targetId === targetId && dep.type === 'references'
+    );
+    if (alreadyLinked) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Link already exists between these documents' } }, 400);
+    }
+
+    // Create the references dependency (source document references target document)
+    await api.addDependency({
+      sourceId,
+      targetId,
+      type: 'references',
+      actor: (body.actor as EntityId) || ('el-0000' as EntityId),
+    });
+
+    return c.json({ sourceId, targetId, targetDocument: targetDoc }, 201);
+  } catch (error) {
+    console.error('[elemental] Failed to link documents:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to link documents' } }, 500);
+  }
+});
+
+/**
+ * DELETE /api/documents/:sourceId/links/:targetId
+ * Removes a link between two documents
+ */
+app.delete('/api/documents/:sourceId/links/:targetId', async (c) => {
+  try {
+    const sourceId = c.req.param('sourceId') as ElementId;
+    const targetId = c.req.param('targetId') as ElementId;
+
+    // Verify source document exists
+    const sourceDoc = await api.get(sourceId);
+    if (!sourceDoc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Source document not found' } }, 404);
+    }
+    if (sourceDoc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Source document not found' } }, 404);
+    }
+
+    // Find the link dependency
+    const dependencies = await api.getDependencies(sourceId);
+    const linkDep = dependencies.find(
+      (dep) => dep.sourceId === sourceId && dep.targetId === targetId && dep.type === 'references'
+    );
+
+    if (!linkDep) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Link not found between these documents' } }, 404);
+    }
+
+    // Remove the dependency
+    await api.removeDependency(sourceId, targetId, 'references');
+
+    return c.json({ success: true, sourceId, targetId });
+  } catch (error) {
+    console.error('[elemental] Failed to remove document link:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to remove document link' } }, 500);
+  }
+});
+
+// ============================================================================
 // Plans Endpoints (TB24)
 // ============================================================================
 

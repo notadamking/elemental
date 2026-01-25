@@ -904,13 +904,15 @@ For mutations (create, update, delete):
   - [x] Web: Attachment preview: title, type badge, click to open
   - [x] **Verify:** Playwright tests passing (20 TB52 tests)
 
-- [ ] **TB53: Attach Documents to Documents (Links)**
-  - [ ] Server: Use `references` dependency type for document-to-document links
-  - [ ] Web: Add "Linked Documents" section to DocumentDetailPanel
-  - [ ] Web: "Link Document" button opens document picker
-  - [ ] Web: Show both outgoing links (documents this links to) and incoming links (documents linking here)
-  - [ ] Web: Click linked document to navigate
-  - [ ] **Verify:** Link doc A to doc B, see link in both documents' linked sections
+- [x] **TB53: Attach Documents to Documents (Links)**
+  - [x] Server: Add `GET /api/documents/:id/links` endpoint (returns outgoing and incoming links)
+  - [x] Server: Add `POST /api/documents/:id/links` endpoint (create link using `references` dependency type)
+  - [x] Server: Add `DELETE /api/documents/:sourceId/links/:targetId` endpoint
+  - [x] Web: Add "Linked Documents" section to DocumentDetailPanel
+  - [x] Web: "Link Document" button opens DocumentLinkPickerModal
+  - [x] Web: Show both outgoing links (documents this links to) and incoming links (documents linking here)
+  - [x] Web: Click linked document to navigate
+  - [x] **Verify:** Playwright tests passing (26 TB53 tests)
 
 ### Phase 14: Document Editor Quality
 
