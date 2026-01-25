@@ -660,10 +660,19 @@ For mutations (create, update, delete):
 
 ### Phase 8: Plans & Workflows
 
-- [ ] **TB24: Plan List with Progress**
-  - [ ] Web: Create PlansPage component
-  - [ ] Web: Progress bars
-  - [ ] **Verify:** Plans display with progress
+- [x] **TB24: Plan List with Progress**
+  - [x] Server: Add `GET /api/plans` endpoint (with status filter)
+  - [x] Server: Add `GET /api/plans/:id` endpoint (with progress hydration)
+  - [x] Server: Add `GET /api/plans/:id/tasks` endpoint
+  - [x] Server: Add `GET /api/plans/:id/progress` endpoint
+  - [x] Server: Add `POST /api/plans` endpoint (create plan)
+  - [x] Server: Add `PATCH /api/plans/:id` endpoint (update plan)
+  - [x] Web: Create PlansPage component with status filter tabs
+  - [x] Web: Create PlanListItem, PlanDetailPanel, StatusBadge components
+  - [x] Web: Add ProgressBar component with completion visualization
+  - [x] Web: Add TaskStatusSummary component (completed/in-progress/blocked/remaining)
+  - [x] Web: Add PlanTaskList component showing tasks in plan
+  - [x] **Verify:** Plans display with progress (Playwright tests passing - 24 tests)
 
 - [ ] **TB25: Workflow List + Pour**
   - [ ] Web: Create WorkflowsPage component

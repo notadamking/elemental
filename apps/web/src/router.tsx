@@ -8,6 +8,7 @@ import { DependencyGraphPage } from './routes/dependency-graph';
 import { TimelinePage } from './routes/timeline';
 import { MessagesPage } from './routes/messages';
 import { DocumentsPage } from './routes/documents';
+import { PlansPage } from './routes/plans';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -78,7 +79,7 @@ function PlaceholderPage({ title }: { title: string }) {
 const plansRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/plans',
-  component: () => <PlaceholderPage title="Plans" />,
+  component: PlansPage,
 });
 
 const workflowsRoute = createRoute({

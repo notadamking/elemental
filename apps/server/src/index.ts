@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -998,6 +998,221 @@ app.post('/api/documents/:id/restore', async (c) => {
     }
     console.error('[elemental] Failed to restore document version:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to restore document version' } }, 500);
+  }
+});
+
+// ============================================================================
+// Plans Endpoints (TB24)
+// ============================================================================
+
+app.get('/api/plans', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const statusParam = url.searchParams.get('status');
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    const filter: Record<string, unknown> = {
+      type: 'plan',
+      orderBy: 'updated_at',
+      orderDir: 'desc',
+    };
+
+    if (statusParam) {
+      filter.status = statusParam;
+    }
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    const plans = await api.list(filter as Parameters<typeof api.list>[0]);
+    return c.json(plans);
+  } catch (error) {
+    console.error('[elemental] Failed to get plans:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get plans' } }, 500);
+  }
+});
+
+app.get('/api/plans/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const hydrateProgress = url.searchParams.get('hydrate.progress') === 'true';
+
+    const plan = await api.get(id);
+
+    if (!plan) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    if (plan.type !== 'plan') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    // Optionally hydrate progress
+    if (hydrateProgress) {
+      const progress = await api.getPlanProgress(id);
+      return c.json({ ...plan, _progress: progress });
+    }
+
+    return c.json(plan);
+  } catch (error) {
+    console.error('[elemental] Failed to get plan:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get plan' } }, 500);
+  }
+});
+
+app.get('/api/plans/:id/tasks', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const statusParam = url.searchParams.get('status');
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    // First verify plan exists
+    const plan = await api.get(id);
+    if (!plan) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+    if (plan.type !== 'plan') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    // Build filter for getTasksInPlan
+    const filter: Record<string, unknown> = {};
+
+    if (statusParam) {
+      filter.status = statusParam;
+    }
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    const tasks = await api.getTasksInPlan(id, filter as Parameters<typeof api.getTasksInPlan>[1]);
+    return c.json(tasks);
+  } catch (error) {
+    console.error('[elemental] Failed to get plan tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get plan tasks' } }, 500);
+  }
+});
+
+app.get('/api/plans/:id/progress', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+
+    // First verify plan exists
+    const plan = await api.get(id);
+    if (!plan) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+    if (plan.type !== 'plan') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    const progress = await api.getPlanProgress(id);
+    return c.json(progress);
+  } catch (error) {
+    console.error('[elemental] Failed to get plan progress:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get plan progress' } }, 500);
+  }
+});
+
+app.post('/api/plans', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.title || typeof body.title !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title is required and must be a string' } }, 400);
+    }
+
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required and must be a string' } }, 400);
+    }
+
+    // Validate title length
+    if (body.title.length < 1 || body.title.length > 500) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title must be between 1 and 500 characters' } }, 400);
+    }
+
+    // Create the plan using the factory function
+    const planInput: CreatePlanInput = {
+      title: body.title,
+      createdBy: body.createdBy as EntityId,
+      status: (body.status as PlanStatus) || ('draft' as PlanStatus),
+      tags: body.tags || [],
+      descriptionRef: body.descriptionRef,
+    };
+
+    const plan = await createPlan(planInput);
+    const created = await api.create(plan as unknown as Element & Record<string, unknown>);
+    return c.json(created, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to create plan:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create plan' } }, 500);
+  }
+});
+
+app.patch('/api/plans/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // First verify plan exists
+    const existing = await api.get(id);
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+    if (existing.type !== 'plan') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    // Extract allowed updates
+    const updates: Record<string, unknown> = {};
+    const allowedFields = ['title', 'status', 'tags', 'metadata', 'descriptionRef', 'cancelReason'];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field];
+      }
+    }
+
+    // Validate title if provided
+    if (updates.title !== undefined) {
+      if (typeof updates.title !== 'string' || updates.title.length < 1 || updates.title.length > 500) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title must be between 1 and 500 characters' } }, 400);
+      }
+    }
+
+    // Validate status if provided
+    if (updates.status !== undefined) {
+      const validStatuses = ['draft', 'active', 'completed', 'cancelled'];
+      if (!validStatuses.includes(updates.status as string)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` } }, 400);
+      }
+    }
+
+    const updated = await api.update(id, updates);
+    return c.json(updated);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to update plan:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update plan' } }, 500);
   }
 });
 
