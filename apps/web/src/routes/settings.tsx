@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Sun, Moon, Monitor, Palette, Keyboard, Settings2, Bell, RefreshCw, RotateCcw, X, AlertCircle, Check } from 'lucide-react';
+import { Sun, Moon, Monitor, Palette, Keyboard, Settings2, Bell, RefreshCw, RotateCcw, X, AlertCircle, Check, List, LayoutGrid, Home, Workflow, Users, GitBranch, Clock, ArrowUp, Calendar, FileText } from 'lucide-react';
 import {
   DEFAULT_SHORTCUTS,
   getCurrentBinding,
@@ -70,7 +70,7 @@ interface SectionNavItem {
 const SETTINGS_SECTIONS: SectionNavItem[] = [
   { id: 'theme', label: 'Theme', icon: Palette, description: 'Customize appearance', implemented: true },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, description: 'Keyboard shortcuts', implemented: true },
-  { id: 'defaults', label: 'Defaults', icon: Settings2, description: 'Default view settings', implemented: false },
+  { id: 'defaults', label: 'Defaults', icon: Settings2, description: 'Default view settings', implemented: true },
   { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Notification preferences', implemented: false },
   { id: 'sync', label: 'Sync', icon: RefreshCw, description: 'Sync configuration', implemented: false },
 ];
@@ -602,6 +602,279 @@ function ShortcutsSection() {
   );
 }
 
+// Storage keys for defaults
+const DEFAULTS_STORAGE_KEY = 'settings.defaults';
+
+type TasksViewMode = 'list' | 'kanban';
+type DashboardLens = 'overview' | 'task-flow' | 'agents' | 'dependencies' | 'timeline';
+type DefaultSortOrder = 'updated_at' | 'created_at' | 'priority' | 'title';
+
+interface DefaultsSettings {
+  tasksView: TasksViewMode;
+  dashboardLens: DashboardLens;
+  sortOrder: DefaultSortOrder;
+}
+
+const DEFAULT_SETTINGS: DefaultsSettings = {
+  tasksView: 'list',
+  dashboardLens: 'overview',
+  sortOrder: 'updated_at',
+};
+
+function getStoredDefaults(): DefaultsSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+  const stored = localStorage.getItem(DEFAULTS_STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      return {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+      };
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  }
+  return DEFAULT_SETTINGS;
+}
+
+function setStoredDefaults(defaults: DefaultsSettings) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(DEFAULTS_STORAGE_KEY, JSON.stringify(defaults));
+
+  // Also update individual storage keys so pages pick up the settings
+  // Tasks view mode
+  localStorage.setItem('tasks.viewMode', defaults.tasksView);
+}
+
+// Export for use by other pages
+export function getDefaultTasksView(): TasksViewMode {
+  const defaults = getStoredDefaults();
+  return defaults.tasksView;
+}
+
+export function getDefaultDashboardLens(): DashboardLens {
+  const defaults = getStoredDefaults();
+  return defaults.dashboardLens;
+}
+
+export function getDefaultSortOrder(): DefaultSortOrder {
+  const defaults = getStoredDefaults();
+  return defaults.sortOrder;
+}
+
+interface OptionCardProps<T extends string> {
+  value: T;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isSelected: boolean;
+  onSelect: () => void;
+  testId: string;
+}
+
+function OptionCard<T extends string>({
+  label,
+  description,
+  icon: Icon,
+  isSelected,
+  onSelect,
+  testId,
+}: OptionCardProps<T>) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`
+        flex items-start gap-3 p-3 rounded-lg border transition-all text-left w-full
+        ${isSelected
+          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'
+          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+        }
+      `}
+      data-testid={testId}
+    >
+      <div className={`
+        w-8 h-8 rounded flex items-center justify-center flex-shrink-0
+        ${isSelected
+          ? 'bg-blue-500 text-white'
+          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+        }
+      `}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-100'}`}>
+            {label}
+          </span>
+          {isSelected && (
+            <Check className="w-4 h-4 text-blue-500" />
+          )}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
+      </div>
+    </button>
+  );
+}
+
+function DefaultsSection() {
+  const [defaults, setDefaults] = useState<DefaultsSettings>(DEFAULT_SETTINGS);
+
+  // Load settings on mount
+  useEffect(() => {
+    setDefaults(getStoredDefaults());
+  }, []);
+
+  const updateSetting = <K extends keyof DefaultsSettings>(key: K, value: DefaultsSettings[K]) => {
+    const newDefaults = { ...defaults, [key]: value };
+    setDefaults(newDefaults);
+    setStoredDefaults(newDefaults);
+  };
+
+  return (
+    <div data-testid="settings-defaults-section">
+      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Default Views</h3>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        Set default view preferences that will be applied when you first load pages.
+      </p>
+
+      {/* Tasks Default View */}
+      <div className="mb-8">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Tasks View</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Choose the default view when opening the Tasks page.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <OptionCard
+            value="list"
+            label="List View"
+            description="Traditional list layout with sorting"
+            icon={List}
+            isSelected={defaults.tasksView === 'list'}
+            onSelect={() => updateSetting('tasksView', 'list')}
+            testId="default-tasks-view-list"
+          />
+          <OptionCard
+            value="kanban"
+            label="Kanban View"
+            description="Drag-and-drop board by status"
+            icon={LayoutGrid}
+            isSelected={defaults.tasksView === 'kanban'}
+            onSelect={() => updateSetting('tasksView', 'kanban')}
+            testId="default-tasks-view-kanban"
+          />
+        </div>
+      </div>
+
+      {/* Dashboard Default Lens */}
+      <div className="mb-8">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Dashboard Lens</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Choose the default dashboard view when navigating to the Dashboard.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <OptionCard
+            value="overview"
+            label="Overview"
+            description="Key metrics and quick actions"
+            icon={Home}
+            isSelected={defaults.dashboardLens === 'overview'}
+            onSelect={() => updateSetting('dashboardLens', 'overview')}
+            testId="default-dashboard-lens-overview"
+          />
+          <OptionCard
+            value="task-flow"
+            label="Task Flow"
+            description="Ready, blocked & completed tasks"
+            icon={Workflow}
+            isSelected={defaults.dashboardLens === 'task-flow'}
+            onSelect={() => updateSetting('dashboardLens', 'task-flow')}
+            testId="default-dashboard-lens-task-flow"
+          />
+          <OptionCard
+            value="agents"
+            label="Agents"
+            description="Agent workload and activity"
+            icon={Users}
+            isSelected={defaults.dashboardLens === 'agents'}
+            onSelect={() => updateSetting('dashboardLens', 'agents')}
+            testId="default-dashboard-lens-agents"
+          />
+          <OptionCard
+            value="dependencies"
+            label="Dependencies"
+            description="Visual dependency graph"
+            icon={GitBranch}
+            isSelected={defaults.dashboardLens === 'dependencies'}
+            onSelect={() => updateSetting('dashboardLens', 'dependencies')}
+            testId="default-dashboard-lens-dependencies"
+          />
+          <OptionCard
+            value="timeline"
+            label="Timeline"
+            description="Chronological event feed"
+            icon={Clock}
+            isSelected={defaults.dashboardLens === 'timeline'}
+            onSelect={() => updateSetting('dashboardLens', 'timeline')}
+            testId="default-dashboard-lens-timeline"
+          />
+        </div>
+      </div>
+
+      {/* Default Sort Order */}
+      <div className="mb-8">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Default Sort Order</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Choose how lists are sorted by default across the application.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <OptionCard
+            value="updated_at"
+            label="Last Updated"
+            description="Most recently modified first"
+            icon={Clock}
+            isSelected={defaults.sortOrder === 'updated_at'}
+            onSelect={() => updateSetting('sortOrder', 'updated_at')}
+            testId="default-sort-updated"
+          />
+          <OptionCard
+            value="created_at"
+            label="Date Created"
+            description="Newest items first"
+            icon={Calendar}
+            isSelected={defaults.sortOrder === 'created_at'}
+            onSelect={() => updateSetting('sortOrder', 'created_at')}
+            testId="default-sort-created"
+          />
+          <OptionCard
+            value="priority"
+            label="Priority"
+            description="Highest priority first"
+            icon={ArrowUp}
+            isSelected={defaults.sortOrder === 'priority'}
+            onSelect={() => updateSetting('sortOrder', 'priority')}
+            testId="default-sort-priority"
+          />
+          <OptionCard
+            value="title"
+            label="Title"
+            description="Alphabetical order"
+            icon={FileText}
+            isSelected={defaults.sortOrder === 'title'}
+            onSelect={() => updateSetting('sortOrder', 'title')}
+            testId="default-sort-title"
+          />
+        </div>
+      </div>
+
+      {/* Note */}
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-6 text-center">
+        These defaults apply when you first load a page. You can still change views temporarily at any time.
+      </p>
+    </div>
+  );
+}
+
 function ComingSoonSection({ section }: { section: SectionNavItem }) {
   const Icon = section.icon;
 
@@ -662,6 +935,10 @@ export function SettingsPage() {
 
     if (activeSection === 'shortcuts') {
       return <ShortcutsSection />;
+    }
+
+    if (activeSection === 'defaults') {
+      return <DefaultsSection />;
     }
 
     const section = SETTINGS_SECTIONS.find((s) => s.id === activeSection);

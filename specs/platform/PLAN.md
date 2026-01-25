@@ -992,14 +992,14 @@ For mutations (create, update, delete):
   - [x] Web: Persist custom shortcuts in localStorage
   - [x] **Verify:** Playwright tests passing (22 TB60 tests)
 
-- [ ] **TB61: Settings Page - Default Views**
-  - [ ] Web: Default view preferences section:
-    - [ ] Tasks default view: List or Kanban
-    - [ ] Dashboard default lens: Overview, Task Flow, Agents, Dependencies, or Timeline
-    - [ ] Default sort order for lists (by created date, priority, etc.)
-  - [ ] Web: Persist in localStorage
-  - [ ] Web: Apply defaults on page load (check localStorage before rendering)
-  - [ ] **Verify:** Set Tasks default to Kanban, navigate to Tasks, Kanban shows immediately
+- [x] **TB61: Settings Page - Default Views**
+  - [x] Web: Default view preferences section:
+    - [x] Tasks default view: List or Kanban
+    - [x] Dashboard default lens: Overview, Task Flow, Agents, Dependencies, or Timeline
+    - [x] Default sort order for lists (by created date, priority, etc.)
+  - [x] Web: Persist in localStorage key `settings.defaults`
+  - [x] Web: Apply defaults on page load (tasks.viewMode synced, router redirects to preferred dashboard lens)
+  - [x] **Verify:** Playwright tests passing (20 TB61 tests)
 
 - [ ] **TB62: Settings Page - Notifications**
   - [ ] Web: Notification preferences section with toggles:

@@ -12,19 +12,30 @@ import { PlansPage } from './routes/plans';
 import { WorkflowsPage } from './routes/workflows';
 import { EntitiesPage } from './routes/entities';
 import { TeamsPage } from './routes/teams';
-import { SettingsPage } from './routes/settings';
+import { SettingsPage, getDefaultDashboardLens } from './routes/settings';
+
+// Map dashboard lens settings to routes
+const DASHBOARD_LENS_ROUTES: Record<ReturnType<typeof getDefaultDashboardLens>, string> = {
+  'overview': '/dashboard',
+  'task-flow': '/dashboard/task-flow',
+  'agents': '/dashboard/agents',
+  'dependencies': '/dashboard/dependencies',
+  'timeline': '/dashboard/timeline',
+};
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
   component: AppShell,
 });
 
-// Index route - redirect to dashboard
+// Index route - redirect to user's preferred dashboard lens
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/dashboard' });
+    const defaultLens = getDefaultDashboardLens();
+    const targetRoute = DASHBOARD_LENS_ROUTES[defaultLens] || '/dashboard';
+    throw redirect({ to: targetRoute });
   },
 });
 
