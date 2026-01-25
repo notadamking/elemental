@@ -254,11 +254,52 @@ function useBlockedTasks() {
   });
 }
 
-function useCompletedTasks() {
-  return useQuery<Task[]>({
-    queryKey: ['tasks', 'completed'],
+// Date range options for completed tasks filter
+type DateRange = 'today' | 'week' | 'month' | 'all';
+
+const DATE_RANGE_OPTIONS: { value: DateRange; label: string }[] = [
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+  { value: 'all', label: 'All Time' },
+];
+
+function getDateRangeStart(range: DateRange): string | null {
+  const now = new Date();
+  switch (range) {
+    case 'today':
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    case 'week':
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - 7);
+      return weekStart.toISOString();
+    case 'month':
+      const monthStart = new Date(now);
+      monthStart.setDate(now.getDate() - 30);
+      return monthStart.toISOString();
+    case 'all':
+      return null;
+  }
+}
+
+interface CompletedTasksResponse {
+  items: Task[];
+  hasMore: boolean;
+}
+
+function useCompletedTasks(dateRange: DateRange, offset: number = 0, limit: number = 20) {
+  const afterDate = getDateRangeStart(dateRange);
+
+  return useQuery<CompletedTasksResponse>({
+    queryKey: ['tasks', 'completed', dateRange, offset, limit],
     queryFn: async () => {
-      const response = await fetch('/api/tasks/completed');
+      const params = new URLSearchParams();
+      params.set('limit', limit.toString());
+      params.set('offset', offset.toString());
+      if (afterDate) {
+        params.set('after', afterDate);
+      }
+      const response = await fetch(`/api/tasks/completed?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch completed tasks');
       return response.json();
     },
@@ -464,6 +505,16 @@ function InProgressTaskCard({ task, onClick }: { task: Task; onClick?: () => voi
 
 function CompletedTaskCard({ task, onClick }: { task: Task; onClick?: () => void }) {
   const timeAgo = getTimeAgo(task.updatedAt);
+  const completionDate = new Date(task.updatedAt);
+  const formattedDate = completionDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: completionDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+  });
+  const formattedTime = completionDate.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 
   return (
     <div
@@ -480,8 +531,13 @@ function CompletedTaskCard({ task, onClick }: { task: Task; onClick?: () => void
           {task.status === 'cancelled' ? 'Cancelled' : 'Done'}
         </span>
       </div>
-      <div className="mt-2 text-xs text-gray-500">
-        Completed {timeAgo}
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-500" data-testid={`task-completed-time-${task.id}`}>
+        <Clock className="w-3 h-3" />
+        <span title={`${formattedDate} at ${formattedTime}`}>
+          {timeAgo}
+        </span>
+        <span className="text-gray-400">·</span>
+        <span className="text-gray-400">{formattedDate}</span>
       </div>
     </div>
   );
@@ -1469,7 +1525,31 @@ export function TaskFlowPage() {
   const readyTasks = useReadyTasks();
   const inProgressTasks = useInProgressTasks();
   const blockedTasks = useBlockedTasks();
-  const completedTasks = useCompletedTasks();
+
+  // Completed tasks with pagination and date filtering
+  const [completedDateRange, setCompletedDateRange] = useState<DateRange>('week');
+  const [completedOffset, setCompletedOffset] = useState(0);
+  const [allCompletedTasks, setAllCompletedTasks] = useState<Task[]>([]);
+
+  const completedTasksQuery = useCompletedTasks(completedDateRange, completedOffset);
+
+  // Reset tasks when date range changes
+  useEffect(() => {
+    setCompletedOffset(0);
+    setAllCompletedTasks([]);
+  }, [completedDateRange]);
+
+  // Accumulate tasks as we paginate
+  useEffect(() => {
+    if (completedTasksQuery.data?.items) {
+      if (completedOffset === 0) {
+        setAllCompletedTasks(completedTasksQuery.data.items);
+      } else {
+        setAllCompletedTasks((prev) => [...prev, ...completedTasksQuery.data.items]);
+      }
+    }
+  }, [completedTasksQuery.data, completedOffset]);
+
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   // Column preferences with localStorage persistence
@@ -1495,8 +1575,8 @@ export function TaskFlowPage() {
   );
 
   const filteredCompletedTasks = useMemo(
-    () => applyFiltersAndSort(completedTasks.data, completedPrefs.filters, completedPrefs.sort),
-    [completedTasks.data, completedPrefs.filters, completedPrefs.sort]
+    () => applyFiltersAndSort(allCompletedTasks, completedPrefs.filters, completedPrefs.sort),
+    [allCompletedTasks, completedPrefs.filters, completedPrefs.sort]
   );
 
   // Collect unique assignees and tags from all tasks for filter dropdowns
@@ -1504,8 +1584,12 @@ export function TaskFlowPage() {
     ...(readyTasks.data || []),
     ...(inProgressTasks.data || []),
     ...(blockedTasks.data || []),
-    ...(completedTasks.data || []),
-  ], [readyTasks.data, inProgressTasks.data, blockedTasks.data, completedTasks.data]);
+    ...allCompletedTasks,
+  ], [readyTasks.data, inProgressTasks.data, blockedTasks.data, allCompletedTasks]);
+
+  const handleLoadMore = () => {
+    setCompletedOffset((prev) => prev + 20);
+  };
 
   const allAssignees = useMemo(() => getUniqueAssignees(allTasks), [allTasks]);
   const allTags = useMemo(() => getUniqueTags(allTasks), [allTasks]);
@@ -1602,28 +1686,74 @@ export function TaskFlowPage() {
         </Column>
 
         {/* Completed Tasks Column */}
-        <Column
-          title="Completed"
-          columnId="completed"
-          count={filteredCompletedTasks.length}
-          totalCount={completedTasks.data?.length ?? 0}
-          color="bg-blue-500"
-          isLoading={completedTasks.isLoading}
-          isError={completedTasks.isError}
-          emptyMessage="No recently completed tasks"
-          availableAssignees={allAssignees}
-          availableTags={allTags}
-          preferences={completedPrefs}
-          onUpdatePreferences={setCompletedPrefs}
-        >
-          {filteredCompletedTasks.map((task) => (
-            <CompletedTaskCard
-              key={task.id}
-              task={task}
-              onClick={() => handleTaskClick(task.id)}
-            />
-          ))}
-        </Column>
+        <div className="flex flex-col min-h-0" data-testid="column-completed">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-3 h-3 rounded-full bg-blue-500" />
+            <h3 className="font-medium text-gray-900">Completed</h3>
+            <span className="text-sm text-gray-500">
+              ({filteredCompletedTasks.length}{filteredCompletedTasks.length !== allCompletedTasks.length ? ` / ${allCompletedTasks.length}` : ''})
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <select
+                value={completedDateRange}
+                onChange={(e) => setCompletedDateRange(e.target.value as DateRange)}
+                className="text-xs px-2 py-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                data-testid="completed-date-range-select"
+              >
+                {DATE_RANGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <FilterSortDropdown
+                columnId="completed"
+                availableAssignees={allAssignees}
+                availableTags={allTags}
+                preferences={completedPrefs}
+                onUpdate={setCompletedPrefs}
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+            {completedTasksQuery.isLoading && completedOffset === 0 && (
+              <div className="text-sm text-gray-500 p-3">Loading...</div>
+            )}
+            {completedTasksQuery.isError && (
+              <div className="text-sm text-red-600 p-3">Failed to load</div>
+            )}
+            {!completedTasksQuery.isLoading && !completedTasksQuery.isError && filteredCompletedTasks.length === 0 && (
+              <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-lg">
+                {(completedPrefs.filters.assignee || completedPrefs.filters.priority || completedPrefs.filters.tag)
+                  ? 'No matching tasks'
+                  : 'No completed tasks in this period'}
+              </div>
+            )}
+            {filteredCompletedTasks.map((task) => (
+              <CompletedTaskCard
+                key={task.id}
+                task={task}
+                onClick={() => handleTaskClick(task.id)}
+              />
+            ))}
+            {/* Show More button */}
+            {completedTasksQuery.data?.hasMore && (
+              <button
+                onClick={handleLoadMore}
+                disabled={completedTasksQuery.isLoading}
+                className="w-full py-2 px-4 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                data-testid="completed-load-more-button"
+              >
+                {completedTasksQuery.isLoading && completedOffset > 0 ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading more...
+                  </span>
+                ) : (
+                  'Show More'
+                )}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Task Slide-Over Panel */}

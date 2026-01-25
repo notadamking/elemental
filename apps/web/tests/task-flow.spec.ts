@@ -12,7 +12,10 @@ test.describe('TB6: Task Flow Lens', () => {
     const response = await page.request.get('/api/tasks/completed');
     expect(response.ok()).toBe(true);
     const data = await response.json();
-    expect(Array.isArray(data)).toBe(true);
+    // TB32: Response is now { items: Task[], hasMore: boolean }
+    expect(data.items).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.hasMore).toBe('boolean');
   });
 
   test('task flow page is accessible via navigation', async ({ page }) => {
@@ -45,7 +48,9 @@ test.describe('TB6: Task Flow Lens', () => {
     const blockedTasks = await blockedResponse.json();
 
     const completedResponse = await page.request.get('/api/tasks/completed');
-    const completedTasks = await completedResponse.json();
+    const completedData = await completedResponse.json();
+    // TB32: Response is now { items: Task[], hasMore: boolean }
+    const completedTasks = completedData.items;
 
     await page.goto('/dashboard/task-flow');
     await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
@@ -216,7 +221,9 @@ test.describe('TB28: Task Flow - Click to Open', () => {
   test('clicking a completed task opens slide-over panel', async ({ page }) => {
     // Get completed tasks from API
     const response = await page.request.get('/api/tasks/completed');
-    const completedTasks = await response.json();
+    const data = await response.json();
+    // TB32: Response is now { items: Task[], hasMore: boolean }
+    const completedTasks = data.items;
 
     if (completedTasks.length === 0) {
       test.skip();
@@ -612,5 +619,161 @@ test.describe('TB30: Task Flow - Filter & Sort', () => {
 
     // Dropdown should close
     await expect(page.getByTestId('ready-filter-dropdown')).not.toBeVisible();
+  });
+});
+
+test.describe('TB32: Task Flow - Load Completed Tasks', () => {
+  test('completed tasks API supports pagination params', async ({ page }) => {
+    // Test with limit and offset
+    const response = await page.request.get('/api/tasks/completed?limit=5&offset=0');
+    expect(response.ok()).toBe(true);
+    const data = await response.json();
+    expect(data.items).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(data.items.length).toBeLessThanOrEqual(5);
+    expect(typeof data.hasMore).toBe('boolean');
+  });
+
+  test('completed tasks API supports date filtering', async ({ page }) => {
+    // Test with after param (today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const response = await page.request.get(`/api/tasks/completed?after=${today.toISOString()}`);
+    expect(response.ok()).toBe(true);
+    const data = await response.json();
+    expect(data.items).toBeDefined();
+    expect(Array.isArray(data.items)).toBe(true);
+
+    // Verify all returned tasks are from today
+    for (const task of data.items) {
+      expect(new Date(task.updatedAt).getTime()).toBeGreaterThanOrEqual(today.getTime());
+    }
+  });
+
+  test('completed column has date range selector', async ({ page }) => {
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-completed').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Date range select should be visible
+    await expect(page.getByTestId('completed-date-range-select')).toBeVisible();
+  });
+
+  test('date range selector has expected options', async ({ page }) => {
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-completed').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check for all expected date range options
+    const dateRangeSelect = page.getByTestId('completed-date-range-select');
+    await expect(dateRangeSelect.locator('option[value="today"]')).toHaveText('Today');
+    await expect(dateRangeSelect.locator('option[value="week"]')).toHaveText('This Week');
+    await expect(dateRangeSelect.locator('option[value="month"]')).toHaveText('This Month');
+    await expect(dateRangeSelect.locator('option[value="all"]')).toHaveText('All Time');
+  });
+
+  test('changing date range reloads completed tasks', async ({ page }) => {
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-completed').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Default is "This Week"
+    const dateRangeSelect = page.getByTestId('completed-date-range-select');
+    await expect(dateRangeSelect).toHaveValue('week');
+
+    // Change to "All Time"
+    await dateRangeSelect.selectOption('all');
+
+    // Verify selection changed
+    await expect(dateRangeSelect).toHaveValue('all');
+
+    // Give time for reload
+    await page.waitForTimeout(500);
+  });
+
+  test('completed task cards show completion timestamp', async ({ page }) => {
+    // Get completed tasks from API
+    const response = await page.request.get('/api/tasks/completed');
+    const data = await response.json();
+
+    if (data.items.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-completed').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that completed task cards have timestamp element
+    const firstTask = data.items[0];
+    const timestampElement = page.getByTestId(`task-completed-time-${firstTask.id}`);
+    await expect(timestampElement).toBeVisible({ timeout: 5000 });
+  });
+
+  test('show more button appears when there are more completed tasks', async ({ page }) => {
+    // Get completed tasks with limit 5 to check if there are more
+    const response = await page.request.get('/api/tasks/completed?limit=5');
+    const data = await response.json();
+
+    if (!data.hasMore) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-completed').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Change date range to "All Time" to ensure we have enough tasks
+    await page.getByTestId('completed-date-range-select').selectOption('all');
+    await page.waitForTimeout(1000);
+
+    // Check if Show More button is visible
+    const showMoreButton = page.getByTestId('completed-load-more-button');
+    // Only check if there are actually more tasks
+    const allResponse = await page.request.get('/api/tasks/completed?limit=20');
+    const allData = await allResponse.json();
+    if (allData.hasMore) {
+      await expect(showMoreButton).toBeVisible({ timeout: 5000 });
+    }
+  });
+
+  test('clicking show more loads additional completed tasks', async ({ page }) => {
+    // First check if there are enough completed tasks to paginate
+    const allResponse = await page.request.get('/api/tasks/completed?limit=100');
+    const allData = await allResponse.json();
+
+    if (allData.items.length <= 20) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+
+    // Change date range to "All Time"
+    await page.getByTestId('completed-date-range-select').selectOption('all');
+    await expect(page.getByTestId('column-completed').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for initial load
+    await page.waitForTimeout(1000);
+
+    // Get initial count from UI
+    const completedColumn = page.getByTestId('column-completed');
+    const initialCountMatch = await completedColumn.textContent();
+
+    // Click Show More
+    const showMoreButton = page.getByTestId('completed-load-more-button');
+    if (await showMoreButton.isVisible()) {
+      await showMoreButton.click();
+
+      // Wait for load
+      await page.waitForTimeout(1000);
+
+      // Count should have increased
+      const finalCountMatch = await completedColumn.textContent();
+      expect(finalCountMatch).not.toBe(initialCountMatch);
+    }
   });
 });

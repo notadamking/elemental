@@ -202,16 +202,40 @@ app.get('/api/tasks/in-progress', async (c) => {
 
 app.get('/api/tasks/completed', async (c) => {
   try {
+    const url = new URL(c.req.url);
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const afterParam = url.searchParams.get('after'); // ISO date string for date filtering
+
     // Get tasks with completed or cancelled status, sorted by updated_at desc
     // The API accepts TaskFilter when type is 'task', but TypeScript signature is ElementFilter
-    const tasks = await api.list({
+    const filter: Record<string, unknown> = {
       type: 'task',
       status: ['completed', 'cancelled'],
       orderBy: 'updated_at',
       orderDir: 'desc',
-      limit: 20,
-    } as Parameters<typeof api.list>[0]);
-    return c.json(tasks);
+      limit: limitParam ? parseInt(limitParam, 10) : 20,
+    };
+
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    // Note: 'after' date filtering needs to be done post-query since the API
+    // may not support date filtering directly on updated_at
+    let tasks = await api.list(filter as Parameters<typeof api.list>[0]);
+
+    // Apply date filter if provided
+    if (afterParam) {
+      const afterDate = new Date(afterParam);
+      tasks = tasks.filter((task) => new Date(task.updatedAt) >= afterDate);
+    }
+
+    // Return with total count for pagination info
+    return c.json({
+      items: tasks,
+      hasMore: tasks.length === (filter.limit as number),
+    });
   } catch (error) {
     console.error('[elemental] Failed to get completed tasks:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get completed tasks' } }, 500);

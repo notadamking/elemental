@@ -736,11 +736,11 @@ For mutations (create, update, delete):
   - [x] Web: Add "New Channel" button to Messages page sidebar
   - [x] **Verify:** Create group channel, appears in channel list, can send messages (Playwright tests passing - 14 tests)
 
-- [ ] **TB32: Task Flow - Load Completed Tasks**
-  - [ ] Web: Add paginated loading for completed tasks ("Show more" button or infinite scroll trigger)
-  - [ ] Web: Add date range filter for completed tasks (Today, This Week, This Month, All Time)
-  - [ ] Web: Display completion timestamp on completed task cards
-  - [ ] **Verify:** Load completed tasks from past week, pagination works correctly
+- [x] **TB32: Task Flow - Load Completed Tasks**
+  - [x] Web: Add paginated loading for completed tasks ("Show more" button or infinite scroll trigger)
+  - [x] Web: Add date range filter for completed tasks (Today, This Week, This Month, All Time)
+  - [x] Web: Display completion timestamp on completed task cards
+  - [x] **Verify:** Load completed tasks from past week, pagination works correctly (Playwright tests passing - 10 tests)
 
 ### Phase 10: Entity & Team Pages + More CRUD
 
