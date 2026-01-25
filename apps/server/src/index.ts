@@ -2079,6 +2079,84 @@ app.get('/api/plans/:id/progress', async (c) => {
   }
 });
 
+// Add task to plan
+app.post('/api/plans/:id/tasks', async (c) => {
+  try {
+    const planId = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.taskId || typeof body.taskId !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'taskId is required and must be a string' } }, 400);
+    }
+
+    // Verify plan exists
+    const plan = await api.get(planId);
+    if (!plan) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+    if (plan.type !== 'plan') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    // Verify task exists
+    const task = await api.get(body.taskId as ElementId);
+    if (!task) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if (task.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Add the task to the plan
+    const dependency = await api.addTaskToPlan(
+      body.taskId as ElementId,
+      planId,
+      { actor: body.actor as EntityId | undefined }
+    );
+
+    return c.json(dependency, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'ALREADY_EXISTS') {
+      return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in this plan' } }, 409);
+    }
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to add task to plan:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to add task to plan' } }, 500);
+  }
+});
+
+// Remove task from plan
+app.delete('/api/plans/:id/tasks/:taskId', async (c) => {
+  try {
+    const planId = c.req.param('id') as ElementId;
+    const taskId = c.req.param('taskId') as ElementId;
+
+    // Verify plan exists
+    const plan = await api.get(planId);
+    if (!plan) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+    if (plan.type !== 'plan') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    // Remove the task from the plan
+    await api.removeTaskFromPlan(taskId, planId);
+
+    return c.json({ success: true });
+  } catch (error) {
+    const errorCode = (error as { code?: string }).code;
+    if (errorCode === 'NOT_FOUND' || errorCode === 'DEPENDENCY_NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task is not in this plan' } }, 404);
+    }
+    console.error('[elemental] Failed to remove task from plan:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to remove task from plan' } }, 500);
+  }
+});
+
 app.post('/api/plans', async (c) => {
   try {
     const body = await c.req.json();

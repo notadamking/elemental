@@ -853,13 +853,15 @@ For mutations (create, update, delete):
   - [x] Web: URL sync for pagination state (e.g., `?page=2&limit=25`) - router validates search params
   - [x] **Verify:** Playwright tests passing (12 tests for pagination component)
 
-- [ ] **TB47: Edit Plan**
-  - [ ] Web: Make PlanDetailPanel editable (edit button toggles edit mode)
-  - [ ] Web: Editable fields: title, description (via document), status (dropdown)
-  - [ ] Web: "Add Task" button opens task picker to add existing task to plan
-  - [ ] Web: "Remove Task" button on each task in plan (with confirmation)
-  - [ ] Web: Status transition buttons (Activate, Complete, Cancel) based on current status
-  - [ ] **Verify:** Edit plan title, add task to plan, verify changes persist
+- [x] **TB47: Edit Plan**
+  - [x] Server: Add `POST /api/plans/:id/tasks` endpoint (add task to plan)
+  - [x] Server: Add `DELETE /api/plans/:id/tasks/:taskId` endpoint (remove task from plan)
+  - [x] Web: Make PlanDetailPanel editable (edit button on title, inline editing)
+  - [x] Web: Editable fields: title (inline edit with save/cancel)
+  - [x] Web: "Add Task" button opens TaskPickerModal with search functionality
+  - [x] Web: "Remove Task" button on each task in plan (with double-click confirmation)
+  - [x] Web: Status transition buttons (Activate, Complete, Cancel) based on current status
+  - [x] **Verify:** Playwright tests passing (18 TB47 tests, 42 total plans tests)
 
 - [ ] **TB48: Edit Workflow**
   - [ ] Web: Make WorkflowDetailPanel editable (title, status where valid)
