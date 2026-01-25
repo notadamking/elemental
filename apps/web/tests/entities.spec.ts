@@ -678,3 +678,442 @@ test.describe('TB35: Create Entity', () => {
     expect(createdEntity.tags).toContain('playwright');
   });
 });
+
+test.describe('TB36: Edit Entity', () => {
+  test('PATCH /api/entities/:id endpoint updates entity name', async ({ page }) => {
+    // First create an entity to edit
+    const testName = `EditTest${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    // Update the entity name
+    const newName = `${testName}Updated`;
+    const updateResponse = await page.request.patch(`/api/entities/${entity.id}`, {
+      data: { name: newName },
+    });
+    expect(updateResponse.ok()).toBe(true);
+    const updated = await updateResponse.json();
+    expect(updated.name).toBe(newName);
+  });
+
+  test('PATCH /api/entities/:id endpoint updates entity tags', async ({ page }) => {
+    // First create an entity to edit
+    const testName = `TagTest${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+        tags: ['original'],
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    // Update the entity tags
+    const updateResponse = await page.request.patch(`/api/entities/${entity.id}`, {
+      data: { tags: ['updated', 'new-tag'] },
+    });
+    expect(updateResponse.ok()).toBe(true);
+    const updated = await updateResponse.json();
+    expect(updated.tags).toContain('updated');
+    expect(updated.tags).toContain('new-tag');
+    expect(updated.tags).not.toContain('original');
+  });
+
+  test('PATCH /api/entities/:id endpoint updates active status', async ({ page }) => {
+    // First create an entity to edit
+    const testName = `ActiveTest${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    // Deactivate the entity
+    const updateResponse = await page.request.patch(`/api/entities/${entity.id}`, {
+      data: { active: false },
+    });
+    expect(updateResponse.ok()).toBe(true);
+    const updated = await updateResponse.json();
+    expect(updated.active).toBe(false);
+
+    // Reactivate the entity
+    const reactivateResponse = await page.request.patch(`/api/entities/${entity.id}`, {
+      data: { active: true },
+    });
+    expect(reactivateResponse.ok()).toBe(true);
+    const reactivated = await reactivateResponse.json();
+    expect(reactivated.active).toBe(true);
+  });
+
+  test('PATCH /api/entities/:id validates name uniqueness', async ({ page }) => {
+    // Create two entities
+    const testName1 = `Unique1${Date.now()}`;
+    const testName2 = `Unique2${Date.now()}`;
+
+    await page.request.post('/api/entities', {
+      data: { name: testName1, entityType: 'agent' },
+    });
+    const response2 = await page.request.post('/api/entities', {
+      data: { name: testName2, entityType: 'agent' },
+    });
+    const entity2 = await response2.json();
+
+    // Try to rename entity2 to entity1's name
+    const updateResponse = await page.request.patch(`/api/entities/${entity2.id}`, {
+      data: { name: testName1 },
+    });
+    expect(updateResponse.ok()).toBe(false);
+    const error = await updateResponse.json();
+    expect(error.error?.message).toContain('already exists');
+  });
+
+  test('edit button is visible in entity detail panel', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Wait for detail panel to load
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Edit button should be visible
+    await expect(page.getByTestId('entity-edit-button')).toBeVisible();
+  });
+
+  test('clicking edit button enables edit mode', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
+    await page.getByTestId('entity-edit-button').click();
+
+    // Edit mode elements should be visible
+    await expect(page.getByTestId('entity-edit-name-input')).toBeVisible();
+    await expect(page.getByTestId('entity-save-button')).toBeVisible();
+    await expect(page.getByTestId('entity-cancel-edit-button')).toBeVisible();
+  });
+
+  test('can edit entity name via UI', async ({ page }) => {
+    // First create an entity to edit
+    const testName = `UIEdit${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
+    await page.getByTestId('entity-edit-button').click();
+
+    // Edit the name
+    const newName = `${testName}Changed`;
+    await page.getByTestId('entity-edit-name-input').fill(newName);
+
+    // Save
+    await page.getByTestId('entity-save-button').click();
+
+    // Verify the name was updated in the detail panel
+    await expect(page.getByTestId('entity-detail-panel').getByRole('heading', { name: newName })).toBeVisible({ timeout: 10000 });
+
+    // Verify via API
+    const verifyResponse = await page.request.get(`/api/entities/${entity.id}`);
+    const updated = await verifyResponse.json();
+    expect(updated.name).toBe(newName);
+  });
+
+  test('cancel button exits edit mode without saving', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
+    await page.getByTestId('entity-edit-button').click();
+
+    // Change the name
+    const originalName = firstEntity.name;
+    await page.getByTestId('entity-edit-name-input').fill('SomethingElse');
+
+    // Click cancel
+    await page.getByTestId('entity-cancel-edit-button').click();
+
+    // Should exit edit mode
+    await expect(page.getByTestId('entity-edit-name-input')).not.toBeVisible();
+    await expect(page.getByTestId('entity-edit-button')).toBeVisible();
+
+    // Name should be unchanged
+    await expect(page.getByTestId('entity-detail-panel').getByRole('heading', { name: originalName })).toBeVisible();
+  });
+
+  test('toggle active button shows confirmation dialog', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click toggle active button
+    await page.getByTestId('entity-toggle-active-button').click();
+
+    // Confirmation dialog should appear
+    await expect(page.getByTestId('entity-deactivate-confirm')).toBeVisible();
+    await expect(page.getByTestId('entity-confirm-toggle-button')).toBeVisible();
+    await expect(page.getByTestId('entity-cancel-toggle-button')).toBeVisible();
+  });
+
+  test('cancel toggle active dialog closes without changes', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click toggle active button
+    await page.getByTestId('entity-toggle-active-button').click();
+    await expect(page.getByTestId('entity-deactivate-confirm')).toBeVisible();
+
+    // Click cancel
+    await page.getByTestId('entity-cancel-toggle-button').click();
+
+    // Confirmation dialog should close
+    await expect(page.getByTestId('entity-deactivate-confirm')).not.toBeVisible();
+    await expect(page.getByTestId('entity-toggle-active-button')).toBeVisible();
+  });
+
+  test('can deactivate entity via confirmation dialog', async ({ page }) => {
+    // First create an active entity to deactivate
+    const testName = `Deactivate${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click toggle active button
+    await page.getByTestId('entity-toggle-active-button').click();
+    await expect(page.getByTestId('entity-deactivate-confirm')).toBeVisible();
+
+    // Confirm deactivation
+    await page.getByTestId('entity-confirm-toggle-button').click();
+
+    // Wait for update
+    await expect(page.getByTestId('entity-deactivate-confirm')).not.toBeVisible({ timeout: 10000 });
+
+    // Entity should now show as inactive
+    await expect(page.getByTestId('entity-toggle-active-button')).toContainText('Inactive');
+
+    // Verify via API
+    const verifyResponse = await page.request.get(`/api/entities/${entity.id}`);
+    const updated = await verifyResponse.json();
+    expect(updated.active).toBe(false);
+  });
+
+  test('can edit tags in edit mode', async ({ page }) => {
+    // First create an entity with tags
+    const testName = `TagEdit${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+        tags: ['original-tag'],
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
+    await page.getByTestId('entity-edit-button').click();
+
+    // Edit tags input should be visible
+    await expect(page.getByTestId('entity-edit-tags-input')).toBeVisible();
+
+    // Change the tags
+    await page.getByTestId('entity-edit-tags-input').fill('new-tag, another-tag');
+
+    // Save
+    await page.getByTestId('entity-save-button').click();
+
+    // Verify via API
+    await page.waitForTimeout(500); // Wait for update to complete
+    const verifyResponse = await page.request.get(`/api/entities/${entity.id}`);
+    const updated = await verifyResponse.json();
+    expect(updated.tags).toContain('new-tag');
+    expect(updated.tags).toContain('another-tag');
+    expect(updated.tags).not.toContain('original-tag');
+  });
+
+  test('tags list shows remove button on hover', async ({ page }) => {
+    // First create an entity with tags
+    const testName = `TagRemove${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+        tags: ['removable-tag'],
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Wait for tags list to load
+    await expect(page.getByTestId('entity-tags-list')).toBeVisible({ timeout: 10000 });
+
+    // Hover over the tag to reveal remove button
+    const tagElement = page.getByText('removable-tag').first();
+    await tagElement.hover();
+
+    // Remove button should become visible
+    await expect(page.getByTestId('entity-remove-tag-removable-tag')).toBeVisible();
+  });
+
+  test('can remove tag by clicking remove button', async ({ page }) => {
+    // First create an entity with multiple tags
+    const testName = `TagRemove2${Date.now()}`;
+    const createResponse = await page.request.post('/api/entities', {
+      data: {
+        name: testName,
+        entityType: 'agent',
+        tags: ['keep-me', 'remove-me'],
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+    const entity = await createResponse.json();
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Wait for tags list to load
+    await expect(page.getByTestId('entity-tags-list')).toBeVisible({ timeout: 10000 });
+
+    // Hover and click remove button
+    const tagElement = page.getByText('remove-me').first();
+    await tagElement.hover();
+    await page.getByTestId('entity-remove-tag-remove-me').click();
+
+    // Wait for update to complete
+    await page.waitForTimeout(500);
+
+    // Verify via API
+    const verifyResponse = await page.request.get(`/api/entities/${entity.id}`);
+    const updated = await verifyResponse.json();
+    expect(updated.tags).toContain('keep-me');
+    expect(updated.tags).not.toContain('remove-me');
+  });
+});

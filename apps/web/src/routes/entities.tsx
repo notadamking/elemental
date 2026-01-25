@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2 } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag } from 'lucide-react';
 
 interface Entity {
   id: string;
@@ -137,6 +137,39 @@ function useCreateEntity() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['entities'] });
+    },
+  });
+}
+
+interface UpdateEntityInput {
+  name?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  active?: boolean;
+}
+
+function useUpdateEntity(entityId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateEntityInput) => {
+      const response = await fetch(`/api/entities/${entityId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to update entity');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entities'] });
+      queryClient.invalidateQueries({ queryKey: ['entities', entityId] });
+      queryClient.invalidateQueries({ queryKey: ['entities', entityId, 'stats'] });
     },
   });
 }
@@ -635,6 +668,77 @@ function EntityDetailPanel({
   const { data: stats, isLoading: statsLoading } = useEntityStats(entityId);
   const { data: tasks, isLoading: tasksLoading } = useEntityTasks(entityId);
   const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
+  const updateEntity = useUpdateEntity(entityId);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editTags, setEditTags] = useState('');
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+
+  // Initialize edit values when entity loads or editing starts
+  useEffect(() => {
+    if (entity && isEditing) {
+      setEditName(entity.name);
+      setEditTags(entity.tags?.join(', ') || '');
+    }
+  }, [entity, isEditing]);
+
+  // Reset edit mode when entity changes
+  useEffect(() => {
+    setIsEditing(false);
+    setShowDeactivateConfirm(false);
+  }, [entityId]);
+
+  const handleSave = async () => {
+    if (!entity) return;
+
+    const updates: UpdateEntityInput = {};
+
+    if (editName.trim() && editName.trim() !== entity.name) {
+      updates.name = editName.trim();
+    }
+
+    const newTags = editTags.split(',').map((t) => t.trim()).filter(Boolean);
+    const currentTags = entity.tags || [];
+    if (JSON.stringify(newTags) !== JSON.stringify(currentTags)) {
+      updates.tags = newTags;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      setIsEditing(false);
+      return;
+    }
+
+    try {
+      await updateEntity.mutateAsync(updates);
+      setIsEditing(false);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleToggleActive = async () => {
+    if (!entity) return;
+    const newActive = entity.active === false;
+
+    try {
+      await updateEntity.mutateAsync({ active: newActive });
+      setShowDeactivateConfirm(false);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleRemoveTag = async (tagToRemove: string) => {
+    if (!entity) return;
+    const newTags = (entity.tags || []).filter((t) => t !== tagToRemove);
+
+    try {
+      await updateEntity.mutateAsync({ tags: newTags });
+    } catch {
+      // Error handled by mutation
+    }
+  };
 
   if (entityLoading) {
     return (
@@ -666,31 +770,77 @@ function EntityDetailPanel({
             <Icon className={`w-6 h-6 ${styles.text}`} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-medium text-gray-900">{entity.name}</h2>
-              {!isActive && (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
-                  Inactive
-                </span>
-              )}
-            </div>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="text-lg font-medium text-gray-900 border border-blue-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                data-testid="entity-edit-name-input"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-medium text-gray-900">{entity.name}</h2>
+                {!isActive && (
+                  <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                    Inactive
+                  </span>
+                )}
+              </div>
+            )}
             <p className="text-sm text-gray-500 font-mono">{entity.id}</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 rounded"
-          data-testid="entity-detail-close"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={updateEntity.isPending}
+                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                data-testid="entity-save-button"
+              >
+                {updateEntity.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={() => setIsEditing(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                data-testid="entity-cancel-edit-button"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              data-testid="entity-edit-button"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+            data-testid="entity-detail-close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* Error message */}
+      {updateEntity.isError && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600" data-testid="entity-update-error">
+          {updateEntity.error.message}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-6">
         {/* Entity Info */}
         <div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-3">
             <span className={`px-2 py-1 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
               {entity.entityType}
             </span>
@@ -700,15 +850,95 @@ function EntityDetailPanel({
               </span>
             )}
           </div>
-          {entity.tags && entity.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {entity.tags.map((tag) => (
-                <span key={tag} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-                  {tag}
-                </span>
-              ))}
+
+          {/* Active Status Toggle */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Status</span>
+              {showDeactivateConfirm ? (
+                <div className="flex items-center gap-2" data-testid="entity-deactivate-confirm">
+                  <span className="text-sm text-gray-600">
+                    {isActive ? 'Deactivate?' : 'Reactivate?'}
+                  </span>
+                  <button
+                    onClick={handleToggleActive}
+                    disabled={updateEntity.isPending}
+                    className="px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded disabled:opacity-50"
+                    data-testid="entity-confirm-toggle-button"
+                  >
+                    {updateEntity.isPending ? 'Saving...' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeactivateConfirm(false)}
+                    className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded"
+                    data-testid="entity-cancel-toggle-button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowDeactivateConfirm(true)}
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    isActive
+                      ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  data-testid="entity-toggle-active-button"
+                >
+                  {isActive ? (
+                    <>
+                      <Power className="w-3 h-3" />
+                      Active
+                    </>
+                  ) : (
+                    <>
+                      <PowerOff className="w-3 h-3" />
+                      Inactive
+                    </>
+                  )}
+                </button>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Tags Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Tag className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-700">Tags</span>
+            </div>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editTags}
+                onChange={(e) => setEditTags(e.target.value)}
+                placeholder="Enter tags separated by commas..."
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                data-testid="entity-edit-tags-input"
+              />
+            ) : entity.tags && entity.tags.length > 0 ? (
+              <div className="flex flex-wrap gap-1" data-testid="entity-tags-list">
+                {entity.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded group"
+                  >
+                    {tag}
+                    <button
+                      onClick={() => handleRemoveTag(tag)}
+                      className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-opacity"
+                      data-testid={`entity-remove-tag-${tag}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-gray-400">No tags</span>
+            )}
+          </div>
         </div>
 
         {/* Statistics */}

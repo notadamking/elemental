@@ -765,12 +765,12 @@ For mutations (create, update, delete):
   - [x] Web: Validation for unique name, valid entity type
   - [x] **Verify:** Register new agent entity from UI, appears in list (Playwright tests passing - 12 tests)
 
-- [ ] **TB36: Edit Entity**
-  - [ ] Server: Add `PATCH /api/entities/:id` endpoint (name, metadata, tags, active status)
-  - [ ] Web: Make EntityDetailPanel editable (edit button, inline editing for fields)
-  - [ ] Web: Deactivate/reactivate toggle with confirmation
-  - [ ] Web: Tag management (add/remove tags)
-  - [ ] **Verify:** Edit entity metadata, deactivate entity, verify persistence
+- [x] **TB36: Edit Entity**
+  - [x] Server: Add `PATCH /api/entities/:id` endpoint (name, metadata, tags, active status)
+  - [x] Web: Make EntityDetailPanel editable (edit button, inline editing for fields)
+  - [x] Web: Deactivate/reactivate toggle with confirmation
+  - [x] Web: Tag management (add/remove tags)
+  - [x] **Verify:** Edit entity metadata, deactivate entity, verify persistence (Playwright tests passing - 14 tests)
 
 - [ ] **TB37: Teams Page - List View**
   - [ ] Server: Add `GET /api/teams` endpoint (list all teams)

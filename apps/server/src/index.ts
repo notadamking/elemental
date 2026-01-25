@@ -593,6 +593,75 @@ app.get('/api/entities/:id', async (c) => {
   }
 });
 
+app.patch('/api/entities/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+    const { name, tags, metadata, active } = body;
+
+    // Verify entity exists
+    const existing = await api.get(id);
+    if (!existing || existing.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // Build updates object
+    const updates: Record<string, unknown> = {};
+
+    if (name !== undefined) {
+      // Validate name format
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name must be a non-empty string' } }, 400);
+      }
+      // Check for duplicate name (if changing)
+      const existingEntity = existing as unknown as { name: string };
+      if (name !== existingEntity.name) {
+        const existingEntities = await api.list({ type: 'entity' });
+        const duplicateName = existingEntities.some((e) => {
+          const entity = e as unknown as { name: string; id: string };
+          return entity.name.toLowerCase() === name.toLowerCase() && entity.id !== id;
+        });
+        if (duplicateName) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Entity with this name already exists' } }, 400);
+        }
+      }
+      updates.name = name.trim();
+    }
+
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Tags must be an array' } }, 400);
+      }
+      updates.tags = tags;
+    }
+
+    if (metadata !== undefined) {
+      if (typeof metadata !== 'object' || metadata === null) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Metadata must be an object' } }, 400);
+      }
+      updates.metadata = metadata;
+    }
+
+    if (active !== undefined) {
+      if (typeof active !== 'boolean') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Active must be a boolean' } }, 400);
+      }
+      updates.active = active;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' } }, 400);
+    }
+
+    const updated = await api.update(id, updates);
+    return c.json(updated);
+  } catch (error) {
+    console.error('[elemental] Failed to update entity:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update entity';
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
 app.get('/api/entities/:id/tasks', async (c) => {
   try {
     const id = c.req.param('id') as ElementId;
@@ -1082,7 +1151,21 @@ app.get('/api/libraries', async (c) => {
       ...(hydrateDescription && { hydrate: { description: true } }),
     } as Parameters<typeof api.list>[0]);
 
-    return c.json(libraries);
+    // Get parent relationships for all libraries
+    // Parent-child dependencies have: sourceId = child, targetId = parent
+    const librariesWithParent = await Promise.all(
+      libraries.map(async (library) => {
+        // Find if this library has a parent (it would be the source in a parent-child dependency)
+        const dependencies = await api.getDependencies(library.id, ['parent-child']);
+        const parentDep = dependencies.find(d => d.type === 'parent-child');
+        return {
+          ...library,
+          parentId: parentDep?.targetId || null,
+        };
+      })
+    );
+
+    return c.json(librariesWithParent);
   } catch (error) {
     console.error('[elemental] Failed to get libraries:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get libraries' } }, 500);
