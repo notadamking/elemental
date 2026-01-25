@@ -103,6 +103,66 @@ app.get('/api/stats', async (c) => {
 // Tasks Endpoints
 // ============================================================================
 
+app.get('/api/tasks', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+
+    // Parse query parameters
+    const statusParam = url.searchParams.get('status');
+    const priorityParam = url.searchParams.get('priority');
+    const assigneeParam = url.searchParams.get('assignee');
+    const tagsParam = url.searchParams.get('tags');
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const orderByParam = url.searchParams.get('orderBy');
+    const orderDirParam = url.searchParams.get('orderDir');
+
+    // Build filter
+    const filter: Record<string, unknown> = {
+      type: 'task',
+    };
+
+    if (statusParam) {
+      // Support comma-separated statuses
+      filter.status = statusParam.includes(',') ? statusParam.split(',') : statusParam;
+    }
+    if (priorityParam) {
+      const priorities = priorityParam.split(',').map(p => parseInt(p, 10)).filter(p => !isNaN(p));
+      filter.priority = priorities.length === 1 ? priorities[0] : priorities;
+    }
+    if (assigneeParam) {
+      filter.assignee = assigneeParam;
+    }
+    if (tagsParam) {
+      filter.tags = tagsParam.split(',');
+    }
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    } else {
+      filter.limit = 50; // Default page size
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+    if (orderByParam) {
+      filter.orderBy = orderByParam;
+    } else {
+      filter.orderBy = 'updated_at';
+    }
+    if (orderDirParam) {
+      filter.orderDir = orderDirParam;
+    } else {
+      filter.orderDir = 'desc';
+    }
+
+    const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
+    return c.json(result);
+  } catch (error) {
+    console.error('[elemental] Failed to get tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get tasks' } }, 500);
+  }
+});
+
 app.get('/api/tasks/ready', async (c) => {
   try {
     const tasks = await api.ready();
@@ -289,6 +349,59 @@ app.patch('/api/tasks/bulk', async (c) => {
   }
 });
 
+// Bulk delete tasks - Uses POST with action parameter for better proxy compatibility
+app.post('/api/tasks/bulk-delete', async (c) => {
+  console.log('[elemental] Bulk delete request received');
+  try {
+    const body = await c.req.json();
+    console.log('[elemental] Bulk delete body:', JSON.stringify(body));
+
+    // Validate request structure
+    if (!body.ids || !Array.isArray(body.ids) || body.ids.length === 0) {
+      console.log('[elemental] Bulk delete validation failed: ids must be a non-empty array');
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'ids must be a non-empty array' } }, 400);
+    }
+
+    const ids = body.ids as string[];
+    console.log('[elemental] Deleting tasks:', ids);
+
+    // Delete each task
+    const results: { id: string; success: boolean; error?: string }[] = [];
+
+    for (const id of ids) {
+      try {
+        const existing = await api.get(id as ElementId);
+        if (!existing || existing.type !== 'task') {
+          console.log(`[elemental] Task not found: ${id}`);
+          results.push({ id, success: false, error: 'Task not found' });
+          continue;
+        }
+
+        console.log(`[elemental] Deleting task: ${id}`);
+        await api.delete(id as ElementId);
+        console.log(`[elemental] Successfully deleted task: ${id}`);
+        results.push({ id, success: true });
+      } catch (error) {
+        console.error(`[elemental] Error deleting task ${id}:`, error);
+        results.push({ id, success: false, error: (error as Error).message });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+
+    console.log(`[elemental] Bulk delete complete: ${successCount} deleted, ${failureCount} failed`);
+    return c.json({
+      deleted: successCount,
+      failed: failureCount,
+      results,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to bulk delete tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to bulk delete tasks' } }, 500);
+  }
+});
+
 app.patch('/api/tasks/:id', async (c) => {
   try {
     const id = c.req.param('id') as ElementId;
@@ -332,6 +445,32 @@ app.patch('/api/tasks/:id', async (c) => {
     }
     console.error('[elemental] Failed to update task:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update task' } }, 500);
+  }
+});
+
+app.delete('/api/tasks/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+
+    // First verify it's a task
+    const existing = await api.get(id);
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if (existing.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Soft-delete the task
+    await api.delete(id);
+
+    return c.json({ success: true, id });
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    console.error('[elemental] Failed to delete task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete task' } }, 500);
   }
 });
 

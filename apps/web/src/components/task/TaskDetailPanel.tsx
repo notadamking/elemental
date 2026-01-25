@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2 } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2 } from 'lucide-react';
 
 interface Dependency {
   sourceId: string;
@@ -109,6 +109,34 @@ function useUpdateTask() {
   });
 }
 
+function useDeleteTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/tasks/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to delete task');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, id) => {
+      // Remove from cache and invalidate lists
+      queryClient.removeQueries({ queryKey: ['tasks', id] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'ready'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'blocked'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'completed'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+    },
+  });
+}
+
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
   1: { label: 'Critical', color: 'bg-red-100 text-red-800 border-red-200' },
   2: { label: 'High', color: 'bg-orange-100 text-orange-800 border-orange-200' },
@@ -137,6 +165,97 @@ const COMPLEXITY_LABELS: Record<number, string> = {
 const STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'deferred'];
 const PRIORITY_OPTIONS = [1, 2, 3, 4, 5];
 const COMPLEXITY_OPTIONS = [1, 2, 3, 4, 5];
+
+// Delete confirmation dialog component
+function DeleteConfirmDialog({
+  isOpen,
+  taskTitle,
+  onConfirm,
+  onCancel,
+  isDeleting,
+}: {
+  isOpen: boolean;
+  taskTitle: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isDeleting: boolean;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && !isDeleting) {
+          onCancel();
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, isDeleting, onCancel]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      data-testid="delete-confirm-dialog"
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={() => !isDeleting && onCancel()}
+      />
+      {/* Dialog */}
+      <div
+        ref={dialogRef}
+        className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+      >
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <Trash2 className="w-5 h-5 text-red-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-gray-900">Delete Task</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure you want to delete{' '}
+              <span className="font-medium text-gray-900">"{taskTitle}"</span>?
+              This action cannot be undone.
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+            data-testid="delete-cancel-button"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
+            data-testid="delete-confirm-button"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -467,7 +586,9 @@ function ComplexityDropdown({
 export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const { data: task, isLoading, isError, error } = useTaskDetail(taskId);
   const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
   const [updateField, setUpdateField] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleUpdate = (updates: Partial<TaskDetail>, fieldName: string) => {
     setUpdateField(fieldName);
@@ -477,6 +598,15 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         onSettled: () => setUpdateField(null),
       }
     );
+  };
+
+  const handleDelete = () => {
+    deleteTask.mutate(taskId, {
+      onSuccess: () => {
+        setShowDeleteConfirm(false);
+        onClose();
+      },
+    });
   };
 
   if (isLoading) {
@@ -510,6 +640,15 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
   return (
     <div className="h-full flex flex-col bg-white" data-testid="task-detail-panel">
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        isOpen={showDeleteConfirm}
+        taskTitle={task.title}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+        isDeleting={deleteTask.isPending}
+      />
+
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b border-gray-200">
         <div className="flex-1 min-w-0">
@@ -534,14 +673,24 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
             <span data-testid="task-detail-id">{task.id}</span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-          aria-label="Close panel"
-          data-testid="task-detail-close"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+            aria-label="Delete task"
+            data-testid="task-delete-button"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+            aria-label="Close panel"
+            data-testid="task-detail-close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Content */}

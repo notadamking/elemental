@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2 } from 'lucide-react';
+import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
@@ -22,13 +22,29 @@ interface Task {
   updatedAt: string;
 }
 
-function useTasks() {
-  return useQuery<Task[]>({
-    queryKey: ['tasks'],
+interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+
+function useTasks(page: number, pageSize: number = DEFAULT_PAGE_SIZE) {
+  const offset = (page - 1) * pageSize;
+
+  return useQuery<PaginatedResult<Task>>({
+    queryKey: ['tasks', 'paginated', page, pageSize],
     queryFn: async () => {
-      // For now, we'll use the ready tasks endpoint
-      // TODO: Add a full tasks list endpoint
-      const response = await fetch('/api/tasks/ready');
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+        orderBy: 'updated_at',
+        orderDir: 'desc',
+      });
+      const response = await fetch(`/api/tasks?${params}`);
       if (!response.ok) throw new Error('Failed to fetch tasks');
       return response.json();
     },
@@ -58,6 +74,48 @@ function useBulkUpdate() {
       queryClient.invalidateQueries({ queryKey: ['tasks', 'ready'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', 'blocked'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', 'completed'] });
+    },
+  });
+}
+
+function useBulkDelete() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      console.log('[bulk-delete] Starting delete for ids:', ids);
+      const response = await fetch('/api/tasks/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+
+      console.log('[bulk-delete] Response status:', response.status);
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('[bulk-delete] Error response:', error);
+        throw new Error(error.error?.message || 'Failed to delete tasks');
+      }
+
+      const result = await response.json();
+      console.log('[bulk-delete] Success response:', result);
+      return result;
+    },
+    onSuccess: (data, ids) => {
+      console.log('[bulk-delete] onSuccess called with:', data);
+      // Remove deleted tasks from cache
+      for (const id of ids) {
+        queryClient.removeQueries({ queryKey: ['tasks', id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'ready'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'blocked'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'completed'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+    },
+    onError: (error) => {
+      console.error('[bulk-delete] onError called:', error);
     },
   });
 }
@@ -207,17 +265,22 @@ function BulkActionMenu({
   selectedCount,
   onChangeStatus,
   onChangePriority,
+  onDelete,
   onClear,
-  isPending
+  isPending,
+  isDeleting
 }: {
   selectedCount: number;
   onChangeStatus: (status: string) => void;
   onChangePriority: (priority: number) => void;
+  onDelete: () => void;
   onClear: () => void;
   isPending: boolean;
+  isDeleting: boolean;
 }) {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
   const priorityRef = useRef<HTMLDivElement>(null);
 
@@ -234,6 +297,30 @@ function BulkActionMenu({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Track if deletion was in progress to detect completion
+  const wasDeleting = useRef(false);
+
+  // Close delete confirm when deletion completes (transitions from true to false)
+  useEffect(() => {
+    if (isDeleting) {
+      wasDeleting.current = true;
+    } else if (wasDeleting.current && showDeleteConfirm) {
+      // Deletion just completed
+      wasDeleting.current = false;
+      setShowDeleteConfirm(false);
+    }
+  }, [isDeleting, showDeleteConfirm]);
+
+  const handleDeleteClick = () => {
+    setIsStatusOpen(false);
+    setIsPriorityOpen(false);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    onDelete();
+  };
+
   return (
     <div
       className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-b border-blue-200"
@@ -247,7 +334,7 @@ function BulkActionMenu({
       <div className="relative" ref={statusRef}>
         <button
           onClick={() => { setIsPriorityOpen(false); setIsStatusOpen(!isStatusOpen); }}
-          disabled={isPending}
+          disabled={isPending || isDeleting}
           className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
           data-testid="bulk-status-button"
         >
@@ -280,7 +367,7 @@ function BulkActionMenu({
       <div className="relative" ref={priorityRef}>
         <button
           onClick={() => { setIsStatusOpen(false); setIsPriorityOpen(!isPriorityOpen); }}
-          disabled={isPending}
+          disabled={isPending || isDeleting}
           className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
           data-testid="bulk-priority-button"
         >
@@ -309,16 +396,198 @@ function BulkActionMenu({
         )}
       </div>
 
+      {/* Delete button */}
+      {!showDeleteConfirm ? (
+        <button
+          onClick={handleDeleteClick}
+          disabled={isPending || isDeleting}
+          className="inline-flex items-center gap-1 px-2 py-1 text-sm text-red-600 bg-white border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
+          data-testid="bulk-delete-button"
+        >
+          <Trash2 className="w-3 h-3" />
+          Delete
+        </button>
+      ) : (
+        <div className="inline-flex items-center gap-2 px-2 py-1 bg-red-50 border border-red-300 rounded" data-testid="bulk-delete-confirm">
+          <span className="text-sm text-red-700">Delete {selectedCount} tasks?</span>
+          <button
+            onClick={handleConfirmDelete}
+            disabled={isDeleting}
+            className="px-2 py-0.5 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+            data-testid="bulk-delete-confirm-button"
+          >
+            {isDeleting ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              'Confirm'
+            )}
+          </button>
+          <button
+            onClick={() => setShowDeleteConfirm(false)}
+            disabled={isDeleting}
+            className="px-2 py-0.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+            data-testid="bulk-delete-cancel-button"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {isPending && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
 
       {/* Clear selection */}
       <button
         onClick={onClear}
-        className="ml-auto p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+        disabled={isDeleting}
+        className="ml-auto p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-50"
         data-testid="bulk-clear-selection"
       >
         <X className="w-4 h-4" />
       </button>
+    </div>
+  );
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      // Show all pages
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Always show first page
+      pages.push(1);
+
+      if (currentPage > 3) {
+        pages.push('ellipsis');
+      }
+
+      // Show pages around current
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (currentPage < totalPages - 2) {
+        pages.push('ellipsis');
+      }
+
+      // Always show last page
+      if (totalPages > 1) {
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
+  };
+
+  if (totalPages <= 1) {
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white">
+        <span className="text-sm text-gray-500">
+          {totalItems === 0 ? 'No tasks' : `Showing ${totalItems} task${totalItems !== 1 ? 's' : ''}`}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white" data-testid="pagination">
+      <span className="text-sm text-gray-500" data-testid="pagination-info">
+        Showing {startItem}-{endItem} of {totalItems}
+      </span>
+
+      <div className="flex items-center gap-1">
+        {/* First page */}
+        <button
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="First page"
+          data-testid="pagination-first"
+        >
+          <ChevronsLeft className="w-4 h-4" />
+        </button>
+
+        {/* Previous page */}
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Previous page"
+          data-testid="pagination-prev"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        {/* Page numbers */}
+        <div className="flex items-center gap-1 mx-2">
+          {getPageNumbers().map((page, index) =>
+            page === 'ellipsis' ? (
+              <span key={`ellipsis-${index}`} className="px-2 text-gray-400">
+                ...
+              </span>
+            ) : (
+              <button
+                key={page}
+                onClick={() => onPageChange(page)}
+                className={`min-w-[32px] h-8 px-2 text-sm rounded ${
+                  page === currentPage
+                    ? 'bg-blue-600 text-white font-medium'
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+                data-testid={`pagination-page-${page}`}
+              >
+                {page}
+              </button>
+            )
+          )}
+        </div>
+
+        {/* Next page */}
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Next page"
+          data-testid="pagination-next"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+
+        {/* Last page */}
+        <button
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Last page"
+          data-testid="pagination-last"
+        >
+          <ChevronsRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -408,12 +677,20 @@ function ListView({
 }
 
 export function TasksPage() {
-  const tasks = useTasks();
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = DEFAULT_PAGE_SIZE;
+  const tasks = useTasks(currentPage, pageSize);
   const bulkUpdate = useBulkUpdate();
+  const bulkDelete = useBulkDelete();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Extract task items from paginated response
+  const taskItems = tasks.data?.items ?? [];
+  const totalItems = tasks.data?.total ?? 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
@@ -441,14 +718,20 @@ export function TasksPage() {
   };
 
   const handleSelectAll = () => {
-    if (!tasks.data) return;
+    if (taskItems.length === 0) return;
 
-    const allSelected = tasks.data.every(t => selectedIds.has(t.id));
+    const allSelected = taskItems.every(t => selectedIds.has(t.id));
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(tasks.data.map(t => t.id)));
+      setSelectedIds(new Set(taskItems.map(t => t.id)));
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Clear selection when changing pages
+    setSelectedIds(new Set());
   };
 
   const handleBulkStatusChange = (status: string) => {
@@ -463,6 +746,17 @@ export function TasksPage() {
       { ids: Array.from(selectedIds), updates: { priority } },
       { onSuccess: () => setSelectedIds(new Set()) }
     );
+  };
+
+  const handleBulkDelete = () => {
+    // If the currently selected task is being deleted, close the detail panel
+    const idsToDelete = Array.from(selectedIds);
+    if (selectedTaskId && idsToDelete.includes(selectedTaskId)) {
+      setSelectedTaskId(null);
+    }
+    bulkDelete.mutate(idsToDelete, {
+      onSuccess: () => setSelectedIds(new Set()),
+    });
   };
 
   const handleClearSelection = () => {
@@ -501,8 +795,10 @@ export function TasksPage() {
             selectedCount={selectedIds.size}
             onChangeStatus={handleBulkStatusChange}
             onChangePriority={handleBulkPriorityChange}
+            onDelete={handleBulkDelete}
             onClear={handleClearSelection}
             isPending={bulkUpdate.isPending}
+            isDeleting={bulkDelete.isPending}
           />
         )}
 
@@ -516,19 +812,28 @@ export function TasksPage() {
           )}
 
           {tasks.data && viewMode === 'list' && (
-            <ListView
-              tasks={tasks.data}
-              selectedTaskId={selectedTaskId}
-              selectedIds={selectedIds}
-              onTaskClick={handleTaskClick}
-              onTaskCheck={handleTaskCheck}
-              onSelectAll={handleSelectAll}
-            />
+            <>
+              <ListView
+                tasks={taskItems}
+                selectedTaskId={selectedTaskId}
+                selectedIds={selectedIds}
+                onTaskClick={handleTaskClick}
+                onTaskCheck={handleTaskCheck}
+                onSelectAll={handleSelectAll}
+              />
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+              />
+            </>
           )}
 
           {tasks.data && viewMode === 'kanban' && (
             <KanbanBoard
-              tasks={tasks.data}
+              tasks={taskItems}
               selectedTaskId={selectedTaskId}
               onTaskClick={handleTaskClick}
             />
