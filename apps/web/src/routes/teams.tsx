@@ -7,7 +7,9 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2, Pencil, Save, Trash2, UserMinus } from 'lucide-react';
+import { Pagination } from '../components/shared/Pagination';
 
 interface Team {
   id: string;
@@ -31,11 +33,38 @@ interface Entity {
   updatedAt: string;
 }
 
-function useTeams() {
-  return useQuery<Team[]>({
-    queryKey: ['teams'],
+interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+const DEFAULT_PAGE_SIZE = 25;
+
+function useTeams(
+  page: number,
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  searchQuery: string = ''
+) {
+  const offset = (page - 1) * pageSize;
+
+  return useQuery<PaginatedResult<Team>>({
+    queryKey: ['teams', 'paginated', page, pageSize, searchQuery],
     queryFn: async () => {
-      const response = await fetch('/api/teams');
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+        orderBy: 'updated_at',
+        orderDir: 'desc',
+      });
+
+      if (searchQuery.trim()) {
+        params.set('search', searchQuery.trim());
+      }
+
+      const response = await fetch(`/api/teams?${params}`);
       if (!response.ok) throw new Error('Failed to fetch teams');
       return response.json();
     },
@@ -176,11 +205,14 @@ function useCreateTeam() {
 
 function useAllEntities() {
   return useQuery<Entity[]>({
-    queryKey: ['entities'],
+    queryKey: ['entities', 'all'],
     queryFn: async () => {
-      const response = await fetch('/api/entities');
+      // Fetch all entities with a high limit for the member picker
+      const response = await fetch('/api/entities?limit=1000');
       if (!response.ok) throw new Error('Failed to fetch entities');
-      return response.json();
+      const data = await response.json();
+      // Handle paginated response format
+      return data.items || data;
     },
   });
 }
@@ -1089,37 +1121,72 @@ function TeamDetailPanel({
 }
 
 export function TeamsPage() {
-  const teams = useTeams();
+  const navigate = useNavigate();
+  const search = useSearch({ from: '/teams' });
+
+  // Pagination state from URL
+  const currentPage = search.page ?? 1;
+  const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(
+    search.selected ?? null
+  );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const filteredTeams = useMemo(() => {
-    let result = teams.data || [];
+  // Fetch paginated teams with search filter
+  const teams = useTeams(currentPage, pageSize, searchQuery);
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (t) =>
-          t.name.toLowerCase().includes(query) ||
-          t.id.toLowerCase().includes(query) ||
-          t.tags?.some((tag) => tag.toLowerCase().includes(query))
-      );
+  // Extract items from paginated response
+  const teamItems = teams.data?.items ?? [];
+  const totalItems = teams.data?.total ?? 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
+
+  // Sync selected team from URL on mount and when search changes
+  useEffect(() => {
+    // When URL has a selected param, sync it to state
+    if (search.selected && search.selected !== selectedTeamId) {
+      setSelectedTeamId(search.selected);
     }
-
-    return result;
-  }, [teams.data, searchQuery]);
+    // When URL doesn't have a selected param but state has one, clear state
+    if (!search.selected && selectedTeamId) {
+      setSelectedTeamId(null);
+    }
+  }, [search.selected]);
 
   const handleTeamClick = (teamId: string) => {
     setSelectedTeamId(teamId);
+    navigate({ to: '/teams', search: { selected: teamId, page: currentPage, limit: pageSize } });
   };
 
   const handleCloseDetail = () => {
     setSelectedTeamId(null);
+    navigate({ to: '/teams', search: { selected: undefined, page: currentPage, limit: pageSize } });
   };
 
   const handleTeamCreated = (team: Team) => {
     setSelectedTeamId(team.id);
+    navigate({ to: '/teams', search: { selected: team.id, page: currentPage, limit: pageSize } });
+  };
+
+  const handlePageChange = (page: number) => {
+    navigate({ to: '/teams', search: { page, limit: pageSize, selected: selectedTeamId ?? undefined } });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    // When page size changes, go back to page 1
+    navigate({ to: '/teams', search: { page: 1, limit: newPageSize, selected: selectedTeamId ?? undefined } });
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    // Reset to first page when search changes
+    navigate({ to: '/teams', search: { page: 1, limit: pageSize, selected: selectedTeamId ?? undefined } });
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    navigate({ to: '/teams', search: { page: 1, limit: pageSize, selected: selectedTeamId ?? undefined } });
   };
 
   return (
@@ -1138,7 +1205,7 @@ export function TeamsPage() {
           <h2 className="text-lg font-medium text-gray-900">Teams</h2>
           <div className="flex items-center gap-3">
             <p className="text-sm text-gray-500">
-              {filteredTeams.length} of {teams.data?.length || 0} teams
+              {teamItems.length} of {totalItems} teams
             </p>
             <button
               onClick={() => setIsCreateModalOpen(true)}
@@ -1153,7 +1220,7 @@ export function TeamsPage() {
 
         {/* Search */}
         <div className="mb-6">
-          <SearchBox value={searchQuery} onChange={setSearchQuery} />
+          <SearchBox value={searchQuery} onChange={handleSearchChange} />
         </div>
 
         {/* Loading state */}
@@ -1175,14 +1242,14 @@ export function TeamsPage() {
         )}
 
         {/* Empty state */}
-        {teams.data && filteredTeams.length === 0 && (
+        {teams.data && teamItems.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center" data-testid="teams-empty">
               {searchQuery ? (
                 <>
                   <p className="text-gray-500">No teams match your search</p>
                   <button
-                    onClick={() => setSearchQuery('')}
+                    onClick={handleClearSearch}
                     className="mt-2 text-sm text-blue-600 hover:text-blue-700"
                     data-testid="clear-search-button"
                   >
@@ -1206,10 +1273,10 @@ export function TeamsPage() {
         )}
 
         {/* Teams grid */}
-        {teams.data && filteredTeams.length > 0 && (
+        {teams.data && teamItems.length > 0 && (
           <div className="flex-1 overflow-auto" data-testid="teams-grid">
             <div className={`grid gap-4 ${selectedTeamId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
-              {filteredTeams.map((team) => (
+              {teamItems.map((team) => (
                 <TeamCard
                   key={team.id}
                   team={team}
@@ -1217,6 +1284,17 @@ export function TeamsPage() {
                   onClick={() => handleTeamClick(team.id)}
                 />
               ))}
+            </div>
+            {/* Pagination */}
+            <div className="mt-6">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
             </div>
           </div>
         )}

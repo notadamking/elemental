@@ -11,9 +11,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search } from 'lucide-react';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
+import { Pagination } from '../components/shared/Pagination';
 
 // ============================================================================
 // Entity Types (for operator selection)
@@ -71,11 +73,38 @@ interface Message {
 // API Hooks
 // ============================================================================
 
-function useChannels() {
-  return useQuery<Channel[]>({
-    queryKey: ['channels'],
+interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+const DEFAULT_CHANNEL_PAGE_SIZE = 50;
+
+function useChannels(
+  page: number = 1,
+  pageSize: number = DEFAULT_CHANNEL_PAGE_SIZE,
+  searchQuery: string = ''
+) {
+  const offset = (page - 1) * pageSize;
+
+  return useQuery<PaginatedResult<Channel>>({
+    queryKey: ['channels', 'paginated', page, pageSize, searchQuery],
     queryFn: async () => {
-      const response = await fetch('/api/channels');
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+        orderBy: 'updated_at',
+        orderDir: 'desc',
+      });
+
+      if (searchQuery.trim()) {
+        params.set('search', searchQuery.trim());
+      }
+
+      const response = await fetch(`/api/channels?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch channels');
       }
@@ -254,11 +283,27 @@ function ChannelList({
   selectedChannelId,
   onSelectChannel,
   onNewChannel,
+  totalItems,
+  totalPages,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  searchQuery,
+  onSearchChange,
 }: {
   channels: Channel[];
   selectedChannelId: string | null;
   onSelectChannel: (id: string) => void;
   onNewChannel: () => void;
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }) {
   // Separate channels into groups and direct
   const groupChannels = channels.filter((c) => c.channelType === 'group');
@@ -269,16 +314,33 @@ function ChannelList({
       data-testid="channel-list"
       className="w-64 border-r border-gray-200 bg-white flex flex-col h-full"
     >
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Channels</h2>
-        <button
-          onClick={onNewChannel}
-          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-          title="New Channel"
-          data-testid="new-channel-button-sidebar"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+      <div className="p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900">Channels</h2>
+          <button
+            onClick={onNewChannel}
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            title="New Channel"
+            data-testid="new-channel-button-sidebar"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+        {/* Search box */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search channels..."
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            data-testid="channels-search-input"
+          />
+        </div>
+        <div className="mt-2 text-xs text-gray-500">
+          {channels.length} of {totalItems} channels
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -333,25 +395,34 @@ function ChannelList({
             className="text-center py-8 text-gray-500"
           >
             <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-sm">No channels yet</p>
-            <button
-              onClick={onNewChannel}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
-              data-testid="new-channel-button-empty"
-            >
-              Create one
-            </button>
+            <p className="text-sm">{searchQuery ? 'No channels match your search' : 'No channels yet'}</p>
+            {!searchQuery && (
+              <button
+                onClick={onNewChannel}
+                className="mt-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                data-testid="new-channel-button-empty"
+              >
+                Create one
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Channel count */}
-      <div
-        data-testid="channel-count"
-        className="p-3 border-t border-gray-200 text-xs text-gray-500"
-      >
-        {channels.length} channel{channels.length !== 1 ? 's' : ''}
-      </div>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="border-t border-gray-200 p-2">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            showPageSizeSelector={false}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1048,11 +1119,57 @@ function ChannelView({ channelId }: { channelId: string }) {
 // ============================================================================
 
 export function MessagesPage() {
-  const { data: channels = [], isLoading, error } = useChannels();
+  const navigate = useNavigate();
+  const search = useSearch({ from: '/messages' });
+
+  // Pagination state from URL
+  const currentPage = search.page ?? 1;
+  const pageSize = search.limit ?? DEFAULT_CHANNEL_PAGE_SIZE;
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const { data: channelsData, isLoading, error } = useChannels(currentPage, pageSize, searchQuery);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
-    null
+    search.channel ?? null
   );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Extract items from paginated response
+  const channels = channelsData?.items ?? [];
+  const totalItems = channelsData?.total ?? 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
+
+  // Sync selected channel from URL on mount and when search changes
+  useEffect(() => {
+    if (search.channel && search.channel !== selectedChannelId) {
+      setSelectedChannelId(search.channel);
+    }
+    if (!search.channel && selectedChannelId) {
+      setSelectedChannelId(null);
+    }
+  }, [search.channel]);
+
+  const handleSelectChannel = (channelId: string) => {
+    setSelectedChannelId(channelId);
+    navigate({ to: '/messages', search: { channel: channelId, page: currentPage, limit: pageSize } });
+  };
+
+  const handlePageChange = (page: number) => {
+    navigate({ to: '/messages', search: { page, limit: pageSize, channel: selectedChannelId ?? undefined } });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    navigate({ to: '/messages', search: { page: 1, limit: newPageSize, channel: selectedChannelId ?? undefined } });
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    navigate({ to: '/messages', search: { page: 1, limit: pageSize, channel: selectedChannelId ?? undefined } });
+  };
+
+  const handleChannelCreated = (channel: { id: string }) => {
+    setSelectedChannelId(channel.id);
+    navigate({ to: '/messages', search: { channel: channel.id, page: currentPage, limit: pageSize } });
+  };
 
   if (error) {
     return (
@@ -1081,8 +1198,16 @@ export function MessagesPage() {
         <ChannelList
           channels={channels}
           selectedChannelId={selectedChannelId}
-          onSelectChannel={setSelectedChannelId}
+          onSelectChannel={handleSelectChannel}
           onNewChannel={() => setIsCreateModalOpen(true)}
+          totalItems={totalItems}
+          totalPages={totalPages}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
         />
       )}
 
@@ -1095,9 +1220,7 @@ export function MessagesPage() {
       <CreateChannelModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={(channel) => {
-          setSelectedChannelId(channel.id);
-        }}
+        onSuccess={handleChannelCreated}
       />
     </div>
   );

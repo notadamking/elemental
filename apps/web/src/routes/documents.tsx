@@ -9,8 +9,10 @@
  * - Document detail display (TB21)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearch, useNavigate } from '@tanstack/react-router';
+import { Pagination } from '../components/shared/Pagination';
 import {
   Library,
   FileText,
@@ -169,11 +171,38 @@ function useLibraryDocuments(libraryId: string | null) {
   });
 }
 
-function useDocuments() {
-  return useQuery<DocumentType[]>({
-    queryKey: ['documents'],
+interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+const DEFAULT_PAGE_SIZE = 25;
+
+function useDocuments(
+  page: number = 1,
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  searchQuery: string = ''
+) {
+  const offset = (page - 1) * pageSize;
+
+  return useQuery<PaginatedResult<DocumentType>>({
+    queryKey: ['documents', 'paginated', page, pageSize, searchQuery],
     queryFn: async () => {
-      const response = await fetch('/api/documents?limit=50');
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+        orderBy: 'updated_at',
+        orderDir: 'desc',
+      });
+
+      if (searchQuery.trim()) {
+        params.set('search', searchQuery.trim());
+      }
+
+      const response = await fetch(`/api/documents?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch documents');
       }
@@ -1837,12 +1866,28 @@ function AllDocumentsView({
   selectedDocumentId,
   onSelectDocument,
   onNewDocument,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  searchQuery,
+  onSearchChange,
 }: {
   selectedDocumentId: string | null;
   onSelectDocument: (id: string) => void;
   onNewDocument: () => void;
+  currentPage: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }) {
-  const { data: documents = [], isLoading, error } = useDocuments();
+  const { data: documents, isLoading, error } = useDocuments(currentPage, pageSize, searchQuery);
+
+  const documentItems = documents?.items ?? [];
+  const totalItems = documents?.total ?? 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
 
   return (
     <div
@@ -1861,7 +1906,7 @@ function AllDocumentsView({
               All Documents
             </h3>
             <span className="text-sm text-gray-400">
-              {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+              {documentItems.length} of {totalItems} {totalItems === 1 ? 'document' : 'documents'}
             </span>
           </div>
           <button
@@ -1873,9 +1918,18 @@ function AllDocumentsView({
             New Document
           </button>
         </div>
-        <p className="mt-2 text-sm text-gray-600">
-          Select a library from the sidebar to filter documents
-        </p>
+        {/* Search box */}
+        <div className="mt-3 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search documents..."
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            data-testid="documents-search-input"
+          />
+        </div>
       </div>
 
       {/* Documents Area */}
@@ -1897,28 +1951,41 @@ function AllDocumentsView({
           >
             Failed to load documents
           </div>
-        ) : documents.length === 0 ? (
+        ) : documentItems.length === 0 ? (
           <div
             data-testid="all-documents-empty"
             className="flex flex-col items-center justify-center h-full text-gray-500"
           >
             <FileText className="w-12 h-12 mb-3 text-gray-300" />
-            <p className="text-sm">No documents yet</p>
+            <p className="text-sm">{searchQuery ? 'No documents match your search' : 'No documents yet'}</p>
             <p className="text-xs text-gray-400 mt-1">
-              Create documents to build your knowledge base
+              {searchQuery ? 'Try a different search term' : 'Create documents to build your knowledge base'}
             </p>
           </div>
         ) : (
-          <div data-testid="all-documents-list" className="space-y-2">
-            {documents.map((doc) => (
-              <DocumentListItem
-                key={doc.id}
-                document={doc}
-                isSelected={selectedDocumentId === doc.id}
-                onClick={onSelectDocument}
+          <>
+            <div data-testid="all-documents-list" className="space-y-2">
+              {documentItems.map((doc) => (
+                <DocumentListItem
+                  key={doc.id}
+                  document={doc}
+                  isSelected={selectedDocumentId === doc.id}
+                  onClick={onSelectDocument}
+                />
+              ))}
+            </div>
+            {/* Pagination */}
+            <div className="mt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={onPageChange}
+                onPageSizeChange={onPageSizeChange}
               />
-            ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -1930,13 +1997,41 @@ function AllDocumentsView({
 // ============================================================================
 
 export function DocumentsPage() {
+  const navigate = useNavigate();
+  const search = useSearch({ from: '/documents' });
+
+  // Pagination state from URL
+  const currentPage = search.page ?? 1;
+  const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
+
   const { data: libraries = [], isLoading, error } = useLibraries();
-  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
+    search.library ?? null
+  );
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(
+    search.selected ?? null
+  );
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
   const [isDocumentExpanded, setIsDocumentExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Sync state from URL on mount and when search changes
+  useEffect(() => {
+    if (search.selected && search.selected !== selectedDocumentId) {
+      setSelectedDocumentId(search.selected);
+    }
+    if (!search.selected && selectedDocumentId) {
+      setSelectedDocumentId(null);
+    }
+    if (search.library && search.library !== selectedLibraryId) {
+      setSelectedLibraryId(search.library);
+    }
+    if (!search.library && selectedLibraryId) {
+      setSelectedLibraryId(null);
+    }
+  }, [search.selected, search.library]);
 
   // Toggle expand/collapse for a library in the tree
   const handleToggleExpand = (id: string) => {
@@ -1988,10 +2083,25 @@ export function DocumentsPage() {
 
   const handleSelectDocument = (documentId: string) => {
     setSelectedDocumentId(documentId);
+    navigate({ to: '/documents', search: { selected: documentId, library: selectedLibraryId ?? undefined, page: currentPage, limit: pageSize } });
   };
 
   const handleCloseDocument = () => {
     setSelectedDocumentId(null);
+    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined, page: currentPage, limit: pageSize } });
+  };
+
+  const handlePageChange = (page: number) => {
+    navigate({ to: '/documents', search: { page, limit: pageSize, selected: selectedDocumentId ?? undefined, library: selectedLibraryId ?? undefined } });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    navigate({ to: '/documents', search: { page: 1, limit: newPageSize, selected: selectedDocumentId ?? undefined, library: selectedLibraryId ?? undefined } });
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    navigate({ to: '/documents', search: { page: 1, limit: pageSize, selected: selectedDocumentId ?? undefined, library: selectedLibraryId ?? undefined } });
   };
 
   const handleOpenCreateModal = () => {
@@ -2057,6 +2167,12 @@ export function DocumentsPage() {
         selectedDocumentId={selectedDocumentId}
         onSelectDocument={handleSelectDocument}
         onNewDocument={handleOpenCreateModal}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
       />
     );
   };

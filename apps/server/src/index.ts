@@ -1132,10 +1132,73 @@ app.delete('/api/dependencies/:sourceId/:targetId/:type', async (c) => {
 
 app.get('/api/channels', async (c) => {
   try {
-    const channels = await api.list({
+    const url = new URL(c.req.url);
+
+    // Parse pagination and filter parameters
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const orderByParam = url.searchParams.get('orderBy');
+    const orderDirParam = url.searchParams.get('orderDir');
+    const searchParam = url.searchParams.get('search');
+    const channelTypeParam = url.searchParams.get('channelType');
+
+    // Build filter
+    const filter: Record<string, unknown> = {
       type: 'channel',
+    };
+
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    } else {
+      filter.limit = 50; // Default page size
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+    if (orderByParam) {
+      filter.orderBy = orderByParam;
+    } else {
+      filter.orderBy = 'updated_at';
+    }
+    if (orderDirParam) {
+      filter.orderDir = orderDirParam;
+    } else {
+      filter.orderDir = 'desc';
+    }
+
+    // Get paginated results
+    const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
+
+    // Apply client-side filtering for search and channel type
+    let filteredItems = result.items;
+
+    if (channelTypeParam && channelTypeParam !== 'all') {
+      filteredItems = filteredItems.filter((ch) => {
+        const channel = ch as unknown as { channelType: string };
+        return channel.channelType === channelTypeParam;
+      });
+    }
+
+    if (searchParam) {
+      const query = searchParam.toLowerCase();
+      filteredItems = filteredItems.filter((ch) => {
+        const channel = ch as unknown as { name: string; id: string; tags?: string[] };
+        return (
+          channel.name.toLowerCase().includes(query) ||
+          channel.id.toLowerCase().includes(query) ||
+          (channel.tags || []).some((tag) => tag.toLowerCase().includes(query))
+        );
+      });
+    }
+
+    // Return paginated response format
+    return c.json({
+      items: filteredItems,
+      total: result.total,
+      offset: result.offset,
+      limit: result.limit,
+      hasMore: result.hasMore,
     });
-    return c.json(channels);
   } catch (error) {
     console.error('[elemental] Failed to get channels:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get channels' } }, 500);
@@ -1619,6 +1682,7 @@ app.get('/api/events', async (c) => {
     const before = url.searchParams.get('before');
     const limitParam = url.searchParams.get('limit');
     const offsetParam = url.searchParams.get('offset');
+    const paginatedParam = url.searchParams.get('paginated');
 
     // Build filter object - cast to EventFilter type
     const filter: Record<string, unknown> = {};
@@ -1639,19 +1703,28 @@ app.get('/api/events', async (c) => {
     if (before) {
       filter.before = before;
     }
-    if (limitParam) {
-      filter.limit = parseInt(limitParam, 10);
-    }
-    if (offsetParam) {
-      filter.offset = parseInt(offsetParam, 10);
-    }
 
-    // Default limit if not specified
-    if (!filter.limit) {
-      filter.limit = 100;
-    }
+    const limit = limitParam ? parseInt(limitParam, 10) : 100;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
+    filter.limit = limit;
+    filter.offset = offset;
 
     const events = await api.listEvents(filter as Parameters<typeof api.listEvents>[0]);
+
+    // If paginated=true, return paginated response format
+    if (paginatedParam === 'true') {
+      // Get total count (estimate based on returned data)
+      const hasMore = events.length === limit;
+      return c.json({
+        items: events,
+        total: offset + events.length + (hasMore ? 1 : 0), // Estimate - actual total may be higher
+        offset: offset,
+        limit: limit,
+        hasMore: hasMore,
+      });
+    }
+
     return c.json(events);
   } catch (error) {
     console.error('[elemental] Failed to get events:', error);
@@ -1852,24 +1925,64 @@ app.post('/api/libraries', async (c) => {
 app.get('/api/documents', async (c) => {
   try {
     const url = new URL(c.req.url);
+
+    // Parse pagination and filter parameters
     const limitParam = url.searchParams.get('limit');
     const offsetParam = url.searchParams.get('offset');
+    const orderByParam = url.searchParams.get('orderBy');
+    const orderDirParam = url.searchParams.get('orderDir');
+    const searchParam = url.searchParams.get('search');
 
+    // Build filter
     const filter: Record<string, unknown> = {
       type: 'document',
-      orderBy: 'updated_at',
-      orderDir: 'desc',
     };
 
     if (limitParam) {
       filter.limit = parseInt(limitParam, 10);
+    } else {
+      filter.limit = 50; // Default page size
     }
     if (offsetParam) {
       filter.offset = parseInt(offsetParam, 10);
     }
+    if (orderByParam) {
+      filter.orderBy = orderByParam;
+    } else {
+      filter.orderBy = 'updated_at';
+    }
+    if (orderDirParam) {
+      filter.orderDir = orderDirParam;
+    } else {
+      filter.orderDir = 'desc';
+    }
 
-    const documents = await api.list(filter as Parameters<typeof api.list>[0]);
-    return c.json(documents);
+    // Get paginated results
+    const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
+
+    // Apply client-side filtering for search (not supported in base filter)
+    let filteredItems = result.items;
+
+    if (searchParam) {
+      const query = searchParam.toLowerCase();
+      filteredItems = filteredItems.filter((d) => {
+        const doc = d as unknown as { title: string; id: string; tags?: string[] };
+        return (
+          doc.title.toLowerCase().includes(query) ||
+          doc.id.toLowerCase().includes(query) ||
+          (doc.tags || []).some((tag) => tag.toLowerCase().includes(query))
+        );
+      });
+    }
+
+    // Return paginated response format
+    return c.json({
+      items: filteredItems,
+      total: result.total,
+      offset: result.offset,
+      limit: result.limit,
+      hasMore: result.hasMore,
+    });
   } catch (error) {
     console.error('[elemental] Failed to get documents:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get documents' } }, 500);
@@ -3089,10 +3202,65 @@ app.get('/api/playbooks/:name', async (c) => {
 
 app.get('/api/teams', async (c) => {
   try {
-    const teams = await api.list({
+    const url = new URL(c.req.url);
+
+    // Parse pagination and filter parameters
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const orderByParam = url.searchParams.get('orderBy');
+    const orderDirParam = url.searchParams.get('orderDir');
+    const searchParam = url.searchParams.get('search');
+
+    // Build filter
+    const filter: Record<string, unknown> = {
       type: 'team',
+    };
+
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    } else {
+      filter.limit = 50; // Default page size
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+    if (orderByParam) {
+      filter.orderBy = orderByParam;
+    } else {
+      filter.orderBy = 'updated_at';
+    }
+    if (orderDirParam) {
+      filter.orderDir = orderDirParam;
+    } else {
+      filter.orderDir = 'desc';
+    }
+
+    // Get paginated results
+    const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
+
+    // Apply client-side filtering for search (not supported in base filter)
+    let filteredItems = result.items;
+
+    if (searchParam) {
+      const query = searchParam.toLowerCase();
+      filteredItems = filteredItems.filter((t) => {
+        const team = t as unknown as { name: string; id: string; tags?: string[] };
+        return (
+          team.name.toLowerCase().includes(query) ||
+          team.id.toLowerCase().includes(query) ||
+          (team.tags || []).some((tag) => tag.toLowerCase().includes(query))
+        );
+      });
+    }
+
+    // Return paginated response format
+    return c.json({
+      items: filteredItems,
+      total: result.total,
+      offset: result.offset,
+      limit: result.limit,
+      hasMore: result.hasMore,
     });
-    return c.json(teams);
   } catch (error) {
     console.error('[elemental] Failed to get teams:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get teams' } }, 500);

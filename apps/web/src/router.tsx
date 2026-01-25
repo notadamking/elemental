@@ -87,6 +87,14 @@ const timelineRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard/timeline',
   component: TimelinePage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      page: typeof search.page === 'number' ? search.page :
+            typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
+      limit: typeof search.limit === 'number' ? search.limit :
+             typeof search.limit === 'string' ? parseInt(search.limit, 10) || 100 : 100,
+    };
+  },
 });
 
 const plansRoute = createRoute({
@@ -105,12 +113,31 @@ const messagesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/messages',
   component: MessagesPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      channel: typeof search.channel === 'string' ? search.channel : undefined,
+      page: typeof search.page === 'number' ? search.page :
+            typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
+      limit: typeof search.limit === 'number' ? search.limit :
+             typeof search.limit === 'string' ? parseInt(search.limit, 10) || 50 : 50,
+    };
+  },
 });
 
 const documentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/documents',
   component: DocumentsPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+      library: typeof search.library === 'string' ? search.library : undefined,
+      page: typeof search.page === 'number' ? search.page :
+            typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
+      limit: typeof search.limit === 'number' ? search.limit :
+             typeof search.limit === 'string' ? parseInt(search.limit, 10) || 25 : 25,
+    };
+  },
 });
 
 const entitiesRoute = createRoute({
@@ -132,6 +159,15 @@ const teamsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/teams',
   component: TeamsPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+      page: typeof search.page === 'number' ? search.page :
+            typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
+      limit: typeof search.limit === 'number' ? search.limit :
+             typeof search.limit === 'string' ? parseInt(search.limit, 10) || 25 : 25,
+    };
+  },
 });
 
 const settingsRoute = createRoute({

@@ -854,18 +854,18 @@ For mutations (create, update, delete):
 
 ### Phase 12: List Enhancements + Edit Functionality
 
-- [] **TB46: Universal Pagination Component**
+- [x] **TB46: Universal Pagination Component**
   - [x] Web: Create Pagination component (page numbers 1,2,3..., prev/next arrows, page size selector 10/25/50/100) - `src/components/shared/Pagination.tsx`
   - [x] Web: Add to TaskList, showing total count and current range (e.g., "Showing 1-25 of 142")
   - [x] Web: Add to EntityList with server-side pagination support - `apps/web/src/routes/entities.tsx`
-  - [ ] Web: Add to TeamList (reuse shared component)
-  - [ ] Web: Add to DocumentList (reuse shared component)
-  - [ ] Web: Add to ChannelList (reuse shared component)
-  - [ ] Web: Add to EventList/Timeline (reuse shared component)
-  - [x] Server: All list endpoints return `total` count via `api.listPaginated()`
+  - [x] Web: Add to TeamList with URL sync - `apps/web/src/routes/teams.tsx`
+  - [x] Web: Add to DocumentList with URL sync - `apps/web/src/routes/documents.tsx`
+  - [x] Web: Add to ChannelList with URL sync - `apps/web/src/routes/messages.tsx`
+  - [x] Web: Add to EventList/Timeline with URL sync - `apps/web/src/routes/timeline.tsx`
+  - [x] Server: All list endpoints return `total` count via `api.listPaginated()` - `/api/teams`, `/api/documents`, `/api/channels`, `/api/events` updated
   - [x] Server: `/api/entities` endpoint supports pagination with `limit`, `offset`, `orderBy`, `orderDir` params
-  - [x] Web: URL sync for pagination state (e.g., `?page=2&limit=25`) - router validates search params
-  - [x] **Verify:** Playwright tests passing (55 tests for entities including 8 pagination tests)
+  - [x] Web: URL sync for pagination state (e.g., `?page=2&limit=25`) - router validates search params for all paginated routes
+  - [x] **Verify:** Playwright tests passing (25 pagination tests covering all list pages)
 
 - [x] **TB47: Edit Plan**
   - [x] Server: Add `POST /api/plans/:id/tasks` endpoint (add task to plan)

@@ -11,6 +11,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearch, useNavigate } from '@tanstack/react-router';
+import { Pagination } from '../components/shared/Pagination';
 import {
   Plus,
   Pencil,
@@ -76,6 +78,16 @@ interface EventFilterState {
   search: string;
   jumpToDate: string | null;
 }
+
+interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+const DEFAULT_EVENT_PAGE_SIZE = 100;
 
 // Time period grouping
 type TimePeriod = 'today' | 'yesterday' | 'thisWeek' | 'earlier';
@@ -176,7 +188,12 @@ const EVENT_TYPE_DISPLAY: Record<EventType, string> = {
   auto_unblocked: 'Auto Unblocked',
 };
 
-function useEvents(filter: EventFilterState) {
+function useEvents(
+  filter: EventFilterState,
+  page: number = 1,
+  pageSize: number = DEFAULT_EVENT_PAGE_SIZE
+) {
+  const offset = (page - 1) * pageSize;
   const queryParams = new URLSearchParams();
 
   // Add event type filter
@@ -189,14 +206,15 @@ function useEvents(filter: EventFilterState) {
     queryParams.set('actor', filter.actors[0]);
   }
 
-  // Always get more events to allow client-side filtering
-  queryParams.set('limit', '500');
+  // Add pagination params
+  queryParams.set('limit', pageSize.toString());
+  queryParams.set('offset', offset.toString());
+  queryParams.set('paginated', 'true');
 
-  const queryString = queryParams.toString();
-  const url = queryString ? `/api/events?${queryString}` : '/api/events?limit=500';
+  const url = `/api/events?${queryParams.toString()}`;
 
-  return useQuery<Event[]>({
-    queryKey: ['events', filter.eventTypes, filter.actors],
+  return useQuery<PaginatedResult<Event>>({
+    queryKey: ['events', 'paginated', page, pageSize, filter.eventTypes, filter.actors],
     queryFn: async () => {
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch events');
@@ -665,6 +683,13 @@ function TimePeriodGroup({ period, events, isFirst }: TimePeriodGroupProps) {
 }
 
 export function TimelinePage() {
+  const navigate = useNavigate();
+  const search = useSearch({ from: '/dashboard/timeline' });
+
+  // Pagination state from URL
+  const currentPage = search.page ?? 1;
+  const pageSize = search.limit ?? DEFAULT_EVENT_PAGE_SIZE;
+
   const [filter, setFilter] = useState<EventFilterState>({
     eventTypes: [],
     actors: [],
@@ -673,27 +698,41 @@ export function TimelinePage() {
     jumpToDate: null,
   });
 
-  const { data: events, isLoading, isError } = useEvents(filter);
+  const { data: eventsData, isLoading, isError } = useEvents(filter, currentPage, pageSize);
+
+  // Extract items from paginated response
+  const events = eventsData?.items ?? [];
+  const totalItems = eventsData?.total ?? 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const hasMore = eventsData?.hasMore ?? false;
+
+  const handlePageChange = (page: number) => {
+    navigate({ to: '/dashboard/timeline', search: { page, limit: pageSize } });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    navigate({ to: '/dashboard/timeline', search: { page: 1, limit: newPageSize } });
+  };
 
   // Get unique actors from events for filtering
   const uniqueActors = useMemo(() => {
-    if (!events) return [];
-    const actorSet = new Set(events.map((e) => e.actor));
-    return Array.from(actorSet).sort();
+    if (!events || events.length === 0) return [];
+    const actorSet = new Set(events.map((e: Event) => e.actor));
+    return Array.from(actorSet).sort() as string[];
   }, [events]);
 
   // Get unique element types from events
   const uniqueElementTypes = useMemo(() => {
-    if (!events) return [];
-    const typeSet = new Set(events.map((e) => e.elementType || inferElementType(e.elementId)));
-    return Array.from(typeSet).sort();
+    if (!events || events.length === 0) return [];
+    const typeSet = new Set(events.map((e: Event) => e.elementType || inferElementType(e.elementId)));
+    return Array.from(typeSet).sort() as string[];
   }, [events]);
 
   // Apply client-side filters
   const filteredEvents = useMemo(() => {
-    if (!events) return [];
+    if (!events || events.length === 0) return [];
 
-    return events.filter((event) => {
+    return events.filter((event: Event) => {
       // Actor filter (multi-select)
       if (filter.actors.length > 0 && !filter.actors.includes(event.actor)) {
         return false;
@@ -864,9 +903,12 @@ export function TimelinePage() {
           'Loading events...'
         ) : (
           <>
-            <span>{filteredEvents.length} events</span>
+            <span>{filteredEvents.length} of {totalItems} events</span>
             {hasActiveFilters && (
               <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">(filtered)</span>
+            )}
+            {hasMore && (
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">more available</span>
             )}
           </>
         )}
@@ -898,6 +940,20 @@ export function TimelinePage() {
               isFirst={index === 0 || timePeriodOrder.slice(0, index).every((p) => groupedEvents[p].length === 0)}
             />
           ))}
+
+        {/* Pagination */}
+        {!isLoading && !isError && totalPages > 1 && (
+          <div className="mt-4 mb-2">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
