@@ -33,6 +33,8 @@ import {
   RotateCcw,
   Eye,
   Plus,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
@@ -899,9 +901,13 @@ function DocumentRenderer({
 function DocumentDetailPanel({
   documentId,
   onClose,
+  isExpanded = false,
+  onToggleExpand,
 }: {
   documentId: string;
   onClose: () => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }) {
   const { data: document, isLoading, isError, error } = useDocument(documentId);
   const updateDocument = useUpdateDocument();
@@ -1097,6 +1103,21 @@ function DocumentDetailPanel({
               >
                 <History className="w-5 h-5" />
               </button>
+              {onToggleExpand && (
+                <button
+                  onClick={onToggleExpand}
+                  data-testid="document-expand-button"
+                  className={`p-1.5 rounded ${
+                    isExpanded
+                      ? 'text-blue-600 bg-blue-50'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                  aria-label={isExpanded ? 'Collapse document' : 'Expand document'}
+                  title={isExpanded ? 'Show document list' : 'Hide document list'}
+                >
+                  {isExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+                </button>
+              )}
             </>
           )}
           <button
@@ -1337,11 +1358,13 @@ export function DocumentsPage() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
+  const [isDocumentExpanded, setIsDocumentExpanded] = useState(false);
 
-  // Clear document selection when library changes
+  // Clear document selection and collapse when library changes
   const handleSelectLibrary = (libraryId: string) => {
     setSelectedLibraryId(libraryId);
     setSelectedDocumentId(null);
+    setIsDocumentExpanded(false);
   };
 
   const handleSelectDocument = (documentId: string) => {
@@ -1439,18 +1462,22 @@ export function DocumentsPage() {
       )}
 
       {/* Main Content Area - with or without document detail panel */}
-      <div className="flex-1 flex">
-        {/* Document List / Library View */}
-        <div className={`flex-1 ${selectedDocumentId ? 'border-r border-gray-200' : ''}`}>
-          {renderMainContent()}
-        </div>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Document List / Library View - hide when document is expanded */}
+        {(!selectedDocumentId || !isDocumentExpanded) && (
+          <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200' : 'flex-1'} overflow-hidden`}>
+            {renderMainContent()}
+          </div>
+        )}
 
         {/* Document Detail Panel */}
         {selectedDocumentId && (
-          <div className="w-[480px] flex-shrink-0">
+          <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} flex-shrink-0 overflow-hidden`}>
             <DocumentDetailPanel
               documentId={selectedDocumentId}
               onClose={handleCloseDocument}
+              isExpanded={isDocumentExpanded}
+              onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
             />
           </div>
         )}
