@@ -12,7 +12,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Pagination } from '../components/shared/Pagination';
 import {
   Library,
   FileText,
@@ -704,6 +703,12 @@ function LibraryView({
 }) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
+  const [displayCount, setDisplayCount] = useState(25);
+
+  // Reset display count when library changes
+  useEffect(() => {
+    setDisplayCount(25);
+  }, [libraryId]);
 
   const isLoading = libraryLoading || docsLoading;
 
@@ -715,6 +720,14 @@ function LibraryView({
     index === self.findIndex((d) => d.id === doc.id)
   );
 
+  // Paginate documents for display
+  const displayedDocuments = allDocuments.slice(0, displayCount);
+  const hasMore = displayCount < allDocuments.length;
+
+  const handleLoadMore = () => {
+    setDisplayCount(prev => prev + 25);
+  };
+
   return (
     <div
       data-testid="library-view"
@@ -723,7 +736,7 @@ function LibraryView({
       {/* Library Header */}
       <div
         data-testid="library-header"
-        className="p-4 border-b border-gray-200"
+        className="flex-shrink-0 p-4 border-b border-gray-200"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -740,7 +753,7 @@ function LibraryView({
                   data-testid="library-doc-count"
                   className="text-sm text-gray-400"
                 >
-                  {allDocuments.length} {allDocuments.length === 1 ? 'document' : 'documents'}
+                  {displayedDocuments.length} of {allDocuments.length} {allDocuments.length === 1 ? 'document' : 'documents'}
                 </span>
               </>
             ) : (
@@ -770,7 +783,7 @@ function LibraryView({
 
       {/* Sub-libraries section */}
       {library?._subLibraries && library._subLibraries.length > 0 && (
-        <div data-testid="sub-libraries" className="p-4 border-b border-gray-100">
+        <div data-testid="sub-libraries" className="flex-shrink-0 p-4 border-b border-gray-100">
           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
             Sub-libraries
           </h4>
@@ -790,10 +803,10 @@ function LibraryView({
         </div>
       )}
 
-      {/* Documents Area */}
+      {/* Scrollable Documents Area */}
       <div
         data-testid="documents-container"
-        className="flex-1 overflow-y-auto p-4"
+        className="flex-1 overflow-y-auto min-h-0"
       >
         {isLoading ? (
           <div
@@ -821,15 +834,29 @@ function LibraryView({
             </p>
           </div>
         ) : (
-          <div data-testid="documents-list" className="space-y-2">
-            {allDocuments.map((doc) => (
-              <DocumentListItem
-                key={doc.id}
-                document={doc}
-                isSelected={selectedDocumentId === doc.id}
-                onClick={onSelectDocument}
-              />
-            ))}
+          <div className="p-4">
+            <div data-testid="documents-list" className="space-y-2">
+              {displayedDocuments.map((doc) => (
+                <DocumentListItem
+                  key={doc.id}
+                  document={doc}
+                  isSelected={selectedDocumentId === doc.id}
+                  onClick={onSelectDocument}
+                />
+              ))}
+            </div>
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={handleLoadMore}
+                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
+                  data-testid="load-more-button"
+                >
+                  Load more
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1863,38 +1890,62 @@ function AllDocumentsView({
   selectedDocumentId,
   onSelectDocument,
   onNewDocument,
-  currentPage,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
-  searchQuery,
-  onSearchChange,
 }: {
   selectedDocumentId: string | null;
   onSelectDocument: (id: string) => void;
   onNewDocument: () => void;
-  currentPage: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (pageSize: number) => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loadedDocuments, setLoadedDocuments] = useState<DocumentType[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const pageSize = 25;
+
   const { data: documents, isLoading, error } = useDocuments(currentPage, pageSize, searchQuery);
 
-  const documentItems = documents?.items ?? [];
-  const totalItems = documents?.total ?? 0;
-  const totalPages = Math.ceil(totalItems / pageSize);
+  // Update loaded documents when new data arrives
+  useEffect(() => {
+    if (documents?.items) {
+      if (currentPage === 1) {
+        // Reset for new search or initial load
+        setLoadedDocuments(documents.items);
+      } else {
+        // Append for "Load more"
+        setLoadedDocuments(prev => {
+          const existingIds = new Set(prev.map(d => d.id));
+          const newDocs = documents.items.filter(d => !existingIds.has(d.id));
+          return [...prev, ...newDocs];
+        });
+      }
+      setHasMore(documents.hasMore ?? (documents.items.length === pageSize));
+      setIsLoadingMore(false);
+    }
+  }, [documents, currentPage]);
+
+  // Reset when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setLoadedDocuments([]);
+    setHasMore(true);
+  }, [searchQuery]);
+
+  const handleLoadMore = () => {
+    setIsLoadingMore(true);
+    setCurrentPage(prev => prev + 1);
+  };
+
+  const totalItems = documents?.total ?? loadedDocuments.length;
 
   return (
     <div
       data-testid="all-documents-view"
-      className="flex-1 flex flex-col bg-white"
+      className="h-full flex flex-col bg-white"
     >
       {/* Header */}
       <div
         data-testid="all-documents-header"
-        className="p-4 border-b border-gray-200"
+        className="flex-shrink-0 p-4 border-b border-gray-200"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1903,7 +1954,7 @@ function AllDocumentsView({
               All Documents
             </h3>
             <span className="text-sm text-gray-400">
-              {documentItems.length} of {totalItems} {totalItems === 1 ? 'document' : 'documents'}
+              {loadedDocuments.length} of {totalItems} {totalItems === 1 ? 'document' : 'documents'}
             </span>
           </div>
           <button
@@ -1921,7 +1972,7 @@ function AllDocumentsView({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search documents..."
             className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             data-testid="documents-search-input"
@@ -1929,12 +1980,12 @@ function AllDocumentsView({
         </div>
       </div>
 
-      {/* Documents Area */}
+      {/* Scrollable Documents Area */}
       <div
         data-testid="all-documents-container"
-        className="flex-1 overflow-y-auto p-4"
+        className="flex-1 overflow-y-auto min-h-0"
       >
-        {isLoading ? (
+        {isLoading && currentPage === 1 ? (
           <div
             data-testid="all-documents-loading"
             className="flex items-center justify-center h-full text-gray-500"
@@ -1948,7 +1999,7 @@ function AllDocumentsView({
           >
             Failed to load documents
           </div>
-        ) : documentItems.length === 0 ? (
+        ) : loadedDocuments.length === 0 ? (
           <div
             data-testid="all-documents-empty"
             className="flex flex-col items-center justify-center h-full text-gray-500"
@@ -1960,9 +2011,9 @@ function AllDocumentsView({
             </p>
           </div>
         ) : (
-          <>
+          <div className="p-4">
             <div data-testid="all-documents-list" className="space-y-2">
-              {documentItems.map((doc) => (
+              {loadedDocuments.map((doc) => (
                 <DocumentListItem
                   key={doc.id}
                   document={doc}
@@ -1971,18 +2022,20 @@ function AllDocumentsView({
                 />
               ))}
             </div>
-            {/* Pagination */}
-            <div className="mt-4">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={totalItems}
-                pageSize={pageSize}
-                onPageChange={onPageChange}
-                onPageSizeChange={onPageSizeChange}
-              />
-            </div>
-          </>
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore}
+                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="load-more-button"
+                >
+                  {isLoadingMore ? 'Loading...' : 'Load more'}
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -1997,10 +2050,6 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/documents' });
 
-  // Pagination state from URL
-  const currentPage = search.page ?? 1;
-  const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
-
   const { data: libraries = [], isLoading, error } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
     search.library ?? null
@@ -2008,7 +2057,6 @@ export function DocumentsPage() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(
     search.selected ?? null
   );
-  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
   const [isDocumentExpanded, setIsDocumentExpanded] = useState(false);
@@ -2082,25 +2130,12 @@ export function DocumentsPage() {
 
   const handleSelectDocument = (documentId: string) => {
     setSelectedDocumentId(documentId);
-    navigate({ to: '/documents', search: { selected: documentId, library: selectedLibraryId ?? undefined, page: currentPage, limit: pageSize } });
+    navigate({ to: '/documents', search: { selected: documentId, library: selectedLibraryId ?? undefined, page: 1, limit: DEFAULT_PAGE_SIZE } });
   };
 
   const handleCloseDocument = () => {
     setSelectedDocumentId(null);
-    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined, page: currentPage, limit: pageSize } });
-  };
-
-  const handlePageChange = (page: number) => {
-    navigate({ to: '/documents', search: { page, limit: pageSize, selected: selectedDocumentId ?? undefined, library: selectedLibraryId ?? undefined } });
-  };
-
-  const handlePageSizeChange = (newPageSize: number) => {
-    navigate({ to: '/documents', search: { page: 1, limit: newPageSize, selected: selectedDocumentId ?? undefined, library: selectedLibraryId ?? undefined } });
-  };
-
-  const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
-    navigate({ to: '/documents', search: { page: 1, limit: pageSize, selected: selectedDocumentId ?? undefined, library: selectedLibraryId ?? undefined } });
+    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined, page: 1, limit: DEFAULT_PAGE_SIZE } });
   };
 
   const handleOpenCreateModal = () => {
@@ -2163,12 +2198,6 @@ export function DocumentsPage() {
         selectedDocumentId={selectedDocumentId}
         onSelectDocument={handleSelectDocument}
         onNewDocument={handleOpenCreateModal}
-        currentPage={currentPage}
-        pageSize={pageSize}
-        onPageChange={handlePageChange}
-        onPageSizeChange={handlePageSizeChange}
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
       />
     );
   };
