@@ -674,11 +674,20 @@ For mutations (create, update, delete):
   - [x] Web: Add PlanTaskList component showing tasks in plan
   - [x] **Verify:** Plans display with progress (Playwright tests passing - 24 tests)
 
-- [ ] **TB25: Workflow List + Pour**
-  - [ ] Web: Create WorkflowsPage component
-  - [ ] Web: Pour workflow modal
-  - [ ] Server: Add `POST /api/workflows/pour` endpoint
-  - [ ] **Verify:** Pour workflow from playbook
+- [x] **TB25: Workflow List + Pour**
+  - [x] Server: Add `GET /api/workflows` endpoint (with status filter)
+  - [x] Server: Add `GET /api/workflows/:id` endpoint (with progress hydration)
+  - [x] Server: Add `GET /api/workflows/:id/tasks` endpoint
+  - [x] Server: Add `GET /api/workflows/:id/progress` endpoint
+  - [x] Server: Add `POST /api/workflows` endpoint (create workflow)
+  - [x] Server: Add `POST /api/workflows/pour` endpoint (pour from playbook)
+  - [x] Server: Add `PATCH /api/workflows/:id` endpoint (update workflow)
+  - [x] Web: Create WorkflowsPage component with status filter tabs
+  - [x] Web: Create WorkflowListItem, WorkflowDetailPanel components
+  - [x] Web: Create PourWorkflowModal with title and playbook name inputs
+  - [x] Web: Add ProgressBar component with completion visualization
+  - [x] Web: Add TaskStatusSummary, WorkflowTaskList components
+  - [x] **Verify:** Pour workflow from playbook (Playwright tests passing - 28 tests)
 
 - [ ] **TB26: Playbook Browser**
   - [ ] Web: PlaybookPicker component

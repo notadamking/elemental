@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -1213,6 +1213,285 @@ app.patch('/api/plans/:id', async (c) => {
     }
     console.error('[elemental] Failed to update plan:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update plan' } }, 500);
+  }
+});
+
+// ============================================================================
+// Workflows Endpoints (TB25)
+// ============================================================================
+
+app.get('/api/workflows', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const statusParam = url.searchParams.get('status');
+    const ephemeralParam = url.searchParams.get('ephemeral');
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    const filter: Record<string, unknown> = {
+      type: 'workflow',
+      orderBy: 'updated_at',
+      orderDir: 'desc',
+    };
+
+    if (statusParam) {
+      filter.status = statusParam;
+    }
+    if (ephemeralParam !== null) {
+      filter.ephemeral = ephemeralParam === 'true';
+    }
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    const workflows = await api.list(filter as Parameters<typeof api.list>[0]);
+    return c.json(workflows);
+  } catch (error) {
+    console.error('[elemental] Failed to get workflows:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get workflows' } }, 500);
+  }
+});
+
+app.get('/api/workflows/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const hydrateProgress = url.searchParams.get('hydrate.progress') === 'true';
+
+    const workflow = await api.get(id);
+
+    if (!workflow) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    if (workflow.type !== 'workflow') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    // Optionally hydrate progress
+    if (hydrateProgress) {
+      const progress = await api.getWorkflowProgress(id);
+      return c.json({ ...workflow, _progress: progress });
+    }
+
+    return c.json(workflow);
+  } catch (error) {
+    console.error('[elemental] Failed to get workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get workflow' } }, 500);
+  }
+});
+
+app.get('/api/workflows/:id/tasks', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const statusParam = url.searchParams.get('status');
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    // First verify workflow exists
+    const workflow = await api.get(id);
+    if (!workflow) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if (workflow.type !== 'workflow') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    // Build filter for getTasksInWorkflow
+    const filter: Record<string, unknown> = {};
+
+    if (statusParam) {
+      filter.status = statusParam;
+    }
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    const tasks = await api.getTasksInWorkflow(id, filter as Parameters<typeof api.getTasksInWorkflow>[1]);
+    return c.json(tasks);
+  } catch (error) {
+    console.error('[elemental] Failed to get workflow tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get workflow tasks' } }, 500);
+  }
+});
+
+app.get('/api/workflows/:id/progress', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+
+    // First verify workflow exists
+    const workflow = await api.get(id);
+    if (!workflow) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if (workflow.type !== 'workflow') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    const progress = await api.getWorkflowProgress(id);
+    return c.json(progress);
+  } catch (error) {
+    console.error('[elemental] Failed to get workflow progress:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get workflow progress' } }, 500);
+  }
+});
+
+app.post('/api/workflows', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.title || typeof body.title !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title is required and must be a string' } }, 400);
+    }
+
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required and must be a string' } }, 400);
+    }
+
+    // Validate title length
+    if (body.title.length < 1 || body.title.length > 500) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title must be between 1 and 500 characters' } }, 400);
+    }
+
+    // Create the workflow using the factory function
+    const workflowInput: CreateWorkflowInput = {
+      title: body.title,
+      createdBy: body.createdBy as EntityId,
+      status: (body.status as WorkflowStatus) || ('pending' as WorkflowStatus),
+      ephemeral: body.ephemeral ?? false,
+      tags: body.tags || [],
+      variables: body.variables || {},
+      descriptionRef: body.descriptionRef,
+      playbookId: body.playbookId,
+    };
+
+    const workflow = await createWorkflow(workflowInput);
+    const created = await api.create(workflow as unknown as Element & Record<string, unknown>);
+    return c.json(created, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to create workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workflow' } }, 500);
+  }
+});
+
+app.post('/api/workflows/pour', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.playbook || typeof body.playbook !== 'object') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'playbook is required and must be an object' } }, 400);
+    }
+
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required and must be a string' } }, 400);
+    }
+
+    // Build pour input
+    const pourInput: PourWorkflowInput = {
+      playbook: body.playbook as Playbook,
+      variables: body.variables || {},
+      createdBy: body.createdBy as EntityId,
+      title: body.title,
+      ephemeral: body.ephemeral ?? false,
+      tags: body.tags || [],
+      metadata: body.metadata || {},
+    };
+
+    // Pour the workflow
+    const result = await pourWorkflow(pourInput);
+
+    // Create the workflow and all tasks in the database
+    const createdWorkflow = await api.create(result.workflow as unknown as Element & Record<string, unknown>);
+
+    // Create all tasks
+    const createdTasks = [];
+    for (const task of result.tasks) {
+      const createdTask = await api.create(task.task as unknown as Element & Record<string, unknown>);
+      createdTasks.push(createdTask);
+    }
+
+    // Create all dependencies
+    for (const dep of [...result.blocksDependencies, ...result.parentChildDependencies]) {
+      await api.addDependency(dep);
+    }
+
+    return c.json({
+      workflow: createdWorkflow,
+      tasks: createdTasks,
+      skippedSteps: result.skippedSteps,
+      resolvedVariables: result.resolvedVariables,
+    }, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to pour workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to pour workflow' } }, 500);
+  }
+});
+
+app.patch('/api/workflows/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // First verify workflow exists
+    const existing = await api.get(id);
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if (existing.type !== 'workflow') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    // Extract allowed updates
+    const updates: Record<string, unknown> = {};
+    const allowedFields = ['title', 'status', 'tags', 'metadata', 'descriptionRef', 'failureReason', 'cancelReason'];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field];
+      }
+    }
+
+    // Validate title if provided
+    if (updates.title !== undefined) {
+      if (typeof updates.title !== 'string' || updates.title.length < 1 || updates.title.length > 500) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title must be between 1 and 500 characters' } }, 400);
+      }
+    }
+
+    // Validate status if provided
+    if (updates.status !== undefined) {
+      const validStatuses = ['pending', 'running', 'completed', 'failed', 'cancelled'];
+      if (!validStatuses.includes(updates.status as string)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` } }, 400);
+      }
+    }
+
+    const updated = await api.update(id, updates);
+    return c.json(updated);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to update workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update workflow' } }, 500);
   }
 });
 

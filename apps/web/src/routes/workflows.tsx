@@ -1,0 +1,988 @@
+/**
+ * Workflows Page - Workflow management with pour functionality (TB25)
+ *
+ * Features:
+ * - List all workflows with status badges
+ * - Progress visualization
+ * - Workflow detail panel with task list
+ * - Pour workflow from playbook modal
+ */
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  GitBranch,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  ChevronRight,
+  X,
+  ListTodo,
+  CircleDot,
+  AlertCircle,
+  User,
+  Play,
+  Plus,
+  Loader2,
+} from 'lucide-react';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface WorkflowType {
+  id: string;
+  type: 'workflow';
+  title: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  playbookId?: string;
+  ephemeral: boolean;
+  variables: Record<string, unknown>;
+  descriptionRef?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  tags: string[];
+  startedAt?: string;
+  finishedAt?: string;
+  failureReason?: string;
+  cancelReason?: string;
+}
+
+interface WorkflowProgress {
+  workflowId: string;
+  totalTasks: number;
+  statusCounts: Record<string, number>;
+  completionPercentage: number;
+  readyTasks: number;
+  blockedTasks: number;
+}
+
+interface HydratedWorkflow extends WorkflowType {
+  _progress?: WorkflowProgress;
+}
+
+interface TaskType {
+  id: string;
+  type: 'task';
+  title: string;
+  status: string;
+  priority: number;
+  assignee?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+}
+
+// ============================================================================
+// Status Configuration
+// ============================================================================
+
+const STATUS_CONFIG: Record<
+  string,
+  { label: string; icon: React.ReactNode; color: string; bgColor: string }
+> = {
+  pending: {
+    label: 'Pending',
+    icon: <Clock className="w-4 h-4" />,
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-100',
+  },
+  running: {
+    label: 'Running',
+    icon: <Play className="w-4 h-4" />,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100',
+  },
+  completed: {
+    label: 'Completed',
+    icon: <CheckCircle2 className="w-4 h-4" />,
+    color: 'text-green-600',
+    bgColor: 'bg-green-100',
+  },
+  failed: {
+    label: 'Failed',
+    icon: <AlertTriangle className="w-4 h-4" />,
+    color: 'text-red-600',
+    bgColor: 'bg-red-100',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    icon: <XCircle className="w-4 h-4" />,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-100',
+  },
+};
+
+// ============================================================================
+// API Hooks
+// ============================================================================
+
+function useWorkflows(status?: string) {
+  return useQuery<WorkflowType[]>({
+    queryKey: ['workflows', status],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (status) {
+        params.set('status', status);
+      }
+      const response = await fetch(`/api/workflows?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch workflows');
+      }
+      return response.json();
+    },
+  });
+}
+
+function useWorkflow(workflowId: string | null) {
+  return useQuery<HydratedWorkflow>({
+    queryKey: ['workflows', workflowId],
+    queryFn: async () => {
+      if (!workflowId) throw new Error('No workflow selected');
+      const response = await fetch(`/api/workflows/${workflowId}?hydrate.progress=true`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch workflow');
+      }
+      return response.json();
+    },
+    enabled: !!workflowId,
+  });
+}
+
+function useWorkflowTasks(workflowId: string | null) {
+  return useQuery<TaskType[]>({
+    queryKey: ['workflows', workflowId, 'tasks'],
+    queryFn: async () => {
+      if (!workflowId) throw new Error('No workflow selected');
+      const response = await fetch(`/api/workflows/${workflowId}/tasks`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch workflow tasks');
+      }
+      return response.json();
+    },
+    enabled: !!workflowId,
+  });
+}
+
+function useWorkflowProgress(workflowId: string | null) {
+  return useQuery<WorkflowProgress>({
+    queryKey: ['workflows', workflowId, 'progress'],
+    queryFn: async () => {
+      if (!workflowId) throw new Error('No workflow selected');
+      const response = await fetch(`/api/workflows/${workflowId}/progress`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch workflow progress');
+      }
+      return response.json();
+    },
+    enabled: !!workflowId,
+  });
+}
+
+function usePourWorkflow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      playbook: {
+        name: string;
+        version: string;
+        steps: Array<{
+          id: string;
+          title: string;
+          taskType?: string;
+          priority?: number;
+          complexity?: number;
+        }>;
+        variables?: Array<{
+          name: string;
+          type: string;
+          default?: unknown;
+        }>;
+      };
+      variables?: Record<string, unknown>;
+      createdBy: string;
+      title?: string;
+      ephemeral?: boolean;
+      tags?: string[];
+    }) => {
+      const response = await fetch('/api/workflows/pour', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to pour workflow');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    },
+  });
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return formatDate(dateString);
+}
+
+// ============================================================================
+// Components
+// ============================================================================
+
+/**
+ * Progress Bar component with completion percentage
+ */
+function ProgressBar({
+  progress,
+  showLabel = true,
+  size = 'md',
+}: {
+  progress: WorkflowProgress;
+  showLabel?: boolean;
+  size?: 'sm' | 'md';
+}) {
+  const { completionPercentage, totalTasks } = progress;
+  const height = size === 'sm' ? 'h-1.5' : 'h-2.5';
+  const completedCount = progress.statusCounts['closed'] || 0;
+
+  return (
+    <div data-testid="workflow-progress-bar" className="flex items-center gap-2">
+      <div className={`flex-1 bg-gray-200 rounded-full ${height} overflow-hidden`}>
+        <div
+          className={`${height} bg-green-500 rounded-full transition-all duration-300`}
+          style={{ width: `${completionPercentage}%` }}
+          data-testid="workflow-progress-bar-fill"
+        />
+      </div>
+      {showLabel && (
+        <span
+          data-testid="workflow-progress-label"
+          className="text-xs text-gray-500 whitespace-nowrap"
+        >
+          {completedCount}/{totalTasks} ({Math.round(completionPercentage)}%)
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Status Badge component
+ */
+function StatusBadge({ status }: { status: string }) {
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+
+  return (
+    <span
+      data-testid={`workflow-status-badge-${status}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${config.bgColor} ${config.color}`}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+/**
+ * Workflow List Item component
+ */
+function WorkflowListItem({
+  workflow,
+  isSelected,
+  onClick,
+}: {
+  workflow: WorkflowType;
+  isSelected: boolean;
+  onClick: (id: string) => void;
+}) {
+  return (
+    <div
+      data-testid={`workflow-item-${workflow.id}`}
+      className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+        isSelected
+          ? 'bg-blue-50 border-blue-200'
+          : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+      }`}
+      onClick={() => onClick(workflow.id)}
+    >
+      <div className="flex items-start justify-between mb-2">
+        <h3
+          data-testid="workflow-item-title"
+          className="font-medium text-gray-900 truncate flex-1"
+        >
+          {workflow.title}
+        </h3>
+        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
+      </div>
+
+      <div className="flex items-center gap-2 mb-2">
+        <StatusBadge status={workflow.status} />
+        {workflow.ephemeral && (
+          <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+            Ephemeral
+          </span>
+        )}
+        <span className="text-xs text-gray-500" title={formatDate(workflow.updatedAt)}>
+          Updated {formatRelativeTime(workflow.updatedAt)}
+        </span>
+      </div>
+
+      {workflow.tags && workflow.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {workflow.tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
+            >
+              {tag}
+            </span>
+          ))}
+          {workflow.tags.length > 3 && (
+            <span className="text-xs text-gray-400">+{workflow.tags.length - 3}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Status Filter Tabs
+ */
+function StatusFilter({
+  selectedStatus,
+  onStatusChange,
+}: {
+  selectedStatus: string | null;
+  onStatusChange: (status: string | null) => void;
+}) {
+  const statuses = [
+    { value: null, label: 'All' },
+    { value: 'running', label: 'Running' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'failed', label: 'Failed' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ];
+
+  return (
+    <div data-testid="workflow-status-filter" className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+      {statuses.map((status) => (
+        <button
+          key={status.value ?? 'all'}
+          data-testid={`workflow-status-filter-${status.value ?? 'all'}`}
+          onClick={() => onStatusChange(status.value)}
+          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            selectedStatus === status.value
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {status.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Task Status Summary
+ */
+function TaskStatusSummary({ progress }: { progress: WorkflowProgress }) {
+  const items = [
+    {
+      label: 'Completed',
+      count: progress.statusCounts['closed'] || 0,
+      icon: <CheckCircle2 className="w-4 h-4 text-green-500" />,
+    },
+    {
+      label: 'In Progress',
+      count: progress.statusCounts['in_progress'] || 0,
+      icon: <CircleDot className="w-4 h-4 text-blue-500" />,
+    },
+    {
+      label: 'Blocked',
+      count: progress.blockedTasks,
+      icon: <AlertCircle className="w-4 h-4 text-red-500" />,
+    },
+    {
+      label: 'Ready',
+      count: progress.readyTasks,
+      icon: <ListTodo className="w-4 h-4 text-gray-400" />,
+    },
+  ];
+
+  return (
+    <div data-testid="workflow-task-status-summary" className="grid grid-cols-2 gap-3">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg"
+        >
+          {item.icon}
+          <div>
+            <div className="text-lg font-semibold text-gray-900">{item.count}</div>
+            <div className="text-xs text-gray-500">{item.label}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Workflow Task List
+ */
+function WorkflowTaskList({ tasks }: { tasks: TaskType[] }) {
+  if (tasks.length === 0) {
+    return (
+      <div
+        data-testid="workflow-tasks-empty"
+        className="text-center py-8 text-gray-500 text-sm"
+      >
+        No tasks in this workflow
+      </div>
+    );
+  }
+
+  const priorityColors: Record<number, string> = {
+    1: 'bg-gray-200',
+    2: 'bg-blue-200',
+    3: 'bg-yellow-200',
+    4: 'bg-orange-200',
+    5: 'bg-red-200',
+  };
+
+  return (
+    <div data-testid="workflow-tasks-list" className="space-y-2">
+      {tasks.map((task) => (
+        <div
+          key={task.id}
+          data-testid={`workflow-task-${task.id}`}
+          className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
+        >
+          <div
+            className={`w-2 h-2 rounded-full ${priorityColors[task.priority] || 'bg-gray-200'}`}
+            title={`Priority ${task.priority}`}
+          />
+          <span className="flex-1 text-sm text-gray-900 truncate">{task.title}</span>
+          <span
+            className={`text-xs px-2 py-0.5 rounded ${
+              task.status === 'closed'
+                ? 'bg-green-100 text-green-700'
+                : task.status === 'blocked'
+                  ? 'bg-red-100 text-red-700'
+                  : task.status === 'in_progress'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-700'
+            }`}
+          >
+            {task.status.replace('_', ' ')}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Workflow Detail Panel
+ */
+function WorkflowDetailPanel({
+  workflowId,
+  onClose,
+}: {
+  workflowId: string;
+  onClose: () => void;
+}) {
+  const { data: workflow, isLoading, isError, error } = useWorkflow(workflowId);
+  const { data: tasks = [] } = useWorkflowTasks(workflowId);
+  const { data: progress } = useWorkflowProgress(workflowId);
+
+  if (isLoading) {
+    return (
+      <div
+        data-testid="workflow-detail-loading"
+        className="h-full flex items-center justify-center bg-white"
+      >
+        <div className="text-gray-500">Loading workflow...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div
+        data-testid="workflow-detail-error"
+        className="h-full flex flex-col items-center justify-center bg-white"
+      >
+        <div className="text-red-600 mb-2">Failed to load workflow</div>
+        <div className="text-sm text-gray-500">{(error as Error)?.message}</div>
+      </div>
+    );
+  }
+
+  if (!workflow) {
+    return (
+      <div
+        data-testid="workflow-detail-not-found"
+        className="h-full flex items-center justify-center bg-white"
+      >
+        <div className="text-gray-500">Workflow not found</div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-testid="workflow-detail-panel"
+      className="h-full flex flex-col bg-white border-l border-gray-200"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 border-b border-gray-200">
+        <div className="flex-1 min-w-0">
+          {/* Status badge */}
+          <div className="mb-2 flex items-center gap-2">
+            <StatusBadge status={workflow.status} />
+            {workflow.ephemeral && (
+              <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                Ephemeral
+              </span>
+            )}
+          </div>
+
+          {/* Title */}
+          <h2
+            data-testid="workflow-detail-title"
+            className="text-lg font-semibold text-gray-900"
+          >
+            {workflow.title}
+          </h2>
+
+          {/* ID */}
+          <div className="mt-1 text-xs text-gray-500 font-mono">
+            <span data-testid="workflow-detail-id">{workflow.id}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+          aria-label="Close panel"
+          data-testid="workflow-detail-close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* Progress Section */}
+        {progress && (
+          <div className="mb-6">
+            <div className="text-sm font-medium text-gray-700 mb-2">Progress</div>
+            <ProgressBar progress={progress} />
+            <div className="mt-4">
+              <TaskStatusSummary progress={progress} />
+            </div>
+          </div>
+        )}
+
+        {/* Tasks Section */}
+        <div className="mb-6">
+          <div className="text-sm font-medium text-gray-700 mb-2">
+            Tasks ({tasks.length})
+          </div>
+          <WorkflowTaskList tasks={tasks} />
+        </div>
+
+        {/* Metadata */}
+        <div className="pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <Clock className="w-3 h-3" />
+                <span className="font-medium">Created:</span>
+              </div>
+              <span title={formatDate(workflow.createdAt)}>
+                {formatRelativeTime(workflow.createdAt)}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <Clock className="w-3 h-3" />
+                <span className="font-medium">Updated:</span>
+              </div>
+              <span title={formatDate(workflow.updatedAt)}>
+                {formatRelativeTime(workflow.updatedAt)}
+              </span>
+            </div>
+            <div className="col-span-2">
+              <div className="flex items-center gap-1 mb-1">
+                <User className="w-3 h-3" />
+                <span className="font-medium">Created by:</span>
+              </div>
+              <span className="font-mono">{workflow.createdBy}</span>
+            </div>
+            {workflow.startedAt && (
+              <div className="col-span-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <Play className="w-3 h-3 text-blue-500" />
+                  <span className="font-medium">Started:</span>
+                </div>
+                <span>{formatDate(workflow.startedAt)}</span>
+              </div>
+            )}
+            {workflow.finishedAt && (
+              <div className="col-span-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <CheckCircle2 className="w-3 h-3 text-green-500" />
+                  <span className="font-medium">Finished:</span>
+                </div>
+                <span>{formatDate(workflow.finishedAt)}</span>
+              </div>
+            )}
+            {workflow.failureReason && (
+              <div className="col-span-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <AlertTriangle className="w-3 h-3 text-red-500" />
+                  <span className="font-medium">Failure reason:</span>
+                </div>
+                <p className="text-red-600">{workflow.failureReason}</p>
+              </div>
+            )}
+            {workflow.cancelReason && (
+              <div className="col-span-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <XCircle className="w-3 h-3 text-orange-500" />
+                  <span className="font-medium">Cancel reason:</span>
+                </div>
+                <p className="text-orange-600">{workflow.cancelReason}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Tags */}
+          {workflow.tags && workflow.tags.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                Tags
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {workflow.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    data-testid={`workflow-tag-${tag}`}
+                    className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Variables */}
+          {workflow.variables && Object.keys(workflow.variables).length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                Variables
+              </div>
+              <div className="bg-gray-50 rounded p-2 text-xs font-mono">
+                {Object.entries(workflow.variables).map(([key, value]) => (
+                  <div key={key} className="flex gap-2">
+                    <span className="text-gray-500">{key}:</span>
+                    <span className="text-gray-900">{JSON.stringify(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Pour Workflow Modal
+ */
+function PourWorkflowModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const pourWorkflow = usePourWorkflow();
+  const [title, setTitle] = useState('');
+  const [playbookName, setPlaybookName] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Create a simple playbook for demo
+    const playbook = {
+      name: playbookName || 'Quick Workflow',
+      version: '1.0.0',
+      variables: [],
+      steps: [
+        { id: 'step-1', title: 'Step 1', priority: 3 },
+        { id: 'step-2', title: 'Step 2', priority: 3 },
+        { id: 'step-3', title: 'Step 3', priority: 3 },
+      ],
+    };
+
+    try {
+      await pourWorkflow.mutateAsync({
+        playbook,
+        createdBy: 'web-user',
+        title: title || playbookName || 'New Workflow',
+      });
+      onClose();
+      setTitle('');
+      setPlaybookName('');
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  return (
+    <div
+      data-testid="pour-workflow-modal"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold">Pour New Workflow</h2>
+          <button
+            onClick={onClose}
+            data-testid="pour-modal-close"
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Workflow Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              data-testid="pour-title-input"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="My Workflow"
+            />
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Playbook Name
+            </label>
+            <input
+              type="text"
+              value={playbookName}
+              onChange={(e) => setPlaybookName(e.target.value)}
+              data-testid="pour-playbook-input"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Quick Setup"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              A simple 3-step workflow will be created with this name
+            </p>
+          </div>
+
+          {pourWorkflow.isError && (
+            <div className="mb-4 p-2 bg-red-50 text-red-700 text-sm rounded">
+              {pourWorkflow.error?.message || 'Failed to pour workflow'}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={pourWorkflow.isPending}
+              data-testid="pour-submit-button"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {pourWorkflow.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Pouring...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Pour Workflow
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Main Workflows Page Component
+ */
+export function WorkflowsPage() {
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [isPourModalOpen, setIsPourModalOpen] = useState(false);
+
+  const { data: workflows = [], isLoading, error } = useWorkflows(selectedStatus ?? undefined);
+
+  return (
+    <div data-testid="workflows-page" className="h-full flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <GitBranch className="w-6 h-6 text-purple-500" />
+            <h1 className="text-xl font-semibold text-gray-900">Workflows</h1>
+            {workflows.length > 0 && (
+              <span
+                data-testid="workflows-count"
+                className="text-sm text-gray-500"
+              >
+                ({workflows.length})
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setIsPourModalOpen(true)}
+            data-testid="pour-workflow-button"
+            className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            Pour Workflow
+          </button>
+        </div>
+
+        <StatusFilter
+          selectedStatus={selectedStatus}
+          onStatusChange={setSelectedStatus}
+        />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Workflow List */}
+        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+          {isLoading && (
+            <div
+              data-testid="workflows-loading"
+              className="text-center py-12 text-gray-500"
+            >
+              Loading workflows...
+            </div>
+          )}
+
+          {error && (
+            <div
+              data-testid="workflows-error"
+              className="text-center py-12 text-red-500"
+            >
+              Failed to load workflows
+            </div>
+          )}
+
+          {!isLoading && !error && workflows.length === 0 && (
+            <div
+              data-testid="workflows-empty"
+              className="text-center py-12"
+            >
+              <GitBranch className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No workflows found</p>
+              <p className="text-sm text-gray-400 mt-1">
+                {selectedStatus
+                  ? `No ${selectedStatus} workflows available`
+                  : 'Pour your first workflow from a playbook'}
+              </p>
+            </div>
+          )}
+
+          {!isLoading && !error && workflows.length > 0 && (
+            <div data-testid="workflows-list" className="space-y-3">
+              {workflows.map((workflow) => (
+                <WorkflowListItem
+                  key={workflow.id}
+                  workflow={workflow}
+                  isSelected={selectedWorkflowId === workflow.id}
+                  onClick={setSelectedWorkflowId}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Workflow Detail Panel */}
+        {selectedWorkflowId && (
+          <div className="w-96 flex-shrink-0">
+            <WorkflowDetailPanel
+              workflowId={selectedWorkflowId}
+              onClose={() => setSelectedWorkflowId(null)}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Pour Workflow Modal */}
+      <PourWorkflowModal
+        isOpen={isPourModalOpen}
+        onClose={() => setIsPourModalOpen(false)}
+      />
+    </div>
+  );
+}
