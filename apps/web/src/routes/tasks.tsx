@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
+import { CreateTaskModal } from '../components/task/CreateTaskModal';
 
 interface Task {
   id: string;
@@ -97,6 +99,7 @@ function TaskRow({ task, isSelected, onClick }: { task: Task; isSelected: boolea
 export function TasksPage() {
   const tasks = useTasks();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
@@ -106,14 +109,33 @@ export function TasksPage() {
     setSelectedTaskId(null);
   };
 
+  const handleCreateSuccess = (task: { id: string }) => {
+    // Optionally select the newly created task
+    setSelectedTaskId(task.id);
+  };
+
   return (
     <div className="flex h-full" data-testid="tasks-page">
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={handleCreateSuccess}
+      />
+
       {/* Task List - shrinks when detail panel is open */}
       <div className={`flex flex-col ${selectedTaskId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
           <div className="flex items-center gap-2">
-            {/* View toggle and filters will go here */}
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              data-testid="create-task-button"
+            >
+              <Plus className="w-4 h-4" />
+              Create Task
+            </button>
           </div>
         </div>
 

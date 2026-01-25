@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema } from '@elemental/cli';
-import type { ElementalAPI, ElementId } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -179,6 +179,49 @@ app.get('/api/tasks/:id', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get task:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get task' } }, 500);
+  }
+});
+
+app.post('/api/tasks', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.title || typeof body.title !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title is required' } }, 400);
+    }
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required' } }, 400);
+    }
+
+    // Build CreateTaskInput from request body
+    const taskInput: CreateTaskInput = {
+      title: body.title,
+      createdBy: body.createdBy,
+      ...(body.status !== undefined && { status: body.status }),
+      ...(body.priority !== undefined && { priority: body.priority }),
+      ...(body.complexity !== undefined && { complexity: body.complexity }),
+      ...(body.taskType !== undefined && { taskType: body.taskType }),
+      ...(body.assignee !== undefined && { assignee: body.assignee }),
+      ...(body.owner !== undefined && { owner: body.owner }),
+      ...(body.deadline !== undefined && { deadline: body.deadline }),
+      ...(body.scheduledFor !== undefined && { scheduledFor: body.scheduledFor }),
+      ...(body.tags !== undefined && { tags: body.tags }),
+      ...(body.descriptionRef !== undefined && { descriptionRef: body.descriptionRef }),
+      ...(body.designRef !== undefined && { designRef: body.designRef }),
+      ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria }),
+      ...(body.notes !== undefined && { notes: body.notes }),
+    };
+    const task = await createTask(taskInput);
+    const created = await api.create(task as unknown as Element & Record<string, unknown>);
+
+    return c.json(created);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to create task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create task' } }, 500);
   }
 });
 

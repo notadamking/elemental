@@ -572,10 +572,10 @@ For mutations (create, update, delete):
 
 ### Phase 5: Tasks Feature Complete
 
-- [ ] **TB13: Create Task**
-  - [ ] Web: Create task modal
-  - [ ] Server: Add `POST /api/tasks` endpoint
-  - [ ] **Verify:** Create task from UI
+- [x] **TB13: Create Task**
+  - [x] Web: Create task modal (CreateTaskModal component with form fields for title, createdBy, priority, complexity, taskType, assignee, tags)
+  - [x] Server: Add `POST /api/tasks` endpoint (with validation for required fields)
+  - [x] **Verify:** Create task from UI (Playwright tests passing - 16 tests)
 
 - [ ] **TB14: Kanban View**
   - [ ] Web: Add dnd-kit
