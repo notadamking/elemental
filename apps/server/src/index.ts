@@ -183,6 +183,23 @@ app.get('/api/tasks/blocked', async (c) => {
   }
 });
 
+app.get('/api/tasks/in-progress', async (c) => {
+  try {
+    // Get tasks with in_progress status, sorted by updated_at desc
+    const tasks = await api.list({
+      type: 'task',
+      status: 'in_progress',
+      orderBy: 'updated_at',
+      orderDir: 'desc',
+      limit: 50,
+    } as Parameters<typeof api.list>[0]);
+    return c.json(tasks);
+  } catch (error) {
+    console.error('[elemental] Failed to get in-progress tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get in-progress tasks' } }, 500);
+  }
+});
+
 app.get('/api/tasks/completed', async (c) => {
   try {
     // Get tasks with completed or cancelled status, sorted by updated_at desc

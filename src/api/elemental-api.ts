@@ -683,7 +683,29 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Build ORDER BY
     const orderBy = effectiveFilter.orderBy ?? 'created_at';
     const orderDir = effectiveFilter.orderDir ?? 'desc';
-    const orderClause = `ORDER BY e.${orderBy} ${orderDir.toUpperCase()}`;
+    // Map field names to SQL expressions
+    // Fields on the elements table can be referenced directly
+    // Fields stored in JSON data need JSON_EXTRACT
+    const columnMap: Record<string, string> = {
+      created_at: 'e.created_at',
+      updated_at: 'e.updated_at',
+      type: 'e.type',
+      id: 'e.id',
+      // Task-specific JSON fields
+      title: "JSON_EXTRACT(e.data, '$.title')",
+      status: "JSON_EXTRACT(e.data, '$.status')",
+      priority: "JSON_EXTRACT(e.data, '$.priority')",
+      complexity: "JSON_EXTRACT(e.data, '$.complexity')",
+      taskType: "JSON_EXTRACT(e.data, '$.taskType')",
+      assignee: "JSON_EXTRACT(e.data, '$.assignee')",
+      owner: "JSON_EXTRACT(e.data, '$.owner')",
+      // Document-specific JSON fields
+      name: "JSON_EXTRACT(e.data, '$.name')",
+      contentType: "JSON_EXTRACT(e.data, '$.contentType')",
+      version: "JSON_EXTRACT(e.data, '$.version')",
+    };
+    const orderColumn = columnMap[orderBy] ?? `e.${orderBy}`;
+    const orderClause = `ORDER BY ${orderColumn} ${orderDir.toUpperCase()}`;
 
     // Apply pagination
     const limit = Math.min(effectiveFilter.limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);

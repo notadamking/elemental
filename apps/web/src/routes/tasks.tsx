@@ -1,11 +1,46 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle } from 'lucide-react';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 
 type ViewMode = 'list' | 'kanban';
+type SortDirection = 'asc' | 'desc';
+type SortField = 'title' | 'status' | 'priority' | 'taskType' | 'assignee' | 'created_at' | 'updated_at';
+
+interface SortConfig {
+  field: SortField;
+  direction: SortDirection;
+}
+
+interface FilterConfig {
+  status: string[];
+  priority: number[];
+  assignee: string;
+}
+
+const EMPTY_FILTER: FilterConfig = {
+  status: [],
+  priority: [],
+  assignee: '',
+};
+
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Open', color: 'bg-green-100 text-green-800' },
+  { value: 'in_progress', label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+  { value: 'blocked', label: 'Blocked', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-800' },
+  { value: 'deferred', label: 'Deferred', color: 'bg-purple-100 text-purple-800' },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: 1, label: 'Critical', color: 'bg-red-100 text-red-800' },
+  { value: 2, label: 'High', color: 'bg-orange-100 text-orange-800' },
+  { value: 3, label: 'Medium', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 4, label: 'Low', color: 'bg-green-100 text-green-800' },
+  { value: 5, label: 'Trivial', color: 'bg-gray-100 text-gray-800' },
+];
 
 interface Task {
   id: string;
@@ -31,19 +66,37 @@ interface PaginatedResult<T> {
 }
 
 const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_SORT: SortConfig = { field: 'updated_at', direction: 'desc' };
 
-function useTasks(page: number, pageSize: number = DEFAULT_PAGE_SIZE) {
+function useTasks(
+  page: number,
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  sort: SortConfig = DEFAULT_SORT,
+  filters: FilterConfig = EMPTY_FILTER
+) {
   const offset = (page - 1) * pageSize;
 
   return useQuery<PaginatedResult<Task>>({
-    queryKey: ['tasks', 'paginated', page, pageSize],
+    queryKey: ['tasks', 'paginated', page, pageSize, sort.field, sort.direction, filters],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: pageSize.toString(),
         offset: offset.toString(),
-        orderBy: 'updated_at',
-        orderDir: 'desc',
+        orderBy: sort.field,
+        orderDir: sort.direction,
       });
+
+      // Add filter parameters
+      if (filters.status.length > 0) {
+        params.set('status', filters.status.join(','));
+      }
+      if (filters.priority.length > 0) {
+        params.set('priority', filters.priority.join(','));
+      }
+      if (filters.assignee) {
+        params.set('assignee', filters.assignee);
+      }
+
       const response = await fetch(`/api/tasks?${params}`);
       if (!response.ok) throw new Error('Failed to fetch tasks');
       return response.json();
@@ -120,6 +173,23 @@ function useBulkDelete() {
   });
 }
 
+interface Entity {
+  id: string;
+  name: string;
+}
+
+function useEntities() {
+  return useQuery<Entity[]>({
+    queryKey: ['entities'],
+    queryFn: async () => {
+      const response = await fetch('/api/entities');
+      if (!response.ok) throw new Error('Failed to fetch entities');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+}
+
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
   1: { label: 'Critical', color: 'bg-red-100 text-red-800' },
   2: { label: 'High', color: 'bg-orange-100 text-orange-800' },
@@ -135,22 +205,6 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-100 text-gray-800',
 };
-
-const STATUS_OPTIONS = [
-  { value: 'open', label: 'Open' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'blocked', label: 'Blocked' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
-
-const PRIORITY_OPTIONS = [
-  { value: 1, label: 'Critical' },
-  { value: 2, label: 'High' },
-  { value: 3, label: 'Medium' },
-  { value: 4, label: 'Low' },
-  { value: 5, label: 'Trivial' },
-];
 
 function TaskRow({
   task,
@@ -592,13 +646,232 @@ function Pagination({
   );
 }
 
+function FilterBar({
+  filters,
+  onFilterChange,
+  onClearFilters,
+  entities,
+}: {
+  filters: FilterConfig;
+  onFilterChange: (filters: FilterConfig) => void;
+  onClearFilters: () => void;
+  entities: Entity[];
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasActiveFilters = filters.status.length > 0 || filters.priority.length > 0 || filters.assignee !== '';
+  const activeFilterCount = filters.status.length + filters.priority.length + (filters.assignee ? 1 : 0);
+
+  const toggleStatus = (status: string) => {
+    const newStatus = filters.status.includes(status)
+      ? filters.status.filter(s => s !== status)
+      : [...filters.status, status];
+    onFilterChange({ ...filters, status: newStatus });
+  };
+
+  const togglePriority = (priority: number) => {
+    const newPriority = filters.priority.includes(priority)
+      ? filters.priority.filter(p => p !== priority)
+      : [...filters.priority, priority];
+    onFilterChange({ ...filters, priority: newPriority });
+  };
+
+  return (
+    <div className="border-b border-gray-200 bg-gray-50" data-testid="filter-bar">
+      {/* Filter toggle button */}
+      <div className="px-4 py-2 flex items-center justify-between">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+          data-testid="filter-toggle"
+        >
+          <Filter className="w-4 h-4" />
+          <span>Filters</span>
+          {activeFilterCount > 0 && (
+            <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+              {activeFilterCount}
+            </span>
+          )}
+          <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+        </button>
+
+        {hasActiveFilters && (
+          <button
+            onClick={onClearFilters}
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+            data-testid="clear-filters"
+          >
+            <XCircle className="w-4 h-4" />
+            <span>Clear all</span>
+          </button>
+        )}
+      </div>
+
+      {/* Expanded filter options */}
+      {isExpanded && (
+        <div className="px-4 pb-3 space-y-3">
+          {/* Status filter */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1.5">Status</label>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => toggleStatus(option.value)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    filters.status.includes(option.value)
+                      ? `${option.color} border-transparent font-medium`
+                      : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
+                  }`}
+                  data-testid={`filter-status-${option.value}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Priority filter */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1.5">Priority</label>
+            <div className="flex flex-wrap gap-1.5">
+              {PRIORITY_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => togglePriority(option.value)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    filters.priority.includes(option.value)
+                      ? `${option.color} border-transparent font-medium`
+                      : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
+                  }`}
+                  data-testid={`filter-priority-${option.value}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Assignee filter */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1.5">Assignee</label>
+            <select
+              value={filters.assignee}
+              onChange={(e) => onFilterChange({ ...filters, assignee: e.target.value })}
+              className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              data-testid="filter-assignee"
+            >
+              <option value="">All assignees</option>
+              {entities.map((entity) => (
+                <option key={entity.id} value={entity.id}>
+                  {entity.name || entity.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Active filter chips (shown when collapsed) */}
+      {!isExpanded && hasActiveFilters && (
+        <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+          {filters.status.map((status) => {
+            const option = STATUS_OPTIONS.find(o => o.value === status);
+            return (
+              <span
+                key={status}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${option?.color || 'bg-gray-100 text-gray-800'}`}
+              >
+                {option?.label || status}
+                <button
+                  onClick={() => toggleStatus(status)}
+                  className="hover:opacity-70"
+                  aria-label={`Remove ${option?.label || status} filter`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
+          {filters.priority.map((priority) => {
+            const option = PRIORITY_OPTIONS.find(o => o.value === priority);
+            return (
+              <span
+                key={priority}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${option?.color || 'bg-gray-100 text-gray-800'}`}
+              >
+                {option?.label || priority}
+                <button
+                  onClick={() => togglePriority(priority)}
+                  className="hover:opacity-70"
+                  aria-label={`Remove ${option?.label || priority} filter`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
+          {filters.assignee && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800">
+              Assignee: {entities.find(e => e.id === filters.assignee)?.name || filters.assignee}
+              <button
+                onClick={() => onFilterChange({ ...filters, assignee: '' })}
+                className="hover:opacity-70"
+                aria-label="Remove assignee filter"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SortableHeader({
+  label,
+  field,
+  currentSort,
+  onSort,
+}: {
+  label: string;
+  field: SortField;
+  currentSort: SortConfig;
+  onSort: (field: SortField) => void;
+}) {
+  const isActive = currentSort.field === field;
+
+  return (
+    <th
+      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+      onClick={() => onSort(field)}
+      data-testid={`sort-header-${field}`}
+    >
+      <div className="flex items-center gap-1">
+        <span>{label}</span>
+        {isActive ? (
+          currentSort.direction === 'asc' ? (
+            <ArrowUp className="w-3.5 h-3.5 text-blue-600" />
+          ) : (
+            <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+          )
+        ) : (
+          <ArrowUpDown className="w-3.5 h-3.5 text-gray-300" />
+        )}
+      </div>
+    </th>
+  );
+}
+
 function ListView({
   tasks,
   selectedTaskId,
   selectedIds,
   onTaskClick,
   onTaskCheck,
-  onSelectAll
+  onSelectAll,
+  sort,
+  onSort,
 }: {
   tasks: Task[];
   selectedTaskId: string | null;
@@ -606,6 +879,8 @@ function ListView({
   onTaskClick: (taskId: string) => void;
   onTaskCheck: (taskId: string, checked: boolean) => void;
   onSelectAll: () => void;
+  sort: SortConfig;
+  onSort: (field: SortField) => void;
 }) {
   if (tasks.length === 0) {
     return (
@@ -639,21 +914,11 @@ function ListView({
               )}
             </button>
           </th>
-          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Task
-          </th>
-          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Status
-          </th>
-          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Priority
-          </th>
-          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Type
-          </th>
-          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Assignee
-          </th>
+          <SortableHeader label="Task" field="title" currentSort={sort} onSort={onSort} />
+          <SortableHeader label="Status" field="status" currentSort={sort} onSort={onSort} />
+          <SortableHeader label="Priority" field="priority" currentSort={sort} onSort={onSort} />
+          <SortableHeader label="Type" field="taskType" currentSort={sort} onSort={onSort} />
+          <SortableHeader label="Assignee" field="assignee" currentSort={sort} onSort={onSort} />
           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
             Tags
           </th>
@@ -678,10 +943,13 @@ function ListView({
 
 export function TasksPage() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [sort, setSort] = useState<SortConfig>(DEFAULT_SORT);
+  const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
   const pageSize = DEFAULT_PAGE_SIZE;
-  const tasks = useTasks(currentPage, pageSize);
+  const tasks = useTasks(currentPage, pageSize, sort, filters);
   const bulkUpdate = useBulkUpdate();
   const bulkDelete = useBulkDelete();
+  const entities = useEntities();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -732,6 +1000,27 @@ export function TasksPage() {
     setCurrentPage(page);
     // Clear selection when changing pages
     setSelectedIds(new Set());
+  };
+
+  const handleSort = (field: SortField) => {
+    setSort(prev => ({
+      field,
+      // Toggle direction if same field, otherwise default to desc
+      direction: prev.field === field && prev.direction === 'desc' ? 'asc' : 'desc',
+    }));
+    // Reset to first page when sort changes
+    setCurrentPage(1);
+  };
+
+  const handleFilterChange = (newFilters: FilterConfig) => {
+    setFilters(newFilters);
+    // Reset to first page when filters change
+    setCurrentPage(1);
+  };
+
+  const handleClearFilters = () => {
+    setFilters(EMPTY_FILTER);
+    setCurrentPage(1);
   };
 
   const handleBulkStatusChange = (status: string) => {
@@ -802,6 +1091,16 @@ export function TasksPage() {
           />
         )}
 
+        {/* Filter Bar */}
+        {viewMode === 'list' && (
+          <FilterBar
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={handleClearFilters}
+            entities={entities.data ?? []}
+          />
+        )}
+
         <div className="flex-1 overflow-auto">
           {tasks.isLoading && (
             <div className="p-4 text-gray-500">Loading tasks...</div>
@@ -820,6 +1119,8 @@ export function TasksPage() {
                 onTaskClick={handleTaskClick}
                 onTaskCheck={handleTaskCheck}
                 onSelectAll={handleSelectAll}
+                sort={sort}
+                onSort={handleSort}
               />
               <Pagination
                 currentPage={currentPage}
