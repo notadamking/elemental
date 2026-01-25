@@ -645,6 +645,34 @@ Error: Dependency already exists between el-task1 and el-task2
 Resolution: Dependency already exists. Use 'el dep list el-task1' to verify.
 ```
 
+#### CONCURRENT_MODIFICATION
+
+**Description**: The element was modified by another process since it was last read (optimistic locking failure).
+
+**Common Causes**:
+- Two processes or users attempting to update the same element simultaneously
+- An automated process modified the element while a manual update was in progress
+- A background sync operation updated the element during editing
+- Stale data in a client cache being used for an update
+
+**Resolution**:
+1. Refresh your view of the element to get the latest data
+2. Re-apply your changes on top of the current state
+3. If using an API client, implement retry logic with exponential backoff
+4. Consider using atomic operations for frequently updated fields
+
+**Example**:
+```
+el update el-abc --status in_progress
+# Another process updated el-abc between your read and write
+
+Error: Element was modified by another process: el-abc
+  Code: CONCURRENT_MODIFICATION
+  Details: { elementId: "el-abc", expectedVersion: 3, actualVersion: 4 }
+
+Resolution: Refresh the element with 'el show el-abc' and reapply changes.
+```
+
 ### Constraint Errors Reference
 
 #### IMMUTABLE
