@@ -11,7 +11,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearch, useNavigate } from '@tanstack/react-router';
+import { useSearch, useNavigate, Link } from '@tanstack/react-router';
 import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search } from 'lucide-react';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
@@ -81,7 +81,7 @@ interface Message {
 const MENTION_REGEX = /(?<![a-zA-Z0-9])@([a-zA-Z][a-zA-Z0-9_-]*)/g;
 
 /**
- * Renders message content with @mentions highlighted in blue
+ * Renders message content with @mentions highlighted in blue and linked to entities
  */
 function renderMessageContent(content: string): React.ReactNode {
   if (!content) return null;
@@ -97,15 +97,18 @@ function renderMessageContent(content: string): React.ReactNode {
       parts.push(content.slice(lastIndex, match.index));
     }
 
-    // Add the highlighted mention
+    // Add the highlighted mention as a link to the entity
+    const entityName = match[1];
     parts.push(
-      <span
+      <Link
         key={`mention-${match.index}`}
-        className="text-blue-600 font-medium"
-        data-mention={match[1]}
+        to="/entities"
+        search={{ name: entityName, selected: undefined, page: 1, limit: 25 }}
+        className="text-blue-600 font-medium hover:underline"
+        data-mention={entityName}
       >
         {match[0]}
-      </span>
+      </Link>
     );
 
     lastIndex = match.index + match[0].length;

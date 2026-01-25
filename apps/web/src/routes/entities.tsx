@@ -118,6 +118,25 @@ function useEntity(id: string | null) {
   });
 }
 
+function useEntityByName(name: string | null) {
+  return useQuery<Entity | null>({
+    queryKey: ['entities', 'byName', name],
+    queryFn: async () => {
+      // Search for entities with exact name match
+      // Use a large limit since server does client-side filtering on paginated results
+      const response = await fetch(`/api/entities?search=${encodeURIComponent(name!)}&limit=1000`);
+      if (!response.ok) throw new Error('Failed to fetch entity');
+      const result: PaginatedResult<Entity> = await response.json();
+      // Find exact match (case-insensitive)
+      const entity = result.items.find(
+        (e) => e.name.toLowerCase() === name!.toLowerCase()
+      );
+      return entity ?? null;
+    },
+    enabled: !!name,
+  });
+}
+
 function useEntityStats(id: string | null) {
   return useQuery<EntityStats>({
     queryKey: ['entities', id, 'stats'],
@@ -1400,6 +1419,9 @@ export function EntitiesPage() {
   // Fetch paginated entities with filters
   const entities = useEntities(currentPage, pageSize, typeFilter, searchQuery);
 
+  // Look up entity by name if name param is provided
+  const { data: entityByName } = useEntityByName(search.name ?? null);
+
   // Extract items from paginated response
   const entityItems = entities.data?.items ?? [];
   const totalItems = entities.data?.total ?? 0;
@@ -1412,14 +1434,27 @@ export function EntitiesPage() {
       setSelectedEntityId(search.selected);
     }
     // When URL doesn't have a selected param but state has one, clear state
-    if (!search.selected && selectedEntityId) {
+    if (!search.selected && !search.name && selectedEntityId) {
       setSelectedEntityId(null);
     }
-  }, [search.selected]);
+  }, [search.selected, search.name]);
+
+  // Handle name lookup - when entity is found by name, select it and update URL
+  useEffect(() => {
+    if (search.name && entityByName) {
+      setSelectedEntityId(entityByName.id);
+      // Replace URL to use selected instead of name (so refresh works correctly)
+      navigate({
+        to: '/entities',
+        search: { selected: entityByName.id, name: undefined, page: currentPage, limit: pageSize },
+        replace: true,
+      });
+    }
+  }, [search.name, entityByName, navigate, currentPage, pageSize]);
 
   const handleEntityCreated = (entity: Entity) => {
     setSelectedEntityId(entity.id);
-    navigate({ to: '/entities', search: { selected: entity.id, page: currentPage, limit: pageSize } });
+    navigate({ to: '/entities', search: { selected: entity.id, name: undefined, page: currentPage, limit: pageSize } });
   };
 
   // Counts based on current page items (for display purposes)
@@ -1434,39 +1469,39 @@ export function EntitiesPage() {
 
   const handleEntityClick = (entityId: string) => {
     setSelectedEntityId(entityId);
-    navigate({ to: '/entities', search: { selected: entityId, page: currentPage, limit: pageSize } });
+    navigate({ to: '/entities', search: { selected: entityId, name: undefined, page: currentPage, limit: pageSize } });
   };
 
   const handleCloseDetail = () => {
     setSelectedEntityId(null);
-    navigate({ to: '/entities', search: { selected: undefined, page: currentPage, limit: pageSize } });
+    navigate({ to: '/entities', search: { selected: undefined, name: undefined, page: currentPage, limit: pageSize } });
   };
 
   const handlePageChange = (page: number) => {
-    navigate({ to: '/entities', search: { page, limit: pageSize, selected: selectedEntityId ?? undefined } });
+    navigate({ to: '/entities', search: { page, limit: pageSize, selected: selectedEntityId ?? undefined, name: undefined } });
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
     // When page size changes, go back to page 1
-    navigate({ to: '/entities', search: { page: 1, limit: newPageSize, selected: selectedEntityId ?? undefined } });
+    navigate({ to: '/entities', search: { page: 1, limit: newPageSize, selected: selectedEntityId ?? undefined, name: undefined } });
   };
 
   const handleTypeFilterChange = (newFilter: EntityTypeFilter) => {
     setTypeFilter(newFilter);
     // Reset to first page when filter changes
-    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined } });
+    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined, name: undefined } });
   };
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
     // Reset to first page when search changes
-    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined } });
+    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined, name: undefined } });
   };
 
   const handleClearFilters = () => {
     setSearchQuery('');
     setTypeFilter('all');
-    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined } });
+    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined, name: undefined } });
   };
 
   return (

@@ -343,7 +343,7 @@ export function AgentActivityPage() {
   const handleAgentClick = (entityId: string) => {
     // Navigate to entities page with entity selected via URL search params
     // The entities page uses state, but we can navigate and it will show the entity list
-    navigate({ to: '/entities', search: { selected: entityId, page: 1, limit: 25 } });
+    navigate({ to: '/entities', search: { selected: entityId, name: undefined, page: 1, limit: 25 } });
   };
 
   return (
