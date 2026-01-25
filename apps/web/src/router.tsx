@@ -11,6 +11,7 @@ import { DocumentsPage } from './routes/documents';
 import { PlansPage } from './routes/plans';
 import { WorkflowsPage } from './routes/workflows';
 import { EntitiesPage } from './routes/entities';
+import { TeamsPage } from './routes/teams';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -111,7 +112,7 @@ const entitiesRoute = createRoute({
 const teamsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/teams',
-  component: () => <PlaceholderPage title="Teams" />,
+  component: TeamsPage,
 });
 
 const settingsRoute = createRoute({

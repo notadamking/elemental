@@ -2236,6 +2236,71 @@ app.get('/api/playbooks/:name', async (c) => {
 });
 
 // ============================================================================
+// Teams Endpoints
+// ============================================================================
+
+app.get('/api/teams', async (c) => {
+  try {
+    const teams = await api.list({
+      type: 'team',
+    });
+    return c.json(teams);
+  } catch (error) {
+    console.error('[elemental] Failed to get teams:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get teams' } }, 500);
+  }
+});
+
+app.get('/api/teams/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const team = await api.get(id);
+
+    if (!team || team.type !== 'team') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Team not found' } }, 404);
+    }
+
+    return c.json(team);
+  } catch (error) {
+    console.error('[elemental] Failed to get team:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get team' } }, 500);
+  }
+});
+
+app.get('/api/teams/:id/members', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const team = await api.get(id);
+
+    if (!team || team.type !== 'team') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Team not found' } }, 404);
+    }
+
+    // Get member IDs from the team
+    const teamData = team as unknown as { members: EntityId[] };
+    const memberIds = teamData.members || [];
+
+    // Fetch each member entity
+    const members: Element[] = [];
+    for (const memberId of memberIds) {
+      try {
+        const member = await api.get(memberId as unknown as ElementId);
+        if (member && member.type === 'entity') {
+          members.push(member);
+        }
+      } catch {
+        // Skip members that can't be fetched
+      }
+    }
+
+    return c.json(members);
+  } catch (error) {
+    console.error('[elemental] Failed to get team members:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get team members' } }, 500);
+  }
+});
+
+// ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================
 

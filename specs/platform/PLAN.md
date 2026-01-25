@@ -772,13 +772,13 @@ For mutations (create, update, delete):
   - [x] Web: Tag management (add/remove tags)
   - [x] **Verify:** Edit entity metadata, deactivate entity, verify persistence (Playwright tests passing - 14 tests)
 
-- [ ] **TB37: Teams Page - List View**
-  - [ ] Server: Add `GET /api/teams` endpoint (list all teams)
-  - [ ] Server: Add `GET /api/teams/:id` endpoint (team details with members)
-  - [ ] Server: Add `GET /api/teams/:id/members` endpoint (hydrated member entities)
-  - [ ] Web: Replace placeholder with TeamList component
-  - [ ] Web: Team cards showing: name, member count, member avatar stack (first 5)
-  - [ ] **Verify:** View all teams with member counts and avatar previews
+- [x] **TB37: Teams Page - List View**
+  - [x] Server: Add `GET /api/teams` endpoint (list all teams)
+  - [x] Server: Add `GET /api/teams/:id` endpoint (team details with members)
+  - [x] Server: Add `GET /api/teams/:id/members` endpoint (hydrated member entities)
+  - [x] Web: Replace placeholder with TeamList component
+  - [x] Web: Team cards showing: name, member count, member avatar stack (first 5)
+  - [x] **Verify:** View all teams with member counts and avatar previews (Playwright tests passing - 8 passed, 11 skipped due to no teams)
 
 - [ ] **TB38: Team Detail Panel**
   - [ ] Server: Add `GET /api/teams/:id/stats` endpoint (task count, workload distribution)

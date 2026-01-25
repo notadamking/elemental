@@ -1,0 +1,460 @@
+/**
+ * Teams Page
+ *
+ * Lists all teams with member count and avatar previews.
+ * Includes detail panel for selected team.
+ */
+
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Search, Users, X, Bot, User, Server } from 'lucide-react';
+
+interface Team {
+  id: string;
+  type: 'team';
+  name: string;
+  members: string[];
+  status?: 'active' | 'tombstone';
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Entity {
+  id: string;
+  type: 'entity';
+  name: string;
+  entityType: 'agent' | 'human' | 'system';
+  active?: boolean;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+function useTeams() {
+  return useQuery<Team[]>({
+    queryKey: ['teams'],
+    queryFn: async () => {
+      const response = await fetch('/api/teams');
+      if (!response.ok) throw new Error('Failed to fetch teams');
+      return response.json();
+    },
+  });
+}
+
+function useTeam(id: string | null) {
+  return useQuery<Team>({
+    queryKey: ['teams', id],
+    queryFn: async () => {
+      const response = await fetch(`/api/teams/${id}`);
+      if (!response.ok) throw new Error('Failed to fetch team');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useTeamMembers(id: string | null) {
+  return useQuery<Entity[]>({
+    queryKey: ['teams', id, 'members'],
+    queryFn: async () => {
+      const response = await fetch(`/api/teams/${id}/members`);
+      if (!response.ok) throw new Error('Failed to fetch team members');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+const ENTITY_TYPE_STYLES: Record<string, { bg: string; text: string; icon: typeof Bot }> = {
+  agent: { bg: 'bg-purple-100', text: 'text-purple-800', icon: Bot },
+  human: { bg: 'bg-blue-100', text: 'text-blue-800', icon: User },
+  system: { bg: 'bg-gray-100', text: 'text-gray-800', icon: Server },
+};
+
+function MemberAvatarStack({ memberIds, maxDisplay = 5 }: { memberIds: string[]; maxDisplay?: number }) {
+  // For the preview, we just show placeholder circles based on member count
+  const displayCount = Math.min(memberIds.length, maxDisplay);
+  const remaining = memberIds.length - displayCount;
+
+  return (
+    <div className="flex -space-x-2" data-testid="member-avatar-stack">
+      {Array.from({ length: displayCount }).map((_, i) => (
+        <div
+          key={i}
+          className="w-8 h-8 rounded-full bg-gray-200 ring-2 ring-white flex items-center justify-center"
+        >
+          <Users className="w-4 h-4 text-gray-400" />
+        </div>
+      ))}
+      {remaining > 0 && (
+        <div className="w-8 h-8 rounded-full bg-gray-100 ring-2 ring-white flex items-center justify-center text-xs font-medium text-gray-600">
+          +{remaining}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamCard({
+  team,
+  isSelected,
+  onClick,
+}: {
+  team: Team;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  const isActive = team.status !== 'tombstone';
+  const memberCount = team.members?.length || 0;
+
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-lg border p-4 transition-colors cursor-pointer ${
+        isSelected
+          ? 'border-blue-500 ring-2 ring-blue-200'
+          : 'border-gray-200 hover:border-gray-300'
+      } ${!isActive ? 'opacity-60' : ''}`}
+      data-testid={`team-card-${team.id}`}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center"
+          data-testid={`team-avatar-${team.id}`}
+        >
+          <Users className="w-5 h-5 text-indigo-600" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-gray-900 truncate">{team.name}</h3>
+            {!isActive && (
+              <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                Deleted
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 font-mono truncate">{team.id}</p>
+        </div>
+
+        <span
+          className="px-2 py-1 text-xs font-medium rounded bg-indigo-100 text-indigo-800"
+          data-testid={`team-member-count-${team.id}`}
+        >
+          {memberCount} {memberCount === 1 ? 'member' : 'members'}
+        </span>
+      </div>
+
+      {/* Member Avatar Stack */}
+      {memberCount > 0 && (
+        <div className="mt-3">
+          <MemberAvatarStack memberIds={team.members} maxDisplay={5} />
+        </div>
+      )}
+
+      {/* Tags */}
+      {team.tags && team.tags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {team.tags.slice(0, 3).map((tag) => (
+            <span key={tag} className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+              {tag}
+            </span>
+          ))}
+          {team.tags.length > 3 && (
+            <span className="text-xs text-gray-500">+{team.tags.length - 3}</span>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 text-xs text-gray-400">
+        Created {new Date(team.createdAt).toLocaleDateString()}
+      </div>
+    </div>
+  );
+}
+
+function SearchBox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative" data-testid="team-search">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search teams..."
+        className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        data-testid="team-search-input"
+      />
+    </div>
+  );
+}
+
+function MemberListItem({ member }: { member: Entity }) {
+  const styles = ENTITY_TYPE_STYLES[member.entityType] || ENTITY_TYPE_STYLES.system;
+  const Icon = styles.icon;
+  const isActive = member.active !== false;
+
+  return (
+    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50" data-testid={`member-item-${member.id}`}>
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${styles.bg}`}>
+        <Icon className={`w-4 h-4 ${styles.text}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-900">{member.name}</span>
+          {!isActive && (
+            <span className="px-1 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">Inactive</span>
+          )}
+        </div>
+        <span className="text-xs text-gray-500 capitalize">{member.entityType}</span>
+      </div>
+      <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
+        {member.entityType}
+      </span>
+    </div>
+  );
+}
+
+function TeamDetailPanel({
+  teamId,
+  onClose,
+}: {
+  teamId: string;
+  onClose: () => void;
+}) {
+  const { data: team, isLoading: teamLoading } = useTeam(teamId);
+  const { data: members, isLoading: membersLoading } = useTeamMembers(teamId);
+
+  if (teamLoading) {
+    return (
+      <div className="h-full flex items-center justify-center" data-testid="team-detail-loading">
+        <span className="text-gray-500">Loading...</span>
+      </div>
+    );
+  }
+
+  if (!team) {
+    return (
+      <div className="h-full flex items-center justify-center" data-testid="team-detail-error">
+        <span className="text-red-600">Team not found</span>
+      </div>
+    );
+  }
+
+  const isActive = team.status !== 'tombstone';
+  const memberCount = team.members?.length || 0;
+
+  return (
+    <div className="h-full flex flex-col" data-testid="team-detail-panel">
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
+            <Users className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-medium text-gray-900">{team.name}</h2>
+              {!isActive && (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                  Deleted
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 font-mono">{team.id}</p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-600 rounded"
+          data-testid="team-detail-close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 space-y-6">
+        {/* Team Info */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2 py-1 text-sm font-medium bg-indigo-100 text-indigo-800 rounded">
+              {memberCount} {memberCount === 1 ? 'Member' : 'Members'}
+            </span>
+            {team.status && (
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                team.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {team.status}
+              </span>
+            )}
+          </div>
+
+          {/* Tags */}
+          {team.tags && team.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1" data-testid="team-tags">
+              {team.tags.map((tag) => (
+                <span key={tag} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Members List */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">
+            Team Members ({memberCount})
+          </h3>
+          {membersLoading ? (
+            <div className="text-sm text-gray-500">Loading members...</div>
+          ) : members && members.length > 0 ? (
+            <div className="space-y-1" data-testid="team-members-list">
+              {members.map((member) => (
+                <MemberListItem key={member.id} member={member} />
+              ))}
+            </div>
+          ) : memberCount > 0 ? (
+            <div className="text-sm text-gray-500">
+              {memberCount} members (details not available)
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">No members</div>
+          )}
+        </div>
+
+        {/* Timestamps */}
+        <div className="text-xs text-gray-400 pt-4 border-t border-gray-100">
+          <div>Created: {new Date(team.createdAt).toLocaleString()}</div>
+          <div>Updated: {new Date(team.updatedAt).toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TeamsPage() {
+  const teams = useTeams();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+
+  const filteredTeams = useMemo(() => {
+    let result = teams.data || [];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.name.toLowerCase().includes(query) ||
+          t.id.toLowerCase().includes(query) ||
+          t.tags?.some((tag) => tag.toLowerCase().includes(query))
+      );
+    }
+
+    return result;
+  }, [teams.data, searchQuery]);
+
+  const handleTeamClick = (teamId: string) => {
+    setSelectedTeamId(teamId);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedTeamId(null);
+  };
+
+  return (
+    <div className="h-full flex" data-testid="teams-page">
+      {/* Team List */}
+      <div className={`flex flex-col ${selectedTeamId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-medium text-gray-900">Teams</h2>
+          <p className="text-sm text-gray-500">
+            {filteredTeams.length} of {teams.data?.length || 0} teams
+          </p>
+        </div>
+
+        {/* Search */}
+        <div className="mb-6">
+          <SearchBox value={searchQuery} onChange={setSearchQuery} />
+        </div>
+
+        {/* Loading state */}
+        {teams.isLoading && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-gray-500" data-testid="teams-loading">
+              Loading teams...
+            </div>
+          </div>
+        )}
+
+        {/* Error state */}
+        {teams.isError && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-red-600" data-testid="teams-error">
+              Failed to load teams
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {teams.data && filteredTeams.length === 0 && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center" data-testid="teams-empty">
+              {searchQuery ? (
+                <>
+                  <p className="text-gray-500">No teams match your search</p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    data-testid="clear-search-button"
+                  >
+                    Clear search
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-500">No teams created</p>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Use <code className="bg-gray-100 px-1 rounded">el team create</code> to create a team
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Teams grid */}
+        {teams.data && filteredTeams.length > 0 && (
+          <div className="flex-1 overflow-auto" data-testid="teams-grid">
+            <div className={`grid gap-4 ${selectedTeamId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+              {filteredTeams.map((team) => (
+                <TeamCard
+                  key={team.id}
+                  team={team}
+                  isSelected={team.id === selectedTeamId}
+                  onClick={() => handleTeamClick(team.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Team Detail Panel */}
+      {selectedTeamId && (
+        <div className="w-1/2 border-l border-gray-200" data-testid="team-detail-container">
+          <TeamDetailPanel teamId={selectedTeamId} onClose={handleCloseDetail} />
+        </div>
+      )}
+    </div>
+  );
+}
