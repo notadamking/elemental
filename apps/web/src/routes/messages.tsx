@@ -211,7 +211,9 @@ function useDocuments(searchQuery: string) {
       if (!response.ok) {
         throw new Error('Failed to fetch documents');
       }
-      const docs: AttachedDocument[] = await response.json();
+      const data = await response.json();
+      // Handle paginated response format
+      const docs: AttachedDocument[] = data.items || data;
       // Client-side filtering by search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
