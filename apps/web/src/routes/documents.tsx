@@ -35,6 +35,7 @@ import {
   Plus,
   Maximize2,
   Minimize2,
+  Copy,
 } from 'lucide-react';
 import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
@@ -238,6 +239,42 @@ function useRestoreDocumentVersion() {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['documents', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['documents', variables.id, 'versions'] });
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+    },
+  });
+}
+
+function useCloneDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      createdBy,
+      title,
+      libraryId,
+    }: {
+      id: string;
+      createdBy: string;
+      title?: string;
+      libraryId?: string;
+    }) => {
+      const response = await fetch(`/api/documents/${id}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ createdBy, title, libraryId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to clone document');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['libraries'] });
     },
   });
@@ -911,6 +948,7 @@ function DocumentDetailPanel({
 }) {
   const { data: document, isLoading, isError, error } = useDocument(documentId);
   const updateDocument = useUpdateDocument();
+  const cloneDocument = useCloneDocument();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [editedTitle, setEditedTitle] = useState('');
@@ -962,6 +1000,21 @@ function DocumentDetailPanel({
       }
     } else {
       setIsEditing(false);
+    }
+  };
+
+  // Clone document
+  const handleClone = async () => {
+    if (!document) return;
+
+    try {
+      await cloneDocument.mutateAsync({
+        id: documentId,
+        createdBy: document.createdBy,
+        // New document will have "(Copy)" appended to title
+      });
+    } catch {
+      // Error handling is done by the mutation
     }
   };
 
@@ -1105,6 +1158,16 @@ function DocumentDetailPanel({
                 title={previewingVersion !== null ? 'Exit preview to edit' : 'Edit document'}
               >
                 <Edit3 className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleClone}
+                disabled={cloneDocument.isPending || previewingVersion !== null}
+                data-testid="document-clone-button"
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Clone document"
+                title={previewingVersion !== null ? 'Exit preview to clone' : 'Clone document'}
+              >
+                <Copy className="w-5 h-5" />
               </button>
               <button
                 onClick={() => setShowVersionHistory(!showVersionHistory)}

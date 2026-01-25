@@ -207,11 +207,12 @@ app.get('/api/tasks/completed', async (c) => {
     const offsetParam = url.searchParams.get('offset');
     const afterParam = url.searchParams.get('after'); // ISO date string for date filtering
 
-    // Get tasks with completed or cancelled status, sorted by updated_at desc
+    // Get tasks with closed status, sorted by updated_at desc
     // The API accepts TaskFilter when type is 'task', but TypeScript signature is ElementFilter
+    // Note: The actual status value is 'closed' (not 'completed') per src/types/task.ts
     const filter: Record<string, unknown> = {
       type: 'task',
-      status: ['completed', 'cancelled'],
+      status: ['closed'],
       orderBy: 'updated_at',
       orderDir: 'desc',
       limit: limitParam ? parseInt(limitParam, 10) : 20,
@@ -225,6 +226,9 @@ app.get('/api/tasks/completed', async (c) => {
     // may not support date filtering directly on updated_at
     let tasks = await api.list(filter as Parameters<typeof api.list>[0]);
 
+    // Save the fetched count before filtering to determine if there are more pages
+    const fetchedCount = tasks.length;
+
     // Apply date filter if provided
     if (afterParam) {
       const afterDate = new Date(afterParam);
@@ -232,9 +236,10 @@ app.get('/api/tasks/completed', async (c) => {
     }
 
     // Return with total count for pagination info
+    // hasMore is based on whether we got a full page from the DB (before date filtering)
     return c.json({
       items: tasks,
-      hasMore: tasks.length === (filter.limit as number),
+      hasMore: fetchedCount === (filter.limit as number),
     });
   } catch (error) {
     console.error('[elemental] Failed to get completed tasks:', error);
@@ -1397,6 +1402,69 @@ app.post('/api/documents/:id/restore', async (c) => {
     }
     console.error('[elemental] Failed to restore document version:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to restore document version' } }, 500);
+  }
+});
+
+app.post('/api/documents/:id/clone', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // Get the source document
+    const sourceDoc = await api.get(id);
+    if (!sourceDoc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (sourceDoc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Cast to document type with title field (title is a runtime-added field)
+    const sourceDocument = sourceDoc as Document & { title?: string };
+
+    // Validate createdBy
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required' } }, 400);
+    }
+
+    // Create a new document with the same content
+    const docInput: CreateDocumentInput = {
+      contentType: sourceDocument.contentType,
+      content: sourceDocument.content || '',
+      createdBy: body.createdBy as EntityId,
+      tags: sourceDocument.tags || [],
+    };
+
+    const newDoc = await createDocument(docInput);
+
+    // Use the new title or generate one from the original
+    const originalTitle = (sourceDocument.title as string | undefined) || `Document ${sourceDocument.id}`;
+    const newTitle = body.title || `${originalTitle} (Copy)`;
+
+    const documentWithTitle = { ...newDoc, title: newTitle };
+
+    // Create in database
+    const created = await api.create(documentWithTitle as unknown as Element & Record<string, unknown>);
+
+    // If libraryId is provided, add document to library via parent-child dependency
+    if (body.libraryId) {
+      const library = await api.get(body.libraryId as ElementId);
+      if (library && library.type === 'library') {
+        await api.addDependency({
+          sourceId: created.id,
+          targetId: body.libraryId as ElementId,
+          type: 'parent-child',
+        });
+      }
+    }
+
+    return c.json(created, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    console.error('[elemental] Failed to clone document:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to clone document' } }, 500);
   }
 });
 
