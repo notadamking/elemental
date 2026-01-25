@@ -976,6 +976,89 @@ app.get('/api/documents/:id', async (c) => {
   }
 });
 
+app.post('/api/documents', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required' } }, 400);
+    }
+
+    // Default content type to 'text' if not provided
+    const contentType = body.contentType || 'text';
+
+    // Validate contentType
+    const validContentTypes = ['text', 'markdown', 'json'];
+    if (!validContentTypes.includes(contentType)) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `Invalid contentType. Must be one of: ${validContentTypes.join(', ')}`,
+        },
+      }, 400);
+    }
+
+    // Default content to empty string if not provided
+    const content = body.content || '';
+
+    // Validate JSON content if contentType is json
+    if (contentType === 'json' && content) {
+      try {
+        JSON.parse(content);
+      } catch {
+        return c.json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid JSON content',
+          },
+        }, 400);
+      }
+    }
+
+    // Build CreateDocumentInput
+    const docInput: CreateDocumentInput = {
+      contentType,
+      content,
+      createdBy: body.createdBy as EntityId,
+      ...(body.tags !== undefined && { tags: body.tags }),
+      ...(body.metadata !== undefined && { metadata: body.metadata }),
+    };
+
+    // Create the document using the factory function
+    const document = await createDocument(docInput);
+
+    // If title is provided, add it to the document data
+    const documentWithTitle = body.title
+      ? { ...document, title: body.title }
+      : document;
+
+    // Create in database
+    const created = await api.create(documentWithTitle as unknown as Element & Record<string, unknown>);
+
+    // If libraryId is provided, add document to library via parent-child dependency
+    if (body.libraryId) {
+      // Verify library exists
+      const library = await api.get(body.libraryId as ElementId);
+      if (library && library.type === 'library') {
+        await api.addDependency({
+          sourceId: created.id,
+          targetId: body.libraryId as ElementId,
+          type: 'parent-child',
+        });
+      }
+    }
+
+    return c.json(created, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to create document:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create document' } }, 500);
+  }
+});
+
 app.patch('/api/documents/:id', async (c) => {
   try {
     const id = c.req.param('id') as ElementId;

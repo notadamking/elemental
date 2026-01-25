@@ -31,8 +31,10 @@ import {
   History,
   RotateCcw,
   Eye,
+  Plus,
 } from 'lucide-react';
 import { BlockEditor } from '../components/editor/BlockEditor';
+import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
 
 // ============================================================================
 // Types
@@ -321,10 +323,12 @@ function LibraryTree({
   libraries,
   selectedLibraryId,
   onSelectLibrary,
+  onNewDocument,
 }: {
   libraries: LibraryType[];
   selectedLibraryId: string | null;
   onSelectLibrary: (id: string) => void;
+  onNewDocument: () => void;
 }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -346,10 +350,20 @@ function LibraryTree({
       className="w-64 border-r border-gray-200 bg-white flex flex-col h-full"
     >
       <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Library className="w-5 h-5 text-gray-500" />
-          Libraries
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Library className="w-5 h-5 text-gray-500" />
+            Libraries
+          </h2>
+          <button
+            onClick={onNewDocument}
+            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            title="New Document"
+            data-testid="new-document-button-sidebar"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -455,10 +469,12 @@ function LibraryView({
   libraryId,
   selectedDocumentId,
   onSelectDocument,
+  onNewDocument,
 }: {
   libraryId: string;
   selectedDocumentId: string | null;
   onSelectDocument: (id: string) => void;
+  onNewDocument: () => void;
 }) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
@@ -483,26 +499,36 @@ function LibraryView({
         data-testid="library-header"
         className="p-4 border-b border-gray-200"
       >
-        <div className="flex items-center gap-3">
-          <FolderOpen className="w-6 h-6 text-yellow-500" />
-          {library ? (
-            <>
-              <h3
-                data-testid="library-name"
-                className="font-semibold text-gray-900 text-lg"
-              >
-                {library.name}
-              </h3>
-              <span
-                data-testid="library-doc-count"
-                className="text-sm text-gray-400"
-              >
-                {allDocuments.length} {allDocuments.length === 1 ? 'document' : 'documents'}
-              </span>
-            </>
-          ) : (
-            <div className="animate-pulse h-6 w-32 bg-gray-200 rounded" />
-          )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FolderOpen className="w-6 h-6 text-yellow-500" />
+            {library ? (
+              <>
+                <h3
+                  data-testid="library-name"
+                  className="font-semibold text-gray-900 text-lg"
+                >
+                  {library.name}
+                </h3>
+                <span
+                  data-testid="library-doc-count"
+                  className="text-sm text-gray-400"
+                >
+                  {allDocuments.length} {allDocuments.length === 1 ? 'document' : 'documents'}
+                </span>
+              </>
+            ) : (
+              <div className="animate-pulse h-6 w-32 bg-gray-200 rounded" />
+            )}
+          </div>
+          <button
+            onClick={onNewDocument}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            data-testid="new-document-button-library"
+          >
+            <Plus className="w-4 h-4" />
+            New Document
+          </button>
         </div>
 
         {/* Library description */}
@@ -1191,9 +1217,11 @@ function DocumentDetailPanel({
 function AllDocumentsView({
   selectedDocumentId,
   onSelectDocument,
+  onNewDocument,
 }: {
   selectedDocumentId: string | null;
   onSelectDocument: (id: string) => void;
+  onNewDocument: () => void;
 }) {
   const { data: documents = [], isLoading, error } = useDocuments();
 
@@ -1207,14 +1235,24 @@ function AllDocumentsView({
         data-testid="all-documents-header"
         className="p-4 border-b border-gray-200"
       >
-        <div className="flex items-center gap-3">
-          <FileText className="w-6 h-6 text-blue-400" />
-          <h3 className="font-semibold text-gray-900 text-lg">
-            All Documents
-          </h3>
-          <span className="text-sm text-gray-400">
-            {documents.length} {documents.length === 1 ? 'document' : 'documents'}
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileText className="w-6 h-6 text-blue-400" />
+            <h3 className="font-semibold text-gray-900 text-lg">
+              All Documents
+            </h3>
+            <span className="text-sm text-gray-400">
+              {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+            </span>
+          </div>
+          <button
+            onClick={onNewDocument}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            data-testid="new-document-button-all"
+          >
+            <Plus className="w-4 h-4" />
+            New Document
+          </button>
         </div>
         <p className="mt-2 text-sm text-gray-600">
           Select a library from the sidebar to filter documents
@@ -1276,6 +1314,7 @@ export function DocumentsPage() {
   const { data: libraries = [], isLoading, error } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Clear document selection when library changes
   const handleSelectLibrary = (libraryId: string) => {
@@ -1289,6 +1328,19 @@ export function DocumentsPage() {
 
   const handleCloseDocument = () => {
     setSelectedDocumentId(null);
+  };
+
+  const handleOpenCreateModal = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false);
+  };
+
+  const handleDocumentCreated = (document: { id: string }) => {
+    // Select the newly created document
+    setSelectedDocumentId(document.id);
   };
 
   if (error) {
@@ -1313,6 +1365,7 @@ export function DocumentsPage() {
           libraryId={selectedLibraryId}
           selectedDocumentId={selectedDocumentId}
           onSelectDocument={handleSelectDocument}
+          onNewDocument={handleOpenCreateModal}
         />
       );
     }
@@ -1325,6 +1378,7 @@ export function DocumentsPage() {
       <AllDocumentsView
         selectedDocumentId={selectedDocumentId}
         onSelectDocument={handleSelectDocument}
+        onNewDocument={handleOpenCreateModal}
       />
     );
   };
@@ -1344,6 +1398,7 @@ export function DocumentsPage() {
           libraries={libraries}
           selectedLibraryId={selectedLibraryId}
           onSelectLibrary={handleSelectLibrary}
+          onNewDocument={handleOpenCreateModal}
         />
       )}
 
@@ -1364,6 +1419,14 @@ export function DocumentsPage() {
           </div>
         )}
       </div>
+
+      {/* Create Document Modal */}
+      <CreateDocumentModal
+        isOpen={showCreateModal}
+        onClose={handleCloseCreateModal}
+        onSuccess={handleDocumentCreated}
+        defaultLibraryId={selectedLibraryId || undefined}
+      />
     </div>
   );
 }

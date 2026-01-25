@@ -1,7 +1,7 @@
 # Elemental Web Platform Specification
 
-**Version:** 0.1.0 (Draft)
-**Last Updated:** 2025-01-24
+**Version:** 0.2.0 (Draft)
+**Last Updated:** 2026-01-24
 
 ## 1. Overview
 
@@ -699,6 +699,316 @@ For mutations (create, update, delete):
   - [x] Web: Integrate with PourWorkflowModal
   - [x] **Verify:** Browse and select playbooks (Playwright tests passing - 7 passed, 6 skipped due to no playbooks)
 
+### Phase 9: CRUD Completion + Task Flow Enhancements
+
+- [x] **TB27: Create Document**
+  - [x] Server: Add `POST /api/documents` endpoint (title, contentType, content, optional libraryId)
+  - [x] Web: Create CreateDocumentModal component (title input, content type selector, initial content)
+  - [x] Web: Add "New Document" button to Documents page (sidebar + library view + all docs view)
+  - [x] **Verify:** Create document from UI (Playwright tests passing - 19 passed, 2 skipped)
+
+- [ ] **TB28: Task Flow - Click to Open**
+  - [ ] Web: Make tasks in Task Flow clickable (navigate to task detail or open slide-over)
+  - [ ] Web: Add slide-over panel for task details from dashboard context
+  - [ ] Web: Show in-progress tasks in dedicated column (4 columns: Ready, In Progress, Blocked, Completed)
+  - [ ] **Verify:** Click task in Task Flow, detail panel opens with full task info
+
+- [ ] **TB29: Create Library**
+  - [ ] Server: Add `POST /api/libraries` endpoint (name, optional parentId for nesting)
+  - [ ] Web: Create CreateLibraryModal component (name input, parent library picker)
+  - [ ] Web: Add "New Library" button to Documents page sidebar
+  - [ ] **Verify:** Create library, appears in tree hierarchy under correct parent
+
+- [ ] **TB30: Task Flow - Filter & Sort**
+  - [ ] Web: Add filter dropdown (by assignee, priority, tags) to each Task Flow column
+  - [ ] Web: Add sort options (by priority, created date, deadline)
+  - [ ] Web: Persist filter/sort preferences in localStorage per column
+  - [ ] **Verify:** Filter ready tasks by assignee, verify only matching tasks shown
+
+- [ ] **TB31: Create Channel**
+  - [ ] Server: Add `POST /api/channels` endpoint (name, channelType, members, permissions)
+  - [ ] Web: Create CreateChannelModal component (name, type toggle group/direct, member picker)
+  - [ ] Web: Add "New Channel" button to Messages page sidebar
+  - [ ] **Verify:** Create group channel, appears in channel list, can send messages
+
+- [ ] **TB32: Task Flow - Load Completed Tasks**
+  - [ ] Web: Add paginated loading for completed tasks ("Show more" button or infinite scroll trigger)
+  - [ ] Web: Add date range filter for completed tasks (Today, This Week, This Month, All Time)
+  - [ ] Web: Display completion timestamp on completed task cards
+  - [ ] **Verify:** Load completed tasks from past week, pagination works correctly
+
+### Phase 10: Entity & Team Pages + More CRUD
+
+- [ ] **TB33: Entities Page - List View**
+  - [ ] Web: Replace placeholder with EntityList component
+  - [ ] Web: Entity cards showing: name, type badge (agent/human/system), avatar, active status indicator
+  - [ ] Web: Filter tabs by entity type (All, Agents, Humans, Systems)
+  - [ ] Web: Search box for entity name
+  - [ ] **Verify:** View all entities with type filtering and search
+
+- [ ] **TB34: Entity Detail Panel**
+  - [ ] Server: Add `GET /api/entities/:id/stats` endpoint (task count, message count, created elements count)
+  - [ ] Web: EntityDetailPanel with profile info, statistics cards, assigned tasks list
+  - [ ] Web: Activity timeline showing recent events by this entity
+  - [ ] Web: Split-view layout (list on left, detail on right)
+  - [ ] **Verify:** Click entity, see full profile with stats and activity timeline
+
+- [ ] **TB35: Create Entity**
+  - [ ] Server: Add `POST /api/entities` endpoint (name, entityType, optional publicKey, metadata)
+  - [ ] Web: Create RegisterEntityModal (name input, type selector, optional public key textarea)
+  - [ ] Web: Add "Register Entity" button to Entities page
+  - [ ] Web: Validation for unique name, valid entity type
+  - [ ] **Verify:** Register new agent entity from UI, appears in list
+
+- [ ] **TB36: Edit Entity**
+  - [ ] Server: Add `PATCH /api/entities/:id` endpoint (name, metadata, tags, active status)
+  - [ ] Web: Make EntityDetailPanel editable (edit button, inline editing for fields)
+  - [ ] Web: Deactivate/reactivate toggle with confirmation
+  - [ ] Web: Tag management (add/remove tags)
+  - [ ] **Verify:** Edit entity metadata, deactivate entity, verify persistence
+
+- [ ] **TB37: Teams Page - List View**
+  - [ ] Server: Add `GET /api/teams` endpoint (list all teams)
+  - [ ] Server: Add `GET /api/teams/:id` endpoint (team details with members)
+  - [ ] Server: Add `GET /api/teams/:id/members` endpoint (hydrated member entities)
+  - [ ] Web: Replace placeholder with TeamList component
+  - [ ] Web: Team cards showing: name, member count, member avatar stack (first 5)
+  - [ ] **Verify:** View all teams with member counts and avatar previews
+
+- [ ] **TB38: Team Detail Panel**
+  - [ ] Server: Add `GET /api/teams/:id/stats` endpoint (task count, workload distribution)
+  - [ ] Web: TeamDetailPanel with member list (full), team statistics, assigned tasks
+  - [ ] Web: Member management UI (add member button, remove member X button)
+  - [ ] Web: Workload chart showing tasks per member
+  - [ ] **Verify:** Click team, see members and stats, manage membership
+
+- [ ] **TB39: Create Team**
+  - [ ] Server: Add `POST /api/teams` endpoint (name, members array, optional description)
+  - [ ] Web: Create CreateTeamModal (name input, multi-select member picker)
+  - [ ] Web: Add "New Team" button to Teams page
+  - [ ] **Verify:** Create team with 3 members from UI, appears in list
+
+- [ ] **TB40: Edit Team**
+  - [ ] Server: Add `PATCH /api/teams/:id` endpoint (name, add/remove members)
+  - [ ] Web: Make TeamDetailPanel editable (team name, description)
+  - [ ] Web: Inline add/remove member actions in member list
+  - [ ] Web: Delete team button with confirmation (soft delete)
+  - [ ] **Verify:** Add member to team, rename team, verify persistence
+
+### Phase 11: Dashboard Enhancements
+
+- [ ] **TB41: Dashboard Overview Panel**
+  - [ ] Web: Create DashboardOverview component as default dashboard view
+  - [ ] Web: Key metrics cards: Total Tasks, Ready vs Blocked ratio, Active Agents, Tasks Completed Today
+  - [ ] Web: Quick action buttons: Create Task, Pour Workflow, View Ready Tasks
+  - [ ] Web: Recent activity feed (last 10 events across all types)
+  - [ ] **Verify:** Dashboard shows accurate summary metrics, quick actions work
+
+- [ ] **TB42: Timeline Visual Overhaul**
+  - [ ] Web: Redesign timeline with visual event type icons (create=plus, update=pencil, delete=trash, etc.)
+  - [ ] Web: Group events by time period (Today, Yesterday, This Week, Earlier) with sticky headers
+  - [ ] Web: Event cards with: actor avatar, element type badge, preview of changes, relative timestamp
+  - [ ] Web: Add "jump to date" date picker for navigation
+  - [ ] Web: Improve filtering UI (multi-select chips instead of dropdowns)
+  - [ ] **Verify:** Timeline shows grouped events with clear visual hierarchy
+
+- [ ] **TB43: Dependency Graph - Filter & Search**
+  - [ ] Web: Add search box above graph (filter nodes by title/ID, highlights matches)
+  - [ ] Web: Add filter toggles (by element type: tasks/plans/workflows, by status: open/closed)
+  - [ ] Web: Implement node highlighting for search results (glow effect or border)
+  - [ ] Web: Add minimap component for large graphs (React Flow MiniMap)
+  - [ ] Web: Add zoom controls (+/- buttons, fit-to-view button)
+  - [ ] **Verify:** Search for task in graph, matching node highlights and centers
+
+- [ ] **TB44: Dependency Graph - Edit Mode**
+  - [ ] Server: Add `POST /api/dependencies` endpoint (sourceId, targetId, type)
+  - [ ] Server: Add `DELETE /api/dependencies` endpoint (sourceId, targetId, type)
+  - [ ] Web: Add "Edit Mode" toggle button to graph toolbar
+  - [ ] Web: In edit mode: click first node (source), click second node (target), type picker appears
+  - [ ] Web: In edit mode: right-click edge shows delete option
+  - [ ] Web: Visual feedback for selection state (selected node has border)
+  - [ ] **Verify:** Add blocks dependency between two tasks via graph UI, edge appears
+
+- [ ] **TB45: Agent Activity Improvements**
+  - [ ] Web: Add horizontal bar chart showing tasks per agent (using simple CSS bars or chart library)
+  - [ ] Web: Real-time task progress: show current task with time elapsed
+  - [ ] Web: Agent status indicators: idle (gray), working (green pulse), blocked (yellow)
+  - [ ] Web: Make agent cards clickable → navigate to entity detail page
+  - [ ] Web: Add "Tasks completed today" count per agent
+  - [ ] **Verify:** See agent workload distribution chart, click agent navigates to detail
+
+### Phase 12: List Enhancements + Edit Functionality
+
+- [ ] **TB46: Universal Pagination Component**
+  - [ ] Web: Create Pagination component (page numbers 1,2,3..., prev/next arrows, page size selector 10/25/50/100)
+  - [ ] Web: Add to TaskList, showing total count and current range (e.g., "Showing 1-25 of 142")
+  - [ ] Web: Add to EntityList, TeamList, DocumentList, ChannelList, EventList
+  - [ ] Server: Ensure all list endpoints return `total` count for proper pagination
+  - [ ] Web: URL sync for pagination state (e.g., `?page=2&limit=25`)
+  - [ ] **Verify:** Navigate pages in task list, URL updates, correct results shown
+
+- [ ] **TB47: Edit Plan**
+  - [ ] Web: Make PlanDetailPanel editable (edit button toggles edit mode)
+  - [ ] Web: Editable fields: title, description (via document), status (dropdown)
+  - [ ] Web: "Add Task" button opens task picker to add existing task to plan
+  - [ ] Web: "Remove Task" button on each task in plan (with confirmation)
+  - [ ] Web: Status transition buttons (Activate, Complete, Cancel) based on current status
+  - [ ] **Verify:** Edit plan title, add task to plan, verify changes persist
+
+- [ ] **TB48: Edit Workflow**
+  - [ ] Web: Make WorkflowDetailPanel editable (title, status where valid)
+  - [ ] Web: "Burn Workflow" button for ephemeral workflows (with confirmation modal)
+  - [ ] Web: "Squash Workflow" button to promote ephemeral to durable (with confirmation)
+  - [ ] Server: Add `DELETE /api/workflows/:id/burn` endpoint
+  - [ ] Server: Add `POST /api/workflows/:id/squash` endpoint
+  - [ ] **Verify:** Change workflow status, burn ephemeral workflow, squash works
+
+- [ ] **TB49: Task List/Kanban Toggle Polish**
+  - [ ] Web: Persist view preference (list vs kanban) in localStorage key `tasks.viewMode`
+  - [ ] Web: Implement keyboard shortcuts: `V L` for list view, `V K` for kanban view
+  - [ ] Web: Add smooth CSS transition/animation when switching views
+  - [ ] Web: Show current view mode in toggle button (highlighted state)
+  - [ ] **Verify:** Toggle to kanban, refresh page, kanban still selected
+
+### Phase 13: Document Attachments
+
+- [ ] **TB50: Attach Documents to Tasks**
+  - [ ] Server: Add `POST /api/tasks/:id/attachments` endpoint (documentId)
+  - [ ] Server: Add `GET /api/tasks/:id/attachments` endpoint (returns attached documents)
+  - [ ] Server: Add `DELETE /api/tasks/:id/attachments/:docId` endpoint
+  - [ ] Web: Add "Attachments" collapsible section to TaskDetailPanel
+  - [ ] Web: "Attach Document" button opens document picker modal
+  - [ ] Web: Show attached documents as clickable links with remove button
+  - [ ] **Verify:** Attach document to task, shows in attachments section
+
+- [ ] **TB51: Embedded Document Rendering in Tasks**
+  - [ ] Web: Render attached documents inline in TaskDetailPanel (expandable cards)
+  - [ ] Web: Collapsed state: document title + content type badge + first line preview
+  - [ ] Web: Expanded state: full document content rendered (markdown/text/json)
+  - [ ] Web: Click document title to open in document editor (navigate or side panel)
+  - [ ] **Verify:** Expand attached document, see full content inline
+
+- [ ] **TB52: Attach Documents to Messages**
+  - [ ] Server: Update `POST /api/messages` to accept `attachmentIds` array
+  - [ ] Web: Add attachment button (paperclip icon) to MessageComposer
+  - [ ] Web: Document picker modal for selecting attachments
+  - [ ] Web: Show attachments in MessageBubble (document cards below content)
+  - [ ] Web: Attachment preview: title, type badge, click to open
+  - [ ] **Verify:** Send message with 2 document attachments, both render in message
+
+- [ ] **TB53: Attach Documents to Documents (Links)**
+  - [ ] Server: Use `references` dependency type for document-to-document links
+  - [ ] Web: Add "Linked Documents" section to DocumentDetailPanel
+  - [ ] Web: "Link Document" button opens document picker
+  - [ ] Web: Show both outgoing links (documents this links to) and incoming links (documents linking here)
+  - [ ] Web: Click linked document to navigate
+  - [ ] **Verify:** Link doc A to doc B, see link in both documents' linked sections
+
+### Phase 14: Document Editor Quality
+
+- [ ] **TB54: Editor Toolbar Polish**
+  - [ ] Web: Redesign toolbar with grouped sections using dividers:
+    - [ ] History: Undo, Redo
+    - [ ] Text: Bold, Italic, Code, Strikethrough, Highlight
+    - [ ] Headings: H1, H2, H3 dropdown or buttons
+    - [ ] Lists: Bullet, Numbered, Checklist
+    - [ ] Blocks: Quote, Code Block, Horizontal Rule
+  - [ ] Web: Add keyboard shortcut hints on hover (tooltip showing e.g., "Bold (⌘B)")
+  - [ ] Web: Responsive toolbar: collapse to overflow menu on narrow screens
+  - [ ] **Verify:** Toolbar shows all formatting options with working shortcuts
+
+- [ ] **TB55: Slash Commands**
+  - [ ] Web: Implement slash command menu triggered by typing `/` at start of line or after space
+  - [ ] Web: Command list with icons:
+    - [ ] /heading1, /heading2, /heading3 - Insert headings
+    - [ ] /bullet - Bullet list
+    - [ ] /numbered - Numbered list
+    - [ ] /quote - Block quote
+    - [ ] /code - Code block
+    - [ ] /divider - Horizontal rule
+    - [ ] /task - Embed task (opens picker)
+    - [ ] /doc - Embed document (opens picker)
+  - [ ] Web: Fuzzy search filtering as user types after `/`
+  - [ ] Web: Keyboard navigation (up/down arrows, Enter to select, Escape to cancel)
+  - [ ] **Verify:** Type `/head`, see filtered options, select "Heading 1", heading inserted
+
+- [ ] **TB56: Drag-and-Drop Blocks**
+  - [ ] Web: Add drag handle (grip icon) to left of each block, visible on hover
+  - [ ] Web: Implement block reordering via drag-and-drop (using dnd-kit or Tiptap extension)
+  - [ ] Web: Visual drop indicator line between blocks while dragging
+  - [ ] Web: Drag handle cursor feedback (grab/grabbing)
+  - [ ] **Verify:** Drag paragraph below heading, blocks reorder, content saves
+
+- [ ] **TB57: Inline Task/Document Embeds**
+  - [ ] Web: `/task` slash command opens task picker modal
+  - [ ] Web: Selected task renders as inline card (title, status badge, priority indicator)
+  - [ ] Web: `/doc` slash command opens document picker modal
+  - [ ] Web: Selected document renders as inline card (title, content type badge)
+  - [ ] Web: Embedded items are clickable → navigate to full view
+  - [ ] Web: Delete embed with backspace when cursor is on it
+  - [ ] **Verify:** Embed task in document, click embedded task, navigates to task detail
+
+- [ ] **TB58: Advanced Inline Formatting**
+  - [ ] Web: Add highlight extension (background color, default yellow)
+  - [ ] Web: Add strikethrough support (if not already present)
+  - [ ] Web: Improve inline code styling (monospace font, subtle background)
+  - [ ] Web: Implement keyboard shortcuts:
+    - [ ] ⌘+Shift+H for highlight
+    - [ ] ⌘+Shift+S for strikethrough
+    - [ ] ⌘+E for inline code
+  - [ ] Web: Add these options to selection bubble menu (appears when text selected)
+  - [ ] **Verify:** Select text, use keyboard shortcut to highlight, formatting applied
+
+### Phase 15: Settings Page
+
+- [ ] **TB59: Settings Page - Theme**
+  - [ ] Web: Create SettingsPage component with sidebar navigation (Theme, Shortcuts, Defaults, Notifications, Sync)
+  - [ ] Web: Theme section with Light/Dark/System radio buttons or segmented control
+  - [ ] Web: Persist theme preference in localStorage key `settings.theme`
+  - [ ] Web: Apply theme globally via CSS class on body (`theme-light`, `theme-dark`) or CSS variables
+  - [ ] Web: System option uses `prefers-color-scheme` media query
+  - [ ] **Verify:** Switch to dark theme, refresh page, dark theme persists
+
+- [ ] **TB60: Settings Page - Keyboard Shortcuts**
+  - [ ] Web: Shortcuts section listing all available shortcuts with current bindings
+  - [ ] Web: Categories: Navigation (G T, G P, etc.), Actions (C, E, X), Views (V L, V K)
+  - [ ] Web: "Customize" button per shortcut opens modal with key capture
+  - [ ] Web: Conflict detection (warn if shortcut already used)
+  - [ ] Web: "Reset to Defaults" button
+  - [ ] Web: Persist custom shortcuts in localStorage
+  - [ ] **Verify:** Change "Go to Tasks" shortcut, use new shortcut, navigation works
+
+- [ ] **TB61: Settings Page - Default Views**
+  - [ ] Web: Default view preferences section:
+    - [ ] Tasks default view: List or Kanban
+    - [ ] Dashboard default lens: Overview, Task Flow, Agents, Dependencies, or Timeline
+    - [ ] Default sort order for lists (by created date, priority, etc.)
+  - [ ] Web: Persist in localStorage
+  - [ ] Web: Apply defaults on page load (check localStorage before rendering)
+  - [ ] **Verify:** Set Tasks default to Kanban, navigate to Tasks, Kanban shows immediately
+
+- [ ] **TB62: Settings Page - Notifications**
+  - [ ] Web: Notification preferences section with toggles:
+    - [ ] Task assigned to me
+    - [ ] Task completed
+    - [ ] New message in channel
+    - [ ] Workflow completed/failed
+  - [ ] Web: Browser notification permission request button (if not granted)
+  - [ ] Web: Toast notification settings: duration (3s/5s/10s), position (top-right, bottom-right)
+  - [ ] Web: Persist preferences in localStorage
+  - [ ] **Verify:** Enable task completion notifications, complete a task, see toast notification
+
+- [ ] **TB63: Settings Page - Sync Config**
+  - [ ] Web: Sync settings section showing:
+    - [ ] Auto-export toggle (enable/disable automatic JSONL export)
+    - [ ] Export path display (read-only, shows .elemental/ path)
+    - [ ] Last export timestamp
+    - [ ] Dirty element count (elements with unsaved changes)
+  - [ ] Web: "Export Now" button triggers manual export
+  - [ ] Web: "Import" button opens file picker for JSONL import
+  - [ ] Server: Add `POST /api/sync/export` and `POST /api/sync/import` endpoints
+  - [ ] **Verify:** Click "Export Now", see success message, last export time updates
+
 ---
 
 ## 8. Verification Approach
@@ -743,8 +1053,11 @@ After every tracer bullet:
 
 ## 10. Future Considerations
 
-- **Authentication**: Currently no auth modeled; add middleware layer
-- **Multi-tenancy**: Single database assumed; extend for multiple workspaces
-- **Mobile**: Responsive design but no native app
+- **Authentication**: Currently no auth modeled; add middleware layer for user login
+- **Multi-tenancy**: Single database assumed; extend for multiple workspaces/projects
+- **Mobile**: Responsive design but no native app; consider React Native in future
 - **Offline**: Browser storage backend exists but not integrated in web platform
 - **Federation**: Cross-system sync deferred
+- **Databases in Editor**: Notion-style database tables (deferred - not in current scope)
+- **Collaborative Editing**: Real-time multi-user document editing (deferred)
+- **AI Integration**: Agent command interface, natural language task creation (deferred)
