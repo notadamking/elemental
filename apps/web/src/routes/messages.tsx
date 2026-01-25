@@ -70,6 +70,56 @@ interface Message {
 }
 
 // ============================================================================
+// Mention Highlighting
+// ============================================================================
+
+/**
+ * Regex pattern to match @mentions in message content
+ * Matches @ followed by a valid entity name (letter, then alphanumeric/hyphen/underscore)
+ * Uses negative lookbehind to exclude email addresses
+ */
+const MENTION_REGEX = /(?<![a-zA-Z0-9])@([a-zA-Z][a-zA-Z0-9_-]*)/g;
+
+/**
+ * Renders message content with @mentions highlighted in blue
+ */
+function renderMessageContent(content: string): React.ReactNode {
+  if (!content) return null;
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  const regex = new RegExp(MENTION_REGEX.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+
+    // Add the highlighted mention
+    parts.push(
+      <span
+        key={`mention-${match.index}`}
+        className="text-blue-600 font-medium"
+        data-mention={match[1]}
+      >
+        {match[0]}
+      </span>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last mention
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : content;
+}
+
+// ============================================================================
 // API Hooks
 // ============================================================================
 
@@ -501,7 +551,9 @@ function MessageBubble({
           data-testid={`message-content-${message.id}`}
           className="text-gray-700 mt-1 break-words"
         >
-          {message._content || (
+          {message._content ? (
+            renderMessageContent(message._content)
+          ) : (
             <span className="text-gray-400 italic">Content not loaded</span>
           )}
         </div>
