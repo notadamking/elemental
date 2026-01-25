@@ -110,27 +110,16 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
   });
 
   test('placeholder pages show coming soon message', async ({ page }) => {
-    await page.goto('/plans');
-    await expect(page.getByRole('heading', { name: 'Plans' })).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
-
-    await page.goto('/workflows');
-    await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
-
-    // Messages page is now implemented (TB16), skip placeholder check
-    // Documents page is now implemented (TB20/TB21), skip placeholder check
-
-    await page.goto('/entities');
-    await expect(page.getByRole('heading', { name: 'Entities' })).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
-
-    await page.goto('/teams');
-    await expect(page.getByRole('heading', { name: 'Teams' })).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
+    // Most pages are now implemented - this test is kept for historical reference
+    // The Settings page is now fully implemented with Theme settings (TB59)
+    // Plans, Workflows, Entities, Teams pages are all implemented
+    // Only the other Settings sections (Shortcuts, Defaults, Notifications, Sync) show coming soon
 
     await page.goto('/settings');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(page.getByTestId('settings-page')).toBeVisible();
+
+    // Click on Shortcuts section which is not yet implemented
+    await page.getByTestId('settings-nav-shortcuts').click();
     await expect(page.getByText(/coming soon/i)).toBeVisible();
   });
 

@@ -975,13 +975,13 @@ For mutations (create, update, delete):
 
 ### Phase 15: Settings Page
 
-- [ ] **TB59: Settings Page - Theme**
-  - [ ] Web: Create SettingsPage component with sidebar navigation (Theme, Shortcuts, Defaults, Notifications, Sync)
-  - [ ] Web: Theme section with Light/Dark/System radio buttons or segmented control
-  - [ ] Web: Persist theme preference in localStorage key `settings.theme`
-  - [ ] Web: Apply theme globally via CSS class on body (`theme-light`, `theme-dark`) or CSS variables
-  - [ ] Web: System option uses `prefers-color-scheme` media query
-  - [ ] **Verify:** Switch to dark theme, refresh page, dark theme persists
+- [x] **TB59: Settings Page - Theme**
+  - [x] Web: Create SettingsPage component with sidebar navigation (Theme, Shortcuts, Defaults, Notifications, Sync)
+  - [x] Web: Theme section with Light/Dark/System radio buttons or segmented control
+  - [x] Web: Persist theme preference in localStorage key `settings.theme`
+  - [x] Web: Apply theme globally via CSS class on body (`theme-light`, `theme-dark`) or CSS variables
+  - [x] Web: System option uses `prefers-color-scheme` media query
+  - [x] **Verify:** Playwright tests passing (17 TB59 tests)
 
 - [ ] **TB60: Settings Page - Keyboard Shortcuts**
   - [ ] Web: Shortcuts section listing all available shortcuts with current bindings

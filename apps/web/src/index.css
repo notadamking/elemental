@@ -1,5 +1,56 @@
 @import "tailwindcss";
 
+/* Theme CSS Variables */
+:root {
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+}
+
+:root.dark,
+:root.theme-dark {
+  --color-bg: #111827;
+  --color-bg-secondary: #1f2937;
+  --color-text: #f9fafb;
+  --color-text-secondary: #9ca3af;
+  --color-border: #374151;
+  --color-primary: #60a5fa;
+  --color-primary-hover: #3b82f6;
+}
+
+/* Apply theme colors to body */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dark mode styles for main content areas */
+.dark .bg-white {
+  background-color: var(--color-bg-secondary);
+}
+
+.dark .bg-gray-50 {
+  background-color: var(--color-bg);
+}
+
+.dark .border-gray-200 {
+  border-color: var(--color-border);
+}
+
+.dark .text-gray-900 {
+  color: var(--color-text);
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: var(--color-text-secondary);
+}
+
 /* Custom animations for slide-over panels */
 @keyframes slide-in-right {
   from {
@@ -78,11 +129,21 @@
   color: #1f2937;
 }
 
+.dark .ProseMirror code:not(pre code) {
+  background-color: rgba(75, 85, 99, 0.4);
+  color: #e5e7eb;
+}
+
 /* Highlight styling */
 .ProseMirror mark {
   background-color: #fef08a;
   border-radius: 2px;
   padding: 0.05em 0;
+}
+
+.dark .ProseMirror mark {
+  background-color: #854d0e;
+  color: #fef08a;
 }
 
 /* Bubble menu animation */

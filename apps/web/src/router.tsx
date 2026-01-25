@@ -12,6 +12,7 @@ import { PlansPage } from './routes/plans';
 import { WorkflowsPage } from './routes/workflows';
 import { EntitiesPage } from './routes/entities';
 import { TeamsPage } from './routes/teams';
+import { SettingsPage } from './routes/settings';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -77,16 +78,6 @@ const timelineRoute = createRoute({
   component: TimelinePage,
 });
 
-// Placeholder routes for future pages
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="text-center py-12">
-      <h2 className="text-lg font-medium text-gray-900 mb-2">{title}</h2>
-      <p className="text-gray-500">This page is coming soon.</p>
-    </div>
-  );
-}
-
 const plansRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/plans',
@@ -131,7 +122,7 @@ const teamsRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
-  component: () => <PlaceholderPage title="Settings" />,
+  component: SettingsPage,
 });
 
 // Build the route tree
