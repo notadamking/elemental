@@ -648,10 +648,15 @@ For mutations (create, update, delete):
   - [x] Web: useUpdateDocument hook with optimistic updates
   - [x] **Verify:** Edit document with blocks (Playwright tests passing - 12 tests + 1 skipped)
 
-- [ ] **TB23: Document Versions**
-  - [ ] Server: Add `GET /api/documents/:id/versions` endpoint
-  - [ ] Web: Version history sidebar
-  - [ ] **Verify:** View and restore versions
+- [x] **TB23: Document Versions**
+  - [x] Server: Add `GET /api/documents/:id/versions` endpoint (returns version history)
+  - [x] Server: Add `GET /api/documents/:id/versions/:version` endpoint (get specific version)
+  - [x] Server: Add `POST /api/documents/:id/restore` endpoint (restore from version)
+  - [x] Web: Version history sidebar (VersionHistorySidebar component)
+  - [x] Web: Preview version functionality with preview banner
+  - [x] Web: Restore version functionality with confirmation
+  - [x] Web: Edit button disabled during preview
+  - [x] **Verify:** View and restore versions (Playwright tests passing - 18 tests)
 
 ### Phase 8: Plans & Workflows
 

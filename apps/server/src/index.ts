@@ -908,6 +908,99 @@ app.patch('/api/documents/:id', async (c) => {
   }
 });
 
+// Document Versions Endpoints (TB23)
+// ============================================================================
+
+app.get('/api/documents/:id/versions', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+
+    // First verify it's a document
+    const existing = await api.get(id);
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (existing.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Get version history using the API method
+    const versions = await api.getDocumentHistory(id as unknown as import('@elemental/cli').DocumentId);
+
+    return c.json(versions);
+  } catch (error) {
+    console.error('[elemental] Failed to get document versions:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get document versions' } }, 500);
+  }
+});
+
+app.get('/api/documents/:id/versions/:version', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const versionParam = c.req.param('version');
+    const version = parseInt(versionParam, 10);
+
+    if (isNaN(version) || version < 1) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid version number' } }, 400);
+    }
+
+    // Get the specific version
+    const document = await api.getDocumentVersion(id as unknown as import('@elemental/cli').DocumentId, version);
+
+    if (!document) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document version not found' } }, 404);
+    }
+
+    return c.json(document);
+  } catch (error) {
+    console.error('[elemental] Failed to get document version:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get document version' } }, 500);
+  }
+});
+
+app.post('/api/documents/:id/restore', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+    const version = body.version;
+
+    if (typeof version !== 'number' || version < 1) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid version number' } }, 400);
+    }
+
+    // First verify it's a document
+    const existing = await api.get(id);
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (existing.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Get the version to restore
+    const versionToRestore = await api.getDocumentVersion(id as unknown as import('@elemental/cli').DocumentId, version);
+    if (!versionToRestore) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document version not found' } }, 404);
+    }
+
+    // Update the document with the restored content
+    // Use type assertion since we're passing document-specific fields
+    const restored = await api.update(id, {
+      content: versionToRestore.content,
+      contentType: versionToRestore.contentType,
+      // Note: This creates a new version with the restored content
+    } as unknown as Partial<Document>);
+
+    return c.json(restored);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    console.error('[elemental] Failed to restore document version:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to restore document version' } }, 500);
+  }
+});
+
 // ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================

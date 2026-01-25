@@ -28,6 +28,9 @@ import {
   Edit3,
   Save,
   XCircle,
+  History,
+  RotateCcw,
+  Eye,
 } from 'lucide-react';
 import { BlockEditor } from '../components/editor/BlockEditor';
 
@@ -169,6 +172,66 @@ function useUpdateDocument() {
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['documents', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+    },
+  });
+}
+
+function useDocumentVersions(documentId: string | null) {
+  return useQuery<DocumentType[]>({
+    queryKey: ['documents', documentId, 'versions'],
+    queryFn: async () => {
+      if (!documentId) throw new Error('No document selected');
+      const response = await fetch(`/api/documents/${documentId}/versions`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch document versions');
+      }
+      return response.json();
+    },
+    enabled: !!documentId,
+  });
+}
+
+function useDocumentVersion(documentId: string | null, version: number | null) {
+  return useQuery<DocumentType>({
+    queryKey: ['documents', documentId, 'versions', version],
+    queryFn: async () => {
+      if (!documentId || !version) throw new Error('No document or version selected');
+      const response = await fetch(`/api/documents/${documentId}/versions/${version}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch document version');
+      }
+      return response.json();
+    },
+    enabled: !!documentId && !!version,
+  });
+}
+
+function useRestoreDocumentVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, version }: { id: string; version: number }) => {
+      const response = await fetch(`/api/documents/${id}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to restore document version');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['documents', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['documents', variables.id, 'versions'] });
       queryClient.invalidateQueries({ queryKey: ['libraries'] });
     },
   });
@@ -558,6 +621,162 @@ const CONTENT_TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode
 };
 
 /**
+ * Version History Sidebar - Shows all versions of a document with restore capability
+ */
+function VersionHistorySidebar({
+  documentId,
+  currentVersion,
+  onPreviewVersion,
+  previewingVersion,
+  onClose,
+}: {
+  documentId: string;
+  currentVersion: number;
+  onPreviewVersion: (version: number | null) => void;
+  previewingVersion: number | null;
+  onClose: () => void;
+}) {
+  const { data: versions = [], isLoading, error } = useDocumentVersions(documentId);
+  const restoreVersion = useRestoreDocumentVersion();
+
+  const handleRestore = async (version: number) => {
+    if (confirm(`Restore to version ${version}? This will create a new version with the restored content.`)) {
+      try {
+        await restoreVersion.mutateAsync({ id: documentId, version });
+        onPreviewVersion(null); // Clear preview after restore
+      } catch {
+        // Error is handled by mutation
+      }
+    }
+  };
+
+  return (
+    <div
+      data-testid="version-history-sidebar"
+      className="w-72 border-l border-gray-200 bg-gray-50 flex flex-col h-full"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-2">
+          <History className="w-4 h-4 text-gray-500" />
+          <h3 className="font-medium text-gray-900 text-sm">Version History</h3>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+          aria-label="Close version history"
+          data-testid="version-history-close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Version List */}
+      <div className="flex-1 overflow-y-auto p-2">
+        {isLoading && (
+          <div data-testid="version-history-loading" className="text-center text-gray-500 text-sm py-4">
+            Loading versions...
+          </div>
+        )}
+
+        {error && (
+          <div data-testid="version-history-error" className="text-center text-red-500 text-sm py-4">
+            Failed to load versions
+          </div>
+        )}
+
+        {!isLoading && !error && versions.length === 0 && (
+          <div data-testid="version-history-empty" className="text-center text-gray-500 text-sm py-4">
+            No version history available
+          </div>
+        )}
+
+        {!isLoading && !error && versions.length > 0 && (
+          <div data-testid="version-history-list" className="space-y-1">
+            {versions.map((version) => {
+              const isCurrentVersion = version.version === currentVersion;
+              const isPreviewing = previewingVersion === version.version;
+
+              return (
+                <div
+                  key={version.version}
+                  data-testid={`version-item-${version.version}`}
+                  className={`p-2 rounded-md ${
+                    isPreviewing
+                      ? 'bg-blue-100 border border-blue-300'
+                      : isCurrentVersion
+                        ? 'bg-green-50 border border-green-200'
+                        : 'bg-white border border-gray-100 hover:border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-gray-900">
+                        v{version.version}
+                      </span>
+                      {isCurrentVersion && (
+                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                          Current
+                        </span>
+                      )}
+                      {isPreviewing && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                          Previewing
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-gray-500 mb-2">
+                    {formatRelativeTime(version.updatedAt)}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1">
+                    {!isCurrentVersion && (
+                      <>
+                        <button
+                          onClick={() => onPreviewVersion(isPreviewing ? null : version.version!)}
+                          data-testid={`version-preview-${version.version}`}
+                          className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${
+                            isPreviewing
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          <Eye className="w-3 h-3" />
+                          {isPreviewing ? 'Exit Preview' : 'Preview'}
+                        </button>
+                        <button
+                          onClick={() => handleRestore(version.version!)}
+                          disabled={restoreVersion.isPending}
+                          data-testid={`version-restore-${version.version}`}
+                          className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Restore
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Restore Error */}
+      {restoreVersion.isError && (
+        <div className="p-2 m-2 bg-red-50 text-red-700 text-xs rounded">
+          {restoreVersion.error?.message || 'Failed to restore version'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Renders document content based on its contentType
  */
 function DocumentRenderer({
@@ -642,6 +861,14 @@ function DocumentDetailPanel({
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [editedTitle, setEditedTitle] = useState('');
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
+
+  // Fetch the previewing version content
+  const { data: previewDocument } = useDocumentVersion(
+    previewingVersion ? documentId : null,
+    previewingVersion
+  );
 
   // Initialize edit state when entering edit mode
   const handleStartEdit = () => {
@@ -799,14 +1026,31 @@ function DocumentDetailPanel({
               </button>
             </>
           ) : (
-            <button
-              onClick={handleStartEdit}
-              data-testid="document-edit-button"
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-              aria-label="Edit document"
-            >
-              <Edit3 className="w-5 h-5" />
-            </button>
+            <>
+              <button
+                onClick={handleStartEdit}
+                disabled={previewingVersion !== null}
+                data-testid="document-edit-button"
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Edit document"
+                title={previewingVersion !== null ? 'Exit preview to edit' : 'Edit document'}
+              >
+                <Edit3 className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setShowVersionHistory(!showVersionHistory)}
+                data-testid="document-history-button"
+                className={`p-1.5 rounded ${
+                  showVersionHistory
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+                aria-label={showVersionHistory ? 'Hide version history' : 'Show version history'}
+                title="Version history"
+              >
+                <History className="w-5 h-5" />
+              </button>
+            </>
           )}
           <button
             onClick={onClose}
@@ -829,77 +1073,116 @@ function DocumentDetailPanel({
         </div>
       )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Document Content */}
-        <div data-testid="document-content" className="mb-6">
-          {isEditing ? (
-            <BlockEditor
-              content={editedContent}
-              contentType={document.contentType}
-              onChange={setEditedContent}
-              onSave={handleSave}
-              placeholder="Start writing..."
-            />
-          ) : (
-            <DocumentRenderer
-              content={document.content || ''}
-              contentType={document.contentType}
-            />
-          )}
-        </div>
-
-        {/* Tags */}
-        {document.tags && document.tags.length > 0 && (
-          <div className="mb-6">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-              <Tag className="w-3 h-3" />
-              Tags
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {document.tags.map((tag) => (
-                <span
-                  key={tag}
-                  data-testid={`document-tag-${tag}`}
-                  className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
-                >
-                  {tag}
+      {/* Main content area with optional version history sidebar */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* Preview banner */}
+          {previewingVersion !== null && previewDocument && (
+            <div
+              data-testid="document-preview-banner"
+              className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-blue-600" />
+                <span className="text-sm text-blue-800">
+                  Previewing version {previewingVersion}
                 </span>
-              ))}
+              </div>
+              <button
+                onClick={() => setPreviewingVersion(null)}
+                data-testid="exit-preview-button"
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Exit Preview
+              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Metadata */}
-        <div className="pt-4 border-t border-gray-100">
-          <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
-            <div>
-              <div className="flex items-center gap-1 mb-1">
-                <Clock className="w-3 h-3" />
-                <span className="font-medium">Created:</span>
+          {/* Document Content */}
+          <div data-testid="document-content" className="mb-6">
+            {isEditing ? (
+              <BlockEditor
+                content={editedContent}
+                contentType={document.contentType}
+                onChange={setEditedContent}
+                onSave={handleSave}
+                placeholder="Start writing..."
+              />
+            ) : (
+              <DocumentRenderer
+                content={previewingVersion !== null && previewDocument ? previewDocument.content || '' : document.content || ''}
+                contentType={previewingVersion !== null && previewDocument ? previewDocument.contentType : document.contentType}
+              />
+            )}
+          </div>
+
+          {/* Tags - only show for current version, not preview */}
+          {!previewingVersion && document.tags && document.tags.length > 0 && (
+            <div className="mb-6">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+                <Tag className="w-3 h-3" />
+                Tags
               </div>
-              <span title={formatDate(document.createdAt)}>
-                {formatRelativeTime(document.createdAt)}
-              </span>
+              <div className="flex flex-wrap gap-1">
+                {document.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    data-testid={`document-tag-${tag}`}
+                    className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div>
-              <div className="flex items-center gap-1 mb-1">
-                <Clock className="w-3 h-3" />
-                <span className="font-medium">Updated:</span>
+          )}
+
+          {/* Metadata */}
+          <div className="pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+              <div>
+                <div className="flex items-center gap-1 mb-1">
+                  <Clock className="w-3 h-3" />
+                  <span className="font-medium">Created:</span>
+                </div>
+                <span title={formatDate(previewingVersion !== null && previewDocument ? previewDocument.createdAt : document.createdAt)}>
+                  {formatRelativeTime(previewingVersion !== null && previewDocument ? previewDocument.createdAt : document.createdAt)}
+                </span>
               </div>
-              <span title={formatDate(document.updatedAt)}>
-                {formatRelativeTime(document.updatedAt)}
-              </span>
-            </div>
-            <div className="col-span-2">
-              <div className="flex items-center gap-1 mb-1">
-                <User className="w-3 h-3" />
-                <span className="font-medium">Created by:</span>
+              <div>
+                <div className="flex items-center gap-1 mb-1">
+                  <Clock className="w-3 h-3" />
+                  <span className="font-medium">Updated:</span>
+                </div>
+                <span title={formatDate(previewingVersion !== null && previewDocument ? previewDocument.updatedAt : document.updatedAt)}>
+                  {formatRelativeTime(previewingVersion !== null && previewDocument ? previewDocument.updatedAt : document.updatedAt)}
+                </span>
               </div>
-              <span className="font-mono">{document.createdBy}</span>
+              <div className="col-span-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <User className="w-3 h-3" />
+                  <span className="font-medium">Created by:</span>
+                </div>
+                <span className="font-mono">{document.createdBy}</span>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Version History Sidebar */}
+        {showVersionHistory && (
+          <VersionHistorySidebar
+            documentId={documentId}
+            currentVersion={document.version || 1}
+            onPreviewVersion={setPreviewingVersion}
+            previewingVersion={previewingVersion}
+            onClose={() => {
+              setShowVersionHistory(false);
+              setPreviewingVersion(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );
