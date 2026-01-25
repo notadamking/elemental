@@ -55,6 +55,47 @@ interface LibraryType {
   updatedAt: string;
   createdBy: string;
   tags: string[];
+  parentId: string | null;
+}
+
+interface LibraryTreeNode extends LibraryType {
+  children: LibraryTreeNode[];
+}
+
+/**
+ * Build a tree structure from a flat list of libraries
+ */
+function buildLibraryTree(libraries: LibraryType[]): LibraryTreeNode[] {
+  const nodeMap = new Map<string, LibraryTreeNode>();
+  const roots: LibraryTreeNode[] = [];
+
+  // First pass: create nodes
+  for (const library of libraries) {
+    nodeMap.set(library.id, { ...library, children: [] });
+  }
+
+  // Second pass: build tree
+  for (const library of libraries) {
+    const node = nodeMap.get(library.id)!;
+    if (library.parentId && nodeMap.has(library.parentId)) {
+      // Add to parent's children
+      nodeMap.get(library.parentId)!.children.push(node);
+    } else {
+      // Root level library
+      roots.push(node);
+    }
+  }
+
+  // Sort children alphabetically at each level
+  const sortChildren = (nodes: LibraryTreeNode[]) => {
+    nodes.sort((a, b) => a.name.localeCompare(b.name));
+    for (const node of nodes) {
+      sortChildren(node.children);
+    }
+  };
+  sortChildren(roots);
+
+  return roots;
 }
 
 interface DocumentType {
@@ -285,26 +326,26 @@ function useCloneDocument() {
 // ============================================================================
 
 function LibraryTreeItem({
-  library,
-  isSelected,
-  isExpanded,
+  node,
+  selectedLibraryId,
+  expandedIds,
   onSelect,
   onToggleExpand,
   level = 0,
-  children,
 }: {
-  library: LibraryType;
-  isSelected: boolean;
-  isExpanded: boolean;
+  node: LibraryTreeNode;
+  selectedLibraryId: string | null;
+  expandedIds: Set<string>;
   onSelect: (id: string) => void;
   onToggleExpand: (id: string) => void;
   level?: number;
-  children?: React.ReactNode;
 }) {
-  const hasChildren = !!children;
+  const hasChildren = node.children.length > 0;
+  const isSelected = selectedLibraryId === node.id;
+  const isExpanded = expandedIds.has(node.id);
 
   return (
-    <div data-testid={`library-tree-item-${library.id}`}>
+    <div data-testid={`library-tree-item-${node.id}`}>
       <div
         className={`flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
           isSelected
@@ -312,14 +353,14 @@ function LibraryTreeItem({
             : 'text-gray-700 hover:bg-gray-100'
         }`}
         style={{ paddingLeft: `${8 + level * 16}px` }}
-        onClick={() => onSelect(library.id)}
+        onClick={() => onSelect(node.id)}
       >
         {/* Expand/Collapse Toggle */}
         <button
-          data-testid={`library-toggle-${library.id}`}
+          data-testid={`library-toggle-${node.id}`}
           onClick={(e) => {
             e.stopPropagation();
-            onToggleExpand(library.id);
+            onToggleExpand(node.id);
           }}
           className="p-0.5 hover:bg-gray-200 rounded"
         >
@@ -335,7 +376,7 @@ function LibraryTreeItem({
         </button>
 
         {/* Library Icon */}
-        {isExpanded ? (
+        {isExpanded && hasChildren ? (
           <FolderOpen className="w-4 h-4 text-yellow-500 flex-shrink-0" />
         ) : (
           <Folder className="w-4 h-4 text-yellow-500 flex-shrink-0" />
@@ -343,17 +384,27 @@ function LibraryTreeItem({
 
         {/* Library Name */}
         <span
-          data-testid={`library-name-${library.id}`}
+          data-testid={`library-name-${node.id}`}
           className="text-sm font-medium truncate"
         >
-          {library.name}
+          {node.name}
         </span>
       </div>
 
-      {/* Children */}
-      {isExpanded && children && (
-        <div data-testid={`library-children-${library.id}`}>
-          {children}
+      {/* Children - recursively render nested libraries */}
+      {isExpanded && hasChildren && (
+        <div data-testid={`library-children-${node.id}`}>
+          {node.children.map((child) => (
+            <LibraryTreeItem
+              key={child.id}
+              node={child}
+              selectedLibraryId={selectedLibraryId}
+              expandedIds={expandedIds}
+              onSelect={onSelect}
+              onToggleExpand={onToggleExpand}
+              level={level + 1}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -363,29 +414,22 @@ function LibraryTreeItem({
 function LibraryTree({
   libraries,
   selectedLibraryId,
+  expandedIds,
   onSelectLibrary,
+  onToggleExpand,
   onNewDocument,
   onNewLibrary,
 }: {
   libraries: LibraryType[];
   selectedLibraryId: string | null;
+  expandedIds: Set<string>;
   onSelectLibrary: (id: string) => void;
+  onToggleExpand: (id: string) => void;
   onNewDocument: () => void;
   onNewLibrary: () => void;
 }) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  // Build tree structure from flat list
+  const treeNodes = buildLibraryTree(libraries);
 
   return (
     <div
@@ -437,14 +481,14 @@ function LibraryTree({
           </div>
         ) : (
           <div data-testid="library-list" className="space-y-1">
-            {libraries.map((library) => (
+            {treeNodes.map((node) => (
               <LibraryTreeItem
-                key={library.id}
-                library={library}
-                isSelected={selectedLibraryId === library.id}
-                isExpanded={expandedIds.has(library.id)}
+                key={node.id}
+                node={node}
+                selectedLibraryId={selectedLibraryId}
+                expandedIds={expandedIds}
                 onSelect={onSelectLibrary}
-                onToggleExpand={toggleExpand}
+                onToggleExpand={onToggleExpand}
               />
             ))}
           </div>
@@ -529,11 +573,13 @@ function LibraryView({
   libraryId,
   selectedDocumentId,
   onSelectDocument,
+  onSelectLibrary,
   onNewDocument,
 }: {
   libraryId: string;
   selectedDocumentId: string | null;
   onSelectDocument: (id: string) => void;
+  onSelectLibrary: (id: string) => void;
   onNewDocument: () => void;
 }) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
@@ -610,14 +656,15 @@ function LibraryView({
           </h4>
           <div className="flex flex-wrap gap-2">
             {library._subLibraries.map((subLib) => (
-              <div
+              <button
                 key={subLib.id}
                 data-testid={`sub-library-${subLib.id}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 text-yellow-700 rounded-md text-sm"
+                onClick={() => onSelectLibrary(subLib.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 text-yellow-700 rounded-md text-sm hover:bg-yellow-100 transition-colors cursor-pointer"
               >
                 <Folder className="w-4 h-4" />
                 {subLib.name}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -1416,12 +1463,54 @@ export function DocumentsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
   const [isDocumentExpanded, setIsDocumentExpanded] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Toggle expand/collapse for a library in the tree
+  const handleToggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Expand all ancestors of a library in the tree
+  const expandAncestors = (libraryId: string) => {
+    const library = libraries.find(l => l.id === libraryId);
+    if (!library) return;
+
+    // Build ancestor chain and expand all
+    const ancestorsToExpand: string[] = [];
+    let current = library;
+    while (current.parentId) {
+      ancestorsToExpand.push(current.parentId);
+      const parent = libraries.find(l => l.id === current.parentId);
+      if (!parent) break;
+      current = parent;
+    }
+
+    if (ancestorsToExpand.length > 0) {
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ancestorsToExpand) {
+          next.add(id);
+        }
+        return next;
+      });
+    }
+  };
 
   // Clear document selection and collapse when library changes
   const handleSelectLibrary = (libraryId: string) => {
     setSelectedLibraryId(libraryId);
     setSelectedDocumentId(null);
     setIsDocumentExpanded(false);
+    // Expand ancestors so the library is visible in the tree
+    expandAncestors(libraryId);
   };
 
   const handleSelectDocument = (documentId: string) => {
@@ -1480,6 +1569,7 @@ export function DocumentsPage() {
           libraryId={selectedLibraryId}
           selectedDocumentId={selectedDocumentId}
           onSelectDocument={handleSelectDocument}
+          onSelectLibrary={handleSelectLibrary}
           onNewDocument={handleOpenCreateModal}
         />
       );
@@ -1512,7 +1602,9 @@ export function DocumentsPage() {
         <LibraryTree
           libraries={libraries}
           selectedLibraryId={selectedLibraryId}
+          expandedIds={expandedIds}
           onSelectLibrary={handleSelectLibrary}
+          onToggleExpand={handleToggleExpand}
           onNewDocument={handleOpenCreateModal}
           onNewLibrary={handleOpenCreateLibraryModal}
         />

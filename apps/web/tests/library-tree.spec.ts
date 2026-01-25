@@ -143,7 +143,9 @@ test.describe('TB20: Library Tree', () => {
     const response = await page.request.get('/api/libraries');
     const libraries = await response.json();
 
-    if (libraries.length === 0) {
+    // Find a root-level library (no parent) since tree only shows roots at top level
+    const rootLibrary = libraries.find((lib: { parentId: string | null }) => !lib.parentId);
+    if (!rootLibrary) {
       test.skip();
       return;
     }
@@ -152,8 +154,8 @@ test.describe('TB20: Library Tree', () => {
     await expect(page.getByTestId('documents-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('library-tree')).toBeVisible({ timeout: 5000 });
 
-    // Click on the first library
-    await page.getByTestId(`library-tree-item-${libraries[0].id}`).click();
+    // Click on the root library
+    await page.getByTestId(`library-tree-item-${rootLibrary.id}`).click();
 
     // Library view should appear
     await expect(page.getByTestId('library-view')).toBeVisible();
@@ -164,7 +166,9 @@ test.describe('TB20: Library Tree', () => {
     const response = await page.request.get('/api/libraries');
     const libraries = await response.json();
 
-    if (libraries.length === 0) {
+    // Find a root-level library (no parent) since tree only shows roots at top level
+    const rootLibrary = libraries.find((lib: { parentId: string | null }) => !lib.parentId);
+    if (!rootLibrary) {
       test.skip();
       return;
     }
@@ -172,19 +176,21 @@ test.describe('TB20: Library Tree', () => {
     await page.goto('/documents');
     await expect(page.getByTestId('library-tree')).toBeVisible({ timeout: 5000 });
 
-    // Click on the first library
-    await page.getByTestId(`library-tree-item-${libraries[0].id}`).click();
+    // Click on the root library
+    await page.getByTestId(`library-tree-item-${rootLibrary.id}`).click();
 
     // Library name should be visible in header
     await expect(page.getByTestId('library-name')).toBeVisible();
-    await expect(page.getByTestId('library-name')).toContainText(libraries[0].name);
+    await expect(page.getByTestId('library-name')).toContainText(rootLibrary.name);
   });
 
   test('library view shows document count', async ({ page }) => {
     const response = await page.request.get('/api/libraries');
     const libraries = await response.json();
 
-    if (libraries.length === 0) {
+    // Find a root-level library (no parent) since tree only shows roots at top level
+    const rootLibrary = libraries.find((lib: { parentId: string | null }) => !lib.parentId);
+    if (!rootLibrary) {
       test.skip();
       return;
     }
@@ -192,8 +198,8 @@ test.describe('TB20: Library Tree', () => {
     await page.goto('/documents');
     await expect(page.getByTestId('library-tree')).toBeVisible({ timeout: 5000 });
 
-    // Click on the first library
-    await page.getByTestId(`library-tree-item-${libraries[0].id}`).click();
+    // Click on the root library
+    await page.getByTestId(`library-tree-item-${rootLibrary.id}`).click();
 
     // Document count should be visible
     await expect(page.getByTestId('library-doc-count')).toBeVisible();
@@ -205,7 +211,9 @@ test.describe('TB20: Library Tree', () => {
     const response = await page.request.get('/api/libraries');
     const libraries = await response.json();
 
-    if (libraries.length === 0) {
+    // Find a root-level library (no parent) since tree only shows roots at top level
+    const rootLibrary = libraries.find((lib: { parentId: string | null }) => !lib.parentId);
+    if (!rootLibrary) {
       test.skip();
       return;
     }
@@ -213,8 +221,8 @@ test.describe('TB20: Library Tree', () => {
     await page.goto('/documents');
     await expect(page.getByTestId('library-tree')).toBeVisible({ timeout: 5000 });
 
-    // Click on the first library
-    await page.getByTestId(`library-tree-item-${libraries[0].id}`).click();
+    // Click on the root library
+    await page.getByTestId(`library-tree-item-${rootLibrary.id}`).click();
 
     // Wait for library view
     await expect(page.getByTestId('library-view')).toBeVisible();

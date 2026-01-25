@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -2248,6 +2248,64 @@ app.get('/api/teams', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get teams:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get teams' } }, 500);
+  }
+});
+
+app.post('/api/teams', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { name, members, createdBy, tags, metadata, descriptionRef } = body;
+
+    // Validation
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name is required' } }, 400);
+    }
+
+    // Validate members array
+    if (members !== undefined) {
+      if (!Array.isArray(members)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Members must be an array' } }, 400);
+      }
+      // Check each member is a valid string
+      for (const member of members) {
+        if (typeof member !== 'string' || member.length === 0) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Each member must be a valid entity ID' } }, 400);
+        }
+      }
+      // Check for duplicate members
+      const uniqueMembers = new Set(members);
+      if (uniqueMembers.size !== members.length) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Duplicate members are not allowed' } }, 400);
+      }
+    }
+
+    // Check for duplicate team name
+    const existingTeams = await api.list({ type: 'team' });
+    const duplicateName = existingTeams.some((t) => {
+      const team = t as unknown as { name: string };
+      return team.name.toLowerCase() === name.toLowerCase().trim();
+    });
+    if (duplicateName) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Team with this name already exists' } }, 400);
+    }
+
+    const teamInput: CreateTeamInput = {
+      name: name.trim(),
+      members: members || [],
+      createdBy: (createdBy || 'el-0000') as EntityId,
+      tags: tags || [],
+      metadata: metadata || {},
+      ...(descriptionRef !== undefined && { descriptionRef }),
+    };
+
+    const team = await createTeam(teamInput);
+    const created = await api.create(team as unknown as Element & Record<string, unknown>);
+
+    return c.json(created, 201);
+  } catch (error) {
+    console.error('[elemental] Failed to create team:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create team';
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
   }
 });
 

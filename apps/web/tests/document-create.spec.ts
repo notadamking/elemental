@@ -8,11 +8,13 @@ test.describe('TB27: Create Document', () => {
     return entities.length > 0 ? entities[0] : null;
   }
 
-  // Helper to get first library
-  async function getFirstLibrary(page: import('@playwright/test').Page): Promise<{ id: string; name: string } | null> {
+  // Helper to get first root-level library (no parent) for visibility in tree
+  async function getFirstLibrary(page: import('@playwright/test').Page): Promise<{ id: string; name: string; parentId: string | null } | null> {
     const response = await page.request.get('/api/libraries');
     const libraries = await response.json();
-    return libraries.length > 0 ? libraries[0] : null;
+    // Find a root library (parentId is null) since only root libraries are visible at top level of tree
+    const rootLibrary = libraries.find((lib: { parentId: string | null }) => !lib.parentId);
+    return rootLibrary || (libraries.length > 0 ? libraries[0] : null);
   }
 
   // ============================================================================
