@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Outlet } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
 import { CommandPalette } from '../navigation';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
+import { useGlobalKeyboardShortcuts, useKeyboardShortcut } from '../../hooks';
 import type { ConnectionState } from '../../api/websocket';
 
 interface HealthResponse {
@@ -77,6 +78,15 @@ export function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const health = useHealth();
   const { connectionState } = useRealtimeEvents({ channels: ['*'] });
+
+  // Initialize global keyboard shortcuts (G T, G P, etc.)
+  useGlobalKeyboardShortcuts();
+
+  // Toggle sidebar with Cmd+B
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => !prev);
+  }, []);
+  useKeyboardShortcut('Cmd+B', toggleSidebar, 'Toggle sidebar');
 
   return (
     <div className="flex h-screen bg-gray-50" data-testid="app-shell">
