@@ -639,11 +639,14 @@ For mutations (create, update, delete):
   - [x] Web: Update DocumentsPage with document selection state and split-panel layout
   - [x] **Verify:** Document content displays (Playwright tests passing - 13 tests + 3 skipped due to content type)
 
-- [ ] **TB22: Block Editor**
-  - [ ] Web: Add Tiptap
-  - [ ] Web: Create BlockEditor component
-  - [ ] Web: Custom blocks (task embed, doc embed)
-  - [ ] **Verify:** Edit document with blocks
+- [x] **TB22: Block Editor**
+  - [x] Web: Add Tiptap (Tiptap dependencies installed: @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder, @tiptap/extension-code-block-lowlight, lowlight)
+  - [x] Web: Create BlockEditor component (src/components/editor/BlockEditor.tsx - Toolbar with undo/redo, bold/italic/code, headings, lists, blockquote, code block)
+  - [x] Web: Custom blocks (task embed, doc embed) (src/components/editor/blocks/TaskEmbedBlock.tsx, DocumentEmbedBlock.tsx)
+  - [x] Server: Add `PATCH /api/documents/:id` endpoint (with content, title, contentType, tags support and validation)
+  - [x] Web: Edit mode in DocumentDetailPanel (title input, BlockEditor for content, save/cancel buttons)
+  - [x] Web: useUpdateDocument hook with optimistic updates
+  - [x] **Verify:** Edit document with blocks (Playwright tests passing - 12 tests + 1 skipped)
 
 - [ ] **TB23: Document Versions**
   - [ ] Server: Add `GET /api/documents/:id/versions` endpoint

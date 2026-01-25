@@ -837,6 +837,77 @@ app.get('/api/documents/:id', async (c) => {
   }
 });
 
+app.patch('/api/documents/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // First verify it's a document
+    const existing = await api.get(id);
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (existing.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Extract allowed updates (prevent changing immutable fields)
+    const updates: Record<string, unknown> = {};
+    const allowedFields = ['title', 'content', 'contentType', 'tags', 'metadata'];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updates[field] = body[field];
+      }
+    }
+
+    // Validate contentType if provided
+    if (updates.contentType) {
+      const validContentTypes = ['text', 'markdown', 'json'];
+      if (!validContentTypes.includes(updates.contentType as string)) {
+        return c.json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: `Invalid contentType. Must be one of: ${validContentTypes.join(', ')}`,
+          },
+        }, 400);
+      }
+    }
+
+    // Validate JSON content if contentType is json
+    const contentType = (updates.contentType || (existing as unknown as { contentType: string }).contentType) as string;
+    if (contentType === 'json' && updates.content !== undefined) {
+      try {
+        JSON.parse(updates.content as string);
+      } catch {
+        return c.json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid JSON content',
+          },
+        }, 400);
+      }
+    }
+
+    // Update the document
+    const updated = await api.update(id, updates);
+
+    return c.json(updated);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if ((error as { code?: string }).code === 'CONCURRENT_MODIFICATION') {
+      return c.json({ error: { code: 'CONFLICT', message: 'Document was modified by another process' } }, 409);
+    }
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to update document:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update document' } }, 500);
+  }
+});
+
 // ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================

@@ -10,7 +10,7 @@
  */
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Library,
   FileText,
@@ -25,7 +25,11 @@ import {
   Hash,
   Code,
   FileType,
+  Edit3,
+  Save,
+  XCircle,
 } from 'lucide-react';
+import { BlockEditor } from '../components/editor/BlockEditor';
 
 // ============================================================================
 // Types
@@ -134,6 +138,39 @@ function useDocument(documentId: string | null) {
       return response.json();
     },
     enabled: !!documentId,
+  });
+}
+
+function useUpdateDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: Partial<Pick<DocumentType, 'title' | 'content' | 'contentType' | 'tags'>>;
+    }) => {
+      const response = await fetch(`/api/documents/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to update document');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['documents', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+    },
   });
 }
 
@@ -591,7 +628,7 @@ function DocumentRenderer({
 }
 
 /**
- * Document Detail Panel - Shows full document content and metadata
+ * Document Detail Panel - Shows full document content and metadata with edit support
  */
 function DocumentDetailPanel({
   documentId,
@@ -601,6 +638,52 @@ function DocumentDetailPanel({
   onClose: () => void;
 }) {
   const { data: document, isLoading, isError, error } = useDocument(documentId);
+  const updateDocument = useUpdateDocument();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  const [editedTitle, setEditedTitle] = useState('');
+
+  // Initialize edit state when entering edit mode
+  const handleStartEdit = () => {
+    if (document) {
+      setEditedContent(document.content || '');
+      setEditedTitle(document.title || '');
+      setIsEditing(true);
+    }
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedContent('');
+    setEditedTitle('');
+  };
+
+  // Save changes
+  const handleSave = async () => {
+    if (!document) return;
+
+    const updates: Partial<Pick<DocumentType, 'title' | 'content'>> = {};
+
+    if (editedTitle !== (document.title || '')) {
+      updates.title = editedTitle;
+    }
+    if (editedContent !== (document.content || '')) {
+      updates.content = editedContent;
+    }
+
+    // Only update if there are changes
+    if (Object.keys(updates).length > 0) {
+      try {
+        await updateDocument.mutateAsync({ id: documentId, updates });
+        setIsEditing(false);
+      } catch {
+        // Error handling is done by the mutation
+      }
+    } else {
+      setIsEditing(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -667,12 +750,23 @@ function DocumentDetailPanel({
           </div>
 
           {/* Title */}
-          <h2
-            data-testid="document-detail-title"
-            className="text-lg font-semibold text-gray-900 truncate"
-          >
-            {title}
-          </h2>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editedTitle}
+              onChange={(e) => setEditedTitle(e.target.value)}
+              data-testid="document-title-input"
+              className="text-lg font-semibold text-gray-900 w-full border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Document title"
+            />
+          ) : (
+            <h2
+              data-testid="document-detail-title"
+              className="text-lg font-semibold text-gray-900 truncate"
+            >
+              {title}
+            </h2>
+          )}
 
           {/* ID */}
           <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 font-mono">
@@ -680,25 +774,79 @@ function DocumentDetailPanel({
           </div>
         </div>
 
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-          aria-label="Close panel"
-          data-testid="document-detail-close"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Action buttons */}
+        <div className="flex items-center gap-1 ml-2">
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={updateDocument.isPending}
+                data-testid="document-save-button"
+                className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded disabled:opacity-50"
+                aria-label="Save changes"
+                title="Save (Cmd+S)"
+              >
+                <Save className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                disabled={updateDocument.isPending}
+                data-testid="document-cancel-button"
+                className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded disabled:opacity-50"
+                aria-label="Cancel editing"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleStartEdit}
+              data-testid="document-edit-button"
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+              aria-label="Edit document"
+            >
+              <Edit3 className="w-5 h-5" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+            aria-label="Close panel"
+            data-testid="document-detail-close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* Error message */}
+      {updateDocument.isError && (
+        <div
+          data-testid="document-update-error"
+          className="mx-4 mt-2 p-2 bg-red-50 text-red-700 text-sm rounded"
+        >
+          {updateDocument.error?.message || 'Failed to save document'}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
         {/* Document Content */}
         <div data-testid="document-content" className="mb-6">
-          <DocumentRenderer
-            content={document.content || ''}
-            contentType={document.contentType}
-          />
+          {isEditing ? (
+            <BlockEditor
+              content={editedContent}
+              contentType={document.contentType}
+              onChange={setEditedContent}
+              onSave={handleSave}
+              placeholder="Start writing..."
+            />
+          ) : (
+            <DocumentRenderer
+              content={document.content || ''}
+              contentType={document.contentType}
+            />
+          )}
         </div>
 
         {/* Tags */}
