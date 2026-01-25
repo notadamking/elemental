@@ -126,19 +126,20 @@ test.describe('TB59: Settings Page - Theme', () => {
     await expect(page.getByTestId('theme-preview')).toBeVisible();
   });
 
-  test('clicking other settings sections shows coming soon message', async ({ page }) => {
+  test('clicking other settings sections shows their content', async ({ page }) => {
     await page.goto('/settings');
 
-    // Defaults section is now implemented, so it should show content, not coming soon
+    // Defaults section is implemented, shows content
     await page.getByTestId('settings-nav-defaults').click();
     await expect(page.getByTestId('settings-defaults-section')).toBeVisible();
     // Should have default view options, not "coming soon"
     await expect(page.getByTestId('default-tasks-view-list')).toBeVisible();
 
-    // Click notifications section - still coming soon
+    // Notifications section is now implemented
     await page.getByTestId('settings-nav-notifications').click();
     await expect(page.getByTestId('settings-notifications-section')).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
+    // Should have notification type toggles, not "coming soon"
+    await expect(page.getByTestId('notification-task-assigned')).toBeVisible();
 
     // Click sync section - still coming soon
     await page.getByTestId('settings-nav-sync').click();

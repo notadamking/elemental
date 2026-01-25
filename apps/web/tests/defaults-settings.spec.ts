@@ -225,18 +225,23 @@ test.describe('TB61: Settings Page - Default Views', () => {
     await expect(defaultsNav).not.toContainText('Soon');
   });
 
-  test('notifications and sync still show coming soon', async ({ page }) => {
+  test('sync still shows coming soon', async ({ page }) => {
     await page.goto('/settings');
 
-    // Click notifications section
-    await page.getByTestId('settings-nav-notifications').click();
-    await expect(page.getByTestId('settings-notifications-section')).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
-
-    // Click sync section
+    // Click sync section - still coming soon
     await page.getByTestId('settings-nav-sync').click();
     await expect(page.getByTestId('settings-sync-section')).toBeVisible();
     await expect(page.getByText(/coming soon/i)).toBeVisible();
+  });
+
+  test('notifications section is now implemented', async ({ page }) => {
+    await page.goto('/settings');
+
+    // Click notifications section - now implemented
+    await page.getByTestId('settings-nav-notifications').click();
+    await expect(page.getByTestId('settings-notifications-section')).toBeVisible();
+    // Should have notification settings, not "coming soon"
+    await expect(page.getByTestId('notification-task-assigned')).toBeVisible();
   });
 
   test('all options have descriptive text', async ({ page }) => {

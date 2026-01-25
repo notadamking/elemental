@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Sun, Moon, Monitor, Palette, Keyboard, Settings2, Bell, RefreshCw, RotateCcw, X, AlertCircle, Check, List, LayoutGrid, Home, Workflow, Users, GitBranch, Clock, ArrowUp, Calendar, FileText } from 'lucide-react';
+import { Sun, Moon, Monitor, Palette, Keyboard, Settings2, Bell, RefreshCw, RotateCcw, X, AlertCircle, Check, List, LayoutGrid, Home, Workflow, Users, GitBranch, Clock, ArrowUp, Calendar, FileText, BellRing, MessageSquare, CheckCircle2, AlertTriangle } from 'lucide-react';
 import {
   DEFAULT_SHORTCUTS,
   getCurrentBinding,
@@ -71,7 +71,7 @@ const SETTINGS_SECTIONS: SectionNavItem[] = [
   { id: 'theme', label: 'Theme', icon: Palette, description: 'Customize appearance', implemented: true },
   { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, description: 'Keyboard shortcuts', implemented: true },
   { id: 'defaults', label: 'Defaults', icon: Settings2, description: 'Default view settings', implemented: true },
-  { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Notification preferences', implemented: false },
+  { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Notification preferences', implemented: true },
   { id: 'sync', label: 'Sync', icon: RefreshCw, description: 'Sync configuration', implemented: false },
 ];
 
@@ -875,6 +875,415 @@ function DefaultsSection() {
   );
 }
 
+// Storage keys for notifications
+const NOTIFICATIONS_STORAGE_KEY = 'settings.notifications';
+
+type ToastDuration = 3000 | 5000 | 10000;
+type ToastPosition = 'top-right' | 'bottom-right' | 'top-left' | 'bottom-left';
+
+interface NotificationPreferences {
+  taskAssigned: boolean;
+  taskCompleted: boolean;
+  newMessage: boolean;
+  workflowCompleted: boolean;
+}
+
+interface NotificationsSettings {
+  browserNotifications: boolean;
+  preferences: NotificationPreferences;
+  toastDuration: ToastDuration;
+  toastPosition: ToastPosition;
+}
+
+const DEFAULT_NOTIFICATIONS: NotificationsSettings = {
+  browserNotifications: false,
+  preferences: {
+    taskAssigned: true,
+    taskCompleted: true,
+    newMessage: true,
+    workflowCompleted: true,
+  },
+  toastDuration: 5000,
+  toastPosition: 'top-right',
+};
+
+function getStoredNotifications(): NotificationsSettings {
+  if (typeof window === 'undefined') return DEFAULT_NOTIFICATIONS;
+  const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      return {
+        ...DEFAULT_NOTIFICATIONS,
+        ...parsed,
+        preferences: {
+          ...DEFAULT_NOTIFICATIONS.preferences,
+          ...parsed.preferences,
+        },
+      };
+    } catch {
+      return DEFAULT_NOTIFICATIONS;
+    }
+  }
+  return DEFAULT_NOTIFICATIONS;
+}
+
+function setStoredNotifications(settings: NotificationsSettings) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(settings));
+}
+
+// Export for use by notification system
+export function getNotificationSettings(): NotificationsSettings {
+  return getStoredNotifications();
+}
+
+export function getToastPosition(): ToastPosition {
+  return getStoredNotifications().toastPosition;
+}
+
+export function getToastDuration(): ToastDuration {
+  return getStoredNotifications().toastDuration;
+}
+
+export function shouldNotify(type: keyof NotificationPreferences): boolean {
+  const settings = getStoredNotifications();
+  return settings.preferences[type];
+}
+
+// Helper to check browser notification permission
+function getBrowserNotificationPermission(): NotificationPermission | 'unsupported' {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+  return Notification.permission;
+}
+
+// Request browser notification permission
+async function requestNotificationPermission(): Promise<NotificationPermission> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'denied';
+  }
+  return await Notification.requestPermission();
+}
+
+interface ToggleSwitchProps {
+  enabled: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  testId: string;
+}
+
+function ToggleSwitch({ enabled, onToggle, disabled = false, testId }: ToggleSwitchProps) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      className={`
+        relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+        ${enabled ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+      `}
+      role="switch"
+      aria-checked={enabled}
+      data-testid={testId}
+    >
+      <span
+        className={`
+          inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+          ${enabled ? 'translate-x-6' : 'translate-x-1'}
+        `}
+      />
+    </button>
+  );
+}
+
+interface NotificationToggleRowProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  description: string;
+  enabled: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  testId: string;
+}
+
+function NotificationToggleRow({
+  icon: Icon,
+  label,
+  description,
+  enabled,
+  onToggle,
+  disabled = false,
+  testId,
+}: NotificationToggleRowProps) {
+  return (
+    <div
+      className={`flex items-center justify-between py-4 ${disabled ? 'opacity-50' : ''}`}
+      data-testid={testId}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+          <Icon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+        </div>
+        <div>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</span>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
+        </div>
+      </div>
+      <ToggleSwitch
+        enabled={enabled}
+        onToggle={onToggle}
+        disabled={disabled}
+        testId={`${testId}-toggle`}
+      />
+    </div>
+  );
+}
+
+function NotificationsSection() {
+  const [settings, setSettings] = useState<NotificationsSettings>(DEFAULT_NOTIFICATIONS);
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission | 'unsupported'>('default');
+  const [permissionRequesting, setPermissionRequesting] = useState(false);
+
+  // Load settings on mount
+  useEffect(() => {
+    setSettings(getStoredNotifications());
+    setBrowserPermission(getBrowserNotificationPermission());
+  }, []);
+
+  const updateSettings = (newSettings: NotificationsSettings) => {
+    setSettings(newSettings);
+    setStoredNotifications(newSettings);
+  };
+
+  const togglePreference = (key: keyof NotificationPreferences) => {
+    const newSettings = {
+      ...settings,
+      preferences: {
+        ...settings.preferences,
+        [key]: !settings.preferences[key],
+      },
+    };
+    updateSettings(newSettings);
+  };
+
+  const toggleBrowserNotifications = async () => {
+    if (!settings.browserNotifications) {
+      // Enabling - check permission first
+      if (browserPermission === 'default') {
+        setPermissionRequesting(true);
+        const result = await requestNotificationPermission();
+        setBrowserPermission(result);
+        setPermissionRequesting(false);
+        if (result === 'granted') {
+          updateSettings({ ...settings, browserNotifications: true });
+        }
+      } else if (browserPermission === 'granted') {
+        updateSettings({ ...settings, browserNotifications: true });
+      }
+    } else {
+      // Disabling
+      updateSettings({ ...settings, browserNotifications: false });
+    }
+  };
+
+  const setToastDuration = (duration: ToastDuration) => {
+    updateSettings({ ...settings, toastDuration: duration });
+  };
+
+  const setToastPosition = (position: ToastPosition) => {
+    updateSettings({ ...settings, toastPosition: position });
+  };
+
+  return (
+    <div data-testid="settings-notifications-section">
+      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Notifications</h3>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        Configure how you receive notifications about activity in your workspace.
+      </p>
+
+      {/* Browser Notifications */}
+      <div className="mb-8">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Browser Notifications</h4>
+
+        {browserPermission === 'unsupported' && (
+          <div className="mb-4 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+              <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                Browser notifications are not supported in this browser.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {browserPermission === 'denied' && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Browser notifications are blocked. Please enable them in your browser settings.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {browserPermission === 'default' && (
+          <div className="mb-4">
+            <button
+              onClick={toggleBrowserNotifications}
+              disabled={permissionRequesting}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
+              data-testid="request-permission-button"
+            >
+              <BellRing className="w-4 h-4" />
+              {permissionRequesting ? 'Requesting...' : 'Enable Browser Notifications'}
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Click to request permission for browser notifications.
+            </p>
+          </div>
+        )}
+
+        {browserPermission === 'granted' && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Browser Notifications</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Show desktop notifications for important events
+                  </p>
+                </div>
+              </div>
+              <ToggleSwitch
+                enabled={settings.browserNotifications}
+                onToggle={toggleBrowserNotifications}
+                testId="browser-notifications-toggle"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Notification Preferences */}
+      <div className="mb-8">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Notification Types</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Choose which events you want to be notified about.
+        </p>
+
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+          <NotificationToggleRow
+            icon={Users}
+            label="Task assigned to me"
+            description="When a task is assigned to you or your team"
+            enabled={settings.preferences.taskAssigned}
+            onToggle={() => togglePreference('taskAssigned')}
+            testId="notification-task-assigned"
+          />
+          <NotificationToggleRow
+            icon={CheckCircle2}
+            label="Task completed"
+            description="When a task you're watching is completed"
+            enabled={settings.preferences.taskCompleted}
+            onToggle={() => togglePreference('taskCompleted')}
+            testId="notification-task-completed"
+          />
+          <NotificationToggleRow
+            icon={MessageSquare}
+            label="New message in channel"
+            description="When you receive a new message in a channel"
+            enabled={settings.preferences.newMessage}
+            onToggle={() => togglePreference('newMessage')}
+            testId="notification-new-message"
+          />
+          <NotificationToggleRow
+            icon={Workflow}
+            label="Workflow completed/failed"
+            description="When a workflow finishes or encounters an error"
+            enabled={settings.preferences.workflowCompleted}
+            onToggle={() => togglePreference('workflowCompleted')}
+            testId="notification-workflow-completed"
+          />
+        </div>
+      </div>
+
+      {/* Toast Settings */}
+      <div className="mb-8">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Toast Notifications</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Configure how in-app toast notifications appear.
+        </p>
+
+        {/* Duration */}
+        <div className="mb-4">
+          <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">Duration</label>
+          <div className="flex gap-2">
+            {([
+              { value: 3000 as ToastDuration, label: '3 seconds' },
+              { value: 5000 as ToastDuration, label: '5 seconds' },
+              { value: 10000 as ToastDuration, label: '10 seconds' },
+            ]).map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setToastDuration(value)}
+                className={`
+                  px-4 py-2 text-sm rounded-lg border transition-all
+                  ${settings.toastDuration === value
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }
+                `}
+                data-testid={`toast-duration-${value}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Position */}
+        <div>
+          <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">Position</label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: 'top-right' as ToastPosition, label: 'Top Right' },
+              { value: 'top-left' as ToastPosition, label: 'Top Left' },
+              { value: 'bottom-right' as ToastPosition, label: 'Bottom Right' },
+              { value: 'bottom-left' as ToastPosition, label: 'Bottom Left' },
+            ]).map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setToastPosition(value)}
+                className={`
+                  px-4 py-2 text-sm rounded-lg border transition-all
+                  ${settings.toastPosition === value
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }
+                `}
+                data-testid={`toast-position-${value}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Note */}
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-6 text-center">
+        Notification settings are saved automatically and apply immediately.
+      </p>
+    </div>
+  );
+}
+
 function ComingSoonSection({ section }: { section: SectionNavItem }) {
   const Icon = section.icon;
 
@@ -939,6 +1348,10 @@ export function SettingsPage() {
 
     if (activeSection === 'defaults') {
       return <DefaultsSection />;
+    }
+
+    if (activeSection === 'notifications') {
+      return <NotificationsSection />;
     }
 
     const section = SETTINGS_SECTIONS.find((s) => s.id === activeSection);

@@ -1001,16 +1001,17 @@ For mutations (create, update, delete):
   - [x] Web: Apply defaults on page load (tasks.viewMode synced, router redirects to preferred dashboard lens)
   - [x] **Verify:** Playwright tests passing (20 TB61 tests)
 
-- [ ] **TB62: Settings Page - Notifications**
-  - [ ] Web: Notification preferences section with toggles:
-    - [ ] Task assigned to me
-    - [ ] Task completed
-    - [ ] New message in channel
-    - [ ] Workflow completed/failed
-  - [ ] Web: Browser notification permission request button (if not granted)
-  - [ ] Web: Toast notification settings: duration (3s/5s/10s), position (top-right, bottom-right)
-  - [ ] Web: Persist preferences in localStorage
-  - [ ] **Verify:** Enable task completion notifications, complete a task, see toast notification
+- [x] **TB62: Settings Page - Notifications**
+  - [x] Web: Notification preferences section with toggles:
+    - [x] Task assigned to me
+    - [x] Task completed
+    - [x] New message in channel
+    - [x] Workflow completed/failed
+  - [x] Web: Browser notification permission request button (if not granted)
+  - [x] Web: Toast notification settings: duration (3s/5s/10s), position (top-right, bottom-right, top-left, bottom-left)
+  - [x] Web: Persist preferences in localStorage key `settings.notifications`
+  - [x] Web: Sonner toast library integrated with dynamic position/duration from settings
+  - [x] **Verify:** Playwright tests passing (21 TB62 tests)
 
 - [ ] **TB63: Settings Page - Sync Config**
   - [ ] Web: Sync settings section showing:

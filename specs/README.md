@@ -88,6 +88,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB59-settings-theme.md](./platform/TB59-settings-theme.md) | Settings page with theme selection (light, dark, system) | settings, theme, dark mode, light mode, preferences, localStorage |
 | [platform/TB60-settings-shortcuts.md](./platform/TB60-settings-shortcuts.md) | Settings page keyboard shortcuts section with customization | settings, keyboard, shortcuts, customize, key capture, conflict detection |
 | [platform/TB61-settings-defaults.md](./platform/TB61-settings-defaults.md) | Settings page default views (tasks view, dashboard lens, sort order) | settings, defaults, preferences, localStorage, tasks, dashboard |
+| [platform/TB62-settings-notifications.md](./platform/TB62-settings-notifications.md) | Settings page notification preferences (types, browser, toast settings) | settings, notifications, toast, sonner, browser notifications, preferences |
 
 ---
 
