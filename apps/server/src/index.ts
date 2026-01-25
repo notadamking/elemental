@@ -521,6 +521,146 @@ app.delete('/api/tasks/:id', async (c) => {
 });
 
 // ============================================================================
+// Task Attachments Endpoints
+// ============================================================================
+
+/**
+ * GET /api/tasks/:id/attachments
+ * Returns all documents attached to a task via 'references' dependencies
+ */
+app.get('/api/tasks/:id/attachments', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+
+    // Verify task exists
+    const task = await api.get(taskId);
+    if (!task) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if (task.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Get all dependencies where this task references a document
+    const dependencies = await api.getDependencies(taskId);
+    const attachmentDeps = dependencies.filter(
+      (dep) => dep.sourceId === taskId && dep.type === 'references'
+    );
+
+    // Get the document details for each attachment
+    const attachments = await Promise.all(
+      attachmentDeps.map(async (dep) => {
+        const doc = await api.get(dep.targetId as ElementId);
+        if (doc && doc.type === 'document') {
+          return doc;
+        }
+        return null;
+      })
+    );
+
+    // Filter out nulls (in case documents were deleted)
+    return c.json(attachments.filter(Boolean));
+  } catch (error) {
+    console.error('[elemental] Failed to get task attachments:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get task attachments' } }, 500);
+  }
+});
+
+/**
+ * POST /api/tasks/:id/attachments
+ * Attaches a document to a task via 'references' dependency
+ */
+app.post('/api/tasks/:id/attachments', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // Validate document ID
+    if (!body.documentId || typeof body.documentId !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'documentId is required' } }, 400);
+    }
+
+    // Verify task exists
+    const task = await api.get(taskId);
+    if (!task) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if (task.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Verify document exists
+    const doc = await api.get(body.documentId as ElementId);
+    if (!doc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (doc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Check if already attached
+    const existingDeps = await api.getDependencies(taskId);
+    const alreadyAttached = existingDeps.some(
+      (dep) => dep.sourceId === taskId && dep.targetId === body.documentId && dep.type === 'references'
+    );
+    if (alreadyAttached) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Document is already attached to this task' } }, 400);
+    }
+
+    // Create the references dependency (task references document)
+    await api.addDependency({
+      sourceId: taskId,
+      targetId: body.documentId as ElementId,
+      type: 'references',
+      actor: (body.actor as EntityId) || ('el-0000' as EntityId),
+    });
+
+    return c.json(doc, 201);
+  } catch (error) {
+    console.error('[elemental] Failed to attach document to task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to attach document' } }, 500);
+  }
+});
+
+/**
+ * DELETE /api/tasks/:id/attachments/:docId
+ * Removes a document attachment from a task
+ */
+app.delete('/api/tasks/:id/attachments/:docId', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const docId = c.req.param('docId') as ElementId;
+
+    // Verify task exists
+    const task = await api.get(taskId);
+    if (!task) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if (task.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Find the attachment dependency
+    const dependencies = await api.getDependencies(taskId);
+    const attachmentDep = dependencies.find(
+      (dep) => dep.sourceId === taskId && dep.targetId === docId && dep.type === 'references'
+    );
+
+    if (!attachmentDep) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document is not attached to this task' } }, 404);
+    }
+
+    // Remove the dependency
+    await api.removeDependency(taskId, docId, 'references');
+
+    return c.json({ success: true, taskId, documentId: docId });
+  } catch (error) {
+    console.error('[elemental] Failed to remove task attachment:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to remove attachment' } }, 500);
+  }
+});
+
+// ============================================================================
 // Entities Endpoints
 // ============================================================================
 

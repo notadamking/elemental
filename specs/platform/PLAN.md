@@ -880,14 +880,14 @@ For mutations (create, update, delete):
 
 ### Phase 13: Document Attachments
 
-- [ ] **TB50: Attach Documents to Tasks**
-  - [ ] Server: Add `POST /api/tasks/:id/attachments` endpoint (documentId)
-  - [ ] Server: Add `GET /api/tasks/:id/attachments` endpoint (returns attached documents)
-  - [ ] Server: Add `DELETE /api/tasks/:id/attachments/:docId` endpoint
-  - [ ] Web: Add "Attachments" collapsible section to TaskDetailPanel
-  - [ ] Web: "Attach Document" button opens document picker modal
-  - [ ] Web: Show attached documents as clickable links with remove button
-  - [ ] **Verify:** Attach document to task, shows in attachments section
+- [x] **TB50: Attach Documents to Tasks**
+  - [x] Server: Add `POST /api/tasks/:id/attachments` endpoint (documentId)
+  - [x] Server: Add `GET /api/tasks/:id/attachments` endpoint (returns attached documents)
+  - [x] Server: Add `DELETE /api/tasks/:id/attachments/:docId` endpoint
+  - [x] Web: Add "Attachments" collapsible section to TaskDetailPanel
+  - [x] Web: "Attach Document" button opens document picker modal
+  - [x] Web: Show attached documents as clickable links with remove button
+  - [x] **Verify:** Playwright tests passing (21 TB50 tests)
 
 - [ ] **TB51: Embedded Document Rendering in Tasks**
   - [ ] Web: Render attached documents inline in TaskDetailPanel (expandable cards)
