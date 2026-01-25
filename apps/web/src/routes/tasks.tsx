@@ -199,7 +199,9 @@ function useEntities() {
     queryFn: async () => {
       const response = await fetch('/api/entities');
       if (!response.ok) throw new Error('Failed to fetch entities');
-      return response.json();
+      const data = await response.json();
+      // Handle paginated response format
+      return data.items || data;
     },
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
