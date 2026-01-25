@@ -11,7 +11,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X } from 'lucide-react';
+import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus } from 'lucide-react';
+import { CreateChannelModal } from '../components/message/CreateChannelModal';
 
 // ============================================================================
 // Types
@@ -193,10 +194,12 @@ function ChannelList({
   channels,
   selectedChannelId,
   onSelectChannel,
+  onNewChannel,
 }: {
   channels: Channel[];
   selectedChannelId: string | null;
   onSelectChannel: (id: string) => void;
+  onNewChannel: () => void;
 }) {
   // Separate channels into groups and direct
   const groupChannels = channels.filter((c) => c.channelType === 'group');
@@ -207,8 +210,16 @@ function ChannelList({
       data-testid="channel-list"
       className="w-64 border-r border-gray-200 bg-white flex flex-col h-full"
     >
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">Channels</h2>
+        <button
+          onClick={onNewChannel}
+          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+          title="New Channel"
+          data-testid="new-channel-button-sidebar"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -264,6 +275,13 @@ function ChannelList({
           >
             <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p className="text-sm">No channels yet</p>
+            <button
+              onClick={onNewChannel}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              data-testid="new-channel-button-empty"
+            >
+              Create one
+            </button>
           </div>
         )}
       </div>
@@ -761,6 +779,7 @@ export function MessagesPage() {
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
     null
   );
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   if (error) {
     return (
@@ -790,6 +809,7 @@ export function MessagesPage() {
           channels={channels}
           selectedChannelId={selectedChannelId}
           onSelectChannel={setSelectedChannelId}
+          onNewChannel={() => setIsCreateModalOpen(true)}
         />
       )}
 
@@ -798,6 +818,14 @@ export function MessagesPage() {
       ) : (
         <ChannelPlaceholder />
       )}
+
+      <CreateChannelModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={(channel) => {
+          setSelectedChannelId(channel.id);
+        }}
+      />
     </div>
   );
 }

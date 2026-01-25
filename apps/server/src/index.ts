@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -596,6 +596,83 @@ app.get('/api/channels/:id', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get channel:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get channel' } }, 500);
+  }
+});
+
+app.post('/api/channels', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      channelType: 'group' | 'direct';
+      name?: string;
+      createdBy: string;
+      members?: string[];
+      visibility?: Visibility;
+      joinPolicy?: JoinPolicy;
+      entityA?: string;
+      entityB?: string;
+      tags?: string[];
+      metadata?: Record<string, unknown>;
+    };
+
+    // Validate channelType
+    if (!body.channelType || !['group', 'direct'].includes(body.channelType)) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'channelType is required and must be "group" or "direct"' } }, 400);
+    }
+
+    // Validate createdBy
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required and must be a string' } }, 400);
+    }
+
+    let channel;
+
+    if (body.channelType === 'group') {
+      // Validate name for group channels
+      if (!body.name || typeof body.name !== 'string') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'name is required for group channels' } }, 400);
+      }
+
+      const groupInput: CreateGroupChannelInput = {
+        name: body.name,
+        createdBy: body.createdBy as EntityId,
+        members: body.members as EntityId[] | undefined,
+        visibility: body.visibility,
+        joinPolicy: body.joinPolicy,
+        tags: body.tags,
+        metadata: body.metadata,
+      };
+
+      channel = await createGroupChannel(groupInput);
+    } else {
+      // Direct channel
+      if (!body.entityA || typeof body.entityA !== 'string') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'entityA is required for direct channels' } }, 400);
+      }
+      if (!body.entityB || typeof body.entityB !== 'string') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'entityB is required for direct channels' } }, 400);
+      }
+
+      const directInput: CreateDirectChannelInput = {
+        entityA: body.entityA as EntityId,
+        entityB: body.entityB as EntityId,
+        createdBy: body.createdBy as EntityId,
+        tags: body.tags,
+        metadata: body.metadata,
+      };
+
+      channel = await createDirectChannel(directInput);
+    }
+
+    // Create the channel in database
+    const created = await api.create(channel as unknown as Element & Record<string, unknown>);
+
+    return c.json(created, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to create channel:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create channel' } }, 500);
   }
 });
 

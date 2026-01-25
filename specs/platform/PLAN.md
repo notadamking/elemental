@@ -730,11 +730,11 @@ For mutations (create, update, delete):
   - [x] Web: Add "Clear" button to remove all filters
   - [x] **Verify:** Filter ready tasks by priority/assignee, verify only matching tasks shown (Playwright tests passing - 10 tests)
 
-- [ ] **TB31: Create Channel**
-  - [ ] Server: Add `POST /api/channels` endpoint (name, channelType, members, permissions)
-  - [ ] Web: Create CreateChannelModal component (name, type toggle group/direct, member picker)
-  - [ ] Web: Add "New Channel" button to Messages page sidebar
-  - [ ] **Verify:** Create group channel, appears in channel list, can send messages
+- [x] **TB31: Create Channel**
+  - [x] Server: Add `POST /api/channels` endpoint (name, channelType, members, permissions)
+  - [x] Web: Create CreateChannelModal component (name, type toggle group/direct, member picker)
+  - [x] Web: Add "New Channel" button to Messages page sidebar
+  - [x] **Verify:** Create group channel, appears in channel list, can send messages (Playwright tests passing - 14 tests)
 
 - [ ] **TB32: Task Flow - Load Completed Tasks**
   - [ ] Web: Add paginated loading for completed tasks ("Show more" button or infinite scroll trigger)

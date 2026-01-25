@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Filter, ArrowUpDown, ChevronDown } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Filter, ArrowUpDown } from 'lucide-react';
 
 interface Task {
   id: string;
