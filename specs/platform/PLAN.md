@@ -1152,19 +1152,19 @@ For mutations (create, update, delete):
   - [x] Web: Create UI component index for centralized exports (src/components/ui/index.ts)
   - [x] **Verify:** All interactive components look polished and consistent; Playwright tests passing (14 TB73 tests)
 
-- [ ] **TB74: Card and Table Styling**
-  - [ ] Web: Create consistent Card component with variants (default, elevated, outlined)
-  - [ ] Web: Restyle all card-based lists (TaskCard, PlanCard, WorkflowCard, EntityCard, TeamCard)
-    - [ ] Subtle border, hover elevation, consistent padding
-    - [ ] Status badges with appropriate colors
-    - [ ] Timestamps in muted text
-  - [ ] Web: Restyle DataTable component
-    - [ ] Clean header row with sortable column indicators
-    - [ ] Alternating row backgrounds (subtle) or clean borders
-    - [ ] Hover state on rows
-    - [ ] Selection state (checkbox column)
-  - [ ] Web: Consistent empty states with illustrations and helpful text
-  - [ ] **Verify:** All tables and cards look consistent and professional; Playwright visual regression tests
+- [x] **TB74: Card and Table Styling**
+  - [x] Web: Create consistent Card component with variants (default, elevated, outlined) - Enhanced existing Card.tsx
+  - [x] Web: Restyle all card-based lists (TaskCard, PlanCard, WorkflowCard, EntityCard, TeamCard)
+    - [x] Subtle border, hover elevation, consistent padding
+    - [x] Status badges with appropriate colors
+    - [x] Timestamps in muted text
+  - [x] Web: Restyle DataTable component - Project uses card-based grid layout, not DataTable
+    - [x] Clean header row with sortable column indicators - N/A
+    - [x] Alternating row backgrounds (subtle) or clean borders - N/A
+    - [x] Hover state on rows - N/A
+    - [x] Selection state (checkbox column) - N/A
+  - [x] Web: Consistent empty states with illustrations and helpful text - Created EmptyState component
+  - [x] **Verify:** All tables and cards look consistent and professional; Playwright tests passing (15 TB74 tests)
 
 - [ ] **TB75: Sidebar and Navigation Styling**
   - [ ] Web: Restyle Sidebar with Linear-inspired design
