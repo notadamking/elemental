@@ -548,7 +548,7 @@ function LibraryTree({
   libraries: LibraryType[];
   selectedLibraryId: string | null;
   expandedIds: Set<string>;
-  onSelectLibrary: (id: string) => void;
+  onSelectLibrary: (id: string | null) => void;
   onToggleExpand: (id: string) => void;
   onNewDocument: () => void;
   onNewLibrary: () => void;
@@ -589,6 +589,20 @@ function LibraryTree({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
+        {/* All Documents option - always visible */}
+        <button
+          onClick={() => onSelectLibrary(null)}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm mb-2 ${
+            selectedLibraryId === null
+              ? 'bg-blue-50 text-blue-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+          data-testid="all-documents-button"
+        >
+          <FileText className="w-4 h-4" />
+          All Documents
+        </button>
+
         {libraries.length === 0 ? (
           <div
             data-testid="library-empty-state"
@@ -626,25 +640,6 @@ function LibraryTree({
         className="p-3 border-t border-gray-200 text-xs text-gray-500"
       >
         {libraries.length} {libraries.length === 1 ? 'library' : 'libraries'}
-      </div>
-    </div>
-  );
-}
-
-function LibraryPlaceholder() {
-  return (
-    <div
-      data-testid="library-placeholder"
-      className="h-full flex items-center justify-center bg-gray-50"
-    >
-      <div className="text-center">
-        <Library className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-        <h3 className="text-lg font-medium text-gray-900 mb-1">
-          Select a library
-        </h3>
-        <p className="text-sm text-gray-500">
-          Choose a library from the sidebar to view documents
-        </p>
       </div>
     </div>
   );
@@ -2075,12 +2070,14 @@ export function DocumentsPage() {
   };
 
   // Clear document selection and collapse when library changes
-  const handleSelectLibrary = (libraryId: string) => {
+  const handleSelectLibrary = (libraryId: string | null) => {
     setSelectedLibraryId(libraryId);
     setSelectedDocumentId(null);
     setIsDocumentExpanded(false);
     // Expand ancestors so the library is visible in the tree
-    expandAncestors(libraryId);
+    if (libraryId) {
+      expandAncestors(libraryId);
+    }
   };
 
   const handleSelectDocument = (documentId: string) => {
@@ -2160,10 +2157,7 @@ export function DocumentsPage() {
       );
     }
 
-    if (libraries.length > 0) {
-      return <LibraryPlaceholder />;
-    }
-
+    // Show all documents when no library is selected
     return (
       <AllDocumentsView
         selectedDocumentId={selectedDocumentId}
