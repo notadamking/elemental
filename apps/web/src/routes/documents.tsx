@@ -510,7 +510,7 @@ function LibraryPlaceholder() {
   return (
     <div
       data-testid="library-placeholder"
-      className="flex-1 flex items-center justify-center bg-gray-50"
+      className="h-full flex items-center justify-center bg-gray-50"
     >
       <div className="text-center">
         <Library className="w-16 h-16 mx-auto mb-4 text-gray-300" />
