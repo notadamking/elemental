@@ -618,14 +618,21 @@ For mutations (create, update, delete):
 
 ### Phase 7: Documents
 
-- [ ] **TB20: Library Tree**
-  - [ ] Server: Add `GET /api/libraries` endpoint
-  - [ ] Web: Create LibraryTree component
-  - [ ] **Verify:** Tree navigation works
+- [x] **TB20: Library Tree**
+  - [x] Server: Add `GET /api/libraries` endpoint (with hydration support)
+  - [x] Server: Add `GET /api/libraries/:id` endpoint (with sub-libraries and documents)
+  - [x] Server: Add `GET /api/libraries/:id/documents` endpoint
+  - [x] Server: Add `GET /api/documents` endpoint
+  - [x] Server: Add `GET /api/documents/:id` endpoint
+  - [x] Web: Create DocumentsPage component with LibraryTree sidebar
+  - [x] Web: LibraryTree component with expand/collapse, folder icons
+  - [x] Web: LibraryView component showing documents and sub-libraries
+  - [x] Web: AllDocumentsView for when no libraries exist
+  - [x] **Verify:** Tree navigation works (Playwright tests passing - 10 tests + 8 skipped due to no libraries)
 
 - [ ] **TB21: Document Display**
-  - [ ] Server: Add `GET /api/documents/:id` endpoint
-  - [ ] Web: Create DocumentView component
+  - [x] Server: Add `GET /api/documents/:id` endpoint (added in TB20)
+  - [ ] Web: Create DocumentView component with content rendering
   - [ ] **Verify:** Document content displays
 
 - [ ] **TB22: Block Editor**

@@ -674,6 +674,170 @@ app.get('/api/events', async (c) => {
 });
 
 // ============================================================================
+// Libraries Endpoints
+// ============================================================================
+
+app.get('/api/libraries', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const hydrateDescription = url.searchParams.get('hydrate.description') === 'true';
+
+    const libraries = await api.list({
+      type: 'library',
+      ...(hydrateDescription && { hydrate: { description: true } }),
+    } as Parameters<typeof api.list>[0]);
+
+    return c.json(libraries);
+  } catch (error) {
+    console.error('[elemental] Failed to get libraries:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get libraries' } }, 500);
+  }
+});
+
+app.get('/api/libraries/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const hydrateDescription = url.searchParams.get('hydrate.description') === 'true';
+
+    const library = await api.get(id, hydrateDescription ? { hydrate: { description: true } } : undefined);
+
+    if (!library) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+    }
+
+    if (library.type !== 'library') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+    }
+
+    // Get sub-libraries and documents (children via parent-child dependency)
+    const dependents = await api.getDependents(id, ['parent-child']);
+
+    // Separate into sub-libraries and documents
+    const childIds = dependents.map(d => d.sourceId);
+    const children: Element[] = [];
+    for (const childId of childIds) {
+      const child = await api.get(childId as ElementId);
+      if (child) {
+        children.push(child);
+      }
+    }
+
+    const subLibraries = children.filter(c => c.type === 'library');
+    const documents = children.filter(c => c.type === 'document');
+
+    return c.json({
+      ...library,
+      _subLibraries: subLibraries,
+      _documents: documents,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get library:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get library' } }, 500);
+  }
+});
+
+app.get('/api/libraries/:id/documents', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    // First verify library exists
+    const library = await api.get(id);
+    if (!library) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+    }
+    if (library.type !== 'library') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+    }
+
+    // Get documents via parent-child dependency
+    const dependents = await api.getDependents(id, ['parent-child']);
+
+    // Filter to only documents and fetch full data
+    const documentIds = dependents.map(d => d.sourceId);
+    const documents: Element[] = [];
+
+    for (const docId of documentIds) {
+      const doc = await api.get(docId as ElementId);
+      if (doc && doc.type === 'document') {
+        documents.push(doc);
+      }
+    }
+
+    // Apply pagination if requested
+    let result = documents;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+
+    if (offset > 0) {
+      result = result.slice(offset);
+    }
+    if (limit !== undefined) {
+      result = result.slice(0, limit);
+    }
+
+    return c.json(result);
+  } catch (error) {
+    console.error('[elemental] Failed to get library documents:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get library documents' } }, 500);
+  }
+});
+
+// ============================================================================
+// Documents Endpoints
+// ============================================================================
+
+app.get('/api/documents', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    const filter: Record<string, unknown> = {
+      type: 'document',
+      orderBy: 'updated_at',
+      orderDir: 'desc',
+    };
+
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    const documents = await api.list(filter as Parameters<typeof api.list>[0]);
+    return c.json(documents);
+  } catch (error) {
+    console.error('[elemental] Failed to get documents:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get documents' } }, 500);
+  }
+});
+
+app.get('/api/documents/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const document = await api.get(id);
+
+    if (!document) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    if (document.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    return c.json(document);
+  } catch (error) {
+    console.error('[elemental] Failed to get document:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get document' } }, 500);
+  }
+});
+
+// ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================
 

@@ -7,6 +7,7 @@ import { AgentActivityPage } from './routes/agent-activity';
 import { DependencyGraphPage } from './routes/dependency-graph';
 import { TimelinePage } from './routes/timeline';
 import { MessagesPage } from './routes/messages';
+import { DocumentsPage } from './routes/documents';
 
 // Root route with the AppShell layout
 const rootRoute = createRootRoute({
@@ -95,7 +96,7 @@ const messagesRoute = createRoute({
 const documentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/documents',
-  component: () => <PlaceholderPage title="Documents" />,
+  component: DocumentsPage,
 });
 
 const entitiesRoute = createRoute({
