@@ -2300,6 +2300,99 @@ app.get('/api/teams/:id/members', async (c) => {
   }
 });
 
+app.get('/api/teams/:id/stats', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const team = await api.get(id);
+
+    if (!team || team.type !== 'team') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Team not found' } }, 404);
+    }
+
+    const teamData = team as unknown as { members: EntityId[] };
+    const memberIds = teamData.members || [];
+
+    // Get all tasks to calculate team stats
+    const allTasks = await api.list({ type: 'task' });
+
+    // Calculate stats for the team
+    let totalTasksAssigned = 0;
+    let activeTasksAssigned = 0;
+    let completedTasksAssigned = 0;
+    let createdByTeamMembers = 0;
+    const tasksByMember: Record<string, { assigned: number; active: number; completed: number }> = {};
+
+    // Initialize member stats
+    for (const memberId of memberIds) {
+      tasksByMember[memberId as unknown as string] = { assigned: 0, active: 0, completed: 0 };
+    }
+
+    for (const task of allTasks) {
+      const taskData = task as unknown as {
+        assignee?: EntityId;
+        createdBy?: EntityId;
+        status?: string;
+      };
+
+      // Check if task is assigned to a team member
+      if (taskData.assignee && memberIds.includes(taskData.assignee)) {
+        totalTasksAssigned++;
+        const memberKey = taskData.assignee as unknown as string;
+        if (tasksByMember[memberKey]) {
+          tasksByMember[memberKey].assigned++;
+        }
+
+        const status = taskData.status || 'open';
+        if (status === 'closed' || status === 'completed' || status === 'done') {
+          completedTasksAssigned++;
+          if (tasksByMember[memberKey]) {
+            tasksByMember[memberKey].completed++;
+          }
+        } else if (status !== 'cancelled') {
+          activeTasksAssigned++;
+          if (tasksByMember[memberKey]) {
+            tasksByMember[memberKey].active++;
+          }
+        }
+      }
+
+      // Check if task was created by a team member
+      if (taskData.createdBy && memberIds.includes(taskData.createdBy)) {
+        createdByTeamMembers++;
+      }
+    }
+
+    // Calculate workload distribution (tasks per member as percentages)
+    const workloadDistribution: { memberId: string; taskCount: number; percentage: number }[] = [];
+    for (const memberId of memberIds) {
+      const memberStats = tasksByMember[memberId as unknown as string];
+      if (memberStats) {
+        const percentage = totalTasksAssigned > 0
+          ? Math.round((memberStats.assigned / totalTasksAssigned) * 100)
+          : 0;
+        workloadDistribution.push({
+          memberId: memberId as unknown as string,
+          taskCount: memberStats.assigned,
+          percentage,
+        });
+      }
+    }
+
+    return c.json({
+      memberCount: memberIds.length,
+      totalTasksAssigned,
+      activeTasksAssigned,
+      completedTasksAssigned,
+      createdByTeamMembers,
+      tasksByMember,
+      workloadDistribution,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get team stats:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get team stats' } }, 500);
+  }
+});
+
 // ============================================================================
 // Start Server with WebSocket Support
 // ============================================================================

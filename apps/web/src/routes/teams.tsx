@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Users, X, Bot, User, Server } from 'lucide-react';
+import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle } from 'lucide-react';
 
 interface Team {
   id: string;
@@ -60,6 +60,28 @@ function useTeamMembers(id: string | null) {
     queryFn: async () => {
       const response = await fetch(`/api/teams/${id}/members`);
       if (!response.ok) throw new Error('Failed to fetch team members');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+interface TeamStats {
+  memberCount: number;
+  totalTasksAssigned: number;
+  activeTasksAssigned: number;
+  completedTasksAssigned: number;
+  createdByTeamMembers: number;
+  tasksByMember: Record<string, { assigned: number; active: number; completed: number }>;
+  workloadDistribution: { memberId: string; taskCount: number; percentage: number }[];
+}
+
+function useTeamStats(id: string | null) {
+  return useQuery<TeamStats>({
+    queryKey: ['teams', id, 'stats'],
+    queryFn: async () => {
+      const response = await fetch(`/api/teams/${id}/stats`);
+      if (!response.ok) throw new Error('Failed to fetch team stats');
       return response.json();
     },
     enabled: !!id,
@@ -222,6 +244,59 @@ function MemberListItem({ member }: { member: Entity }) {
   );
 }
 
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color = 'text-gray-600',
+}: {
+  icon: typeof ListTodo;
+  label: string;
+  value: number;
+  color?: string;
+}) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className={`w-4 h-4 ${color}`} />
+        <span className="text-xs text-gray-500">{label}</span>
+      </div>
+      <span className="text-lg font-semibold text-gray-900">{value}</span>
+    </div>
+  );
+}
+
+function WorkloadBar({
+  memberId,
+  memberName,
+  taskCount,
+  percentage,
+  maxTasks,
+}: {
+  memberId: string;
+  memberName: string;
+  taskCount: number;
+  percentage: number;
+  maxTasks: number;
+}) {
+  const barWidth = maxTasks > 0 ? Math.round((taskCount / maxTasks) * 100) : 0;
+
+  return (
+    <div className="flex items-center gap-3" data-testid={`workload-bar-${memberId}`}>
+      <div className="w-24 truncate text-sm text-gray-700">{memberName}</div>
+      <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-indigo-500 rounded-full transition-all"
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
+      <div className="w-16 text-right text-sm text-gray-600">
+        {taskCount} ({percentage}%)
+      </div>
+    </div>
+  );
+}
+
 function TeamDetailPanel({
   teamId,
   onClose,
@@ -231,6 +306,7 @@ function TeamDetailPanel({
 }) {
   const { data: team, isLoading: teamLoading } = useTeam(teamId);
   const { data: members, isLoading: membersLoading } = useTeamMembers(teamId);
+  const { data: stats, isLoading: statsLoading } = useTeamStats(teamId);
 
   if (teamLoading) {
     return (
@@ -250,6 +326,19 @@ function TeamDetailPanel({
 
   const isActive = team.status !== 'tombstone';
   const memberCount = team.members?.length || 0;
+
+  // Create a map of member IDs to names for the workload chart
+  const memberNameMap: Record<string, string> = {};
+  if (members) {
+    for (const member of members) {
+      memberNameMap[member.id] = member.name;
+    }
+  }
+
+  // Find max tasks for scaling the workload bars
+  const maxTasks = stats?.workloadDistribution?.reduce((max, item) =>
+    Math.max(max, item.taskCount), 0
+  ) || 0;
 
   return (
     <div className="h-full flex flex-col" data-testid="team-detail-panel">
@@ -308,6 +397,40 @@ function TeamDetailPanel({
             </div>
           )}
         </div>
+
+        {/* Statistics */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Statistics</h3>
+          {statsLoading ? (
+            <div className="text-sm text-gray-500">Loading stats...</div>
+          ) : stats ? (
+            <div className="grid grid-cols-2 gap-3" data-testid="team-stats">
+              <StatCard icon={ListTodo} label="Total Tasks" value={stats.totalTasksAssigned} />
+              <StatCard icon={Clock} label="Active Tasks" value={stats.activeTasksAssigned} color="text-yellow-600" />
+              <StatCard icon={CheckCircle} label="Completed" value={stats.completedTasksAssigned} color="text-green-600" />
+              <StatCard icon={PlusCircle} label="Created by Team" value={stats.createdByTeamMembers} color="text-blue-600" />
+            </div>
+          ) : null}
+        </div>
+
+        {/* Workload Distribution */}
+        {stats && stats.workloadDistribution && stats.workloadDistribution.length > 0 && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Workload Distribution</h3>
+            <div className="space-y-2" data-testid="team-workload">
+              {stats.workloadDistribution.map((item) => (
+                <WorkloadBar
+                  key={item.memberId}
+                  memberId={item.memberId}
+                  memberName={memberNameMap[item.memberId] || item.memberId}
+                  taskCount={item.taskCount}
+                  percentage={item.percentage}
+                  maxTasks={maxTasks}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Members List */}
         <div>

@@ -398,3 +398,274 @@ test.describe('TB37: Teams Page - List View', () => {
     expect(team.type).toBe('team');
   });
 });
+
+test.describe('TB38: Team Detail Panel', () => {
+  test('team stats endpoint is accessible', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get stats for first team
+    const firstTeam = teams[0];
+    const statsResponse = await page.request.get(`/api/teams/${firstTeam.id}/stats`);
+    expect(statsResponse.ok()).toBe(true);
+    const stats = await statsResponse.json();
+    expect(typeof stats.memberCount).toBe('number');
+    expect(typeof stats.totalTasksAssigned).toBe('number');
+    expect(typeof stats.activeTasksAssigned).toBe('number');
+    expect(typeof stats.completedTasksAssigned).toBe('number');
+    expect(typeof stats.createdByTeamMembers).toBe('number');
+    expect(Array.isArray(stats.workloadDistribution)).toBe(true);
+  });
+
+  test('team stats endpoint returns 404 for non-existent team', async ({ page }) => {
+    const statsResponse = await page.request.get('/api/teams/nonexistent-team-id/stats');
+    expect(statsResponse.ok()).toBe(false);
+    expect(statsResponse.status()).toBe(404);
+  });
+
+  test('detail panel shows statistics section', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first team card
+    const firstTeam = teams[0];
+    await page.getByTestId(`team-card-${firstTeam.id}`).click();
+
+    // Wait for detail panel to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show statistics section
+    await expect(page.getByText('Statistics')).toBeVisible();
+    await expect(page.getByTestId('team-stats')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('detail panel shows total tasks stat', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first team card
+    const firstTeam = teams[0];
+    await page.getByTestId(`team-card-${firstTeam.id}`).click();
+
+    // Wait for detail panel and stats to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('team-stats')).toBeVisible({ timeout: 10000 });
+
+    // Should show Total Tasks stat
+    await expect(page.getByText('Total Tasks')).toBeVisible();
+  });
+
+  test('detail panel shows active tasks stat', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first team card
+    const firstTeam = teams[0];
+    await page.getByTestId(`team-card-${firstTeam.id}`).click();
+
+    // Wait for detail panel and stats to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('team-stats')).toBeVisible({ timeout: 10000 });
+
+    // Should show Active Tasks stat
+    await expect(page.getByText('Active Tasks')).toBeVisible();
+  });
+
+  test('detail panel shows completed tasks stat', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first team card
+    const firstTeam = teams[0];
+    await page.getByTestId(`team-card-${firstTeam.id}`).click();
+
+    // Wait for detail panel and stats to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('team-stats')).toBeVisible({ timeout: 10000 });
+
+    // Should show Completed stat
+    await expect(page.getByText('Completed')).toBeVisible();
+  });
+
+  test('detail panel shows created by team stat', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first team card
+    const firstTeam = teams[0];
+    await page.getByTestId(`team-card-${firstTeam.id}`).click();
+
+    // Wait for detail panel and stats to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('team-stats')).toBeVisible({ timeout: 10000 });
+
+    // Should show Created by Team stat
+    await expect(page.getByText('Created by Team')).toBeVisible();
+  });
+
+  test('detail panel shows workload distribution when team has assigned tasks', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find a team with members and check if they have tasks
+    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+
+    if (!teamWithMembers) {
+      test.skip();
+      return;
+    }
+
+    // Get stats to check if there are assigned tasks
+    const statsResponse = await page.request.get(`/api/teams/${teamWithMembers.id}/stats`);
+    const stats = await statsResponse.json();
+
+    if (stats.totalTasksAssigned === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the team card
+    await page.getByTestId(`team-card-${teamWithMembers.id}`).click();
+
+    // Wait for detail panel to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show workload distribution section
+    await expect(page.getByText('Workload Distribution')).toBeVisible();
+    await expect(page.getByTestId('team-workload')).toBeVisible();
+  });
+
+  test('detail panel shows members list', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    // Find a team with members
+    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+
+    if (!teamWithMembers) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the team card
+    await page.getByTestId(`team-card-${teamWithMembers.id}`).click();
+
+    // Wait for detail panel to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show Team Members section
+    await expect(page.getByText(/Team Members/)).toBeVisible();
+
+    // Wait for members list to load
+    await expect(page.getByTestId('team-members-list')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('members list shows member items with type badges', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    // Find a team with members
+    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+
+    if (!teamWithMembers) {
+      test.skip();
+      return;
+    }
+
+    // Get the members
+    const membersResponse = await page.request.get(`/api/teams/${teamWithMembers.id}/members`);
+    const members = await membersResponse.json();
+
+    if (members.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the team card
+    await page.getByTestId(`team-card-${teamWithMembers.id}`).click();
+
+    // Wait for detail panel and members list to load
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('team-members-list')).toBeVisible({ timeout: 10000 });
+
+    // Check first member item is visible
+    const firstMember = members[0];
+    await expect(page.getByTestId(`member-item-${firstMember.id}`)).toBeVisible();
+  });
+});

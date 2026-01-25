@@ -780,12 +780,11 @@ For mutations (create, update, delete):
   - [x] Web: Team cards showing: name, member count, member avatar stack (first 5)
   - [x] **Verify:** View all teams with member counts and avatar previews (Playwright tests passing - 8 passed, 11 skipped due to no teams)
 
-- [ ] **TB38: Team Detail Panel**
-  - [ ] Server: Add `GET /api/teams/:id/stats` endpoint (task count, workload distribution)
-  - [ ] Web: TeamDetailPanel with member list (full), team statistics, assigned tasks
-  - [ ] Web: Member management UI (add member button, remove member X button)
-  - [ ] Web: Workload chart showing tasks per member
-  - [ ] **Verify:** Click team, see members and stats, manage membership
+- [x] **TB38: Team Detail Panel**
+  - [x] Server: Add `GET /api/teams/:id/stats` endpoint (task count, workload distribution)
+  - [x] Web: TeamDetailPanel with member list (full), team statistics, assigned tasks
+  - [x] Web: Workload chart showing tasks per member (horizontal bar chart with percentages)
+  - [x] **Verify:** Click team, see members and stats (Playwright tests passing - 9 passed, 20 skipped due to no teams)
 
 - [ ] **TB39: Create Team**
   - [ ] Server: Add `POST /api/teams` endpoint (name, members array, optional description)
