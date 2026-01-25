@@ -825,6 +825,7 @@ export function TasksPage() {
   // Pagination state from URL
   const currentPage = search.page ?? 1;
   const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
+  const selectedFromUrl = search.selected ?? null;
 
   const [sort, setSort] = useState<SortConfig>(DEFAULT_SORT);
   const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
@@ -832,7 +833,14 @@ export function TasksPage() {
   const bulkUpdate = useBulkUpdate();
   const bulkDelete = useBulkDelete();
   const entities = useEntities();
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(selectedFromUrl);
+
+  // Sync selectedTaskId with URL parameter
+  useEffect(() => {
+    if (selectedFromUrl) {
+      setSelectedTaskId(selectedFromUrl);
+    }
+  }, [selectedFromUrl]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

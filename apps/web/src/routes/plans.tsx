@@ -572,7 +572,13 @@ function PlanTaskList({
             className={`w-2 h-2 rounded-full ${priorityColors[task.priority] || 'bg-gray-200'}`}
             title={`Priority ${task.priority}`}
           />
-          <span className="flex-1 text-sm text-gray-900 truncate">{task.title}</span>
+          <a
+            href={`/tasks?selected=${task.id}`}
+            className="flex-1 text-sm text-gray-900 truncate hover:text-blue-600 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {task.title}
+          </a>
           <span
             className={`text-xs px-2 py-0.5 rounded ${
               task.status === 'closed'

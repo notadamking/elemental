@@ -51,8 +51,9 @@ const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tasks',
   component: TasksPage,
-  validateSearch: (search: Record<string, unknown>) => {
+  validateSearch: (search: Record<string, unknown>): { selected?: string; page: number; limit: number } => {
     return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
       page: typeof search.page === 'number' ? search.page :
             typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
       limit: typeof search.limit === 'number' ? search.limit :
@@ -147,6 +148,7 @@ const entitiesRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     return {
       selected: typeof search.selected === 'string' ? search.selected : undefined,
+      name: typeof search.name === 'string' ? search.name : undefined,
       page: typeof search.page === 'number' ? search.page :
             typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
       limit: typeof search.limit === 'number' ? search.limit :
