@@ -13,6 +13,10 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Pagination } from '../components/shared/Pagination';
+import { VirtualizedList } from '../components/shared/VirtualizedList';
+
+// Estimated event card height for virtualization
+const EVENT_CARD_HEIGHT = 140;
 import {
   Plus,
   Pencil,
@@ -662,6 +666,9 @@ interface TimePeriodGroupProps {
 function TimePeriodGroup({ period, events, isFirst }: TimePeriodGroupProps) {
   if (events.length === 0) return null;
 
+  // Use virtualization for large groups (more than 50 events)
+  const useVirtualization = events.length > 50;
+
   return (
     <div className="mb-6" data-testid={`time-period-${period}`}>
       <div
@@ -673,11 +680,28 @@ function TimePeriodGroup({ period, events, isFirst }: TimePeriodGroupProps) {
           <span className="text-xs font-normal text-gray-400">({events.length})</span>
         </h3>
       </div>
-      <div className="space-y-2 mt-2">
-        {events.map((event) => (
-          <EventCard key={event.id} event={event} />
-        ))}
-      </div>
+      {useVirtualization ? (
+        <div className="mt-2">
+          <VirtualizedList
+            items={events}
+            getItemKey={(event) => event.id}
+            estimateSize={EVENT_CARD_HEIGHT}
+            scrollRestoreId={`timeline-${period}`}
+            height={400}
+            testId={`virtualized-events-${period}`}
+            gap={8}
+            renderItem={(event) => (
+              <EventCard event={event} />
+            )}
+          />
+        </div>
+      ) : (
+        <div className="space-y-2 mt-2">
+          {events.map((event) => (
+            <EventCard key={event.id} event={event} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

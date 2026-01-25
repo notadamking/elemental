@@ -1080,14 +1080,14 @@ For mutations (create, update, delete):
   - [x] Web: WebSocket events update cache in-place (no refetching needed)
   - [x] **Verify:** App loads with spinner, then all pages are instant; Playwright tests passing (11 tests)
 
-- [ ] **TB68: Virtualized List Component**
-  - [ ] Web: Install `@tanstack/react-virtual` for list virtualization
-  - [ ] Web: Create `VirtualizedList` component that renders only visible items
-  - [ ] Web: Integrate with TaskList (infinite scroll, renders 50+ tasks smoothly)
-  - [ ] Web: Integrate with MessageList in channel view
-  - [ ] Web: Integrate with EventList in timeline
-  - [ ] Web: Add scroll position restoration on navigation
-  - [ ] **Verify:** Create 500+ tasks via CLI, scroll through list smoothly without lag; Playwright tests confirm render performance
+- [x] **TB68: Virtualized List Component**
+  - [x] Web: Install `@tanstack/react-virtual` for list virtualization
+  - [x] Web: Create `VirtualizedList` component that renders only visible items
+  - [x] Web: Integrate with TaskList (infinite scroll, renders 50+ tasks smoothly)
+  - [x] Web: Integrate with MessageList in channel view
+  - [x] Web: Integrate with EventList in timeline
+  - [x] Web: Add scroll position restoration on navigation
+  - [x] **Verify:** Create 500+ tasks via CLI, scroll through list smoothly without lag; Playwright tests confirm render performance (14 tests)
 
 - [ ] **TB69: Table Pagination with Full Dataset**
   - [ ] Web: Update Pagination component to work with in-memory data (not server pagination)

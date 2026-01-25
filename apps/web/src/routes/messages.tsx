@@ -16,6 +16,10 @@ import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
 import { Pagination } from '../components/shared/Pagination';
+import { VirtualizedList } from '../components/shared/VirtualizedList';
+
+// Estimated message height for virtualization
+const MESSAGE_ROW_HEIGHT = 100;
 
 // ============================================================================
 // Entity Types (for operator selection)
@@ -1133,6 +1137,24 @@ function ChannelView({ channelId }: { channelId: string }) {
                 Be the first to send a message!
               </p>
             </div>
+          ) : rootMessages.length > 100 ? (
+            // Use virtualization for large message lists
+            <VirtualizedList
+              items={rootMessages}
+              getItemKey={(msg) => msg.id}
+              estimateSize={MESSAGE_ROW_HEIGHT}
+              scrollRestoreId={`messages-${channelId}`}
+              className="h-full"
+              testId="virtualized-messages-list"
+              gap={8}
+              renderItem={(message) => (
+                <MessageBubble
+                  message={message}
+                  onReply={handleReply}
+                  replyCount={replyCounts[message.id] || 0}
+                />
+              )}
+            />
           ) : (
             <div data-testid="messages-list" className="space-y-2">
               {rootMessages.map((message) => (

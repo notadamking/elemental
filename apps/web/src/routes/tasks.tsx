@@ -6,6 +6,7 @@ import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 import { Pagination } from '../components/shared/Pagination';
+import { VirtualizedList } from '../components/shared/VirtualizedList';
 
 const VIEW_MODE_STORAGE_KEY = 'tasks.viewMode';
 
@@ -222,88 +223,6 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-100 text-gray-800',
 };
-
-function TaskRow({
-  task,
-  isSelected,
-  isChecked,
-  onCheck,
-  onClick,
-  showCheckbox
-}: {
-  task: Task;
-  isSelected: boolean;
-  isChecked: boolean;
-  onCheck: (checked: boolean) => void;
-  onClick: () => void;
-  showCheckbox: boolean;
-}) {
-  const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
-  const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
-
-  const handleCheckboxClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onCheck(!isChecked);
-  };
-
-  return (
-    <tr
-      className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}`}
-      onClick={onClick}
-      data-testid={`task-row-${task.id}`}
-    >
-      {showCheckbox && (
-        <td className="px-2 py-3 w-10">
-          <button
-            onClick={handleCheckboxClick}
-            className="p-1 hover:bg-gray-200 rounded"
-            data-testid={`task-checkbox-${task.id}`}
-          >
-            {isChecked ? (
-              <CheckSquare className="w-4 h-4 text-blue-600" />
-            ) : (
-              <Square className="w-4 h-4 text-gray-400" />
-            )}
-          </button>
-        </td>
-      )}
-      <td className="px-4 py-3">
-        <div>
-          <div className="font-medium text-gray-900">{task.title}</div>
-          <div className="text-xs text-gray-500 font-mono">{task.id}</div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-          {task.status.replace('_', ' ')}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <span className={`px-2 py-1 text-xs font-medium rounded ${priority.color}`}>
-          {priority.label}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-600 capitalize">
-        {task.taskType}
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-600">
-        {task.assignee || '-'}
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex gap-1">
-          {task.tags.slice(0, 2).map((tag) => (
-            <span key={tag} className="px-1.5 py-0.5 text-xs bg-gray-200 rounded">
-              {tag}
-            </span>
-          ))}
-          {task.tags.length > 2 && (
-            <span className="text-xs text-gray-500">+{task.tags.length - 2}</span>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
 
 function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (view: ViewMode) => void }) {
   return (
@@ -705,7 +624,140 @@ function FilterBar({
   );
 }
 
-function SortableHeader({
+// Row height constant for virtualization
+const TASK_ROW_HEIGHT = 60;
+
+function ListView({
+  tasks,
+  selectedTaskId,
+  selectedIds,
+  onTaskClick,
+  onTaskCheck,
+  onSelectAll,
+  sort,
+  onSort,
+  containerHeight,
+}: {
+  tasks: Task[];
+  selectedTaskId: string | null;
+  selectedIds: Set<string>;
+  onTaskClick: (taskId: string) => void;
+  onTaskCheck: (taskId: string, checked: boolean) => void;
+  onSelectAll: () => void;
+  sort: SortConfig;
+  onSort: (field: SortField) => void;
+  containerHeight?: number;
+}) {
+  const allSelected = tasks.length > 0 && tasks.every(t => selectedIds.has(t.id));
+  const someSelected = selectedIds.size > 0;
+
+  // Header row component (stays sticky)
+  const TableHeader = () => (
+    <div className="bg-gray-50 sticky top-0 z-10 border-b border-gray-200">
+      <div className="flex items-center" data-testid="tasks-list-header">
+        <div className="px-2 py-3 w-10 flex-shrink-0">
+          <button
+            onClick={onSelectAll}
+            className="p-1 hover:bg-gray-200 rounded"
+            data-testid="task-select-all"
+          >
+            {allSelected ? (
+              <CheckSquare className="w-4 h-4 text-blue-600" />
+            ) : someSelected ? (
+              <div className="w-4 h-4 border-2 border-blue-600 rounded flex items-center justify-center">
+                <div className="w-2 h-0.5 bg-blue-600" />
+              </div>
+            ) : (
+              <Square className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <SortableHeaderCell label="Task" field="title" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Status" field="status" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Priority" field="priority" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Type" field="taskType" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-32">
+          <SortableHeaderCell label="Assignee" field="assignee" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          Tags
+        </div>
+      </div>
+    </div>
+  );
+
+  if (tasks.length === 0) {
+    return (
+      <div data-testid="tasks-list-view">
+        <TableHeader />
+        <div className="p-6 text-center text-gray-500">
+          No tasks found.
+        </div>
+      </div>
+    );
+  }
+
+  // Use virtualization for large lists (more than 50 items)
+  const useVirtualization = tasks.length > 50;
+
+  if (useVirtualization) {
+    return (
+      <div data-testid="tasks-list-view">
+        <TableHeader />
+        <VirtualizedList
+          items={tasks}
+          getItemKey={(task) => task.id}
+          estimateSize={TASK_ROW_HEIGHT}
+          scrollRestoreId="tasks-list"
+          height={containerHeight ? containerHeight - 48 : 'calc(100% - 48px)'}
+          className="flex-1"
+          testId="virtualized-task-list"
+          renderItem={(task, index) => (
+            <VirtualTaskRow
+              task={task}
+              isSelected={task.id === selectedTaskId}
+              isChecked={selectedIds.has(task.id)}
+              onCheck={(checked) => onTaskCheck(task.id, checked)}
+              onClick={() => onTaskClick(task.id)}
+              isOdd={index % 2 === 1}
+            />
+          )}
+        />
+      </div>
+    );
+  }
+
+  // Standard rendering for small lists
+  return (
+    <div data-testid="tasks-list-view">
+      <TableHeader />
+      <div className="bg-white">
+        {tasks.map((task, index) => (
+          <VirtualTaskRow
+            key={task.id}
+            task={task}
+            isSelected={task.id === selectedTaskId}
+            isChecked={selectedIds.has(task.id)}
+            onCheck={(checked) => onTaskCheck(task.id, checked)}
+            onClick={() => onTaskClick(task.id)}
+            isOdd={index % 2 === 1}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Sortable header cell for flex-based layout
+function SortableHeaderCell({
   label,
   field,
   currentSort,
@@ -719,102 +771,104 @@ function SortableHeader({
   const isActive = currentSort.field === field;
 
   return (
-    <th
-      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+    <button
+      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none w-full flex items-center gap-1"
       onClick={() => onSort(field)}
       data-testid={`sort-header-${field}`}
     >
-      <div className="flex items-center gap-1">
-        <span>{label}</span>
-        {isActive ? (
-          currentSort.direction === 'asc' ? (
-            <ArrowUp className="w-3.5 h-3.5 text-blue-600" />
-          ) : (
-            <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
-          )
+      <span>{label}</span>
+      {isActive ? (
+        currentSort.direction === 'asc' ? (
+          <ArrowUp className="w-3.5 h-3.5 text-blue-600" />
         ) : (
-          <ArrowUpDown className="w-3.5 h-3.5 text-gray-300" />
-        )}
-      </div>
-    </th>
+          <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+        )
+      ) : (
+        <ArrowUpDown className="w-3.5 h-3.5 text-gray-300" />
+      )}
+    </button>
   );
 }
 
-function ListView({
-  tasks,
-  selectedTaskId,
-  selectedIds,
-  onTaskClick,
-  onTaskCheck,
-  onSelectAll,
-  sort,
-  onSort,
+// Row component for virtualized list (uses flex instead of table)
+function VirtualTaskRow({
+  task,
+  isSelected,
+  isChecked,
+  onCheck,
+  onClick,
+  isOdd,
 }: {
-  tasks: Task[];
-  selectedTaskId: string | null;
-  selectedIds: Set<string>;
-  onTaskClick: (taskId: string) => void;
-  onTaskCheck: (taskId: string, checked: boolean) => void;
-  onSelectAll: () => void;
-  sort: SortConfig;
-  onSort: (field: SortField) => void;
+  task: Task;
+  isSelected: boolean;
+  isChecked: boolean;
+  onCheck: (checked: boolean) => void;
+  onClick: () => void;
+  isOdd: boolean;
 }) {
-  if (tasks.length === 0) {
-    return (
-      <div className="p-6 text-center text-gray-500">
-        No tasks found.
-      </div>
-    );
-  }
+  const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
+  const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
 
-  const allSelected = tasks.length > 0 && tasks.every(t => selectedIds.has(t.id));
-  const someSelected = selectedIds.size > 0;
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCheck(!isChecked);
+  };
 
   return (
-    <table className="min-w-full divide-y divide-gray-200" data-testid="tasks-list-view">
-      <thead className="bg-gray-50 sticky top-0">
-        <tr>
-          <th className="px-2 py-3 w-10">
-            <button
-              onClick={onSelectAll}
-              className="p-1 hover:bg-gray-200 rounded"
-              data-testid="task-select-all"
-            >
-              {allSelected ? (
-                <CheckSquare className="w-4 h-4 text-blue-600" />
-              ) : someSelected ? (
-                <div className="w-4 h-4 border-2 border-blue-600 rounded flex items-center justify-center">
-                  <div className="w-2 h-0.5 bg-blue-600" />
-                </div>
-              ) : (
-                <Square className="w-4 h-4 text-gray-400" />
-              )}
-            </button>
-          </th>
-          <SortableHeader label="Task" field="title" currentSort={sort} onSort={onSort} />
-          <SortableHeader label="Status" field="status" currentSort={sort} onSort={onSort} />
-          <SortableHeader label="Priority" field="priority" currentSort={sort} onSort={onSort} />
-          <SortableHeader label="Type" field="taskType" currentSort={sort} onSort={onSort} />
-          <SortableHeader label="Assignee" field="assignee" currentSort={sort} onSort={onSort} />
-          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Tags
-          </th>
-        </tr>
-      </thead>
-      <tbody className="bg-white divide-y divide-gray-200">
-        {tasks.map((task) => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            isSelected={task.id === selectedTaskId}
-            isChecked={selectedIds.has(task.id)}
-            onCheck={(checked) => onTaskCheck(task.id, checked)}
-            onClick={() => onTaskClick(task.id)}
-            showCheckbox={true}
-          />
-        ))}
-      </tbody>
-    </table>
+    <div
+      className={`flex items-center border-b border-gray-200 cursor-pointer transition-colors ${
+        isSelected ? 'bg-blue-50 hover:bg-blue-100' : isOdd ? 'bg-gray-50 hover:bg-gray-100' : 'bg-white hover:bg-gray-50'
+      }`}
+      onClick={onClick}
+      data-testid={`task-row-${task.id}`}
+      style={{ height: TASK_ROW_HEIGHT }}
+    >
+      <div className="px-2 py-3 w-10 flex-shrink-0">
+        <button
+          onClick={handleCheckboxClick}
+          className="p-1 hover:bg-gray-200 rounded"
+          data-testid={`task-checkbox-${task.id}`}
+        >
+          {isChecked ? (
+            <CheckSquare className="w-4 h-4 text-blue-600" />
+          ) : (
+            <Square className="w-4 h-4 text-gray-400" />
+          )}
+        </button>
+      </div>
+      <div className="flex-1 min-w-[200px] px-4 py-3">
+        <div className="font-medium text-gray-900 truncate">{task.title}</div>
+        <div className="text-xs text-gray-500 font-mono truncate">{task.id}</div>
+      </div>
+      <div className="w-28 px-4 py-3">
+        <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
+          {task.status.replace('_', ' ')}
+        </span>
+      </div>
+      <div className="w-28 px-4 py-3">
+        <span className={`px-2 py-1 text-xs font-medium rounded ${priority.color}`}>
+          {priority.label}
+        </span>
+      </div>
+      <div className="w-28 px-4 py-3 text-sm text-gray-600 capitalize truncate">
+        {task.taskType}
+      </div>
+      <div className="w-32 px-4 py-3 text-sm text-gray-600 truncate">
+        {task.assignee || '-'}
+      </div>
+      <div className="w-32 px-4 py-3">
+        <div className="flex gap-1">
+          {task.tags.slice(0, 2).map((tag) => (
+            <span key={tag} className="px-1.5 py-0.5 text-xs bg-gray-200 rounded truncate max-w-[60px]">
+              {tag}
+            </span>
+          ))}
+          {task.tags.length > 2 && (
+            <span className="text-xs text-gray-500">+{task.tags.length - 2}</span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
