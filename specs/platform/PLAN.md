@@ -1208,14 +1208,14 @@ For mutations (create, update, delete):
   - [x] Web: Add keyboard shortcuts: `C T` for Create Task, `C W` for Pour Workflow from dashboard
   - [x] **Verify:** Create task from dashboard without leaving page; Playwright tests passing (20 tests)
 
-- [ ] **TB78: Dashboard Overview Charts**
-  - [ ] Web: Install lightweight chart library (recharts or chart.js with react-chartjs-2)
-  - [ ] Web: Add "Tasks by Status" donut chart (open, in_progress, blocked, completed)
-  - [ ] Web: Add "Tasks Completed Over Time" line chart (last 7 days)
-  - [ ] Web: Add "Workload by Agent" horizontal bar chart
-  - [ ] Web: Make charts interactive (click segment → filter to that status)
-  - [ ] Web: Responsive layout: charts in grid on large screens, stacked on mobile
-  - [ ] **Verify:** Charts render with real data, interactions work; Claude in Chrome visual inspection
+- [x] **TB78: Dashboard Overview Charts**
+  - [x] Web: Install lightweight chart library (recharts or chart.js with react-chartjs-2)
+  - [x] Web: Add "Tasks by Status" donut chart (open, in_progress, blocked, completed)
+  - [x] Web: Add "Tasks Completed Over Time" line chart (last 7 days)
+  - [x] Web: Add "Workload by Agent" horizontal bar chart
+  - [x] Web: Make charts interactive (click segment → filter to that status)
+  - [x] Web: Responsive layout: charts in grid on large screens, stacked on mobile
+  - [x] **Verify:** Charts render with real data, interactions work; Playwright tests passing (20 tests)
 
 - [ ] **TB79: View More Ready Tasks Fix**
   - [ ] Web: "View more ready tasks" link navigates to `/tasks?status=open&blocked=false`

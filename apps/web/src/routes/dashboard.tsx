@@ -9,6 +9,7 @@ import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
 import { useKeyboardShortcut, useDisableKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { DashboardCharts } from '../components/dashboard/DashboardCharts';
 
 interface StatsResponse {
   totalElements: number;
@@ -475,6 +476,9 @@ export function DashboardPage() {
         onClose={() => setIsPourWorkflowModalOpen(false)}
         onSuccess={handleWorkflowPoured}
       />
+
+      {/* Dashboard Charts */}
+      <DashboardCharts />
 
       {/* Two-column layout for Ready Tasks and Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
