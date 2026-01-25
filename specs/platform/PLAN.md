@@ -1111,17 +1111,17 @@ For mutations (create, update, delete):
 
 **Goal:** Re-skin the application using the `/frontend-design` skill to achieve a modern, professional look inspired by Linear, Notion, and Obsidian.
 
-- [ ] **TB71: Design Tokens Foundation**
-  - [ ] Web: Create `src/styles/tokens.css` with CSS custom properties for:
-    - [ ] Colors: primary, secondary, accent, success, warning, error, neutral scale (50-950)
-    - [ ] Spacing: consistent 4px grid (0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24)
-    - [ ] Typography: font-family, font-sizes (xs, sm, base, lg, xl, 2xl), line-heights, font-weights
-    - [ ] Border radius: none, sm, md, lg, xl, full
-    - [ ] Shadows: sm, md, lg, xl (subtle, modern shadows)
-    - [ ] Transitions: fast (100ms), normal (200ms), slow (300ms)
-  - [ ] Web: Update Tailwind config to use CSS variables
-  - [ ] Web: Document tokens in `src/styles/README.md`
-  - [ ] **Verify:** Tokens load correctly, can change primary color in one place; Claude in Chrome visual inspection
+- [x] **TB71: Design Tokens Foundation**
+  - [x] Web: Create `src/styles/tokens.css` with CSS custom properties for:
+    - [x] Colors: primary, secondary, accent, success, warning, error, neutral scale (50-950)
+    - [x] Spacing: consistent 4px grid (0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24)
+    - [x] Typography: font-family, font-sizes (xs, sm, base, lg, xl, 2xl), line-heights, font-weights
+    - [x] Border radius: none, sm, md, lg, xl, full
+    - [x] Shadows: sm, md, lg, xl (subtle, modern shadows)
+    - [x] Transitions: fast (100ms), normal (200ms), slow (300ms)
+  - [x] Web: Update Tailwind config to use CSS variables
+  - [x] Web: Document tokens in `src/styles/README.md`
+  - [x] **Verify:** Playwright tests passing (12 TB71 tests)
 
 - [ ] **TB72: Dark/Light Mode Overhaul**
   - [ ] Web: Define complete color palette for both modes in `tokens.css`

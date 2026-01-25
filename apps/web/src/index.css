@@ -1,26 +1,8 @@
+/* Import design tokens first */
+@import "./styles/tokens.css";
+
+/* Import Tailwind */
 @import "tailwindcss";
-
-/* Theme CSS Variables */
-:root {
-  --color-bg: #ffffff;
-  --color-bg-secondary: #f9fafb;
-  --color-text: #111827;
-  --color-text-secondary: #6b7280;
-  --color-border: #e5e7eb;
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-}
-
-:root.dark,
-:root.theme-dark {
-  --color-bg: #111827;
-  --color-bg-secondary: #1f2937;
-  --color-text: #f9fafb;
-  --color-text-secondary: #9ca3af;
-  --color-border: #374151;
-  --color-primary: #60a5fa;
-  --color-primary-hover: #3b82f6;
-}
 
 /* Apply theme colors to body */
 body {
