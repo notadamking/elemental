@@ -2,11 +2,12 @@
  * Entities Page
  *
  * Lists all entities with filtering by type and search functionality.
+ * Includes detail panel with stats and activity timeline.
  */
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Bot, User, Server, Users } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity } from 'lucide-react';
 
 interface Entity {
   id: string;
@@ -20,6 +21,33 @@ interface Entity {
   updatedAt: string;
 }
 
+interface EntityStats {
+  assignedTaskCount: number;
+  activeTaskCount: number;
+  completedTaskCount: number;
+  createdTaskCount: number;
+  messageCount: number;
+  documentCount: number;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  status: string;
+  priority: number;
+}
+
+interface ElementalEvent {
+  id: number;
+  elementId: string;
+  elementType: string;
+  eventType: string;
+  actor: string;
+  oldValue?: unknown;
+  newValue?: unknown;
+  createdAt: string;
+}
+
 type EntityTypeFilter = 'all' | 'agent' | 'human' | 'system';
 
 function useEntities() {
@@ -30,6 +58,54 @@ function useEntities() {
       if (!response.ok) throw new Error('Failed to fetch entities');
       return response.json();
     },
+  });
+}
+
+function useEntity(id: string | null) {
+  return useQuery<Entity>({
+    queryKey: ['entities', id],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}`);
+      if (!response.ok) throw new Error('Failed to fetch entity');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useEntityStats(id: string | null) {
+  return useQuery<EntityStats>({
+    queryKey: ['entities', id, 'stats'],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/stats`);
+      if (!response.ok) throw new Error('Failed to fetch entity stats');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useEntityTasks(id: string | null) {
+  return useQuery<Task[]>({
+    queryKey: ['entities', id, 'tasks'],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/tasks`);
+      if (!response.ok) throw new Error('Failed to fetch entity tasks');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useEntityEvents(id: string | null) {
+  return useQuery<ElementalEvent[]>({
+    queryKey: ['entities', id, 'events'],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/events?limit=20`);
+      if (!response.ok) throw new Error('Failed to fetch entity events');
+      return response.json();
+    },
+    enabled: !!id,
   });
 }
 
@@ -46,21 +122,45 @@ const FILTER_TABS: { value: EntityTypeFilter; label: string; icon: typeof Users 
   { value: 'system', label: 'Systems', icon: Server },
 ];
 
-function EntityCard({ entity }: { entity: Entity }) {
+const STATUS_COLORS: Record<string, string> = {
+  open: 'bg-blue-100 text-blue-800',
+  in_progress: 'bg-yellow-100 text-yellow-800',
+  blocked: 'bg-red-100 text-red-800',
+  closed: 'bg-green-100 text-green-800',
+};
+
+const PRIORITY_COLORS: Record<number, string> = {
+  1: 'text-red-600',
+  2: 'text-orange-600',
+  3: 'text-yellow-600',
+  4: 'text-green-600',
+  5: 'text-gray-500',
+};
+
+function EntityCard({
+  entity,
+  isSelected,
+  onClick,
+}: {
+  entity: Entity;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
   const styles = ENTITY_TYPE_STYLES[entity.entityType] || ENTITY_TYPE_STYLES.system;
   const Icon = styles.icon;
-  const isActive = entity.active !== false; // Default to active if not specified
+  const isActive = entity.active !== false;
 
   return (
     <div
-      className={`bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors ${
-        !isActive ? 'opacity-60' : ''
-      }`}
+      onClick={onClick}
+      className={`bg-white rounded-lg border p-4 transition-colors cursor-pointer ${
+        isSelected
+          ? 'border-blue-500 ring-2 ring-blue-200'
+          : 'border-gray-200 hover:border-gray-300'
+      } ${!isActive ? 'opacity-60' : ''}`}
       data-testid={`entity-card-${entity.id}`}
     >
-      {/* Header with avatar and type badge */}
       <div className="flex items-start gap-3">
-        {/* Avatar */}
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center ${styles.bg}`}
           data-testid={`entity-avatar-${entity.id}`}
@@ -68,7 +168,6 @@ function EntityCard({ entity }: { entity: Entity }) {
           <Icon className={`w-5 h-5 ${styles.text}`} />
         </div>
 
-        {/* Name and ID */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="font-medium text-gray-900 truncate">{entity.name}</h3>
@@ -81,7 +180,6 @@ function EntityCard({ entity }: { entity: Entity }) {
           <p className="text-xs text-gray-500 font-mono truncate">{entity.id}</p>
         </div>
 
-        {/* Type badge */}
         <span
           className={`px-2 py-1 text-xs font-medium rounded ${styles.bg} ${styles.text}`}
           data-testid={`entity-type-badge-${entity.id}`}
@@ -90,7 +188,6 @@ function EntityCard({ entity }: { entity: Entity }) {
         </span>
       </div>
 
-      {/* Tags */}
       {entity.tags && entity.tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1">
           {entity.tags.slice(0, 3).map((tag) => (
@@ -104,7 +201,6 @@ function EntityCard({ entity }: { entity: Entity }) {
         </div>
       )}
 
-      {/* Created date */}
       <div className="mt-3 text-xs text-gray-400">
         Created {new Date(entity.createdAt).toLocaleDateString()}
       </div>
@@ -175,12 +271,251 @@ function SearchBox({
   );
 }
 
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color = 'text-gray-600',
+}: {
+  icon: typeof ListTodo;
+  label: string;
+  value: number;
+  color?: string;
+}) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className={`w-4 h-4 ${color}`} />
+        <span className="text-xs text-gray-500">{label}</span>
+      </div>
+      <span className="text-lg font-semibold text-gray-900">{value}</span>
+    </div>
+  );
+}
+
+function TaskMiniCard({ task }: { task: Task }) {
+  const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
+  const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS[3];
+
+  return (
+    <div className="bg-white border border-gray-100 rounded p-2 hover:border-gray-200">
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${statusColor}`}>
+          {task.status.replace('_', ' ')}
+        </span>
+        <span className={`text-xs font-medium ${priorityColor}`}>P{task.priority}</span>
+      </div>
+      <p className="text-sm text-gray-900 line-clamp-2">{task.title}</p>
+    </div>
+  );
+}
+
+function EventItem({ event }: { event: ElementalEvent }) {
+  const getEventIcon = () => {
+    switch (event.eventType) {
+      case 'created':
+        return <div className="w-2 h-2 bg-green-500 rounded-full" />;
+      case 'updated':
+        return <div className="w-2 h-2 bg-blue-500 rounded-full" />;
+      case 'deleted':
+        return <div className="w-2 h-2 bg-red-500 rounded-full" />;
+      default:
+        return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
+    }
+  };
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  return (
+    <div className="flex items-start gap-2 py-2">
+      <div className="mt-1.5">{getEventIcon()}</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-900 capitalize">{event.eventType}</span>
+          <span className="text-xs text-gray-500">{event.elementType}</span>
+        </div>
+        <p className="text-xs text-gray-500 font-mono truncate">{event.elementId}</p>
+      </div>
+      <span className="text-xs text-gray-400">{formatTime(event.createdAt)}</span>
+    </div>
+  );
+}
+
+function EntityDetailPanel({
+  entityId,
+  onClose,
+}: {
+  entityId: string;
+  onClose: () => void;
+}) {
+  const { data: entity, isLoading: entityLoading } = useEntity(entityId);
+  const { data: stats, isLoading: statsLoading } = useEntityStats(entityId);
+  const { data: tasks, isLoading: tasksLoading } = useEntityTasks(entityId);
+  const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
+
+  if (entityLoading) {
+    return (
+      <div className="h-full flex items-center justify-center" data-testid="entity-detail-loading">
+        <span className="text-gray-500">Loading...</span>
+      </div>
+    );
+  }
+
+  if (!entity) {
+    return (
+      <div className="h-full flex items-center justify-center" data-testid="entity-detail-error">
+        <span className="text-red-600">Entity not found</span>
+      </div>
+    );
+  }
+
+  const styles = ENTITY_TYPE_STYLES[entity.entityType] || ENTITY_TYPE_STYLES.system;
+  const Icon = styles.icon;
+  const isActive = entity.active !== false;
+  const activeTasks = tasks?.filter((t) => t.status !== 'closed' && t.status !== 'cancelled') || [];
+
+  return (
+    <div className="h-full flex flex-col" data-testid="entity-detail-panel">
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${styles.bg}`}>
+            <Icon className={`w-6 h-6 ${styles.text}`} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-medium text-gray-900">{entity.name}</h2>
+              {!isActive && (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                  Inactive
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 font-mono">{entity.id}</p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-600 rounded"
+          data-testid="entity-detail-close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 space-y-6">
+        {/* Entity Info */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`px-2 py-1 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
+              {entity.entityType}
+            </span>
+            {entity.publicKey && (
+              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
+                Has Public Key
+              </span>
+            )}
+          </div>
+          {entity.tags && entity.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {entity.tags.map((tag) => (
+                <span key={tag} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Statistics */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Statistics</h3>
+          {statsLoading ? (
+            <div className="text-sm text-gray-500">Loading stats...</div>
+          ) : stats ? (
+            <div className="grid grid-cols-2 gap-3" data-testid="entity-stats">
+              <StatCard icon={ListTodo} label="Assigned Tasks" value={stats.assignedTaskCount} />
+              <StatCard icon={Clock} label="Active Tasks" value={stats.activeTaskCount} color="text-yellow-600" />
+              <StatCard icon={CheckCircle} label="Completed" value={stats.completedTaskCount} color="text-green-600" />
+              <StatCard icon={ListTodo} label="Created Tasks" value={stats.createdTaskCount} color="text-blue-600" />
+              <StatCard icon={MessageSquare} label="Messages Sent" value={stats.messageCount} />
+              <StatCard icon={FileText} label="Documents Created" value={stats.documentCount} />
+            </div>
+          ) : null}
+        </div>
+
+        {/* Active Tasks */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">
+            Assigned Tasks ({activeTasks.length})
+          </h3>
+          {tasksLoading ? (
+            <div className="text-sm text-gray-500">Loading tasks...</div>
+          ) : activeTasks.length === 0 ? (
+            <div className="text-sm text-gray-500">No active tasks assigned</div>
+          ) : (
+            <div className="space-y-2" data-testid="entity-tasks">
+              {activeTasks.slice(0, 5).map((task) => (
+                <TaskMiniCard key={task.id} task={task} />
+              ))}
+              {activeTasks.length > 5 && (
+                <div className="text-xs text-gray-500 text-center">
+                  +{activeTasks.length - 5} more tasks
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Activity Timeline */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Recent Activity
+          </h3>
+          {eventsLoading ? (
+            <div className="text-sm text-gray-500">Loading activity...</div>
+          ) : !events || events.length === 0 ? (
+            <div className="text-sm text-gray-500">No recent activity</div>
+          ) : (
+            <div className="divide-y divide-gray-100" data-testid="entity-events">
+              {events.slice(0, 10).map((event) => (
+                <EventItem key={event.id} event={event} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Timestamps */}
+        <div className="text-xs text-gray-400 pt-4 border-t border-gray-100">
+          <div>Created: {new Date(entity.createdAt).toLocaleString()}</div>
+          <div>Updated: {new Date(entity.updatedAt).toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EntitiesPage() {
   const entities = useEntities();
   const [typeFilter, setTypeFilter] = useState<EntityTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
 
-  // Compute counts for each filter tab
   const counts = useMemo(() => {
     const data = entities.data || [];
     return {
@@ -191,16 +526,13 @@ export function EntitiesPage() {
     };
   }, [entities.data]);
 
-  // Filter entities based on type and search
   const filteredEntities = useMemo(() => {
     let result = entities.data || [];
 
-    // Filter by type
     if (typeFilter !== 'all') {
       result = result.filter((e) => e.entityType === typeFilter);
     }
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -214,83 +546,103 @@ export function EntitiesPage() {
     return result;
   }, [entities.data, typeFilter, searchQuery]);
 
+  const handleEntityClick = (entityId: string) => {
+    setSelectedEntityId(entityId);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedEntityId(null);
+  };
+
   return (
-    <div className="h-full flex flex-col" data-testid="entities-page">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-medium text-gray-900">Entities</h2>
-        <p className="text-sm text-gray-500">
-          {filteredEntities.length} of {entities.data?.length || 0} entities
-        </p>
+    <div className="h-full flex" data-testid="entities-page">
+      {/* Entity List */}
+      <div className={`flex flex-col ${selectedEntityId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-medium text-gray-900">Entities</h2>
+          <p className="text-sm text-gray-500">
+            {filteredEntities.length} of {entities.data?.length || 0} entities
+          </p>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <FilterTabs selected={typeFilter} onChange={setTypeFilter} counts={counts} />
+          <div className="sm:ml-auto sm:w-64">
+            <SearchBox value={searchQuery} onChange={setSearchQuery} />
+          </div>
+        </div>
+
+        {/* Loading state */}
+        {entities.isLoading && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-gray-500" data-testid="entities-loading">
+              Loading entities...
+            </div>
+          </div>
+        )}
+
+        {/* Error state */}
+        {entities.isError && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-red-600" data-testid="entities-error">
+              Failed to load entities
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {entities.data && filteredEntities.length === 0 && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center" data-testid="entities-empty">
+              {searchQuery || typeFilter !== 'all' ? (
+                <>
+                  <p className="text-gray-500">No entities match your filters</p>
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setTypeFilter('all');
+                    }}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    data-testid="clear-filters-button"
+                  >
+                    Clear filters
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-500">No entities registered</p>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Use <code className="bg-gray-100 px-1 rounded">el entity register</code> to add an entity
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Entity grid */}
+        {entities.data && filteredEntities.length > 0 && (
+          <div className="flex-1 overflow-auto" data-testid="entities-grid">
+            <div className={`grid gap-4 ${selectedEntityId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+              {filteredEntities.map((entity) => (
+                <EntityCard
+                  key={entity.id}
+                  entity={entity}
+                  isSelected={entity.id === selectedEntityId}
+                  onClick={() => handleEntityClick(entity.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <FilterTabs selected={typeFilter} onChange={setTypeFilter} counts={counts} />
-        <div className="sm:ml-auto sm:w-64">
-          <SearchBox value={searchQuery} onChange={setSearchQuery} />
-        </div>
-      </div>
-
-      {/* Loading state */}
-      {entities.isLoading && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-gray-500" data-testid="entities-loading">
-            Loading entities...
-          </div>
-        </div>
-      )}
-
-      {/* Error state */}
-      {entities.isError && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-red-600" data-testid="entities-error">
-            Failed to load entities
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {entities.data && filteredEntities.length === 0 && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center" data-testid="entities-empty">
-            {searchQuery || typeFilter !== 'all' ? (
-              <>
-                <p className="text-gray-500">No entities match your filters</p>
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setTypeFilter('all');
-                  }}
-                  className="mt-2 text-sm text-blue-600 hover:text-blue-700"
-                  data-testid="clear-filters-button"
-                >
-                  Clear filters
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-gray-500">No entities registered</p>
-                <p className="mt-1 text-sm text-gray-400">
-                  Use <code className="bg-gray-100 px-1 rounded">el entity register</code> to add an entity
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Entity grid */}
-      {entities.data && filteredEntities.length > 0 && (
-        <div
-          className="flex-1 overflow-auto"
-          data-testid="entities-grid"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredEntities.map((entity) => (
-              <EntityCard key={entity.id} entity={entity} />
-            ))}
-          </div>
+      {/* Entity Detail Panel */}
+      {selectedEntityId && (
+        <div className="w-1/2 border-l border-gray-200" data-testid="entity-detail-container">
+          <EntityDetailPanel entityId={selectedEntityId} onClose={handleCloseDetail} />
         </div>
       )}
     </div>

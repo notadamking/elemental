@@ -230,3 +230,227 @@ test.describe('TB33: Entities Page - List View', () => {
     }
   });
 });
+
+test.describe('TB34: Entity Detail Panel', () => {
+  test('entity stats endpoint is accessible', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get stats for first entity
+    const firstEntity = entities[0];
+    const statsResponse = await page.request.get(`/api/entities/${firstEntity.id}/stats`);
+    expect(statsResponse.ok()).toBe(true);
+    const stats = await statsResponse.json();
+    expect(typeof stats.assignedTaskCount).toBe('number');
+    expect(typeof stats.activeTaskCount).toBe('number');
+    expect(typeof stats.completedTaskCount).toBe('number');
+    expect(typeof stats.messageCount).toBe('number');
+    expect(typeof stats.documentCount).toBe('number');
+  });
+
+  test('entity events endpoint is accessible', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get events for first entity
+    const firstEntity = entities[0];
+    const eventsResponse = await page.request.get(`/api/entities/${firstEntity.id}/events`);
+    expect(eventsResponse.ok()).toBe(true);
+    const events = await eventsResponse.json();
+    expect(Array.isArray(events)).toBe(true);
+  });
+
+  test('clicking entity card opens detail panel', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Detail panel should be visible
+    await expect(page.getByTestId('entity-detail-container')).toBeVisible();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible();
+  });
+
+  test('detail panel shows entity information', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Wait for detail panel to load
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show entity name in detail panel
+    const detailPanel = page.getByTestId('entity-detail-panel');
+    await expect(detailPanel.getByRole('heading', { name: firstEntity.name })).toBeVisible();
+
+    // Should show statistics section
+    await expect(page.getByText('Statistics')).toBeVisible();
+    await expect(page.getByTestId('entity-stats')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('detail panel shows assigned tasks section', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Wait for detail panel to load
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show assigned tasks section header
+    await expect(page.getByRole('heading', { name: /Assigned Tasks/ })).toBeVisible();
+  });
+
+  test('detail panel shows activity timeline', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Wait for detail panel to load
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show recent activity section
+    await expect(page.getByText('Recent Activity')).toBeVisible();
+  });
+
+  test('close button closes detail panel', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Detail panel should be visible
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click close button
+    await page.getByTestId('entity-detail-close').click();
+
+    // Detail panel should be hidden
+    await expect(page.getByTestId('entity-detail-container')).not.toBeVisible();
+  });
+
+  test('split-view layout works correctly', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Initially, entity grid should be full width (3 columns on lg)
+    const grid = page.getByTestId('entities-grid').locator('> div');
+    await expect(grid).toHaveClass(/lg:grid-cols-3/);
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Now grid should be single column (detail panel takes half)
+    await expect(grid).toHaveClass(/grid-cols-1/);
+    await expect(grid).not.toHaveClass(/lg:grid-cols-3/);
+  });
+
+  test('selected entity card is highlighted', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const entities = await response.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    const card = page.getByTestId(`entity-card-${firstEntity.id}`);
+    await card.click();
+
+    // Card should have selected styling (blue border)
+    await expect(card).toHaveClass(/border-blue-500/);
+    await expect(card).toHaveClass(/ring-2/);
+  });
+});

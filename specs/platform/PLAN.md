@@ -751,12 +751,12 @@ For mutations (create, update, delete):
   - [x] Web: Search box for entity name
   - [x] **Verify:** View all entities with type filtering and search (Playwright tests passing - 12 tests)
 
-- [ ] **TB34: Entity Detail Panel**
-  - [ ] Server: Add `GET /api/entities/:id/stats` endpoint (task count, message count, created elements count)
-  - [ ] Web: EntityDetailPanel with profile info, statistics cards, assigned tasks list
-  - [ ] Web: Activity timeline showing recent events by this entity
-  - [ ] Web: Split-view layout (list on left, detail on right)
-  - [ ] **Verify:** Click entity, see full profile with stats and activity timeline
+- [x] **TB34: Entity Detail Panel**
+  - [x] Server: Add `GET /api/entities/:id/stats` endpoint (task count, message count, created elements count)
+  - [x] Web: EntityDetailPanel with profile info, statistics cards, assigned tasks list
+  - [x] Web: Activity timeline showing recent events by this entity
+  - [x] Web: Split-view layout (list on left, detail on right)
+  - [x] **Verify:** Click entity, see full profile with stats and activity timeline (Playwright tests passing - 9 tests)
 
 - [ ] **TB35: Create Entity**
   - [ ] Server: Add `POST /api/entities` endpoint (name, entityType, optional publicKey, metadata)

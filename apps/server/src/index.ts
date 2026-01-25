@@ -565,6 +565,96 @@ app.get('/api/entities/:id/tasks', async (c) => {
   }
 });
 
+app.get('/api/entities/:id/stats', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+
+    // Verify entity exists
+    const entity = await api.get(id);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // Get tasks assigned to this entity
+    const assignedTasks = await api.list({
+      type: 'task',
+      assignee: id,
+    } as Parameters<typeof api.list>[0]);
+
+    // Get tasks created by this entity (filter post-query since createdBy needs EntityId)
+    const allTasks = await api.list({
+      type: 'task',
+    } as Parameters<typeof api.list>[0]);
+    const createdTasks = allTasks.filter((t) => String(t.createdBy) === String(id));
+
+    // Get messages sent by this entity
+    const messages = await api.list({
+      type: 'message',
+    } as Parameters<typeof api.list>[0]);
+    const sentMessages = messages.filter((m) => {
+      const msg = m as unknown as { sender?: string };
+      return msg.sender === id;
+    });
+
+    // Get documents created by this entity (filter post-query)
+    const allDocuments = await api.list({
+      type: 'document',
+    } as Parameters<typeof api.list>[0]);
+    const documents = allDocuments.filter((d) => String(d.createdBy) === String(id));
+
+    // Calculate task stats
+    const activeTasks = assignedTasks.filter(
+      (t) => {
+        const task = t as unknown as { status: string };
+        return task.status !== 'closed' && task.status !== 'cancelled';
+      }
+    );
+    const completedTasks = assignedTasks.filter(
+      (t) => {
+        const task = t as unknown as { status: string };
+        return task.status === 'closed';
+      }
+    );
+
+    return c.json({
+      assignedTaskCount: assignedTasks.length,
+      activeTaskCount: activeTasks.length,
+      completedTaskCount: completedTasks.length,
+      createdTaskCount: createdTasks.length,
+      messageCount: sentMessages.length,
+      documentCount: documents.length,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get entity stats:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity stats' } }, 500);
+  }
+});
+
+app.get('/api/entities/:id/events', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const limitParam = url.searchParams.get('limit');
+
+    // Verify entity exists
+    const entity = await api.get(id);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // Get events by this actor
+    const events = await api.listEvents({
+      actor: id as unknown as EntityId,
+      limit: limitParam ? parseInt(limitParam, 10) : 20,
+    });
+
+    return c.json(events);
+  } catch (error) {
+    console.error('[elemental] Failed to get entity events:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity events' } }, 500);
+  }
+});
+
 // ============================================================================
 // Dependencies Endpoints
 // ============================================================================
