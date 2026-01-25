@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, List, LayoutGrid } from 'lucide-react';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
+import { KanbanBoard } from '../components/task/KanbanBoard';
+
+type ViewMode = 'list' | 'kanban';
 
 interface Task {
   id: string;
@@ -96,10 +99,93 @@ function TaskRow({ task, isSelected, onClick }: { task: Task; isSelected: boolea
   );
 }
 
+function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (view: ViewMode) => void }) {
+  return (
+    <div className="flex items-center bg-gray-100 rounded-md p-0.5" data-testid="view-toggle">
+      <button
+        onClick={() => onViewChange('list')}
+        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-colors ${
+          view === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+        }`}
+        data-testid="view-toggle-list"
+        aria-label="List view"
+      >
+        <List className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => onViewChange('kanban')}
+        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-colors ${
+          view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+        }`}
+        data-testid="view-toggle-kanban"
+        aria-label="Kanban view"
+      >
+        <LayoutGrid className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+function ListView({
+  tasks,
+  selectedTaskId,
+  onTaskClick
+}: {
+  tasks: Task[];
+  selectedTaskId: string | null;
+  onTaskClick: (taskId: string) => void;
+}) {
+  if (tasks.length === 0) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        No tasks found.
+      </div>
+    );
+  }
+
+  return (
+    <table className="min-w-full divide-y divide-gray-200" data-testid="tasks-list-view">
+      <thead className="bg-gray-50 sticky top-0">
+        <tr>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Task
+          </th>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Status
+          </th>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Priority
+          </th>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Type
+          </th>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Assignee
+          </th>
+          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Tags
+          </th>
+        </tr>
+      </thead>
+      <tbody className="bg-white divide-y divide-gray-200">
+        {tasks.map((task) => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            isSelected={task.id === selectedTaskId}
+            onClick={() => onTaskClick(task.id)}
+          />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export function TasksPage() {
   const tasks = useTasks();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
@@ -127,7 +213,8 @@ export function TasksPage() {
       <div className={`flex flex-col ${selectedTaskId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <ViewToggle view={viewMode} onViewChange={setViewMode} />
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
@@ -148,47 +235,20 @@ export function TasksPage() {
             <div className="p-4 text-red-600">Failed to load tasks</div>
           )}
 
-          {tasks.data && tasks.data.length === 0 && (
-            <div className="p-6 text-center text-gray-500">
-              No tasks found.
-            </div>
+          {tasks.data && viewMode === 'list' && (
+            <ListView
+              tasks={tasks.data}
+              selectedTaskId={selectedTaskId}
+              onTaskClick={handleTaskClick}
+            />
           )}
 
-          {tasks.data && tasks.data.length > 0 && (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Task
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Priority
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assignee
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tags
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tasks.data.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    isSelected={task.id === selectedTaskId}
-                    onClick={() => handleTaskClick(task.id)}
-                  />
-                ))}
-              </tbody>
-            </table>
+          {tasks.data && viewMode === 'kanban' && (
+            <KanbanBoard
+              tasks={tasks.data}
+              selectedTaskId={selectedTaskId}
+              onTaskClick={handleTaskClick}
+            />
           )}
         </div>
       </div>

@@ -577,11 +577,11 @@ For mutations (create, update, delete):
   - [x] Server: Add `POST /api/tasks` endpoint (with validation for required fields)
   - [x] **Verify:** Create task from UI (Playwright tests passing - 16 tests)
 
-- [ ] **TB14: Kanban View**
-  - [ ] Web: Add dnd-kit
-  - [ ] Web: Create KanbanBoard component
-  - [ ] Web: View toggle (list/kanban)
-  - [ ] **Verify:** Drag tasks between columns
+- [x] **TB14: Kanban View**
+  - [x] Web: Add dnd-kit (@dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities)
+  - [x] Web: Create KanbanBoard component with status columns (Open, In Progress, Blocked, Completed)
+  - [x] Web: View toggle (list/kanban) with List and LayoutGrid icons
+  - [x] **Verify:** Drag tasks between columns (Playwright tests passing - 12 tests)
 
 - [ ] **TB15: Bulk Operations**
   - [ ] Web: Multi-select in list
