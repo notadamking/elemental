@@ -8,7 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService } from '@elemental/cli';
+import type { SyncService } from '@elemental/cli';
 import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
@@ -32,11 +33,14 @@ const DB_PATH = process.env.ELEMENTAL_DB_PATH || DEFAULT_DB_PATH;
 // ============================================================================
 
 let api: ElementalAPI;
+let syncService: SyncService;
+let storageBackend: ReturnType<typeof createStorage>;
 
 try {
-  const backend = createStorage({ path: DB_PATH });
-  initializeSchema(backend);
-  api = createElementalAPI(backend);
+  storageBackend = createStorage({ path: DB_PATH });
+  initializeSchema(storageBackend);
+  api = createElementalAPI(storageBackend);
+  syncService = createSyncService(storageBackend);
   console.log(`[elemental] Connected to database: ${DB_PATH}`);
 } catch (error) {
   console.error('[elemental] Failed to initialize database:', error);
@@ -3341,6 +3345,85 @@ app.get('/api/teams/:id/stats', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get team stats:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get team stats' } }, 500);
+  }
+});
+
+// ============================================================================
+// Sync Endpoints
+// ============================================================================
+
+app.get('/api/sync/status', async (c) => {
+  try {
+    const dirtyElements = storageBackend.getDirtyElements();
+    return c.json({
+      dirtyElementCount: dirtyElements.length,
+      dirtyDependencyCount: 0, // Not tracked separately currently
+      hasPendingChanges: dirtyElements.length > 0,
+      exportPath: resolve(PROJECT_ROOT, '.elemental'),
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get sync status:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get sync status' } }, 500);
+  }
+});
+
+app.post('/api/sync/export', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const includeEphemeral = body.includeEphemeral ?? false;
+
+    // Export to JSONL files in .elemental directory
+    const result = await syncService.export({
+      outputDir: resolve(PROJECT_ROOT, '.elemental'),
+      full: true,
+      includeEphemeral,
+    });
+
+    return c.json({
+      success: true,
+      elementsExported: result.elementsExported,
+      dependenciesExported: result.dependenciesExported,
+      elementsFile: result.elementsFile,
+      dependenciesFile: result.dependenciesFile,
+      exportedAt: result.exportedAt,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to export:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to export data' } }, 500);
+  }
+});
+
+app.post('/api/sync/import', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate request
+    if (!body.elements || typeof body.elements !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'elements field is required and must be a JSONL string' } }, 400);
+    }
+
+    const result = syncService.importFromStrings(
+      body.elements,
+      body.dependencies ?? '',
+      {
+        dryRun: body.dryRun ?? false,
+        force: body.force ?? false,
+      }
+    );
+
+    return c.json({
+      success: true,
+      elementsImported: result.elementsImported,
+      elementsSkipped: result.elementsSkipped,
+      dependenciesImported: result.dependenciesImported,
+      dependenciesSkipped: result.dependenciesSkipped,
+      conflicts: result.conflicts,
+      errors: result.errors,
+      importedAt: result.importedAt,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to import:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to import data' } }, 500);
   }
 });
 

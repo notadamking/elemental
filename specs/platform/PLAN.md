@@ -1013,16 +1013,16 @@ For mutations (create, update, delete):
   - [x] Web: Sonner toast library integrated with dynamic position/duration from settings
   - [x] **Verify:** Playwright tests passing (21 TB62 tests)
 
-- [ ] **TB63: Settings Page - Sync Config**
-  - [ ] Web: Sync settings section showing:
-    - [ ] Auto-export toggle (enable/disable automatic JSONL export)
-    - [ ] Export path display (read-only, shows .elemental/ path)
-    - [ ] Last export timestamp
-    - [ ] Dirty element count (elements with unsaved changes)
-  - [ ] Web: "Export Now" button triggers manual export
-  - [ ] Web: "Import" button opens file picker for JSONL import
-  - [ ] Server: Add `POST /api/sync/export` and `POST /api/sync/import` endpoints
-  - [ ] **Verify:** Click "Export Now", see success message, last export time updates
+- [x] **TB63: Settings Page - Sync Config**
+  - [x] Web: Sync settings section showing:
+    - [x] Auto-export toggle (enable/disable automatic JSONL export) - toggle present but disabled, feature coming soon
+    - [x] Export path display (read-only, shows .elemental/ path)
+    - [x] Last export timestamp
+    - [x] Dirty element count (elements with unsaved changes)
+  - [x] Web: "Export Now" button triggers manual export
+  - [x] Web: "Import" button opens file picker for JSONL import
+  - [x] Server: Add `POST /api/sync/export` and `POST /api/sync/import` endpoints
+  - [x] **Verify:** Playwright tests passing (12 TB63 tests)
 
 ---
 

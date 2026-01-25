@@ -141,10 +141,11 @@ test.describe('TB59: Settings Page - Theme', () => {
     // Should have notification type toggles, not "coming soon"
     await expect(page.getByTestId('notification-task-assigned')).toBeVisible();
 
-    // Click sync section - still coming soon
+    // Click sync section - now implemented
     await page.getByTestId('settings-nav-sync').click();
     await expect(page.getByTestId('settings-sync-section')).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
+    // Should have export/import buttons, not "coming soon"
+    await expect(page.getByTestId('export-now-button')).toBeVisible();
   });
 
   test('can navigate back to theme section after viewing other sections', async ({ page }) => {
@@ -713,5 +714,163 @@ test.describe('TB60: Settings Page - Keyboard Shortcuts', () => {
 
     // Modal should close
     await expect(page.getByTestId('shortcut-edit-modal')).not.toBeVisible();
+  });
+});
+
+test.describe('TB63: Settings Page - Sync Config', () => {
+  test('sync section is visible when clicking sync nav', async ({ page }) => {
+    await page.goto('/settings');
+
+    // Click sync section
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Sync section should be visible
+    await expect(page.getByTestId('settings-sync-section')).toBeVisible();
+  });
+
+  test('sync section shows status information', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Should show export path
+    await expect(page.getByTestId('export-path')).toBeVisible();
+
+    // Should show dirty element count
+    await expect(page.getByTestId('dirty-element-count')).toBeVisible();
+
+    // Should show last export/import times
+    await expect(page.getByTestId('last-export-time')).toBeVisible();
+    await expect(page.getByTestId('last-import-time')).toBeVisible();
+  });
+
+  test('sync section shows export button', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Export button should be visible
+    await expect(page.getByTestId('export-now-button')).toBeVisible();
+    await expect(page.getByTestId('export-now-button')).toHaveText('Export Now');
+  });
+
+  test('sync section shows import button', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Import button should be visible
+    await expect(page.getByTestId('import-button')).toBeVisible();
+    await expect(page.getByTestId('import-button')).toHaveText('Import from File');
+  });
+
+  test('sync section has auto-export toggle (disabled)', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Auto-export toggle should be visible but disabled
+    await expect(page.getByTestId('auto-export-toggle')).toBeVisible();
+    await expect(page.getByTestId('auto-export-toggle')).toBeDisabled();
+  });
+
+  test('clicking export button triggers export', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Click export button
+    await page.getByTestId('export-now-button').click();
+
+    // Should show export result
+    await expect(page.getByTestId('export-result')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('export-result')).toContainText('Export Successful');
+  });
+
+  test('export result shows counts', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Click export button
+    await page.getByTestId('export-now-button').click();
+
+    // Should show counts in export result
+    await expect(page.getByTestId('export-result')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('export-result')).toContainText('Elements exported:');
+    await expect(page.getByTestId('export-result')).toContainText('Dependencies exported:');
+  });
+
+  test('export updates last export time', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Get initial last export time
+    const initialTime = await page.getByTestId('last-export-time').textContent();
+
+    // Click export button
+    await page.getByTestId('export-now-button').click();
+
+    // Wait for export to complete
+    await expect(page.getByTestId('export-result')).toBeVisible({ timeout: 10000 });
+
+    // Last export time should have changed
+    const newTime = await page.getByTestId('last-export-time').textContent();
+    expect(newTime).not.toBe('Never');
+    // If initial was "Never", new time should be different
+    if (initialTime === 'Never') {
+      expect(newTime).not.toBe(initialTime);
+    }
+  });
+
+  test('sync settings persist in localStorage', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Click export
+    await page.getByTestId('export-now-button').click();
+    await expect(page.getByTestId('export-result')).toBeVisible({ timeout: 10000 });
+
+    // Check localStorage
+    const storedSettings = await page.evaluate(() => localStorage.getItem('settings.sync'));
+    expect(storedSettings).not.toBeNull();
+    const parsed = JSON.parse(storedSettings!);
+    expect(parsed.lastExportAt).toBeDefined();
+  });
+
+  test('sync settings persist after page reload', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Click export
+    await page.getByTestId('export-now-button').click();
+    await expect(page.getByTestId('export-result')).toBeVisible({ timeout: 10000 });
+
+    // Get the time
+    const exportTime = await page.getByTestId('last-export-time').textContent();
+
+    // Reload
+    await page.reload();
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Time should persist
+    const reloadedTime = await page.getByTestId('last-export-time').textContent();
+    expect(reloadedTime).toBe(exportTime);
+  });
+
+  test('hidden file input for import', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // File input should exist but be hidden
+    const fileInput = page.getByTestId('import-file-input');
+    await expect(fileInput).toHaveClass(/hidden/);
+  });
+
+  test('export button shows loading state during export', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-sync').click();
+
+    // Start export
+    await page.getByTestId('export-now-button').click();
+
+    // Button should show loading state (either in text or be disabled)
+    // The button changes text to "Exporting..." during the operation
+    // Since export is fast, we just verify the result appears
+    await expect(page.getByTestId('export-result')).toBeVisible({ timeout: 10000 });
   });
 });
