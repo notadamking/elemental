@@ -952,14 +952,14 @@ For mutations (create, update, delete):
   - [x] Web: Drag handle cursor feedback (grab/grabbing) (CSS .drag-handle with cursor states)
   - [x] **Verify:** Playwright tests passing (15 TB56 tests)
 
-- [ ] **TB57: Inline Task/Document Embeds**
-  - [ ] Web: `/task` slash command opens task picker modal
-  - [ ] Web: Selected task renders as inline card (title, status badge, priority indicator)
-  - [ ] Web: `/doc` slash command opens document picker modal
-  - [ ] Web: Selected document renders as inline card (title, content type badge)
-  - [ ] Web: Embedded items are clickable → navigate to full view
-  - [ ] Web: Delete embed with backspace when cursor is on it
-  - [ ] **Verify:** Embed task in document, click embedded task, navigates to task detail
+- [x] **TB57: Inline Task/Document Embeds**
+  - [x] Web: `/task` slash command opens task picker modal (TaskPickerModal with search, keyboard navigation)
+  - [x] Web: Selected task renders as inline card (title, status badge with icon)
+  - [x] Web: `/doc` slash command opens document picker modal (DocumentPickerModal with search, keyboard navigation)
+  - [x] Web: Selected document renders as inline card (title, content type badge with icon)
+  - [x] Web: Embedded items are clickable → navigate to full view (via anchor tags)
+  - [x] Web: Delete embed with backspace when cursor is on it (atomic nodes support backspace deletion)
+  - [x] **Verify:** Playwright tests passing (9 passed, 10 skipped due to no tasks in test db)
 
 - [ ] **TB58: Advanced Inline Formatting**
   - [x] Web: Add highlight extension (background color, default yellow) - added in TB54

@@ -7,6 +7,7 @@
  * - Undo/Redo support
  * - Keyboard shortcuts with tooltip hints
  * - Responsive toolbar with overflow menu
+ * - Task and document embeds via slash commands
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -16,8 +17,12 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Highlight from '@tiptap/extension-highlight';
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle';
 import { SlashCommands } from './SlashCommands';
+import { TaskEmbedBlock } from './blocks/TaskEmbedBlock';
+import { DocumentEmbedBlock } from './blocks/DocumentEmbedBlock';
+import { TaskPickerModal } from './TaskPickerModal';
+import { DocumentPickerModal } from './DocumentPickerModal';
 import { common, createLowlight } from 'lowlight';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   Bold,
   Italic,
@@ -137,6 +142,19 @@ export function BlockEditor({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [showOverflow, setShowOverflow] = useState(false);
 
+  // Embed picker modal state
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
+  const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
+
+  // Memoize embed callbacks to prevent unnecessary re-renders
+  const embedCallbacks = useMemo(
+    () => ({
+      onTaskEmbed: () => setTaskPickerOpen(true),
+      onDocumentEmbed: () => setDocumentPickerOpen(true),
+    }),
+    []
+  );
+
   // Convert plain text to HTML for Tiptap
   const textToHtml = useCallback((text: string) => {
     if (!text) return '<p></p>';
@@ -195,7 +213,11 @@ export function BlockEditor({
         dragHandleWidth: 20,
         scrollTreshold: 100,
       }),
-      SlashCommands,
+      SlashCommands.configure({
+        embedCallbacks,
+      }),
+      TaskEmbedBlock,
+      DocumentEmbedBlock,
     ],
     content: getInitialContent(),
     editable: !readOnly,
@@ -255,6 +277,38 @@ export function BlockEditor({
       resizeObserver.disconnect();
     };
   }, []);
+
+  // Handle task selection from picker
+  const handleTaskSelect = useCallback(
+    (taskId: string) => {
+      if (!editor) return;
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'taskEmbed',
+          attrs: { taskId },
+        })
+        .run();
+    },
+    [editor]
+  );
+
+  // Handle document selection from picker
+  const handleDocumentSelect = useCallback(
+    (documentId: string) => {
+      if (!editor) return;
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'documentEmbed',
+          attrs: { documentId },
+        })
+        .run();
+    },
+    [editor]
+  );
 
   if (!editor) {
     return (
@@ -430,113 +484,129 @@ export function BlockEditor({
   );
 
   return (
-    <div data-testid="block-editor" className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-      {/* Toolbar */}
-      {!readOnly && (
-        <div
-          ref={toolbarRef}
-          data-testid="block-editor-toolbar"
-          className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 bg-gray-50 flex-wrap"
-        >
-          {/* History - always visible */}
-          {historyActions.map(renderToolbarButton)}
+    <>
+      {/* Task Picker Modal */}
+      <TaskPickerModal
+        isOpen={taskPickerOpen}
+        onClose={() => setTaskPickerOpen(false)}
+        onSelect={handleTaskSelect}
+      />
 
-          <ToolbarDivider />
+      {/* Document Picker Modal */}
+      <DocumentPickerModal
+        isOpen={documentPickerOpen}
+        onClose={() => setDocumentPickerOpen(false)}
+        onSelect={handleDocumentSelect}
+      />
 
-          {/* Show full toolbar or compact with overflow */}
-          {!showOverflow ? (
-            <>
-              {/* Text formatting - only for non-code modes */}
-              {!isCodeMode && (
-                <>
-                  {textActions.map(renderToolbarButton)}
-                  <ToolbarDivider />
-                  {headingActions.map(renderToolbarButton)}
-                  <ToolbarDivider />
-                  {listActions.map(renderToolbarButton)}
-                  <ToolbarDivider />
-                </>
-              )}
-              {/* Block elements */}
-              {blockActions.map(renderToolbarButton)}
-            </>
-          ) : (
-            <>
-              {/* Compact mode: show essential buttons + overflow menu */}
-              {!isCodeMode && (
-                <>
-                  {textActions.slice(0, 3).map(renderToolbarButton)}
-                  <ToolbarDivider />
-                </>
-              )}
+      <div data-testid="block-editor" className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+        {/* Toolbar */}
+        {!readOnly && (
+          <div
+            ref={toolbarRef}
+            data-testid="block-editor-toolbar"
+            className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 bg-gray-50 flex-wrap"
+          >
+            {/* History - always visible */}
+            {historyActions.map(renderToolbarButton)}
 
-              {/* Overflow menu */}
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <button
-                    className="p-1.5 rounded hover:bg-gray-100 text-gray-600 transition-colors"
-                    aria-label="More formatting options"
-                    data-testid="toolbar-overflow-menu"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
-                </DropdownMenu.Trigger>
+            <ToolbarDivider />
 
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content
-                    align="end"
-                    sideOffset={4}
-                    className="z-50 min-w-[200px] p-1 bg-white rounded-lg shadow-lg border border-gray-200
-                               animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2"
-                    data-testid="toolbar-overflow-content"
-                  >
-                    {!isCodeMode && (
-                      <>
-                        <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          Text
-                        </DropdownMenu.Label>
-                        {textActions.slice(3).map(action => (
-                          <MenuItem key={action.id} {...action} onClick={action.action} />
-                        ))}
-                        <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />
+            {/* Show full toolbar or compact with overflow */}
+            {!showOverflow ? (
+              <>
+                {/* Text formatting - only for non-code modes */}
+                {!isCodeMode && (
+                  <>
+                    {textActions.map(renderToolbarButton)}
+                    <ToolbarDivider />
+                    {headingActions.map(renderToolbarButton)}
+                    <ToolbarDivider />
+                    {listActions.map(renderToolbarButton)}
+                    <ToolbarDivider />
+                  </>
+                )}
+                {/* Block elements */}
+                {blockActions.map(renderToolbarButton)}
+              </>
+            ) : (
+              <>
+                {/* Compact mode: show essential buttons + overflow menu */}
+                {!isCodeMode && (
+                  <>
+                    {textActions.slice(0, 3).map(renderToolbarButton)}
+                    <ToolbarDivider />
+                  </>
+                )}
 
-                        <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          Headings
-                        </DropdownMenu.Label>
-                        {headingActions.map(action => (
-                          <MenuItem key={action.id} {...action} onClick={action.action} />
-                        ))}
-                        <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />
+                {/* Overflow menu */}
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger asChild>
+                    <button
+                      className="p-1.5 rounded hover:bg-gray-100 text-gray-600 transition-colors"
+                      aria-label="More formatting options"
+                      data-testid="toolbar-overflow-menu"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  </DropdownMenu.Trigger>
 
-                        <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          Lists
-                        </DropdownMenu.Label>
-                        {listActions.map(action => (
-                          <MenuItem key={action.id} {...action} onClick={action.action} />
-                        ))}
-                        <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />
-                      </>
-                    )}
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content
+                      align="end"
+                      sideOffset={4}
+                      className="z-50 min-w-[200px] p-1 bg-white rounded-lg shadow-lg border border-gray-200
+                                 animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2"
+                      data-testid="toolbar-overflow-content"
+                    >
+                      {!isCodeMode && (
+                        <>
+                          <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Text
+                          </DropdownMenu.Label>
+                          {textActions.slice(3).map(action => (
+                            <MenuItem key={action.id} {...action} onClick={action.action} />
+                          ))}
+                          <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />
 
-                    <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Blocks
-                    </DropdownMenu.Label>
-                    {blockActions.map(action => (
-                      <MenuItem key={action.id} {...action} onClick={action.action} />
-                    ))}
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-            </>
-          )}
+                          <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Headings
+                          </DropdownMenu.Label>
+                          {headingActions.map(action => (
+                            <MenuItem key={action.id} {...action} onClick={action.action} />
+                          ))}
+                          <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />
+
+                          <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Lists
+                          </DropdownMenu.Label>
+                          {listActions.map(action => (
+                            <MenuItem key={action.id} {...action} onClick={action.action} />
+                          ))}
+                          <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />
+                        </>
+                      )}
+
+                      <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Blocks
+                      </DropdownMenu.Label>
+                      {blockActions.map(action => (
+                        <MenuItem key={action.id} {...action} onClick={action.action} />
+                      ))}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Editor Content */}
+        <div className={isCodeMode ? 'font-mono text-sm bg-gray-900 text-gray-100' : ''}>
+          <EditorContent editor={editor} />
         </div>
-      )}
-
-      {/* Editor Content */}
-      <div className={isCodeMode ? 'font-mono text-sm bg-gray-900 text-gray-100' : ''}>
-        <EditorContent editor={editor} />
       </div>
-    </div>
+    </>
   );
 }
 

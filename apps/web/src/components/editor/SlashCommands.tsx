@@ -5,7 +5,8 @@
  * - Triggered by typing `/` at start of line or after space
  * - Fuzzy search filtering as user types
  * - Keyboard navigation (up/down, Enter, Escape)
- * - Categories: Headings, Lists, Blocks
+ * - Categories: Headings, Lists, Blocks, Embeds
+ * - Embed commands trigger picker modals via callbacks
  */
 
 import { Extension, Range } from '@tiptap/core';
@@ -26,6 +27,12 @@ import {
   FileText,
 } from 'lucide-react';
 
+// Embed picker callbacks
+export interface EmbedCallbacks {
+  onTaskEmbed?: () => void;
+  onDocumentEmbed?: () => void;
+}
+
 // Command item type
 export interface SlashCommandItem {
   id: string;
@@ -37,7 +44,7 @@ export interface SlashCommandItem {
 }
 
 // Define all available slash commands
-const getSlashCommands = (): SlashCommandItem[] => [
+const getSlashCommands = (embedCallbacks?: EmbedCallbacks): SlashCommandItem[] => [
   // Headings
   {
     id: 'heading1',
@@ -121,7 +128,7 @@ const getSlashCommands = (): SlashCommandItem[] => [
       editor.chain().focus().deleteRange(range).setHorizontalRule().run();
     },
   },
-  // Embeds (placeholders for future task/doc embed)
+  // Embeds - trigger picker modals via callbacks
   {
     id: 'task',
     title: 'Task',
@@ -129,8 +136,12 @@ const getSlashCommands = (): SlashCommandItem[] => [
     icon: <CheckSquare className="w-4 h-4" />,
     category: 'embeds',
     action: ({ editor, range }) => {
-      // For now, just insert placeholder text - will be enhanced in TB57
-      editor.chain().focus().deleteRange(range).insertContent('[Task embed - coming soon]').run();
+      // Delete the slash command first
+      editor.chain().focus().deleteRange(range).run();
+      // Then trigger the task picker modal
+      if (embedCallbacks?.onTaskEmbed) {
+        embedCallbacks.onTaskEmbed();
+      }
     },
   },
   {
@@ -140,8 +151,12 @@ const getSlashCommands = (): SlashCommandItem[] => [
     icon: <FileText className="w-4 h-4" />,
     category: 'embeds',
     action: ({ editor, range }) => {
-      // For now, just insert placeholder text - will be enhanced in TB57
-      editor.chain().focus().deleteRange(range).insertContent('[Document embed - coming soon]').run();
+      // Delete the slash command first
+      editor.chain().focus().deleteRange(range).run();
+      // Then trigger the document picker modal
+      if (embedCallbacks?.onDocumentEmbed) {
+        embedCallbacks.onDocumentEmbed();
+      }
     },
   },
 ];
@@ -316,13 +331,13 @@ export const SlashCommandMenu = forwardRef<SlashCommandMenuRef, SlashCommandMenu
 SlashCommandMenu.displayName = 'SlashCommandMenu';
 
 // Suggestion plugin configuration
-function createSuggestionConfig(): Partial<SuggestionOptions<SlashCommandItem>> {
+function createSuggestionConfig(embedCallbacks?: EmbedCallbacks): Partial<SuggestionOptions<SlashCommandItem>> {
   return {
     char: '/',
     startOfLine: false, // Allow / anywhere but we'll filter in shouldShow
 
     items: ({ query }) => {
-      const allCommands = getSlashCommands();
+      const allCommands = getSlashCommands(embedCallbacks);
       return fuzzySearch(query, allCommands);
     },
 
@@ -396,13 +411,18 @@ function createSuggestionConfig(): Partial<SuggestionOptions<SlashCommandItem>> 
   };
 }
 
+// Extension options interface
+export interface SlashCommandsOptions {
+  embedCallbacks?: EmbedCallbacks;
+}
+
 // The main slash commands extension
-export const SlashCommands = Extension.create({
+export const SlashCommands = Extension.create<SlashCommandsOptions>({
   name: 'slashCommands',
 
   addOptions() {
     return {
-      suggestion: createSuggestionConfig(),
+      embedCallbacks: undefined,
     };
   },
 
@@ -410,7 +430,7 @@ export const SlashCommands = Extension.create({
     return [
       Suggestion({
         editor: this.editor,
-        ...this.options.suggestion,
+        ...createSuggestionConfig(this.options.embedCallbacks),
       }),
     ];
   },
