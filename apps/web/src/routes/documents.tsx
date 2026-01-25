@@ -940,11 +940,13 @@ function DocumentDetailPanel({
   onClose,
   isExpanded = false,
   onToggleExpand,
+  onDocumentCloned,
 }: {
   documentId: string;
   onClose: () => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  onDocumentCloned?: (document: { id: string }) => void;
 }) {
   const { data: document, isLoading, isError, error } = useDocument(documentId);
   const updateDocument = useUpdateDocument();
@@ -1008,11 +1010,15 @@ function DocumentDetailPanel({
     if (!document) return;
 
     try {
-      await cloneDocument.mutateAsync({
+      const clonedDoc = await cloneDocument.mutateAsync({
         id: documentId,
         createdBy: document.createdBy,
         // New document will have "(Copy)" appended to title
       });
+      // Navigate to the cloned document
+      if (clonedDoc?.id && onDocumentCloned) {
+        onDocumentCloned({ id: clonedDoc.id });
+      }
     } catch {
       // Error handling is done by the mutation
     }
@@ -1526,6 +1532,7 @@ export function DocumentsPage() {
               onClose={handleCloseDocument}
               isExpanded={isDocumentExpanded}
               onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
+              onDocumentCloned={handleDocumentCreated}
             />
           </div>
         )}
