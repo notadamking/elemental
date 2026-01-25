@@ -8,9 +8,9 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService, createInboxService } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService, createInboxService, getDirectReports, getManagementChain, validateManager, detectReportingCycle } from '@elemental/cli';
 import type { SyncService, InboxService } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow, InboxFilter, InboxStatus } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow, InboxFilter, InboxStatus, Entity } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, broadcastInboxEvent, type ClientData } from './ws/handler.js';
@@ -1224,6 +1224,117 @@ app.get('/api/inbox/:itemId', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get inbox item:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get inbox item' } }, 500);
+  }
+});
+
+// ============================================================================
+// Entity Hierarchy Endpoints
+// ============================================================================
+
+// GET /api/entities/:id/reports - Get direct reports for an entity
+app.get('/api/entities/:id/reports', async (c) => {
+  try {
+    const id = c.req.param('id') as EntityId;
+
+    // Verify entity exists
+    const entity = await api.get(id as unknown as ElementId);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // Get all entities and filter for direct reports
+    const allEntities = await api.list({ type: 'entity' }) as Entity[];
+    const reports = getDirectReports(allEntities, id);
+
+    return c.json(reports);
+  } catch (error) {
+    console.error('[elemental] Failed to get entity reports:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity reports' } }, 500);
+  }
+});
+
+// GET /api/entities/:id/chain - Get management chain for an entity
+app.get('/api/entities/:id/chain', async (c) => {
+  try {
+    const id = c.req.param('id') as EntityId;
+
+    // Verify entity exists
+    const entity = await api.get(id as unknown as ElementId);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // Load all entities for chain lookup
+    const allEntities = await api.list({ type: 'entity' }) as Entity[];
+
+    // Create a sync getEntity function for chain lookup
+    const getEntityById = (entityId: EntityId): Entity | null => {
+      return allEntities.find(e => (e.id as string) === (entityId as string)) || null;
+    };
+
+    // Get the management chain
+    const chain = getManagementChain(entity as Entity, getEntityById);
+
+    return c.json(chain);
+  } catch (error) {
+    console.error('[elemental] Failed to get management chain:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get management chain' } }, 500);
+  }
+});
+
+// PATCH /api/entities/:id/manager - Set or clear manager for an entity
+app.patch('/api/entities/:id/manager', async (c) => {
+  try {
+    const id = c.req.param('id') as EntityId;
+    const body = await c.req.json<{
+      managerId: string | null;
+    }>();
+
+    // Verify entity exists
+    const entity = await api.get(id as unknown as ElementId);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // If setting a manager (not clearing)
+    if (body.managerId !== null) {
+      // Verify manager exists
+      const manager = await api.get(body.managerId as unknown as ElementId);
+      if (!manager || manager.type !== 'entity') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Manager entity not found' } }, 404);
+      }
+
+      // Check for self-assignment
+      if (body.managerId === id) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Entity cannot be its own manager' } }, 400);
+      }
+
+      // Check for cycles using detectReportingCycle
+      const allEntities = await api.list({ type: 'entity' }) as Entity[];
+
+      // Create a getEntity function for cycle detection
+      const getEntityForCycle = (entityId: EntityId): Entity | null => {
+        return allEntities.find(e => (e.id as string) === (entityId as string)) || null;
+      };
+
+      // Check if setting this manager would create a cycle
+      const cycleResult = detectReportingCycle(id, body.managerId as EntityId, getEntityForCycle);
+      if (cycleResult.hasCycle) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Setting this manager would create a reporting cycle' } }, 400);
+      }
+    }
+
+    // Update the entity with new reportsTo value
+    const updates: Record<string, unknown> = {
+      reportsTo: body.managerId as EntityId | null,
+    };
+
+    const updated = await api.update(id as unknown as ElementId, updates);
+    return c.json(updated);
+  } catch (error) {
+    console.error('[elemental] Failed to set entity manager:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to set entity manager';
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
   }
 });
 

@@ -1058,14 +1058,14 @@ For mutations (create, update, delete):
   - [x] Web: WebSocket events for real-time inbox updates
   - [x] **Verify:** Playwright tests passing (12 TB65 tests, 1 passed, 11 skipped due to no inbox items in test db)
 
-- [ ] **TB66: Entity Management Hierarchy**
-  - [ ] Server: Add `GET /api/entities/:id/reports` endpoint (direct reports)
-  - [ ] Server: Add `GET /api/entities/:id/chain` endpoint (management chain)
-  - [ ] Server: Add `PATCH /api/entities/:id/manager` endpoint (set/clear manager)
-  - [ ] Web: Add "Reports To" field in EntityDetailPanel (editable)
-  - [ ] Web: Add "Direct Reports" section showing entities reporting to this one
-  - [ ] Web: Org chart visualization (tree view of hierarchy)
-  - [ ] **Verify:** Playwright tests passing
+- [x] **TB66: Entity Management Hierarchy**
+  - [x] Server: Add `GET /api/entities/:id/reports` endpoint (direct reports)
+  - [x] Server: Add `GET /api/entities/:id/chain` endpoint (management chain)
+  - [x] Server: Add `PATCH /api/entities/:id/manager` endpoint (set/clear manager)
+  - [x] Web: Add "Reports To" field in EntityDetailPanel (editable)
+  - [x] Web: Add "Direct Reports" section showing entities reporting to this one
+  - [x] Web: Org chart visualization (tree view of hierarchy)
+  - [x] **Verify:** Playwright tests passing (13 TB66 tests)
 
 ### Phase 17: Data Loading Architecture Refactor
 

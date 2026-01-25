@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, UserCircle } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 
 interface Entity {
@@ -18,6 +18,7 @@ interface Entity {
   entityType: 'agent' | 'human' | 'system';
   publicKey?: string;
   active?: boolean;
+  reportsTo?: string;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -247,6 +248,77 @@ function useMarkAllInboxRead(entityId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['entities', entityId, 'inbox'] });
+    },
+  });
+}
+
+function useAllEntities(search: string = '') {
+  return useQuery<PaginatedResult<Entity>>({
+    queryKey: ['entities', 'all', search],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        limit: '100',
+        orderBy: 'name',
+        orderDir: 'asc',
+      });
+      if (search.trim()) {
+        params.set('search', search.trim());
+      }
+      const response = await fetch(`/api/entities?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch entities');
+      return response.json();
+    },
+  });
+}
+
+function useEntityDirectReports(id: string | null) {
+  return useQuery<Entity[]>({
+    queryKey: ['entities', id, 'reports'],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/reports`);
+      if (!response.ok) throw new Error('Failed to fetch direct reports');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useEntityManagementChain(id: string | null) {
+  return useQuery<Entity[]>({
+    queryKey: ['entities', id, 'chain'],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/chain`);
+      if (!response.ok) throw new Error('Failed to fetch management chain');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+function useSetEntityManager(entityId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (managerId: string | null) => {
+      const response = await fetch(`/api/entities/${entityId}/manager`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ managerId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to set manager');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entities'] });
+      queryClient.invalidateQueries({ queryKey: ['entities', entityId] });
+      queryClient.invalidateQueries({ queryKey: ['entities', entityId, 'chain'] });
+      // Also invalidate the old manager's reports if there was one
+      queryClient.invalidateQueries({ queryKey: ['entities', undefined, 'reports'] });
     },
   });
 }
@@ -969,6 +1041,214 @@ function InboxItemCard({
   );
 }
 
+// Manager display component - shows the current manager with a link
+function ManagerDisplay({
+  managerId,
+  onClick,
+}: {
+  managerId: string;
+  onClick: (id: string) => void;
+}) {
+  const { data: manager, isLoading } = useEntity(managerId);
+
+  if (isLoading) {
+    return <span className="text-sm text-gray-400">Loading...</span>;
+  }
+
+  if (!manager) {
+    return <span className="text-sm text-gray-400">Unknown manager</span>;
+  }
+
+  const styles = ENTITY_TYPE_STYLES[manager.entityType] || ENTITY_TYPE_STYLES.system;
+  const Icon = styles.icon;
+
+  return (
+    <button
+      onClick={() => onClick(manager.id)}
+      className="flex items-center gap-2 p-2 rounded border border-gray-200 hover:bg-gray-50 transition-colors w-full text-left"
+      data-testid="entity-manager-display"
+    >
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${styles.bg}`}>
+        <Icon className={`w-4 h-4 ${styles.text}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-gray-900 truncate">{manager.name}</div>
+        <div className="text-xs text-gray-500">{manager.entityType}</div>
+      </div>
+    </button>
+  );
+}
+
+// Manager picker component - allows selecting a manager from all entities
+function ManagerPicker({
+  entityId,
+  currentManagerId,
+  searchQuery,
+  onSearchChange,
+  onSelect,
+  isLoading,
+}: {
+  entityId: string;
+  currentManagerId: string | null;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onSelect: (managerId: string | null) => void;
+  isLoading: boolean;
+}) {
+  const { data: allEntitiesData, isLoading: entitiesLoading } = useAllEntities(searchQuery);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Filter out self and current manager
+  const availableEntities = useMemo(() => {
+    if (!allEntitiesData?.items) return [];
+    return allEntitiesData.items.filter(e =>
+      e.id !== entityId && // Can't be own manager
+      e.active !== false // Only active entities
+    );
+  }, [allEntitiesData, entityId]);
+
+  return (
+    <div className="space-y-2" data-testid="manager-picker">
+      <input
+        ref={inputRef}
+        type="text"
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
+        placeholder="Search for an entity..."
+        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        data-testid="manager-search-input"
+      />
+      <div className="max-h-40 overflow-auto border border-gray-200 rounded-md divide-y divide-gray-100">
+        {/* Clear manager option */}
+        {currentManagerId && (
+          <button
+            onClick={() => onSelect(null)}
+            disabled={isLoading}
+            className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-red-50 transition-colors disabled:opacity-50"
+            data-testid="manager-clear-button"
+          >
+            <X className="w-4 h-4 text-red-500" />
+            <span className="text-sm text-red-600">Remove manager</span>
+          </button>
+        )}
+        {entitiesLoading ? (
+          <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
+        ) : availableEntities.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-gray-500">No entities found</div>
+        ) : (
+          availableEntities.map((e) => {
+            const styles = ENTITY_TYPE_STYLES[e.entityType] || ENTITY_TYPE_STYLES.system;
+            const Icon = styles.icon;
+            const isCurrentManager = e.id === currentManagerId;
+
+            return (
+              <button
+                key={e.id}
+                onClick={() => onSelect(e.id)}
+                disabled={isLoading || isCurrentManager}
+                className={`flex items-center gap-2 w-full px-3 py-2 text-left transition-colors disabled:opacity-50 ${
+                  isCurrentManager ? 'bg-blue-50' : 'hover:bg-gray-50'
+                }`}
+                data-testid={`manager-option-${e.id}`}
+              >
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${styles.bg}`}>
+                  <Icon className={`w-3 h-3 ${styles.text}`} />
+                </div>
+                <span className="text-sm text-gray-900 flex-1 truncate">{e.name}</span>
+                {isCurrentManager && (
+                  <span className="text-xs text-blue-600">Current</span>
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
+      {isLoading && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Updating...
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Simple org chart visualization showing entity and direct reports
+function OrgChartView({
+  rootEntity,
+  directReports,
+  onEntityClick,
+}: {
+  rootEntity: Entity;
+  directReports: Entity[];
+  onEntityClick: (id: string) => void;
+}) {
+  const styles = ENTITY_TYPE_STYLES[rootEntity.entityType] || ENTITY_TYPE_STYLES.system;
+  const Icon = styles.icon;
+
+  return (
+    <div className="p-3 bg-gray-50 rounded-lg" data-testid="org-chart-view">
+      {/* Root entity (current) */}
+      <div className="flex flex-col items-center">
+        <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm border border-gray-200 mb-2">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${styles.bg}`}>
+            <Icon className={`w-4 h-4 ${styles.text}`} />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-900">{rootEntity.name}</div>
+            <div className="text-xs text-gray-500">{rootEntity.entityType}</div>
+          </div>
+        </div>
+
+        {/* Connector line */}
+        {directReports.length > 0 && (
+          <div className="w-px h-4 bg-gray-300" />
+        )}
+
+        {/* Horizontal connector */}
+        {directReports.length > 1 && (
+          <div
+            className="h-px bg-gray-300 mb-2"
+            style={{ width: `${Math.min(directReports.length * 120, 400)}px` }}
+          />
+        )}
+
+        {/* Direct reports */}
+        {directReports.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-3">
+            {directReports.map((report) => {
+              const reportStyles = ENTITY_TYPE_STYLES[report.entityType] || ENTITY_TYPE_STYLES.system;
+              const ReportIcon = reportStyles.icon;
+
+              return (
+                <button
+                  key={report.id}
+                  onClick={() => onEntityClick(report.id)}
+                  className="flex flex-col items-center p-2 bg-white rounded-lg shadow-sm border border-gray-200 hover:border-blue-300 hover:shadow transition-all"
+                  data-testid={`org-chart-report-${report.id}`}
+                >
+                  {/* Vertical connector */}
+                  <div className="w-px h-2 bg-gray-300 -mt-4 mb-1" />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${reportStyles.bg}`}>
+                    <ReportIcon className={`w-4 h-4 ${reportStyles.text}`} />
+                  </div>
+                  <div className="text-xs font-medium text-gray-900 mt-1 max-w-[80px] truncate">
+                    {report.name}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 type EntityDetailTab = 'overview' | 'inbox';
 
 function EntityDetailPanel({
@@ -985,7 +1265,10 @@ function EntityDetailPanel({
   const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
   const { data: inboxCount } = useEntityInboxCount(entityId);
   const { data: inboxData, isLoading: inboxLoading } = useEntityInbox(entityId);
+  const { data: directReports, isLoading: reportsLoading } = useEntityDirectReports(entityId);
+  const { data: managementChain, isLoading: chainLoading } = useEntityManagementChain(entityId);
   const updateEntity = useUpdateEntity(entityId);
+  const setEntityManager = useSetEntityManager(entityId);
   const markInboxRead = useMarkInboxRead(entityId);
   const markAllRead = useMarkAllInboxRead(entityId);
 
@@ -995,6 +1278,9 @@ function EntityDetailPanel({
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<EntityDetailTab>('overview');
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const [showManagerPicker, setShowManagerPicker] = useState(false);
+  const [managerSearchQuery, setManagerSearchQuery] = useState('');
+  const [showOrgChart, setShowOrgChart] = useState(false);
 
   // Initialize edit values when entity loads or editing starts
   useEffect(() => {
@@ -1332,6 +1618,155 @@ function EntityDetailPanel({
               </div>
             ) : (
               <span className="text-sm text-gray-400">No tags</span>
+            )}
+          </div>
+        </div>
+
+        {/* Management Hierarchy Section */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <GitBranch className="w-4 h-4 text-gray-400" />
+            <h3 className="text-sm font-medium text-gray-900">Organization</h3>
+          </div>
+
+          {/* Reports To (Manager) */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-600">Reports To</span>
+              {!showManagerPicker ? (
+                <button
+                  onClick={() => {
+                    setShowManagerPicker(true);
+                    setManagerSearchQuery('');
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-700"
+                  data-testid="entity-edit-manager-button"
+                >
+                  {entity.reportsTo ? 'Change' : 'Set Manager'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowManagerPicker(false)}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                  data-testid="entity-cancel-manager-edit"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+            {showManagerPicker ? (
+              <ManagerPicker
+                entityId={entityId}
+                currentManagerId={entity.reportsTo || null}
+                searchQuery={managerSearchQuery}
+                onSearchChange={setManagerSearchQuery}
+                onSelect={async (managerId) => {
+                  try {
+                    await setEntityManager.mutateAsync(managerId);
+                    setShowManagerPicker(false);
+                  } catch {
+                    // Error handled by mutation
+                  }
+                }}
+                isLoading={setEntityManager.isPending}
+              />
+            ) : entity.reportsTo ? (
+              <ManagerDisplay
+                managerId={entity.reportsTo}
+                onClick={(id) => navigate({ to: '/entities', search: { selected: id, name: undefined, page: 1, limit: 25 } })}
+              />
+            ) : (
+              <span className="text-sm text-gray-400" data-testid="entity-no-manager">No manager assigned</span>
+            )}
+            {setEntityManager.isError && (
+              <p className="mt-1 text-xs text-red-600" data-testid="entity-manager-error">
+                {setEntityManager.error.message}
+              </p>
+            )}
+          </div>
+
+          {/* Management Chain */}
+          {managementChain && managementChain.length > 0 && (
+            <div className="mb-4" data-testid="entity-management-chain">
+              <div className="text-xs text-gray-500 mb-2">Management Chain</div>
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-sm text-gray-700">{entity.name}</span>
+                {managementChain.map((manager, index) => (
+                  <span key={manager.id} className="flex items-center gap-1">
+                    <ChevronRight className="w-3 h-3 text-gray-400" />
+                    <button
+                      onClick={() => navigate({ to: '/entities', search: { selected: manager.id, name: undefined, page: 1, limit: 25 } })}
+                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                      data-testid={`chain-entity-${index}`}
+                    >
+                      {manager.name}
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {chainLoading && (
+            <div className="text-xs text-gray-400 mb-4">Loading management chain...</div>
+          )}
+
+          {/* Direct Reports */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-600">
+                Direct Reports {directReports && directReports.length > 0 && `(${directReports.length})`}
+              </span>
+              {directReports && directReports.length > 0 && (
+                <button
+                  onClick={() => setShowOrgChart(!showOrgChart)}
+                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  data-testid="entity-toggle-org-chart"
+                >
+                  {showOrgChart ? (
+                    <>
+                      <ChevronDown className="w-3 h-3" />
+                      Hide chart
+                    </>
+                  ) : (
+                    <>
+                      <GitBranch className="w-3 h-3" />
+                      Show chart
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {reportsLoading ? (
+              <div className="text-xs text-gray-400">Loading reports...</div>
+            ) : !directReports || directReports.length === 0 ? (
+              <span className="text-sm text-gray-400" data-testid="entity-no-reports">No direct reports</span>
+            ) : showOrgChart ? (
+              <OrgChartView
+                rootEntity={entity}
+                directReports={directReports}
+                onEntityClick={(id) => navigate({ to: '/entities', search: { selected: id, name: undefined, page: 1, limit: 25 } })}
+              />
+            ) : (
+              <div className="space-y-1" data-testid="entity-direct-reports-list">
+                {directReports.map((report) => (
+                  <button
+                    key={report.id}
+                    onClick={() => navigate({ to: '/entities', search: { selected: report.id, name: undefined, page: 1, limit: 25 } })}
+                    className="flex items-center gap-2 w-full p-2 text-left rounded hover:bg-gray-50 transition-colors"
+                    data-testid={`direct-report-${report.id}`}
+                  >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${ENTITY_TYPE_STYLES[report.entityType]?.bg || 'bg-gray-100'}`}>
+                      {report.entityType === 'agent' ? <Bot className="w-3 h-3 text-blue-600" /> :
+                       report.entityType === 'human' ? <User className="w-3 h-3 text-green-600" /> :
+                       <Server className="w-3 h-3 text-purple-600" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{report.name}</div>
+                      <div className="text-xs text-gray-500">{report.entityType}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>

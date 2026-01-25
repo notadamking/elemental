@@ -1838,3 +1838,411 @@ test.describe('TB64: Entity Inbox Tab', () => {
     await expect(page).toHaveURL(/\/messages\?.*channel=/);
   });
 });
+
+test.describe('TB66: Entity Management Hierarchy', () => {
+  test('GET /api/entities/:id/reports endpoint is accessible', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get reports for first entity
+    const firstEntity = entities[0];
+    const reportsResponse = await page.request.get(`/api/entities/${firstEntity.id}/reports`);
+    expect(reportsResponse.ok()).toBe(true);
+    const reports = await reportsResponse.json();
+    expect(Array.isArray(reports)).toBe(true);
+  });
+
+  test('GET /api/entities/:id/chain endpoint is accessible', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get chain for first entity
+    const firstEntity = entities[0];
+    const chainResponse = await page.request.get(`/api/entities/${firstEntity.id}/chain`);
+    expect(chainResponse.ok()).toBe(true);
+    const chain = await chainResponse.json();
+    expect(Array.isArray(chain)).toBe(true);
+  });
+
+  test('PATCH /api/entities/:id/manager endpoint sets manager', async ({ page }) => {
+    // Create two test entities
+    const testManager = `test-manager-${Date.now()}`;
+    const testEmployee = `test-employee-${Date.now()}`;
+
+    const managerResponse = await page.request.post('/api/entities', {
+      data: { name: testManager, entityType: 'human' },
+    });
+    expect(managerResponse.ok()).toBe(true);
+    const manager = await managerResponse.json();
+
+    const employeeResponse = await page.request.post('/api/entities', {
+      data: { name: testEmployee, entityType: 'agent' },
+    });
+    expect(employeeResponse.ok()).toBe(true);
+    const employee = await employeeResponse.json();
+
+    // Set manager
+    const setManagerResponse = await page.request.patch(`/api/entities/${employee.id}/manager`, {
+      data: { managerId: manager.id },
+    });
+    expect(setManagerResponse.ok()).toBe(true);
+    const updated = await setManagerResponse.json();
+    expect(updated.reportsTo).toBe(manager.id);
+  });
+
+  test('PATCH /api/entities/:id/manager prevents self-assignment', async ({ page }) => {
+    // Create test entity with unique name
+    const testEntity = `test-self-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    const response = await page.request.post('/api/entities', {
+      data: { name: testEntity, entityType: 'agent' },
+    });
+
+    if (!response.ok()) {
+      // If name collision, skip test
+      const error = await response.json();
+      if (error.error?.message?.includes('already exists')) {
+        test.skip();
+        return;
+      }
+      throw new Error(`Failed to create entity: ${error.error?.message}`);
+    }
+    const entity = await response.json();
+
+    // Try to set self as manager
+    const setManagerResponse = await page.request.patch(`/api/entities/${entity.id}/manager`, {
+      data: { managerId: entity.id },
+    });
+    expect(setManagerResponse.ok()).toBe(false);
+    const error = await setManagerResponse.json();
+    expect(error.error?.message).toContain('own manager');
+  });
+
+  test('PATCH /api/entities/:id/manager prevents reporting cycles', async ({ page }) => {
+    // Create three entities: A reports to B, B reports to C
+    const entityA = `test-cycle-a-${Date.now()}`;
+    const entityB = `test-cycle-b-${Date.now()}`;
+    const entityC = `test-cycle-c-${Date.now()}`;
+
+    const aResponse = await page.request.post('/api/entities', {
+      data: { name: entityA, entityType: 'agent' },
+    });
+    const a = await aResponse.json();
+
+    const bResponse = await page.request.post('/api/entities', {
+      data: { name: entityB, entityType: 'agent' },
+    });
+    const b = await bResponse.json();
+
+    const cResponse = await page.request.post('/api/entities', {
+      data: { name: entityC, entityType: 'agent' },
+    });
+    const c = await cResponse.json();
+
+    // Set up: A reports to B, B reports to C
+    await page.request.patch(`/api/entities/${a.id}/manager`, {
+      data: { managerId: b.id },
+    });
+    await page.request.patch(`/api/entities/${b.id}/manager`, {
+      data: { managerId: c.id },
+    });
+
+    // Try to make C report to A (would create cycle: A -> B -> C -> A)
+    const cycleResponse = await page.request.patch(`/api/entities/${c.id}/manager`, {
+      data: { managerId: a.id },
+    });
+    expect(cycleResponse.ok()).toBe(false);
+    const error = await cycleResponse.json();
+    expect(error.error?.message).toContain('cycle');
+  });
+
+  test('PATCH /api/entities/:id/manager can clear manager', async ({ page }) => {
+    // Create two test entities
+    const testManager = `test-manager-clear-${Date.now()}`;
+    const testEmployee = `test-employee-clear-${Date.now()}`;
+
+    const managerResponse = await page.request.post('/api/entities', {
+      data: { name: testManager, entityType: 'human' },
+    });
+    const manager = await managerResponse.json();
+
+    const employeeResponse = await page.request.post('/api/entities', {
+      data: { name: testEmployee, entityType: 'agent' },
+    });
+    const employee = await employeeResponse.json();
+
+    // Set manager
+    await page.request.patch(`/api/entities/${employee.id}/manager`, {
+      data: { managerId: manager.id },
+    });
+
+    // Clear manager
+    const clearResponse = await page.request.patch(`/api/entities/${employee.id}/manager`, {
+      data: { managerId: null },
+    });
+    expect(clearResponse.ok()).toBe(true);
+    const updated = await clearResponse.json();
+    expect(updated.reportsTo).toBeNull();
+  });
+
+  test('entity detail panel shows organization section', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show organization section with Reports To and Direct Reports
+    await expect(page.getByText('Organization')).toBeVisible();
+    await expect(page.getByText('Reports To')).toBeVisible();
+    await expect(page.getByText(/Direct Reports/)).toBeVisible();
+  });
+
+  test('can open manager picker', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click set manager button
+    await page.getByTestId('entity-edit-manager-button').click();
+
+    // Manager picker should be visible
+    await expect(page.getByTestId('manager-picker')).toBeVisible();
+    await expect(page.getByTestId('manager-search-input')).toBeVisible();
+  });
+
+  test('can search and select manager from picker', async ({ page }) => {
+    // Get first page of entities - we need at least 2 entities for this test
+    const response = await page.request.get('/api/entities?limit=25');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length < 2) {
+      test.skip();
+      return;
+    }
+
+    // Use the first entity on the page as the employee
+    const employee = entities[0];
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the employee entity card (should be visible on first page)
+    await page.getByTestId(`entity-card-${employee.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click set manager button
+    await page.getByTestId('entity-edit-manager-button').click();
+    await expect(page.getByTestId('manager-picker')).toBeVisible({ timeout: 5000 });
+
+    // Wait for entities to load in picker
+    await page.waitForTimeout(500);
+
+    // Check if at least one manager option exists (any entity other than self)
+    const anyManagerOption = page.locator('[data-testid^="manager-option-"]').first();
+    await expect(anyManagerOption).toBeVisible({ timeout: 5000 });
+
+    // Click any available manager option
+    await anyManagerOption.click();
+
+    // Manager picker should close (either successfully or with error)
+    await expect(page.getByTestId('manager-picker')).not.toBeVisible({ timeout: 5000 });
+  });
+
+  test('direct reports list shows entities reporting to manager', async ({ page }) => {
+    // Create a manager with a report
+    const testManager = `test-manager-reports-${Date.now()}`;
+    const testReport = `test-report-${Date.now()}`;
+
+    const managerResponse = await page.request.post('/api/entities', {
+      data: { name: testManager, entityType: 'human' },
+    });
+    const manager = await managerResponse.json();
+
+    const reportResponse = await page.request.post('/api/entities', {
+      data: { name: testReport, entityType: 'agent' },
+    });
+    const report = await reportResponse.json();
+
+    // Set up reporting relationship
+    await page.request.patch(`/api/entities/${report.id}/manager`, {
+      data: { managerId: manager.id },
+    });
+
+    // View manager's detail panel
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click on manager card
+    await page.getByTestId(`entity-card-${manager.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show direct reports list with the report
+    await expect(page.getByText(/Direct Reports \(1\)/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId(`direct-report-${report.id}`)).toBeVisible();
+  });
+
+  test('org chart view can be toggled', async ({ page }) => {
+    // Create a manager with a report
+    const testManager = `test-manager-chart-${Date.now()}`;
+    const testReport = `test-report-chart-${Date.now()}`;
+
+    const managerResponse = await page.request.post('/api/entities', {
+      data: { name: testManager, entityType: 'human' },
+    });
+    const manager = await managerResponse.json();
+
+    const reportResponse = await page.request.post('/api/entities', {
+      data: { name: testReport, entityType: 'agent' },
+    });
+    const report = await reportResponse.json();
+
+    // Set up reporting relationship
+    await page.request.patch(`/api/entities/${report.id}/manager`, {
+      data: { managerId: manager.id },
+    });
+
+    // View manager's detail panel
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click on manager card
+    await page.getByTestId(`entity-card-${manager.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click show chart button
+    await page.getByTestId('entity-toggle-org-chart').click();
+
+    // Org chart should be visible
+    await expect(page.getByTestId('org-chart-view')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId(`org-chart-report-${report.id}`)).toBeVisible();
+  });
+
+  test('management chain shows when entity has manager', async ({ page }) => {
+    // Create chain: C -> B -> A (A is CEO)
+    const ceo = `test-ceo-${Date.now()}`;
+    const vp = `test-vp-${Date.now()}`;
+    const employee = `test-emp-${Date.now()}`;
+
+    const ceoResponse = await page.request.post('/api/entities', {
+      data: { name: ceo, entityType: 'human' },
+    });
+    const ceoEntity = await ceoResponse.json();
+
+    const vpResponse = await page.request.post('/api/entities', {
+      data: { name: vp, entityType: 'human' },
+    });
+    const vpEntity = await vpResponse.json();
+
+    const empResponse = await page.request.post('/api/entities', {
+      data: { name: employee, entityType: 'agent' },
+    });
+    const empEntity = await empResponse.json();
+
+    // Set up chain: emp -> vp -> ceo
+    await page.request.patch(`/api/entities/${empEntity.id}/manager`, {
+      data: { managerId: vpEntity.id },
+    });
+    await page.request.patch(`/api/entities/${vpEntity.id}/manager`, {
+      data: { managerId: ceoEntity.id },
+    });
+
+    // View employee's detail panel
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click on employee card
+    await page.getByTestId(`entity-card-${empEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Should show management chain
+    await expect(page.getByTestId('entity-management-chain')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Management Chain')).toBeVisible();
+    // Chain should show: emp -> vp -> ceo
+    await expect(page.getByTestId('chain-entity-0')).toBeVisible();
+    await expect(page.getByTestId('chain-entity-1')).toBeVisible();
+  });
+
+  test('clicking manager in chain navigates to that entity', async ({ page }) => {
+    // Create two entities with hierarchy
+    const testManager = `test-nav-manager-${Date.now()}`;
+    const testEmployee = `test-nav-employee-${Date.now()}`;
+
+    const managerResponse = await page.request.post('/api/entities', {
+      data: { name: testManager, entityType: 'human' },
+    });
+    const manager = await managerResponse.json();
+
+    const employeeResponse = await page.request.post('/api/entities', {
+      data: { name: testEmployee, entityType: 'agent' },
+    });
+    const employee = await employeeResponse.json();
+
+    // Set up reporting relationship
+    await page.request.patch(`/api/entities/${employee.id}/manager`, {
+      data: { managerId: manager.id },
+    });
+
+    // View employee's detail panel
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click on employee card
+    await page.getByTestId(`entity-card-${employee.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click on manager in chain
+    await page.getByTestId('chain-entity-0').click();
+
+    // URL should change to manager's ID
+    await expect(page).toHaveURL(new RegExp(`selected=${manager.id}`));
+  });
+});
