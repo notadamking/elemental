@@ -896,13 +896,13 @@ For mutations (create, update, delete):
   - [x] Web: Click document title to open in document editor (navigate or side panel)
   - [x] **Verify:** Playwright tests passing (9 TB51 tests, 30 total attachment tests)
 
-- [ ] **TB52: Attach Documents to Messages**
-  - [ ] Server: Update `POST /api/messages` to accept `attachmentIds` array
-  - [ ] Web: Add attachment button (paperclip icon) to MessageComposer
-  - [ ] Web: Document picker modal for selecting attachments
-  - [ ] Web: Show attachments in MessageBubble (document cards below content)
-  - [ ] Web: Attachment preview: title, type badge, click to open
-  - [ ] **Verify:** Send message with 2 document attachments, both render in message
+- [x] **TB52: Attach Documents to Messages**
+  - [x] Server: Update `POST /api/messages` to accept `attachmentIds` array
+  - [x] Web: Add attachment button (paperclip icon) to MessageComposer
+  - [x] Web: Document picker modal for selecting attachments
+  - [x] Web: Show attachments in MessageBubble (document cards below content)
+  - [x] Web: Attachment preview: title, type badge, click to open
+  - [x] **Verify:** Playwright tests passing (20 TB52 tests)
 
 - [ ] **TB53: Attach Documents to Documents (Links)**
   - [ ] Server: Use `references` dependency type for document-to-document links

@@ -1205,18 +1205,40 @@ app.get('/api/channels/:id/messages', async (c) => {
 
     const messages = await api.list(filter as Parameters<typeof api.list>[0]);
 
-    // Optionally hydrate content
+    // Optionally hydrate content and attachments
     if (hydrateContent) {
       const hydratedMessages = await Promise.all(
         messages.map(async (msg) => {
-          const message = msg as { contentRef?: string };
+          const message = msg as { id: ElementId; contentRef?: string };
+          let result = { ...msg } as Record<string, unknown>;
+
+          // Hydrate content
           if (message.contentRef) {
             const content = await api.get(message.contentRef as ElementId);
             if (content && content.type === 'document') {
-              return { ...msg, _content: (content as { content?: string }).content };
+              result._content = (content as { content?: string }).content;
             }
           }
-          return msg;
+
+          // Hydrate attachments (documents referenced by this message)
+          const dependencies = await api.getDependencies(message.id);
+          const attachmentDeps = dependencies.filter(
+            (dep) => dep.sourceId === message.id && dep.type === 'references'
+          );
+          if (attachmentDeps.length > 0) {
+            const attachments = await Promise.all(
+              attachmentDeps.map(async (dep) => {
+                const doc = await api.get(dep.targetId as ElementId);
+                if (doc && doc.type === 'document') {
+                  return doc;
+                }
+                return null;
+              })
+            );
+            result._attachments = attachments.filter(Boolean);
+          }
+
+          return result;
         })
       );
       return c.json(hydratedMessages);
@@ -1423,10 +1445,31 @@ app.post('/api/messages', async (c) => {
     const message = await createMessage(messageInput as unknown as CreateMessageInput);
     const createdMessage = await api.create(message as unknown as Element & Record<string, unknown>);
 
-    // Return the message with content hydrated
+    // Handle attachments if provided
+    const attachments: Element[] = [];
+    if (body.attachmentIds && Array.isArray(body.attachmentIds)) {
+      for (const docId of body.attachmentIds) {
+        // Verify document exists
+        const doc = await api.get(docId as ElementId);
+        if (!doc || doc.type !== 'document') {
+          return c.json({ error: { code: 'NOT_FOUND', message: `Document ${docId} not found` } }, 404);
+        }
+        // Create references dependency from message to document
+        await api.addDependency({
+          sourceId: createdMessage.id as ElementId,
+          targetId: docId as ElementId,
+          type: 'references',
+          actor: body.sender as EntityId,
+        });
+        attachments.push(doc);
+      }
+    }
+
+    // Return the message with content and attachments hydrated
     return c.json({
       ...createdMessage,
       _content: body.content,
+      _attachments: attachments,
     });
   } catch (error) {
     if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
