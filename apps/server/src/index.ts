@@ -8,7 +8,7 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity } from '@elemental/cli';
 import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
@@ -533,6 +533,49 @@ app.get('/api/entities', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get entities:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entities' } }, 500);
+  }
+});
+
+app.post('/api/entities', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { name, entityType, publicKey, tags, metadata, createdBy } = body;
+
+    // Validation
+    if (!name || typeof name !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name is required' } }, 400);
+    }
+    if (!entityType || !['agent', 'human', 'system'].includes(entityType)) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Valid entity type (agent, human, system) is required' } }, 400);
+    }
+
+    // Check for duplicate name
+    const existingEntities = await api.list({ type: 'entity' });
+    const duplicateName = existingEntities.some((e) => {
+      const entity = e as unknown as { name: string };
+      return entity.name.toLowerCase() === name.toLowerCase();
+    });
+    if (duplicateName) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Entity with this name already exists' } }, 400);
+    }
+
+    const entityInput = {
+      name,
+      entityType,
+      publicKey,
+      tags: tags || [],
+      metadata: metadata || {},
+      createdBy: (createdBy || 'el-0000') as EntityId,
+    };
+
+    const entity = await createEntity(entityInput);
+    const created = await api.create(entity as unknown as Element & Record<string, unknown>);
+
+    return c.json(created, 201);
+  } catch (error) {
+    console.error('[elemental] Failed to create entity:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create entity';
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
   }
 });
 

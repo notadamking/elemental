@@ -758,12 +758,12 @@ For mutations (create, update, delete):
   - [x] Web: Split-view layout (list on left, detail on right)
   - [x] **Verify:** Click entity, see full profile with stats and activity timeline (Playwright tests passing - 9 tests)
 
-- [ ] **TB35: Create Entity**
-  - [ ] Server: Add `POST /api/entities` endpoint (name, entityType, optional publicKey, metadata)
-  - [ ] Web: Create RegisterEntityModal (name input, type selector, optional public key textarea)
-  - [ ] Web: Add "Register Entity" button to Entities page
-  - [ ] Web: Validation for unique name, valid entity type
-  - [ ] **Verify:** Register new agent entity from UI, appears in list
+- [x] **TB35: Create Entity**
+  - [x] Server: Add `POST /api/entities` endpoint (name, entityType, optional publicKey, metadata)
+  - [x] Web: Create RegisterEntityModal (name input, type selector, optional public key textarea)
+  - [x] Web: Add "Register Entity" button to Entities page
+  - [x] Web: Validation for unique name, valid entity type
+  - [x] **Verify:** Register new agent entity from UI, appears in list (Playwright tests passing - 12 tests)
 
 - [ ] **TB36: Edit Entity**
   - [ ] Server: Add `PATCH /api/entities/:id` endpoint (name, metadata, tags, active status)

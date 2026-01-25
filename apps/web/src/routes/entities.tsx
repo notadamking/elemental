@@ -5,9 +5,9 @@
  * Includes detail panel with stats and activity timeline.
  */
 
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2 } from 'lucide-react';
 
 interface Entity {
   id: string;
@@ -107,6 +107,276 @@ function useEntityEvents(id: string | null) {
     },
     enabled: !!id,
   });
+}
+
+interface CreateEntityInput {
+  name: string;
+  entityType: 'agent' | 'human' | 'system';
+  publicKey?: string;
+  tags?: string[];
+  createdBy?: string;
+}
+
+function useCreateEntity() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateEntityInput) => {
+      const response = await fetch('/api/entities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to create entity');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entities'] });
+    },
+  });
+}
+
+const ENTITY_TYPE_OPTIONS = [
+  { value: 'agent', label: 'Agent', description: 'AI agent - automated actors performing work', icon: Bot },
+  { value: 'human', label: 'Human', description: 'Human user - manual actors in the system', icon: User },
+  { value: 'system', label: 'System', description: 'System process - automated infrastructure', icon: Server },
+] as const;
+
+function RegisterEntityModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: (entity: Entity) => void;
+}) {
+  const [name, setName] = useState('');
+  const [entityType, setEntityType] = useState<'agent' | 'human' | 'system'>('agent');
+  const [publicKey, setPublicKey] = useState('');
+  const [tags, setTags] = useState('');
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const createEntity = useCreateEntity();
+
+  // Focus name input when modal opens
+  useEffect(() => {
+    if (isOpen && nameInputRef.current) {
+      nameInputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setName('');
+      setEntityType('agent');
+      setPublicKey('');
+      setTags('');
+      createEntity.reset();
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!name.trim()) return;
+
+    const input: CreateEntityInput = {
+      name: name.trim(),
+      entityType,
+    };
+
+    if (publicKey.trim()) {
+      input.publicKey = publicKey.trim();
+    }
+
+    if (tags.trim()) {
+      input.tags = tags.split(',').map((t) => t.trim()).filter(Boolean);
+    }
+
+    try {
+      const result = await createEntity.mutateAsync(input);
+      onSuccess?.(result);
+      onClose();
+    } catch {
+      // Error is handled by mutation state
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50" data-testid="register-entity-modal" onKeyDown={handleKeyDown}>
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        data-testid="register-entity-modal-backdrop"
+      />
+
+      {/* Dialog */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Register Entity</h2>
+            <button
+              onClick={onClose}
+              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+              aria-label="Close"
+              data-testid="register-entity-modal-close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-4 overflow-auto flex-1">
+            {/* Name */}
+            <div className="mb-4">
+              <label htmlFor="entity-name" className="block text-sm font-medium text-gray-700 mb-1">
+                Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={nameInputRef}
+                id="entity-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter entity name..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                data-testid="register-entity-name-input"
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Must start with a letter, followed by alphanumeric characters, hyphens, or underscores
+              </p>
+            </div>
+
+            {/* Entity Type */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Type <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-2" data-testid="register-entity-type-options">
+                {ENTITY_TYPE_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        entityType === option.value
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      data-testid={`register-entity-type-${option.value}`}
+                    >
+                      <input
+                        type="radio"
+                        name="entityType"
+                        value={option.value}
+                        checked={entityType === option.value}
+                        onChange={() => setEntityType(option.value)}
+                        className="sr-only"
+                      />
+                      <Icon className={`w-5 h-5 ${entityType === option.value ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className={`font-medium ${entityType === option.value ? 'text-blue-900' : 'text-gray-900'}`}>
+                          {option.label}
+                        </div>
+                        <div className="text-xs text-gray-500">{option.description}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Public Key (optional) */}
+            <div className="mb-4">
+              <label htmlFor="entity-public-key" className="block text-sm font-medium text-gray-700 mb-1">
+                Public Key <span className="text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                id="entity-public-key"
+                value={publicKey}
+                onChange={(e) => setPublicKey(e.target.value)}
+                placeholder="Ed25519 public key, base64 encoded..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                data-testid="register-entity-public-key-input"
+              />
+            </div>
+
+            {/* Tags (optional) */}
+            <div className="mb-4">
+              <label htmlFor="entity-tags" className="block text-sm font-medium text-gray-700 mb-1">
+                Tags <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                id="entity-tags"
+                type="text"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="Enter tags separated by commas..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                data-testid="register-entity-tags-input"
+              />
+            </div>
+
+            {/* Error */}
+            {createEntity.isError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600" data-testid="register-entity-error">
+                {createEntity.error.message}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                data-testid="register-entity-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!name.trim() || createEntity.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="register-entity-submit"
+              >
+                {createEntity.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Register Entity
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const ENTITY_TYPE_STYLES: Record<string, { bg: string; text: string; icon: typeof Bot }> = {
@@ -515,6 +785,11 @@ export function EntitiesPage() {
   const [typeFilter, setTypeFilter] = useState<EntityTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  const handleEntityCreated = (entity: Entity) => {
+    setSelectedEntityId(entity.id);
+  };
 
   const counts = useMemo(() => {
     const data = entities.data || [];
@@ -556,14 +831,31 @@ export function EntitiesPage() {
 
   return (
     <div className="h-full flex" data-testid="entities-page">
+      {/* Register Entity Modal */}
+      <RegisterEntityModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onSuccess={handleEntityCreated}
+      />
+
       {/* Entity List */}
       <div className={`flex flex-col ${selectedEntityId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-medium text-gray-900">Entities</h2>
-          <p className="text-sm text-gray-500">
-            {filteredEntities.length} of {entities.data?.length || 0} entities
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-gray-500">
+              {filteredEntities.length} of {entities.data?.length || 0} entities
+            </p>
+            <button
+              onClick={() => setIsRegisterModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              data-testid="register-entity-button"
+            >
+              <Plus className="w-4 h-4" />
+              Register Entity
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
