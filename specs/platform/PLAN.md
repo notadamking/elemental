@@ -930,20 +930,20 @@ For mutations (create, update, delete):
   - [x] Web: Install @tiptap/extension-highlight, @radix-ui/react-tooltip, @radix-ui/react-dropdown-menu
   - [x] **Verify:** Playwright tests passing (18 TB54 tests)
 
-- [ ] **TB55: Slash Commands**
-  - [ ] Web: Implement slash command menu triggered by typing `/` at start of line or after space
-  - [ ] Web: Command list with icons:
-    - [ ] /heading1, /heading2, /heading3 - Insert headings
-    - [ ] /bullet - Bullet list
-    - [ ] /numbered - Numbered list
-    - [ ] /quote - Block quote
-    - [ ] /code - Code block
-    - [ ] /divider - Horizontal rule
-    - [ ] /task - Embed task (opens picker)
-    - [ ] /doc - Embed document (opens picker)
-  - [ ] Web: Fuzzy search filtering as user types after `/`
-  - [ ] Web: Keyboard navigation (up/down arrows, Enter to select, Escape to cancel)
-  - [ ] **Verify:** Type `/head`, see filtered options, select "Heading 1", heading inserted
+- [x] **TB55: Slash Commands**
+  - [x] Web: Implement slash command menu triggered by typing `/` at start of line or after space
+  - [x] Web: Command list with icons:
+    - [x] /heading1, /heading2, /heading3 - Insert headings
+    - [x] /bullet - Bullet list
+    - [x] /numbered - Numbered list
+    - [x] /quote - Block quote
+    - [x] /code - Code block
+    - [x] /divider - Horizontal rule
+    - [x] /task - Embed task (placeholder - opens picker in TB57)
+    - [x] /doc - Embed document (placeholder - opens picker in TB57)
+  - [x] Web: Fuzzy search filtering as user types after `/`
+  - [x] Web: Keyboard navigation (up/down arrows, Enter to select, Escape to cancel)
+  - [x] **Verify:** Playwright tests passing (19 TB55 tests)
 
 - [ ] **TB56: Drag-and-Drop Blocks**
   - [ ] Web: Add drag handle (grip icon) to left of each block, visible on hover

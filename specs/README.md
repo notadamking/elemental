@@ -82,6 +82,7 @@ Detailed specifications for web platform features (tracer bullets).
 | Path | Description | Keywords |
 |------|-------------|----------|
 | [platform/TB54-editor-toolbar-polish.md](./platform/TB54-editor-toolbar-polish.md) | Editor toolbar redesign with tooltips and responsive overflow | editor, toolbar, tiptap, tooltip, shortcuts, responsive, overflow |
+| [platform/TB55-slash-commands.md](./platform/TB55-slash-commands.md) | Slash commands for quick block insertion in document editor | editor, tiptap, slash, commands, fuzzy search, keyboard navigation |
 
 ---
 

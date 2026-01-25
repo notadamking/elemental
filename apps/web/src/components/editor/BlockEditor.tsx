@@ -14,6 +14,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Highlight from '@tiptap/extension-highlight';
+import { SlashCommands } from './SlashCommands';
 import { common, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import {
@@ -189,6 +190,7 @@ export function BlockEditor({
       Highlight.configure({
         multicolor: false,
       }),
+      SlashCommands,
     ],
     content: getInitialContent(),
     editable: !readOnly,
