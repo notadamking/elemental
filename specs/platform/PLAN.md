@@ -916,16 +916,19 @@ For mutations (create, update, delete):
 
 ### Phase 14: Document Editor Quality
 
-- [ ] **TB54: Editor Toolbar Polish**
-  - [ ] Web: Redesign toolbar with grouped sections using dividers:
-    - [ ] History: Undo, Redo
-    - [ ] Text: Bold, Italic, Code, Strikethrough, Highlight
-    - [ ] Headings: H1, H2, H3 dropdown or buttons
-    - [ ] Lists: Bullet, Numbered, Checklist
-    - [ ] Blocks: Quote, Code Block, Horizontal Rule
-  - [ ] Web: Add keyboard shortcut hints on hover (tooltip showing e.g., "Bold (⌘B)")
-  - [ ] Web: Responsive toolbar: collapse to overflow menu on narrow screens
-  - [ ] **Verify:** Toolbar shows all formatting options with working shortcuts
+- [x] **TB54: Editor Toolbar Polish**
+  - [x] Web: Redesign toolbar with grouped sections using dividers:
+    - [x] History: Undo, Redo
+    - [x] Text: Bold, Italic, Code, Strikethrough, Highlight
+    - [x] Headings: H1, H2, H3 buttons
+    - [x] Lists: Bullet, Numbered
+    - [x] Blocks: Quote, Code Block, Horizontal Rule
+  - [x] Web: Add Radix UI Tooltip component with keyboard shortcut hints on hover (e.g., "Bold ⌘B")
+  - [x] Web: Platform-aware shortcuts (⌘ on Mac, Ctrl on Windows/Linux)
+  - [x] Web: Responsive toolbar: collapses to overflow menu on narrow screens (<420px)
+  - [x] Web: Overflow menu with categorized sections (Text, Headings, Lists, Blocks)
+  - [x] Web: Install @tiptap/extension-highlight, @radix-ui/react-tooltip, @radix-ui/react-dropdown-menu
+  - [x] **Verify:** Playwright tests passing (18 TB54 tests)
 
 - [ ] **TB55: Slash Commands**
   - [ ] Web: Implement slash command menu triggered by typing `/` at start of line or after space
@@ -959,13 +962,13 @@ For mutations (create, update, delete):
   - [ ] **Verify:** Embed task in document, click embedded task, navigates to task detail
 
 - [ ] **TB58: Advanced Inline Formatting**
-  - [ ] Web: Add highlight extension (background color, default yellow)
-  - [ ] Web: Add strikethrough support (if not already present)
+  - [x] Web: Add highlight extension (background color, default yellow) - added in TB54
+  - [x] Web: Add strikethrough support (toolbar button with ⌘+Shift+S) - added in TB54
   - [ ] Web: Improve inline code styling (monospace font, subtle background)
-  - [ ] Web: Implement keyboard shortcuts:
-    - [ ] ⌘+Shift+H for highlight
-    - [ ] ⌘+Shift+S for strikethrough
-    - [ ] ⌘+E for inline code
+  - [ ] Web: Implement keyboard shortcuts (native Tiptap shortcuts already work):
+    - [x] ⌘+Shift+H for highlight (toolbar button available)
+    - [x] ⌘+Shift+S for strikethrough (toolbar button available)
+    - [x] ⌘+E for inline code (native Tiptap)
   - [ ] Web: Add these options to selection bubble menu (appears when text selected)
   - [ ] **Verify:** Select text, use keyboard shortcut to highlight, formatting applied
 

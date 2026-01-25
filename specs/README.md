@@ -75,6 +75,16 @@ Specifications for interfaces and APIs.
 
 ---
 
+## Platform Specifications
+
+Detailed specifications for web platform features (tracer bullets).
+
+| Path | Description | Keywords |
+|------|-------------|----------|
+| [platform/TB54-editor-toolbar-polish.md](./platform/TB54-editor-toolbar-polish.md) | Editor toolbar redesign with tooltips and responsive overflow | editor, toolbar, tiptap, tooltip, shortcuts, responsive, overflow |
+
+---
+
 ## Specification Template
 
 When creating new specifications, include these sections:
