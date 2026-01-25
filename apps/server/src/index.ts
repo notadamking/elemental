@@ -797,6 +797,99 @@ app.get('/api/dependencies/:id', async (c) => {
   }
 });
 
+// POST /api/dependencies - Create a dependency
+app.post('/api/dependencies', async (c) => {
+  try {
+    const body = await c.req.json<{
+      sourceId: string;
+      targetId: string;
+      type: string;
+      metadata?: Record<string, unknown>;
+      actor?: string;
+    }>();
+
+    // Validate required fields
+    if (!body.sourceId || !body.targetId || !body.type) {
+      return c.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'sourceId, targetId, and type are required' } },
+        400
+      );
+    }
+
+    const dependency = await api.addDependency({
+      sourceId: body.sourceId as ElementId,
+      targetId: body.targetId as ElementId,
+      type: body.type as 'blocks' | 'parent-child' | 'awaits' | 'relates-to' | 'references' | 'supersedes' | 'duplicates' | 'caused-by' | 'validates' | 'authored-by' | 'assigned-to' | 'approved-by' | 'replies-to',
+      metadata: body.metadata,
+      actor: body.actor as EntityId | undefined,
+    });
+
+    // Events are automatically recorded in the database by addDependency
+    // and will be picked up by the event broadcaster's polling mechanism
+
+    return c.json(dependency, 201);
+  } catch (error) {
+    const errorObj = error as { code?: string; message?: string; name?: string };
+    // Handle cycle detection
+    if (errorObj.code === 'CYCLE_DETECTED') {
+      return c.json(
+        { error: { code: 'CYCLE_DETECTED', message: errorObj.message || 'Adding this dependency would create a cycle' } },
+        400
+      );
+    }
+    // Handle duplicate dependency
+    if (errorObj.code === 'DUPLICATE_DEPENDENCY' || errorObj.name === 'ConflictError') {
+      return c.json(
+        { error: { code: 'CONFLICT', message: errorObj.message || 'Dependency already exists' } },
+        409
+      );
+    }
+    // Handle not found
+    if (errorObj.code === 'NOT_FOUND' || errorObj.name === 'NotFoundError') {
+      return c.json(
+        { error: { code: 'NOT_FOUND', message: errorObj.message || 'Source or target element not found' } },
+        404
+      );
+    }
+    // Handle validation errors
+    if (errorObj.code === 'VALIDATION_ERROR' || errorObj.code === 'INVALID_DEPENDENCY_TYPE' || errorObj.name === 'ValidationError') {
+      return c.json(
+        { error: { code: 'VALIDATION_ERROR', message: errorObj.message || 'Invalid dependency type' } },
+        400
+      );
+    }
+    console.error('[elemental] Failed to create dependency:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create dependency' } }, 500);
+  }
+});
+
+// DELETE /api/dependencies/:sourceId/:targetId/:type - Remove a dependency
+app.delete('/api/dependencies/:sourceId/:targetId/:type', async (c) => {
+  try {
+    const sourceId = c.req.param('sourceId') as ElementId;
+    const targetId = c.req.param('targetId') as ElementId;
+    const type = c.req.param('type') as 'blocks' | 'parent-child' | 'awaits' | 'relates-to' | 'references' | 'supersedes' | 'duplicates' | 'caused-by' | 'validates' | 'authored-by' | 'assigned-to' | 'approved-by' | 'replies-to';
+    const actor = c.req.query('actor') as EntityId | undefined;
+
+    await api.removeDependency(sourceId, targetId, type, actor);
+
+    // Events are automatically recorded in the database by removeDependency
+    // and will be picked up by the event broadcaster's polling mechanism
+
+    return c.json({ success: true, message: 'Dependency removed' });
+  } catch (error) {
+    const errorObj = error as { code?: string; message?: string; name?: string };
+    if (errorObj.code === 'NOT_FOUND' || errorObj.name === 'NotFoundError') {
+      return c.json(
+        { error: { code: 'NOT_FOUND', message: errorObj.message || 'Dependency not found' } },
+        404
+      );
+    }
+    console.error('[elemental] Failed to remove dependency:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to remove dependency' } }, 500);
+  }
+});
+
 // ============================================================================
 // Channels Endpoints
 // ============================================================================

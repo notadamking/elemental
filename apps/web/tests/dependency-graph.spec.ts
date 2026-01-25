@@ -450,3 +450,315 @@ test.describe('TB43: Dependency Graph - Filter & Search', () => {
     await expect(page.getByTestId('graph-toolbar')).toBeVisible();
   });
 });
+
+test.describe('TB44: Dependency Graph - Edit Mode', () => {
+  test('POST /api/dependencies endpoint creates a dependency', async ({ page }) => {
+    // First get two tasks to create dependency between
+    const tasksResponse = await page.request.get('/api/tasks/ready');
+    const tasks = await tasksResponse.json();
+
+    if (tasks.length < 2) {
+      test.skip();
+      return;
+    }
+
+    const sourceTask = tasks[0];
+    const targetTask = tasks[1];
+
+    // Clean up any existing dependency first (ignore errors if it doesn't exist)
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+
+    // Create a relates-to dependency (non-blocking)
+    const response = await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: sourceTask.id,
+        targetId: targetTask.id,
+        type: 'relates-to',
+      },
+    });
+
+    if (!response.ok()) {
+      const errorBody = await response.json();
+      console.error('Failed to create dependency:', response.status(), errorBody);
+    }
+    expect(response.ok()).toBe(true);
+    const dependency = await response.json();
+    expect(dependency).toHaveProperty('sourceId', sourceTask.id);
+    expect(dependency).toHaveProperty('targetId', targetTask.id);
+    expect(dependency).toHaveProperty('type', 'relates-to');
+
+    // Clean up - delete the dependency
+    const deleteResponse = await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+    expect(deleteResponse.ok()).toBe(true);
+  });
+
+  test('POST /api/dependencies returns 400 for missing fields', async ({ page }) => {
+    const response = await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: 'task-1',
+        // Missing targetId and type
+      },
+    });
+
+    expect(response.status()).toBe(400);
+    const error = await response.json();
+    expect(error.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  test('POST /api/dependencies returns 409 for duplicate dependency', async ({ page }) => {
+    // First get two tasks
+    const tasksResponse = await page.request.get('/api/tasks/ready');
+    const tasks = await tasksResponse.json();
+
+    if (tasks.length < 2) {
+      test.skip();
+      return;
+    }
+
+    const sourceTask = tasks[0];
+    const targetTask = tasks[1];
+
+    // Create a dependency
+    const response1 = await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: sourceTask.id,
+        targetId: targetTask.id,
+        type: 'relates-to',
+      },
+    });
+
+    if (!response1.ok()) {
+      // If it already exists, that's also fine for this test
+      const error = await response1.json();
+      if (error.error?.code !== 'CONFLICT') {
+        throw new Error('Unexpected error creating first dependency');
+      }
+    }
+
+    // Try to create the same dependency again
+    const response2 = await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: sourceTask.id,
+        targetId: targetTask.id,
+        type: 'relates-to',
+      },
+    });
+
+    expect(response2.status()).toBe(409);
+    const error = await response2.json();
+    expect(error.error.code).toBe('CONFLICT');
+
+    // Clean up
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+  });
+
+  test('DELETE /api/dependencies endpoint removes a dependency', async ({ page }) => {
+    // First get two tasks
+    const tasksResponse = await page.request.get('/api/tasks/ready');
+    const tasks = await tasksResponse.json();
+
+    if (tasks.length < 2) {
+      test.skip();
+      return;
+    }
+
+    const sourceTask = tasks[0];
+    const targetTask = tasks[1];
+
+    // Create a dependency first
+    await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: sourceTask.id,
+        targetId: targetTask.id,
+        type: 'relates-to',
+      },
+    });
+
+    // Delete the dependency
+    const response = await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+
+    expect(response.ok()).toBe(true);
+    const result = await response.json();
+    expect(result.success).toBe(true);
+  });
+
+  test('DELETE /api/dependencies returns 404 for non-existent dependency', async ({ page }) => {
+    const response = await page.request.delete(
+      '/api/dependencies/nonexistent-source/nonexistent-target/blocks'
+    );
+
+    expect(response.status()).toBe(404);
+    const error = await response.json();
+    expect(error.error.code).toBe('NOT_FOUND');
+  });
+
+  // Helper function to wait for the dependency graph page to stabilize
+  async function waitForGraphPageReady(page: import('@playwright/test').Page) {
+    await page.goto('/dashboard/dependencies');
+    await expect(page.getByTestId('dependency-graph-page')).toBeVisible({ timeout: 10000 });
+    // Wait for toolbar to be visible (indicates loading is complete)
+    await expect(page.getByTestId('graph-toolbar')).toBeVisible({ timeout: 10000 });
+    // Wait for UI to stabilize
+    await page.waitForTimeout(500);
+  }
+
+  test('Edit Mode toggle button is displayed and functional', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Edit Mode toggle button should be visible
+    await expect(page.getByTestId('edit-mode-toggle')).toBeVisible();
+
+    // Initially should show "Edit Mode"
+    await expect(page.getByTestId('edit-mode-toggle')).toContainText('Edit Mode');
+
+    // Click to enable edit mode
+    await page.getByTestId('edit-mode-toggle').click();
+
+    // Should now show "Exit Edit Mode" and edit mode hint
+    await expect(page.getByTestId('edit-mode-toggle')).toContainText('Exit Edit Mode');
+    await expect(page.getByTestId('edit-mode-hint')).toBeVisible();
+
+    // Click again to exit edit mode
+    await page.getByTestId('edit-mode-toggle').click();
+
+    // Edit mode hint should not be visible
+    await expect(page.getByTestId('edit-mode-hint')).not.toBeVisible();
+    await expect(page.getByTestId('edit-mode-toggle')).toContainText('Edit Mode');
+  });
+
+  test('in Edit Mode, search and filter controls are hidden', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Initially search should be visible
+    await expect(page.getByTestId('graph-search-input')).toBeVisible();
+    await expect(page.getByTestId('status-filter-button')).toBeVisible();
+
+    // Click Edit Mode toggle
+    await page.getByTestId('edit-mode-toggle').click();
+
+    // Search and filters should be hidden
+    await expect(page.getByTestId('graph-search-input')).not.toBeVisible();
+    await expect(page.getByTestId('status-filter-button')).not.toBeVisible();
+
+    // Zoom controls should still be visible
+    await expect(page.getByTestId('zoom-in-button')).toBeVisible();
+    await expect(page.getByTestId('zoom-out-button')).toBeVisible();
+    await expect(page.getByTestId('fit-view-button')).toBeVisible();
+  });
+
+  test('node selection workflow in Edit Mode', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Wait for graph to render
+    await page.waitForTimeout(500);
+
+    // Click Edit Mode toggle
+    await page.getByTestId('edit-mode-toggle').click();
+    await expect(page.getByTestId('edit-mode-hint')).toBeVisible();
+
+    // Click on a node in the graph
+    const node = page.getByTestId('graph-node').first();
+    if (await node.isVisible({ timeout: 2000 })) {
+      await node.click();
+
+      // Should show source selected hint
+      await expect(page.getByTestId('source-selected-hint')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByTestId('cancel-selection-button')).toBeVisible();
+
+      // Click cancel selection
+      await page.getByTestId('cancel-selection-button').click();
+
+      // Should go back to initial edit mode hint
+      await expect(page.getByTestId('edit-mode-hint')).toBeVisible();
+      await expect(page.getByTestId('source-selected-hint')).not.toBeVisible();
+    }
+  });
+
+  test('dependency type picker workflow', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length < 2) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Wait for graph to render
+    await page.waitForTimeout(500);
+
+    // Click Edit Mode toggle
+    await page.getByTestId('edit-mode-toggle').click();
+
+    // Get nodes
+    const nodes = page.getByTestId('graph-node');
+    const count = await nodes.count();
+
+    if (count >= 2) {
+      // Click first node
+      await nodes.nth(0).click();
+      await expect(page.getByTestId('source-selected-hint')).toBeVisible({ timeout: 5000 });
+
+      // Click second node
+      await nodes.nth(1).click();
+
+      // Dependency type picker should appear with all options
+      await expect(page.getByTestId('dependency-type-picker')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByTestId('dependency-type-blocks')).toBeVisible();
+      await expect(page.getByTestId('dependency-type-parent-child')).toBeVisible();
+      await expect(page.getByTestId('dependency-type-relates-to')).toBeVisible();
+      await expect(page.getByTestId('dependency-type-references')).toBeVisible();
+
+      // Click cancel
+      await page.getByTestId('cancel-dependency-button').click();
+
+      // Type picker should be hidden
+      await expect(page.getByTestId('dependency-type-picker')).not.toBeVisible();
+    }
+  });
+});

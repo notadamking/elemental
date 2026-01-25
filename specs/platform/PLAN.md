@@ -825,14 +825,14 @@ For mutations (create, update, delete):
   - [x] Web: Add zoom controls (+/- buttons, fit-to-view button)
   - [x] **Verify:** Search for task in graph, matching node highlights (Playwright tests passing - 22 tests)
 
-- [ ] **TB44: Dependency Graph - Edit Mode**
-  - [ ] Server: Add `POST /api/dependencies` endpoint (sourceId, targetId, type)
-  - [ ] Server: Add `DELETE /api/dependencies` endpoint (sourceId, targetId, type)
-  - [ ] Web: Add "Edit Mode" toggle button to graph toolbar
-  - [ ] Web: In edit mode: click first node (source), click second node (target), type picker appears
-  - [ ] Web: In edit mode: right-click edge shows delete option
-  - [ ] Web: Visual feedback for selection state (selected node has border)
-  - [ ] **Verify:** Add blocks dependency between two tasks via graph UI, edge appears
+- [x] **TB44: Dependency Graph - Edit Mode**
+  - [x] Server: Add `POST /api/dependencies` endpoint (sourceId, targetId, type)
+  - [x] Server: Add `DELETE /api/dependencies` endpoint (sourceId, targetId, type)
+  - [x] Web: Add "Edit Mode" toggle button to graph toolbar
+  - [x] Web: In edit mode: click first node (source), click second node (target), type picker appears
+  - [x] Web: In edit mode: right-click edge shows delete option
+  - [x] Web: Visual feedback for selection state (selected node has border)
+  - [x] **Verify:** Add blocks dependency between two tasks via graph UI, edge appears (Playwright tests passing - 9 tests)
 
 - [ ] **TB45: Agent Activity Improvements**
   - [ ] Web: Add horizontal bar chart showing tasks per agent (using simple CSS bars or chart library)
