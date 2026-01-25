@@ -8,9 +8,9 @@
  * 4. Recently Completed (closed in last 24h)
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2 } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Filter, ArrowUpDown, ChevronDown } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -51,6 +51,172 @@ interface TaskDetail extends Task {
   design?: string;
   _dependencies: Dependency[];
   _dependents: Dependency[];
+}
+
+// ============================================================================
+// Filter & Sort Types
+// ============================================================================
+
+type SortField = 'priority' | 'created' | 'updated' | 'deadline' | 'title';
+type SortDirection = 'asc' | 'desc';
+
+interface ColumnFilters {
+  assignee: string | null;
+  priority: number | null;
+  tag: string | null;
+}
+
+interface ColumnSort {
+  field: SortField;
+  direction: SortDirection;
+}
+
+interface ColumnPreferences {
+  filters: ColumnFilters;
+  sort: ColumnSort;
+}
+
+const DEFAULT_FILTERS: ColumnFilters = {
+  assignee: null,
+  priority: null,
+  tag: null,
+};
+
+const DEFAULT_SORT: ColumnSort = {
+  field: 'priority',
+  direction: 'asc',
+};
+
+const SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: 'priority', label: 'Priority' },
+  { value: 'created', label: 'Created Date' },
+  { value: 'updated', label: 'Updated Date' },
+  { value: 'deadline', label: 'Deadline' },
+  { value: 'title', label: 'Title' },
+];
+
+const PRIORITY_FILTER_OPTIONS = [
+  { value: 1, label: 'Critical' },
+  { value: 2, label: 'High' },
+  { value: 3, label: 'Medium' },
+  { value: 4, label: 'Low' },
+  { value: 5, label: 'Trivial' },
+];
+
+// Hook to persist column preferences in localStorage
+function useColumnPreferences(columnId: string): [ColumnPreferences, (prefs: Partial<ColumnPreferences>) => void] {
+  const storageKey = `task-flow-column-${columnId}`;
+
+  const [preferences, setPreferences] = useState<ColumnPreferences>(() => {
+    if (typeof window === 'undefined') {
+      return { filters: DEFAULT_FILTERS, sort: DEFAULT_SORT };
+    }
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          filters: { ...DEFAULT_FILTERS, ...parsed.filters },
+          sort: { ...DEFAULT_SORT, ...parsed.sort },
+        };
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    return { filters: DEFAULT_FILTERS, sort: DEFAULT_SORT };
+  });
+
+  const updatePreferences = useCallback((updates: Partial<ColumnPreferences>) => {
+    setPreferences((prev) => {
+      const next = {
+        filters: updates.filters ? { ...prev.filters, ...updates.filters } : prev.filters,
+        sort: updates.sort ? { ...prev.sort, ...updates.sort } : prev.sort,
+      };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {
+        // Ignore storage errors
+      }
+      return next;
+    });
+  }, [storageKey]);
+
+  return [preferences, updatePreferences];
+}
+
+// Apply filters and sorting to tasks
+function applyFiltersAndSort<T extends Task>(
+  tasks: T[] | undefined,
+  filters: ColumnFilters,
+  sort: ColumnSort
+): T[] {
+  if (!tasks) return [];
+
+  let result = [...tasks];
+
+  // Apply filters
+  if (filters.assignee) {
+    result = result.filter((t) => t.assignee === filters.assignee);
+  }
+  if (filters.priority !== null) {
+    result = result.filter((t) => t.priority === filters.priority);
+  }
+  if (filters.tag) {
+    result = result.filter((t) => t.tags?.includes(filters.tag!));
+  }
+
+  // Apply sorting
+  result.sort((a, b) => {
+    let comparison = 0;
+
+    switch (sort.field) {
+      case 'priority':
+        comparison = a.priority - b.priority;
+        break;
+      case 'created':
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        break;
+      case 'updated':
+        comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+        break;
+      case 'deadline':
+        // Tasks without deadlines go last
+        const aDeadline = (a as unknown as TaskDetail).deadline;
+        const bDeadline = (b as unknown as TaskDetail).deadline;
+        if (!aDeadline && !bDeadline) comparison = 0;
+        else if (!aDeadline) comparison = 1;
+        else if (!bDeadline) comparison = -1;
+        else comparison = new Date(aDeadline).getTime() - new Date(bDeadline).getTime();
+        break;
+      case 'title':
+        comparison = a.title.localeCompare(b.title);
+        break;
+    }
+
+    return sort.direction === 'asc' ? comparison : -comparison;
+  });
+
+  return result;
+}
+
+// Get unique assignees from tasks
+function getUniqueAssignees(tasks: Task[] | undefined): string[] {
+  if (!tasks) return [];
+  const assignees = new Set<string>();
+  tasks.forEach((t) => {
+    if (t.assignee) assignees.add(t.assignee);
+  });
+  return Array.from(assignees).sort();
+}
+
+// Get unique tags from tasks
+function getUniqueTags(tasks: Task[] | undefined): string[] {
+  if (!tasks) return [];
+  const tags = new Set<string>();
+  tasks.forEach((t) => {
+    t.tags?.forEach((tag) => tags.add(tag));
+  });
+  return Array.from(tags).sort();
 }
 
 function useReadyTasks() {
@@ -335,23 +501,273 @@ function getTimeAgo(dateString: string): string {
   return `${diffDays}d ago`;
 }
 
+// ============================================================================
+// Filter & Sort Dropdown Component
+// ============================================================================
+
+interface FilterSortDropdownProps {
+  columnId: string;
+  availableAssignees: string[];
+  availableTags: string[];
+  preferences: ColumnPreferences;
+  onUpdate: (updates: Partial<ColumnPreferences>) => void;
+}
+
+function FilterSortDropdown({
+  columnId,
+  availableAssignees,
+  availableTags,
+  preferences,
+  onUpdate,
+}: FilterSortDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Count active filters
+  const activeFilters = [
+    preferences.filters.assignee,
+    preferences.filters.priority,
+    preferences.filters.tag,
+  ].filter(Boolean).length;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleClearFilters = () => {
+    onUpdate({ filters: DEFAULT_FILTERS });
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`p-1 rounded transition-colors ${
+          activeFilters > 0 || preferences.sort.field !== 'priority' || preferences.sort.direction !== 'asc'
+            ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+            : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+        }`}
+        title="Filter & Sort"
+        data-testid={`${columnId}-filter-button`}
+      >
+        <Filter className="w-3.5 h-3.5" />
+        {activeFilters > 0 && (
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+            {activeFilters}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-2"
+          data-testid={`${columnId}-filter-dropdown`}
+        >
+          {/* Sort Section */}
+          <div className="px-3 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              <ArrowUpDown className="w-3 h-3" />
+              Sort By
+            </div>
+            <div className="space-y-1">
+              {SORT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => onUpdate({ sort: { field: option.value, direction: preferences.sort.direction } })}
+                  className={`w-full text-left px-2 py-1 text-xs rounded ${
+                    preferences.sort.field === option.value
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                  data-testid={`${columnId}-sort-${option.value}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1 mt-2">
+              <button
+                onClick={() => onUpdate({ sort: { ...preferences.sort, direction: 'asc' } })}
+                className={`flex-1 px-2 py-1 text-xs rounded ${
+                  preferences.sort.direction === 'asc'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+                data-testid={`${columnId}-sort-asc`}
+              >
+                Ascending
+              </button>
+              <button
+                onClick={() => onUpdate({ sort: { ...preferences.sort, direction: 'desc' } })}
+                className={`flex-1 px-2 py-1 text-xs rounded ${
+                  preferences.sort.direction === 'desc'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+                data-testid={`${columnId}-sort-desc`}
+              >
+                Descending
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Section */}
+          <div className="px-3 pt-2">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                <Filter className="w-3 h-3" />
+                Filter
+              </div>
+              {activeFilters > 0 && (
+                <button
+                  onClick={handleClearFilters}
+                  className="text-xs text-blue-600 hover:underline"
+                  data-testid={`${columnId}-clear-filters`}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Priority Filter */}
+            <div className="mb-2">
+              <label className="text-xs text-gray-500 mb-1 block">Priority</label>
+              <select
+                value={preferences.filters.priority ?? ''}
+                onChange={(e) => onUpdate({
+                  filters: {
+                    ...preferences.filters,
+                    priority: e.target.value ? parseInt(e.target.value, 10) : null,
+                  },
+                })}
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                data-testid={`${columnId}-filter-priority`}
+              >
+                <option value="">All priorities</option>
+                {PRIORITY_FILTER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Assignee Filter */}
+            {availableAssignees.length > 0 && (
+              <div className="mb-2">
+                <label className="text-xs text-gray-500 mb-1 block">Assignee</label>
+                <select
+                  value={preferences.filters.assignee ?? ''}
+                  onChange={(e) => onUpdate({
+                    filters: {
+                      ...preferences.filters,
+                      assignee: e.target.value || null,
+                    },
+                  })}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  data-testid={`${columnId}-filter-assignee`}
+                >
+                  <option value="">All assignees</option>
+                  {availableAssignees.map((assignee) => (
+                    <option key={assignee} value={assignee}>
+                      {assignee}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Tag Filter */}
+            {availableTags.length > 0 && (
+              <div className="mb-1">
+                <label className="text-xs text-gray-500 mb-1 block">Tag</label>
+                <select
+                  value={preferences.filters.tag ?? ''}
+                  onChange={(e) => onUpdate({
+                    filters: {
+                      ...preferences.filters,
+                      tag: e.target.value || null,
+                    },
+                  })}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  data-testid={`${columnId}-filter-tag`}
+                >
+                  <option value="">All tags</option>
+                  {availableTags.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Column Component with Filter/Sort
+// ============================================================================
+
 interface ColumnProps {
   title: string;
+  columnId: string;
   count: number;
+  totalCount: number;
   color: string;
   children: React.ReactNode;
   isLoading?: boolean;
   isError?: boolean;
   emptyMessage?: string;
+  availableAssignees: string[];
+  availableTags: string[];
+  preferences: ColumnPreferences;
+  onUpdatePreferences: (updates: Partial<ColumnPreferences>) => void;
 }
 
-function Column({ title, count, color, children, isLoading, isError, emptyMessage }: ColumnProps) {
+function Column({
+  title,
+  columnId,
+  count,
+  totalCount,
+  color,
+  children,
+  isLoading,
+  isError,
+  emptyMessage,
+  availableAssignees,
+  availableTags,
+  preferences,
+  onUpdatePreferences,
+}: ColumnProps) {
+  const hasActiveFilters = preferences.filters.assignee || preferences.filters.priority || preferences.filters.tag;
+
   return (
-    <div className="flex flex-col min-h-0" data-testid={`column-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+    <div className="flex flex-col min-h-0" data-testid={`column-${columnId}`}>
       <div className="flex items-center gap-2 mb-3">
         <div className={`w-3 h-3 rounded-full ${color}`} />
         <h3 className="font-medium text-gray-900">{title}</h3>
-        <span className="text-sm text-gray-500">({count})</span>
+        <span className="text-sm text-gray-500">
+          ({count}{hasActiveFilters && count !== totalCount ? ` / ${totalCount}` : ''})
+        </span>
+        <div className="ml-auto">
+          <FilterSortDropdown
+            columnId={columnId}
+            availableAssignees={availableAssignees}
+            availableTags={availableTags}
+            preferences={preferences}
+            onUpdate={onUpdatePreferences}
+          />
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
         {isLoading && (
@@ -362,7 +778,7 @@ function Column({ title, count, color, children, isLoading, isError, emptyMessag
         )}
         {!isLoading && !isError && count === 0 && (
           <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-lg">
-            {emptyMessage || 'No items'}
+            {hasActiveFilters ? 'No matching tasks' : emptyMessage || 'No items'}
           </div>
         )}
         {children}
@@ -1056,6 +1472,44 @@ export function TaskFlowPage() {
   const completedTasks = useCompletedTasks();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  // Column preferences with localStorage persistence
+  const [readyPrefs, setReadyPrefs] = useColumnPreferences('ready');
+  const [inProgressPrefs, setInProgressPrefs] = useColumnPreferences('in-progress');
+  const [blockedPrefs, setBlockedPrefs] = useColumnPreferences('blocked');
+  const [completedPrefs, setCompletedPrefs] = useColumnPreferences('completed');
+
+  // Apply filters and sorting
+  const filteredReadyTasks = useMemo(
+    () => applyFiltersAndSort(readyTasks.data, readyPrefs.filters, readyPrefs.sort),
+    [readyTasks.data, readyPrefs.filters, readyPrefs.sort]
+  );
+
+  const filteredInProgressTasks = useMemo(
+    () => applyFiltersAndSort(inProgressTasks.data, inProgressPrefs.filters, inProgressPrefs.sort),
+    [inProgressTasks.data, inProgressPrefs.filters, inProgressPrefs.sort]
+  );
+
+  const filteredBlockedTasks = useMemo(
+    () => applyFiltersAndSort(blockedTasks.data, blockedPrefs.filters, blockedPrefs.sort),
+    [blockedTasks.data, blockedPrefs.filters, blockedPrefs.sort]
+  );
+
+  const filteredCompletedTasks = useMemo(
+    () => applyFiltersAndSort(completedTasks.data, completedPrefs.filters, completedPrefs.sort),
+    [completedTasks.data, completedPrefs.filters, completedPrefs.sort]
+  );
+
+  // Collect unique assignees and tags from all tasks for filter dropdowns
+  const allTasks = useMemo(() => [
+    ...(readyTasks.data || []),
+    ...(inProgressTasks.data || []),
+    ...(blockedTasks.data || []),
+    ...(completedTasks.data || []),
+  ], [readyTasks.data, inProgressTasks.data, blockedTasks.data, completedTasks.data]);
+
+  const allAssignees = useMemo(() => getUniqueAssignees(allTasks), [allTasks]);
+  const allTags = useMemo(() => getUniqueTags(allTasks), [allTasks]);
+
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
   };
@@ -1077,13 +1531,19 @@ export function TaskFlowPage() {
         {/* Ready Tasks Column */}
         <Column
           title="Ready"
-          count={readyTasks.data?.length ?? 0}
+          columnId="ready"
+          count={filteredReadyTasks.length}
+          totalCount={readyTasks.data?.length ?? 0}
           color="bg-green-500"
           isLoading={readyTasks.isLoading}
           isError={readyTasks.isError}
           emptyMessage="No tasks ready to work on"
+          availableAssignees={allAssignees}
+          availableTags={allTags}
+          preferences={readyPrefs}
+          onUpdatePreferences={setReadyPrefs}
         >
-          {readyTasks.data?.map((task) => (
+          {filteredReadyTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -1095,13 +1555,19 @@ export function TaskFlowPage() {
         {/* In Progress Tasks Column */}
         <Column
           title="In Progress"
-          count={inProgressTasks.data?.length ?? 0}
+          columnId="in-progress"
+          count={filteredInProgressTasks.length}
+          totalCount={inProgressTasks.data?.length ?? 0}
           color="bg-yellow-500"
           isLoading={inProgressTasks.isLoading}
           isError={inProgressTasks.isError}
           emptyMessage="No tasks in progress"
+          availableAssignees={allAssignees}
+          availableTags={allTags}
+          preferences={inProgressPrefs}
+          onUpdatePreferences={setInProgressPrefs}
         >
-          {inProgressTasks.data?.map((task) => (
+          {filteredInProgressTasks.map((task) => (
             <InProgressTaskCard
               key={task.id}
               task={task}
@@ -1113,13 +1579,19 @@ export function TaskFlowPage() {
         {/* Blocked Tasks Column */}
         <Column
           title="Blocked"
-          count={blockedTasks.data?.length ?? 0}
+          columnId="blocked"
+          count={filteredBlockedTasks.length}
+          totalCount={blockedTasks.data?.length ?? 0}
           color="bg-red-500"
           isLoading={blockedTasks.isLoading}
           isError={blockedTasks.isError}
           emptyMessage="No blocked tasks"
+          availableAssignees={allAssignees}
+          availableTags={allTags}
+          preferences={blockedPrefs}
+          onUpdatePreferences={setBlockedPrefs}
         >
-          {blockedTasks.data?.map((task) => (
+          {filteredBlockedTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -1132,13 +1604,19 @@ export function TaskFlowPage() {
         {/* Completed Tasks Column */}
         <Column
           title="Completed"
-          count={completedTasks.data?.length ?? 0}
+          columnId="completed"
+          count={filteredCompletedTasks.length}
+          totalCount={completedTasks.data?.length ?? 0}
           color="bg-blue-500"
           isLoading={completedTasks.isLoading}
           isError={completedTasks.isError}
           emptyMessage="No recently completed tasks"
+          availableAssignees={allAssignees}
+          availableTags={allTags}
+          preferences={completedPrefs}
+          onUpdatePreferences={setCompletedPrefs}
         >
-          {completedTasks.data?.map((task) => (
+          {filteredCompletedTasks.map((task) => (
             <CompletedTaskCard
               key={task.id}
               task={task}

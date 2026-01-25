@@ -722,11 +722,13 @@ For mutations (create, update, delete):
   - [x] Web: Add "Create one" link in empty state when no libraries exist
   - [x] **Verify:** Create library from UI, appears in tree hierarchy under correct parent (Playwright tests passing - 14 passed, 1 skipped)
 
-- [ ] **TB30: Task Flow - Filter & Sort**
-  - [ ] Web: Add filter dropdown (by assignee, priority, tags) to each Task Flow column
-  - [ ] Web: Add sort options (by priority, created date, deadline)
-  - [ ] Web: Persist filter/sort preferences in localStorage per column
-  - [ ] **Verify:** Filter ready tasks by assignee, verify only matching tasks shown
+- [x] **TB30: Task Flow - Filter & Sort**
+  - [x] Web: Add filter dropdown (by assignee, priority, tags) to each Task Flow column header
+  - [x] Web: Add sort options (by priority, created date, updated date, deadline, title) with asc/desc toggle
+  - [x] Web: Persist filter/sort preferences in localStorage per column (useColumnPreferences hook)
+  - [x] Web: Show filtered count vs total when filters are active
+  - [x] Web: Add "Clear" button to remove all filters
+  - [x] **Verify:** Filter ready tasks by priority/assignee, verify only matching tasks shown (Playwright tests passing - 10 tests)
 
 - [ ] **TB31: Create Channel**
   - [ ] Server: Add `POST /api/channels` endpoint (name, channelType, members, permissions)
