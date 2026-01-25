@@ -85,33 +85,35 @@ export function BlockEditor({
   placeholder = 'Start writing...',
   readOnly = false,
 }: BlockEditorProps) {
-  // Convert plain text to HTML paragraphs for Tiptap
+  // Convert plain text to HTML for Tiptap
+  // Use <br> for line breaks within content to preserve exact newline count
   const textToHtml = useCallback((text: string) => {
-    if (!text) return '';
-    // Split by newlines and wrap each line in a paragraph
-    // Empty lines become empty paragraphs to preserve spacing
-    return text
-      .split('\n')
-      .map(line => `<p>${line || '<br>'}</p>`)
-      .join('');
+    if (!text) return '<p></p>';
+    // Escape HTML entities and convert newlines to <br> tags
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Wrap in a single paragraph with <br> for newlines
+    const withBreaks = escaped.replace(/\n/g, '<br>');
+    return `<p>${withBreaks}</p>`;
   }, []);
 
   // Convert HTML back to plain text with newlines
   const htmlToText = useCallback((html: string) => {
     if (!html) return '';
-    // Create a temporary div to parse HTML
+    // Replace <br> tags with newlines first
+    let text = html.replace(/<br\s*\/?>/gi, '\n');
+    // Replace paragraph/block endings with newlines
+    text = text.replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, '\n');
+    // Remove all remaining HTML tags
+    text = text.replace(/<[^>]+>/g, '');
+    // Decode HTML entities
     const div = document.createElement('div');
-    div.innerHTML = html;
-    // Get text content, preserving block structure
-    const blocks: string[] = [];
-    div.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre').forEach(el => {
-      blocks.push(el.textContent || '');
-    });
-    // If no blocks found, just get the text content
-    if (blocks.length === 0) {
-      return div.textContent || '';
-    }
-    return blocks.join('\n');
+    div.innerHTML = text;
+    text = div.textContent || '';
+    // Remove trailing newline that gets added from the closing </p>
+    return text.replace(/\n$/, '');
   }, []);
 
   // Determine initial content format
