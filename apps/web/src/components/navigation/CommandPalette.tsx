@@ -118,7 +118,7 @@ export function CommandPalette() {
       id: 'nav-entities',
       label: 'Entities',
       icon: Users,
-      action: () => navigate({ to: '/entities', search: { selected: undefined } }),
+      action: () => navigate({ to: '/entities', search: { selected: undefined, page: 1, limit: 25 } }),
       shortcut: 'G E',
       group: 'Navigation',
     },

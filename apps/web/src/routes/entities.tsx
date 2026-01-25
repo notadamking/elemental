@@ -9,6 +9,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag } from 'lucide-react';
+import { Pagination } from '../components/shared/Pagination';
 
 interface Entity {
   id: string;
@@ -51,11 +52,43 @@ interface ElementalEvent {
 
 type EntityTypeFilter = 'all' | 'agent' | 'human' | 'system';
 
-function useEntities() {
-  return useQuery<Entity[]>({
-    queryKey: ['entities'],
+interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+const DEFAULT_PAGE_SIZE = 25;
+
+function useEntities(
+  page: number,
+  pageSize: number = DEFAULT_PAGE_SIZE,
+  typeFilter: EntityTypeFilter = 'all',
+  searchQuery: string = ''
+) {
+  const offset = (page - 1) * pageSize;
+
+  return useQuery<PaginatedResult<Entity>>({
+    queryKey: ['entities', 'paginated', page, pageSize, typeFilter, searchQuery],
     queryFn: async () => {
-      const response = await fetch('/api/entities');
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+        orderBy: 'updated_at',
+        orderDir: 'desc',
+      });
+
+      if (typeFilter !== 'all') {
+        params.set('entityType', typeFilter);
+      }
+
+      if (searchQuery.trim()) {
+        params.set('search', searchQuery.trim());
+      }
+
+      const response = await fetch(`/api/entities?${params}`);
       if (!response.ok) throw new Error('Failed to fetch entities');
       return response.json();
     },
@@ -1012,15 +1045,27 @@ function EntityDetailPanel({
 }
 
 export function EntitiesPage() {
-  const entities = useEntities();
   const navigate = useNavigate();
   const search = useSearch({ from: '/entities' });
+
+  // Pagination state from URL
+  const currentPage = search.page ?? 1;
+  const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
+
   const [typeFilter, setTypeFilter] = useState<EntityTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(
     search.selected ?? null
   );
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  // Fetch paginated entities with filters
+  const entities = useEntities(currentPage, pageSize, typeFilter, searchQuery);
+
+  // Extract items from paginated response
+  const entityItems = entities.data?.items ?? [];
+  const totalItems = entities.data?.total ?? 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
 
   // Sync selected entity from URL on mount and when search changes
   useEffect(() => {
@@ -1036,47 +1081,54 @@ export function EntitiesPage() {
 
   const handleEntityCreated = (entity: Entity) => {
     setSelectedEntityId(entity.id);
-    navigate({ to: '/entities', search: { selected: entity.id } });
+    navigate({ to: '/entities', search: { selected: entity.id, page: currentPage, limit: pageSize } });
   };
 
+  // Counts based on current page items (for display purposes)
   const counts = useMemo(() => {
-    const data = entities.data || [];
     return {
-      all: data.length,
-      agent: data.filter((e) => e.entityType === 'agent').length,
-      human: data.filter((e) => e.entityType === 'human').length,
-      system: data.filter((e) => e.entityType === 'system').length,
+      all: totalItems,
+      agent: entityItems.filter((e) => e.entityType === 'agent').length,
+      human: entityItems.filter((e) => e.entityType === 'human').length,
+      system: entityItems.filter((e) => e.entityType === 'system').length,
     };
-  }, [entities.data]);
-
-  const filteredEntities = useMemo(() => {
-    let result = entities.data || [];
-
-    if (typeFilter !== 'all') {
-      result = result.filter((e) => e.entityType === typeFilter);
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (e) =>
-          e.name.toLowerCase().includes(query) ||
-          e.id.toLowerCase().includes(query) ||
-          e.tags.some((tag) => tag.toLowerCase().includes(query))
-      );
-    }
-
-    return result;
-  }, [entities.data, typeFilter, searchQuery]);
+  }, [entityItems, totalItems]);
 
   const handleEntityClick = (entityId: string) => {
     setSelectedEntityId(entityId);
-    navigate({ to: '/entities', search: { selected: entityId } });
+    navigate({ to: '/entities', search: { selected: entityId, page: currentPage, limit: pageSize } });
   };
 
   const handleCloseDetail = () => {
     setSelectedEntityId(null);
-    navigate({ to: '/entities', search: { selected: undefined } });
+    navigate({ to: '/entities', search: { selected: undefined, page: currentPage, limit: pageSize } });
+  };
+
+  const handlePageChange = (page: number) => {
+    navigate({ to: '/entities', search: { page, limit: pageSize, selected: selectedEntityId ?? undefined } });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    // When page size changes, go back to page 1
+    navigate({ to: '/entities', search: { page: 1, limit: newPageSize, selected: selectedEntityId ?? undefined } });
+  };
+
+  const handleTypeFilterChange = (newFilter: EntityTypeFilter) => {
+    setTypeFilter(newFilter);
+    // Reset to first page when filter changes
+    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined } });
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    // Reset to first page when search changes
+    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined } });
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setTypeFilter('all');
+    navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined } });
   };
 
   return (
@@ -1095,7 +1147,7 @@ export function EntitiesPage() {
           <h2 className="text-lg font-medium text-gray-900">Entities</h2>
           <div className="flex items-center gap-3">
             <p className="text-sm text-gray-500">
-              {filteredEntities.length} of {entities.data?.length || 0} entities
+              {entityItems.length} of {totalItems} entities
             </p>
             <button
               onClick={() => setIsRegisterModalOpen(true)}
@@ -1110,9 +1162,9 @@ export function EntitiesPage() {
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <FilterTabs selected={typeFilter} onChange={setTypeFilter} counts={counts} />
+          <FilterTabs selected={typeFilter} onChange={handleTypeFilterChange} counts={counts} />
           <div className="sm:ml-auto sm:w-64">
-            <SearchBox value={searchQuery} onChange={setSearchQuery} />
+            <SearchBox value={searchQuery} onChange={handleSearchChange} />
           </div>
         </div>
 
@@ -1135,17 +1187,14 @@ export function EntitiesPage() {
         )}
 
         {/* Empty state */}
-        {entities.data && filteredEntities.length === 0 && (
+        {entities.data && entityItems.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center" data-testid="entities-empty">
               {searchQuery || typeFilter !== 'all' ? (
                 <>
                   <p className="text-gray-500">No entities match your filters</p>
                   <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setTypeFilter('all');
-                    }}
+                    onClick={handleClearFilters}
                     className="mt-2 text-sm text-blue-600 hover:text-blue-700"
                     data-testid="clear-filters-button"
                   >
@@ -1165,10 +1214,10 @@ export function EntitiesPage() {
         )}
 
         {/* Entity grid */}
-        {entities.data && filteredEntities.length > 0 && (
+        {entities.data && entityItems.length > 0 && (
           <div className="flex-1 overflow-auto" data-testid="entities-grid">
             <div className={`grid gap-4 ${selectedEntityId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
-              {filteredEntities.map((entity) => (
+              {entityItems.map((entity) => (
                 <EntityCard
                   key={entity.id}
                   entity={entity}
@@ -1176,6 +1225,17 @@ export function EntitiesPage() {
                   onClick={() => handleEntityClick(entity.id)}
                 />
               ))}
+            </div>
+            {/* Pagination */}
+            <div className="mt-6">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+              />
             </div>
           </div>
         )}

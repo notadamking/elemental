@@ -37,7 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W', testId: 'nav-workflows' },
   { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M', testId: 'nav-messages' },
   { to: '/documents', icon: FileText, label: 'Documents', shortcut: 'G D', testId: 'nav-documents' },
-  { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E', testId: 'nav-entities', search: { selected: undefined } },
+  { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E', testId: 'nav-entities', search: { selected: undefined, page: 1, limit: 25 } },
   { to: '/teams', icon: UsersRound, label: 'Teams', shortcut: 'G R', testId: 'nav-teams' },
 ];
 

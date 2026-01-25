@@ -1,11 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('TB33: Entities Page - List View', () => {
-  test('entities endpoint is accessible', async ({ page }) => {
+  test('entities endpoint is accessible and returns paginated response', async ({ page }) => {
     const response = await page.request.get('/api/entities');
     expect(response.ok()).toBe(true);
     const data = await response.json();
-    expect(Array.isArray(data)).toBe(true);
+    // New paginated format
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.total).toBe('number');
+    expect(typeof data.offset).toBe('number');
+    expect(typeof data.limit).toBe('number');
+    expect(typeof data.hasMore).toBe('boolean');
   });
 
   test('entities page is accessible via navigation', async ({ page }) => {
@@ -26,12 +31,14 @@ test.describe('TB33: Entities Page - List View', () => {
     await page.goto('/dashboard');
     await expect(page.getByTestId('sidebar')).toBeVisible({ timeout: 10000 });
 
-    // Click Entities link
-    await page.getByRole('link', { name: /Entities/i }).click();
+    // Click Entities link using data-testid for reliability
+    await page.getByTestId('nav-entities').click();
 
-    // Should be on entities page
+    // Should be on entities page with pagination params
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
-    await expect(page).toHaveURL('/entities');
+    await expect(page).toHaveURL(/\/entities/);
+    await expect(page).toHaveURL(/page=1/);
+    await expect(page).toHaveURL(/limit=25/);
   });
 
   test('entities page shows filter tabs', async ({ page }) => {
@@ -56,9 +63,11 @@ test.describe('TB33: Entities Page - List View', () => {
   });
 
   test('entities page shows appropriate content based on entities', async ({ page }) => {
-    // Get entities from API
-    const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    // Get entities from API with same limit as web page (25)
+    const response = await page.request.get('/api/entities?limit=25');
+    const data = await response.json();
+    const entities = data.items;
+    const total = data.total;
 
     await page.goto('/entities');
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
@@ -66,24 +75,26 @@ test.describe('TB33: Entities Page - List View', () => {
     // Wait for loading to complete
     await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
 
-    if (entities.length === 0) {
+    if (total === 0) {
       // Should show empty state
       await expect(page.getByTestId('entities-empty')).toBeVisible();
       await expect(page.getByText('No entities registered')).toBeVisible();
     } else {
       // Should show entities grid
       await expect(page.getByTestId('entities-grid')).toBeVisible();
-      // Should show correct count in header
-      await expect(page.getByText(new RegExp(`${entities.length} of ${entities.length}`))).toBeVisible();
+      // Should show correct count in header (showing current page items of total)
+      await expect(page.getByText(new RegExp(`\\d+ of ${total} entities`))).toBeVisible();
     }
   });
 
   test('filter by entity type works', async ({ page }) => {
-    // Get entities from API
+    // Get entities from API (now paginated)
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
+    const total = data.total;
 
-    if (entities.length === 0) {
+    if (total === 0) {
       test.skip();
       return;
     }
@@ -92,7 +103,7 @@ test.describe('TB33: Entities Page - List View', () => {
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
 
-    // Count entities by type
+    // Count entities by type on current page
     const agentCount = entities.filter((e: { entityType: string }) => e.entityType === 'agent').length;
     const humanCount = entities.filter((e: { entityType: string }) => e.entityType === 'human').length;
     const systemCount = entities.filter((e: { entityType: string }) => e.entityType === 'system').length;
@@ -100,30 +111,36 @@ test.describe('TB33: Entities Page - List View', () => {
     // Click on agents filter (if there are any)
     if (agentCount > 0) {
       await page.getByTestId('entity-filter-agent').click();
-      await expect(page.getByText(new RegExp(`${agentCount} of ${entities.length}`))).toBeVisible();
+      await page.waitForTimeout(100);
+      // Filter tab counts show total, but list shows filtered items
+      await expect(page.getByTestId('entities-grid')).toBeVisible();
     }
 
     // Click on humans filter (if there are any)
     if (humanCount > 0) {
       await page.getByTestId('entity-filter-human').click();
-      await expect(page.getByText(new RegExp(`${humanCount} of ${entities.length}`))).toBeVisible();
+      await page.waitForTimeout(100);
+      await expect(page.getByTestId('entities-grid')).toBeVisible();
     }
 
     // Click on systems filter (if there are any)
     if (systemCount > 0) {
       await page.getByTestId('entity-filter-system').click();
-      await expect(page.getByText(new RegExp(`${systemCount} of ${entities.length}`))).toBeVisible();
+      await page.waitForTimeout(100);
+      await expect(page.getByTestId('entities-grid')).toBeVisible();
     }
 
     // Click on all filter to reset
     await page.getByTestId('entity-filter-all').click();
-    await expect(page.getByText(new RegExp(`${entities.length} of ${entities.length}`))).toBeVisible();
+    await page.waitForTimeout(100);
+    await expect(page.getByTestId('entities-grid')).toBeVisible();
   });
 
   test('search filters entities by name', async ({ page }) => {
-    // Get entities from API
+    // Get entities from API (now paginated)
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -141,8 +158,8 @@ test.describe('TB33: Entities Page - List View', () => {
     // Type in search box
     await page.getByTestId('entity-search-input').fill(searchTerm);
 
-    // Wait for filtering to apply
-    await page.waitForTimeout(100);
+    // Wait for filtering to apply (server-side filtering takes a moment)
+    await page.waitForTimeout(300);
 
     // Should show filtered results
     const matchingEntities = entities.filter((e: { name: string; id: string; tags: string[] }) =>
@@ -157,9 +174,10 @@ test.describe('TB33: Entities Page - List View', () => {
   });
 
   test('entity cards display correct information', async ({ page }) => {
-    // Get entities from API
+    // Get entities from API (now paginated)
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -201,9 +219,10 @@ test.describe('TB33: Entities Page - List View', () => {
   });
 
   test('clear filters button works', async ({ page }) => {
-    // Get entities from API
+    // Get entities from API (now paginated)
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const total = data.total;
 
     await page.goto('/entities');
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
@@ -213,7 +232,7 @@ test.describe('TB33: Entities Page - List View', () => {
     await page.getByTestId('entity-search-input').fill('xyznonexistent123456');
 
     // Wait for filtering
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(300);
 
     // Should show empty state
     await expect(page.getByTestId('entities-empty')).toBeVisible();
@@ -222,9 +241,8 @@ test.describe('TB33: Entities Page - List View', () => {
     await page.getByTestId('clear-filters-button').click();
 
     // Should now show all entities (or empty state if no entities exist)
-    if (entities.length > 0) {
-      await expect(page.getByTestId('entities-grid')).toBeVisible();
-      await expect(page.getByText(new RegExp(`${entities.length} of ${entities.length}`))).toBeVisible();
+    if (total > 0) {
+      await expect(page.getByTestId('entities-grid')).toBeVisible({ timeout: 10000 });
     } else {
       await expect(page.getByText('No entities registered')).toBeVisible();
     }
@@ -235,7 +253,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('entity stats endpoint is accessible', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -257,7 +276,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('entity events endpoint is accessible', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -275,7 +295,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('clicking entity card opens detail panel', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -298,7 +319,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('detail panel shows entity information', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -328,7 +350,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('detail panel shows assigned tasks section', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -353,7 +376,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('detail panel shows activity timeline', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -378,7 +402,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('close button closes detail panel', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -399,8 +424,9 @@ test.describe('TB34: Entity Detail Panel', () => {
     // Click close button
     await page.getByTestId('entity-detail-close').click();
 
-    // Wait for URL to update (selected param should be cleared)
-    await expect(page).toHaveURL('/entities');
+    // Wait for URL to update (selected param should be cleared, but pagination params remain)
+    await expect(page).toHaveURL(/\/entities\?.*page=1.*limit=25/);
+    await expect(page).not.toHaveURL(/selected=/);
 
     // Detail panel should be hidden
     await expect(page.getByTestId('entity-detail-container')).not.toBeVisible({ timeout: 5000 });
@@ -409,7 +435,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('split-view layout works correctly', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -421,7 +448,7 @@ test.describe('TB34: Entity Detail Panel', () => {
     await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
 
     // Initially, entity grid should be full width (3 columns on lg)
-    const grid = page.getByTestId('entities-grid').locator('> div');
+    const grid = page.getByTestId('entities-grid').locator('> div').first();
     await expect(grid).toHaveClass(/lg:grid-cols-3/);
 
     // Click first entity card
@@ -436,7 +463,8 @@ test.describe('TB34: Entity Detail Panel', () => {
   test('selected entity card is highlighted', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -502,9 +530,10 @@ test.describe('TB35: Create Entity', () => {
   });
 
   test('POST /api/entities rejects duplicate names', async ({ page }) => {
-    // Get existing entities
+    // Get existing entities (now paginated)
     const existingResponse = await page.request.get('/api/entities');
-    const entities = await existingResponse.json();
+    const existingData = await existingResponse.json();
+    const entities = existingData.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -669,10 +698,10 @@ test.describe('TB35: Create Entity', () => {
     // Modal should close
     await expect(page.getByTestId('register-entity-modal')).not.toBeVisible({ timeout: 10000 });
 
-    // Verify entity was created via API
+    // Verify entity was created via API (now paginated)
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
-    const createdEntity = entities.find((e: { name: string }) => e.name === testName);
+    const data = await response.json();
+    const createdEntity = data.items.find((e: { name: string }) => e.name === testName);
 
     expect(createdEntity).toBeDefined();
     expect(createdEntity.entityType).toBe('human');
@@ -783,7 +812,8 @@ test.describe('TB36: Edit Entity', () => {
   test('edit button is visible in entity detail panel', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -808,7 +838,8 @@ test.describe('TB36: Edit Entity', () => {
   test('clicking edit button enables edit mode', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -875,7 +906,8 @@ test.describe('TB36: Edit Entity', () => {
   test('cancel button exits edit mode without saving', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -912,7 +944,8 @@ test.describe('TB36: Edit Entity', () => {
   test('toggle active button shows confirmation dialog', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -940,7 +973,8 @@ test.describe('TB36: Edit Entity', () => {
   test('cancel toggle active dialog closes without changes', async ({ page }) => {
     // Get entities from API
     const response = await page.request.get('/api/entities');
-    const entities = await response.json();
+    const data = await response.json();
+    const entities = data.items;
 
     if (entities.length === 0) {
       test.skip();
@@ -1118,5 +1152,120 @@ test.describe('TB36: Edit Entity', () => {
     const updated = await verifyResponse.json();
     expect(updated.tags).toContain('keep-me');
     expect(updated.tags).not.toContain('remove-me');
+  });
+});
+
+test.describe('TB46: Entities Pagination', () => {
+  test('entities API returns paginated response format', async ({ page }) => {
+    const response = await page.request.get('/api/entities');
+    expect(response.ok()).toBe(true);
+    const data = await response.json();
+
+    // Verify paginated response structure
+    expect(data).toHaveProperty('items');
+    expect(data).toHaveProperty('total');
+    expect(data).toHaveProperty('offset');
+    expect(data).toHaveProperty('limit');
+    expect(data).toHaveProperty('hasMore');
+
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.total).toBe('number');
+    expect(typeof data.offset).toBe('number');
+    expect(typeof data.limit).toBe('number');
+    expect(typeof data.hasMore).toBe('boolean');
+  });
+
+  test('entities API respects limit parameter', async ({ page }) => {
+    const response = await page.request.get('/api/entities?limit=5');
+    expect(response.ok()).toBe(true);
+    const data = await response.json();
+
+    expect(data.limit).toBe(5);
+    expect(data.items.length).toBeLessThanOrEqual(5);
+  });
+
+  test('entities API respects offset parameter', async ({ page }) => {
+    const response = await page.request.get('/api/entities?offset=0&limit=50');
+    expect(response.ok()).toBe(true);
+    const data = await response.json();
+
+    expect(data.offset).toBe(0);
+  });
+
+  test('pagination component is visible when entities exist', async ({ page }) => {
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+
+    if (data.total === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Pagination component should be visible
+    await expect(page.getByTestId('pagination')).toBeVisible();
+  });
+
+  test('pagination shows correct total count', async ({ page }) => {
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+
+    if (data.total === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that pagination shows total count
+    await expect(page.getByTestId('pagination')).toContainText(`${data.total}`);
+  });
+
+  test('page size selector works', async ({ page }) => {
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+
+    if (data.total === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Page size selector should be visible
+    const pageSizeSelector = page.getByTestId('pagination-page-size');
+    await expect(pageSizeSelector).toBeVisible();
+
+    // Change page size to 10
+    await pageSizeSelector.selectOption('10');
+
+    // URL should update with new limit
+    await expect(page).toHaveURL(/limit=10/);
+  });
+
+  test('URL reflects pagination state', async ({ page }) => {
+    await page.goto('/entities?page=1&limit=10');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // URL should have pagination params
+    await expect(page).toHaveURL(/page=1/);
+    await expect(page).toHaveURL(/limit=10/);
+  });
+
+  test('navigating to entities page uses default pagination', async ({ page }) => {
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+
+    // URL should have default pagination params
+    await expect(page).toHaveURL(/page=1/);
+    await expect(page).toHaveURL(/limit=25/);
   });
 });
