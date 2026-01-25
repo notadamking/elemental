@@ -786,11 +786,11 @@ For mutations (create, update, delete):
   - [x] Web: Workload chart showing tasks per member (horizontal bar chart with percentages)
   - [x] **Verify:** Click team, see members and stats (Playwright tests passing - 9 passed, 20 skipped due to no teams)
 
-- [ ] **TB39: Create Team**
-  - [ ] Server: Add `POST /api/teams` endpoint (name, members array, optional description)
-  - [ ] Web: Create CreateTeamModal (name input, multi-select member picker)
-  - [ ] Web: Add "New Team" button to Teams page
-  - [ ] **Verify:** Create team with 3 members from UI, appears in list
+- [x] **TB39: Create Team**
+  - [x] Server: Add `POST /api/teams` endpoint (name, members array, optional description)
+  - [x] Web: Create CreateTeamModal (name input, multi-select member picker)
+  - [x] Web: Add "New Team" button to Teams page
+  - [x] **Verify:** Create team with 3 members from UI, appears in list (Playwright tests passing - 21 tests)
 
 - [ ] **TB40: Edit Team**
   - [ ] Server: Add `PATCH /api/teams/:id` endpoint (name, add/remove members)

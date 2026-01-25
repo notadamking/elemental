@@ -5,9 +5,9 @@
  * Includes detail panel for selected team.
  */
 
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2 } from 'lucide-react';
 
 interface Team {
   id: string;
@@ -86,6 +86,327 @@ function useTeamStats(id: string | null) {
     },
     enabled: !!id,
   });
+}
+
+interface CreateTeamInput {
+  name: string;
+  members?: string[];
+  createdBy?: string;
+  tags?: string[];
+}
+
+function useCreateTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateTeamInput) => {
+      const response = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to create team');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+    },
+  });
+}
+
+function useAllEntities() {
+  return useQuery<Entity[]>({
+    queryKey: ['entities'],
+    queryFn: async () => {
+      const response = await fetch('/api/entities');
+      if (!response.ok) throw new Error('Failed to fetch entities');
+      return response.json();
+    },
+  });
+}
+
+function CreateTeamModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: (team: Team) => void;
+}) {
+  const [name, setName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [tags, setTags] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const createTeam = useCreateTeam();
+  const entities = useAllEntities();
+
+  // Filter entities based on search
+  const availableEntities = useMemo(() => {
+    const allEntities = entities.data || [];
+    if (!memberSearch.trim()) {
+      return allEntities.filter((e) => !selectedMembers.includes(e.id));
+    }
+    const query = memberSearch.toLowerCase();
+    return allEntities.filter(
+      (e) =>
+        !selectedMembers.includes(e.id) &&
+        (e.name.toLowerCase().includes(query) ||
+          e.id.toLowerCase().includes(query))
+    );
+  }, [entities.data, memberSearch, selectedMembers]);
+
+  // Get selected entity details
+  const selectedEntities = useMemo(() => {
+    return (entities.data || []).filter((e) => selectedMembers.includes(e.id));
+  }, [entities.data, selectedMembers]);
+
+  // Focus name input when modal opens
+  useEffect(() => {
+    if (isOpen && nameInputRef.current) {
+      nameInputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setName('');
+      setSelectedMembers([]);
+      setTags('');
+      setMemberSearch('');
+      createTeam.reset();
+    }
+  }, [isOpen]);
+
+  const handleAddMember = (entityId: string) => {
+    setSelectedMembers((prev) => [...prev, entityId]);
+    setMemberSearch('');
+  };
+
+  const handleRemoveMember = (entityId: string) => {
+    setSelectedMembers((prev) => prev.filter((id) => id !== entityId));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!name.trim()) return;
+
+    const input: CreateTeamInput = {
+      name: name.trim(),
+      members: selectedMembers,
+    };
+
+    if (tags.trim()) {
+      input.tags = tags.split(',').map((t) => t.trim()).filter(Boolean);
+    }
+
+    try {
+      const result = await createTeam.mutateAsync(input);
+      onSuccess?.(result);
+      onClose();
+    } catch {
+      // Error is handled by mutation state
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50" data-testid="create-team-modal" onKeyDown={handleKeyDown}>
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        data-testid="create-team-modal-backdrop"
+      />
+
+      {/* Dialog */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Create Team</h2>
+            <button
+              onClick={onClose}
+              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+              aria-label="Close"
+              data-testid="create-team-modal-close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-4 overflow-auto flex-1">
+            {/* Name */}
+            <div className="mb-4">
+              <label htmlFor="team-name" className="block text-sm font-medium text-gray-700 mb-1">
+                Team Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={nameInputRef}
+                id="team-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter team name..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                data-testid="create-team-name-input"
+                required
+              />
+            </div>
+
+            {/* Members */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Members <span className="text-gray-400">(optional)</span>
+              </label>
+
+              {/* Selected Members */}
+              {selectedEntities.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2" data-testid="selected-members">
+                  {selectedEntities.map((entity) => {
+                    const styles = ENTITY_TYPE_STYLES[entity.entityType] || ENTITY_TYPE_STYLES.system;
+                    const Icon = styles.icon;
+                    return (
+                      <div
+                        key={entity.id}
+                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-full text-sm"
+                        data-testid={`selected-member-${entity.id}`}
+                      >
+                        <Icon className={`w-3.5 h-3.5 ${styles.text}`} />
+                        <span className="text-gray-700">{entity.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMember(entity.id)}
+                          className="p-0.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200"
+                          data-testid={`remove-member-${entity.id}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Member Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder="Search entities to add..."
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  data-testid="member-search-input"
+                />
+              </div>
+
+              {/* Available Entities */}
+              {memberSearch.trim() && (
+                <div className="mt-2 max-h-40 overflow-auto border border-gray-200 rounded-md" data-testid="entity-search-results">
+                  {entities.isLoading ? (
+                    <div className="p-3 text-sm text-gray-500 text-center">Loading entities...</div>
+                  ) : availableEntities.length === 0 ? (
+                    <div className="p-3 text-sm text-gray-500 text-center">No matching entities</div>
+                  ) : (
+                    availableEntities.slice(0, 10).map((entity) => {
+                      const styles = ENTITY_TYPE_STYLES[entity.entityType] || ENTITY_TYPE_STYLES.system;
+                      const Icon = styles.icon;
+                      return (
+                        <button
+                          key={entity.id}
+                          type="button"
+                          onClick={() => handleAddMember(entity.id)}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left"
+                          data-testid={`add-member-${entity.id}`}
+                        >
+                          <Icon className={`w-4 h-4 ${styles.text}`} />
+                          <span className="text-sm text-gray-900">{entity.name}</span>
+                          <span className={`ml-auto px-1.5 py-0.5 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
+                            {entity.entityType}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Tags (optional) */}
+            <div className="mb-4">
+              <label htmlFor="team-tags" className="block text-sm font-medium text-gray-700 mb-1">
+                Tags <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                id="team-tags"
+                type="text"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="Enter tags separated by commas..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                data-testid="create-team-tags-input"
+              />
+            </div>
+
+            {/* Error */}
+            {createTeam.isError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600" data-testid="create-team-error">
+                {createTeam.error.message}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                data-testid="create-team-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!name.trim() || createTeam.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="create-team-submit"
+              >
+                {createTeam.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Create Team
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const ENTITY_TYPE_STYLES: Record<string, { bg: string; text: string; icon: typeof Bot }> = {
@@ -468,6 +789,7 @@ export function TeamsPage() {
   const teams = useTeams();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const filteredTeams = useMemo(() => {
     let result = teams.data || [];
@@ -493,16 +815,37 @@ export function TeamsPage() {
     setSelectedTeamId(null);
   };
 
+  const handleTeamCreated = (team: Team) => {
+    setSelectedTeamId(team.id);
+  };
+
   return (
     <div className="h-full flex" data-testid="teams-page">
+      {/* Create Team Modal */}
+      <CreateTeamModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={handleTeamCreated}
+      />
+
       {/* Team List */}
       <div className={`flex flex-col ${selectedTeamId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-medium text-gray-900">Teams</h2>
-          <p className="text-sm text-gray-500">
-            {filteredTeams.length} of {teams.data?.length || 0} teams
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-gray-500">
+              {filteredTeams.length} of {teams.data?.length || 0} teams
+            </p>
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              data-testid="new-team-button"
+            >
+              <Plus className="w-4 h-4" />
+              New Team
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -546,9 +889,13 @@ export function TeamsPage() {
               ) : (
                 <>
                   <p className="text-gray-500">No teams created</p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    Use <code className="bg-gray-100 px-1 rounded">el team create</code> to create a team
-                  </p>
+                  <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    data-testid="create-team-empty-button"
+                  >
+                    Create one
+                  </button>
                 </>
               )}
             </div>

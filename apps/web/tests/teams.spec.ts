@@ -669,3 +669,397 @@ test.describe('TB38: Team Detail Panel', () => {
     await expect(page.getByTestId(`member-item-${firstMember.id}`)).toBeVisible();
   });
 });
+
+test.describe('TB39: Create Team', () => {
+  test('POST /api/teams endpoint creates a team', async ({ page }) => {
+    const uniqueName = `Test Team ${Date.now()}`;
+
+    const response = await page.request.post('/api/teams', {
+      data: {
+        name: uniqueName,
+        members: [],
+        tags: ['test-tag'],
+      },
+    });
+
+    expect(response.ok()).toBe(true);
+    expect(response.status()).toBe(201);
+
+    const team = await response.json();
+    expect(team.name).toBe(uniqueName);
+    expect(team.type).toBe('team');
+    expect(team.members).toEqual([]);
+    expect(team.tags).toContain('test-tag');
+    expect(team.id).toMatch(/^el-/);
+  });
+
+  test('POST /api/teams rejects empty name', async ({ page }) => {
+    const response = await page.request.post('/api/teams', {
+      data: {
+        name: '',
+        members: [],
+      },
+    });
+
+    expect(response.ok()).toBe(false);
+    expect(response.status()).toBe(400);
+    const error = await response.json();
+    expect(error.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  test('POST /api/teams rejects duplicate team names', async ({ page }) => {
+    const uniqueName = `Dup Team ${Date.now()}`;
+
+    // Create first team
+    const response1 = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    expect(response1.ok()).toBe(true);
+
+    // Try to create duplicate
+    const response2 = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    expect(response2.ok()).toBe(false);
+    expect(response2.status()).toBe(400);
+    const error = await response2.json();
+    expect(error.error.message).toContain('already exists');
+  });
+
+  test('POST /api/teams accepts members array', async ({ page }) => {
+    // Get existing entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    const memberIds = entities.slice(0, 2).map((e: { id: string }) => e.id);
+    const uniqueName = `Team With Members ${Date.now()}`;
+
+    const response = await page.request.post('/api/teams', {
+      data: {
+        name: uniqueName,
+        members: memberIds,
+      },
+    });
+
+    expect(response.ok()).toBe(true);
+    const team = await response.json();
+    expect(team.members).toEqual(memberIds);
+  });
+
+  test('teams page has New Team button', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await expect(page.getByTestId('new-team-button')).toBeVisible();
+    await expect(page.getByTestId('new-team-button')).toHaveText(/New Team/);
+  });
+
+  test('New Team button opens modal', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+    await expect(page.getByTestId('create-team-modal').getByRole('heading', { name: 'Create Team' })).toBeVisible();
+  });
+
+  test('modal has name input field', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await expect(page.getByTestId('create-team-name-input')).toBeVisible();
+    await expect(page.getByLabel(/Team Name/)).toBeVisible();
+  });
+
+  test('modal has member search input', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await expect(page.getByTestId('member-search-input')).toBeVisible();
+  });
+
+  test('modal has tags input', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await expect(page.getByTestId('create-team-tags-input')).toBeVisible();
+  });
+
+  test('modal has cancel and submit buttons', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await expect(page.getByTestId('create-team-cancel')).toBeVisible();
+    await expect(page.getByTestId('create-team-submit')).toBeVisible();
+  });
+
+  test('close button closes modal', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await page.getByTestId('create-team-modal-close').click();
+
+    await expect(page.getByTestId('create-team-modal')).not.toBeVisible();
+  });
+
+  test('cancel button closes modal', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await page.getByTestId('create-team-cancel').click();
+
+    await expect(page.getByTestId('create-team-modal')).not.toBeVisible();
+  });
+
+  test('escape key closes modal', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByTestId('create-team-modal')).not.toBeVisible();
+  });
+
+  test('submit button is disabled when name is empty', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    // Submit button should be disabled
+    await expect(page.getByTestId('create-team-submit')).toBeDisabled();
+  });
+
+  test('submit button is enabled when name is filled', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await page.getByTestId('create-team-name-input').fill('Test Team');
+
+    await expect(page.getByTestId('create-team-submit')).not.toBeDisabled();
+  });
+
+  test('can create team via modal', async ({ page }) => {
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    const uniqueName = `Modal Team ${Date.now()}`;
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    await page.getByTestId('create-team-name-input').fill(uniqueName);
+    await page.getByTestId('create-team-tags-input').fill('modal-test');
+
+    await page.getByTestId('create-team-submit').click();
+
+    // Modal should close
+    await expect(page.getByTestId('create-team-modal')).not.toBeVisible({ timeout: 5000 });
+
+    // Team should appear in list (the grid will have the team card)
+    await page.waitForTimeout(500);
+    await expect(page.getByTestId('teams-grid').getByText(uniqueName)).toBeVisible({ timeout: 5000 });
+  });
+
+  test('empty state has create team link', async ({ page }) => {
+    // First, check if there are any teams
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    // Only run this test if there are no teams
+    if (teams.length > 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Should show empty state with create link
+    await expect(page.getByTestId('teams-empty')).toBeVisible();
+    await expect(page.getByTestId('create-team-empty-button')).toBeVisible();
+    await expect(page.getByTestId('create-team-empty-button')).toHaveText('Create one');
+  });
+
+  test('entity search shows results when typing', async ({ page }) => {
+    // Get existing entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    // Type in member search
+    const firstEntity = entities[0];
+    await page.getByTestId('member-search-input').fill(firstEntity.name.substring(0, 3));
+
+    // Should show search results
+    await expect(page.getByTestId('entity-search-results')).toBeVisible();
+  });
+
+  test('can add member to team during creation', async ({ page }) => {
+    // Get existing entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    // Type in member search
+    const firstEntity = entities[0];
+    await page.getByTestId('member-search-input').fill(firstEntity.name);
+
+    // Wait for results
+    await expect(page.getByTestId('entity-search-results')).toBeVisible();
+
+    // Click to add member
+    await page.getByTestId(`add-member-${firstEntity.id}`).click();
+
+    // Should show selected member
+    await expect(page.getByTestId('selected-members')).toBeVisible();
+    await expect(page.getByTestId(`selected-member-${firstEntity.id}`)).toBeVisible();
+  });
+
+  test('can remove selected member', async ({ page }) => {
+    // Get existing entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    // Add a member
+    const firstEntity = entities[0];
+    await page.getByTestId('member-search-input').fill(firstEntity.name);
+    await expect(page.getByTestId('entity-search-results')).toBeVisible();
+    await page.getByTestId(`add-member-${firstEntity.id}`).click();
+
+    // Verify member is shown
+    await expect(page.getByTestId(`selected-member-${firstEntity.id}`)).toBeVisible();
+
+    // Remove the member
+    await page.getByTestId(`remove-member-${firstEntity.id}`).click();
+
+    // Member should no longer be visible
+    await expect(page.getByTestId(`selected-member-${firstEntity.id}`)).not.toBeVisible();
+  });
+
+  test('creates team with members', async ({ page }) => {
+    // Get existing entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    const uniqueName = `Team With Members UI ${Date.now()}`;
+    const firstEntity = entities[0];
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    // Fill name
+    await page.getByTestId('create-team-name-input').fill(uniqueName);
+
+    // Add member
+    await page.getByTestId('member-search-input').fill(firstEntity.name);
+    await expect(page.getByTestId('entity-search-results')).toBeVisible();
+    await page.getByTestId(`add-member-${firstEntity.id}`).click();
+
+    // Submit
+    await page.getByTestId('create-team-submit').click();
+
+    // Modal should close
+    await expect(page.getByTestId('create-team-modal')).not.toBeVisible({ timeout: 5000 });
+
+    // Verify team was created with member
+    const teamsResponse = await page.request.get('/api/teams');
+    const teams = await teamsResponse.json();
+    const createdTeam = teams.find((t: { name: string }) => t.name === uniqueName);
+    expect(createdTeam).toBeTruthy();
+    expect(createdTeam.members).toContain(firstEntity.id);
+  });
+
+  test('shows error for duplicate team name', async ({ page }) => {
+    // Create a team first
+    const uniqueName = `Dup Test Team ${Date.now()}`;
+    await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('new-team-button').click();
+    await expect(page.getByTestId('create-team-modal')).toBeVisible();
+
+    // Try to create with same name
+    await page.getByTestId('create-team-name-input').fill(uniqueName);
+    await page.getByTestId('create-team-submit').click();
+
+    // Should show error
+    await expect(page.getByTestId('create-team-error')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/already exists/)).toBeVisible();
+  });
+});
