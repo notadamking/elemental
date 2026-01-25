@@ -9,7 +9,7 @@ import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -2525,6 +2525,85 @@ app.patch('/api/workflows/:id', async (c) => {
     }
     console.error('[elemental] Failed to update workflow:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update workflow' } }, 500);
+  }
+});
+
+// Burn workflow (delete ephemeral workflow and all its tasks)
+app.delete('/api/workflows/:id/burn', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const force = url.searchParams.get('force') === 'true';
+
+    // Verify workflow exists
+    const workflow = await api.get(id);
+    if (!workflow) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if (workflow.type !== 'workflow') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    // Check if workflow is ephemeral (unless force is specified)
+    if (!(workflow as Workflow).ephemeral && !force) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Cannot burn durable workflow. Use force=true to override.',
+        },
+      }, 400);
+    }
+
+    // Burn the workflow
+    const result = await api.burnWorkflow(id);
+
+    return c.json(result);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    console.error('[elemental] Failed to burn workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to burn workflow' } }, 500);
+  }
+});
+
+// Squash workflow (promote ephemeral to durable)
+app.post('/api/workflows/:id/squash', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+
+    // Verify workflow exists
+    const workflow = await api.get(id);
+    if (!workflow) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if (workflow.type !== 'workflow') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    // Check if workflow is ephemeral
+    if (!(workflow as Workflow).ephemeral) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Workflow is already durable',
+        },
+      }, 400);
+    }
+
+    // Squash (promote to durable) by setting ephemeral to false
+    const updated = await api.update(id, { ephemeral: false } as unknown as Partial<Element>);
+
+    return c.json(updated);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to squash workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to squash workflow' } }, 500);
   }
 });
 

@@ -863,13 +863,13 @@ For mutations (create, update, delete):
   - [x] Web: Status transition buttons (Activate, Complete, Cancel) based on current status
   - [x] **Verify:** Playwright tests passing (18 TB47 tests, 42 total plans tests)
 
-- [ ] **TB48: Edit Workflow**
-  - [ ] Web: Make WorkflowDetailPanel editable (title, status where valid)
-  - [ ] Web: "Burn Workflow" button for ephemeral workflows (with confirmation modal)
-  - [ ] Web: "Squash Workflow" button to promote ephemeral to durable (with confirmation)
-  - [ ] Server: Add `DELETE /api/workflows/:id/burn` endpoint
-  - [ ] Server: Add `POST /api/workflows/:id/squash` endpoint
-  - [ ] **Verify:** Change workflow status, burn ephemeral workflow, squash works
+- [x] **TB48: Edit Workflow**
+  - [x] Web: Make WorkflowDetailPanel editable (title, status where valid)
+  - [x] Web: "Burn Workflow" button for ephemeral workflows (with confirmation modal)
+  - [x] Web: "Squash Workflow" button to promote ephemeral to durable (with confirmation)
+  - [x] Server: Add `DELETE /api/workflows/:id/burn` endpoint
+  - [x] Server: Add `POST /api/workflows/:id/squash` endpoint
+  - [x] **Verify:** Playwright tests passing (17 TB48 tests, 45 total workflows tests)
 
 - [x] **TB49: Task List/Kanban Toggle Polish**
   - [x] Web: Persist view preference (list vs kanban) in localStorage key `tasks.viewMode`
