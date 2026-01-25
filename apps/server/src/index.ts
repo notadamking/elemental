@@ -1038,10 +1038,10 @@ app.post('/api/channels/:id/members', async (c) => {
     if (err.code === 'NOT_FOUND') {
       return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel or entity not found' } }, 404);
     }
-    if (err.code === 'DIRECT_CHANNEL_MEMBERSHIP') {
+    if (err.code === 'IMMUTABLE') {
       return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Cannot modify direct channel membership' } }, 403);
     }
-    if (err.code === 'CANNOT_MODIFY_MEMBERS') {
+    if (err.code === 'MEMBER_REQUIRED') {
       return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'No permission to modify members' } }, 403);
     }
     console.error('[elemental] Failed to add channel member:', error);
@@ -1074,14 +1074,11 @@ app.delete('/api/channels/:id/members/:entityId', async (c) => {
     if (err.code === 'NOT_FOUND') {
       return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel not found' } }, 404);
     }
-    if (err.code === 'DIRECT_CHANNEL_MEMBERSHIP') {
+    if (err.code === 'IMMUTABLE') {
       return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Cannot modify direct channel membership' } }, 403);
     }
-    if (err.code === 'CANNOT_MODIFY_MEMBERS') {
+    if (err.code === 'MEMBER_REQUIRED') {
       return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'No permission to modify members' } }, 403);
-    }
-    if (err.code === 'NOT_A_MEMBER') {
-      return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Entity is not a member' } }, 404);
     }
     console.error('[elemental] Failed to remove channel member:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to remove channel member' } }, 500);
@@ -1109,11 +1106,11 @@ app.post('/api/channels/:id/leave', async (c) => {
     if (err.code === 'NOT_FOUND') {
       return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel not found' } }, 404);
     }
-    if (err.code === 'DIRECT_CHANNEL_MEMBERSHIP') {
+    if (err.code === 'IMMUTABLE') {
       return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Cannot leave direct channel' } }, 403);
     }
-    if (err.code === 'NOT_A_MEMBER') {
-      return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Not a member of this channel' } }, 404);
+    if (err.code === 'MEMBER_REQUIRED') {
+      return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Not a member of this channel' } }, 403);
     }
     console.error('[elemental] Failed to leave channel:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to leave channel' } }, 500);

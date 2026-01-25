@@ -11,8 +11,19 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus } from 'lucide-react';
+import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog } from 'lucide-react';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
+import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
+
+// ============================================================================
+// Entity Types (for operator selection)
+// ============================================================================
+
+interface Entity {
+  id: string;
+  name: string;
+  entityType: 'human' | 'agent' | 'system';
+}
 
 // ============================================================================
 // Types
@@ -23,6 +34,7 @@ interface Channel {
   name: string;
   channelType: 'direct' | 'group';
   members: string[];
+  createdBy: string;
   permissions: {
     visibility: 'public' | 'private';
     joinPolicy: 'open' | 'invite-only' | 'request';
@@ -145,6 +157,17 @@ function useThreadReplies(threadId: string | null) {
       return response.json();
     },
     enabled: !!threadId,
+  });
+}
+
+function useEntities() {
+  return useQuery<Entity[]>({
+    queryKey: ['entities'],
+    queryFn: async () => {
+      const response = await fetch('/api/entities');
+      if (!response.ok) throw new Error('Failed to fetch entities');
+      return response.json();
+    },
   });
 }
 
@@ -650,8 +673,16 @@ function MessageComposer({
 function ChannelView({ channelId }: { channelId: string }) {
   const { data: channel } = useChannel(channelId);
   const { data: messages = [], isLoading, error } = useChannelMessages(channelId);
+  const { data: entities } = useEntities();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+
+  // Determine current operator (prefer human entity, fall back to first entity)
+  const currentOperator =
+    entities?.find((e) => e.entityType === 'human')?.id ||
+    entities?.[0]?.id ||
+    '';
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -698,12 +729,15 @@ function ChannelView({ channelId }: { channelId: string }) {
                 <h3 data-testid="channel-name" className="font-medium text-gray-900">
                   {channel.name}
                 </h3>
-                <span
-                  data-testid="channel-member-count"
-                  className="text-sm text-gray-400"
+                <button
+                  onClick={() => setShowMembersPanel(true)}
+                  className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                  data-testid="channel-members-button"
                 >
+                  <UserCog className="w-4 h-4" />
                   {channel.members.length} members
-                </span>
+                </button>
+                <div className="flex-1" />
               </>
             )}
           </div>
@@ -764,6 +798,15 @@ function ChannelView({ channelId }: { channelId: string }) {
           parentMessage={selectedThread}
           channel={channel}
           onClose={() => setSelectedThread(null)}
+        />
+      )}
+
+      {/* Members Panel */}
+      {showMembersPanel && channel && currentOperator && (
+        <ChannelMembersPanel
+          channel={channel}
+          currentOperator={currentOperator}
+          onClose={() => setShowMembersPanel(false)}
         />
       )}
     </div>
