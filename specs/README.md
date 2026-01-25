@@ -84,6 +84,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB54-editor-toolbar-polish.md](./platform/TB54-editor-toolbar-polish.md) | Editor toolbar redesign with tooltips and responsive overflow | editor, toolbar, tiptap, tooltip, shortcuts, responsive, overflow |
 | [platform/TB55-slash-commands.md](./platform/TB55-slash-commands.md) | Slash commands for quick block insertion in document editor | editor, tiptap, slash, commands, fuzzy search, keyboard navigation |
 | [platform/TB56-drag-drop-blocks.md](./platform/TB56-drag-drop-blocks.md) | Drag-and-drop block reordering in document editor | editor, tiptap, drag, drop, blocks, reorder, handle |
+| [platform/TB58-inline-formatting.md](./platform/TB58-inline-formatting.md) | Inline code styling and selection bubble menu | editor, tiptap, bubble menu, inline code, formatting, highlight |
 
 ---
 

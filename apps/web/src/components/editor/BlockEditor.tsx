@@ -21,6 +21,7 @@ import { TaskEmbedBlock } from './blocks/TaskEmbedBlock';
 import { DocumentEmbedBlock } from './blocks/DocumentEmbedBlock';
 import { TaskPickerModal } from './TaskPickerModal';
 import { DocumentPickerModal } from './DocumentPickerModal';
+import { EditorBubbleMenu } from './BubbleMenu';
 import { common, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
@@ -602,8 +603,10 @@ export function BlockEditor({
         )}
 
         {/* Editor Content */}
-        <div className={isCodeMode ? 'font-mono text-sm bg-gray-900 text-gray-100' : ''}>
+        <div className={`relative ${isCodeMode ? 'font-mono text-sm bg-gray-900 text-gray-100' : ''}`}>
           <EditorContent editor={editor} />
+          {/* Bubble Menu - only for non-code modes and non-readonly */}
+          {!isCodeMode && !readOnly && <EditorBubbleMenu editor={editor} />}
         </div>
       </div>
     </>

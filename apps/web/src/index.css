@@ -67,3 +67,36 @@
   border-top: 2px solid #3b82f6 !important;
   border-radius: 1px;
 }
+
+/* Inline code styling - improved with monospace font and subtle background */
+.ProseMirror code:not(pre code) {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+  background-color: rgba(175, 184, 193, 0.2);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+  color: #1f2937;
+}
+
+/* Highlight styling */
+.ProseMirror mark {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0.05em 0;
+}
+
+/* Bubble menu animation */
+@keyframes bubble-menu-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bubble-menu {
+  animation: bubble-menu-fade-in 0.15s ease-out;
+}

@@ -961,16 +961,17 @@ For mutations (create, update, delete):
   - [x] Web: Delete embed with backspace when cursor is on it (atomic nodes support backspace deletion)
   - [x] **Verify:** Playwright tests passing (9 passed, 10 skipped due to no tasks in test db)
 
-- [ ] **TB58: Advanced Inline Formatting**
+- [x] **TB58: Advanced Inline Formatting**
   - [x] Web: Add highlight extension (background color, default yellow) - added in TB54
   - [x] Web: Add strikethrough support (toolbar button with ⌘+Shift+S) - added in TB54
-  - [ ] Web: Improve inline code styling (monospace font, subtle background)
-  - [ ] Web: Implement keyboard shortcuts (native Tiptap shortcuts already work):
+  - [x] Web: Improve inline code styling (monospace font, subtle background, border-radius, padding)
+  - [x] Web: Implement keyboard shortcuts (native Tiptap shortcuts already work):
     - [x] ⌘+Shift+H for highlight (toolbar button available)
     - [x] ⌘+Shift+S for strikethrough (toolbar button available)
     - [x] ⌘+E for inline code (native Tiptap)
-  - [ ] Web: Add these options to selection bubble menu (appears when text selected)
-  - [ ] **Verify:** Select text, use keyboard shortcut to highlight, formatting applied
+  - [x] Web: Add selection bubble menu (appears when text selected) with Bold, Italic, Code, Strikethrough, Highlight
+  - [x] Web: Bubble menu hides when selection cleared or in code blocks
+  - [x] **Verify:** Playwright tests passing (15 TB58 tests)
 
 ### Phase 15: Settings Page
 
