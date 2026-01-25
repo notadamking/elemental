@@ -23,6 +23,7 @@ interface NavItem {
   label: string;
   shortcut?: string;
   testId?: string;
+  search?: Record<string, unknown>;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -36,7 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W', testId: 'nav-workflows' },
   { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M', testId: 'nav-messages' },
   { to: '/documents', icon: FileText, label: 'Documents', shortcut: 'G D', testId: 'nav-documents' },
-  { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E', testId: 'nav-entities' },
+  { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E', testId: 'nav-entities', search: { selected: undefined } },
   { to: '/teams', icon: UsersRound, label: 'Teams', shortcut: 'G R', testId: 'nav-teams' },
 ];
 
@@ -61,6 +62,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
       <Link
         key={item.to}
         to={item.to}
+        search={item.search}
         data-testid={item.testId}
         className={`
           flex items-center gap-3 px-3 py-2 rounded-lg transition-colors

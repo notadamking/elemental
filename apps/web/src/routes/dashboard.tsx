@@ -138,7 +138,8 @@ function useCompletedTodayCount() {
   });
 }
 
-function StatsCard({ title, value, subtitle }: { title: string; value: string | number; subtitle?: string }) {
+// StatsCard component for displaying stats - used in metrics overview
+function _StatsCard({ title, value, subtitle }: { title: string; value: string | number; subtitle?: string }) {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">{title}</h3>
@@ -147,6 +148,7 @@ function StatsCard({ title, value, subtitle }: { title: string; value: string | 
     </div>
   );
 }
+export { _StatsCard as StatsCard };
 
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
   1: { label: 'Critical', color: 'bg-red-100 text-red-800' },

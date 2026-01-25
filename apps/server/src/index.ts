@@ -728,10 +728,39 @@ app.get('/api/entities/:id/stats', async (c) => {
       }
     );
 
+    // Calculate tasks completed today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const completedTodayTasks = completedTasks.filter(
+      (t) => {
+        const task = t as unknown as { updatedAt: string };
+        return new Date(task.updatedAt) >= startOfToday;
+      }
+    );
+
+    // Calculate blocked tasks
+    const blockedTasks = assignedTasks.filter(
+      (t) => {
+        const task = t as unknown as { status: string };
+        return task.status === 'blocked';
+      }
+    );
+
+    // Calculate in-progress tasks
+    const inProgressTasks = assignedTasks.filter(
+      (t) => {
+        const task = t as unknown as { status: string };
+        return task.status === 'in_progress';
+      }
+    );
+
     return c.json({
       assignedTaskCount: assignedTasks.length,
       activeTaskCount: activeTasks.length,
       completedTaskCount: completedTasks.length,
+      completedTodayCount: completedTodayTasks.length,
+      blockedTaskCount: blockedTasks.length,
+      inProgressTaskCount: inProgressTasks.length,
       createdTaskCount: createdTasks.length,
       messageCount: sentMessages.length,
       documentCount: documents.length,

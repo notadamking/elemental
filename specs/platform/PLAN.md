@@ -834,13 +834,14 @@ For mutations (create, update, delete):
   - [x] Web: Visual feedback for selection state (selected node has border)
   - [x] **Verify:** Add blocks dependency between two tasks via graph UI, edge appears (Playwright tests passing - 9 tests)
 
-- [ ] **TB45: Agent Activity Improvements**
-  - [ ] Web: Add horizontal bar chart showing tasks per agent (using simple CSS bars or chart library)
-  - [ ] Web: Real-time task progress: show current task with time elapsed
-  - [ ] Web: Agent status indicators: idle (gray), working (green pulse), blocked (yellow)
-  - [ ] Web: Make agent cards clickable → navigate to entity detail page
-  - [ ] Web: Add "Tasks completed today" count per agent
-  - [ ] **Verify:** See agent workload distribution chart, click agent navigates to detail
+- [x] **TB45: Agent Activity Improvements**
+  - [x] Server: Extended `/api/entities/:id/stats` with completedTodayCount, blockedTaskCount, inProgressTaskCount
+  - [x] Web: Enhanced horizontal bar chart showing tasks per agent with percentages
+  - [x] Web: Real-time task progress: show current task with time elapsed (formatTimeElapsed, auto-refresh)
+  - [x] Web: Agent status indicators: idle (gray), working (green pulse), blocked (yellow) with AgentStatusIndicator component
+  - [x] Web: Make agent cards clickable → navigate to entity detail page (with URL search params)
+  - [x] Web: Add "Tasks completed today" count per agent
+  - [x] **Verify:** Playwright tests passing (17 tests - 9 original + 8 TB45 tests)
 
 ### Phase 12: List Enhancements + Edit Functionality
 

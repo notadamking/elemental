@@ -399,8 +399,11 @@ test.describe('TB34: Entity Detail Panel', () => {
     // Click close button
     await page.getByTestId('entity-detail-close').click();
 
+    // Wait for URL to update (selected param should be cleared)
+    await expect(page).toHaveURL('/entities');
+
     // Detail panel should be hidden
-    await expect(page.getByTestId('entity-detail-container')).not.toBeVisible();
+    await expect(page.getByTestId('entity-detail-container')).not.toBeVisible({ timeout: 5000 });
   });
 
   test('split-view layout works correctly', async ({ page }) => {

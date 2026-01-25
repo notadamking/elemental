@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag } from 'lucide-react';
 
 interface Entity {
@@ -1012,13 +1013,30 @@ function EntityDetailPanel({
 
 export function EntitiesPage() {
   const entities = useEntities();
+  const navigate = useNavigate();
+  const search = useSearch({ from: '/entities' });
   const [typeFilter, setTypeFilter] = useState<EntityTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(
+    search.selected ?? null
+  );
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  // Sync selected entity from URL on mount and when search changes
+  useEffect(() => {
+    // When URL has a selected param, sync it to state
+    if (search.selected && search.selected !== selectedEntityId) {
+      setSelectedEntityId(search.selected);
+    }
+    // When URL doesn't have a selected param but state has one, clear state
+    if (!search.selected && selectedEntityId) {
+      setSelectedEntityId(null);
+    }
+  }, [search.selected]);
 
   const handleEntityCreated = (entity: Entity) => {
     setSelectedEntityId(entity.id);
+    navigate({ to: '/entities', search: { selected: entity.id } });
   };
 
   const counts = useMemo(() => {
@@ -1053,10 +1071,12 @@ export function EntitiesPage() {
 
   const handleEntityClick = (entityId: string) => {
     setSelectedEntityId(entityId);
+    navigate({ to: '/entities', search: { selected: entityId } });
   };
 
   const handleCloseDetail = () => {
     setSelectedEntityId(null);
+    navigate({ to: '/entities', search: { selected: undefined } });
   };
 
   return (

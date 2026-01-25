@@ -107,6 +107,11 @@ const entitiesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/entities',
   component: EntitiesPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+    };
+  },
 });
 
 const teamsRoute = createRoute({
