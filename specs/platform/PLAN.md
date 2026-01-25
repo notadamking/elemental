@@ -707,11 +707,13 @@ For mutations (create, update, delete):
   - [x] Web: Add "New Document" button to Documents page (sidebar + library view + all docs view)
   - [x] **Verify:** Create document from UI (Playwright tests passing - 19 passed, 2 skipped)
 
-- [ ] **TB28: Task Flow - Click to Open**
-  - [ ] Web: Make tasks in Task Flow clickable (navigate to task detail or open slide-over)
-  - [ ] Web: Add slide-over panel for task details from dashboard context
-  - [ ] Web: Show in-progress tasks in dedicated column (4 columns: Ready, In Progress, Blocked, Completed)
-  - [ ] **Verify:** Click task in Task Flow, detail panel opens with full task info
+- [x] **TB28: Task Flow - Click to Open**
+  - [x] Server: Add `GET /api/tasks/in-progress` endpoint for in-progress tasks
+  - [x] Web: Make tasks in Task Flow clickable (opens slide-over panel)
+  - [x] Web: Add TaskSlideOver component with full task details (status, priority, complexity editing)
+  - [x] Web: Show in-progress tasks in dedicated column (4 columns: Ready, In Progress, Blocked, Completed)
+  - [x] Web: Add CSS animation for slide-over panel (slide-in-right)
+  - [x] **Verify:** Click task in Task Flow, slide-over panel opens with full task info (Playwright tests passing - 17 passed, 3 skipped)
 
 - [ ] **TB29: Create Library**
   - [ ] Server: Add `POST /api/libraries` endpoint (name, optional parentId for nesting)
