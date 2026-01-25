@@ -889,12 +889,12 @@ For mutations (create, update, delete):
   - [x] Web: Show attached documents as clickable links with remove button
   - [x] **Verify:** Playwright tests passing (21 TB50 tests)
 
-- [ ] **TB51: Embedded Document Rendering in Tasks**
-  - [ ] Web: Render attached documents inline in TaskDetailPanel (expandable cards)
-  - [ ] Web: Collapsed state: document title + content type badge + first line preview
-  - [ ] Web: Expanded state: full document content rendered (markdown/text/json)
-  - [ ] Web: Click document title to open in document editor (navigate or side panel)
-  - [ ] **Verify:** Expand attached document, see full content inline
+- [x] **TB51: Embedded Document Rendering in Tasks**
+  - [x] Web: Render attached documents inline in TaskDetailPanel (expandable cards)
+  - [x] Web: Collapsed state: document title + content type badge + first line preview
+  - [x] Web: Expanded state: full document content rendered (markdown/text/json)
+  - [x] Web: Click document title to open in document editor (navigate or side panel)
+  - [x] **Verify:** Playwright tests passing (9 TB51 tests, 30 total attachment tests)
 
 - [ ] **TB52: Attach Documents to Messages**
   - [ ] Server: Update `POST /api/messages` to accept `attachmentIds` array

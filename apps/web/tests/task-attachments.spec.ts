@@ -402,3 +402,272 @@ test.describe('TB50: Attach Documents to Tasks', () => {
     await expect(page.getByTestId('document-picker-modal')).not.toBeVisible({ timeout: 5000 });
   });
 });
+
+// ============================================================================
+// TB51: Embedded Document Rendering in Tasks Tests
+// ============================================================================
+
+test.describe('TB51: Embedded Document Rendering in Tasks', () => {
+  // Helper to create a task for testing
+  async function createTestTask(page: import('@playwright/test').Page) {
+    const response = await page.request.post('/api/tasks', {
+      data: {
+        title: `Embed Test Task ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'open',
+        priority: 3,
+        complexity: 2,
+        taskType: 'feature',
+      },
+    });
+    expect(response.ok()).toBe(true);
+    const task = await response.json();
+    expect(task.id).toBeDefined();
+    return task;
+  }
+
+  // Helper to create a document with content for testing
+  async function createTestDocumentWithContent(
+    page: import('@playwright/test').Page,
+    options: { content?: string; contentType?: string } = {}
+  ) {
+    const response = await page.request.post('/api/documents', {
+      data: {
+        title: `Test Document ${Date.now()}`,
+        content: options.content || 'This is the first line.\nThis is the second line.',
+        contentType: options.contentType || 'text',
+        createdBy: 'test-user',
+      },
+    });
+    expect(response.ok()).toBe(true);
+    const doc = await response.json();
+    expect(doc.id).toBeDefined();
+    return doc;
+  }
+
+  test('attached document shows expand/collapse button', async ({ page }) => {
+    const task = await createTestTask(page);
+    const doc = await createTestDocumentWithContent(page);
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Attachment should have expand button
+    await expect(page.getByTestId(`attachment-expand-${doc.id}`)).toBeVisible({ timeout: 5000 });
+  });
+
+  test('collapsed attachment shows content preview', async ({ page }) => {
+    const task = await createTestTask(page);
+    const doc = await createTestDocumentWithContent(page, { content: 'Preview line for testing\nMore content here' });
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Preview should be visible (first line of content)
+    const preview = page.getByTestId(`attachment-preview-${doc.id}`);
+    await expect(preview).toBeVisible({ timeout: 5000 });
+    await expect(preview).toContainText('Preview line');
+  });
+
+  test('clicking expand button shows full document content', async ({ page }) => {
+    const task = await createTestTask(page);
+    const doc = await createTestDocumentWithContent(page, { content: 'Full content line 1\nFull content line 2\nFull content line 3' });
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Content should not be visible initially
+    await expect(page.getByTestId(`attachment-content-${doc.id}`)).not.toBeVisible();
+
+    // Click expand
+    await page.getByTestId(`attachment-expand-${doc.id}`).click();
+
+    // Full content should now be visible
+    const content = page.getByTestId(`attachment-content-${doc.id}`);
+    await expect(content).toBeVisible({ timeout: 5000 });
+    await expect(content).toContainText('Full content line 1');
+    await expect(content).toContainText('Full content line 2');
+    await expect(content).toContainText('Full content line 3');
+  });
+
+  test('clicking collapse button hides document content', async ({ page }) => {
+    const task = await createTestTask(page);
+    const doc = await createTestDocumentWithContent(page);
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Expand
+    await page.getByTestId(`attachment-expand-${doc.id}`).click();
+    await expect(page.getByTestId(`attachment-content-${doc.id}`)).toBeVisible({ timeout: 5000 });
+
+    // Collapse
+    await page.getByTestId(`attachment-expand-${doc.id}`).click();
+    await expect(page.getByTestId(`attachment-content-${doc.id}`)).not.toBeVisible();
+
+    // Preview should reappear
+    await expect(page.getByTestId(`attachment-preview-${doc.id}`)).toBeVisible();
+  });
+
+  test('attached document title is clickable link to document', async ({ page }) => {
+    const task = await createTestTask(page);
+    const doc = await createTestDocumentWithContent(page);
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Link should have correct href
+    const link = page.getByTestId(`attachment-link-${doc.id}`);
+    await expect(link).toBeVisible({ timeout: 5000 });
+    await expect(link).toHaveAttribute('href', `/documents?doc=${doc.id}`);
+  });
+
+  test('attached document shows content type badge', async ({ page }) => {
+    const task = await createTestTask(page);
+    const doc = await createTestDocumentWithContent(page, { contentType: 'markdown' });
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Content type badge should be visible
+    const attachment = page.getByTestId(`attachment-item-${doc.id}`);
+    await expect(attachment).toContainText('markdown');
+  });
+
+  test('json document content is formatted when expanded', async ({ page }) => {
+    const task = await createTestTask(page);
+    const jsonContent = JSON.stringify({ key: 'value', number: 42 });
+    const doc = await createTestDocumentWithContent(page, { content: jsonContent, contentType: 'json' });
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Expand to see content
+    await page.getByTestId(`attachment-expand-${doc.id}`).click();
+    const content = page.getByTestId(`attachment-content-${doc.id}`);
+    await expect(content).toBeVisible({ timeout: 5000 });
+
+    // Should contain the JSON keys
+    await expect(content).toContainText('key');
+    await expect(content).toContainText('value');
+  });
+
+  test('document without content shows appropriate message when expanded', async ({ page }) => {
+    const task = await createTestTask(page);
+
+    // Create document without content (empty string)
+    const response = await page.request.post('/api/documents', {
+      data: {
+        title: `Empty Document ${Date.now()}`,
+        content: '',
+        contentType: 'text',
+        createdBy: 'test-user',
+      },
+    });
+    expect(response.ok()).toBe(true);
+    const doc = await response.json();
+
+    // Attach document via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Expand
+    await page.getByTestId(`attachment-expand-${doc.id}`).click();
+    const content = page.getByTestId(`attachment-content-${doc.id}`);
+    await expect(content).toBeVisible({ timeout: 5000 });
+    await expect(content).toContainText('No content available');
+  });
+
+  test('multiple documents can be expanded independently', async ({ page }) => {
+    const task = await createTestTask(page);
+    const doc1 = await createTestDocumentWithContent(page, { content: 'Document 1 content' });
+    const doc2 = await createTestDocumentWithContent(page, { content: 'Document 2 content' });
+
+    // Attach both documents via API
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc1.id },
+    });
+    await page.request.post(`/api/tasks/${task.id}/attachments`, {
+      data: { documentId: doc2.id },
+    });
+
+    await page.goto('/tasks');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`task-row-${task.id}`).click();
+    await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Expand first document
+    await page.getByTestId(`attachment-expand-${doc1.id}`).click();
+    await expect(page.getByTestId(`attachment-content-${doc1.id}`)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId(`attachment-content-${doc2.id}`)).not.toBeVisible();
+
+    // Expand second document (first stays expanded)
+    await page.getByTestId(`attachment-expand-${doc2.id}`).click();
+    await expect(page.getByTestId(`attachment-content-${doc1.id}`)).toBeVisible();
+    await expect(page.getByTestId(`attachment-content-${doc2.id}`)).toBeVisible({ timeout: 5000 });
+  });
+});

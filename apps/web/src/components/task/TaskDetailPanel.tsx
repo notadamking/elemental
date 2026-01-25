@@ -142,6 +142,7 @@ interface AttachedDocument {
   id: string;
   type: 'document';
   title?: string;
+  content?: string;
   contentType: string;
   createdAt: string;
   updatedAt: string;
@@ -530,6 +531,128 @@ function DocumentPickerModal({
   );
 }
 
+// Helper to get first line of content for preview
+function getContentPreview(content?: string): string {
+  if (!content) return '';
+  const firstLine = content.split('\n')[0].trim();
+  return firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
+}
+
+// Helper to render content based on content type
+function renderDocumentContent(content: string, contentType: string): React.ReactNode {
+  if (contentType === 'json') {
+    try {
+      const formatted = JSON.stringify(JSON.parse(content), null, 2);
+      return (
+        <pre className="text-xs font-mono bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre-wrap">
+          {formatted}
+        </pre>
+      );
+    } catch {
+      return <pre className="text-xs font-mono bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre-wrap">{content}</pre>;
+    }
+  }
+
+  if (contentType === 'markdown') {
+    // For now, render as preformatted text - a full markdown renderer could be added
+    return (
+      <div className="prose prose-sm max-w-none text-gray-700">
+        <pre className="whitespace-pre-wrap font-sans text-sm">{content}</pre>
+      </div>
+    );
+  }
+
+  // Default: plain text
+  return (
+    <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700">{content}</pre>
+  );
+}
+
+// Expandable Document Card Component
+function ExpandableDocumentCard({
+  doc,
+  onRemove,
+  isRemoving,
+}: {
+  doc: AttachedDocument;
+  onRemove: () => void;
+  isRemoving: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const preview = getContentPreview(doc.content);
+
+  return (
+    <div
+      className="border border-gray-200 rounded-lg overflow-hidden"
+      data-testid={`attachment-item-${doc.id}`}
+    >
+      {/* Header - always visible */}
+      <div className="flex items-center gap-2 p-2 bg-gray-50 group">
+        {/* Expand/Collapse button */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="p-1 hover:bg-gray-200 rounded flex-shrink-0"
+          data-testid={`attachment-expand-${doc.id}`}
+          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+          )}
+        </button>
+        <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <a
+              href={`/documents?doc=${doc.id}`}
+              className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate"
+              data-testid={`attachment-link-${doc.id}`}
+            >
+              {doc.title || 'Untitled Document'}
+            </a>
+            <span className="px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded text-[10px] flex-shrink-0">
+              {doc.contentType}
+            </span>
+          </div>
+          {!isExpanded && preview && (
+            <div className="text-xs text-gray-500 truncate mt-0.5" data-testid={`attachment-preview-${doc.id}`}>
+              {preview}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onRemove}
+          disabled={isRemoving}
+          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+          aria-label="Remove attachment"
+          data-testid={`attachment-remove-${doc.id}`}
+        >
+          {isRemoving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <X className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+
+      {/* Expanded content */}
+      {isExpanded && doc.content && (
+        <div className="p-3 border-t border-gray-200 bg-white" data-testid={`attachment-content-${doc.id}`}>
+          {renderDocumentContent(doc.content, doc.contentType)}
+        </div>
+      )}
+
+      {/* Expanded but no content */}
+      {isExpanded && !doc.content && (
+        <div className="p-3 border-t border-gray-200 bg-white text-sm text-gray-500 italic" data-testid={`attachment-content-${doc.id}`}>
+          No content available
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Attachments Section Component
 function AttachmentsSection({
   taskId,
@@ -589,40 +712,12 @@ function AttachmentsSection({
             </div>
           ) : attachments && attachments.length > 0 ? (
             attachments.map((doc) => (
-              <div
+              <ExpandableDocumentCard
                 key={doc.id}
-                className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group"
-                data-testid={`attachment-item-${doc.id}`}
-              >
-                <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <a
-                    href={`/documents?doc=${doc.id}`}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate block"
-                    data-testid={`attachment-link-${doc.id}`}
-                  >
-                    {doc.title || 'Untitled Document'}
-                  </a>
-                  <div className="text-xs text-gray-500">
-                    <span className="px-1 py-0.5 bg-gray-200 text-gray-600 rounded text-[10px]">
-                      {doc.contentType}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleRemove(doc.id)}
-                  disabled={removingId === doc.id}
-                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                  aria-label="Remove attachment"
-                  data-testid={`attachment-remove-${doc.id}`}
-                >
-                  {removingId === doc.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <X className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
+                doc={doc}
+                onRemove={() => handleRemove(doc.id)}
+                isRemoving={removingId === doc.id}
+              />
             ))
           ) : (
             <div className="text-sm text-gray-500" data-testid="attachments-empty">
