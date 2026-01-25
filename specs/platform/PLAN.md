@@ -1067,6 +1067,695 @@ For mutations (create, update, delete):
   - [ ] Web: Org chart visualization (tree view of hierarchy)
   - [ ] **Verify:** Playwright tests passing
 
+### Phase 17: Data Loading Architecture Refactor
+
+**Goal:** Load all data upfront on initial app load for instant navigation, while using virtualized rendering and table pagination for UI performance.
+
+- [ ] **TB67: Upfront Data Loading Strategy**
+  - [ ] Web: Create `DataPreloader` provider that loads all elements on app mount
+  - [ ] Web: Add `useAllTasks`, `useAllPlans`, `useAllEntities`, `useAllDocuments`, etc. hooks
+  - [ ] Server: Add `GET /api/elements/all` endpoint that returns all elements in single response (with type discrimination)
+  - [ ] Web: Show loading spinner during initial data fetch with progress indicator
+  - [ ] Web: Store all data in TanStack Query cache with `staleTime: Infinity`
+  - [ ] Web: WebSocket events update cache in-place (no refetching needed)
+  - [ ] **Verify:** App loads with spinner, then all pages are instant; Claude in Chrome confirms all pages load without network requests after initial load
+
+- [ ] **TB68: Virtualized List Component**
+  - [ ] Web: Install `@tanstack/react-virtual` for list virtualization
+  - [ ] Web: Create `VirtualizedList` component that renders only visible items
+  - [ ] Web: Integrate with TaskList (infinite scroll, renders 50+ tasks smoothly)
+  - [ ] Web: Integrate with MessageList in channel view
+  - [ ] Web: Integrate with EventList in timeline
+  - [ ] Web: Add scroll position restoration on navigation
+  - [ ] **Verify:** Create 500+ tasks via CLI, scroll through list smoothly without lag; Playwright tests confirm render performance
+
+- [ ] **TB69: Table Pagination with Full Dataset**
+  - [ ] Web: Update Pagination component to work with in-memory data (not server pagination)
+  - [ ] Web: Implement client-side filtering and sorting for all table views
+  - [ ] Web: Table views (Tasks list, Entities, Teams, Documents, Channels) use pagination
+  - [ ] Web: Non-table views (Kanban, Timeline, Messages) use virtualized infinite scroll
+  - [ ] Web: Pagination state synced to URL (`?page=2&limit=25`)
+  - [ ] **Verify:** Tasks table shows pagination controls, changing page is instant; Playwright tests passing
+
+- [ ] **TB70: Deep-Link Navigation**
+  - [ ] Web: When navigating to `/tasks/:id` where task not in current page, auto-load that item
+  - [ ] Web: Scroll to item and highlight it temporarily (2s yellow flash)
+  - [ ] Web: Works for all element types (tasks, plans, workflows, documents, entities, teams)
+  - [ ] Web: Handle edge case: element doesn't exist → show "Not Found" message
+  - [ ] Web: Add `scrollToElement` utility that finds item in virtualized list
+  - [ ] **Verify:** Navigate to `/tasks/el-xyz` directly, page loads and scrolls to that task; Claude in Chrome confirms highlight animation
+
+### Phase 18: UI Design System Overhaul
+
+**Goal:** Re-skin the application using the `/frontend-design` skill to achieve a modern, professional look inspired by Linear, Notion, and Obsidian.
+
+- [ ] **TB71: Design Tokens Foundation**
+  - [ ] Web: Create `src/styles/tokens.css` with CSS custom properties for:
+    - [ ] Colors: primary, secondary, accent, success, warning, error, neutral scale (50-950)
+    - [ ] Spacing: consistent 4px grid (0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24)
+    - [ ] Typography: font-family, font-sizes (xs, sm, base, lg, xl, 2xl), line-heights, font-weights
+    - [ ] Border radius: none, sm, md, lg, xl, full
+    - [ ] Shadows: sm, md, lg, xl (subtle, modern shadows)
+    - [ ] Transitions: fast (100ms), normal (200ms), slow (300ms)
+  - [ ] Web: Update Tailwind config to use CSS variables
+  - [ ] Web: Document tokens in `src/styles/README.md`
+  - [ ] **Verify:** Tokens load correctly, can change primary color in one place; Claude in Chrome visual inspection
+
+- [ ] **TB72: Dark/Light Mode Overhaul**
+  - [ ] Web: Define complete color palette for both modes in `tokens.css`
+  - [ ] Web: Dark mode: deep charcoal backgrounds (#0D0D0D, #1A1A1A), subtle borders, muted colors
+  - [ ] Web: Light mode: clean whites and grays, crisp contrast, subtle shadows
+  - [ ] Web: Fix Settings page notification types horizontal padding issue
+  - [ ] Web: Add smooth transition between modes (300ms background color transition)
+  - [ ] Web: Ensure all components respect theme (check every component)
+  - [ ] Web: Add theme toggle to header (sun/moon icon) in addition to Settings
+  - [ ] **Verify:** Toggle dark/light mode, all UI elements update correctly with smooth transition; Playwright tests for both modes
+
+- [ ] **TB73: Core Component Styling**
+  - [ ] Web: Restyle Button component (primary, secondary, ghost, danger variants)
+    - [ ] Subtle hover states with background color shift
+    - [ ] Active states with slight scale (0.98)
+    - [ ] Focus rings for accessibility
+  - [ ] Web: Restyle Input/Textarea components
+    - [ ] Clean borders, focus states with primary color ring
+    - [ ] Error states with red border and message
+  - [ ] Web: Restyle Dialog/Modal components
+    - [ ] Backdrop blur, centered content, smooth animation
+    - [ ] Consistent header, body, footer sections
+  - [ ] Web: Restyle Dropdown/Select components
+    - [ ] Consistent with inputs, smooth open/close animation
+  - [ ] **Verify:** All interactive components look polished and consistent; Claude in Chrome visual inspection
+
+- [ ] **TB74: Card and Table Styling**
+  - [ ] Web: Create consistent Card component with variants (default, elevated, outlined)
+  - [ ] Web: Restyle all card-based lists (TaskCard, PlanCard, WorkflowCard, EntityCard, TeamCard)
+    - [ ] Subtle border, hover elevation, consistent padding
+    - [ ] Status badges with appropriate colors
+    - [ ] Timestamps in muted text
+  - [ ] Web: Restyle DataTable component
+    - [ ] Clean header row with sortable column indicators
+    - [ ] Alternating row backgrounds (subtle) or clean borders
+    - [ ] Hover state on rows
+    - [ ] Selection state (checkbox column)
+  - [ ] Web: Consistent empty states with illustrations and helpful text
+  - [ ] **Verify:** All tables and cards look consistent and professional; Playwright visual regression tests
+
+- [ ] **TB75: Sidebar and Navigation Styling**
+  - [ ] Web: Restyle Sidebar with Linear-inspired design
+    - [ ] Collapsible sections with smooth animation
+    - [ ] Active item indicator (left border or background)
+    - [ ] Hover states with subtle background
+    - [ ] Icon + text alignment
+  - [ ] Web: Sub-sections support (collapsible groups within sidebar)
+  - [ ] Web: Restyle Header/Breadcrumbs
+    - [ ] Clean separator between breadcrumb items
+    - [ ] Current page in bold
+  - [ ] Web: Restyle CommandPalette
+    - [ ] Larger, more prominent search input
+    - [ ] Better visual hierarchy for results
+    - [ ] Keyboard shortcut hints
+  - [ ] **Verify:** Navigation feels snappy and looks polished; Claude in Chrome user testing
+
+### Phase 19: Dashboard Overhaul
+
+**Goal:** Improve dashboard UX with better navigation structure, modal-based actions, and enhanced visualizations.
+
+- [ ] **TB76: Dashboard Sub-Section Navigation**
+  - [ ] Web: Move dashboard lenses into sidebar as collapsible sub-section under "Dashboard"
+    - [ ] Dashboard (parent) → Overview, Task Flow, Agents, Dependencies, Timeline (children)
+  - [ ] Web: Remove tab navigation from dashboard content area
+  - [ ] Web: Each sub-section is a full-height view
+  - [ ] Web: Persist last-visited dashboard section in localStorage
+  - [ ] Web: Update routes: `/dashboard/overview`, `/dashboard/task-flow`, etc.
+  - [ ] **Verify:** Navigate between dashboard sections via sidebar; Playwright tests passing
+
+- [ ] **TB77: Dashboard Quick Actions with Modals**
+  - [ ] Web: "Create Task" button opens CreateTaskModal (not navigate away)
+  - [ ] Web: "Pour Workflow" button opens PourWorkflowModal (not navigate away)
+  - [ ] Web: After successful creation, show toast and optionally navigate to new item
+  - [ ] Web: Add keyboard shortcuts: `C T` for Create Task, `C W` for Pour Workflow from dashboard
+  - [ ] **Verify:** Create task from dashboard without leaving page; Playwright tests passing
+
+- [ ] **TB78: Dashboard Overview Charts**
+  - [ ] Web: Install lightweight chart library (recharts or chart.js with react-chartjs-2)
+  - [ ] Web: Add "Tasks by Status" donut chart (open, in_progress, blocked, completed)
+  - [ ] Web: Add "Tasks Completed Over Time" line chart (last 7 days)
+  - [ ] Web: Add "Workload by Agent" horizontal bar chart
+  - [ ] Web: Make charts interactive (click segment → filter to that status)
+  - [ ] Web: Responsive layout: charts in grid on large screens, stacked on mobile
+  - [ ] **Verify:** Charts render with real data, interactions work; Claude in Chrome visual inspection
+
+- [ ] **TB79: View More Ready Tasks Fix**
+  - [ ] Web: "View more ready tasks" link navigates to `/tasks?status=open&blocked=false`
+  - [ ] Web: Tasks page respects URL filter params to show only ready tasks
+  - [ ] Web: Add filter chip showing active filter ("Ready tasks only") with clear button
+  - [ ] Web: Ensure TaskList filters from in-memory data (not server call)
+  - [ ] **Verify:** Click "View more ready tasks", only ready tasks shown; Playwright tests passing
+
+### Phase 20: Tasks Page Enhancements (Linear-inspired)
+
+**Goal:** Bring Linear-quality UX to the Tasks page with grouping, ordering, rich display, and search.
+
+- [ ] **TB80: Task Grouping**
+  - [ ] Web: Add "Group by" dropdown (None, Status, Priority, Assignee, Type, Tags)
+  - [ ] Web: Render grouped tasks with collapsible section headers
+  - [ ] Web: Show count per group in header
+  - [ ] Web: Remember grouping preference in localStorage
+  - [ ] Web: Works in both List and Kanban views
+  - [ ] **Verify:** Group tasks by priority, see Priority 1 section with count; Playwright tests passing
+
+- [ ] **TB81: Task Ordering and Sorting**
+  - [ ] Web: Add "Sort by" dropdown (Priority, Created, Updated, Deadline, Title, Complexity)
+  - [ ] Web: Ascending/descending toggle
+  - [ ] Web: Secondary sort option (e.g., Priority then Created)
+  - [ ] Web: Drag-and-drop manual ordering within groups (persists to task.metadata.manualOrder)
+  - [ ] Server: Add `PATCH /api/tasks/:id` support for `metadata.manualOrder`
+  - [ ] **Verify:** Sort by priority, drag task to reorder, order persists on refresh; Playwright tests passing
+
+- [ ] **TB82: Task Search**
+  - [ ] Web: Add search bar at top of Tasks page
+  - [ ] Web: Search filters tasks by title (fuzzy match with highlighting)
+  - [ ] Web: Search also searches task description content (if hydrated)
+  - [ ] Web: Debounced input (300ms) for performance
+  - [ ] Web: Clear search button and keyboard shortcut (Escape)
+  - [ ] Web: Search works with grouping and sorting (search first, then group, then sort)
+  - [ ] **Verify:** Search for "auth", matching tasks highlighted; Playwright tests passing
+
+- [ ] **TB83: Rich Task Display**
+  - [ ] Web: TaskCard shows inline description preview (first 2 lines, truncated)
+  - [ ] Web: TaskCard shows attachment count badge if task has attachments
+  - [ ] Web: TaskCard shows dependency count ("Blocks 3" or "Blocked by 2")
+  - [ ] Web: Hover preview: show full description in tooltip (larger tasks)
+  - [ ] **Verify:** Task cards show rich information at a glance; Claude in Chrome visual inspection
+
+- [ ] **TB84: Dependencies as Sub-Issues Display**
+  - [ ] Web: TaskDetailPanel shows "Blocked By" section as expandable sub-task list
+  - [ ] Web: Each blocker shown as mini-card (title, status badge, click to navigate)
+  - [ ] Web: TaskDetailPanel shows "Blocks" section similarly
+  - [ ] Web: Show progress: "2 of 5 blockers resolved"
+  - [ ] Web: Add "Create Blocker" button to quickly create a sub-task that blocks this one
+  - [ ] **Verify:** View task with dependencies, see them as sub-issues; Playwright tests passing
+
+- [ ] **TB85: Kanban Pagination Fix**
+  - [ ] Web: Kanban columns use virtualized rendering (virtual scroll within each column)
+  - [ ] Web: Each column can scroll independently
+  - [ ] Web: Column headers show total count and loaded count if different
+  - [ ] Web: Drag-and-drop works across columns even with virtualization
+  - [ ] Web: Remove server-side pagination for Kanban (uses in-memory data)
+  - [ ] **Verify:** Kanban with 100+ tasks per column scrolls smoothly; Playwright tests passing
+
+### Phase 21: Plans Page Enhancements (Linear-inspired)
+
+**Goal:** Add visual progress indicators, search, and a roadmap view to Plans.
+
+- [ ] **TB86: Plan Visual Progress Indicator**
+  - [ ] Web: Replace text progress with visual progress ring (circular progress indicator)
+  - [ ] Web: Ring shows percentage complete with number in center
+  - [ ] Web: Color-coded: green for healthy progress, yellow for at-risk, red for behind
+  - [ ] Web: PlanListItem shows mini progress ring (32px)
+  - [ ] Web: PlanDetailPanel shows large progress ring (80px) with breakdown
+  - [ ] **Verify:** Plans show visual progress rings; Claude in Chrome visual inspection
+
+- [ ] **TB87: Plan Search**
+  - [ ] Web: Add search bar to Plans page
+  - [ ] Web: Search by plan title and description
+  - [ ] Web: Highlight matching text in results
+  - [ ] Web: Filter combines with status filter tabs
+  - [ ] **Verify:** Search for "roadmap", matching plans shown; Playwright tests passing
+
+- [ ] **TB88: Plan Roadmap View**
+  - [ ] Web: Add "Roadmap" view toggle (alongside List view)
+  - [ ] Web: Roadmap shows plans as horizontal bars on a timeline
+  - [ ] Web: X-axis: time (weeks/months)
+  - [ ] Web: Y-axis: plans (stacked rows)
+  - [ ] Web: Bar length based on plan duration (first task created → last task deadline or completed date)
+  - [ ] Web: Color based on status (draft=gray, active=blue, completed=green)
+  - [ ] Web: Click bar → navigate to plan detail
+  - [ ] **Verify:** Roadmap view shows plans on timeline; Claude in Chrome visual inspection
+
+### Phase 22: Inbox Improvements (Linear-inspired)
+
+**Goal:** Fix inbox loading and create a Linear-quality inbox experience with filtering and sorting.
+
+- [ ] **TB89: Fix Inbox Loading**
+  - [ ] Server: Debug and fix `GET /api/entities/:id/inbox` endpoint to return messages
+  - [ ] Server: Ensure inbox items include direct messages and @mentions
+  - [ ] Server: Add `GET /api/inbox/all` endpoint for global inbox view
+  - [ ] Web: Debug InboxTab component data fetching
+  - [ ] Web: Add error state with retry button
+  - [ ] **Verify:** Navigate to entity inbox, messages load correctly; Playwright tests passing
+
+- [ ] **TB90: Inbox Views (Unread/All/Archived)**
+  - [ ] Web: Add view toggle tabs: "Unread", "All", "Archived"
+  - [ ] Web: Unread shows only items with `status === 'unread'`
+  - [ ] Web: All shows unread + read items
+  - [ ] Web: Archived shows archived items with "Restore" action
+  - [ ] Web: Unread count badge on "Unread" tab
+  - [ ] Web: Remember selected view in localStorage
+  - [ ] **Verify:** Switch between views, counts update correctly; Playwright tests passing
+
+- [ ] **TB91: Inbox Message Summary Sidebar**
+  - [ ] Web: Create split layout: message list (left 40%), message content (right 60%)
+  - [ ] Web: Message list shows: avatar, sender name, preview (first line), time ago, unread indicator
+  - [ ] Web: Selected message highlighted
+  - [ ] Web: Keyboard navigation: J/K to move between messages
+  - [ ] Web: Virtualized list for performance
+  - [ ] **Verify:** Click message in list, full content shows on right; Playwright tests passing
+
+- [ ] **TB92: Inbox Full Message Content**
+  - [ ] Web: Right panel shows full message with:
+    - [ ] Sender avatar and name (clickable → entity detail)
+    - [ ] Channel name (clickable → channel)
+    - [ ] Full timestamp (relative + absolute on hover)
+    - [ ] Full message content (rendered markdown)
+    - [ ] Attachments rendered inline (document embeds)
+    - [ ] Thread context (if reply, show parent message)
+  - [ ] Web: Actions: Reply, Mark read/unread, Archive
+  - [ ] **Verify:** Full message content renders with all metadata; Claude in Chrome visual inspection
+
+- [ ] **TB93: Inbox Filtering and Sorting**
+  - [ ] Web: Add filter dropdown: All, Direct Messages, Mentions, Channels (multi-select)
+  - [ ] Web: Add sort dropdown: Newest, Oldest, Sender
+  - [ ] Web: Combine with view filter (Unread + Direct Messages)
+  - [ ] Web: Filter chips show active filters with clear buttons
+  - [ ] **Verify:** Filter to unread mentions only, correct messages shown; Playwright tests passing
+
+- [ ] **TB94: Inbox Time-Ago Indicator**
+  - [ ] Web: Show relative time for each message ("2m ago", "1h ago", "Yesterday", "Jan 15")
+  - [ ] Web: Update relative times periodically (every minute for recent, less often for older)
+  - [ ] Web: Group messages by time period (Today, Yesterday, This Week, Earlier) with sticky headers
+  - [ ] **Verify:** Times display correctly and update; Playwright tests passing
+
+### Phase 22B: Document Editor Core Fixes
+
+**Goal:** Fix fundamental document editor issues with a **Markdown-first architecture**.
+
+> **Key Principle:** All document content is stored as Markdown, not proprietary JSON formats.
+> This ensures AI agents can read and write documents naturally, maximizes token efficiency,
+> and maintains universal interoperability with external tools. The editor provides rich UX
+> for humans while persisting standard Markdown that any system can understand.
+
+- [ ] **TB94a: Editor Expand in Edit Mode**
+  - [ ] Web: Debug why editor cannot be expanded/resized while in editing mode
+  - [ ] Web: Ensure editor panel supports resize handle or expand button in edit mode
+  - [ ] Web: Add fullscreen/focus mode toggle (Escape to exit)
+  - [ ] Web: Persist editor size preference in localStorage
+  - [ ] **Verify:** Enter edit mode, expand editor to fullscreen, content persists; Claude in Chrome confirms
+
+- [ ] **TB94b: Core Formatting Fixes**
+  - [ ] Web: Debug and fix headings (H1, H2, H3) - ensure toolbar buttons and slash commands work
+  - [ ] Web: Debug and fix highlighting - ensure toolbar button and keyboard shortcut apply highlight
+  - [ ] Web: Debug and fix bullet lists - ensure Enter continues list, Tab indents, Shift+Tab outdents
+  - [ ] Web: Debug and fix numbered lists - same behavior as bullet lists, auto-numbering works
+  - [ ] Web: Debug and fix code blocks - syntax highlighting, language selector, proper font
+  - [ ] Web: Debug and fix block quotes - proper styling, nesting support
+  - [ ] Web: Ensure all formatting persists on save and displays correctly in view mode
+  - [ ] Web: Add comprehensive test coverage for each formatting type
+  - [ ] **Verify:** Create document with all formatting types, save, refresh, all formatting preserved; Playwright tests passing
+
+- [ ] **TB94c: Markdown-First Editor Architecture**
+
+  > **Design Decision:** We intentionally use **Markdown as the canonical storage format** rather than
+  > a proprietary JSON format (like BlockNote). This ensures:
+  >
+  > - **AI Agent Compatibility:** Agents can read/write documents naturally without schema knowledge
+  > - **Token Efficiency:** Markdown is 3-5x more compact than structured JSON for the same content
+  > - **Universal Interoperability:** Works with GitHub, external tools, and other AI systems
+  > - **Simplicity:** No format migration, no schema versioning, no complex nested structures
+  - [ ] Web: Refactor BlockEditor to use Markdown as source of truth (not HTML or plain text)
+  - [ ] Web: Install and configure `@tiptap/extension-markdown` or use `turndown`/`marked` for conversion
+  - [ ] Web: Update `onChange` to emit Markdown string directly
+  - [ ] Web: Update content loading to parse Markdown → Tiptap document
+  - [ ] Web: Ensure round-trip fidelity: Markdown → Editor → Markdown preserves formatting
+  - [ ] Web: Test with complex documents (headings, lists, code blocks, links, embeds)
+  - [ ] **Verify:** Create document with mixed formatting, save, reload—Markdown content matches exactly; AI agent can read document via API and understand structure
+
+- [ ] **TB94c-2: Block Drag-and-Drop with Markdown Persistence**
+  - [ ] Web: Debug `tiptap-extension-global-drag-handle` integration
+  - [ ] Web: Ensure drag handles appear on hover for paragraphs, headings, lists, code blocks
+  - [ ] Web: Fix any CSS conflicts (z-index, positioning) preventing drag handle visibility
+  - [ ] Web: Implement block reordering via drag-and-drop
+  - [ ] Web: Visual drop indicator (blue line) between blocks while dragging
+  - [ ] Web: After drop, Markdown output reflects new block order
+  - [ ] **Verify:** Drag paragraph to new position, save, check raw Markdown—order changed correctly; Playwright tests passing
+
+- [ ] **TB94d: Text Alignment**
+  - [ ] Web: Add text alignment extension (@tiptap/extension-text-align)
+  - [ ] Web: Add toolbar buttons: Align Left, Center, Align Right, Justify
+  - [ ] Web: Add slash commands: /left, /center, /right, /justify
+  - [ ] Web: Keyboard shortcuts: ⌘+Shift+L (left), ⌘+Shift+E (center), ⌘+Shift+R (right)
+  - [ ] Web: Alignment applies to current block (paragraph, heading)
+  - [ ] Web: Alignment indicator in toolbar (shows current alignment state)
+  - [ ] Web: Alignment stored in Markdown using HTML attributes or custom syntax (e.g., `{.center}`)
+  - [ ] **Verify:** Create centered heading, right-aligned paragraph, alignment persists in Markdown; Playwright tests passing
+
+- [ ] **TB94e: Image Block Support (Markdown-Compatible)**
+
+  > **Markdown Format for Images:** Images use standard Markdown syntax that AI agents can read/write:
+  >
+  > - Basic: `![alt text](/api/uploads/abc123.png)`
+  > - With caption: `![alt text](/api/uploads/abc123.png "caption text")`
+  > - With dimensions: `![alt text|400x300](/api/uploads/abc123.png)` (extended syntax)
+  - [ ] Web: Add Image extension (@tiptap/extension-image)
+  - [ ] Web: Image insertion methods:
+    - [ ] Slash command: /image opens picker
+    - [ ] Toolbar button: Image icon
+    - [ ] Drag-and-drop: Drop image file into editor
+    - [ ] Paste: Paste image from clipboard
+    - [ ] URL: Paste image URL, auto-converts to image block
+  - [ ] Web: Markdown output uses standard `![alt](url)` syntax
+  - [ ] Server: Add `POST /api/uploads` endpoint
+    - [ ] Accept multipart/form-data with image file
+    - [ ] Store in `.elemental/uploads/{hash}.{ext}`
+    - [ ] Return URL: `/api/uploads/{hash}.{ext}`
+    - [ ] Support: jpg, png, gif, webp, svg (validate MIME type)
+    - [ ] Max size: 10MB
+  - [ ] Server: Add `GET /api/uploads/:filename` endpoint (serve uploaded files)
+  - [ ] Web: Image block features:
+    - [ ] Resize handles (corner drag to resize, maintain aspect ratio with Shift)
+    - [ ] Alignment options (left, center, right, full-width)
+    - [ ] Alt text editing (click image → popover with alt text input)
+    - [ ] Caption support (optional text below image)
+    - [ ] Loading state (skeleton placeholder while uploading/loading)
+    - [ ] Error state (broken image indicator with retry button)
+  - [ ] **Verify:** Upload image, check Markdown contains `![alt](url)`; manually write image Markdown, editor renders image; Playwright tests passing
+
+- [ ] **TB94f: Task and Document Embedding (Markdown-Compatible)**
+
+  > **Markdown Format for Embeds:** Embeds are stored as custom Markdown syntax that AI agents can
+  > easily read and write:
+  >
+  > - Task embed: `![[task:el-abc123]]` or `{{task:el-abc123}}`
+  > - Document embed: `![[doc:el-xyz789]]` or `{{doc:el-xyz789}}`
+  > - Inline link (existing): `[Task Title](/tasks/el-abc123)`
+  >
+  > This allows agents to create embeds by simply writing the syntax, without needing editor UI.
+  - [ ] Web: Define embed syntax convention (e.g., `![[task:ID]]` inspired by Obsidian)
+  - [ ] Web: Distinguish between "link" (inline text link) and "embed" (rich preview block)
+  - [ ] Web: Create Tiptap node that parses embed syntax from Markdown
+  - [ ] Web: Task embed block:
+    - [ ] Slash command: /task-embed opens task picker
+    - [ ] Markdown output: `![[task:el-abc123]]`
+    - [ ] Renders as card showing: title, status badge, priority, assignee avatar
+    - [ ] Real-time updates: if task status changes, embed updates
+    - [ ] Click → navigates to task detail (or opens slide-over)
+    - [ ] Hover → shows full task preview tooltip
+    - [ ] Actions: Open, Remove embed
+  - [ ] Web: Document embed block:
+    - [ ] Slash command: /doc-embed opens document picker
+    - [ ] Markdown output: `![[doc:el-xyz789]]`
+    - [ ] Renders as card showing: title, content type badge, first 2 lines preview
+    - [ ] Click → navigates to document (or opens in side panel)
+    - [ ] Expand toggle: show full document content inline (read-only)
+    - [ ] Actions: Open, Expand/Collapse, Remove embed
+  - [ ] Web: Embed blocks are distinct from existing inline links (TB57)
+  - [ ] Server: Parse embed syntax when indexing documents for search
+  - [ ] Server: Ensure `references` dependencies are created for embeds
+  - [ ] **Verify:** Embed task via UI, check Markdown contains `![[task:ID]]`; manually write embed syntax, editor renders card; Playwright tests passing
+
+### Phase 23: Documents Page Enhancements (Notion-inspired)
+
+**Goal:** Enhance the document editor with Notion-inspired features.
+
+- [ ] **TB95: Document Search**
+  - [ ] Web: Add search bar to Documents page sidebar
+  - [ ] Web: Search by document title and content (full-text)
+  - [ ] Web: Results show title and content snippet with highlighted match
+  - [ ] Web: Click result → open document
+  - [ ] Web: Keyboard shortcut: `/` focuses search when in Documents
+  - [ ] **Verify:** Search for keyword, matching documents shown with preview; Playwright tests passing
+
+- [ ] **TB96: Media Library Browser**
+
+  > Note: Core image support is in TB94e. This TB adds a media library for managing uploaded assets.
+  - [ ] Web: Add "Media Library" tab/modal accessible from image picker
+  - [ ] Web: Show grid of all uploaded images for current workspace
+  - [ ] Web: Search/filter uploaded images by filename
+  - [ ] Web: Click to insert existing image (reuse URL, don't re-upload)
+  - [ ] Web: Delete unused images from library
+  - [ ] Server: Add `GET /api/uploads` endpoint (list all uploads with metadata)
+  - [ ] Server: Add `DELETE /api/uploads/:filename` endpoint
+  - [ ] Server: Track image usage (which documents reference each image)
+  - [ ] **Verify:** Upload image, see it in media library, insert into different document; Playwright tests passing
+
+- [ ] **TB97: Emoji Support (Markdown-Compatible)**
+
+  > **Markdown Format for Emojis:** Emojis are stored as Unicode characters directly in Markdown,
+  > which AI agents can read/write natively. The `:shortcode:` syntax is converted to Unicode on input.
+  - [ ] Web: Add emoji picker button to toolbar
+  - [ ] Web: Emoji picker modal with categories and search
+  - [ ] Web: Type `:emoji_name:` to trigger inline emoji autocomplete
+  - [ ] Web: Convert shortcodes to Unicode on insert (e.g., `:rocket:` → 🚀)
+  - [ ] Web: Store as Unicode in Markdown (not shortcodes) for universal compatibility
+  - [ ] Web: Common emojis suggested first (recently used)
+  - [ ] Web: Document icon/emoji in library tree (stored in document metadata)
+  - [ ] **Verify:** Insert emoji via picker, check Markdown contains Unicode character; type `:smile:`, converts to 😄; Playwright tests passing
+
+- [ ] **TB98: Inline Comments (Stored Separately)**
+
+  > **Markdown Compatibility:** Comments are stored separately from document content, not inline.
+  > This keeps the Markdown clean and readable by AI agents. Comments reference text by anchor
+  > (hash of surrounding context) rather than embedding markers in the document.
+  - [ ] Web: Add ability to select text and add comment (bubble menu option)
+  - [ ] Web: Commented text shows highlight background (configurable color)
+  - [ ] Web: Click highlighted text → show comment in side panel
+  - [ ] Web: Comment shows: author avatar, text, timestamp, resolve button
+  - [ ] Server: Add `POST /api/documents/:id/comments` endpoint
+    - [ ] Store: documentId, textAnchor (hash + surrounding context), position, commentText
+    - [ ] Comments are separate entities, not embedded in Markdown
+  - [ ] Server: Add `GET /api/documents/:id/comments` endpoint
+  - [ ] Server: Add `PATCH /api/comments/:id` endpoint (resolve, edit)
+  - [ ] Web: On document load, match comment anchors to current text positions
+  - [ ] Web: Handle anchor drift (text changed) gracefully—show "text moved" indicator
+  - [ ] Web: Resolved comments hidden by default with "Show resolved" toggle
+  - [ ] **Verify:** Add comment, check Markdown has no comment markers; reload, comment reattaches to correct text; Playwright tests passing
+
+### Phase 24: Messages Page Enhancements (Slack-inspired)
+
+**Goal:** Enhance the messaging experience with Slack-inspired features.
+
+- [ ] **TB99: Message Day Separation**
+  - [ ] Web: Group messages by day with separator headers
+  - [ ] Web: Date separator shows: "Today", "Yesterday", or full date "Monday, January 15"
+  - [ ] Web: Sticky date header while scrolling
+  - [ ] Web: Consistent styling with message bubbles
+  - [ ] **Verify:** Messages grouped by day with clear separators; Claude in Chrome visual inspection
+
+- [ ] **TB100: Copy Message Action**
+  - [ ] Web: Add "Copy" action to message hover menu (or right-click context menu)
+  - [ ] Web: Copies message content as plain text
+  - [ ] Web: Show toast confirmation "Message copied"
+  - [ ] Web: Keyboard shortcut: `C` when message focused
+  - [ ] **Verify:** Right-click message → Copy, content in clipboard; Playwright tests passing
+
+- [ ] **TB101: Rich Text in MessageComposer**
+  - [ ] Web: Replace plain textarea with mini Tiptap editor
+  - [ ] Web: Support: bold (⌘B), italic (⌘I), underline (⌘U), strikethrough
+  - [ ] Web: Support: inline code (`), code block (```)
+  - [ ] Web: Support: bullet list, numbered list
+  - [ ] Web: Support: block quote (>)
+  - [ ] Web: Compact toolbar shown below input (optional, can toggle)
+  - [ ] Web: Markdown shortcuts work (e.g., **bold**, _italic_)
+  - [ ] **Verify:** Compose message with bold and code block, renders correctly; Playwright tests passing
+
+- [ ] **TB102: Image Input in Messages**
+  - [ ] Web: Add image attachment button to MessageComposer
+  - [ ] Web: Click → file picker for image
+  - [ ] Web: Drag-and-drop image into composer
+  - [ ] Web: Paste image from clipboard
+  - [ ] Web: Preview attached image before sending
+  - [ ] Web: Remove attachment button (X on preview)
+  - [ ] Server: Images uploaded to server, URL stored in message document
+  - [ ] **Verify:** Attach image, send message, image renders in chat; Playwright tests passing
+
+- [ ] **TB103: Message Search**
+  - [ ] Web: Add search input to channel header
+  - [ ] Web: Search messages within current channel
+  - [ ] Web: Results show message preview with highlighted match
+  - [ ] Web: Click result → scroll to message and highlight
+  - [ ] Web: Global message search in command palette (searches all channels)
+  - [ ] **Verify:** Search for keyword, matching messages found and highlighted; Playwright tests passing
+
+### Phase 25: Entities & Teams Enhancements (Github-inspired)
+
+**Goal:** Make entities and teams more interactive with clickable links and Github-inspired activity displays.
+
+- [ ] **TB104: Clickable Member Names**
+  - [ ] Web: Team member names in TeamDetailPanel are clickable links
+  - [ ] Web: Click → navigate to `/entities/:id`
+  - [ ] Web: Entity references throughout app are clickable (assignee in tasks, sender in messages, etc.)
+  - [ ] Web: Hover shows entity preview card (name, type, avatar, current task)
+  - [ ] **Verify:** Click member name in team, navigates to entity; Playwright tests passing
+
+- [ ] **TB105: Clickable Workload Distribution**
+  - [ ] Web: Workload chart bars in EntityDetailPanel and TeamDetailPanel are clickable
+  - [ ] Web: Click bar → filter to that entity's tasks (navigate to `/tasks?assignee=:id`)
+  - [ ] Web: Hover shows exact count and percentage
+  - [ ] **Verify:** Click workload bar, tasks filtered to that entity; Playwright tests passing
+
+- [ ] **TB106: Clickable Assigned Tasks**
+  - [ ] Web: Task list items in EntityDetailPanel are clickable
+  - [ ] Web: Click → navigate to `/tasks/:id` or open slide-over panel
+  - [ ] Web: Consistent with task clicking behavior elsewhere in app
+  - [ ] **Verify:** Click task in entity detail, task opens; Playwright tests passing
+
+- [ ] **TB107: Add Members to Team UI**
+  - [ ] Web: Add "Add Member" button in TeamDetailPanel header
+  - [ ] Web: Click → open entity picker modal
+  - [ ] Web: Multi-select entities to add
+  - [ ] Web: Show which entities are already members (disabled in picker)
+  - [ ] Web: Real-time update when members added (WebSocket)
+  - [ ] **Verify:** Add 2 members to team via UI, member count updates; Playwright tests passing
+
+- [ ] **TB108: Entity Contribution Chart**
+  - [ ] Web: Add "Activity" section to EntityDetailPanel
+  - [ ] Web: Github-style contribution chart (grid of squares)
+  - [ ] Web: Each square = one day, color intensity = activity level (events count)
+  - [ ] Web: Hover square shows date and activity count
+  - [ ] Web: Last 365 days (or configurable range)
+  - [ ] **Verify:** Entity activity chart renders with accurate data; Claude in Chrome visual inspection
+
+- [ ] **TB109: Entity Activity Overview**
+  - [ ] Web: Show recent activity feed in EntityDetailPanel
+  - [ ] Web: List of recent events (tasks completed, messages sent, documents edited)
+  - [ ] Web: Each item: icon, description, timestamp
+  - [ ] Web: "View all activity" link → filtered timeline view
+  - [ ] **Verify:** Activity feed shows recent actions; Playwright tests passing
+
+- [ ] **TB110: Entity Event History (Commit History Style)**
+  - [ ] Web: Add "History" tab to EntityDetailPanel
+  - [ ] Web: List of all events by this entity (chronological)
+  - [ ] Web: Git commit log style: hash (event ID), message, timestamp
+  - [ ] Web: Click event → expand to show details (old/new values)
+  - [ ] Web: Filter by event type (created, updated, closed, etc.)
+  - [ ] **Verify:** Entity history shows all events in commit-log style; Playwright tests passing
+
+### Phase 26: Entity Tagging System
+
+**Goal:** Allow tagging entities in documents and tasks with @mentions.
+
+- [ ] **TB111: @Mention Parsing in Documents**
+  - [ ] Web: Type `@` in document editor to trigger entity autocomplete
+  - [ ] Web: Autocomplete shows matching entity names with avatars
+  - [ ] Web: Selected entity renders as highlighted @mention chip (clickable)
+  - [ ] Web: Click @mention → navigate to entity detail
+  - [ ] Server: Store mentions as metadata in document
+  - [ ] Server: Create `mentions` dependency from document to entity
+  - [ ] **Verify:** Type @entity-name, autocomplete appears, selection creates mention; Playwright tests passing
+
+- [ ] **TB112: @Mention in Tasks**
+  - [ ] Web: Task description editor supports @mentions (same as documents)
+  - [ ] Web: @mentions in task notes field
+  - [ ] Web: Show mentioned entities in task detail panel
+  - [ ] Server: Create `mentions` dependency from task to entity
+  - [ ] **Verify:** Mention entity in task description, entity linked; Playwright tests passing
+
+- [ ] **TB113: Entity Tags Display**
+  - [ ] Web: EntityDetailPanel shows "Mentioned In" section
+  - [ ] Web: Lists documents and tasks that mention this entity
+  - [ ] Web: Each item clickable → navigate to that document/task
+  - [ ] Web: Count badge in section header
+  - [ ] **Verify:** Entity shows list of documents/tasks that mention it; Playwright tests passing
+
+### Phase 27: Dependencies Graph Fixes
+
+**Goal:** Fix critical bugs in dependency graph editing.
+
+- [ ] **TB114: Fix Adding Edges**
+  - [ ] Web: Debug edge creation flow in edit mode
+  - [ ] Web: Ensure `POST /api/dependencies` is called correctly
+  - [ ] Web: Handle race condition where graph re-renders before edge added
+  - [ ] Web: Add visual feedback: "Creating dependency..." loading state
+  - [ ] Web: Add error toast if edge creation fails
+  - [ ] Web: Refresh graph data after successful edge creation
+  - [ ] **Verify:** Add blocks dependency via graph, edge persists on refresh; Playwright tests passing
+
+- [ ] **TB115: Fix Removing Edges (Save Issue)**
+  - [ ] Web: Debug edge deletion flow
+  - [ ] Server: Verify `DELETE /api/dependencies` endpoint works correctly
+  - [ ] Web: Ensure correct parameters sent (sourceId, targetId, type)
+  - [ ] Web: Add confirmation dialog before edge deletion
+  - [ ] Web: Optimistic UI update with rollback on error
+  - [ ] Web: Refresh graph data after successful deletion
+  - [ ] **Verify:** Remove edge via graph, edge deleted on refresh; Playwright tests passing
+
+- [ ] **TB115a: Edge Type Labels**
+  - [ ] Web: Display dependency type label on each edge (blocks, parent-child, awaits, relates-to, validates, etc.)
+  - [ ] Web: Label positioning: centered on edge, rotated to follow edge direction
+  - [ ] Web: Label styling: small font, muted color, background pill for readability
+  - [ ] Web: Color-code edges by type:
+    - [ ] Blocking types (blocks, parent-child, awaits): red/orange
+    - [ ] Associative types (relates-to, references, validates): blue/gray
+    - [ ] Attribution types (authored-by, assigned-to): green
+  - [ ] Web: Toggle to show/hide edge labels (default: show)
+  - [ ] Web: Hover edge → highlight label and show tooltip with full dependency info
+  - [ ] Web: Legend showing edge type colors and meanings
+  - [ ] **Verify:** Graph displays labeled, color-coded edges; labels readable at various zoom levels; Playwright tests passing
+
+- [ ] **TB115b: Auto-Layout Graph Formatting**
+  - [ ] Web: Add "Auto Layout" button to graph toolbar
+  - [ ] Web: Implement layout algorithms (using dagre, elkjs, or React Flow's built-in):
+    - [ ] Hierarchical/Tree layout: top-to-bottom or left-to-right based on dependency direction
+    - [ ] Force-directed layout: for graphs without clear hierarchy
+    - [ ] Radial layout: selected node in center, dependencies radiating outward
+  - [ ] Web: Layout direction toggle: TB (top-bottom), LR (left-right), BT, RL
+  - [ ] Web: Spacing controls: node spacing, rank spacing (distance between levels)
+  - [ ] Web: Animate layout transitions (nodes smoothly move to new positions)
+  - [ ] Web: "Fit to View" button: zoom and pan to show all nodes
+  - [ ] Web: Persist layout preference in localStorage
+  - [ ] Web: Option to save custom node positions (manual override of auto-layout)
+  - [ ] **Verify:** Click Auto Layout, graph reorganizes with animation; try different layout algorithms; Playwright tests passing
+
+### Phase 28: Timeline View Enhancements
+
+**Goal:** Add a horizontal timeline visualization option.
+
+- [ ] **TB116: Horizontal Timeline View**
+  - [ ] Web: Add "Horizontal" view toggle to Timeline lens (alongside List view)
+  - [ ] Web: Horizontal timeline shows events as dots on a time axis
+  - [ ] Web: X-axis: time (auto-scaled based on date range)
+  - [ ] Web: Events positioned by timestamp, stacked if overlapping
+  - [ ] Web: Event dots colored by event type (create=green, update=blue, delete=red)
+  - [ ] Web: Hover dot → show event details tooltip
+  - [ ] Web: Click dot → show full event card
+  - [ ] Web: Pan and zoom with mouse/touch
+  - [ ] Web: Time range selector (Last 24h, 7 days, 30 days, All)
+  - [ ] **Verify:** Timeline shows events horizontally, interactions work; Claude in Chrome visual inspection
+
+- [ ] **TB117: Timeline Brush Selection**
+  - [ ] Web: Add brush selection tool to horizontal timeline
+  - [ ] Web: Drag to select time range
+  - [ ] Web: Selected range shows filtered events in list below
+  - [ ] Web: "Clear selection" button
+  - [ ] Web: Selection syncs with URL params for shareability
+  - [ ] **Verify:** Brush select time range, events filtered; Playwright tests passing
+
+### Phase 29: Polish and Fixes
+
+**Goal:** Address remaining UI/UX issues and polish.
+
+- [ ] **TB118: Settings Notifications Padding Fix**
+  - [ ] Web: Add horizontal padding to notification types list in Settings
+  - [ ] Web: Ensure consistent padding with other settings sections
+  - [ ] Web: Check all Settings sections for padding consistency
+  - [ ] **Verify:** Notification types list has proper padding; Claude in Chrome visual inspection
+
+- [ ] **TB119: Accessibility Audit**
+  - [ ] Web: Run axe-core accessibility audit on all pages
+  - [ ] Web: Fix any color contrast issues (especially in dark mode)
+  - [ ] Web: Ensure all interactive elements have focus states
+  - [ ] Web: Add ARIA labels where missing
+  - [ ] Web: Ensure keyboard navigation works throughout
+  - [ ] **Verify:** axe audit passes with no critical issues; Playwright accessibility tests passing
+
+- [ ] **TB120: Performance Audit**
+  - [ ] Web: Run Lighthouse performance audit
+  - [ ] Web: Optimize any slow components (memo, useMemo, useCallback)
+  - [ ] Web: Ensure bundle size is reasonable (code splitting if needed)
+  - [ ] Web: Verify virtualization is working correctly for all long lists
+  - [ ] Web: Add loading skeletons where missing
+  - [ ] **Verify:** Lighthouse performance score >90; Claude in Chrome confirms smooth interactions
+
 ---
 
 ## 8. Verification Approach
