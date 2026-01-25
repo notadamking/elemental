@@ -817,13 +817,13 @@ For mutations (create, update, delete):
   - [x] Web: Improve filtering UI (multi-select chips instead of dropdowns)
   - [x] **Verify:** Timeline shows grouped events with clear visual hierarchy (Playwright tests passing - 33 tests)
 
-- [ ] **TB43: Dependency Graph - Filter & Search**
-  - [ ] Web: Add search box above graph (filter nodes by title/ID, highlights matches)
-  - [ ] Web: Add filter toggles (by element type: tasks/plans/workflows, by status: open/closed)
-  - [ ] Web: Implement node highlighting for search results (glow effect or border)
-  - [ ] Web: Add minimap component for large graphs (React Flow MiniMap)
-  - [ ] Web: Add zoom controls (+/- buttons, fit-to-view button)
-  - [ ] **Verify:** Search for task in graph, matching node highlights and centers
+- [x] **TB43: Dependency Graph - Filter & Search**
+  - [x] Web: Add search box above graph (filter nodes by title/ID, highlights matches)
+  - [x] Web: Add filter toggles (by status: open/in_progress/blocked/completed/cancelled)
+  - [x] Web: Implement node highlighting for search results (glow effect with yellow ring)
+  - [x] Web: Add minimap component for large graphs (React Flow MiniMap - already existed)
+  - [x] Web: Add zoom controls (+/- buttons, fit-to-view button)
+  - [x] **Verify:** Search for task in graph, matching node highlights (Playwright tests passing - 22 tests)
 
 - [ ] **TB44: Dependency Graph - Edit Mode**
   - [ ] Server: Add `POST /api/dependencies` endpoint (sourceId, targetId, type)

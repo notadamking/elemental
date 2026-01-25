@@ -4,7 +4,7 @@
  * Interactive visualization of task dependencies using React Flow.
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ReactFlow,
@@ -13,6 +13,8 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
+  ReactFlowProvider,
   type Node,
   type Edge,
   type NodeTypes,
@@ -21,6 +23,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -100,10 +103,12 @@ const PRIORITY_COLORS: Record<number, string> = {
 interface TaskNodeData extends Record<string, unknown> {
   task: Task;
   isRoot: boolean;
+  isHighlighted: boolean;
+  isSearchMatch: boolean;
 }
 
 function TaskNode({ data }: { data: TaskNodeData }) {
-  const { task, isRoot } = data;
+  const { task, isRoot, isHighlighted, isSearchMatch } = data;
   const colors = STATUS_COLORS[task.status] || STATUS_COLORS.open;
   const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS[3];
 
@@ -113,7 +118,13 @@ function TaskNode({ data }: { data: TaskNodeData }) {
         px-4 py-3 rounded-lg border-2 shadow-sm min-w-[180px] max-w-[220px]
         ${colors.bg} ${colors.border}
         ${isRoot ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+        ${isSearchMatch ? 'ring-2 ring-yellow-400 ring-offset-2 shadow-lg shadow-yellow-200' : ''}
+        ${isHighlighted && !isSearchMatch ? 'opacity-100' : ''}
+        ${!isHighlighted && !isSearchMatch ? 'opacity-40' : ''}
+        transition-all duration-200
       `}
+      data-testid="graph-node"
+      data-node-id={task.id}
     >
       <Handle type="target" position={Position.Top} className="!bg-gray-400" />
       <div className="flex items-center justify-between gap-2 mb-1">
@@ -135,12 +146,44 @@ const nodeTypes: NodeTypes = {
   task: TaskNode,
 };
 
+interface GraphOptions {
+  searchQuery: string;
+  statusFilter: string[];
+}
+
 function buildGraphFromTree(
-  tree: DependencyTree
+  tree: DependencyTree,
+  options: GraphOptions
 ): { nodes: Node<TaskNodeData>[]; edges: Edge[] } {
   const nodes: Node<TaskNodeData>[] = [];
   const edges: Edge[] = [];
   const visited = new Set<string>();
+
+  const { searchQuery, statusFilter } = options;
+  const hasSearch = searchQuery.trim().length > 0;
+  const hasStatusFilter = statusFilter.length > 0;
+  const hasAnyFilter = hasSearch || hasStatusFilter;
+
+  // Check if a task matches the search query
+  function matchesSearch(task: Task): boolean {
+    if (!hasSearch) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      task.title.toLowerCase().includes(query) ||
+      task.id.toLowerCase().includes(query)
+    );
+  }
+
+  // Check if a task matches the status filter
+  function matchesStatus(task: Task): boolean {
+    if (!hasStatusFilter) return true;
+    return statusFilter.includes(task.status);
+  }
+
+  // Check if a task matches all filters
+  function matchesFilters(task: Task): boolean {
+    return matchesSearch(task) && matchesStatus(task);
+  }
 
   // Helper to recursively add nodes and edges
   function processNode(
@@ -156,6 +199,9 @@ function buildGraphFromTree(
     const y = direction === 'up' ? -level * 150 : level * 150;
     const x = position * 250;
 
+    const isMatch = matchesFilters(node.element);
+    const isSearchMatch = hasSearch && matchesSearch(node.element);
+
     nodes.push({
       id: node.element.id,
       type: 'task',
@@ -163,6 +209,8 @@ function buildGraphFromTree(
       data: {
         task: node.element,
         isRoot: direction === 'root',
+        isHighlighted: !hasAnyFilter || isMatch,
+        isSearchMatch: isSearchMatch,
       },
     });
 
@@ -235,10 +283,295 @@ function TaskSelector({
   );
 }
 
+// Status options for filter
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+// Graph toolbar with search and filters
+function GraphToolbar({
+  searchQuery,
+  onSearchChange,
+  statusFilter,
+  onStatusFilterChange,
+  matchCount,
+  totalCount,
+  onClearFilters,
+  onFitView,
+  onZoomIn,
+  onZoomOut,
+}: {
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  statusFilter: string[];
+  onStatusFilterChange: (value: string[]) => void;
+  matchCount: number;
+  totalCount: number;
+  onClearFilters: () => void;
+  onFitView: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
+  const [showStatusFilter, setShowStatusFilter] = useState(false);
+  const hasFilters = searchQuery.trim().length > 0 || statusFilter.length > 0;
+
+  const toggleStatus = (status: string) => {
+    if (statusFilter.includes(status)) {
+      onStatusFilterChange(statusFilter.filter(s => s !== status));
+    } else {
+      onStatusFilterChange([...statusFilter, status]);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 mb-3" data-testid="graph-toolbar">
+      {/* Search Input */}
+      <div className="relative flex-1 max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search by title or ID..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          data-testid="graph-search-input"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => onSearchChange('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+            data-testid="clear-search-button"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Status Filter Dropdown */}
+      <div className="relative">
+        <button
+          onClick={() => setShowStatusFilter(!showStatusFilter)}
+          className={`
+            flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors
+            ${statusFilter.length > 0
+              ? 'bg-blue-50 border-blue-300 text-blue-700'
+              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            }
+          `}
+          data-testid="status-filter-button"
+        >
+          <Filter className="w-4 h-4" />
+          <span>Status</span>
+          {statusFilter.length > 0 && (
+            <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+              {statusFilter.length}
+            </span>
+          )}
+        </button>
+        {showStatusFilter && (
+          <div
+            className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+            data-testid="status-filter-dropdown"
+          >
+            <div className="p-2 space-y-1">
+              {STATUS_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => toggleStatus(value)}
+                  className={`
+                    w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors
+                    ${statusFilter.includes(value)
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'hover:bg-gray-50 text-gray-700'
+                    }
+                  `}
+                  data-testid={`status-filter-option-${value}`}
+                >
+                  <div className={`w-3 h-3 rounded border ${STATUS_COLORS[value].bg} ${STATUS_COLORS[value].border}`} />
+                  <span>{label}</span>
+                  {statusFilter.includes(value) && (
+                    <span className="ml-auto text-blue-600">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Match Count */}
+      {hasFilters && (
+        <span className="text-sm text-gray-500" data-testid="match-count">
+          {matchCount} of {totalCount} nodes match
+        </span>
+      )}
+
+      {/* Clear Filters */}
+      {hasFilters && (
+        <button
+          onClick={onClearFilters}
+          className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          data-testid="clear-filters-button"
+        >
+          <X className="w-4 h-4" />
+          Clear filters
+        </button>
+      )}
+
+      {/* Zoom Controls */}
+      <div className="flex items-center gap-1 ml-auto">
+        <button
+          onClick={onZoomOut}
+          className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Zoom out"
+          data-testid="zoom-out-button"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onZoomIn}
+          className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Zoom in"
+          data-testid="zoom-in-button"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onFitView}
+          className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Fit to view"
+          data-testid="fit-view-button"
+        >
+          <Maximize2 className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface DependencyGraphInnerProps {
+  nodes: Node<TaskNodeData>[];
+  edges: Edge[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onNodesChange: (changes: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onEdgesChange: (changes: any) => void;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  statusFilter: string[];
+  onStatusFilterChange: (value: string[]) => void;
+  onClearFilters: () => void;
+  matchCount: number;
+  totalCount: number;
+  isLoadingTree: boolean;
+  isError: boolean;
+  hasData: boolean;
+}
+
+// Inner component that uses useReactFlow (must be inside ReactFlowProvider)
+function DependencyGraphInner({
+  nodes,
+  edges,
+  onNodesChange,
+  onEdgesChange,
+  searchQuery,
+  onSearchChange,
+  statusFilter,
+  onStatusFilterChange,
+  onClearFilters,
+  matchCount,
+  totalCount,
+  isLoadingTree,
+  isError,
+  hasData,
+}: DependencyGraphInnerProps) {
+  const { fitView, zoomIn, zoomOut } = useReactFlow();
+
+  const handleFitView = useCallback(() => {
+    fitView({ padding: 0.3, duration: 300 });
+  }, [fitView]);
+
+  const handleZoomIn = useCallback(() => {
+    zoomIn({ duration: 200 });
+  }, [zoomIn]);
+
+  const handleZoomOut = useCallback(() => {
+    zoomOut({ duration: 200 });
+  }, [zoomOut]);
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <GraphToolbar
+        searchQuery={searchQuery}
+        onSearchChange={onSearchChange}
+        statusFilter={statusFilter}
+        onStatusFilterChange={onStatusFilterChange}
+        matchCount={matchCount}
+        totalCount={totalCount}
+        onClearFilters={onClearFilters}
+        onFitView={handleFitView}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+      />
+      <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden" data-testid="graph-canvas">
+        {isLoadingTree && (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            Loading dependency tree...
+          </div>
+        )}
+        {isError && (
+          <div className="flex items-center justify-center h-full text-red-600">
+            Failed to load dependency tree
+          </div>
+        )}
+        {hasData && nodes.length === 0 && (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            No dependencies found for this task
+          </div>
+        )}
+        {hasData && nodes.length > 0 && (
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.3 }}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background />
+            <Controls showZoom={false} showFitView={false} />
+            <MiniMap
+              nodeColor={(node) => {
+                const task = (node.data as TaskNodeData).task;
+                return STATUS_COLORS[task.status]?.border.replace('border-', '#').replace('-300', '') || '#cbd5e1';
+              }}
+              maskColor="rgba(255, 255, 255, 0.8)"
+              data-testid="graph-minimap"
+            />
+          </ReactFlow>
+        )}
+        {!hasData && !isLoadingTree && !isError && (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            Select a task to view its dependencies
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function DependencyGraphPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<TaskNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const readyTasks = useReadyTasks();
   const blockedTasks = useBlockedTasks();
@@ -264,17 +597,37 @@ export function DependencyGraphPage() {
     }
   }, [selectedTaskId, blockedTasks.data, allTasks]);
 
-  // Update graph when dependency tree changes
+  // Update graph when dependency tree or filters change
   useEffect(() => {
     if (dependencyTree.data) {
-      const { nodes: newNodes, edges: newEdges } = buildGraphFromTree(dependencyTree.data);
+      const { nodes: newNodes, edges: newEdges } = buildGraphFromTree(
+        dependencyTree.data,
+        { searchQuery, statusFilter }
+      );
       setNodes(newNodes);
       setEdges(newEdges);
     } else {
       setNodes([]);
       setEdges([]);
     }
-  }, [dependencyTree.data, setNodes, setEdges]);
+  }, [dependencyTree.data, searchQuery, statusFilter, setNodes, setEdges]);
+
+  // Calculate match count for the filter display
+  const matchCount = useMemo(() => {
+    const hasSearch = searchQuery.trim().length > 0;
+    const hasStatusFilter = statusFilter.length > 0;
+    if (!hasSearch && !hasStatusFilter) return nodes.length;
+
+    return nodes.filter(node => {
+      const data = node.data as TaskNodeData;
+      return data.isHighlighted || data.isSearchMatch;
+    }).length;
+  }, [nodes, searchQuery, statusFilter]);
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery('');
+    setStatusFilter([]);
+  }, []);
 
   const isLoading = readyTasks.isLoading || blockedTasks.isLoading;
 
@@ -311,51 +664,25 @@ export function DependencyGraphPage() {
             </div>
           </div>
 
-          {/* Graph Canvas */}
-          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden" data-testid="graph-canvas">
-            {dependencyTree.isLoading && (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                Loading dependency tree...
-              </div>
-            )}
-            {dependencyTree.isError && (
-              <div className="flex items-center justify-center h-full text-red-600">
-                Failed to load dependency tree
-              </div>
-            )}
-            {dependencyTree.data && nodes.length === 0 && (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                No dependencies found for this task
-              </div>
-            )}
-            {dependencyTree.data && nodes.length > 0 && (
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                nodeTypes={nodeTypes}
-                fitView
-                fitViewOptions={{ padding: 0.3 }}
-                proOptions={{ hideAttribution: true }}
-              >
-                <Background />
-                <Controls />
-                <MiniMap
-                  nodeColor={(node) => {
-                    const task = (node.data as TaskNodeData).task;
-                    return STATUS_COLORS[task.status]?.border.replace('border-', '#').replace('-300', '') || '#cbd5e1';
-                  }}
-                  maskColor="rgba(255, 255, 255, 0.8)"
-                />
-              </ReactFlow>
-            )}
-            {!dependencyTree.data && !dependencyTree.isLoading && !dependencyTree.isError && (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                Select a task to view its dependencies
-              </div>
-            )}
-          </div>
+          {/* Graph Canvas with Toolbar */}
+          <ReactFlowProvider>
+            <DependencyGraphInner
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              onClearFilters={clearFilters}
+              matchCount={matchCount}
+              totalCount={nodes.length}
+              isLoadingTree={dependencyTree.isLoading}
+              isError={dependencyTree.isError}
+              hasData={!!dependencyTree.data}
+            />
+          </ReactFlowProvider>
         </div>
       )}
 
