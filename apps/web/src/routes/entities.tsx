@@ -10,6 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
+import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
+import { usePaginatedData, createEntityFilter } from '../hooks/usePaginatedData';
 
 interface Entity {
   id: string;
@@ -1920,16 +1922,34 @@ export function EntitiesPage() {
   );
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
-  // Fetch paginated entities with filters
-  const entities = useEntities(currentPage, pageSize, typeFilter, searchQuery);
+  // Use upfront-loaded data (TB67) instead of server-side pagination
+  const { data: allEntities, isLoading: isEntitiesLoading } = useAllEntitiesPreloaded();
+
+  // Create filter function for client-side filtering
+  const filterFn = useMemo(() => {
+    return createEntityFilter({
+      entityType: typeFilter,
+      search: searchQuery,
+    });
+  }, [typeFilter, searchQuery]);
+
+  // Client-side pagination with filtering (TB69)
+  const paginatedData = usePaginatedData<Entity>({
+    data: allEntities as Entity[] | undefined,
+    page: currentPage,
+    pageSize,
+    filterFn,
+    sort: { field: 'updatedAt', direction: 'desc' },
+  });
 
   // Look up entity by name if name param is provided
   const { data: entityByName } = useEntityByName(search.name ?? null);
 
-  // Extract items from paginated response
-  const entityItems = entities.data?.items ?? [];
-  const totalItems = entities.data?.total ?? 0;
-  const totalPages = Math.ceil(totalItems / pageSize);
+  // Extract items from client-side paginated data (TB69)
+  const entityItems = paginatedData.items;
+  const totalItems = paginatedData.filteredTotal;
+  const totalPages = paginatedData.totalPages;
+  const isLoading = isEntitiesLoading || paginatedData.isLoading;
 
   // Sync selected entity from URL on mount and when search changes
   useEffect(() => {
@@ -2046,7 +2066,7 @@ export function EntitiesPage() {
         </div>
 
         {/* Loading state */}
-        {entities.isLoading && (
+        {isLoading && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-gray-500" data-testid="entities-loading">
               Loading entities...
@@ -2054,17 +2074,8 @@ export function EntitiesPage() {
           </div>
         )}
 
-        {/* Error state */}
-        {entities.isError && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-red-600" data-testid="entities-error">
-              Failed to load entities
-            </div>
-          </div>
-        )}
-
         {/* Empty state */}
-        {entities.data && entityItems.length === 0 && (
+        {!isLoading && entityItems.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center" data-testid="entities-empty">
               {searchQuery || typeFilter !== 'all' ? (
@@ -2091,7 +2102,7 @@ export function EntitiesPage() {
         )}
 
         {/* Entity grid */}
-        {entities.data && entityItems.length > 0 && (
+        {!isLoading && entityItems.length > 0 && (
           <div className="flex-1 overflow-auto" data-testid="entities-grid">
             <div className={`grid gap-4 ${selectedEntityId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
               {entityItems.map((entity) => (

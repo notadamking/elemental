@@ -9,7 +9,7 @@
  * - Threading (TB19)
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate, Link } from '@tanstack/react-router';
 import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search } from 'lucide-react';
@@ -17,6 +17,8 @@ import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
+import { useAllChannels } from '../api/hooks/useAllElements';
+import { usePaginatedData, createChannelFilter } from '../hooks/usePaginatedData';
 
 // Estimated message height for virtualization
 const MESSAGE_ROW_HEIGHT = 100;
@@ -1208,16 +1210,34 @@ export function MessagesPage() {
   const pageSize = search.limit ?? DEFAULT_CHANNEL_PAGE_SIZE;
 
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: channelsData, isLoading, error } = useChannels(currentPage, pageSize, searchQuery);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
     search.channel ?? null
   );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Extract items from paginated response
-  const channels = channelsData?.items ?? [];
-  const totalItems = channelsData?.total ?? 0;
-  const totalPages = Math.ceil(totalItems / pageSize);
+  // Use upfront-loaded data (TB67) instead of server-side pagination
+  const { data: allChannels, isLoading: isChannelsLoading, isError } = useAllChannels();
+
+  // Create filter function for client-side filtering
+  const filterFn = useMemo(() => {
+    return createChannelFilter({ search: searchQuery });
+  }, [searchQuery]);
+
+  // Client-side pagination with filtering (TB69)
+  const paginatedData = usePaginatedData<Channel>({
+    data: allChannels as Channel[] | undefined,
+    page: currentPage,
+    pageSize,
+    filterFn,
+    sort: { field: 'updatedAt', direction: 'desc' },
+  });
+
+  // Extract items from client-side paginated data (TB69)
+  const channels = paginatedData.items;
+  const totalItems = paginatedData.filteredTotal;
+  const totalPages = paginatedData.totalPages;
+  const isLoading = isChannelsLoading || paginatedData.isLoading;
+  const error = isError ? new Error('Failed to load channels') : null;
 
   // Sync selected channel from URL on mount and when search changes
   useEffect(() => {

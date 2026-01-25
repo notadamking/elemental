@@ -1089,12 +1089,13 @@ For mutations (create, update, delete):
   - [x] Web: Add scroll position restoration on navigation
   - [x] **Verify:** Create 500+ tasks via CLI, scroll through list smoothly without lag; Playwright tests confirm render performance (14 tests)
 
-- [ ] **TB69: Table Pagination with Full Dataset**
-  - [ ] Web: Update Pagination component to work with in-memory data (not server pagination)
-  - [ ] Web: Implement client-side filtering and sorting for all table views
-  - [ ] Web: Table views (Tasks list, Entities, Teams, Documents, Channels) use pagination
-  - [ ] Web: Non-table views (Kanban, Timeline, Messages) use virtualized infinite scroll
-  - [ ] Web: Pagination state synced to URL (`?page=2&limit=25`)
+- [x] **TB69: Table Pagination with Full Dataset**
+  - [x] Web: Update Pagination component to work with in-memory data (not server pagination)
+  - [x] Web: Implement client-side filtering and sorting for all table views
+  - [x] Web: Table views (Tasks list, Entities, Teams, Documents, Channels) use pagination
+  - [x] Web: Non-table views (Kanban, Timeline, Messages) use virtualized infinite scroll
+  - [x] Web: Pagination state synced to URL (`?page=2&limit=25`)
+  - [x] **Verify:** Playwright tests confirm client-side pagination works (13 tests)
   - [ ] **Verify:** Tasks table shows pagination controls, changing page is instant; Playwright tests passing
 
 - [ ] **TB70: Deep-Link Navigation**

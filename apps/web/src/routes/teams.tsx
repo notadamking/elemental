@@ -10,6 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2, Pencil, Save, Trash2, UserMinus } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
+import { useAllTeams } from '../api/hooks/useAllElements';
+import { usePaginatedData, createTeamFilter } from '../hooks/usePaginatedData';
 
 interface Team {
   id: string;
@@ -1134,13 +1136,28 @@ export function TeamsPage() {
   );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Fetch paginated teams with search filter
-  const teams = useTeams(currentPage, pageSize, searchQuery);
+  // Use upfront-loaded data (TB67) instead of server-side pagination
+  const { data: allTeams, isLoading: isTeamsLoading } = useAllTeams();
 
-  // Extract items from paginated response
-  const teamItems = teams.data?.items ?? [];
-  const totalItems = teams.data?.total ?? 0;
-  const totalPages = Math.ceil(totalItems / pageSize);
+  // Create filter function for client-side filtering
+  const filterFn = useMemo(() => {
+    return createTeamFilter({ search: searchQuery });
+  }, [searchQuery]);
+
+  // Client-side pagination with filtering (TB69)
+  const paginatedData = usePaginatedData<Team>({
+    data: allTeams as Team[] | undefined,
+    page: currentPage,
+    pageSize,
+    filterFn,
+    sort: { field: 'updatedAt', direction: 'desc' },
+  });
+
+  // Extract items from client-side paginated data (TB69)
+  const teamItems = paginatedData.items;
+  const totalItems = paginatedData.filteredTotal;
+  const totalPages = paginatedData.totalPages;
+  const isLoading = isTeamsLoading || paginatedData.isLoading;
 
   // Sync selected team from URL on mount and when search changes
   useEffect(() => {
@@ -1224,7 +1241,7 @@ export function TeamsPage() {
         </div>
 
         {/* Loading state */}
-        {teams.isLoading && (
+        {isLoading && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-gray-500" data-testid="teams-loading">
               Loading teams...
@@ -1232,17 +1249,8 @@ export function TeamsPage() {
           </div>
         )}
 
-        {/* Error state */}
-        {teams.isError && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-red-600" data-testid="teams-error">
-              Failed to load teams
-            </div>
-          </div>
-        )}
-
         {/* Empty state */}
-        {teams.data && teamItems.length === 0 && (
+        {!isLoading && teamItems.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center" data-testid="teams-empty">
               {searchQuery ? (
@@ -1273,7 +1281,7 @@ export function TeamsPage() {
         )}
 
         {/* Teams grid */}
-        {teams.data && teamItems.length > 0 && (
+        {!isLoading && teamItems.length > 0 && (
           <div className="flex-1 overflow-auto" data-testid="teams-grid">
             <div className={`grid gap-4 ${selectedTeamId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
               {teamItems.map((team) => (

@@ -9,7 +9,7 @@
  * - Document detail display (TB21)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import {
@@ -47,6 +47,8 @@ import {
 import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
 import { CreateLibraryModal } from '../components/document/CreateLibraryModal';
+import { useAllDocuments as useAllDocumentsPreloaded } from '../api/hooks/useAllElements';
+import { filterData, sortData, createSimpleDocumentSearchFilter } from '../hooks/usePaginatedData';
 
 // ============================================================================
 // Types
@@ -1896,46 +1898,43 @@ function AllDocumentsView({
   onNewDocument: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [loadedDocuments, setLoadedDocuments] = useState<DocumentType[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [displayCount, setDisplayCount] = useState(25); // How many to show with "Load More"
   const pageSize = 25;
 
-  const { data: documents, isLoading, error } = useDocuments(currentPage, pageSize, searchQuery);
+  // Use upfront-loaded data (TB67) instead of server-side pagination
+  const { data: allDocuments, isLoading: isDocumentsLoading } = useAllDocumentsPreloaded();
 
-  // Update loaded documents when new data arrives
-  useEffect(() => {
-    if (documents?.items) {
-      if (currentPage === 1) {
-        // Reset for new search or initial load
-        setLoadedDocuments(documents.items);
-      } else {
-        // Append for "Load more"
-        setLoadedDocuments(prev => {
-          const existingIds = new Set(prev.map(d => d.id));
-          const newDocs = documents.items.filter(d => !existingIds.has(d.id));
-          return [...prev, ...newDocs];
-        });
-      }
-      setHasMore(documents.hasMore ?? (documents.items.length === pageSize));
-      setIsLoadingMore(false);
-    }
-  }, [documents, currentPage]);
+  // Client-side filtering (TB69)
+  const filteredDocuments = useMemo((): DocumentType[] => {
+    if (!allDocuments) return [];
 
-  // Reset when search changes
+    // Cast to DocumentType[] - the Document type from useAllElements is compatible
+    const docs = allDocuments as unknown as DocumentType[];
+    const filterFn = createSimpleDocumentSearchFilter(searchQuery);
+    const filtered = filterFn ? docs.filter(filterFn) : docs;
+
+    // Sort by updatedAt descending
+    return sortData(filtered, { field: 'updatedAt', direction: 'desc' });
+  }, [allDocuments, searchQuery]);
+
+  // "Load More" pattern - show displayCount items
+  const displayedDocuments = useMemo(() => {
+    return filteredDocuments.slice(0, displayCount);
+  }, [filteredDocuments, displayCount]);
+
+  const hasMore = displayCount < filteredDocuments.length;
+
+  // Reset display count when search changes
   useEffect(() => {
-    setCurrentPage(1);
-    setLoadedDocuments([]);
-    setHasMore(true);
+    setDisplayCount(pageSize);
   }, [searchQuery]);
 
   const handleLoadMore = () => {
-    setIsLoadingMore(true);
-    setCurrentPage(prev => prev + 1);
+    setDisplayCount(prev => prev + pageSize);
   };
 
-  const totalItems = documents?.total ?? loadedDocuments.length;
+  const totalItems = filteredDocuments.length;
+  const isLoading = isDocumentsLoading;
 
   return (
     <div
@@ -1954,7 +1953,7 @@ function AllDocumentsView({
               All Documents
             </h3>
             <span className="text-sm text-gray-400">
-              {loadedDocuments.length} of {totalItems} {totalItems === 1 ? 'document' : 'documents'}
+              {displayedDocuments.length} of {totalItems} {totalItems === 1 ? 'document' : 'documents'}
             </span>
           </div>
           <button
@@ -1985,21 +1984,14 @@ function AllDocumentsView({
         data-testid="all-documents-container"
         className="flex-1 overflow-y-auto min-h-0"
       >
-        {isLoading && currentPage === 1 ? (
+        {isLoading ? (
           <div
             data-testid="all-documents-loading"
             className="flex items-center justify-center h-full text-gray-500"
           >
             Loading documents...
           </div>
-        ) : error ? (
-          <div
-            data-testid="all-documents-error"
-            className="flex items-center justify-center h-full text-red-500"
-          >
-            Failed to load documents
-          </div>
-        ) : loadedDocuments.length === 0 ? (
+        ) : displayedDocuments.length === 0 ? (
           <div
             data-testid="all-documents-empty"
             className="flex flex-col items-center justify-center h-full text-gray-500"
@@ -2013,7 +2005,7 @@ function AllDocumentsView({
         ) : (
           <div className="p-4">
             <div data-testid="all-documents-list" className="space-y-2">
-              {loadedDocuments.map((doc) => (
+              {displayedDocuments.map((doc) => (
                 <DocumentListItem
                   key={doc.id}
                   document={doc}
@@ -2027,11 +2019,10 @@ function AllDocumentsView({
               <div className="mt-4 flex justify-center">
                 <button
                   onClick={handleLoadMore}
-                  disabled={isLoadingMore}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
                   data-testid="load-more-button"
                 >
-                  {isLoadingMore ? 'Loading...' : 'Load more'}
+                  Load more
                 </button>
               </div>
             )}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle } from 'lucide-react';
@@ -7,6 +7,8 @@ import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
+import { useAllTasks } from '../api/hooks/useAllElements';
+import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortConfig } from '../hooks/usePaginatedData';
 
 const VIEW_MODE_STORAGE_KEY = 'tasks.viewMode';
 
@@ -73,51 +75,54 @@ interface Task {
   updatedAt: string;
 }
 
-interface PaginatedResult<T> {
-  items: T[];
-  total: number;
-  offset: number;
-  limit: number;
-  hasMore: boolean;
+const DEFAULT_PAGE_SIZE = 25;
+
+// Map sort field names to task property names (handle snake_case from legacy URLs)
+type TaskSortField = keyof Task | 'created_at' | 'updated_at';
+
+function getTaskSortField(field: TaskSortField): keyof Task {
+  if (field === 'created_at') return 'createdAt';
+  if (field === 'updated_at') return 'updatedAt';
+  return field as keyof Task;
 }
 
-const DEFAULT_PAGE_SIZE = 25;
-const DEFAULT_SORT: SortConfig = { field: 'updated_at', direction: 'desc' };
+// Custom sort comparison for tasks
+function taskSortCompareFn(
+  a: Task,
+  b: Task,
+  field: keyof Task | string,
+  direction: 'asc' | 'desc'
+): number {
+  // Handle date fields specially - parse ISO strings
+  if (field === 'createdAt' || field === 'updatedAt') {
+    const aDate = new Date(a[field] as string).getTime();
+    const bDate = new Date(b[field] as string).getTime();
+    const cmp = aDate - bDate;
+    return direction === 'asc' ? cmp : -cmp;
+  }
 
-function useTasks(
-  page: number,
-  pageSize: number = DEFAULT_PAGE_SIZE,
-  sort: SortConfig = DEFAULT_SORT,
-  filters: FilterConfig = EMPTY_FILTER
-) {
-  const offset = (page - 1) * pageSize;
+  // Handle priority (numeric, lower is higher priority)
+  if (field === 'priority') {
+    const cmp = (a.priority ?? 5) - (b.priority ?? 5);
+    return direction === 'asc' ? cmp : -cmp;
+  }
 
-  return useQuery<PaginatedResult<Task>>({
-    queryKey: ['tasks', 'paginated', page, pageSize, sort.field, sort.direction, filters],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        limit: pageSize.toString(),
-        offset: offset.toString(),
-        orderBy: sort.field,
-        orderDir: sort.direction,
-      });
+  // Default string/number comparison
+  const aVal = (a as unknown as Record<string, unknown>)[field as string];
+  const bVal = (b as unknown as Record<string, unknown>)[field as string];
 
-      // Add filter parameters
-      if (filters.status.length > 0) {
-        params.set('status', filters.status.join(','));
-      }
-      if (filters.priority.length > 0) {
-        params.set('priority', filters.priority.join(','));
-      }
-      if (filters.assignee) {
-        params.set('assignee', filters.assignee);
-      }
+  let cmp = 0;
+  if (aVal === null || aVal === undefined) cmp = 1;
+  else if (bVal === null || bVal === undefined) cmp = -1;
+  else if (typeof aVal === 'string' && typeof bVal === 'string') {
+    cmp = aVal.localeCompare(bVal);
+  } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+    cmp = aVal - bVal;
+  } else {
+    cmp = String(aVal).localeCompare(String(bVal));
+  }
 
-      const response = await fetch(`/api/tasks?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch tasks');
-      return response.json();
-    },
-  });
+  return direction === 'asc' ? cmp : -cmp;
 }
 
 function useBulkUpdate() {
@@ -881,13 +886,42 @@ export function TasksPage() {
   const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
   const selectedFromUrl = search.selected ?? null;
 
-  const [sort, setSort] = useState<SortConfig>(DEFAULT_SORT);
+  // Sort configuration - use internal field names
+  const [sortField, setSortField] = useState<SortField>('updated_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
-  const tasks = useTasks(currentPage, pageSize, sort, filters);
+
+  // Use upfront-loaded data (TB67) instead of server-side pagination
+  const { data: allTasks, isLoading: isTasksLoading } = useAllTasks();
   const bulkUpdate = useBulkUpdate();
   const bulkDelete = useBulkDelete();
   const entities = useEntities();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(selectedFromUrl);
+
+  // Create filter function for client-side filtering
+  const filterFn = useMemo(() => {
+    return createTaskFilter({
+      status: filters.status,
+      priority: filters.priority,
+      assignee: filters.assignee,
+    });
+  }, [filters.status, filters.priority, filters.assignee]);
+
+  // Create sort config using internal field names
+  const sortConfig = useMemo((): PaginatedSortConfig<Task> => ({
+    field: getTaskSortField(sortField),
+    direction: sortDirection,
+  }), [sortField, sortDirection]);
+
+  // Client-side pagination with filtering and sorting (TB69)
+  const paginatedData = usePaginatedData<Task>({
+    data: allTasks as Task[] | undefined,
+    page: currentPage,
+    pageSize,
+    filterFn,
+    sort: sortConfig,
+    sortCompareFn: taskSortCompareFn,
+  });
 
   // Sync selectedTaskId with URL parameter
   useEffect(() => {
@@ -943,10 +977,11 @@ export function TasksPage() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleViewModeChange]);
 
-  // Extract task items from paginated response
-  const taskItems = tasks.data?.items ?? [];
-  const totalItems = tasks.data?.total ?? 0;
-  const totalPages = Math.ceil(totalItems / pageSize);
+  // Extract task items from client-side paginated data (TB69)
+  const taskItems = paginatedData.items;
+  const totalItems = paginatedData.filteredTotal;
+  const totalPages = paginatedData.totalPages;
+  const isLoading = isTasksLoading || paginatedData.isLoading;
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
@@ -997,11 +1032,13 @@ export function TasksPage() {
   };
 
   const handleSort = (field: SortField) => {
-    setSort(prev => ({
-      field,
-      // Toggle direction if same field, otherwise default to desc
-      direction: prev.field === field && prev.direction === 'desc' ? 'asc' : 'desc',
-    }));
+    // Toggle direction if same field, otherwise default to desc
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
     // Reset to first page when sort changes
     navigate({ to: '/tasks', search: { page: 1, limit: pageSize } });
   };
@@ -1096,15 +1133,11 @@ export function TasksPage() {
         )}
 
         <div className="flex-1 overflow-auto" data-testid="tasks-view-container">
-          {tasks.isLoading && (
+          {isLoading && (
             <div className="p-4 text-gray-500">Loading tasks...</div>
           )}
 
-          {tasks.isError && (
-            <div className="p-4 text-red-600">Failed to load tasks</div>
-          )}
-
-          {tasks.data && viewMode === 'list' && (
+          {!isLoading && viewMode === 'list' && (
             <div className="animate-fade-in" data-testid="list-view-content">
               <ListView
                 tasks={taskItems}
@@ -1113,7 +1146,7 @@ export function TasksPage() {
                 onTaskClick={handleTaskClick}
                 onTaskCheck={handleTaskCheck}
                 onSelectAll={handleSelectAll}
-                sort={sort}
+                sort={{ field: sortField, direction: sortDirection }}
                 onSort={handleSort}
               />
               <Pagination
@@ -1127,7 +1160,7 @@ export function TasksPage() {
             </div>
           )}
 
-          {tasks.data && viewMode === 'kanban' && (
+          {!isLoading && viewMode === 'kanban' && (
             <div className="animate-fade-in" data-testid="kanban-view-content">
               <KanbanBoard
                 tasks={taskItems}
