@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Outlet } from '@tanstack/react-router';
+import { useState, useCallback, useMemo } from 'react';
+import { Outlet, useRouterState, Link } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
 import { CommandPalette } from '../navigation';
 import { ThemeToggle } from '../ui/ThemeToggle';
@@ -7,6 +7,22 @@ import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
 import { useGlobalKeyboardShortcuts, useKeyboardShortcut } from '../../hooks';
 import type { ConnectionState } from '../../api/websocket';
+import {
+  ChevronRight,
+  LayoutDashboard,
+  CheckSquare,
+  Folder,
+  Workflow,
+  MessageSquare,
+  FileText,
+  Users,
+  UsersRound,
+  Settings,
+  GitBranch,
+  Bot,
+  Network,
+  History,
+} from 'lucide-react';
 
 interface HealthResponse {
   status: string;
@@ -33,26 +49,26 @@ function useHealth() {
 function ConnectionStatus({ wsState, health }: { wsState: ConnectionState; health: ReturnType<typeof useHealth> }) {
   if (wsState === 'connecting' || wsState === 'reconnecting') {
     return (
-      <div className="flex items-center gap-2 text-yellow-600">
-        <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-        <span className="text-sm">{wsState === 'connecting' ? 'Connecting...' : 'Reconnecting...'}</span>
+      <div className="flex items-center gap-2 text-[var(--color-warning)]">
+        <div className="w-2 h-2 rounded-full bg-[var(--color-warning)] animate-pulse" />
+        <span className="text-sm font-medium">{wsState === 'connecting' ? 'Connecting...' : 'Reconnecting...'}</span>
       </div>
     );
   }
 
   if (wsState === 'connected') {
     return (
-      <div className="flex items-center gap-2 text-green-600">
-        <div className="w-2 h-2 rounded-full bg-green-500" />
-        <span className="text-sm">Live</span>
+      <div className="flex items-center gap-2 text-[var(--color-success)]">
+        <div className="w-2 h-2 rounded-full bg-[var(--color-success)]" />
+        <span className="text-sm font-medium">Live</span>
       </div>
     );
   }
 
   if (health.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-gray-500">
-        <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+      <div className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
+        <div className="w-2 h-2 rounded-full bg-[var(--color-text-tertiary)] animate-pulse" />
         <span className="text-sm">Connecting...</span>
       </div>
     );
@@ -60,18 +76,134 @@ function ConnectionStatus({ wsState, health }: { wsState: ConnectionState; healt
 
   if (health.isError) {
     return (
-      <div className="flex items-center gap-2 text-red-600">
-        <div className="w-2 h-2 rounded-full bg-red-500" />
-        <span className="text-sm">Disconnected</span>
+      <div className="flex items-center gap-2 text-[var(--color-danger)]">
+        <div className="w-2 h-2 rounded-full bg-[var(--color-danger)]" />
+        <span className="text-sm font-medium">Disconnected</span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 text-orange-500">
-      <div className="w-2 h-2 rounded-full bg-orange-400" />
-      <span className="text-sm">Polling</span>
+    <div className="flex items-center gap-2 text-[var(--color-warning)]">
+      <div className="w-2 h-2 rounded-full bg-[var(--color-warning)]" />
+      <span className="text-sm font-medium">Polling</span>
     </div>
+  );
+}
+
+// Route metadata for breadcrumbs
+interface RouteConfig {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  parent?: string;
+}
+
+const ROUTE_CONFIG: Record<string, RouteConfig> = {
+  '/dashboard': { label: 'Dashboard', icon: LayoutDashboard },
+  '/dashboard/task-flow': { label: 'Task Flow', icon: GitBranch, parent: '/dashboard' },
+  '/dashboard/agents': { label: 'Agents', icon: Bot, parent: '/dashboard' },
+  '/dashboard/dependencies': { label: 'Dependencies', icon: Network, parent: '/dashboard' },
+  '/dashboard/timeline': { label: 'Timeline', icon: History, parent: '/dashboard' },
+  '/tasks': { label: 'Tasks', icon: CheckSquare },
+  '/plans': { label: 'Plans', icon: Folder },
+  '/workflows': { label: 'Workflows', icon: Workflow },
+  '/messages': { label: 'Messages', icon: MessageSquare },
+  '/documents': { label: 'Documents', icon: FileText },
+  '/entities': { label: 'Entities', icon: Users },
+  '/teams': { label: 'Teams', icon: UsersRound },
+  '/settings': { label: 'Settings', icon: Settings },
+};
+
+interface BreadcrumbItem {
+  label: string;
+  path: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  isLast: boolean;
+}
+
+function useBreadcrumbs(): BreadcrumbItem[] {
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  return useMemo(() => {
+    const breadcrumbs: BreadcrumbItem[] = [];
+    let path = currentPath;
+
+    // Build breadcrumb chain from current path going up
+    const pathsToResolve: string[] = [];
+    while (path) {
+      const config = ROUTE_CONFIG[path];
+      if (config) {
+        pathsToResolve.unshift(path);
+        path = config.parent || '';
+      } else {
+        // Try to find a parent route
+        const segments = path.split('/').filter(Boolean);
+        if (segments.length > 1) {
+          path = '/' + segments.slice(0, -1).join('/');
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Create breadcrumb items
+    pathsToResolve.forEach((p, index) => {
+      const config = ROUTE_CONFIG[p];
+      if (config) {
+        breadcrumbs.push({
+          label: config.label,
+          path: p,
+          icon: config.icon,
+          isLast: index === pathsToResolve.length - 1,
+        });
+      }
+    });
+
+    return breadcrumbs;
+  }, [currentPath]);
+}
+
+function Breadcrumbs() {
+  const breadcrumbs = useBreadcrumbs();
+
+  if (breadcrumbs.length === 0) {
+    return null;
+  }
+
+  return (
+    <nav aria-label="Breadcrumb" data-testid="breadcrumbs">
+      <ol className="flex items-center gap-1 text-sm">
+        {breadcrumbs.map((crumb, index) => {
+          const Icon = crumb.icon;
+          return (
+            <li key={crumb.path} className="flex items-center">
+              {index > 0 && (
+                <ChevronRight className="w-4 h-4 mx-1 text-[var(--color-text-muted)]" />
+              )}
+              {crumb.isLast ? (
+                <span
+                  className="flex items-center gap-1.5 px-2 py-1 font-semibold text-[var(--color-text)] rounded-md"
+                  data-testid={`breadcrumb-${crumb.label.toLowerCase().replace(/\s/g, '-')}`}
+                >
+                  {Icon && <Icon className="w-4 h-4" />}
+                  {crumb.label}
+                </span>
+              ) : (
+                <Link
+                  to={crumb.path}
+                  className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors duration-150"
+                  data-testid={`breadcrumb-${crumb.label.toLowerCase().replace(/\s/g, '-')}`}
+                >
+                  {Icon && <Icon className="w-4 h-4" />}
+                  {crumb.label}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
@@ -90,7 +222,7 @@ export function AppShell() {
   useKeyboardShortcut('Cmd+B', toggleSidebar, 'Toggle sidebar');
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-[var(--color-bg)]" data-testid="app-shell">
+    <div className="flex h-screen bg-[var(--color-bg)]" data-testid="app-shell">
       <CommandPalette />
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -99,16 +231,20 @@ export function AppShell() {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="flex items-center justify-between h-14 px-6 bg-white dark:bg-[var(--color-header-bg)] border-b border-gray-200 dark:border-[var(--color-header-border)]">
-          <div>{/* Breadcrumbs will go here */}</div>
-          <div className="flex items-center gap-3">
+        <header
+          className="flex items-center justify-between h-14 px-6 bg-[var(--color-header-bg)] border-b border-[var(--color-header-border)]"
+          data-testid="header"
+        >
+          <Breadcrumbs />
+          <div className="flex items-center gap-4">
             <ThemeToggle />
+            <div className="h-5 w-px bg-[var(--color-border)]" />
             <ConnectionStatus wsState={connectionState} health={health} />
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6 dark:bg-[var(--color-bg)]">
+        <main className="flex-1 overflow-y-auto p-6 bg-[var(--color-bg)]">
           <Outlet />
         </main>
       </div>

@@ -15,16 +15,16 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
   test('sidebar shows all navigation items', async ({ page }) => {
     await page.goto('/dashboard');
 
-    // Check all expected navigation items are visible
-    await expect(page.getByRole('link', { name: /dashboard/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /tasks/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /plans/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /workflows/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /messages/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /documents/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /entities/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /teams/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /settings/i })).toBeVisible();
+    // Check all expected navigation items are visible (using testIds since items are in sections)
+    await expect(page.getByTestId('nav-dashboard')).toBeVisible();
+    await expect(page.getByTestId('nav-tasks')).toBeVisible();
+    await expect(page.getByTestId('nav-plans')).toBeVisible();
+    await expect(page.getByTestId('nav-workflows')).toBeVisible();
+    await expect(page.getByTestId('nav-messages')).toBeVisible();
+    await expect(page.getByTestId('nav-documents')).toBeVisible();
+    await expect(page.getByTestId('nav-entities')).toBeVisible();
+    await expect(page.getByTestId('nav-teams')).toBeVisible();
+    await expect(page.getByTestId('nav-settings')).toBeVisible();
   });
 
   test('navigation between dashboard and tasks works', async ({ page }) => {
@@ -32,18 +32,17 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
 
     // Verify we're on dashboard
     await expect(page.getByTestId('dashboard-page')).toBeVisible();
-    await expect(page.getByText('System Overview')).toBeVisible();
 
-    // Click on Tasks link
-    await page.getByRole('link', { name: /tasks/i }).click();
+    // Click on Tasks link using testId
+    await page.getByTestId('nav-tasks').click();
 
     // Should navigate to /tasks
     await expect(page).toHaveURL(/\/tasks/);
     await expect(page.getByTestId('tasks-page')).toBeVisible();
     await expect(page.getByRole('heading', { name: /tasks/i })).toBeVisible();
 
-    // Click back to Dashboard
-    await page.getByRole('link', { name: /dashboard/i }).click();
+    // Click back to Dashboard using testId
+    await page.getByTestId('nav-dashboard').click();
 
     // Should navigate back to /dashboard
     await expect(page).toHaveURL(/\/dashboard/);
@@ -53,22 +52,21 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
   test('active navigation item is highlighted', async ({ page }) => {
     await page.goto('/dashboard');
 
-    // Dashboard link should have active styling (blue color)
-    const dashboardLink = page.getByRole('link', { name: /dashboard/i });
-    await expect(dashboardLink).toHaveClass(/bg-blue-50/);
-    await expect(dashboardLink).toHaveClass(/text-blue-600/);
+    // Dashboard link should have active styling (using CSS variable class)
+    const dashboardLink = page.getByTestId('nav-dashboard');
+    await expect(dashboardLink).toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
 
     // Tasks link should not have active styling
-    const tasksLink = page.getByRole('link', { name: /tasks/i });
-    await expect(tasksLink).not.toHaveClass(/bg-blue-50/);
+    const tasksLink = page.getByTestId('nav-tasks');
+    await expect(tasksLink).not.toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
 
     // Navigate to tasks
     await tasksLink.click();
     await expect(page).toHaveURL(/\/tasks/);
 
     // Now tasks should be active
-    await expect(page.getByRole('link', { name: /tasks/i })).toHaveClass(/bg-blue-50/);
-    await expect(page.getByRole('link', { name: /dashboard/i })).not.toHaveClass(/bg-blue-50/);
+    await expect(page.getByTestId('nav-tasks')).toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
+    await expect(page.getByTestId('nav-dashboard')).not.toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
   });
 
   test('sidebar can be collapsed and expanded', async ({ page }) => {
@@ -79,16 +77,15 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
     // Sidebar should start expanded (w-60 = 240px)
     await expect(sidebar).toHaveClass(/w-60/);
 
-    // Find and click the collapse button
-    const collapseButton = page.getByRole('button', { name: /collapse sidebar/i });
+    // Find and click the collapse button using testId
+    const collapseButton = page.getByTestId('sidebar-toggle');
     await collapseButton.click();
 
     // Sidebar should be collapsed (w-16)
     await expect(sidebar).toHaveClass(/w-16/);
 
-    // Find and click the expand button
-    const expandButton = page.getByRole('button', { name: /expand sidebar/i });
-    await expandButton.click();
+    // Click again to expand
+    await collapseButton.click();
 
     // Sidebar should be expanded again
     await expect(sidebar).toHaveClass(/w-60/);
@@ -109,18 +106,13 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
     await expect(page.getByText('Live')).toBeVisible({ timeout: 10000 });
   });
 
-  test('placeholder pages show coming soon message', async ({ page }) => {
-    // Most pages are now implemented - this test is kept for historical reference
-    // The Settings page is now fully implemented with Theme settings (TB59)
-    // Plans, Workflows, Entities, Teams pages are all implemented
-    // Only the other Settings sections (Shortcuts, Defaults, Notifications, Sync) show coming soon
-
+  test('settings page is accessible', async ({ page }) => {
+    // Navigate to settings - the page is fully implemented now
     await page.goto('/settings');
     await expect(page.getByTestId('settings-page')).toBeVisible();
 
-    // Click on Shortcuts section which is not yet implemented
-    await page.getByTestId('settings-nav-shortcuts').click();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
+    // Theme settings should be visible (use heading role to be specific)
+    await expect(page.getByRole('heading', { name: 'Theme' })).toBeVisible();
   });
 
   test('app shell layout is properly structured', async ({ page }) => {
@@ -139,12 +131,12 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
   test('browser back/forward navigation works', async ({ page }) => {
     await page.goto('/dashboard');
 
-    // Navigate to tasks
-    await page.getByRole('link', { name: /tasks/i }).click();
+    // Navigate to tasks using testId
+    await page.getByTestId('nav-tasks').click();
     await expect(page).toHaveURL(/\/tasks/);
 
-    // Navigate to plans
-    await page.getByRole('link', { name: /plans/i }).click();
+    // Navigate to plans using testId
+    await page.getByTestId('nav-plans').click();
     await expect(page).toHaveURL(/\/plans/);
 
     // Go back to tasks

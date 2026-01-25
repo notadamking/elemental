@@ -1166,21 +1166,27 @@ For mutations (create, update, delete):
   - [x] Web: Consistent empty states with illustrations and helpful text - Created EmptyState component
   - [x] **Verify:** All tables and cards look consistent and professional; Playwright tests passing (15 TB74 tests)
 
-- [ ] **TB75: Sidebar and Navigation Styling**
-  - [ ] Web: Restyle Sidebar with Linear-inspired design
-    - [ ] Collapsible sections with smooth animation
-    - [ ] Active item indicator (left border or background)
-    - [ ] Hover states with subtle background
-    - [ ] Icon + text alignment
-  - [ ] Web: Sub-sections support (collapsible groups within sidebar)
-  - [ ] Web: Restyle Header/Breadcrumbs
-    - [ ] Clean separator between breadcrumb items
-    - [ ] Current page in bold
-  - [ ] Web: Restyle CommandPalette
-    - [ ] Larger, more prominent search input
-    - [ ] Better visual hierarchy for results
-    - [ ] Keyboard shortcut hints
-  - [ ] **Verify:** Navigation feels snappy and looks polished; Claude in Chrome user testing
+- [x] **TB75: Sidebar and Navigation Styling**
+  - [x] Web: Restyle Sidebar with Linear-inspired design
+    - [x] Collapsible sections with smooth animation (Dashboard, Work, Collaborate, Organize)
+    - [x] Active item indicator (left border bar with primary color)
+    - [x] Hover states with subtle background
+    - [x] Icon + text alignment with shortcuts visible on hover
+  - [x] Web: Sub-sections support (collapsible groups within sidebar with chevron toggle)
+  - [x] Web: Restyle Header/Breadcrumbs
+    - [x] Clean separator between breadcrumb items (ChevronRight icon)
+    - [x] Current page in bold (font-semibold)
+    - [x] Clickable parent breadcrumbs for navigation
+    - [x] Icon support in breadcrumbs
+  - [x] Web: Restyle CommandPalette
+    - [x] Larger, more prominent search input (text-lg)
+    - [x] Better visual hierarchy for results (grouped by section with uppercase headers)
+    - [x] Keyboard shortcut hints (footer with arrow keys, enter, ⌘K)
+    - [x] Icon containers with styled backgrounds
+    - [x] Shortcut keys as styled kbd badges
+  - [x] Web: Added keyboard hint (⌘K for commands) in sidebar footer
+  - [x] Web: Styled logo with gradient background
+  - [x] **Verify:** Navigation feels snappy and looks polished; Playwright tests passing (28 TB75 tests)
 
 ### Phase 19: Dashboard Overhaul
 

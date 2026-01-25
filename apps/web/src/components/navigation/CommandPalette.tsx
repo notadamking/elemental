@@ -16,15 +16,18 @@ import {
   Network,
   History,
   Search,
+  Command as CommandIcon,
+  type LucideIcon,
 } from 'lucide-react';
 
 interface CommandItem {
   id: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   action: () => void;
   shortcut?: string;
   group: string;
+  keywords?: string[];
 }
 
 export function CommandPalette() {
@@ -33,109 +36,126 @@ export function CommandPalette() {
 
   // Build the navigation commands
   const commands: CommandItem[] = [
-    // Navigation commands
+    // Dashboard section
     {
       id: 'nav-dashboard',
-      label: 'Dashboard',
+      label: 'Go to Dashboard',
       icon: LayoutDashboard,
       action: () => navigate({ to: '/dashboard' }),
       shortcut: 'G H',
-      group: 'Navigation',
+      group: 'Dashboard',
+      keywords: ['overview', 'home'],
     },
     {
       id: 'nav-task-flow',
-      label: 'Task Flow',
+      label: 'Go to Task Flow',
       icon: GitBranch,
       action: () => navigate({ to: '/dashboard/task-flow' }),
       shortcut: 'G F',
-      group: 'Navigation',
+      group: 'Dashboard',
+      keywords: ['ready', 'blocked', 'progress'],
     },
     {
       id: 'nav-agents',
-      label: 'Agent Activity',
+      label: 'Go to Agent Activity',
       icon: Bot,
       action: () => navigate({ to: '/dashboard/agents' }),
       shortcut: 'G A',
-      group: 'Navigation',
+      group: 'Dashboard',
+      keywords: ['entities', 'ai', 'workload'],
     },
     {
       id: 'nav-dependencies',
-      label: 'Dependencies',
+      label: 'Go to Dependencies',
       icon: Network,
       action: () => navigate({ to: '/dashboard/dependencies' }),
       shortcut: 'G G',
-      group: 'Navigation',
+      group: 'Dashboard',
+      keywords: ['graph', 'blocks', 'relationships'],
     },
     {
       id: 'nav-timeline',
-      label: 'Timeline',
+      label: 'Go to Timeline',
       icon: History,
       action: () => navigate({ to: '/dashboard/timeline', search: { page: 1, limit: 100 } }),
       shortcut: 'G L',
-      group: 'Navigation',
+      group: 'Dashboard',
+      keywords: ['events', 'history', 'activity'],
     },
+    // Work section
     {
       id: 'nav-tasks',
-      label: 'Tasks',
+      label: 'Go to Tasks',
       icon: CheckSquare,
       action: () => navigate({ to: '/tasks', search: { page: 1, limit: 25 } }),
       shortcut: 'G T',
-      group: 'Navigation',
+      group: 'Work',
+      keywords: ['todo', 'items', 'list'],
     },
     {
       id: 'nav-plans',
-      label: 'Plans',
+      label: 'Go to Plans',
       icon: Folder,
       action: () => navigate({ to: '/plans' }),
       shortcut: 'G P',
-      group: 'Navigation',
+      group: 'Work',
+      keywords: ['epic', 'project', 'collection'],
     },
     {
       id: 'nav-workflows',
-      label: 'Workflows',
+      label: 'Go to Workflows',
       icon: Workflow,
       action: () => navigate({ to: '/workflows' }),
       shortcut: 'G W',
-      group: 'Navigation',
+      group: 'Work',
+      keywords: ['automation', 'pour', 'playbook'],
     },
+    // Collaborate section
     {
       id: 'nav-messages',
-      label: 'Messages',
+      label: 'Go to Messages',
       icon: MessageSquare,
       action: () => navigate({ to: '/messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } }),
       shortcut: 'G M',
-      group: 'Navigation',
+      group: 'Collaborate',
+      keywords: ['chat', 'channels', 'communication'],
     },
     {
       id: 'nav-documents',
-      label: 'Documents',
+      label: 'Go to Documents',
       icon: FileText,
       action: () => navigate({ to: '/documents', search: { selected: undefined, library: undefined, page: 1, limit: 25 } }),
       shortcut: 'G D',
-      group: 'Navigation',
+      group: 'Collaborate',
+      keywords: ['files', 'notes', 'library'],
     },
+    // Organize section
     {
       id: 'nav-entities',
-      label: 'Entities',
+      label: 'Go to Entities',
       icon: Users,
       action: () => navigate({ to: '/entities', search: { selected: undefined, name: undefined, page: 1, limit: 25 } }),
       shortcut: 'G E',
-      group: 'Navigation',
+      group: 'Organize',
+      keywords: ['people', 'agents', 'humans'],
     },
     {
       id: 'nav-teams',
-      label: 'Teams',
+      label: 'Go to Teams',
       icon: UsersRound,
       action: () => navigate({ to: '/teams', search: { selected: undefined, page: 1, limit: 25 } }),
       shortcut: 'G R',
-      group: 'Navigation',
+      group: 'Organize',
+      keywords: ['groups', 'members'],
     },
+    // Settings
     {
       id: 'nav-settings',
-      label: 'Settings',
+      label: 'Go to Settings',
       icon: Settings,
       action: () => navigate({ to: '/settings' }),
-      group: 'Navigation',
+      group: 'Settings',
+      keywords: ['preferences', 'config'],
     },
   ];
 
@@ -147,6 +167,8 @@ export function CommandPalette() {
     acc[cmd.group].push(cmd);
     return acc;
   }, {} as Record<string, CommandItem[]>);
+
+  const groupOrder = ['Dashboard', 'Work', 'Collaborate', 'Organize', 'Settings'];
 
   // Handle keyboard shortcut to open command palette
   useEffect(() => {
@@ -175,68 +197,106 @@ export function CommandPalette() {
     <div className="fixed inset-0 z-50" data-testid="command-palette">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--color-bg-overlay)] backdrop-blur-sm"
         onClick={() => setOpen(false)}
         data-testid="command-palette-backdrop"
       />
 
       {/* Dialog */}
-      <div className="absolute left-1/2 top-1/4 -translate-x-1/2 w-full max-w-lg">
+      <div className="absolute left-1/2 top-[20%] -translate-x-1/2 w-full max-w-xl px-4">
         <Command
-          className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
+          className="bg-[var(--color-surface)] rounded-xl shadow-2xl border border-[var(--color-border)] overflow-hidden"
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               setOpen(false);
             }
           }}
         >
-          <div className="flex items-center gap-3 px-4 border-b border-gray-200">
-            <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
+          {/* Search header */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
+            <div className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
+              <CommandIcon className="w-4 h-4" />
+              <Search className="w-5 h-5" />
+            </div>
             <Command.Input
-              placeholder="Type a command or search..."
-              className="w-full py-4 text-base outline-none placeholder:text-gray-400"
+              placeholder="Search commands..."
+              className="w-full py-1 text-lg bg-transparent outline-none placeholder:text-[var(--color-text-muted)] text-[var(--color-text)]"
               data-testid="command-palette-input"
               autoFocus
             />
-            <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-400 bg-gray-100 rounded">
+            <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] bg-[var(--color-surface-hover)] rounded-md border border-[var(--color-border-secondary)]">
               esc
             </kbd>
           </div>
 
-          <Command.List className="max-h-80 overflow-y-auto p-2">
-            <Command.Empty className="py-6 text-center text-sm text-gray-500">
-              No results found.
+          <Command.List className="max-h-[400px] overflow-y-auto p-2">
+            <Command.Empty className="py-10 text-center">
+              <div className="text-[var(--color-text-tertiary)] text-sm">No results found.</div>
+              <div className="text-[var(--color-text-muted)] text-xs mt-1">Try a different search term</div>
             </Command.Empty>
 
-            {Object.entries(groupedCommands).map(([group, items]) => (
-              <Command.Group
-                key={group}
-                heading={group}
-                className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-gray-500"
-              >
-                {items.map((cmd) => {
-                  const Icon = cmd.icon;
-                  return (
-                    <Command.Item
-                      key={cmd.id}
-                      value={cmd.label}
-                      onSelect={() => handleSelect(cmd)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-gray-700 aria-selected:bg-blue-50 aria-selected:text-blue-700"
-                      data-testid={`command-item-${cmd.id}`}
-                    >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="flex-1">{cmd.label}</span>
-                      {cmd.shortcut && (
-                        <kbd className="text-xs text-gray-400 font-mono">
-                          {cmd.shortcut}
-                        </kbd>
-                      )}
-                    </Command.Item>
-                  );
-                })}
-              </Command.Group>
-            ))}
+            {groupOrder.map((group) => {
+              const items = groupedCommands[group];
+              if (!items) return null;
+
+              return (
+                <Command.Group
+                  key={group}
+                  heading={group}
+                  className="mb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-[var(--color-text-tertiary)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                >
+                  {items.map((cmd) => {
+                    const Icon = cmd.icon;
+                    return (
+                      <Command.Item
+                        key={cmd.id}
+                        value={`${cmd.label} ${cmd.keywords?.join(' ') || ''}`}
+                        onSelect={() => handleSelect(cmd)}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer text-[var(--color-text-secondary)] transition-colors duration-100 aria-selected:bg-[var(--color-surface-selected)] aria-selected:text-[var(--color-text)] group"
+                        data-testid={`command-item-${cmd.id}`}
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 rounded-md bg-[var(--color-surface-hover)] group-aria-selected:bg-[var(--color-primary-muted)] transition-colors">
+                          <Icon className="w-4 h-4 text-[var(--color-text-tertiary)] group-aria-selected:text-[var(--color-primary-text)]" />
+                        </div>
+                        <span className="flex-1 font-medium">{cmd.label}</span>
+                        {cmd.shortcut && (
+                          <div className="flex items-center gap-1">
+                            {cmd.shortcut.split(' ').map((key, i) => (
+                              <kbd
+                                key={i}
+                                className="px-1.5 py-0.5 text-[10px] font-mono font-semibold text-[var(--color-text-muted)] bg-[var(--color-surface-hover)] rounded border border-[var(--color-border-secondary)] min-w-[20px] text-center"
+                              >
+                                {key}
+                              </kbd>
+                            ))}
+                          </div>
+                        )}
+                      </Command.Item>
+                    );
+                  })}
+                </Command.Group>
+              );
+            })}
           </Command.List>
+
+          {/* Footer hint */}
+          <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1">
+                <kbd className="px-1 py-0.5 bg-[var(--color-surface-hover)] rounded text-[10px] font-mono">↑</kbd>
+                <kbd className="px-1 py-0.5 bg-[var(--color-surface-hover)] rounded text-[10px] font-mono">↓</kbd>
+                to navigate
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-[var(--color-surface-hover)] rounded text-[10px] font-mono">↵</kbd>
+                to select
+              </span>
+            </div>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 bg-[var(--color-surface-hover)] rounded text-[10px] font-mono">⌘K</kbd>
+              to toggle
+            </span>
+          </div>
         </Command>
       </div>
     </div>
