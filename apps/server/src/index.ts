@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -407,6 +407,214 @@ app.get('/api/dependencies/:id', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get dependencies:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get dependencies' } }, 500);
+  }
+});
+
+// ============================================================================
+// Channels Endpoints
+// ============================================================================
+
+app.get('/api/channels', async (c) => {
+  try {
+    const channels = await api.list({
+      type: 'channel',
+    });
+    return c.json(channels);
+  } catch (error) {
+    console.error('[elemental] Failed to get channels:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get channels' } }, 500);
+  }
+});
+
+app.get('/api/channels/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const channel = await api.get(id);
+    if (!channel) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+    }
+    if (channel.type !== 'channel') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+    }
+    return c.json(channel);
+  } catch (error) {
+    console.error('[elemental] Failed to get channel:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get channel' } }, 500);
+  }
+});
+
+app.get('/api/channels/:id/messages', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+
+    // Parse query params
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const hydrateContent = url.searchParams.get('hydrate.content') === 'true';
+
+    // First verify channel exists
+    const channel = await api.get(id);
+    if (!channel) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+    }
+    if (channel.type !== 'channel') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+    }
+
+    // Get messages for this channel
+    const filter: Record<string, unknown> = {
+      type: 'message',
+      channelId: id,
+      orderBy: 'created_at',
+      orderDir: 'asc',
+    };
+
+    if (limitParam) {
+      filter.limit = parseInt(limitParam, 10);
+    }
+    if (offsetParam) {
+      filter.offset = parseInt(offsetParam, 10);
+    }
+
+    const messages = await api.list(filter as Parameters<typeof api.list>[0]);
+
+    // Optionally hydrate content
+    if (hydrateContent) {
+      const hydratedMessages = await Promise.all(
+        messages.map(async (msg) => {
+          const message = msg as { contentRef?: string };
+          if (message.contentRef) {
+            const content = await api.get(message.contentRef as ElementId);
+            if (content && content.type === 'document') {
+              return { ...msg, _content: (content as { content?: string }).content };
+            }
+          }
+          return msg;
+        })
+      );
+      return c.json(hydratedMessages);
+    }
+
+    return c.json(messages);
+  } catch (error) {
+    console.error('[elemental] Failed to get channel messages:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get channel messages' } }, 500);
+  }
+});
+
+// ============================================================================
+// Messages Endpoints
+// ============================================================================
+
+app.post('/api/messages', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.channelId || typeof body.channelId !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'channelId is required' } }, 400);
+    }
+    if (!body.sender || typeof body.sender !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'sender is required' } }, 400);
+    }
+    if (!body.content || typeof body.content !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'content is required' } }, 400);
+    }
+
+    // Verify channel exists
+    const channel = await api.get(body.channelId as ElementId);
+    if (!channel || channel.type !== 'channel') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+    }
+
+    // Create a document for the message content
+    const contentDoc = await createDocument({
+      contentType: 'text',
+      content: body.content,
+      createdBy: body.sender as EntityId,
+    });
+    const createdDoc = await api.create(contentDoc as unknown as Element & Record<string, unknown>);
+
+    // Create the message with the content document reference
+    const messageInput = {
+      channelId: body.channelId,
+      sender: body.sender,
+      contentRef: createdDoc.id,
+      ...(body.threadId && { threadId: body.threadId }),
+      ...(body.tags && { tags: body.tags }),
+    };
+    const message = await createMessage(messageInput as unknown as CreateMessageInput);
+    const createdMessage = await api.create(message as unknown as Element & Record<string, unknown>);
+
+    // Return the message with content hydrated
+    return c.json({
+      ...createdMessage,
+      _content: body.content,
+    });
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: (error as Error).message } }, 404);
+    }
+    if ((error as { code?: string }).code === 'MEMBER_REQUIRED') {
+      return c.json({ error: { code: 'FORBIDDEN', message: 'Sender must be a channel member' } }, 403);
+    }
+    console.error('[elemental] Failed to create message:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create message' } }, 500);
+  }
+});
+
+app.get('/api/messages/:id/replies', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const hydrateContent = url.searchParams.get('hydrate.content') === 'true';
+
+    // Verify the parent message exists
+    const parentMessage = await api.get(id);
+    if (!parentMessage || parentMessage.type !== 'message') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Message not found' } }, 404);
+    }
+
+    // Get all messages that have this message as their threadId
+    const filter: Record<string, unknown> = {
+      type: 'message',
+      orderBy: 'created_at',
+      orderDir: 'asc',
+    };
+
+    const allMessages = await api.list(filter as Parameters<typeof api.list>[0]);
+
+    // Filter for messages with this threadId
+    const replies = allMessages.filter((msg) => {
+      const message = msg as { threadId?: string };
+      return message.threadId === id;
+    });
+
+    // Optionally hydrate content
+    if (hydrateContent) {
+      const hydratedReplies = await Promise.all(
+        replies.map(async (msg) => {
+          const message = msg as { contentRef?: string };
+          if (message.contentRef) {
+            const content = await api.get(message.contentRef as ElementId);
+            if (content && content.type === 'document') {
+              return { ...msg, _content: (content as { content?: string }).content };
+            }
+          }
+          return msg;
+        })
+      );
+      return c.json(hydratedReplies);
+    }
+
+    return c.json(replies);
+  } catch (error) {
+    console.error('[elemental] Failed to get thread replies:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get thread replies' } }, 500);
   }
 });
 

@@ -118,9 +118,7 @@ test.describe('TB5: Basic Sidebar Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
     await expect(page.getByText(/coming soon/i)).toBeVisible();
 
-    await page.goto('/messages');
-    await expect(page.getByRole('heading', { name: 'Messages' })).toBeVisible();
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
+    // Messages page is now implemented (TB16), skip placeholder check
 
     await page.goto('/documents');
     await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();

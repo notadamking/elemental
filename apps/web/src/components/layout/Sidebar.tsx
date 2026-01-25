@@ -22,25 +22,26 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   shortcut?: string;
+  testId?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', shortcut: 'G H' },
-  { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F' },
-  { to: '/dashboard/agents', icon: Bot, label: 'Agents', shortcut: 'G A' },
-  { to: '/dashboard/dependencies', icon: Network, label: 'Dependencies', shortcut: 'G G' },
-  { to: '/dashboard/timeline', icon: History, label: 'Timeline', shortcut: 'G L' },
-  { to: '/tasks', icon: CheckSquare, label: 'Tasks', shortcut: 'G T' },
-  { to: '/plans', icon: Folder, label: 'Plans', shortcut: 'G P' },
-  { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W' },
-  { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M' },
-  { to: '/documents', icon: FileText, label: 'Documents', shortcut: 'G D' },
-  { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E' },
-  { to: '/teams', icon: UsersRound, label: 'Teams', shortcut: 'G R' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', shortcut: 'G H', testId: 'nav-dashboard' },
+  { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F', testId: 'nav-task-flow' },
+  { to: '/dashboard/agents', icon: Bot, label: 'Agents', shortcut: 'G A', testId: 'nav-agents' },
+  { to: '/dashboard/dependencies', icon: Network, label: 'Dependencies', shortcut: 'G G', testId: 'nav-dependencies' },
+  { to: '/dashboard/timeline', icon: History, label: 'Timeline', shortcut: 'G L', testId: 'nav-timeline' },
+  { to: '/tasks', icon: CheckSquare, label: 'Tasks', shortcut: 'G T', testId: 'nav-tasks' },
+  { to: '/plans', icon: Folder, label: 'Plans', shortcut: 'G P', testId: 'nav-plans' },
+  { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W', testId: 'nav-workflows' },
+  { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M', testId: 'nav-messages' },
+  { to: '/documents', icon: FileText, label: 'Documents', shortcut: 'G D', testId: 'nav-documents' },
+  { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E', testId: 'nav-entities' },
+  { to: '/teams', icon: UsersRound, label: 'Teams', shortcut: 'G R', testId: 'nav-teams' },
 ];
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/settings', icon: Settings, label: 'Settings', testId: 'nav-settings' },
 ];
 
 interface SidebarProps {
@@ -60,6 +61,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
       <Link
         key={item.to}
         to={item.to}
+        data-testid={item.testId}
         className={`
           flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
           ${isActive
