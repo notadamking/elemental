@@ -78,7 +78,7 @@ export function CommandPalette() {
       id: 'nav-tasks',
       label: 'Tasks',
       icon: CheckSquare,
-      action: () => navigate({ to: '/tasks' }),
+      action: () => navigate({ to: '/tasks', search: { page: 1, limit: 25 } }),
       shortcut: 'G T',
       group: 'Navigation',
     },

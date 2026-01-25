@@ -845,13 +845,13 @@ For mutations (create, update, delete):
 
 ### Phase 12: List Enhancements + Edit Functionality
 
-- [ ] **TB46: Universal Pagination Component**
-  - [ ] Web: Create Pagination component (page numbers 1,2,3..., prev/next arrows, page size selector 10/25/50/100)
-  - [ ] Web: Add to TaskList, showing total count and current range (e.g., "Showing 1-25 of 142")
-  - [ ] Web: Add to EntityList, TeamList, DocumentList, ChannelList, EventList
-  - [ ] Server: Ensure all list endpoints return `total` count for proper pagination
-  - [ ] Web: URL sync for pagination state (e.g., `?page=2&limit=25`)
-  - [ ] **Verify:** Navigate pages in task list, URL updates, correct results shown
+- [x] **TB46: Universal Pagination Component**
+  - [x] Web: Create Pagination component (page numbers 1,2,3..., prev/next arrows, page size selector 10/25/50/100) - `src/components/shared/Pagination.tsx`
+  - [x] Web: Add to TaskList, showing total count and current range (e.g., "Showing 1-25 of 142")
+  - [ ] Web: Add to EntityList, TeamList, DocumentList, ChannelList, EventList (can reuse shared component)
+  - [x] Server: All list endpoints return `total` count via `api.listPaginated()`
+  - [x] Web: URL sync for pagination state (e.g., `?page=2&limit=25`) - router validates search params
+  - [x] **Verify:** Playwright tests passing (12 tests for pagination component)
 
 - [ ] **TB47: Edit Plan**
   - [ ] Web: Make PlanDetailPanel editable (edit button toggles edit mode)

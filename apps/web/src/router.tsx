@@ -34,11 +34,19 @@ const dashboardRoute = createRoute({
   component: DashboardPage,
 });
 
-// Tasks route
+// Tasks route with pagination URL sync
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tasks',
   component: TasksPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      page: typeof search.page === 'number' ? search.page :
+            typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
+      limit: typeof search.limit === 'number' ? search.limit :
+             typeof search.limit === 'string' ? parseInt(search.limit, 10) || 25 : 25,
+    };
+  },
 });
 
 // Task Flow Lens route (Dashboard sub-view)
