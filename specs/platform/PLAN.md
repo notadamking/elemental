@@ -583,11 +583,11 @@ For mutations (create, update, delete):
   - [x] Web: View toggle (list/kanban) with List and LayoutGrid icons
   - [x] **Verify:** Drag tasks between columns (Playwright tests passing - 12 tests)
 
-- [ ] **TB15: Bulk Operations**
-  - [ ] Web: Multi-select in list
-  - [ ] Web: Bulk action menu
-  - [ ] Server: Bulk update endpoint
-  - [ ] **Verify:** Select multiple, change status
+- [x] **TB15: Bulk Operations**
+  - [x] Web: Multi-select in list (checkboxes per row, select-all header checkbox)
+  - [x] Web: Bulk action menu (status and priority dropdown actions)
+  - [x] Server: Bulk update endpoint (`PATCH /api/tasks/bulk`)
+  - [x] **Verify:** Select multiple, change status (Playwright tests passing - 14 tests)
 
 ### Phase 6: Messaging
 

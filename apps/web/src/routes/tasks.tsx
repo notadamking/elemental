@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, List, LayoutGrid } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2 } from 'lucide-react';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
@@ -35,6 +35,33 @@ function useTasks() {
   });
 }
 
+function useBulkUpdate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Record<string, unknown> }) => {
+      const response = await fetch('/api/tasks/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, updates }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to update tasks');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'ready'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'blocked'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'completed'] });
+    },
+  });
+}
+
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
   1: { label: 'Critical', color: 'bg-red-100 text-red-800' },
   2: { label: 'High', color: 'bg-orange-100 text-orange-800' },
@@ -51,9 +78,44 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-800',
 };
 
-function TaskRow({ task, isSelected, onClick }: { task: Task; isSelected: boolean; onClick: () => void }) {
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: 1, label: 'Critical' },
+  { value: 2, label: 'High' },
+  { value: 3, label: 'Medium' },
+  { value: 4, label: 'Low' },
+  { value: 5, label: 'Trivial' },
+];
+
+function TaskRow({
+  task,
+  isSelected,
+  isChecked,
+  onCheck,
+  onClick,
+  showCheckbox
+}: {
+  task: Task;
+  isSelected: boolean;
+  isChecked: boolean;
+  onCheck: (checked: boolean) => void;
+  onClick: () => void;
+  showCheckbox: boolean;
+}) {
   const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
   const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCheck(!isChecked);
+  };
 
   return (
     <tr
@@ -61,6 +123,21 @@ function TaskRow({ task, isSelected, onClick }: { task: Task; isSelected: boolea
       onClick={onClick}
       data-testid={`task-row-${task.id}`}
     >
+      {showCheckbox && (
+        <td className="px-2 py-3 w-10">
+          <button
+            onClick={handleCheckboxClick}
+            className="p-1 hover:bg-gray-200 rounded"
+            data-testid={`task-checkbox-${task.id}`}
+          >
+            {isChecked ? (
+              <CheckSquare className="w-4 h-4 text-blue-600" />
+            ) : (
+              <Square className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+        </td>
+      )}
       <td className="px-4 py-3">
         <div>
           <div className="font-medium text-gray-900">{task.title}</div>
@@ -126,14 +203,140 @@ function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (vie
   );
 }
 
+function BulkActionMenu({
+  selectedCount,
+  onChangeStatus,
+  onChangePriority,
+  onClear,
+  isPending
+}: {
+  selectedCount: number;
+  onChangeStatus: (status: string) => void;
+  onChangePriority: (priority: number) => void;
+  onClear: () => void;
+  isPending: boolean;
+}) {
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+  const priorityRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
+        setIsStatusOpen(false);
+      }
+      if (priorityRef.current && !priorityRef.current.contains(event.target as Node)) {
+        setIsPriorityOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div
+      className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-b border-blue-200"
+      data-testid="bulk-action-menu"
+    >
+      <span className="text-sm font-medium text-blue-700" data-testid="bulk-selected-count">
+        {selectedCount} selected
+      </span>
+
+      {/* Status dropdown */}
+      <div className="relative" ref={statusRef}>
+        <button
+          onClick={() => { setIsPriorityOpen(false); setIsStatusOpen(!isStatusOpen); }}
+          disabled={isPending}
+          className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+          data-testid="bulk-status-button"
+        >
+          Set Status
+          <ChevronDown className="w-3 h-3" />
+        </button>
+        {isStatusOpen && (
+          <div
+            className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-32"
+            data-testid="bulk-status-options"
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  onChangeStatus(option.value);
+                  setIsStatusOpen(false);
+                }}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50"
+                data-testid={`bulk-status-option-${option.value}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Priority dropdown */}
+      <div className="relative" ref={priorityRef}>
+        <button
+          onClick={() => { setIsStatusOpen(false); setIsPriorityOpen(!isPriorityOpen); }}
+          disabled={isPending}
+          className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+          data-testid="bulk-priority-button"
+        >
+          Set Priority
+          <ChevronDown className="w-3 h-3" />
+        </button>
+        {isPriorityOpen && (
+          <div
+            className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-32"
+            data-testid="bulk-priority-options"
+          >
+            {PRIORITY_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  onChangePriority(option.value);
+                  setIsPriorityOpen(false);
+                }}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50"
+                data-testid={`bulk-priority-option-${option.value}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isPending && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+
+      {/* Clear selection */}
+      <button
+        onClick={onClear}
+        className="ml-auto p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+        data-testid="bulk-clear-selection"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 function ListView({
   tasks,
   selectedTaskId,
-  onTaskClick
+  selectedIds,
+  onTaskClick,
+  onTaskCheck,
+  onSelectAll
 }: {
   tasks: Task[];
   selectedTaskId: string | null;
+  selectedIds: Set<string>;
   onTaskClick: (taskId: string) => void;
+  onTaskCheck: (taskId: string, checked: boolean) => void;
+  onSelectAll: () => void;
 }) {
   if (tasks.length === 0) {
     return (
@@ -143,10 +346,30 @@ function ListView({
     );
   }
 
+  const allSelected = tasks.length > 0 && tasks.every(t => selectedIds.has(t.id));
+  const someSelected = selectedIds.size > 0;
+
   return (
     <table className="min-w-full divide-y divide-gray-200" data-testid="tasks-list-view">
       <thead className="bg-gray-50 sticky top-0">
         <tr>
+          <th className="px-2 py-3 w-10">
+            <button
+              onClick={onSelectAll}
+              className="p-1 hover:bg-gray-200 rounded"
+              data-testid="task-select-all"
+            >
+              {allSelected ? (
+                <CheckSquare className="w-4 h-4 text-blue-600" />
+              ) : someSelected ? (
+                <div className="w-4 h-4 border-2 border-blue-600 rounded flex items-center justify-center">
+                  <div className="w-2 h-0.5 bg-blue-600" />
+                </div>
+              ) : (
+                <Square className="w-4 h-4 text-gray-400" />
+              )}
+            </button>
+          </th>
           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
             Task
           </th>
@@ -173,7 +396,10 @@ function ListView({
             key={task.id}
             task={task}
             isSelected={task.id === selectedTaskId}
+            isChecked={selectedIds.has(task.id)}
+            onCheck={(checked) => onTaskCheck(task.id, checked)}
             onClick={() => onTaskClick(task.id)}
+            showCheckbox={true}
           />
         ))}
       </tbody>
@@ -183,9 +409,11 @@ function ListView({
 
 export function TasksPage() {
   const tasks = useTasks();
+  const bulkUpdate = useBulkUpdate();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
@@ -198,6 +426,47 @@ export function TasksPage() {
   const handleCreateSuccess = (task: { id: string }) => {
     // Optionally select the newly created task
     setSelectedTaskId(task.id);
+  };
+
+  const handleTaskCheck = (taskId: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(taskId);
+      } else {
+        next.delete(taskId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (!tasks.data) return;
+
+    const allSelected = tasks.data.every(t => selectedIds.has(t.id));
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(tasks.data.map(t => t.id)));
+    }
+  };
+
+  const handleBulkStatusChange = (status: string) => {
+    bulkUpdate.mutate(
+      { ids: Array.from(selectedIds), updates: { status } },
+      { onSuccess: () => setSelectedIds(new Set()) }
+    );
+  };
+
+  const handleBulkPriorityChange = (priority: number) => {
+    bulkUpdate.mutate(
+      { ids: Array.from(selectedIds), updates: { priority } },
+      { onSuccess: () => setSelectedIds(new Set()) }
+    );
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
   };
 
   return (
@@ -226,6 +495,17 @@ export function TasksPage() {
           </div>
         </div>
 
+        {/* Bulk Action Menu */}
+        {selectedIds.size > 0 && viewMode === 'list' && (
+          <BulkActionMenu
+            selectedCount={selectedIds.size}
+            onChangeStatus={handleBulkStatusChange}
+            onChangePriority={handleBulkPriorityChange}
+            onClear={handleClearSelection}
+            isPending={bulkUpdate.isPending}
+          />
+        )}
+
         <div className="flex-1 overflow-auto">
           {tasks.isLoading && (
             <div className="p-4 text-gray-500">Loading tasks...</div>
@@ -239,7 +519,10 @@ export function TasksPage() {
             <ListView
               tasks={tasks.data}
               selectedTaskId={selectedTaskId}
+              selectedIds={selectedIds}
               onTaskClick={handleTaskClick}
+              onTaskCheck={handleTaskCheck}
+              onSelectAll={handleSelectAll}
             />
           )}
 
