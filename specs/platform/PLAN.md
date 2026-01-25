@@ -802,12 +802,12 @@ For mutations (create, update, delete):
 
 ### Phase 11: Dashboard Enhancements
 
-- [ ] **TB41: Dashboard Overview Panel**
-  - [ ] Web: Create DashboardOverview component as default dashboard view
-  - [ ] Web: Key metrics cards: Total Tasks, Ready vs Blocked ratio, Active Agents, Tasks Completed Today
-  - [ ] Web: Quick action buttons: Create Task, Pour Workflow, View Ready Tasks
-  - [ ] Web: Recent activity feed (last 10 events across all types)
-  - [ ] **Verify:** Dashboard shows accurate summary metrics, quick actions work
+- [x] **TB41: Dashboard Overview Panel**
+  - [x] Web: Enhanced DashboardPage with MetricsOverview component
+  - [x] Web: Key metrics cards: Total Tasks, Ready vs Blocked ratio, Active Agents, Tasks Completed Today
+  - [x] Web: Quick action buttons: Create Task, Pour Workflow, View Ready Tasks (links to relevant pages)
+  - [x] Web: Recent activity feed (last 10 events with icons and relative timestamps)
+  - [x] **Verify:** Playwright tests passing (19 tests)
 
 - [ ] **TB42: Timeline Visual Overhaul**
   - [ ] Web: Redesign timeline with visual event type icons (create=plus, update=pencil, delete=trash, etc.)
