@@ -598,7 +598,7 @@ function LibraryView({
   return (
     <div
       data-testid="library-view"
-      className="flex-1 flex flex-col bg-white"
+      className="h-full flex flex-col bg-white"
     >
       {/* Library Header */}
       <div
@@ -1614,7 +1614,7 @@ export function DocumentsPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Document List / Library View - hide when document is expanded */}
         {(!selectedDocumentId || !isDocumentExpanded) && (
-          <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200' : 'flex-1'} overflow-hidden`}>
+          <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200' : 'flex-1'} h-full overflow-hidden`}>
             {renderMainContent()}
           </div>
         )}
