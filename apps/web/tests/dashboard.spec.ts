@@ -76,20 +76,26 @@ test.describe('TB41: Dashboard Overview Panel', () => {
     await expect(page.getByTestId('quick-action-view-tasks')).toHaveText(/View Ready Tasks/);
   });
 
-  test('create task quick action navigates to tasks', async ({ page }) => {
+  test('create task quick action opens modal (TB77)', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page.getByTestId('dashboard-page')).toBeVisible({ timeout: 10000 });
 
     await page.getByTestId('quick-action-create-task').click();
-    await expect(page).toHaveURL(/\/tasks/);
+
+    // Should stay on dashboard and show modal
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByTestId('create-task-modal')).toBeVisible();
   });
 
-  test('pour workflow quick action navigates to workflows', async ({ page }) => {
+  test('pour workflow quick action opens modal (TB77)', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page.getByTestId('dashboard-page')).toBeVisible({ timeout: 10000 });
 
     await page.getByTestId('quick-action-pour-workflow').click();
-    await expect(page).toHaveURL(/\/workflows/);
+
+    // Should stay on dashboard and show modal
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible();
   });
 
   test('dashboard shows recent activity section', async ({ page }) => {

@@ -1201,12 +1201,12 @@ For mutations (create, update, delete):
   - [x] Web: Update routes: `/dashboard/overview`, `/dashboard/task-flow`, etc.
   - [x] **Verify:** Navigate between dashboard sections via sidebar; Playwright tests passing (13 tests)
 
-- [ ] **TB77: Dashboard Quick Actions with Modals**
-  - [ ] Web: "Create Task" button opens CreateTaskModal (not navigate away)
-  - [ ] Web: "Pour Workflow" button opens PourWorkflowModal (not navigate away)
-  - [ ] Web: After successful creation, show toast and optionally navigate to new item
-  - [ ] Web: Add keyboard shortcuts: `C T` for Create Task, `C W` for Pour Workflow from dashboard
-  - [ ] **Verify:** Create task from dashboard without leaving page; Playwright tests passing
+- [x] **TB77: Dashboard Quick Actions with Modals**
+  - [x] Web: "Create Task" button opens CreateTaskModal (not navigate away)
+  - [x] Web: "Pour Workflow" button opens PourWorkflowModal (not navigate away)
+  - [x] Web: After successful creation, show toast and optionally navigate to new item
+  - [x] Web: Add keyboard shortcuts: `C T` for Create Task, `C W` for Pour Workflow from dashboard
+  - [x] **Verify:** Create task from dashboard without leaving page; Playwright tests passing (20 tests)
 
 - [ ] **TB78: Dashboard Overview Charts**
   - [ ] Web: Install lightweight chart library (recharts or chart.js with react-chartjs-2)

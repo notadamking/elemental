@@ -1,9 +1,14 @@
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Plus, Zap, ListTodo, CheckCircle, Clock, AlertCircle, Users, Bot, Activity, FileText, MessageSquare, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { TaskCard } from '../components/entity/TaskCard';
 import type { Task } from '../components/entity/types';
 import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
+import { CreateTaskModal } from '../components/task/CreateTaskModal';
+import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
+import { useKeyboardShortcut, useDisableKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 interface StatsResponse {
   totalElements: number;
@@ -265,28 +270,35 @@ function RecentActivityFeed() {
   );
 }
 
-function QuickActions() {
+function QuickActions({
+  onCreateTask,
+  onPourWorkflow,
+}: {
+  onCreateTask: () => void;
+  onPourWorkflow: () => void;
+}) {
   return (
     <div className="mt-8" data-testid="quick-actions">
       <h3 className="text-md font-medium text-gray-900 mb-4">Quick Actions</h3>
       <div className="flex flex-wrap gap-3">
-        <Link
-          to="/tasks"
-          search={{ page: 1, limit: 25 }}
+        <button
+          onClick={onCreateTask}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           data-testid="quick-action-create-task"
         >
           <Plus className="w-4 h-4" />
           Create Task
-        </Link>
-        <Link
-          to="/workflows"
+          <kbd className="ml-1 text-xs opacity-70 bg-blue-700 px-1 py-0.5 rounded">C T</kbd>
+        </button>
+        <button
+          onClick={onPourWorkflow}
           className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
           data-testid="quick-action-pour-workflow"
         >
           <Zap className="w-4 h-4" />
           Pour Workflow
-        </Link>
+          <kbd className="ml-1 text-xs opacity-70 bg-purple-700 px-1 py-0.5 rounded">C W</kbd>
+        </button>
         <Link
           to="/tasks"
           search={{ page: 1, limit: 25 }}
@@ -383,8 +395,59 @@ export function DashboardPage() {
   // Track this dashboard section visit
   useTrackDashboardSection('overview');
 
+  const navigate = useNavigate();
   const stats = useStats();
   const health = useHealth();
+
+  // Modal states
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [isPourWorkflowModalOpen, setIsPourWorkflowModalOpen] = useState(false);
+
+  // Disable keyboard shortcuts when modals are open
+  useDisableKeyboardShortcuts(isCreateTaskModalOpen || isPourWorkflowModalOpen);
+
+  // Handlers for opening modals
+  const handleOpenCreateTaskModal = useCallback(() => {
+    setIsCreateTaskModalOpen(true);
+  }, []);
+
+  const handleOpenPourWorkflowModal = useCallback(() => {
+    setIsPourWorkflowModalOpen(true);
+  }, []);
+
+  // Handlers for modal success
+  const handleTaskCreated = useCallback((task: { id: string }) => {
+    toast.success('Task created successfully', {
+      description: 'Your new task has been created.',
+      action: {
+        label: 'View Task',
+        onClick: () => navigate({ to: '/tasks', search: { selected: task.id, page: 1, limit: 25 } }),
+      },
+    });
+  }, [navigate]);
+
+  const handleWorkflowPoured = useCallback((workflow: { id: string; title: string }) => {
+    toast.success('Workflow poured successfully', {
+      description: `"${workflow.title}" has been created.`,
+      action: {
+        label: 'View Workflow',
+        onClick: () => navigate({ to: '/workflows', search: { selected: workflow.id } }),
+      },
+    });
+  }, [navigate]);
+
+  // Register keyboard shortcuts for quick creation (only on dashboard)
+  useKeyboardShortcut(
+    'C T',
+    handleOpenCreateTaskModal,
+    'Create Task from Dashboard'
+  );
+
+  useKeyboardShortcut(
+    'C W',
+    handleOpenPourWorkflowModal,
+    'Pour Workflow from Dashboard'
+  );
 
   return (
     <div data-testid="dashboard-page">
@@ -394,7 +457,24 @@ export function DashboardPage() {
       <MetricsOverview />
 
       {/* Quick Actions */}
-      <QuickActions />
+      <QuickActions
+        onCreateTask={handleOpenCreateTaskModal}
+        onPourWorkflow={handleOpenPourWorkflowModal}
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateTaskModalOpen}
+        onClose={() => setIsCreateTaskModalOpen(false)}
+        onSuccess={handleTaskCreated}
+      />
+
+      {/* Pour Workflow Modal */}
+      <PourWorkflowModal
+        isOpen={isPourWorkflowModalOpen}
+        onClose={() => setIsPourWorkflowModalOpen(false)}
+        onSuccess={handleWorkflowPoured}
+      />
 
       {/* Two-column layout for Ready Tasks and Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
