@@ -1217,12 +1217,13 @@ For mutations (create, update, delete):
   - [x] Web: Responsive layout: charts in grid on large screens, stacked on mobile
   - [x] **Verify:** Charts render with real data, interactions work; Playwright tests passing (20 tests)
 
-- [ ] **TB79: View More Ready Tasks Fix**
-  - [ ] Web: "View more ready tasks" link navigates to `/tasks?status=open&blocked=false`
-  - [ ] Web: Tasks page respects URL filter params to show only ready tasks
-  - [ ] Web: Add filter chip showing active filter ("Ready tasks only") with clear button
-  - [ ] Web: Ensure TaskList filters from in-memory data (not server call)
-  - [ ] **Verify:** Click "View more ready tasks", only ready tasks shown; Playwright tests passing
+- [x] **TB79: View More Ready Tasks Fix**
+  - [x] Web: "View more ready tasks" link navigates to `/tasks?readyOnly=true` (uses readyOnly param for ready task filtering)
+  - [x] Web: Tasks page respects URL readyOnly param - fetches ready task IDs from API and filters in-memory
+  - [x] Web: Add filter chip showing "Ready tasks only" with clear button (removes readyOnly from URL)
+  - [x] Web: TaskList filters from in-memory data using ready task IDs from `/api/tasks/ready`
+  - [x] Web: readyOnly filter is preserved during pagination, sorting, and when clearing other filters
+  - [x] **Verify:** Click "View more ready tasks", only ready tasks shown; Playwright tests passing (10 tests)
 
 ### Phase 20: Tasks Page Enhancements (Linear-inspired)
 

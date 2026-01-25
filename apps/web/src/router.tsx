@@ -62,13 +62,14 @@ const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tasks',
   component: TasksPage,
-  validateSearch: (search: Record<string, unknown>): { selected?: string; page: number; limit: number } => {
+  validateSearch: (search: Record<string, unknown>): { selected?: string; page: number; limit: number; readyOnly?: boolean } => {
     return {
       selected: typeof search.selected === 'string' ? search.selected : undefined,
       page: typeof search.page === 'number' ? search.page :
             typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
       limit: typeof search.limit === 'number' ? search.limit :
              typeof search.limit === 'string' ? parseInt(search.limit, 10) || 25 : 25,
+      readyOnly: search.readyOnly === true || search.readyOnly === 'true',
     };
   },
 });

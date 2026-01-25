@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle } from 'lucide-react';
+import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles } from 'lucide-react';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
@@ -23,6 +23,22 @@ function getStoredViewMode(): ViewMode {
 function setStoredViewMode(mode: ViewMode) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+}
+
+/**
+ * Hook to fetch ready task IDs for filtering (TB79)
+ * Returns a Set of task IDs that are currently "ready" (unblocked)
+ */
+function useReadyTaskIds() {
+  return useQuery<Set<string>>({
+    queryKey: ['tasks', 'ready', 'ids'],
+    queryFn: async () => {
+      const response = await fetch('/api/tasks/ready');
+      if (!response.ok) throw new Error('Failed to fetch ready tasks');
+      const tasks: { id: string }[] = await response.json();
+      return new Set(tasks.map((t) => t.id));
+    },
+  });
 }
 
 type ViewMode = 'list' | 'kanban';
@@ -887,6 +903,7 @@ export function TasksPage() {
   const currentPage = search.page ?? 1;
   const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
   const selectedFromUrl = search.selected ?? null;
+  const readyOnly = search.readyOnly ?? false;
 
   // Sort configuration - use internal field names
   const [sortField, setSortField] = useState<SortField>('updated_at');
@@ -900,14 +917,31 @@ export function TasksPage() {
   const entities = useEntities();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(selectedFromUrl);
 
+  // Fetch ready task IDs when readyOnly filter is active (TB79)
+  const { data: readyTaskIds, isLoading: isReadyTasksLoading } = useReadyTaskIds();
+
   // Create filter function for client-side filtering
   const filterFn = useMemo(() => {
-    return createTaskFilter({
+    // Base filter from UI filters
+    const baseFilter = createTaskFilter({
       status: filters.status,
       priority: filters.priority,
       assignee: filters.assignee,
     });
-  }, [filters.status, filters.priority, filters.assignee]);
+
+    // If readyOnly is enabled, add ready task filter
+    if (readyOnly && readyTaskIds) {
+      return (task: Task) => {
+        // First check if task is in ready set
+        if (!readyTaskIds.has(task.id)) return false;
+        // Then apply base filter if exists
+        if (baseFilter) return baseFilter(task);
+        return true;
+      };
+    }
+
+    return baseFilter;
+  }, [filters.status, filters.priority, filters.assignee, readyOnly, readyTaskIds]);
 
   // Create sort config using internal field names
   const sortConfig = useMemo((): PaginatedSortConfig<Task> => ({
@@ -996,7 +1030,7 @@ export function TasksPage() {
   const taskItems = paginatedData.items;
   const totalItems = paginatedData.filteredTotal;
   const totalPages = paginatedData.totalPages;
-  const isLoading = isTasksLoading || paginatedData.isLoading;
+  const isLoading = isTasksLoading || paginatedData.isLoading || (readyOnly && isReadyTasksLoading);
 
   // Handle task click - update URL with selected task (TB70)
   const handleTaskClick = (taskId: string) => {
@@ -1040,14 +1074,14 @@ export function TasksPage() {
   };
 
   const handlePageChange = (page: number) => {
-    navigate({ to: '/tasks', search: { page, limit: pageSize } });
+    navigate({ to: '/tasks', search: { page, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
     // Clear selection when changing pages
     setSelectedIds(new Set());
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
     // When page size changes, go back to page 1
-    navigate({ to: '/tasks', search: { page: 1, limit: newPageSize } });
+    navigate({ to: '/tasks', search: { page: 1, limit: newPageSize, readyOnly: readyOnly ? true : undefined } });
     setSelectedIds(new Set());
   };
 
@@ -1060,17 +1094,23 @@ export function TasksPage() {
       setSortDirection('desc');
     }
     // Reset to first page when sort changes
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize } });
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
   };
 
   const handleFilterChange = (newFilters: FilterConfig) => {
     setFilters(newFilters);
-    // Reset to first page when filters change
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize } });
+    // Reset to first page when filters change, preserve readyOnly
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
   };
 
   const handleClearFilters = () => {
     setFilters(EMPTY_FILTER);
+    // Keep readyOnly when clearing other filters
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+  };
+
+  // Handler to clear the readyOnly filter (TB79)
+  const handleClearReadyOnly = () => {
     navigate({ to: '/tasks', search: { page: 1, limit: pageSize } });
   };
 
@@ -1150,6 +1190,24 @@ export function TasksPage() {
             onClearFilters={handleClearFilters}
             entities={entities.data ?? []}
           />
+        )}
+
+        {/* Ready Tasks Filter Chip (TB79) */}
+        {readyOnly && (
+          <div className="px-4 py-2 border-b border-gray-200 bg-blue-50" data-testid="ready-filter-chip">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">Ready tasks only</span>
+              <button
+                onClick={handleClearReadyOnly}
+                className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded transition-colors"
+                data-testid="clear-ready-filter"
+              >
+                <X className="w-3 h-3" />
+                Clear filter
+              </button>
+            </div>
+          </div>
         )}
 
         <div className="flex-1 overflow-auto" data-testid="tasks-view-container">

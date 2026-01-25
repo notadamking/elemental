@@ -154,7 +154,7 @@ function ReadyTasksList() {
     <div className="mt-8">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-md font-medium text-gray-900">Ready Tasks</h3>
-        <Link to="/tasks" search={{ page: 1, limit: 25 }} className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+        <Link to="/tasks" search={{ page: 1, limit: 25, readyOnly: true }} className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
           View all <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
@@ -179,7 +179,7 @@ function ReadyTasksList() {
             <TaskCard key={task.id} task={task} />
           ))}
           {readyTasks.data.length > 5 && (
-            <Link to="/tasks" search={{ page: 1, limit: 25 }} className="block text-center text-sm text-blue-600 hover:text-blue-700 py-2">
+            <Link to="/tasks" search={{ page: 1, limit: 25, readyOnly: true }} className="block text-center text-sm text-blue-600 hover:text-blue-700 py-2">
               View {readyTasks.data.length - 5} more ready tasks
             </Link>
           )}
@@ -302,7 +302,7 @@ function QuickActions({
         </button>
         <Link
           to="/tasks"
-          search={{ page: 1, limit: 25 }}
+          search={{ page: 1, limit: 25, readyOnly: true }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
           data-testid="quick-action-view-tasks"
         >
