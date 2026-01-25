@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Loader2, Plus, Hash, Users } from 'lucide-react';
+import { TagInput } from '../ui/TagInput';
 
 interface Entity {
   id: string;
@@ -85,7 +86,7 @@ export function CreateChannelModal({
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [entityA, setEntityA] = useState('');
   const [entityB, setEntityB] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const createChannel = useCreateChannel();
@@ -109,7 +110,7 @@ export function CreateChannelModal({
       setSelectedMembers([]);
       setEntityA('');
       setEntityB('');
-      setTagsInput('');
+      setTags([]);
       createChannel.reset();
     }
   }, [isOpen]);
@@ -139,7 +140,7 @@ export function CreateChannelModal({
         visibility,
         joinPolicy,
         ...(selectedMembers.length > 0 && { members: selectedMembers }),
-        ...(tagsInput.trim() && { tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean) }),
+        ...(tags.length > 0 && { tags }),
       };
     } else {
       if (!entityA || !entityB) return;
@@ -150,7 +151,7 @@ export function CreateChannelModal({
         createdBy,
         entityA,
         entityB,
-        ...(tagsInput.trim() && { tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean) }),
+        ...(tags.length > 0 && { tags }),
       };
     }
 
@@ -418,16 +419,13 @@ export function CreateChannelModal({
 
             {/* Tags */}
             <div className="mb-6">
-              <label htmlFor="channel-tags" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tags
               </label>
-              <input
-                id="channel-tags"
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="Comma-separated tags (e.g., team, project)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <TagInput
+                tags={tags}
+                onChange={setTags}
+                placeholder="Type and press comma to add tags"
                 data-testid="create-channel-tags-input"
               />
             </div>

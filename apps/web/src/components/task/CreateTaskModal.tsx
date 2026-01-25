@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Loader2, Plus } from 'lucide-react';
+import { TagInput } from '../ui/TagInput';
 
 interface Entity {
   id: string;
@@ -97,7 +98,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [complexity, setComplexity] = useState(3);
   const [taskType, setTaskType] = useState('task');
   const [assignee, setAssignee] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [createdBy, setCreatedBy] = useState('');
 
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +120,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       setComplexity(3);
       setTaskType('task');
       setAssignee('');
-      setTagsInput('');
+      setTags([]);
       setCreatedBy('');
       createTask.reset();
     }
@@ -151,8 +152,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       input.assignee = assignee;
     }
 
-    if (tagsInput.trim()) {
-      input.tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+    if (tags.length > 0) {
+      input.tags = tags;
     }
 
     try {
@@ -322,16 +323,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
 
             {/* Tags */}
             <div className="mb-6">
-              <label htmlFor="task-tags" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tags
               </label>
-              <input
-                id="task-tags"
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="Comma-separated tags (e.g., frontend, urgent)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <TagInput
+                tags={tags}
+                onChange={setTags}
+                placeholder="Type and press comma to add tags"
                 data-testid="create-task-tags-input"
               />
             </div>

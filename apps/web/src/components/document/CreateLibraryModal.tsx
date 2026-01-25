@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Loader2, Plus, FolderPlus } from 'lucide-react';
+import { TagInput } from '../ui/TagInput';
 
 interface Entity {
   id: string;
@@ -84,7 +85,7 @@ export function CreateLibraryModal({
   defaultParentId,
 }: CreateLibraryModalProps) {
   const [name, setName] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [createdBy, setCreatedBy] = useState('');
   const [parentId, setParentId] = useState(defaultParentId || '');
 
@@ -104,7 +105,7 @@ export function CreateLibraryModal({
   useEffect(() => {
     if (!isOpen) {
       setName('');
-      setTagsInput('');
+      setTags([]);
       setCreatedBy('');
       setParentId(defaultParentId || '');
       createLibrary.reset();
@@ -137,8 +138,8 @@ export function CreateLibraryModal({
       createdBy,
     };
 
-    if (tagsInput.trim()) {
-      input.tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+    if (tags.length > 0) {
+      input.tags = tags;
     }
 
     if (parentId) {
@@ -258,16 +259,13 @@ export function CreateLibraryModal({
 
             {/* Tags */}
             <div className="mb-6">
-              <label htmlFor="library-tags" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tags
               </label>
-              <input
-                id="library-tags"
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="Comma-separated tags (e.g., api, specs, docs)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              <TagInput
+                tags={tags}
+                onChange={setTags}
+                placeholder="Type and press comma to add tags"
                 data-testid="create-library-tags-input"
               />
             </div>

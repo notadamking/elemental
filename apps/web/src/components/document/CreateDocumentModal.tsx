@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Loader2, Plus, FileText } from 'lucide-react';
+import { TagInput } from '../ui/TagInput';
 
 interface Entity {
   id: string;
@@ -95,7 +96,7 @@ export function CreateDocumentModal({
   const [title, setTitle] = useState('');
   const [contentType, setContentType] = useState('markdown');
   const [content, setContent] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [createdBy, setCreatedBy] = useState('');
   const [libraryId, setLibraryId] = useState(defaultLibraryId || '');
 
@@ -117,7 +118,7 @@ export function CreateDocumentModal({
       setTitle('');
       setContentType('markdown');
       setContent('');
-      setTagsInput('');
+      setTags([]);
       setCreatedBy('');
       setLibraryId(defaultLibraryId || '');
       createDocument.reset();
@@ -152,8 +153,8 @@ export function CreateDocumentModal({
       createdBy,
     };
 
-    if (tagsInput.trim()) {
-      input.tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+    if (tags.length > 0) {
+      input.tags = tags;
     }
 
     if (libraryId) {
@@ -312,16 +313,13 @@ export function CreateDocumentModal({
 
             {/* Tags */}
             <div className="mb-6">
-              <label htmlFor="document-tags" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tags
               </label>
-              <input
-                id="document-tags"
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="Comma-separated tags (e.g., spec, draft, api)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <TagInput
+                tags={tags}
+                onChange={setTags}
+                placeholder="Type and press comma to add tags"
                 data-testid="create-document-tags-input"
               />
             </div>
