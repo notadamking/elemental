@@ -945,12 +945,12 @@ For mutations (create, update, delete):
   - [x] Web: Keyboard navigation (up/down arrows, Enter to select, Escape to cancel)
   - [x] **Verify:** Playwright tests passing (19 TB55 tests)
 
-- [ ] **TB56: Drag-and-Drop Blocks**
-  - [ ] Web: Add drag handle (grip icon) to left of each block, visible on hover
-  - [ ] Web: Implement block reordering via drag-and-drop (using dnd-kit or Tiptap extension)
-  - [ ] Web: Visual drop indicator line between blocks while dragging
-  - [ ] Web: Drag handle cursor feedback (grab/grabbing)
-  - [ ] **Verify:** Drag paragraph below heading, blocks reorder, content saves
+- [x] **TB56: Drag-and-Drop Blocks**
+  - [x] Web: Add drag handle (grip icon) to left of each block, visible on hover (using tiptap-extension-global-drag-handle)
+  - [x] Web: Implement block reordering via drag-and-drop (using GlobalDragHandle Tiptap extension)
+  - [x] Web: Visual drop indicator line between blocks while dragging (CSS .drop-cursor)
+  - [x] Web: Drag handle cursor feedback (grab/grabbing) (CSS .drag-handle with cursor states)
+  - [x] **Verify:** Playwright tests passing (15 TB56 tests)
 
 - [ ] **TB57: Inline Task/Document Embeds**
   - [ ] Web: `/task` slash command opens task picker modal

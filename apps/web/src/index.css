@@ -29,3 +29,41 @@
 .animate-fade-in {
   animation: fade-in 0.15s ease-out;
 }
+
+/* Drag handle styles for block editor */
+.drag-handle {
+  position: fixed;
+  opacity: 1;
+  transition: opacity 0.2s ease, background 0.2s ease;
+  border-radius: 0.25rem;
+  background: #e5e7eb;
+  background-size: calc(0.5em + 1px) calc(0.5em + 1px);
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="2.5" cy="2.5" r="1.2" fill="%236b7280"/><circle cx="7.5" cy="2.5" r="1.2" fill="%236b7280"/><circle cx="2.5" cy="7.5" r="1.2" fill="%236b7280"/><circle cx="7.5" cy="7.5" r="1.2" fill="%236b7280"/></svg>');
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 1.2rem;
+  height: 1.5rem;
+  z-index: 50;
+  cursor: grab;
+}
+
+.drag-handle:hover {
+  background-color: #d1d5db;
+}
+
+.drag-handle:active,
+.drag-handle.dragging {
+  cursor: grabbing;
+  background-color: #9ca3af;
+}
+
+/* Drop indicator line while dragging */
+.ProseMirror-focused .is-dragging {
+  opacity: 0.5;
+}
+
+/* Drop placeholder indicator */
+.ProseMirror .drop-cursor {
+  border-top: 2px solid #3b82f6 !important;
+  border-radius: 1px;
+}
