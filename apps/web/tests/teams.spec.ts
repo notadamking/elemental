@@ -1063,3 +1063,472 @@ test.describe('TB39: Create Team', () => {
     await expect(page.getByText(/already exists/)).toBeVisible();
   });
 });
+
+test.describe('TB40: Edit Team', () => {
+  test('PATCH /api/teams/:id endpoint updates team name', async ({ page }) => {
+    // Create a team first
+    const uniqueName = `Edit Test Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    const team = await createResponse.json();
+
+    // Update the name
+    const newName = `Updated Team ${Date.now()}`;
+    const updateResponse = await page.request.patch(`/api/teams/${team.id}`, {
+      data: { name: newName },
+    });
+
+    expect(updateResponse.ok()).toBe(true);
+    const updated = await updateResponse.json();
+    expect(updated.name).toBe(newName);
+  });
+
+  test('PATCH /api/teams/:id endpoint adds members', async ({ page }) => {
+    // Get an entity
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Create a team
+    const uniqueName = `Add Member Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    const team = await createResponse.json();
+
+    // Add a member
+    const updateResponse = await page.request.patch(`/api/teams/${team.id}`, {
+      data: { addMembers: [entities[0].id] },
+    });
+
+    expect(updateResponse.ok()).toBe(true);
+    const updated = await updateResponse.json();
+    expect(updated.members).toContain(entities[0].id);
+  });
+
+  test('PATCH /api/teams/:id endpoint removes members', async ({ page }) => {
+    // Get an entity
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Create a team with a member
+    const uniqueName = `Remove Member Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName, members: [entities[0].id] },
+    });
+    const team = await createResponse.json();
+    expect(team.members).toContain(entities[0].id);
+
+    // Remove the member
+    const updateResponse = await page.request.patch(`/api/teams/${team.id}`, {
+      data: { removeMembers: [entities[0].id] },
+    });
+
+    expect(updateResponse.ok()).toBe(true);
+    const updated = await updateResponse.json();
+    expect(updated.members).not.toContain(entities[0].id);
+  });
+
+  test('DELETE /api/teams/:id endpoint deletes team', async ({ page }) => {
+    // Create a team
+    const uniqueName = `Delete Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    const team = await createResponse.json();
+
+    // Delete the team
+    const deleteResponse = await page.request.delete(`/api/teams/${team.id}`);
+    expect(deleteResponse.ok()).toBe(true);
+    const deleteResult = await deleteResponse.json();
+    expect(deleteResult.success).toBe(true);
+  });
+
+  test('team detail panel has edit name button', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    if (teams.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first team card
+    const firstTeam = teams[0];
+    await page.getByTestId(`team-card-${firstTeam.id}`).click();
+
+    // Detail panel should be visible
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Edit button should be visible (if team is not deleted)
+    if (firstTeam.status !== 'tombstone') {
+      await expect(page.getByTestId('team-name-edit')).toBeVisible();
+    }
+  });
+
+  test('clicking edit name button shows input field', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    // Find an active team
+    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    if (!activeTeam) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${activeTeam.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
+    await page.getByTestId('team-name-edit').click();
+
+    // Input field should appear
+    await expect(page.getByTestId('team-name-input')).toBeVisible();
+    await expect(page.getByTestId('team-name-save')).toBeVisible();
+    await expect(page.getByTestId('team-name-cancel')).toBeVisible();
+  });
+
+  test('can edit team name via UI', async ({ page }) => {
+    // Create a team to edit
+    const uniqueName = `Edit UI Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    const team = await createResponse.json();
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the team card
+    await page.getByTestId(`team-card-${team.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
+    await page.getByTestId('team-name-edit').click();
+
+    // Fill in new name
+    const newName = `Renamed Team ${Date.now()}`;
+    await page.getByTestId('team-name-input').fill(newName);
+    await page.getByTestId('team-name-save').click();
+
+    // Wait for save to complete
+    await expect(page.getByTestId('team-name-input')).not.toBeVisible({ timeout: 5000 });
+
+    // Verify name was updated
+    await expect(page.getByTestId('team-detail-panel').getByRole('heading', { name: newName })).toBeVisible();
+  });
+
+  test('cancel button cancels name edit', async ({ page }) => {
+    // Get teams from API
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    if (!activeTeam) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${activeTeam.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
+    await page.getByTestId('team-name-edit').click();
+    await expect(page.getByTestId('team-name-input')).toBeVisible();
+
+    // Click cancel
+    await page.getByTestId('team-name-cancel').click();
+
+    // Input should disappear
+    await expect(page.getByTestId('team-name-input')).not.toBeVisible();
+
+    // Original name should still be visible
+    await expect(page.getByTestId('team-detail-panel').getByRole('heading', { name: activeTeam.name })).toBeVisible();
+  });
+
+  test('team detail panel has delete button', async ({ page }) => {
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    if (!activeTeam) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${activeTeam.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    await expect(page.getByTestId('team-delete-button')).toBeVisible();
+  });
+
+  test('delete button shows confirmation modal', async ({ page }) => {
+    // Create a team to test with
+    const uniqueName = `Delete Confirm Team ${Date.now()}`;
+    await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Find and click the team
+    const teamsResponse = await page.request.get('/api/teams');
+    const teams = await teamsResponse.json();
+    const ourTeam = teams.find((t: { name: string }) => t.name === uniqueName);
+
+    await page.getByTestId(`team-card-${ourTeam.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click delete button
+    await page.getByTestId('team-delete-button').click();
+
+    // Confirmation modal should appear
+    await expect(page.getByTestId('delete-team-confirm-modal')).toBeVisible();
+    await expect(page.getByTestId('delete-team-confirm')).toBeVisible();
+    await expect(page.getByTestId('delete-team-cancel')).toBeVisible();
+  });
+
+  test('cancel in delete confirmation closes modal', async ({ page }) => {
+    const response = await page.request.get('/api/teams');
+    const teams = await response.json();
+
+    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    if (!activeTeam) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${activeTeam.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId('team-delete-button').click();
+    await expect(page.getByTestId('delete-team-confirm-modal')).toBeVisible();
+
+    // Click cancel
+    await page.getByTestId('delete-team-cancel').click();
+
+    // Modal should disappear
+    await expect(page.getByTestId('delete-team-confirm-modal')).not.toBeVisible();
+
+    // Team detail should still be visible
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible();
+  });
+
+  test('can delete team via UI', async ({ page }) => {
+    // Create a team to delete
+    const uniqueName = `Delete Via UI Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    const team = await createResponse.json();
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${team.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Delete the team
+    await page.getByTestId('team-delete-button').click();
+    await expect(page.getByTestId('delete-team-confirm-modal')).toBeVisible();
+    await page.getByTestId('delete-team-confirm').click();
+
+    // Modal and detail panel should close
+    await expect(page.getByTestId('delete-team-confirm-modal')).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('team-detail-container')).not.toBeVisible({ timeout: 5000 });
+  });
+
+  test('team detail panel has add member search', async ({ page }) => {
+    // Create a fresh team
+    const uniqueName = `Add Search Test Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName },
+    });
+    const team = await createResponse.json();
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${team.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    await expect(page.getByTestId('add-member-search')).toBeVisible();
+  });
+
+  test('add member search shows results', async ({ page }) => {
+    // Get entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Create a fresh team for this test
+    const uniqueName = `Search Results Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName, members: [] },
+    });
+    const team = await createResponse.json();
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${team.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('add-member-search')).toBeVisible({ timeout: 5000 });
+
+    // Type in search
+    await page.getByTestId('add-member-search').fill(entities[0].name.substring(0, 3));
+
+    // Results should appear
+    await expect(page.getByTestId('add-member-results')).toBeVisible();
+  });
+
+  test('can add member to team via UI', async ({ page }) => {
+    // Get entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Create a team without any members
+    const uniqueName = `Add Member UI Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName, members: [] },
+    });
+    const team = await createResponse.json();
+
+    // Find an entity not in the team
+    const entityToAdd = entities[0];
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${team.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Search for entity
+    await page.getByTestId('add-member-search').fill(entityToAdd.name);
+    await expect(page.getByTestId('add-member-results')).toBeVisible();
+
+    // Click to add
+    await page.getByTestId(`add-member-option-${entityToAdd.id}`).click();
+
+    // Member should appear in list
+    await expect(page.getByTestId(`member-item-${entityToAdd.id}`)).toBeVisible({ timeout: 5000 });
+  });
+
+  test('can remove member from team via UI', async ({ page }) => {
+    // Get entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Create a team with a member
+    const uniqueName = `Remove Member UI Team ${Date.now()}`;
+    const memberEntity = entities[0];
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName, members: [memberEntity.id] },
+    });
+    const team = await createResponse.json();
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${team.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Wait for members to load
+    await expect(page.getByTestId(`member-item-${memberEntity.id}`)).toBeVisible({ timeout: 5000 });
+
+    // Click remove button
+    await page.getByTestId(`remove-member-${memberEntity.id}`).click();
+
+    // Member should be removed from list
+    await expect(page.getByTestId(`member-item-${memberEntity.id}`)).not.toBeVisible({ timeout: 5000 });
+  });
+
+  test('member remove button appears on hover', async ({ page }) => {
+    // Get entities
+    const entitiesResponse = await page.request.get('/api/entities');
+    const entities = await entitiesResponse.json();
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Create a team with a member for this test
+    const uniqueName = `Hover Test Team ${Date.now()}`;
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName, members: [entities[0].id] },
+    });
+    const team = await createResponse.json();
+
+    await page.goto('/teams');
+    await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId(`team-card-${team.id}`).click();
+    await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Wait for members to load
+    await expect(page.getByTestId(`member-item-${entities[0].id}`)).toBeVisible({ timeout: 5000 });
+
+    // Hover over member item
+    await page.getByTestId(`member-item-${entities[0].id}`).hover();
+
+    // Remove button should be visible
+    await expect(page.getByTestId(`remove-member-${entities[0].id}`)).toBeVisible();
+  });
+});

@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2 } from 'lucide-react';
+import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2, Pencil, Save, Trash2, UserMinus } from 'lucide-react';
 
 interface Team {
   id: string;
@@ -85,6 +85,61 @@ function useTeamStats(id: string | null) {
       return response.json();
     },
     enabled: !!id,
+  });
+}
+
+interface UpdateTeamInput {
+  name?: string;
+  tags?: string[];
+  addMembers?: string[];
+  removeMembers?: string[];
+}
+
+function useUpdateTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateTeamInput }) => {
+      const response = await fetch(`/api/teams/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to update team');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['teams', id] });
+      queryClient.invalidateQueries({ queryKey: ['teams', id, 'members'] });
+    },
+  });
+}
+
+function useDeleteTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/teams/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to delete team');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+    },
   });
 }
 
@@ -539,32 +594,6 @@ function SearchBox({
   );
 }
 
-function MemberListItem({ member }: { member: Entity }) {
-  const styles = ENTITY_TYPE_STYLES[member.entityType] || ENTITY_TYPE_STYLES.system;
-  const Icon = styles.icon;
-  const isActive = member.active !== false;
-
-  return (
-    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50" data-testid={`member-item-${member.id}`}>
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${styles.bg}`}>
-        <Icon className={`w-4 h-4 ${styles.text}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900">{member.name}</span>
-          {!isActive && (
-            <span className="px-1 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">Inactive</span>
-          )}
-        </div>
-        <span className="text-xs text-gray-500 capitalize">{member.entityType}</span>
-      </div>
-      <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
-        {member.entityType}
-      </span>
-    </div>
-  );
-}
-
 function StatCard({
   icon: Icon,
   label,
@@ -621,13 +650,48 @@ function WorkloadBar({
 function TeamDetailPanel({
   teamId,
   onClose,
+  onDeleted,
 }: {
   teamId: string;
   onClose: () => void;
+  onDeleted?: () => void;
 }) {
   const { data: team, isLoading: teamLoading } = useTeam(teamId);
   const { data: members, isLoading: membersLoading } = useTeamMembers(teamId);
   const { data: stats, isLoading: statsLoading } = useTeamStats(teamId);
+  const entities = useAllEntities();
+  const updateTeam = useUpdateTeam();
+  const deleteTeam = useDeleteTeam();
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus name input when editing
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  // Available entities to add (not already members)
+  const availableEntities = useMemo(() => {
+    const teamMemberIds = team?.members || [];
+    const allEntities = entities.data || [];
+    if (!memberSearch.trim()) {
+      return allEntities.filter((e) => !teamMemberIds.includes(e.id));
+    }
+    const query = memberSearch.toLowerCase();
+    return allEntities.filter(
+      (e) =>
+        !teamMemberIds.includes(e.id) &&
+        (e.name.toLowerCase().includes(query) || e.id.toLowerCase().includes(query))
+    );
+  }, [entities.data, team?.members, memberSearch]);
 
   if (teamLoading) {
     return (
@@ -661,6 +725,66 @@ function TeamDetailPanel({
     Math.max(max, item.taskCount), 0
   ) || 0;
 
+  const handleStartEditName = () => {
+    setEditName(team.name);
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = async () => {
+    if (!editName.trim() || editName.trim() === team.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    try {
+      await updateTeam.mutateAsync({ id: teamId, input: { name: editName.trim() } });
+      setIsEditingName(false);
+    } catch {
+      // Error is handled by mutation state
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setEditName('');
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveName();
+    } else if (e.key === 'Escape') {
+      handleCancelEditName();
+    }
+  };
+
+  const handleAddMember = async (entityId: string) => {
+    try {
+      await updateTeam.mutateAsync({ id: teamId, input: { addMembers: [entityId] } });
+      setMemberSearch('');
+    } catch {
+      // Error is handled by mutation state
+    }
+  };
+
+  const handleRemoveMember = async (entityId: string) => {
+    try {
+      await updateTeam.mutateAsync({ id: teamId, input: { removeMembers: [entityId] } });
+    } catch {
+      // Error is handled by mutation state
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteTeam.mutateAsync(teamId);
+      setShowDeleteConfirm(false);
+      onDeleted?.();
+      onClose();
+    } catch {
+      // Error is handled by mutation state
+    }
+  };
+
   return (
     <div className="h-full flex flex-col" data-testid="team-detail-panel">
       {/* Header */}
@@ -671,27 +795,133 @@ function TeamDetailPanel({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-medium text-gray-900">{team.name}</h2>
-              {!isActive && (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
-                  Deleted
-                </span>
+              {isEditingName ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={handleNameKeyDown}
+                    className="px-2 py-1 text-lg font-medium text-gray-900 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    data-testid="team-name-input"
+                  />
+                  <button
+                    onClick={handleSaveName}
+                    disabled={updateTeam.isPending}
+                    className="p-1 text-green-600 hover:bg-green-50 rounded"
+                    data-testid="team-name-save"
+                  >
+                    {updateTeam.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={handleCancelEditName}
+                    className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                    data-testid="team-name-cancel"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-lg font-medium text-gray-900">{team.name}</h2>
+                  {isActive && (
+                    <button
+                      onClick={handleStartEditName}
+                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                      data-testid="team-name-edit"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
+                  {!isActive && (
+                    <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
+                      Deleted
+                    </span>
+                  )}
+                </>
               )}
             </div>
             <p className="text-sm text-gray-500 font-mono">{team.id}</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 rounded"
-          data-testid="team-detail-close"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {isActive && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+              data-testid="team-delete-button"
+              title="Delete team"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+            data-testid="team-detail-close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50" data-testid="delete-team-confirm-modal">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm">
+            <div className="bg-white rounded-lg shadow-xl p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Team?</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Are you sure you want to delete <strong>{team.name}</strong>? This action cannot be undone.
+              </p>
+              {deleteTeam.isError && (
+                <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+                  {deleteTeam.error.message}
+                </div>
+              )}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+                  data-testid="delete-team-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteTeam.isPending}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+                  data-testid="delete-team-confirm"
+                >
+                  {deleteTeam.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-6">
+        {/* Update Error */}
+        {updateTeam.isError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600" data-testid="team-update-error">
+            {updateTeam.error.message}
+          </div>
+        )}
+
         {/* Team Info */}
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -758,13 +988,86 @@ function TeamDetailPanel({
           <h3 className="text-sm font-medium text-gray-900 mb-3">
             Team Members ({memberCount})
           </h3>
+
+          {/* Add Member Search (only for active teams) */}
+          {isActive && (
+            <div className="mb-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder="Add member..."
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  data-testid="add-member-search"
+                />
+              </div>
+              {memberSearch.trim() && (
+                <div className="mt-1 max-h-32 overflow-auto border border-gray-200 rounded-md bg-white shadow-lg" data-testid="add-member-results">
+                  {entities.isLoading ? (
+                    <div className="p-2 text-sm text-gray-500 text-center">Loading...</div>
+                  ) : availableEntities.length === 0 ? (
+                    <div className="p-2 text-sm text-gray-500 text-center">No matching entities</div>
+                  ) : (
+                    availableEntities.slice(0, 5).map((entity) => {
+                      const styles = ENTITY_TYPE_STYLES[entity.entityType] || ENTITY_TYPE_STYLES.system;
+                      const Icon = styles.icon;
+                      return (
+                        <button
+                          key={entity.id}
+                          type="button"
+                          onClick={() => handleAddMember(entity.id)}
+                          disabled={updateTeam.isPending}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left disabled:opacity-50"
+                          data-testid={`add-member-option-${entity.id}`}
+                        >
+                          <Plus className="w-3 h-3 text-green-500" />
+                          <Icon className={`w-4 h-4 ${styles.text}`} />
+                          <span className="text-sm text-gray-900">{entity.name}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {membersLoading ? (
             <div className="text-sm text-gray-500">Loading members...</div>
           ) : members && members.length > 0 ? (
             <div className="space-y-1" data-testid="team-members-list">
-              {members.map((member) => (
-                <MemberListItem key={member.id} member={member} />
-              ))}
+              {members.map((member) => {
+                const styles = ENTITY_TYPE_STYLES[member.entityType] || ENTITY_TYPE_STYLES.system;
+                const Icon = styles.icon;
+                return (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-gray-50 group"
+                    data-testid={`member-item-${member.id}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className={`w-4 h-4 ${styles.text}`} />
+                      <span className="text-sm text-gray-900">{member.name}</span>
+                      <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
+                        {member.entityType}
+                      </span>
+                    </div>
+                    {isActive && (
+                      <button
+                        onClick={() => handleRemoveMember(member.id)}
+                        disabled={updateTeam.isPending}
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        title="Remove from team"
+                        data-testid={`remove-member-${member.id}`}
+                      >
+                        <UserMinus className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : memberCount > 0 ? (
             <div className="text-sm text-gray-500">
@@ -922,7 +1225,7 @@ export function TeamsPage() {
       {/* Team Detail Panel */}
       {selectedTeamId && (
         <div className="w-1/2 border-l border-gray-200" data-testid="team-detail-container">
-          <TeamDetailPanel teamId={selectedTeamId} onClose={handleCloseDetail} />
+          <TeamDetailPanel teamId={selectedTeamId} onClose={handleCloseDetail} onDeleted={() => setSelectedTeamId(null)} />
         </div>
       )}
     </div>

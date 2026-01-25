@@ -792,12 +792,13 @@ For mutations (create, update, delete):
   - [x] Web: Add "New Team" button to Teams page
   - [x] **Verify:** Create team with 3 members from UI, appears in list (Playwright tests passing - 21 tests)
 
-- [ ] **TB40: Edit Team**
-  - [ ] Server: Add `PATCH /api/teams/:id` endpoint (name, add/remove members)
-  - [ ] Web: Make TeamDetailPanel editable (team name, description)
-  - [ ] Web: Inline add/remove member actions in member list
-  - [ ] Web: Delete team button with confirmation (soft delete)
-  - [ ] **Verify:** Add member to team, rename team, verify persistence
+- [x] **TB40: Edit Team**
+  - [x] Server: Add `PATCH /api/teams/:id` endpoint (name, add/remove members)
+  - [x] Server: Add `DELETE /api/teams/:id` endpoint (soft delete)
+  - [x] Web: Make TeamDetailPanel editable (team name with inline edit)
+  - [x] Web: Inline add/remove member actions in member list
+  - [x] Web: Delete team button with confirmation (soft delete)
+  - [x] **Verify:** Playwright tests passing (17 tests for TB40)
 
 ### Phase 11: Dashboard Enhancements
 

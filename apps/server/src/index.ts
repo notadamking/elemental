@@ -9,7 +9,7 @@ import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -964,6 +964,159 @@ app.get('/api/channels/:id/messages', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get channel messages:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get channel messages' } }, 500);
+  }
+});
+
+// Get channel members (with optional hydration)
+app.get('/api/channels/:id/members', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const hydrate = url.searchParams.get('hydrate') === 'true';
+
+    // Verify channel exists
+    const channel = await api.get(id);
+    if (!channel || channel.type !== 'channel') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
+    }
+
+    const channelData = channel as Channel;
+    const memberIds = channelData.members || [];
+
+    // Optionally hydrate member entities
+    if (hydrate) {
+      const hydratedMembers = await Promise.all(
+        memberIds.map(async (memberId: string) => {
+          const entity = await api.get(memberId as unknown as ElementId);
+          return entity || { id: memberId, name: memberId, notFound: true };
+        })
+      );
+      return c.json({
+        members: hydratedMembers,
+        permissions: channelData.permissions,
+        channelType: channelData.channelType,
+      });
+    }
+
+    return c.json({
+      members: memberIds,
+      permissions: channelData.permissions,
+      channelType: channelData.channelType,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get channel members:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get channel members' } }, 500);
+  }
+});
+
+// Add member to channel
+app.post('/api/channels/:id/members', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json() as {
+      entityId: string;
+      actor: string;
+    };
+
+    // Validate required fields
+    if (!body.entityId || typeof body.entityId !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'entityId is required' } }, 400);
+    }
+    if (!body.actor || typeof body.actor !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'actor is required' } }, 400);
+    }
+
+    const result = await api.addChannelMember(
+      id,
+      body.entityId as EntityId,
+      { actor: body.actor as EntityId }
+    );
+
+    return c.json(result);
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel or entity not found' } }, 404);
+    }
+    if (err.code === 'DIRECT_CHANNEL_MEMBERSHIP') {
+      return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Cannot modify direct channel membership' } }, 403);
+    }
+    if (err.code === 'CANNOT_MODIFY_MEMBERS') {
+      return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'No permission to modify members' } }, 403);
+    }
+    console.error('[elemental] Failed to add channel member:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to add channel member' } }, 500);
+  }
+});
+
+// Remove member from channel
+app.delete('/api/channels/:id/members/:entityId', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const entityId = c.req.param('entityId') as EntityId;
+    const url = new URL(c.req.url);
+    const actor = url.searchParams.get('actor');
+
+    // Validate actor
+    if (!actor) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'actor query parameter is required' } }, 400);
+    }
+
+    const result = await api.removeChannelMember(
+      id,
+      entityId,
+      { actor: actor as EntityId }
+    );
+
+    return c.json(result);
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel not found' } }, 404);
+    }
+    if (err.code === 'DIRECT_CHANNEL_MEMBERSHIP') {
+      return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Cannot modify direct channel membership' } }, 403);
+    }
+    if (err.code === 'CANNOT_MODIFY_MEMBERS') {
+      return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'No permission to modify members' } }, 403);
+    }
+    if (err.code === 'NOT_A_MEMBER') {
+      return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Entity is not a member' } }, 404);
+    }
+    console.error('[elemental] Failed to remove channel member:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to remove channel member' } }, 500);
+  }
+});
+
+// Leave channel (self-removal)
+app.post('/api/channels/:id/leave', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json() as {
+      actor: string;
+    };
+
+    // Validate actor
+    if (!body.actor || typeof body.actor !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'actor is required' } }, 400);
+    }
+
+    const result = await api.leaveChannel(id, body.actor as EntityId);
+
+    return c.json(result);
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel not found' } }, 404);
+    }
+    if (err.code === 'DIRECT_CHANNEL_MEMBERSHIP') {
+      return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Cannot leave direct channel' } }, 403);
+    }
+    if (err.code === 'NOT_A_MEMBER') {
+      return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Not a member of this channel' } }, 404);
+    }
+    console.error('[elemental] Failed to leave channel:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to leave channel' } }, 500);
   }
 });
 
@@ -2322,6 +2475,118 @@ app.get('/api/teams/:id', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get team:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get team' } }, 500);
+  }
+});
+
+app.patch('/api/teams/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+    const { name, tags, addMembers, removeMembers } = body;
+
+    // Verify team exists
+    const existing = await api.get(id);
+    if (!existing || existing.type !== 'team') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Team not found' } }, 404);
+    }
+
+    const existingTeam = existing as unknown as { name: string; members: EntityId[]; tags: string[] };
+
+    // Build updates object
+    const updates: Record<string, unknown> = {};
+
+    if (name !== undefined) {
+      // Validate name format
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name must be a non-empty string' } }, 400);
+      }
+      // Check for duplicate name (if changing)
+      if (name.trim() !== existingTeam.name) {
+        const existingTeams = await api.list({ type: 'team' });
+        const duplicateName = existingTeams.some((t) => {
+          const team = t as unknown as { name: string; id: string };
+          return team.name.toLowerCase() === name.toLowerCase().trim() && team.id !== id;
+        });
+        if (duplicateName) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Team with this name already exists' } }, 400);
+        }
+      }
+      updates.name = name.trim();
+    }
+
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Tags must be an array' } }, 400);
+      }
+      updates.tags = tags;
+    }
+
+    // Handle member additions/removals
+    let currentMembers = [...existingTeam.members];
+
+    if (addMembers !== undefined) {
+      if (!Array.isArray(addMembers)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'addMembers must be an array' } }, 400);
+      }
+      for (const memberId of addMembers) {
+        if (typeof memberId !== 'string' || memberId.length === 0) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Each member ID must be a non-empty string' } }, 400);
+        }
+        if (!currentMembers.includes(memberId as EntityId)) {
+          currentMembers.push(memberId as EntityId);
+        }
+      }
+    }
+
+    if (removeMembers !== undefined) {
+      if (!Array.isArray(removeMembers)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'removeMembers must be an array' } }, 400);
+      }
+      for (const memberId of removeMembers) {
+        if (typeof memberId !== 'string' || memberId.length === 0) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Each member ID must be a non-empty string' } }, 400);
+        }
+        currentMembers = currentMembers.filter((m) => m !== memberId);
+      }
+    }
+
+    if (addMembers !== undefined || removeMembers !== undefined) {
+      updates.members = currentMembers;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'No valid updates provided' } }, 400);
+    }
+
+    const updated = await api.update(id, updates);
+    return c.json(updated);
+  } catch (error) {
+    console.error('[elemental] Failed to update team:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update team';
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
+app.delete('/api/teams/:id', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+
+    // Verify team exists
+    const existing = await api.get(id);
+    if (!existing || existing.type !== 'team') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Team not found' } }, 404);
+    }
+
+    // Soft-delete the team
+    await api.delete(id);
+
+    return c.json({ success: true, id });
+  } catch (error) {
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Team not found' } }, 404);
+    }
+    console.error('[elemental] Failed to delete team:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete team' } }, 500);
   }
 });
 
