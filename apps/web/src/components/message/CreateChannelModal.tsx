@@ -114,10 +114,11 @@ export function CreateChannelModal({
     }
   }, [isOpen]);
 
-  // Set default createdBy to first entity
+  // Set default createdBy to operator (human entity), fall back to first entity
   useEffect(() => {
     if (entities && entities.length > 0 && !createdBy) {
-      setCreatedBy(entities[0].id);
+      const operator = entities.find((e) => e.entityType === 'human');
+      setCreatedBy(operator?.id || entities[0].id);
     }
   }, [entities, createdBy]);
 
