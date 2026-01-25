@@ -744,12 +744,12 @@ For mutations (create, update, delete):
 
 ### Phase 10: Entity & Team Pages + More CRUD
 
-- [ ] **TB33: Entities Page - List View**
-  - [ ] Web: Replace placeholder with EntityList component
-  - [ ] Web: Entity cards showing: name, type badge (agent/human/system), avatar, active status indicator
-  - [ ] Web: Filter tabs by entity type (All, Agents, Humans, Systems)
-  - [ ] Web: Search box for entity name
-  - [ ] **Verify:** View all entities with type filtering and search
+- [x] **TB33: Entities Page - List View**
+  - [x] Web: Replace placeholder with EntityList component
+  - [x] Web: Entity cards showing: name, type badge (agent/human/system), avatar, active status indicator
+  - [x] Web: Filter tabs by entity type (All, Agents, Humans, Systems)
+  - [x] Web: Search box for entity name
+  - [x] **Verify:** View all entities with type filtering and search (Playwright tests passing - 12 tests)
 
 - [ ] **TB34: Entity Detail Panel**
   - [ ] Server: Add `GET /api/entities/:id/stats` endpoint (task count, message count, created elements count)

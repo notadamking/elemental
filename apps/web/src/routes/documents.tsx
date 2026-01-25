@@ -941,12 +941,14 @@ function DocumentDetailPanel({
   isExpanded = false,
   onToggleExpand,
   onDocumentCloned,
+  libraryId,
 }: {
   documentId: string;
   onClose: () => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   onDocumentCloned?: (document: { id: string }) => void;
+  libraryId?: string | null;
 }) {
   const { data: document, isLoading, isError, error } = useDocument(documentId);
   const updateDocument = useUpdateDocument();
@@ -1013,7 +1015,8 @@ function DocumentDetailPanel({
       const clonedDoc = await cloneDocument.mutateAsync({
         id: documentId,
         createdBy: document.createdBy,
-        // New document will have "(Copy)" appended to title
+        // Include libraryId so the clone is added to the same library
+        libraryId: libraryId || undefined,
       });
       // Navigate to the cloned document
       if (clonedDoc?.id && onDocumentCloned) {
@@ -1533,6 +1536,7 @@ export function DocumentsPage() {
               isExpanded={isDocumentExpanded}
               onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
               onDocumentCloned={handleDocumentCreated}
+              libraryId={selectedLibraryId}
             />
           </div>
         )}
