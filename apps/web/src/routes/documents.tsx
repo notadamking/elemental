@@ -1052,6 +1052,22 @@ function DocumentDetailPanel({
           <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 font-mono">
             <span data-testid="document-detail-id">{document.id}</span>
           </div>
+
+          {/* Metadata - Created, Created By, Updated */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
+            <div className="flex items-center gap-1" title={formatDate(previewingVersion !== null && previewDocument ? previewDocument.createdAt : document.createdAt)}>
+              <Clock className="w-3 h-3" />
+              <span>Created {formatRelativeTime(previewingVersion !== null && previewDocument ? previewDocument.createdAt : document.createdAt)}</span>
+            </div>
+            <div className="flex items-center gap-1" title={formatDate(previewingVersion !== null && previewDocument ? previewDocument.updatedAt : document.updatedAt)}>
+              <Clock className="w-3 h-3" />
+              <span>Updated {formatRelativeTime(previewingVersion !== null && previewDocument ? previewDocument.updatedAt : document.updatedAt)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <User className="w-3 h-3" />
+              <span className="font-mono">{document.createdBy}</span>
+            </div>
+          </div>
         </div>
 
         {/* Action buttons */}
@@ -1205,37 +1221,6 @@ function DocumentDetailPanel({
               </div>
             </div>
           )}
-
-          {/* Metadata */}
-          <div className="pt-4 border-t border-gray-100">
-            <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
-              <div>
-                <div className="flex items-center gap-1 mb-1">
-                  <Clock className="w-3 h-3" />
-                  <span className="font-medium">Created:</span>
-                </div>
-                <span title={formatDate(previewingVersion !== null && previewDocument ? previewDocument.createdAt : document.createdAt)}>
-                  {formatRelativeTime(previewingVersion !== null && previewDocument ? previewDocument.createdAt : document.createdAt)}
-                </span>
-              </div>
-              <div>
-                <div className="flex items-center gap-1 mb-1">
-                  <Clock className="w-3 h-3" />
-                  <span className="font-medium">Updated:</span>
-                </div>
-                <span title={formatDate(previewingVersion !== null && previewDocument ? previewDocument.updatedAt : document.updatedAt)}>
-                  {formatRelativeTime(previewingVersion !== null && previewDocument ? previewDocument.updatedAt : document.updatedAt)}
-                </span>
-              </div>
-              <div className="col-span-2">
-                <div className="flex items-center gap-1 mb-1">
-                  <User className="w-3 h-3" />
-                  <span className="font-medium">Created by:</span>
-                </div>
-                <span className="font-mono">{document.createdBy}</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Version History Sidebar */}
