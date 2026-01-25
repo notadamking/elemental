@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, MailOpen, Archive, AtSign, CheckCheck } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 
 interface Entity {
@@ -61,6 +61,20 @@ interface InboxItem {
   status: 'unread' | 'read' | 'archived';
   readAt: string | null;
   createdAt: string;
+  // Hydrated fields (optional)
+  message?: {
+    id: string;
+    sender: string;
+    contentRef: string;
+    contentPreview?: string;
+    createdAt: string;
+  } | null;
+  channel?: {
+    id: string;
+    name: string;
+    channelType: 'group' | 'direct';
+  } | null;
+  sender?: Entity | null;
 }
 
 interface PaginatedResult<T> {
@@ -177,7 +191,7 @@ function useEntityInbox(id: string | null, status?: 'unread' | 'read' | 'archive
   return useQuery<PaginatedResult<InboxItem>>({
     queryKey: ['entities', id, 'inbox', status],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: '50' });
+      const params = new URLSearchParams({ limit: '50', hydrate: 'true' });
       if (status && status !== 'all') {
         params.set('status', status);
       }
@@ -791,12 +805,14 @@ function InboxItemCard({
   onMarkUnread,
   onArchive,
   isPending,
+  onNavigateToMessage,
 }: {
   item: InboxItem;
   onMarkRead: () => void;
   onMarkUnread: () => void;
   onArchive: () => void;
   isPending: boolean;
+  onNavigateToMessage: () => void;
 }) {
   const isUnread = item.status === 'unread';
   const isArchived = item.status === 'archived';
@@ -816,32 +832,66 @@ function InboxItemCard({
     return date.toLocaleDateString();
   };
 
+  // Get sender info from hydrated data
+  const senderName = item.sender?.name ?? 'Unknown';
+  const senderType = item.sender?.entityType ?? 'agent';
+  const channelName = item.channel?.name ?? item.channelId;
+  const messagePreview = item.message?.contentPreview ?? '';
+
+  // Avatar icon based on entity type
+  const getAvatarIcon = () => {
+    switch (senderType) {
+      case 'agent': return <Bot className="w-4 h-4" />;
+      case 'human': return <User className="w-4 h-4" />;
+      case 'system': return <Server className="w-4 h-4" />;
+      default: return <User className="w-4 h-4" />;
+    }
+  };
+
+  const getAvatarColors = () => {
+    switch (senderType) {
+      case 'agent': return 'bg-purple-100 text-purple-600';
+      case 'human': return 'bg-blue-100 text-blue-600';
+      case 'system': return 'bg-gray-100 text-gray-600';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on action buttons
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    onNavigateToMessage();
+  };
+
   return (
     <div
-      className={`bg-white border rounded-lg p-3 transition-colors ${
-        isUnread ? 'border-blue-200 bg-blue-50/50' : 'border-gray-100'
+      onClick={handleCardClick}
+      className={`bg-white border rounded-lg p-3 transition-colors cursor-pointer hover:shadow-sm ${
+        isUnread ? 'border-blue-200 bg-blue-50/50' : 'border-gray-100 hover:border-gray-200'
       } ${isArchived ? 'opacity-50' : ''}`}
       data-testid={`inbox-item-${item.id}`}
     >
       <div className="flex items-start gap-3">
-        {/* Unread indicator */}
-        <div className="mt-1">
-          {isUnread ? (
-            <Mail className="w-4 h-4 text-blue-500" />
-          ) : (
-            <MailOpen className="w-4 h-4 text-gray-400" />
-          )}
+        {/* Sender Avatar */}
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getAvatarColors()}`} data-testid={`inbox-item-avatar-${item.id}`}>
+          {getAvatarIcon()}
         </div>
 
         <div className="flex-1 min-w-0">
-          {/* Source type badge */}
+          {/* Header: sender name, source badge, timestamp */}
           <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-medium text-gray-900 truncate" data-testid={`inbox-item-sender-${item.id}`}>
+              {senderName}
+            </span>
             <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded ${
+              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded flex-shrink-0 ${
                 item.sourceType === 'mention'
                   ? 'bg-purple-100 text-purple-700'
                   : 'bg-blue-100 text-blue-700'
               }`}
+              data-testid={`inbox-item-source-${item.id}`}
             >
               {item.sourceType === 'mention' ? (
                 <>
@@ -855,20 +905,29 @@ function InboxItemCard({
                 </>
               )}
             </span>
-            <span className="text-xs text-gray-400">{formatTime(item.createdAt)}</span>
+            <span className="text-xs text-gray-400 flex-shrink-0" data-testid={`inbox-item-time-${item.id}`}>{formatTime(item.createdAt)}</span>
+            {isUnread && (
+              <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" data-testid={`inbox-item-unread-indicator-${item.id}`} title="Unread" />
+            )}
           </div>
 
-          {/* Message and channel IDs */}
-          <p className="text-xs text-gray-500 font-mono truncate">
-            Message: {item.messageId}
-          </p>
-          <p className="text-xs text-gray-400 font-mono truncate">
-            Channel: {item.channelId}
-          </p>
+          {/* Channel name */}
+          <div className="flex items-center gap-1 mb-1">
+            <span className="text-xs text-gray-500" data-testid={`inbox-item-channel-${item.id}`}>
+              in <span className="font-medium">{channelName}</span>
+            </span>
+          </div>
+
+          {/* Message preview */}
+          {messagePreview && (
+            <p className="text-sm text-gray-600 line-clamp-2" data-testid={`inbox-item-preview-${item.id}`}>
+              {messagePreview}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {isPending ? (
             <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
           ) : (
@@ -919,6 +978,7 @@ function EntityDetailPanel({
   entityId: string;
   onClose: () => void;
 }) {
+  const navigate = useNavigate();
   const { data: entity, isLoading: entityLoading } = useEntity(entityId);
   const { data: stats, isLoading: statsLoading } = useEntityStats(entityId);
   const { data: tasks, isLoading: tasksLoading } = useEntityTasks(entityId);
@@ -980,6 +1040,14 @@ function EntityDetailPanel({
 
   const handleMarkAllRead = async () => {
     await markAllRead.mutateAsync();
+  };
+
+  const handleNavigateToMessage = (channelId: string, messageId: string) => {
+    // Navigate to messages page with the channel selected and message highlighted
+    navigate({
+      to: '/messages',
+      search: { channel: channelId, message: messageId, page: 1, limit: 50 },
+    });
   };
 
   const handleSave = async () => {
@@ -1385,6 +1453,7 @@ function EntityDetailPanel({
                     onMarkUnread={() => handleMarkInboxUnread(item.id)}
                     onArchive={() => handleArchiveInbox(item.id)}
                     isPending={pendingItemId === item.id}
+                    onNavigateToMessage={() => handleNavigateToMessage(item.channelId, item.messageId)}
                   />
                 ))}
                 {inboxData.hasMore && (

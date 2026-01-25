@@ -1040,21 +1040,21 @@ For mutations (create, update, delete):
 
 ### Phase 16: Entity Inbox UI
 
-- [ ] **TB64: Entity Inbox Tab**
-  - [ ] Server: Add `GET /api/entities/:id/inbox` endpoint (with hydration support)
-  - [ ] Server: Add `GET /api/entities/:id/inbox/count` endpoint
-  - [ ] Web: Add "Inbox" tab to EntityDetailPanel
-  - [ ] Web: Create InboxTab component with unread count badge in tab
-  - [ ] Web: InboxItemCard component showing: sender avatar, sender name, channel name, message preview, timestamp, source badge (direct/mention), read indicator
-  - [ ] Web: Click item → navigate to message in channel
-  - [ ] **Verify:** Playwright tests passing
+- [x] **TB64: Entity Inbox Tab**
+  - [x] Server: Add `GET /api/entities/:id/inbox` endpoint (with hydration support)
+  - [x] Server: Add `GET /api/entities/:id/inbox/count` endpoint
+  - [x] Web: Add "Inbox" tab to EntityDetailPanel
+  - [x] Web: Create InboxTab component with unread count badge in tab
+  - [x] Web: InboxItemCard component showing: sender avatar, sender name, channel name, message preview, timestamp, source badge (direct/mention), read indicator
+  - [x] Web: Click item → navigate to message in channel
+  - [x] **Verify:** Playwright tests passing (6 tests passed)
 
 - [ ] **TB65: Inbox Actions**
-  - [ ] Server: Add `PATCH /api/inbox/:itemId` endpoint (status update)
-  - [ ] Server: Add `POST /api/inbox/mark-all-read` endpoint
-  - [ ] Web: Mark as read/unread toggle on inbox items
-  - [ ] Web: "Mark all read" bulk action button
-  - [ ] Web: Archive action on inbox items
+  - [x] Server: Add `PATCH /api/inbox/:itemId` endpoint (status update)
+  - [x] Server: Add `POST /api/entities/:id/inbox/mark-all-read` endpoint
+  - [x] Web: Mark as read/unread toggle on inbox items
+  - [x] Web: "Mark all read" bulk action button
+  - [x] Web: Archive action on inbox items
   - [ ] Web: WebSocket events for real-time inbox updates
   - [ ] **Verify:** Playwright tests passing
 

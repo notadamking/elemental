@@ -117,6 +117,7 @@ const messagesRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     return {
       channel: typeof search.channel === 'string' ? search.channel : undefined,
+      message: typeof search.message === 'string' ? search.message : undefined,
       page: typeof search.page === 'number' ? search.page :
             typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
       limit: typeof search.limit === 'number' ? search.limit :

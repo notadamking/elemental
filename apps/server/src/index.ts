@@ -1009,7 +1009,7 @@ app.get('/api/entities/:id/events', async (c) => {
 // Inbox Endpoints
 // ============================================================================
 
-// GET /api/entities/:id/inbox - Get entity's inbox with pagination
+// GET /api/entities/:id/inbox - Get entity's inbox with pagination and optional hydration
 app.get('/api/entities/:id/inbox', async (c) => {
   try {
     const id = c.req.param('id') as EntityId;
@@ -1020,6 +1020,7 @@ app.get('/api/entities/:id/inbox', async (c) => {
     const offsetParam = url.searchParams.get('offset');
     const statusParam = url.searchParams.get('status');
     const sourceTypeParam = url.searchParams.get('sourceType');
+    const hydrateParam = url.searchParams.get('hydrate');
 
     // Verify entity exists
     const entity = await api.get(id as unknown as ElementId);
@@ -1047,8 +1048,53 @@ app.get('/api/entities/:id/inbox', async (c) => {
     // Get paginated inbox items
     const result = inboxService.getInboxPaginated(id, filter);
 
+    // Hydrate items if requested
+    let items = result.items;
+    if (hydrateParam === 'true') {
+      // Hydrate each inbox item with message, channel, and sender
+      items = await Promise.all(result.items.map(async (item) => {
+        try {
+          // Get message
+          const message = await api.get(item.messageId as unknown as ElementId) as Message | null;
+
+          // Get channel
+          const channel = await api.get(item.channelId as unknown as ElementId) as Channel | null;
+
+          // Get sender from message
+          let sender = null;
+          if (message?.sender) {
+            sender = await api.get(message.sender as unknown as ElementId);
+          }
+
+          // Get message content preview
+          let messagePreview = '';
+          if (message?.contentRef) {
+            const contentDoc = await api.get(message.contentRef as unknown as ElementId) as Document | null;
+            if (contentDoc?.content) {
+              // Truncate content for preview
+              messagePreview = contentDoc.content.substring(0, 150);
+              if (contentDoc.content.length > 150) {
+                messagePreview += '...';
+              }
+            }
+          }
+
+          return {
+            ...item,
+            message: message ? { ...message, contentPreview: messagePreview } : null,
+            channel: channel,
+            sender: sender,
+          };
+        } catch (err) {
+          // If hydration fails for an item, return it without hydration
+          console.warn(`[elemental] Failed to hydrate inbox item ${item.id}:`, err);
+          return item;
+        }
+      }));
+    }
+
     return c.json({
-      items: result.items,
+      items,
       total: result.total,
       offset: filter.offset ?? 0,
       limit: filter.limit ?? 25,

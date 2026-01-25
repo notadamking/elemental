@@ -1209,25 +1209,25 @@ export function MessagesPage() {
 
   const handleSelectChannel = (channelId: string) => {
     setSelectedChannelId(channelId);
-    navigate({ to: '/messages', search: { channel: channelId, page: currentPage, limit: pageSize } });
+    navigate({ to: '/messages', search: { channel: channelId, message: undefined, page: currentPage, limit: pageSize } });
   };
 
   const handlePageChange = (page: number) => {
-    navigate({ to: '/messages', search: { page, limit: pageSize, channel: selectedChannelId ?? undefined } });
+    navigate({ to: '/messages', search: { page, limit: pageSize, channel: selectedChannelId ?? undefined, message: undefined } });
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
-    navigate({ to: '/messages', search: { page: 1, limit: newPageSize, channel: selectedChannelId ?? undefined } });
+    navigate({ to: '/messages', search: { page: 1, limit: newPageSize, channel: selectedChannelId ?? undefined, message: undefined } });
   };
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    navigate({ to: '/messages', search: { page: 1, limit: pageSize, channel: selectedChannelId ?? undefined } });
+    navigate({ to: '/messages', search: { page: 1, limit: pageSize, channel: selectedChannelId ?? undefined, message: undefined } });
   };
 
   const handleChannelCreated = (channel: { id: string }) => {
     setSelectedChannelId(channel.id);
-    navigate({ to: '/messages', search: { channel: channel.id, page: currentPage, limit: pageSize } });
+    navigate({ to: '/messages', search: { channel: channel.id, message: undefined, page: currentPage, limit: pageSize } });
   };
 
   if (error) {

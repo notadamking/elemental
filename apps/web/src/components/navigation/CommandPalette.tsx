@@ -102,7 +102,7 @@ export function CommandPalette() {
       id: 'nav-messages',
       label: 'Messages',
       icon: MessageSquare,
-      action: () => navigate({ to: '/messages', search: { channel: undefined, page: 1, limit: 50 } }),
+      action: () => navigate({ to: '/messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } }),
       shortcut: 'G M',
       group: 'Navigation',
     },

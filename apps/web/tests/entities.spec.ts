@@ -1269,3 +1269,572 @@ test.describe('TB46: Entities Pagination', () => {
     await expect(page).toHaveURL(/limit=25/);
   });
 });
+
+test.describe('TB64: Entity Inbox Tab', () => {
+  test('GET /api/entities/:id/inbox endpoint is accessible', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get inbox for first entity
+    const firstEntity = entities[0];
+    const inboxResponse = await page.request.get(`/api/entities/${firstEntity.id}/inbox`);
+    expect(inboxResponse.ok()).toBe(true);
+    const inbox = await inboxResponse.json();
+    expect(Array.isArray(inbox.items)).toBe(true);
+    expect(typeof inbox.total).toBe('number');
+    expect(typeof inbox.offset).toBe('number');
+    expect(typeof inbox.limit).toBe('number');
+    expect(typeof inbox.hasMore).toBe('boolean');
+  });
+
+  test('GET /api/entities/:id/inbox/count endpoint is accessible', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get inbox count for first entity
+    const firstEntity = entities[0];
+    const countResponse = await page.request.get(`/api/entities/${firstEntity.id}/inbox/count`);
+    expect(countResponse.ok()).toBe(true);
+    const countData = await countResponse.json();
+    expect(typeof countData.count).toBe('number');
+  });
+
+  test('GET /api/entities/:id/inbox supports hydration parameter', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Get inbox with hydration for first entity
+    const firstEntity = entities[0];
+    const inboxResponse = await page.request.get(`/api/entities/${firstEntity.id}/inbox?hydrate=true`);
+    expect(inboxResponse.ok()).toBe(true);
+    const inbox = await inboxResponse.json();
+    expect(Array.isArray(inbox.items)).toBe(true);
+    // Hydrated items should have message, channel, sender (or null if not found)
+    // We just verify the endpoint works, actual hydration depends on inbox data
+  });
+
+  test('inbox tab is visible in entity detail panel', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+
+    // Detail panel should be visible with tabs
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entity-detail-tabs')).toBeVisible();
+
+    // Inbox tab should be visible
+    await expect(page.getByTestId('entity-tab-inbox')).toBeVisible();
+    await expect(page.getByTestId('entity-tab-inbox')).toContainText('Inbox');
+  });
+
+  test('clicking inbox tab shows inbox content', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click first entity card
+    const firstEntity = entities[0];
+    await page.getByTestId(`entity-card-${firstEntity.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+
+    // Inbox tab content should be visible
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('inbox shows empty state when no messages', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with no inbox items
+    let emptyInboxEntityId = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total === 0) {
+        emptyInboxEntityId = entity.id;
+        break;
+      }
+    }
+
+    if (!emptyInboxEntityId) {
+      // Create a new entity that will have no inbox
+      const testName = `InboxTest${Date.now()}`;
+      const createResponse = await page.request.post('/api/entities', {
+        data: { name: testName, entityType: 'agent' },
+      });
+      const newEntity = await createResponse.json();
+      emptyInboxEntityId = newEntity.id;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${emptyInboxEntityId}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+
+    // Should show empty state
+    await expect(page.getByTestId('inbox-empty')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('No messages in inbox')).toBeVisible();
+  });
+
+  test('inbox count badge appears when entity has unread messages', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with unread inbox items
+    let entityWithUnread = null;
+    for (const entity of entities) {
+      const countResponse = await page.request.get(`/api/entities/${entity.id}/inbox/count`);
+      const countData = await countResponse.json();
+      if (countData.count > 0) {
+        entityWithUnread = { id: entity.id, count: countData.count };
+        break;
+      }
+    }
+
+    if (!entityWithUnread) {
+      test.skip(); // No entities with unread inbox items
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithUnread.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Inbox tab should show count badge
+    await expect(page.getByTestId('inbox-count-badge')).toBeVisible();
+    await expect(page.getByTestId('inbox-count-badge')).toContainText(`${entityWithUnread.count}`);
+  });
+
+  test('inbox items list is displayed when entity has messages', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with inbox items
+    let entityWithInbox = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total > 0) {
+        entityWithInbox = { id: entity.id, inbox };
+        break;
+      }
+    }
+
+    if (!entityWithInbox) {
+      test.skip(); // No entities with inbox items
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithInbox.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // Inbox items list should be visible
+    await expect(page.getByTestId('inbox-items-list')).toBeVisible();
+
+    // First inbox item should be visible
+    const firstItem = entityWithInbox.inbox.items[0];
+    await expect(page.getByTestId(`inbox-item-${firstItem.id}`)).toBeVisible();
+  });
+
+  test('inbox item card shows sender name when hydrated', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with inbox items
+    let entityWithInbox = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox?hydrate=true`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total > 0 && inbox.items[0].sender) {
+        entityWithInbox = { id: entity.id, inbox };
+        break;
+      }
+    }
+
+    if (!entityWithInbox) {
+      test.skip(); // No entities with hydrated inbox items
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithInbox.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // First inbox item should show sender name
+    const firstItem = entityWithInbox.inbox.items[0];
+    await expect(page.getByTestId(`inbox-item-sender-${firstItem.id}`)).toBeVisible();
+    await expect(page.getByTestId(`inbox-item-sender-${firstItem.id}`)).toContainText(firstItem.sender.name);
+  });
+
+  test('inbox item card shows source type badge', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with inbox items
+    let entityWithInbox = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total > 0) {
+        entityWithInbox = { id: entity.id, inbox };
+        break;
+      }
+    }
+
+    if (!entityWithInbox) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithInbox.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // First inbox item should show source type badge
+    const firstItem = entityWithInbox.inbox.items[0];
+    await expect(page.getByTestId(`inbox-item-source-${firstItem.id}`)).toBeVisible();
+    // Should contain either "Direct" or "Mention"
+    const sourceText = await page.getByTestId(`inbox-item-source-${firstItem.id}`).textContent();
+    expect(sourceText?.includes('Direct') || sourceText?.includes('Mention')).toBe(true);
+  });
+
+  test('inbox item card shows timestamp', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with inbox items
+    let entityWithInbox = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total > 0) {
+        entityWithInbox = { id: entity.id, inbox };
+        break;
+      }
+    }
+
+    if (!entityWithInbox) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithInbox.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // First inbox item should show timestamp
+    const firstItem = entityWithInbox.inbox.items[0];
+    await expect(page.getByTestId(`inbox-item-time-${firstItem.id}`)).toBeVisible();
+  });
+
+  test('inbox item card has sender avatar', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with inbox items
+    let entityWithInbox = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total > 0) {
+        entityWithInbox = { id: entity.id, inbox };
+        break;
+      }
+    }
+
+    if (!entityWithInbox) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithInbox.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // First inbox item should have avatar
+    const firstItem = entityWithInbox.inbox.items[0];
+    await expect(page.getByTestId(`inbox-item-avatar-${firstItem.id}`)).toBeVisible();
+  });
+
+  test('mark as read button is visible on unread inbox items', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with unread inbox items
+    let entityWithUnread = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox?status=unread`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total > 0) {
+        entityWithUnread = { id: entity.id, inbox };
+        break;
+      }
+    }
+
+    if (!entityWithUnread) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithUnread.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // First unread inbox item should have mark as read button
+    const firstItem = entityWithUnread.inbox.items[0];
+    await expect(page.getByTestId(`inbox-mark-read-${firstItem.id}`)).toBeVisible();
+  });
+
+  test('mark all read button is visible when entity has unread messages', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with unread inbox items
+    let entityWithUnread = null;
+    for (const entity of entities) {
+      const countResponse = await page.request.get(`/api/entities/${entity.id}/inbox/count`);
+      const countData = await countResponse.json();
+      if (countData.count > 0) {
+        entityWithUnread = { id: entity.id, count: countData.count };
+        break;
+      }
+    }
+
+    if (!entityWithUnread) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithUnread.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // Mark all read button should be visible
+    await expect(page.getByTestId('inbox-mark-all-read')).toBeVisible();
+  });
+
+  test('inbox item is clickable', async ({ page }) => {
+    // Get entities from API
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items;
+
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Find an entity with inbox items
+    let entityWithInbox = null;
+    for (const entity of entities) {
+      const inboxResponse = await page.request.get(`/api/entities/${entity.id}/inbox`);
+      const inbox = await inboxResponse.json();
+      if (inbox.total > 0) {
+        entityWithInbox = { id: entity.id, inbox };
+        break;
+      }
+    }
+
+    if (!entityWithInbox) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/entities');
+    await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the entity card
+    await page.getByTestId(`entity-card-${entityWithInbox.id}`).click();
+    await expect(page.getByTestId('entity-detail-panel')).toBeVisible({ timeout: 10000 });
+
+    // Click inbox tab
+    await page.getByTestId('entity-tab-inbox').click();
+    await expect(page.getByTestId('entity-inbox-tab')).toBeVisible({ timeout: 10000 });
+
+    // Click the first inbox item
+    const firstItem = entityWithInbox.inbox.items[0];
+    await page.getByTestId(`inbox-item-${firstItem.id}`).click();
+
+    // Should navigate to messages page with channel selected
+    await expect(page).toHaveURL(/\/messages\?.*channel=/);
+  });
+});

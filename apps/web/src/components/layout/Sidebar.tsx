@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/tasks', icon: CheckSquare, label: 'Tasks', shortcut: 'G T', testId: 'nav-tasks', search: { page: 1, limit: 25 } },
   { to: '/plans', icon: Folder, label: 'Plans', shortcut: 'G P', testId: 'nav-plans' },
   { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W', testId: 'nav-workflows' },
-  { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M', testId: 'nav-messages', search: { channel: undefined, page: 1, limit: 50 } },
+  { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M', testId: 'nav-messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } },
   { to: '/documents', icon: FileText, label: 'Documents', shortcut: 'G D', testId: 'nav-documents', search: { selected: undefined, library: undefined, page: 1, limit: 25 } },
   { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E', testId: 'nav-entities', search: { selected: undefined, name: undefined, page: 1, limit: 25 } },
   { to: '/teams', icon: UsersRound, label: 'Teams', shortcut: 'G R', testId: 'nav-teams', search: { selected: undefined, page: 1, limit: 25 } },
