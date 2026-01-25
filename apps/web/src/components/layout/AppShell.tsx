@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Outlet } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
 import { CommandPalette } from '../navigation';
+import { ThemeToggle } from '../ui/ThemeToggle';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
 import { useGlobalKeyboardShortcuts, useKeyboardShortcut } from '../../hooks';
@@ -89,7 +90,7 @@ export function AppShell() {
   useKeyboardShortcut('Cmd+B', toggleSidebar, 'Toggle sidebar');
 
   return (
-    <div className="flex h-screen bg-gray-50" data-testid="app-shell">
+    <div className="flex h-screen bg-gray-50 dark:bg-[var(--color-bg)]" data-testid="app-shell">
       <CommandPalette />
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -98,13 +99,16 @@ export function AppShell() {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="flex items-center justify-between h-14 px-6 bg-white border-b border-gray-200">
+        <header className="flex items-center justify-between h-14 px-6 bg-white dark:bg-[var(--color-header-bg)] border-b border-gray-200 dark:border-[var(--color-header-border)]">
           <div>{/* Breadcrumbs will go here */}</div>
-          <ConnectionStatus wsState={connectionState} health={health} />
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <ConnectionStatus wsState={connectionState} health={health} />
+          </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 dark:bg-[var(--color-bg)]">
           <Outlet />
         </main>
       </div>

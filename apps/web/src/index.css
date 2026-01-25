@@ -4,11 +4,25 @@
 /* Import Tailwind */
 @import "tailwindcss";
 
-/* Apply theme colors to body */
+/* Apply theme colors to body with smooth 300ms transition */
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color var(--duration-slow) var(--ease-in-out), color var(--duration-slow) var(--ease-in-out);
+}
+
+/* Global theme transition for major layout elements */
+.theme-transition,
+header,
+aside,
+main,
+nav,
+.sidebar,
+[data-testid="sidebar"],
+[data-testid="app-shell"] > div {
+  transition: background-color var(--duration-slow) var(--ease-in-out),
+              border-color var(--duration-slow) var(--ease-in-out),
+              color var(--duration-slow) var(--ease-in-out);
 }
 
 /* Dark mode styles for main content areas */

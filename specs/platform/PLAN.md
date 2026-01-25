@@ -1123,15 +1123,15 @@ For mutations (create, update, delete):
   - [x] Web: Document tokens in `src/styles/README.md`
   - [x] **Verify:** Playwright tests passing (12 TB71 tests)
 
-- [ ] **TB72: Dark/Light Mode Overhaul**
-  - [ ] Web: Define complete color palette for both modes in `tokens.css`
-  - [ ] Web: Dark mode: deep charcoal backgrounds (#0D0D0D, #1A1A1A), subtle borders, muted colors
-  - [ ] Web: Light mode: clean whites and grays, crisp contrast, subtle shadows
-  - [ ] Web: Fix Settings page notification types horizontal padding issue
-  - [ ] Web: Add smooth transition between modes (300ms background color transition)
-  - [ ] Web: Ensure all components respect theme (check every component)
-  - [ ] Web: Add theme toggle to header (sun/moon icon) in addition to Settings
-  - [ ] **Verify:** Toggle dark/light mode, all UI elements update correctly with smooth transition; Playwright tests for both modes
+- [x] **TB72: Dark/Light Mode Overhaul**
+  - [x] Web: Define complete color palette for both modes in `tokens.css`
+  - [x] Web: Dark mode: deep charcoal backgrounds (#0D0D0D, #1A1A1A), subtle borders, muted colors
+  - [x] Web: Light mode: clean whites and grays, crisp contrast, subtle shadows
+  - [x] Web: Fix Settings page notification types horizontal padding issue
+  - [x] Web: Add smooth transition between modes (300ms background color transition)
+  - [x] Web: Ensure all components respect theme (AppShell, Sidebar, Header updated)
+  - [x] Web: Add theme toggle to header (sun/moon icon) in addition to Settings
+  - [x] **Verify:** Toggle dark/light mode, all UI elements update correctly with smooth transition; Playwright tests for both modes (17 TB72 tests)
 
 - [ ] **TB73: Core Component Styling**
   - [ ] Web: Restyle Button component (primary, secondary, ghost, danger variants)

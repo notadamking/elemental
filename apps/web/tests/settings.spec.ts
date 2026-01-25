@@ -207,7 +207,8 @@ test.describe('TB59: Settings Page - Theme', () => {
     await page.getByTestId('theme-option-dark').click();
 
     // Body should have dark background (via CSS variables)
-    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(17, 24, 39)');
+    // Using TB72's new deep charcoal color #0d0d0d = rgb(13, 13, 13)
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(13, 13, 13)');
   });
 
   test('light theme applies light styling to the page', async ({ page }) => {

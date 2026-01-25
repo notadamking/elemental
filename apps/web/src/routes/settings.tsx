@@ -1178,7 +1178,7 @@ function NotificationsSection() {
           Choose which events you want to be notified about.
         </p>
 
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700 px-4">
           <NotificationToggleRow
             icon={Users}
             label="Task assigned to me"

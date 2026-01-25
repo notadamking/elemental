@@ -9,6 +9,25 @@ import { DataPreloader } from './components/shared';
 import { getToastPosition, getToastDuration } from './routes/settings';
 import './index.css';
 
+// Initialize theme before React renders to prevent flash of wrong theme
+function initializeTheme() {
+  const stored = localStorage.getItem('settings.theme');
+  const theme = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const resolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+
+  if (resolvedTheme === 'dark') {
+    document.documentElement.classList.add('dark', 'theme-dark');
+    document.documentElement.classList.remove('theme-light');
+  } else {
+    document.documentElement.classList.add('theme-light');
+    document.documentElement.classList.remove('dark', 'theme-dark');
+  }
+}
+
+// Initialize theme immediately
+initializeTheme();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

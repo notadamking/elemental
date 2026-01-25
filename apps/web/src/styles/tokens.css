@@ -127,11 +127,34 @@
   --color-surface-active: #f3f4f6;
   --color-surface-selected: #eff6ff;
 
+  /* --- Sidebar specific (Light Mode) --- */
+  --color-sidebar-bg: #ffffff;
+  --color-sidebar-border: #e5e7eb;
+  --color-sidebar-item-hover: #f3f4f6;
+  --color-sidebar-item-active: #eff6ff;
+  --color-sidebar-item-text: #4b5563;
+  --color-sidebar-item-text-active: #2563eb;
+
+  /* --- Header specific (Light Mode) --- */
+  --color-header-bg: #ffffff;
+  --color-header-border: #e5e7eb;
+
+  /* --- Card specific (Light Mode) --- */
+  --color-card-bg: #ffffff;
+  --color-card-border: #e5e7eb;
+  --color-card-hover: #f9fafb;
+
+  /* --- Input specific (Light Mode) --- */
+  --color-input-bg: #ffffff;
+  --color-input-border: #d1d5db;
+  --color-input-focus-ring: rgba(59, 130, 246, 0.25);
+
   /* --- Semantic Aliases --- */
   --color-primary: var(--color-primary-500);
   --color-primary-hover: var(--color-primary-600);
   --color-primary-active: var(--color-primary-700);
   --color-primary-text: var(--color-primary-600);
+  --color-primary-muted: rgba(59, 130, 246, 0.1);
 
   --color-danger: var(--color-error-500);
   --color-danger-hover: var(--color-error-600);
@@ -148,37 +171,63 @@
 
 /* =============================================================================
    COLOR TOKENS - Dark Mode
+   Deep charcoal backgrounds (#0D0D0D, #1A1A1A), subtle borders, muted colors
    ============================================================================= */
 :root.dark,
 :root.theme-dark,
 .dark {
   /* --- Semantic Colors (Dark Mode) --- */
   --color-bg: #0d0d0d;
-  --color-bg-secondary: #1a1a1a;
-  --color-bg-tertiary: #262626;
+  --color-bg-secondary: #141414;
+  --color-bg-tertiary: #1a1a1a;
   --color-bg-elevated: #1f1f1f;
-  --color-bg-overlay: rgba(0, 0, 0, 0.75);
+  --color-bg-overlay: rgba(0, 0, 0, 0.8);
+  --color-bg-subtle: #111111;
 
-  --color-text: #f9fafb;
-  --color-text-secondary: #9ca3af;
-  --color-text-tertiary: #6b7280;
-  --color-text-muted: #4b5563;
-  --color-text-inverted: #111827;
+  --color-text: #f5f5f5;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+  --color-text-muted: #52525b;
+  --color-text-inverted: #0d0d0d;
 
-  --color-border: #2d2d2d;
-  --color-border-secondary: #3d3d3d;
+  --color-border: #262626;
+  --color-border-secondary: #303030;
   --color-border-focus: #60a5fa;
+  --color-border-subtle: #1f1f1f;
 
-  --color-surface: #1a1a1a;
-  --color-surface-hover: #262626;
-  --color-surface-active: #333333;
+  --color-surface: #161616;
+  --color-surface-hover: #1f1f1f;
+  --color-surface-active: #262626;
   --color-surface-selected: #1e3a5f;
+
+  /* --- Sidebar specific (Dark Mode) --- */
+  --color-sidebar-bg: #0d0d0d;
+  --color-sidebar-border: #1f1f1f;
+  --color-sidebar-item-hover: #1a1a1a;
+  --color-sidebar-item-active: #1e3a5f;
+  --color-sidebar-item-text: #a1a1aa;
+  --color-sidebar-item-text-active: #60a5fa;
+
+  /* --- Header specific (Dark Mode) --- */
+  --color-header-bg: #0d0d0d;
+  --color-header-border: #1f1f1f;
+
+  /* --- Card specific (Dark Mode) --- */
+  --color-card-bg: #141414;
+  --color-card-border: #262626;
+  --color-card-hover: #1a1a1a;
+
+  /* --- Input specific (Dark Mode) --- */
+  --color-input-bg: #141414;
+  --color-input-border: #303030;
+  --color-input-focus-ring: rgba(96, 165, 250, 0.25);
 
   /* --- Semantic Aliases (Dark Mode) --- */
   --color-primary: var(--color-primary-400);
   --color-primary-hover: var(--color-primary-300);
   --color-primary-active: var(--color-primary-200);
   --color-primary-text: var(--color-primary-400);
+  --color-primary-muted: rgba(96, 165, 250, 0.15);
 
   --color-danger: var(--color-error-400);
   --color-danger-hover: var(--color-error-300);

@@ -93,6 +93,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB63-settings-sync.md](./platform/TB63-settings-sync.md) | Settings page sync configuration (export, import, status) | settings, sync, export, import, JSONL, backup, version control |
 | [platform/deep-link-navigation.md](./platform/deep-link-navigation.md) | Deep-link navigation with auto-scroll and highlight | deep-link, navigation, URL, scroll, highlight, not-found |
 | [platform/TB71-design-tokens.md](./platform/TB71-design-tokens.md) | Design tokens foundation with CSS custom properties | design system, tokens, colors, spacing, typography, shadows, transitions |
+| [platform/TB72-dark-light-mode.md](./platform/TB72-dark-light-mode.md) | Dark/Light mode overhaul with deep charcoal dark mode | theme, dark mode, light mode, toggle, transitions, design tokens |
 
 ---
 

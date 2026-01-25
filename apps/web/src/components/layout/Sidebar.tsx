@@ -67,8 +67,8 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         className={`
           flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
           ${isActive
-            ? 'bg-blue-50 text-blue-600'
-            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            ? 'bg-blue-50 dark:bg-[var(--color-sidebar-item-active)] text-blue-600 dark:text-[var(--color-sidebar-item-text-active)]'
+            : 'text-gray-600 dark:text-[var(--color-sidebar-item-text)] hover:bg-gray-100 dark:hover:bg-[var(--color-sidebar-item-hover)] hover:text-gray-900 dark:hover:text-gray-200'
           }
           ${collapsed ? 'justify-center' : ''}
         `}
@@ -90,22 +90,22 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   return (
     <aside
       className={`
-        flex flex-col bg-white border-r border-gray-200 transition-all duration-200
+        flex flex-col bg-white dark:bg-[var(--color-sidebar-bg)] border-r border-gray-200 dark:border-[var(--color-sidebar-border)] transition-all duration-200
         ${collapsed ? 'w-16' : 'w-60'}
       `}
       data-testid="sidebar"
     >
       {/* Logo / Header */}
-      <div className="flex items-center justify-between h-14 px-4 border-b border-gray-200">
+      <div className="flex items-center justify-between h-14 px-4 border-b border-gray-200 dark:border-[var(--color-sidebar-border)]">
         {!collapsed && (
-          <span className="text-lg font-semibold text-gray-900">Elemental</span>
+          <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Elemental</span>
         )}
         {collapsed && (
-          <span className="text-lg font-semibold text-gray-900 mx-auto">E</span>
+          <span className="text-lg font-semibold text-gray-900 dark:text-gray-100 mx-auto">E</span>
         )}
         <button
           onClick={onToggle}
-          className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-[var(--color-sidebar-item-hover)] transition-colors"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? (
@@ -122,7 +122,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
       </nav>
 
       {/* Bottom Navigation */}
-      <div className="px-2 py-4 border-t border-gray-200 space-y-1">
+      <div className="px-2 py-4 border-t border-gray-200 dark:border-[var(--color-sidebar-border)] space-y-1">
         {BOTTOM_NAV_ITEMS.map(renderNavItem)}
       </div>
     </aside>
