@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -1492,6 +1492,63 @@ app.patch('/api/workflows/:id', async (c) => {
     }
     console.error('[elemental] Failed to update workflow:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update workflow' } }, 500);
+  }
+});
+
+// ============================================================================
+// Playbook Endpoints
+// ============================================================================
+
+// Default playbook search paths
+const PLAYBOOK_SEARCH_PATHS = [
+  resolve(PROJECT_ROOT, '.elemental/playbooks'),
+  resolve(PROJECT_ROOT, 'playbooks'),
+];
+
+app.get('/api/playbooks', async (c) => {
+  try {
+    const discovered = discoverPlaybookFiles(PLAYBOOK_SEARCH_PATHS, { recursive: true });
+
+    // Return basic info about discovered playbooks
+    const playbooks = discovered.map((p: DiscoveredPlaybook) => ({
+      name: p.name,
+      path: p.path,
+      directory: p.directory,
+    }));
+
+    return c.json(playbooks);
+  } catch (error) {
+    console.error('[elemental] Failed to list playbooks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list playbooks' } }, 500);
+  }
+});
+
+app.get('/api/playbooks/:name', async (c) => {
+  try {
+    const name = c.req.param('name');
+    const discovered = discoverPlaybookFiles(PLAYBOOK_SEARCH_PATHS, { recursive: true });
+
+    // Find the playbook by name
+    const found = discovered.find((p: DiscoveredPlaybook) => p.name.toLowerCase() === name.toLowerCase());
+
+    if (!found) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Playbook not found' } }, 404);
+    }
+
+    // Load the full playbook
+    const playbookInput = loadPlaybookFromFile(found.path, 'system' as EntityId);
+
+    // Create a Playbook object to return (without actually storing it)
+    const playbook = createPlaybook(playbookInput);
+
+    return c.json({
+      ...playbook,
+      filePath: found.path,
+      directory: found.directory,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get playbook:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get playbook' } }, 500);
   }
 });
 

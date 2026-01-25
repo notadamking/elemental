@@ -689,10 +689,15 @@ For mutations (create, update, delete):
   - [x] Web: Add TaskStatusSummary, WorkflowTaskList components
   - [x] **Verify:** Pour workflow from playbook (Playwright tests passing - 28 tests)
 
-- [ ] **TB26: Playbook Browser**
-  - [ ] Web: PlaybookPicker component
-  - [ ] Web: Variable input form
-  - [ ] **Verify:** Browse and select playbooks
+- [x] **TB26: Playbook Browser**
+  - [x] Server: Add `GET /api/playbooks` endpoint (discover playbooks from filesystem)
+  - [x] Server: Add `GET /api/playbooks/:name` endpoint (load full playbook details)
+  - [x] Web: Create PlaybookPicker component with dropdown selection
+  - [x] Web: Add mode toggle (Quick Create vs From Playbook)
+  - [x] Web: Create VariableInputForm component (string, number, boolean, enum types)
+  - [x] Web: Display playbook info and steps preview
+  - [x] Web: Integrate with PourWorkflowModal
+  - [x] **Verify:** Browse and select playbooks (Playwright tests passing - 7 passed, 6 skipped due to no playbooks)
 
 ---
 
