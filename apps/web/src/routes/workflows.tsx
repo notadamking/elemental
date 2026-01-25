@@ -10,8 +10,12 @@
  * - Burn/Squash workflow buttons (TB48)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearch, useNavigate } from '@tanstack/react-router';
+import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { useAllWorkflows } from '../api/hooks/useAllElements';
+import { useDeepLink } from '../hooks/useDeepLink';
 import {
   GitBranch,
   Clock,
@@ -1534,11 +1538,71 @@ function PourWorkflowModal({
  * Main Workflows Page Component
  */
 export function WorkflowsPage() {
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const search = useSearch({ from: '/workflows' });
+
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(search.selected ?? null);
   const [isPourModalOpen, setIsPourModalOpen] = useState(false);
 
-  const { data: workflows = [], isLoading, error } = useWorkflows(selectedStatus ?? undefined);
+  // Use upfront-loaded data (TB67)
+  const { data: allWorkflows, isLoading: isWorkflowsLoading } = useAllWorkflows();
+
+  // Also keep the server-side query (fallback)
+  const { data: serverWorkflows = [], isLoading: isServerLoading, error } = useWorkflows(selectedStatus ?? undefined);
+
+  // Use preloaded data if available
+  const workflows = useMemo(() => {
+    if (allWorkflows && allWorkflows.length > 0) {
+      // Cast to HydratedWorkflow (preloaded data may have optional properties)
+      const workflowsTyped = allWorkflows as unknown as HydratedWorkflow[];
+      if (selectedStatus) {
+        return workflowsTyped.filter(w => w.status === selectedStatus);
+      }
+      return workflowsTyped;
+    }
+    return serverWorkflows;
+  }, [allWorkflows, serverWorkflows, selectedStatus]);
+
+  const isLoading = isWorkflowsLoading || isServerLoading;
+
+  // Deep-link navigation (TB70)
+  const deepLink = useDeepLink({
+    data: allWorkflows as HydratedWorkflow[] | undefined,
+    selectedId: search.selected,
+    currentPage: 1,
+    pageSize: 1000, // Workflows don't have pagination
+    getId: (workflow) => workflow.id,
+    routePath: '/workflows',
+    rowTestIdPrefix: 'workflow-item-',
+    autoNavigate: false,
+    highlightDelay: 200,
+  });
+
+  // Sync with URL on mount
+  useEffect(() => {
+    if (search.selected && search.selected !== selectedWorkflowId) {
+      setSelectedWorkflowId(search.selected);
+    }
+    if (search.status && search.status !== selectedStatus) {
+      setSelectedStatus(search.status);
+    }
+  }, [search.selected, search.status]);
+
+  const handleWorkflowClick = (workflowId: string) => {
+    setSelectedWorkflowId(workflowId);
+    navigate({ to: '/workflows', search: { selected: workflowId, status: selectedStatus ?? undefined } });
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedWorkflowId(null);
+    navigate({ to: '/workflows', search: { selected: undefined, status: selectedStatus ?? undefined } });
+  };
+
+  const handleStatusFilterChange = (status: string | null) => {
+    setSelectedStatus(status);
+    navigate({ to: '/workflows', search: { selected: selectedWorkflowId ?? undefined, status: status ?? undefined } });
+  };
 
   return (
     <div data-testid="workflows-page" className="h-full flex flex-col">
@@ -1569,7 +1633,7 @@ export function WorkflowsPage() {
 
         <StatusFilter
           selectedStatus={selectedStatus}
-          onStatusChange={setSelectedStatus}
+          onStatusChange={handleStatusFilterChange}
         />
       </div>
 
@@ -1617,20 +1681,30 @@ export function WorkflowsPage() {
                   key={workflow.id}
                   workflow={workflow}
                   isSelected={selectedWorkflowId === workflow.id}
-                  onClick={setSelectedWorkflowId}
+                  onClick={handleWorkflowClick}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Workflow Detail Panel */}
+        {/* Workflow Detail Panel or Not Found (TB70) */}
         {selectedWorkflowId && (
           <div className="w-96 flex-shrink-0">
-            <WorkflowDetailPanel
-              workflowId={selectedWorkflowId}
-              onClose={() => setSelectedWorkflowId(null)}
-            />
+            {deepLink.notFound ? (
+              <ElementNotFound
+                elementType="Workflow"
+                elementId={selectedWorkflowId}
+                backRoute="/workflows"
+                backLabel="Back to Workflows"
+                onDismiss={handleCloseDetail}
+              />
+            ) : (
+              <WorkflowDetailPanel
+                workflowId={selectedWorkflowId}
+                onClose={handleCloseDetail}
+              />
+            )}
           </div>
         )}
       </div>

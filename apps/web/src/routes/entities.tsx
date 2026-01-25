@@ -10,8 +10,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
+import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
 import { usePaginatedData, createEntityFilter } from '../hooks/usePaginatedData';
+import { useDeepLink } from '../hooks/useDeepLink';
 
 interface Entity {
   id: string;
@@ -90,7 +92,8 @@ interface PaginatedResult<T> {
 
 const DEFAULT_PAGE_SIZE = 25;
 
-function useEntities(
+// Reserved for future server-side pagination if needed
+function _useEntities(
   page: number,
   pageSize: number = DEFAULT_PAGE_SIZE,
   typeFilter: EntityTypeFilter = 'all',
@@ -122,6 +125,7 @@ function useEntities(
     },
   });
 }
+void _useEntities; // Suppress unused warning
 
 function useEntity(id: string | null) {
   return useQuery<Entity>({
@@ -1942,6 +1946,19 @@ export function EntitiesPage() {
     sort: { field: 'updatedAt', direction: 'desc' },
   });
 
+  // Deep-link navigation (TB70)
+  const deepLink = useDeepLink({
+    data: allEntities as Entity[] | undefined,
+    selectedId: search.selected,
+    currentPage,
+    pageSize,
+    getId: (entity) => entity.id,
+    routePath: '/entities',
+    rowTestIdPrefix: 'entity-card-',
+    autoNavigate: true,
+    highlightDelay: 200,
+  });
+
   // Look up entity by name if name param is provided
   const { data: entityByName } = useEntityByName(search.name ?? null);
 
@@ -2129,10 +2146,20 @@ export function EntitiesPage() {
         )}
       </div>
 
-      {/* Entity Detail Panel */}
+      {/* Entity Detail Panel or Not Found (TB70) */}
       {selectedEntityId && (
         <div className="w-1/2 border-l border-gray-200" data-testid="entity-detail-container">
-          <EntityDetailPanel entityId={selectedEntityId} onClose={handleCloseDetail} />
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Entity"
+              elementId={selectedEntityId}
+              backRoute="/entities"
+              backLabel="Back to Entities"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <EntityDetailPanel entityId={selectedEntityId} onClose={handleCloseDetail} />
+          )}
         </div>
       )}
     </div>

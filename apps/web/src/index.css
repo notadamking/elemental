@@ -161,3 +161,61 @@ body {
 .bubble-menu {
   animation: bubble-menu-fade-in 0.15s ease-out;
 }
+
+/* Deep-link highlight animation (TB70) */
+@keyframes deep-link-flash {
+  0% {
+    background-color: rgba(250, 204, 21, 0);
+  }
+  20% {
+    background-color: rgba(250, 204, 21, 0.4);
+  }
+  100% {
+    background-color: rgba(250, 204, 21, 0);
+  }
+}
+
+.deep-link-highlight {
+  animation: deep-link-flash 2s ease-out;
+  position: relative;
+}
+
+/* Yellow ring indicator for highlight */
+.deep-link-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #fbbf24;
+  border-radius: 4px;
+  pointer-events: none;
+  animation: deep-link-ring-fade 2s ease-out;
+}
+
+@keyframes deep-link-ring-fade {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Dark mode adjustments for deep-link highlight */
+.dark .deep-link-highlight {
+  animation: deep-link-flash-dark 2s ease-out;
+}
+
+@keyframes deep-link-flash-dark {
+  0% {
+    background-color: rgba(250, 204, 21, 0);
+  }
+  20% {
+    background-color: rgba(250, 204, 21, 0.3);
+  }
+  100% {
+    background-color: rgba(250, 204, 21, 0);
+  }
+}

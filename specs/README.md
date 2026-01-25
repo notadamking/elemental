@@ -91,6 +91,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB61-settings-defaults.md](./platform/TB61-settings-defaults.md) | Settings page default views (tasks view, dashboard lens, sort order) | settings, defaults, preferences, localStorage, tasks, dashboard |
 | [platform/TB62-settings-notifications.md](./platform/TB62-settings-notifications.md) | Settings page notification preferences (types, browser, toast settings) | settings, notifications, toast, sonner, browser notifications, preferences |
 | [platform/TB63-settings-sync.md](./platform/TB63-settings-sync.md) | Settings page sync configuration (export, import, status) | settings, sync, export, import, JSONL, backup, version control |
+| [platform/deep-link-navigation.md](./platform/deep-link-navigation.md) | Deep-link navigation with auto-scroll and highlight | deep-link, navigation, URL, scroll, highlight, not-found |
 
 ---
 

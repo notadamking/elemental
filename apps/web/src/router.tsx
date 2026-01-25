@@ -102,12 +102,24 @@ const plansRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/plans',
   component: PlansPage,
+  validateSearch: (search: Record<string, unknown>): { selected?: string; status?: string } => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+      status: typeof search.status === 'string' ? search.status : undefined,
+    };
+  },
 });
 
 const workflowsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/workflows',
   component: WorkflowsPage,
+  validateSearch: (search: Record<string, unknown>): { selected?: string; status?: string } => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+      status: typeof search.status === 'string' ? search.status : undefined,
+    };
+  },
 });
 
 const messagesRoute = createRoute({

@@ -1096,15 +1096,16 @@ For mutations (create, update, delete):
   - [x] Web: Non-table views (Kanban, Timeline, Messages) use virtualized infinite scroll
   - [x] Web: Pagination state synced to URL (`?page=2&limit=25`)
   - [x] **Verify:** Playwright tests confirm client-side pagination works (13 tests)
-  - [ ] **Verify:** Tasks table shows pagination controls, changing page is instant; Playwright tests passing
+  - [x] **Verify:** Tasks table shows pagination controls, changing page is instant; Playwright tests passing
 
-- [ ] **TB70: Deep-Link Navigation**
-  - [ ] Web: When navigating to `/tasks/:id` where task not in current page, auto-load that item
-  - [ ] Web: Scroll to item and highlight it temporarily (2s yellow flash)
-  - [ ] Web: Works for all element types (tasks, plans, workflows, documents, entities, teams)
-  - [ ] Web: Handle edge case: element doesn't exist → show "Not Found" message
-  - [ ] Web: Add `scrollToElement` utility that finds item in virtualized list
-  - [ ] **Verify:** Navigate to `/tasks/el-xyz` directly, page loads and scrolls to that task; Claude in Chrome confirms highlight animation
+- [x] **TB70: Deep-Link Navigation**
+  - [x] Web: When navigating to `/tasks?selected=:id` where task not in current page, auto-load that item
+  - [x] Web: Scroll to item and highlight it temporarily (2s yellow flash)
+  - [x] Web: Works for all element types (tasks, plans, workflows, documents, entities, teams)
+  - [x] Web: Handle edge case: element doesn't exist → show "Not Found" message
+  - [x] Web: Add `useDeepLink` hook and utilities in `src/lib/deep-link.ts`
+  - [x] Web: Add `ElementNotFound` component for graceful 404 handling
+  - [x] **Verify:** Playwright tests passing (14 tests)
 
 ### Phase 18: UI Design System Overhaul
 

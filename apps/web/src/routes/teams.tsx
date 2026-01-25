@@ -10,8 +10,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2, Pencil, Save, Trash2, UserMinus } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
+import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useAllTeams } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTeamFilter } from '../hooks/usePaginatedData';
+import { useDeepLink } from '../hooks/useDeepLink';
 
 interface Team {
   id: string;
@@ -45,7 +47,8 @@ interface PaginatedResult<T> {
 
 const DEFAULT_PAGE_SIZE = 25;
 
-function useTeams(
+// Reserved for future server-side pagination if needed
+function _useTeams(
   page: number,
   pageSize: number = DEFAULT_PAGE_SIZE,
   searchQuery: string = ''
@@ -72,6 +75,7 @@ function useTeams(
     },
   });
 }
+void _useTeams; // Suppress unused warning
 
 function useTeam(id: string | null) {
   return useQuery<Team>({
@@ -1153,6 +1157,19 @@ export function TeamsPage() {
     sort: { field: 'updatedAt', direction: 'desc' },
   });
 
+  // Deep-link navigation (TB70)
+  const deepLink = useDeepLink({
+    data: allTeams as Team[] | undefined,
+    selectedId: search.selected,
+    currentPage,
+    pageSize,
+    getId: (team) => team.id,
+    routePath: '/teams',
+    rowTestIdPrefix: 'team-card-',
+    autoNavigate: true,
+    highlightDelay: 200,
+  });
+
   // Extract items from client-side paginated data (TB69)
   const teamItems = paginatedData.items;
   const totalItems = paginatedData.filteredTotal;
@@ -1308,10 +1325,20 @@ export function TeamsPage() {
         )}
       </div>
 
-      {/* Team Detail Panel */}
+      {/* Team Detail Panel or Not Found (TB70) */}
       {selectedTeamId && (
         <div className="w-1/2 border-l border-gray-200" data-testid="team-detail-container">
-          <TeamDetailPanel teamId={selectedTeamId} onClose={handleCloseDetail} onDeleted={() => setSelectedTeamId(null)} />
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Team"
+              elementId={selectedTeamId}
+              backRoute="/teams"
+              backLabel="Back to Teams"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <TeamDetailPanel teamId={selectedTeamId} onClose={handleCloseDetail} onDeleted={() => setSelectedTeamId(null)} />
+          )}
         </div>
       )}
     </div>

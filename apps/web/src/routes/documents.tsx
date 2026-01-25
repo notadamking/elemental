@@ -12,6 +12,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
+import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { useDeepLink } from '../hooks/useDeepLink';
 import {
   Library,
   FileText,
@@ -48,7 +50,7 @@ import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
 import { CreateLibraryModal } from '../components/document/CreateLibraryModal';
 import { useAllDocuments as useAllDocumentsPreloaded } from '../api/hooks/useAllElements';
-import { filterData, sortData, createSimpleDocumentSearchFilter } from '../hooks/usePaginatedData';
+import { sortData, createSimpleDocumentSearchFilter } from '../hooks/usePaginatedData';
 
 // ============================================================================
 // Types
@@ -182,7 +184,8 @@ interface PaginatedResult<T> {
 
 const DEFAULT_PAGE_SIZE = 25;
 
-function useDocuments(
+// Reserved for future server-side pagination if needed
+function _useDocuments(
   page: number = 1,
   pageSize: number = DEFAULT_PAGE_SIZE,
   searchQuery: string = ''
@@ -211,6 +214,7 @@ function useDocuments(
     },
   });
 }
+void _useDocuments; // Suppress unused warning
 
 function useDocument(documentId: string | null) {
   return useQuery<DocumentType>({
@@ -2053,6 +2057,22 @@ export function DocumentsPage() {
   const [isDocumentExpanded, setIsDocumentExpanded] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
+  // Use upfront-loaded data for deep-link navigation (TB70)
+  const { data: allDocuments } = useAllDocumentsPreloaded();
+
+  // Deep-link navigation (TB70)
+  const deepLink = useDeepLink({
+    data: allDocuments as DocumentType[] | undefined,
+    selectedId: search.selected,
+    currentPage: 1,
+    pageSize: 1000, // Documents don't use pagination in this view
+    getId: (doc) => doc.id,
+    routePath: '/documents',
+    rowTestIdPrefix: 'document-item-',
+    autoNavigate: false, // Documents don't use pagination pages
+    highlightDelay: 200,
+  });
+
   // Sync state from URL on mount and when search changes
   useEffect(() => {
     if (search.selected && search.selected !== selectedDocumentId) {
@@ -2224,18 +2244,28 @@ export function DocumentsPage() {
           </div>
         )}
 
-        {/* Document Detail Panel */}
+        {/* Document Detail Panel or Not Found (TB70) */}
         {selectedDocumentId && (
           <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} flex-shrink-0 overflow-hidden`}>
-            <DocumentDetailPanel
-              documentId={selectedDocumentId}
-              onClose={handleCloseDocument}
-              isExpanded={isDocumentExpanded}
-              onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
-              onDocumentCloned={handleDocumentCreated}
-              libraryId={selectedLibraryId}
-              onNavigateToDocument={handleSelectDocument}
-            />
+            {deepLink.notFound ? (
+              <ElementNotFound
+                elementType="Document"
+                elementId={selectedDocumentId}
+                backRoute="/documents"
+                backLabel="Back to Documents"
+                onDismiss={handleCloseDocument}
+              />
+            ) : (
+              <DocumentDetailPanel
+                documentId={selectedDocumentId}
+                onClose={handleCloseDocument}
+                isExpanded={isDocumentExpanded}
+                onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
+                onDocumentCloned={handleDocumentCreated}
+                libraryId={selectedLibraryId}
+                onNavigateToDocument={handleSelectDocument}
+              />
+            )}
           </div>
         )}
       </div>

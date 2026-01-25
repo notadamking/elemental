@@ -7,8 +7,10 @@ import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
+import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useAllTasks } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortConfig } from '../hooks/usePaginatedData';
+import { useDeepLink } from '../hooks/useDeepLink';
 
 const VIEW_MODE_STORAGE_KEY = 'tasks.viewMode';
 
@@ -923,6 +925,19 @@ export function TasksPage() {
     sortCompareFn: taskSortCompareFn,
   });
 
+  // Deep-link navigation (TB70)
+  const deepLink = useDeepLink({
+    data: allTasks as Task[] | undefined,
+    selectedId: selectedFromUrl,
+    currentPage,
+    pageSize,
+    getId: (task) => task.id,
+    routePath: '/tasks',
+    rowTestIdPrefix: 'task-row-',
+    autoNavigate: true,
+    highlightDelay: 200,
+  });
+
   // Sync selectedTaskId with URL parameter
   useEffect(() => {
     if (selectedFromUrl) {
@@ -983,12 +998,17 @@ export function TasksPage() {
   const totalPages = paginatedData.totalPages;
   const isLoading = isTasksLoading || paginatedData.isLoading;
 
+  // Handle task click - update URL with selected task (TB70)
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
+    // Update URL with selected task for deep-linking
+    navigate({ to: '/tasks', search: { page: currentPage, limit: pageSize, selected: taskId } });
   };
 
   const handleCloseDetail = () => {
     setSelectedTaskId(null);
+    // Remove selected from URL
+    navigate({ to: '/tasks', search: { page: currentPage, limit: pageSize } });
   };
 
   const handleCreateSuccess = (task: { id: string }) => {
@@ -1172,10 +1192,20 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Task Detail Panel */}
+      {/* Task Detail Panel or Not Found (TB70) */}
       {selectedTaskId && (
         <div className="w-1/2 border-l border-gray-200" data-testid="task-detail-container">
-          <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Task"
+              elementId={selectedTaskId}
+              backRoute="/tasks"
+              backLabel="Back to Tasks"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
+          )}
         </div>
       )}
     </div>

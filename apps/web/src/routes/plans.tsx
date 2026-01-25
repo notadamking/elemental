@@ -11,8 +11,12 @@
  * - Status transition buttons (TB47)
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearch, useNavigate } from '@tanstack/react-router';
+import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { useAllPlans } from '../api/hooks/useAllElements';
+import { useDeepLink } from '../hooks/useDeepLink';
 import {
   ClipboardList,
   Clock,
@@ -1113,10 +1117,69 @@ function PlanDetailPanel({
  * Main Plans Page Component
  */
 export function PlansPage() {
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const search = useSearch({ from: '/plans' });
 
-  const { data: plans = [], isLoading, error } = usePlans(selectedStatus ?? undefined);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(search.selected ?? null);
+
+  // Use upfront-loaded data (TB67)
+  const { data: allPlans, isLoading: isPlansLoading } = useAllPlans();
+
+  // Also keep the server-side query for now (fallback)
+  const { data: serverPlans = [], isLoading: isServerLoading, error } = usePlans(selectedStatus ?? undefined);
+
+  // Use preloaded data if available, otherwise fall back to server query
+  const plans = useMemo(() => {
+    if (allPlans && allPlans.length > 0) {
+      // Client-side filtering by status
+      if (selectedStatus) {
+        return (allPlans as HydratedPlan[]).filter(p => p.status === selectedStatus);
+      }
+      return allPlans as HydratedPlan[];
+    }
+    return serverPlans;
+  }, [allPlans, serverPlans, selectedStatus]);
+
+  const isLoading = isPlansLoading || isServerLoading;
+
+  // Deep-link navigation (TB70)
+  const deepLink = useDeepLink({
+    data: allPlans as HydratedPlan[] | undefined,
+    selectedId: search.selected,
+    currentPage: 1,
+    pageSize: 1000, // Plans don't have pagination
+    getId: (plan) => plan.id,
+    routePath: '/plans',
+    rowTestIdPrefix: 'plan-item-',
+    autoNavigate: false, // No pagination
+    highlightDelay: 200,
+  });
+
+  // Sync with URL on mount
+  useEffect(() => {
+    if (search.selected && search.selected !== selectedPlanId) {
+      setSelectedPlanId(search.selected);
+    }
+    if (search.status && search.status !== selectedStatus) {
+      setSelectedStatus(search.status);
+    }
+  }, [search.selected, search.status]);
+
+  const handlePlanClick = (planId: string) => {
+    setSelectedPlanId(planId);
+    navigate({ to: '/plans', search: { selected: planId, status: selectedStatus ?? undefined } });
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedPlanId(null);
+    navigate({ to: '/plans', search: { selected: undefined, status: selectedStatus ?? undefined } });
+  };
+
+  const handleStatusFilterChange = (status: string | null) => {
+    setSelectedStatus(status);
+    navigate({ to: '/plans', search: { selected: selectedPlanId ?? undefined, status: status ?? undefined } });
+  };
 
   return (
     <div data-testid="plans-page" className="h-full flex flex-col">
@@ -1139,7 +1202,7 @@ export function PlansPage() {
 
         <StatusFilter
           selectedStatus={selectedStatus}
-          onStatusChange={setSelectedStatus}
+          onStatusChange={handleStatusFilterChange}
         />
       </div>
 
@@ -1187,20 +1250,30 @@ export function PlansPage() {
                   key={plan.id}
                   plan={plan}
                   isSelected={selectedPlanId === plan.id}
-                  onClick={setSelectedPlanId}
+                  onClick={handlePlanClick}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Plan Detail Panel */}
+        {/* Plan Detail Panel or Not Found (TB70) */}
         {selectedPlanId && (
           <div className="w-96 flex-shrink-0">
-            <PlanDetailPanel
-              planId={selectedPlanId}
-              onClose={() => setSelectedPlanId(null)}
-            />
+            {deepLink.notFound ? (
+              <ElementNotFound
+                elementType="Plan"
+                elementId={selectedPlanId}
+                backRoute="/plans"
+                backLabel="Back to Plans"
+                onDismiss={handleCloseDetail}
+              />
+            ) : (
+              <PlanDetailPanel
+                planId={selectedPlanId}
+                onClose={handleCloseDetail}
+              />
+            )}
           </div>
         )}
       </div>

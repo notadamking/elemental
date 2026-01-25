@@ -142,7 +142,8 @@ interface PaginatedResult<T> {
 
 const DEFAULT_CHANNEL_PAGE_SIZE = 50;
 
-function useChannels(
+// Reserved for future server-side pagination if needed
+function _useChannels(
   page: number = 1,
   pageSize: number = DEFAULT_CHANNEL_PAGE_SIZE,
   searchQuery: string = ''
@@ -171,6 +172,7 @@ function useChannels(
     },
   });
 }
+void _useChannels; // Suppress unused warning
 
 function useChannel(channelId: string | null) {
   return useQuery<Channel>({
