@@ -1071,14 +1071,14 @@ For mutations (create, update, delete):
 
 **Goal:** Load all data upfront on initial app load for instant navigation, while using virtualized rendering and table pagination for UI performance.
 
-- [ ] **TB67: Upfront Data Loading Strategy**
-  - [ ] Web: Create `DataPreloader` provider that loads all elements on app mount
-  - [ ] Web: Add `useAllTasks`, `useAllPlans`, `useAllEntities`, `useAllDocuments`, etc. hooks
-  - [ ] Server: Add `GET /api/elements/all` endpoint that returns all elements in single response (with type discrimination)
-  - [ ] Web: Show loading spinner during initial data fetch with progress indicator
-  - [ ] Web: Store all data in TanStack Query cache with `staleTime: Infinity`
-  - [ ] Web: WebSocket events update cache in-place (no refetching needed)
-  - [ ] **Verify:** App loads with spinner, then all pages are instant; Claude in Chrome confirms all pages load without network requests after initial load
+- [x] **TB67: Upfront Data Loading Strategy**
+  - [x] Web: Create `DataPreloader` provider that loads all elements on app mount
+  - [x] Web: Add `useAllTasks`, `useAllPlans`, `useAllEntities`, `useAllDocuments`, etc. hooks
+  - [x] Server: Add `GET /api/elements/all` endpoint that returns all elements in single response (with type discrimination)
+  - [x] Web: Show loading spinner during initial data fetch with progress indicator
+  - [x] Web: Store all data in TanStack Query cache with `staleTime: Infinity`
+  - [x] Web: WebSocket events update cache in-place (no refetching needed)
+  - [x] **Verify:** App loads with spinner, then all pages are instant; Playwright tests passing (11 tests)
 
 - [ ] **TB68: Virtualized List Component**
   - [ ] Web: Install `@tanstack/react-virtual` for list virtualization

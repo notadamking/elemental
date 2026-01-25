@@ -106,6 +106,75 @@ app.get('/api/stats', async (c) => {
 });
 
 // ============================================================================
+// Elements Endpoint - Bulk Data Loading (TB67)
+// ============================================================================
+
+/**
+ * GET /api/elements/all
+ * Returns all elements in a single response, grouped by type.
+ * Used for upfront data loading strategy (TB67).
+ *
+ * Query params:
+ * - types: Comma-separated list of types to include (default: all types)
+ * - includeDeleted: Include soft-deleted elements (default: false)
+ */
+app.get('/api/elements/all', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const typesParam = url.searchParams.get('types');
+    const includeDeleted = url.searchParams.get('includeDeleted') === 'true';
+
+    // Define all element types we want to load
+    const allTypes = ['task', 'plan', 'workflow', 'entity', 'document', 'channel', 'message', 'team', 'library'] as const;
+    const requestedTypes = typesParam ? typesParam.split(',').filter(t => allTypes.includes(t as typeof allTypes[number])) : [...allTypes];
+
+    // Load each type in parallel for performance
+    const results = await Promise.all(
+      requestedTypes.map(async (type) => {
+        const filter: Record<string, unknown> = {
+          type,
+          limit: 10000, // High limit to get all elements
+          orderBy: 'updated_at',
+          orderDir: 'desc',
+        };
+
+        if (!includeDeleted) {
+          // Only include non-deleted elements
+          filter.deleted = false;
+        }
+
+        try {
+          const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
+          return { type, items: result.items, total: result.total };
+        } catch (err) {
+          console.error(`[elemental] Failed to load ${type} elements:`, err);
+          return { type, items: [], total: 0 };
+        }
+      })
+    );
+
+    // Organize results by type
+    const data: Record<string, { items: unknown[]; total: number }> = {};
+    let totalElements = 0;
+
+    for (const result of results) {
+      data[result.type] = { items: result.items, total: result.total };
+      totalElements += result.total;
+    }
+
+    return c.json({
+      data,
+      totalElements,
+      types: requestedTypes,
+      loadedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get all elements:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get all elements' } }, 500);
+  }
+});
+
+// ============================================================================
 // Tasks Endpoints
 // ============================================================================
 

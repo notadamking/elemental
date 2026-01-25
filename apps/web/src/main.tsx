@@ -5,6 +5,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { Toaster } from 'sonner';
 import { router } from './router';
 import { TooltipProvider } from './components/ui/Tooltip';
+import { DataPreloader } from './components/shared';
 import { getToastPosition, getToastDuration } from './routes/settings';
 import './index.css';
 
@@ -61,8 +62,10 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <RouterProvider router={router} />
-        <DynamicToaster />
+        <DataPreloader>
+          <RouterProvider router={router} />
+          <DynamicToaster />
+        </DataPreloader>
       </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>
