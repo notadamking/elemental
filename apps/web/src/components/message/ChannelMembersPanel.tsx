@@ -220,13 +220,23 @@ function MemberRow({
   onRemove: () => void;
   isRemoving: boolean;
 }) {
+  const [showConfirm, setShowConfirm] = useState(false);
   const entityType = 'entityType' in member ? member.entityType : undefined;
   const isNotFound = 'notFound' in member && member.notFound;
+
+  const handleRemoveClick = () => {
+    setShowConfirm(true);
+  };
+
+  const handleConfirmRemove = () => {
+    setShowConfirm(false);
+    onRemove();
+  };
 
   return (
     <div
       data-testid={`member-${member.id}`}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group"
+      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group relative"
     >
       <MemberAvatar name={member.name} entityType={entityType} />
       <div className="flex-1 min-w-0">
@@ -249,9 +259,9 @@ function MemberRow({
           <span className="text-xs text-gray-400">Entity not found</span>
         )}
       </div>
-      {canModify && canRemove && (
+      {canModify && canRemove && !showConfirm && (
         <button
-          onClick={onRemove}
+          onClick={handleRemoveClick}
           disabled={isRemoving}
           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
           title="Remove member"
@@ -263,6 +273,27 @@ function MemberRow({
             <UserMinus className="w-4 h-4" />
           )}
         </button>
+      )}
+
+      {/* Confirmation buttons */}
+      {showConfirm && (
+        <div className="flex items-center gap-1" data-testid={`confirm-remove-${member.id}`}>
+          <button
+            onClick={handleConfirmRemove}
+            disabled={isRemoving}
+            className="px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded disabled:opacity-50"
+            data-testid={`confirm-remove-yes-${member.id}`}
+          >
+            {isRemoving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Remove'}
+          </button>
+          <button
+            onClick={() => setShowConfirm(false)}
+            className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded"
+            data-testid={`confirm-remove-cancel-${member.id}`}
+          >
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );
