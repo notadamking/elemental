@@ -715,11 +715,12 @@ For mutations (create, update, delete):
   - [x] Web: Add CSS animation for slide-over panel (slide-in-right)
   - [x] **Verify:** Click task in Task Flow, slide-over panel opens with full task info (Playwright tests passing - 17 passed, 3 skipped)
 
-- [ ] **TB29: Create Library**
-  - [ ] Server: Add `POST /api/libraries` endpoint (name, optional parentId for nesting)
-  - [ ] Web: Create CreateLibraryModal component (name input, parent library picker)
-  - [ ] Web: Add "New Library" button to Documents page sidebar
-  - [ ] **Verify:** Create library, appears in tree hierarchy under correct parent
+- [x] **TB29: Create Library**
+  - [x] Server: Add `POST /api/libraries` endpoint (name, createdBy, optional parentId for nesting, tags)
+  - [x] Web: Create CreateLibraryModal component (name input, createdBy selector, parent library picker, tags)
+  - [x] Web: Add "New Library" button to Documents page sidebar (FolderPlus icon)
+  - [x] Web: Add "Create one" link in empty state when no libraries exist
+  - [x] **Verify:** Create library from UI, appears in tree hierarchy under correct parent (Playwright tests passing - 14 passed, 1 skipped)
 
 - [ ] **TB30: Task Flow - Filter & Sort**
   - [ ] Web: Add filter dropdown (by assignee, priority, tags) to each Task Flow column

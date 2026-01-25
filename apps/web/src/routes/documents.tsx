@@ -18,6 +18,7 @@ import {
   ChevronDown,
   FolderOpen,
   Folder,
+  FolderPlus,
   X,
   User,
   Tag,
@@ -35,6 +36,7 @@ import {
 } from 'lucide-react';
 import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
+import { CreateLibraryModal } from '../components/document/CreateLibraryModal';
 
 // ============================================================================
 // Types
@@ -324,11 +326,13 @@ function LibraryTree({
   selectedLibraryId,
   onSelectLibrary,
   onNewDocument,
+  onNewLibrary,
 }: {
   libraries: LibraryType[];
   selectedLibraryId: string | null;
   onSelectLibrary: (id: string) => void;
   onNewDocument: () => void;
+  onNewLibrary: () => void;
 }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -355,14 +359,24 @@ function LibraryTree({
             <Library className="w-5 h-5 text-gray-500" />
             Libraries
           </h2>
-          <button
-            onClick={onNewDocument}
-            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-            title="New Document"
-            data-testid="new-document-button-sidebar"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onNewLibrary}
+              className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
+              title="New Library"
+              data-testid="new-library-button-sidebar"
+            >
+              <FolderPlus className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onNewDocument}
+              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              title="New Document"
+              data-testid="new-document-button-sidebar"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -374,6 +388,13 @@ function LibraryTree({
           >
             <Folder className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p className="text-sm">No libraries yet</p>
+            <button
+              onClick={onNewLibrary}
+              className="mt-2 text-sm text-purple-600 hover:underline"
+              data-testid="new-library-button-empty"
+            >
+              Create one
+            </button>
           </div>
         ) : (
           <div data-testid="library-list" className="space-y-1">
@@ -1315,6 +1336,7 @@ export function DocumentsPage() {
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
 
   // Clear document selection when library changes
   const handleSelectLibrary = (libraryId: string) => {
@@ -1336,6 +1358,19 @@ export function DocumentsPage() {
 
   const handleCloseCreateModal = () => {
     setShowCreateModal(false);
+  };
+
+  const handleOpenCreateLibraryModal = () => {
+    setShowCreateLibraryModal(true);
+  };
+
+  const handleCloseCreateLibraryModal = () => {
+    setShowCreateLibraryModal(false);
+  };
+
+  const handleLibraryCreated = (library: { id: string }) => {
+    // Select the newly created library
+    setSelectedLibraryId(library.id);
   };
 
   const handleDocumentCreated = (document: { id: string }) => {
@@ -1399,6 +1434,7 @@ export function DocumentsPage() {
           selectedLibraryId={selectedLibraryId}
           onSelectLibrary={handleSelectLibrary}
           onNewDocument={handleOpenCreateModal}
+          onNewLibrary={handleOpenCreateLibraryModal}
         />
       )}
 
@@ -1426,6 +1462,14 @@ export function DocumentsPage() {
         onClose={handleCloseCreateModal}
         onSuccess={handleDocumentCreated}
         defaultLibraryId={selectedLibraryId || undefined}
+      />
+
+      {/* Create Library Modal */}
+      <CreateLibraryModal
+        isOpen={showCreateLibraryModal}
+        onClose={handleCloseCreateLibraryModal}
+        onSuccess={handleLibraryCreated}
+        defaultParentId={selectedLibraryId || undefined}
       />
     </div>
   );

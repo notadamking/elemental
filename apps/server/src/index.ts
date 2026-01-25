@@ -8,8 +8,8 @@
 import { resolve, dirname } from 'node:path';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput } from '@elemental/cli';
+import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
@@ -939,6 +939,65 @@ app.get('/api/libraries/:id/documents', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get library documents:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get library documents' } }, 500);
+  }
+});
+
+app.post('/api/libraries', async (c) => {
+  try {
+    const body = await c.req.json() as { name: string; createdBy: string; parentId?: string; tags?: string[]; metadata?: Record<string, unknown> };
+
+    // Validate required fields
+    if (!body.name || typeof body.name !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'name is required and must be a string' } }, 400);
+    }
+    if (!body.createdBy || typeof body.createdBy !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required and must be a string' } }, 400);
+    }
+
+    // Create the library input
+    const libraryInput: CreateLibraryInput = {
+      name: body.name.trim(),
+      createdBy: body.createdBy as EntityId,
+      ...(body.tags && { tags: body.tags }),
+      ...(body.metadata && { metadata: body.metadata }),
+    };
+
+    // Create the library using the factory function
+    const library = await createLibrary(libraryInput);
+
+    // Persist to database
+    const created = await api.create(library as unknown as Element & Record<string, unknown>);
+
+    // If parentId is provided, establish parent-child relationship
+    if (body.parentId) {
+      // Verify parent library exists
+      const parent = await api.get(body.parentId as ElementId);
+      if (!parent) {
+        // Library was created but parent doesn't exist - delete and return error
+        await api.delete(created.id);
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Parent library not found' } }, 400);
+      }
+      if (parent.type !== 'library') {
+        await api.delete(created.id);
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Parent must be a library' } }, 400);
+      }
+
+      // Add parent-child dependency (child is source, parent is target)
+      await api.addDependency({
+        sourceId: created.id,
+        targetId: body.parentId as ElementId,
+        type: 'parent-child',
+        actor: body.createdBy as EntityId,
+      });
+    }
+
+    return c.json(created, 201);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    console.error('[elemental] Failed to create library:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create library' } }, 500);
   }
 });
 
