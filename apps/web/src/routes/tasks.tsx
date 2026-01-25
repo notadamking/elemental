@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle } from 'lucide-react';
@@ -6,6 +6,19 @@ import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 import { Pagination } from '../components/shared/Pagination';
+
+const VIEW_MODE_STORAGE_KEY = 'tasks.viewMode';
+
+function getStoredViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'list';
+  const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+  return stored === 'kanban' ? 'kanban' : 'list';
+}
+
+function setStoredViewMode(mode: ViewMode) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+}
 
 type ViewMode = 'list' | 'kanban';
 type SortDirection = 'asc' | 'desc';
@@ -295,23 +308,27 @@ function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (vie
     <div className="flex items-center bg-gray-100 rounded-md p-0.5" data-testid="view-toggle">
       <button
         onClick={() => onViewChange('list')}
-        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-colors ${
+        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-all duration-200 ${
           view === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
         }`}
         data-testid="view-toggle-list"
-        aria-label="List view"
+        aria-label="List view (V L)"
+        title="List view (V L)"
       >
         <List className="w-4 h-4" />
+        <span className="sr-only">List</span>
       </button>
       <button
         onClick={() => onViewChange('kanban')}
-        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-colors ${
+        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-all duration-200 ${
           view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
         }`}
         data-testid="view-toggle-kanban"
-        aria-label="Kanban view"
+        aria-label="Kanban view (V K)"
+        title="Kanban view (V K)"
       >
         <LayoutGrid className="w-4 h-4" />
+        <span className="sr-only">Kanban</span>
       </button>
     </div>
   );
@@ -815,8 +832,52 @@ export function TasksPage() {
   const entities = useEntities();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Handle view mode changes and persist to localStorage
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    setStoredViewMode(mode);
+  }, []);
+
+  // Keyboard shortcuts for view toggle (V L = list, V K = kanban)
+  useEffect(() => {
+    let lastKey = '';
+    let lastKeyTime = 0;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const now = Date.now();
+      const key = e.key.toLowerCase();
+
+      // Check for V + L or V + K sequence within 500ms
+      if (key === 'v') {
+        lastKey = 'v';
+        lastKeyTime = now;
+        return;
+      }
+
+      if (lastKey === 'v' && now - lastKeyTime < 500) {
+        if (key === 'l') {
+          e.preventDefault();
+          handleViewModeChange('list');
+        } else if (key === 'k') {
+          e.preventDefault();
+          handleViewModeChange('kanban');
+        }
+      }
+
+      lastKey = '';
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleViewModeChange]);
 
   // Extract task items from paginated response
   const taskItems = tasks.data?.items ?? [];
@@ -935,7 +996,7 @@ export function TasksPage() {
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
           <div className="flex items-center gap-3">
-            <ViewToggle view={viewMode} onViewChange={setViewMode} />
+            <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
@@ -970,7 +1031,7 @@ export function TasksPage() {
           />
         )}
 
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" data-testid="tasks-view-container">
           {tasks.isLoading && (
             <div className="p-4 text-gray-500">Loading tasks...</div>
           )}
@@ -980,7 +1041,7 @@ export function TasksPage() {
           )}
 
           {tasks.data && viewMode === 'list' && (
-            <>
+            <div className="animate-fade-in" data-testid="list-view-content">
               <ListView
                 tasks={taskItems}
                 selectedTaskId={selectedTaskId}
@@ -999,15 +1060,17 @@ export function TasksPage() {
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
               />
-            </>
+            </div>
           )}
 
           {tasks.data && viewMode === 'kanban' && (
-            <KanbanBoard
-              tasks={taskItems}
-              selectedTaskId={selectedTaskId}
-              onTaskClick={handleTaskClick}
-            />
+            <div className="animate-fade-in" data-testid="kanban-view-content">
+              <KanbanBoard
+                tasks={taskItems}
+                selectedTaskId={selectedTaskId}
+                onTaskClick={handleTaskClick}
+              />
+            </div>
           )}
         </div>
       </div>

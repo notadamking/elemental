@@ -226,3 +226,142 @@ test.describe('TB14: Kanban View', () => {
     await expect(openColumn.locator('.text-gray-600.rounded-full')).toBeVisible();
   });
 });
+
+test.describe('TB49: Task List/Kanban Toggle Polish', () => {
+  test('view preference persists in localStorage', async ({ page }) => {
+    await page.goto('/tasks?page=1&limit=25');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // Switch to kanban view
+    await page.getByTestId('view-toggle-kanban').click();
+    await expect(page.getByTestId('kanban-board')).toBeVisible();
+
+    // Check localStorage
+    const viewMode = await page.evaluate(() => localStorage.getItem('tasks.viewMode'));
+    expect(viewMode).toBe('kanban');
+
+    // Reload page
+    await page.reload();
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // Should still be in kanban view
+    await expect(page.getByTestId('kanban-board')).toBeVisible();
+  });
+
+  test('view preference defaults to list when not set', async ({ page }) => {
+    // Clear localStorage first
+    await page.goto('/tasks?page=1&limit=25');
+    await page.evaluate(() => localStorage.removeItem('tasks.viewMode'));
+
+    // Reload
+    await page.reload();
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // Should be in list view by default
+    await expect(page.getByTestId('tasks-list-view')).toBeVisible();
+  });
+
+  test('switching back to list persists preference', async ({ page }) => {
+    await page.goto('/tasks?page=1&limit=25');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // Set to kanban first
+    await page.getByTestId('view-toggle-kanban').click();
+    await expect(page.getByTestId('kanban-board')).toBeVisible();
+
+    // Switch back to list
+    await page.getByTestId('view-toggle-list').click();
+    await expect(page.getByTestId('tasks-list-view')).toBeVisible();
+
+    // Check localStorage
+    const viewMode = await page.evaluate(() => localStorage.getItem('tasks.viewMode'));
+    expect(viewMode).toBe('list');
+  });
+
+  test('view toggle shows keyboard shortcut hints', async ({ page }) => {
+    await page.goto('/tasks?page=1&limit=25');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+
+    // Check list button has shortcut hint
+    const listButton = page.getByTestId('view-toggle-list');
+    await expect(listButton).toHaveAttribute('title', 'List view (V L)');
+
+    // Check kanban button has shortcut hint
+    const kanbanButton = page.getByTestId('view-toggle-kanban');
+    await expect(kanbanButton).toHaveAttribute('title', 'Kanban view (V K)');
+  });
+
+  test('V L keyboard shortcut switches to list view', async ({ page }) => {
+    await page.goto('/tasks?page=1&limit=25');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // Start in kanban view
+    await page.getByTestId('view-toggle-kanban').click();
+    await expect(page.getByTestId('kanban-board')).toBeVisible();
+
+    // Press V then L
+    await page.keyboard.press('v');
+    await page.keyboard.press('l');
+
+    // Should switch to list view
+    await expect(page.getByTestId('tasks-list-view')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('V K keyboard shortcut switches to kanban view', async ({ page }) => {
+    await page.goto('/tasks?page=1&limit=25');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // Ensure we start in list view
+    await expect(page.getByTestId('tasks-list-view')).toBeVisible();
+
+    // Press V then K
+    await page.keyboard.press('v');
+    await page.keyboard.press('k');
+
+    // Should switch to kanban view
+    await expect(page.getByTestId('kanban-board')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('view toggle button shows highlighted state', async ({ page }) => {
+    await page.goto('/tasks?page=1&limit=25');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // In list view, list button should have highlight classes
+    const listButton = page.getByTestId('view-toggle-list');
+    await expect(listButton).toHaveClass(/bg-white/);
+    await expect(listButton).toHaveClass(/shadow-sm/);
+
+    // Switch to kanban
+    await page.getByTestId('view-toggle-kanban').click();
+    await expect(page.getByTestId('kanban-board')).toBeVisible();
+
+    // Now kanban button should have highlight classes
+    const kanbanButton = page.getByTestId('view-toggle-kanban');
+    await expect(kanbanButton).toHaveClass(/bg-white/);
+    await expect(kanbanButton).toHaveClass(/shadow-sm/);
+  });
+
+  test('view transition animation class is applied', async ({ page }) => {
+    await page.goto('/tasks?page=1&limit=25');
+    await expect(page.getByTestId('tasks-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Loading tasks...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that list view content has the animation class
+    const listContent = page.getByTestId('list-view-content');
+    await expect(listContent).toHaveClass(/animate-fade-in/);
+
+    // Switch to kanban
+    await page.getByTestId('view-toggle-kanban').click();
+
+    // Check that kanban view content has the animation class
+    const kanbanContent = page.getByTestId('kanban-view-content');
+    await expect(kanbanContent).toHaveClass(/animate-fade-in/);
+  });
+});

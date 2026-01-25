@@ -869,12 +869,12 @@ For mutations (create, update, delete):
   - [ ] Server: Add `POST /api/workflows/:id/squash` endpoint
   - [ ] **Verify:** Change workflow status, burn ephemeral workflow, squash works
 
-- [ ] **TB49: Task List/Kanban Toggle Polish**
-  - [ ] Web: Persist view preference (list vs kanban) in localStorage key `tasks.viewMode`
-  - [ ] Web: Implement keyboard shortcuts: `V L` for list view, `V K` for kanban view
-  - [ ] Web: Add smooth CSS transition/animation when switching views
-  - [ ] Web: Show current view mode in toggle button (highlighted state)
-  - [ ] **Verify:** Toggle to kanban, refresh page, kanban still selected
+- [x] **TB49: Task List/Kanban Toggle Polish**
+  - [x] Web: Persist view preference (list vs kanban) in localStorage key `tasks.viewMode`
+  - [x] Web: Implement keyboard shortcuts: `V L` for list view, `V K` for kanban view
+  - [x] Web: Add smooth CSS transition/animation (fade-in) when switching views
+  - [x] Web: Show current view mode in toggle button (highlighted state with bg-white shadow-sm)
+  - [x] **Verify:** Playwright tests passing (8 new TB49 tests, 20 total kanban tests)
 
 ### Phase 13: Document Attachments
 
