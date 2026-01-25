@@ -809,13 +809,13 @@ For mutations (create, update, delete):
   - [x] Web: Recent activity feed (last 10 events with icons and relative timestamps)
   - [x] **Verify:** Playwright tests passing (19 tests)
 
-- [ ] **TB42: Timeline Visual Overhaul**
-  - [ ] Web: Redesign timeline with visual event type icons (create=plus, update=pencil, delete=trash, etc.)
-  - [ ] Web: Group events by time period (Today, Yesterday, This Week, Earlier) with sticky headers
-  - [ ] Web: Event cards with: actor avatar, element type badge, preview of changes, relative timestamp
-  - [ ] Web: Add "jump to date" date picker for navigation
-  - [ ] Web: Improve filtering UI (multi-select chips instead of dropdowns)
-  - [ ] **Verify:** Timeline shows grouped events with clear visual hierarchy
+- [x] **TB42: Timeline Visual Overhaul**
+  - [x] Web: Redesign timeline with visual event type icons (create=plus, update=pencil, delete=trash, etc.)
+  - [x] Web: Group events by time period (Today, Yesterday, This Week, Earlier) with sticky headers
+  - [x] Web: Event cards with: actor avatar, element type badge, preview of changes, relative timestamp
+  - [x] Web: Add "jump to date" date picker for navigation
+  - [x] Web: Improve filtering UI (multi-select chips instead of dropdowns)
+  - [x] **Verify:** Timeline shows grouped events with clear visual hierarchy (Playwright tests passing - 33 tests)
 
 - [ ] **TB43: Dependency Graph - Filter & Search**
   - [ ] Web: Add search box above graph (filter nodes by title/ID, highlights matches)

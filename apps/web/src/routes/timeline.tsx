@@ -1,12 +1,45 @@
 /**
- * Timeline Lens
+ * Timeline Lens - TB42: Visual Overhaul
  *
- * Chronological view of all events in the system with filtering capabilities.
- * Shows what happened, when, and who did it.
+ * Chronological view of all events in the system with:
+ * - Visual event type icons (plus, pencil, trash, etc.)
+ * - Events grouped by time period (Today, Yesterday, This Week, Earlier)
+ * - Enhanced event cards with actor avatar, element type badge, preview
+ * - Jump to date picker for navigation
+ * - Multi-select chips for filtering (instead of dropdowns)
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import {
+  Plus,
+  Pencil,
+  XCircle,
+  RotateCcw,
+  Trash2,
+  Link,
+  Unlink,
+  Tag,
+  Tags,
+  UserPlus,
+  UserMinus,
+  AlertTriangle,
+  CheckCircle,
+  ListTodo,
+  FileText,
+  MessageSquare,
+  Users,
+  Folder,
+  Workflow,
+  Bot,
+  UsersRound,
+  GitBranch,
+  BookOpen,
+  Calendar,
+  X,
+  ChevronDown,
+  Search,
+} from 'lucide-react';
 
 // Event types from the API spec
 type EventType =
@@ -27,6 +60,7 @@ type EventType =
 interface Event {
   id: number;
   elementId: string;
+  elementType?: string;
   eventType: EventType;
   actor: string;
   oldValue: Record<string, unknown> | null;
@@ -37,42 +71,92 @@ interface Event {
 // Event filter state
 interface EventFilterState {
   eventTypes: EventType[];
-  actor: string;
+  actors: string[];
+  elementTypes: string[];
   search: string;
+  jumpToDate: string | null;
 }
 
-// Available event type filters
-const ALL_EVENT_TYPES: { value: EventType; label: string }[] = [
-  { value: 'created', label: 'Created' },
-  { value: 'updated', label: 'Updated' },
-  { value: 'closed', label: 'Closed' },
-  { value: 'reopened', label: 'Reopened' },
-  { value: 'deleted', label: 'Deleted' },
-  { value: 'dependency_added', label: 'Dep Added' },
-  { value: 'dependency_removed', label: 'Dep Removed' },
-  { value: 'tag_added', label: 'Tag Added' },
-  { value: 'tag_removed', label: 'Tag Removed' },
-  { value: 'member_added', label: 'Member Added' },
-  { value: 'member_removed', label: 'Member Removed' },
-  { value: 'auto_blocked', label: 'Auto Blocked' },
-  { value: 'auto_unblocked', label: 'Auto Unblocked' },
+// Time period grouping
+type TimePeriod = 'today' | 'yesterday' | 'thisWeek' | 'earlier';
+
+// Available event type filters with icons
+const ALL_EVENT_TYPES: { value: EventType; label: string; icon: typeof Plus }[] = [
+  { value: 'created', label: 'Created', icon: Plus },
+  { value: 'updated', label: 'Updated', icon: Pencil },
+  { value: 'closed', label: 'Closed', icon: XCircle },
+  { value: 'reopened', label: 'Reopened', icon: RotateCcw },
+  { value: 'deleted', label: 'Deleted', icon: Trash2 },
+  { value: 'dependency_added', label: 'Dep Added', icon: Link },
+  { value: 'dependency_removed', label: 'Dep Removed', icon: Unlink },
+  { value: 'tag_added', label: 'Tag Added', icon: Tag },
+  { value: 'tag_removed', label: 'Tag Removed', icon: Tags },
+  { value: 'member_added', label: 'Member+', icon: UserPlus },
+  { value: 'member_removed', label: 'Member-', icon: UserMinus },
+  { value: 'auto_blocked', label: 'Blocked', icon: AlertTriangle },
+  { value: 'auto_unblocked', label: 'Unblocked', icon: CheckCircle },
 ];
 
 // Event type color mapping
-const EVENT_TYPE_COLORS: Record<EventType, { bg: string; text: string; border: string }> = {
-  created: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-  updated: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  closed: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  reopened: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
-  deleted: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-  dependency_added: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-  dependency_removed: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
-  tag_added: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
-  tag_removed: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-  member_added: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
-  member_removed: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-  auto_blocked: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-300' },
-  auto_unblocked: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+const EVENT_TYPE_COLORS: Record<EventType, { bg: string; text: string; border: string; iconBg: string }> = {
+  created: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', iconBg: 'bg-green-100' },
+  updated: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', iconBg: 'bg-blue-100' },
+  closed: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', iconBg: 'bg-purple-100' },
+  reopened: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', iconBg: 'bg-yellow-100' },
+  deleted: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', iconBg: 'bg-red-100' },
+  dependency_added: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', iconBg: 'bg-indigo-100' },
+  dependency_removed: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200', iconBg: 'bg-pink-100' },
+  tag_added: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', iconBg: 'bg-cyan-100' },
+  tag_removed: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', iconBg: 'bg-orange-100' },
+  member_added: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200', iconBg: 'bg-teal-100' },
+  member_removed: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', iconBg: 'bg-rose-100' },
+  auto_blocked: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-300', iconBg: 'bg-red-100' },
+  auto_unblocked: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', iconBg: 'bg-emerald-100' },
+};
+
+// Event type icons mapping
+const EVENT_TYPE_ICONS: Record<EventType, typeof Plus> = {
+  created: Plus,
+  updated: Pencil,
+  closed: XCircle,
+  reopened: RotateCcw,
+  deleted: Trash2,
+  dependency_added: Link,
+  dependency_removed: Unlink,
+  tag_added: Tag,
+  tag_removed: Tags,
+  member_added: UserPlus,
+  member_removed: UserMinus,
+  auto_blocked: AlertTriangle,
+  auto_unblocked: CheckCircle,
+};
+
+// Element type icons
+const ELEMENT_TYPE_ICONS: Record<string, typeof ListTodo> = {
+  task: ListTodo,
+  plan: Folder,
+  workflow: Workflow,
+  channel: MessageSquare,
+  message: MessageSquare,
+  document: FileText,
+  library: BookOpen,
+  entity: Bot,
+  team: UsersRound,
+  playbook: GitBranch,
+};
+
+// Element type colors
+const ELEMENT_TYPE_COLORS: Record<string, string> = {
+  task: 'bg-blue-100 text-blue-700',
+  plan: 'bg-purple-100 text-purple-700',
+  workflow: 'bg-indigo-100 text-indigo-700',
+  channel: 'bg-green-100 text-green-700',
+  message: 'bg-emerald-100 text-emerald-700',
+  document: 'bg-orange-100 text-orange-700',
+  library: 'bg-amber-100 text-amber-700',
+  entity: 'bg-cyan-100 text-cyan-700',
+  team: 'bg-pink-100 text-pink-700',
+  playbook: 'bg-violet-100 text-violet-700',
 };
 
 // Display names for event types
@@ -100,19 +184,19 @@ function useEvents(filter: EventFilterState) {
     queryParams.set('eventType', filter.eventTypes.join(','));
   }
 
-  // Add actor filter
-  if (filter.actor) {
-    queryParams.set('actor', filter.actor);
+  // Add actor filter (first selected actor for server-side filtering)
+  if (filter.actors.length === 1) {
+    queryParams.set('actor', filter.actors[0]);
   }
 
   // Always get more events to allow client-side filtering
-  queryParams.set('limit', '200');
+  queryParams.set('limit', '500');
 
   const queryString = queryParams.toString();
-  const url = queryString ? `/api/events?${queryString}` : '/api/events?limit=200';
+  const url = queryString ? `/api/events?${queryString}` : '/api/events?limit=500';
 
   return useQuery<Event[]>({
-    queryKey: ['events', filter.eventTypes, filter.actor],
+    queryKey: ['events', filter.eventTypes, filter.actors],
     queryFn: async () => {
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch events');
@@ -121,6 +205,28 @@ function useEvents(filter: EventFilterState) {
     refetchInterval: 5000, // Poll every 5 seconds for live updates
   });
 }
+
+function getTimePeriod(dateString: string): TimePeriod {
+  const date = new Date(dateString);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  if (date >= today) return 'today';
+  if (date >= yesterday) return 'yesterday';
+  if (date >= weekAgo) return 'thisWeek';
+  return 'earlier';
+}
+
+const TIME_PERIOD_LABELS: Record<TimePeriod, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  thisWeek: 'This Week',
+  earlier: 'Earlier',
+};
 
 function formatTimeAgo(dateString: string): string {
   const date = new Date(dateString);
@@ -145,81 +251,129 @@ function formatTime(dateString: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function generateChangesPreview(event: Event): string | null {
+  const { eventType, oldValue, newValue } = event;
+
+  if (eventType === 'updated' && oldValue && newValue) {
+    const changedFields: string[] = [];
+    const allKeys = new Set([...Object.keys(oldValue), ...Object.keys(newValue)]);
+    for (const key of allKeys) {
+      if (JSON.stringify(oldValue[key]) !== JSON.stringify(newValue[key])) {
+        const newVal = newValue[key];
+        // Create a short preview of the change
+        if (typeof newVal === 'string' && newVal.length < 30) {
+          changedFields.push(`${key}: "${newVal}"`);
+        } else {
+          changedFields.push(key);
+        }
+      }
+    }
+    if (changedFields.length > 0) {
+      return changedFields.slice(0, 2).join(', ') + (changedFields.length > 2 ? `, +${changedFields.length - 2} more` : '');
+    }
+  }
+
+  if (eventType === 'dependency_added' && newValue) {
+    const targetId = (newValue.targetId as string) ?? '';
+    const depType = (newValue.type as string) ?? 'dependency';
+    if (targetId) return `${depType} → ${targetId.slice(0, 8)}...`;
+  }
+
+  if (eventType === 'dependency_removed' && oldValue) {
+    const targetId = (oldValue.targetId as string) ?? '';
+    const depType = (oldValue.type as string) ?? 'dependency';
+    if (targetId) return `${depType} → ${targetId.slice(0, 8)}...`;
+  }
+
+  if (eventType === 'tag_added' && newValue) {
+    const tag = (newValue.tag as string) ?? '';
+    if (tag) return `"${tag}"`;
+  }
+
+  if (eventType === 'tag_removed' && oldValue) {
+    const tag = (oldValue.tag as string) ?? '';
+    if (tag) return `"${tag}"`;
+  }
+
+  if (eventType === 'member_added' && newValue) {
+    const member = (newValue.addedMember as string) ?? '';
+    if (member) return member;
+  }
+
+  if (eventType === 'member_removed' && newValue) {
+    const member = (newValue.removedMember as string) ?? '';
+    const selfRemoval = newValue.selfRemoval;
+    if (member) return selfRemoval ? `${member} left` : member;
+  }
+
+  return null;
+}
+
 function generateEventSummary(event: Event): string {
-  const { eventType, oldValue, newValue, actor } = event;
+  const { eventType, actor } = event;
 
   switch (eventType) {
     case 'created':
       return `Created by ${actor}`;
-
-    case 'updated': {
-      if (oldValue && newValue) {
-        const changedFields: string[] = [];
-        const allKeys = new Set([...Object.keys(oldValue), ...Object.keys(newValue)]);
-        for (const key of allKeys) {
-          if (JSON.stringify(oldValue[key]) !== JSON.stringify(newValue[key])) {
-            changedFields.push(key);
-          }
-        }
-        if (changedFields.length <= 3) {
-          return `Updated ${changedFields.join(', ')} by ${actor}`;
-        }
-        return `Updated ${changedFields.length} fields by ${actor}`;
-      }
+    case 'updated':
       return `Updated by ${actor}`;
-    }
-
     case 'closed':
       return `Closed by ${actor}`;
-
     case 'reopened':
       return `Reopened by ${actor}`;
-
     case 'deleted':
       return `Deleted by ${actor}`;
-
-    case 'dependency_added': {
-      const targetId = (newValue?.targetId as string) ?? 'unknown';
-      const depType = (newValue?.type as string) ?? 'dependency';
-      return `Added ${depType} to ${targetId} by ${actor}`;
-    }
-
-    case 'dependency_removed': {
-      const targetId = (oldValue?.targetId as string) ?? 'unknown';
-      const depType = (oldValue?.type as string) ?? 'dependency';
-      return `Removed ${depType} from ${targetId} by ${actor}`;
-    }
-
-    case 'tag_added': {
-      const tag = (newValue?.tag as string) ?? 'tag';
-      return `Added tag "${tag}" by ${actor}`;
-    }
-
-    case 'tag_removed': {
-      const tag = (oldValue?.tag as string) ?? 'tag';
-      return `Removed tag "${tag}" by ${actor}`;
-    }
-
-    case 'member_added': {
-      const member = (newValue?.addedMember as string) ?? 'member';
-      return `Added member ${member} by ${actor}`;
-    }
-
-    case 'member_removed': {
-      const member = (newValue?.removedMember as string) ?? 'member';
-      const selfRemoval = newValue?.selfRemoval;
-      return selfRemoval ? `${member} left` : `Removed member ${member} by ${actor}`;
-    }
-
+    case 'dependency_added':
+      return `Dependency added by ${actor}`;
+    case 'dependency_removed':
+      return `Dependency removed by ${actor}`;
+    case 'tag_added':
+      return `Tag added by ${actor}`;
+    case 'tag_removed':
+      return `Tag removed by ${actor}`;
+    case 'member_added':
+      return `Member added by ${actor}`;
+    case 'member_removed':
+      return `Member removed by ${actor}`;
     case 'auto_blocked':
-      return 'Automatically blocked (dependency not satisfied)';
-
+      return 'Automatically blocked';
     case 'auto_unblocked':
-      return 'Automatically unblocked (blockers resolved)';
-
+      return 'Automatically unblocked';
     default:
       return `${EVENT_TYPE_DISPLAY[eventType] || eventType} by ${actor}`;
   }
+}
+
+function getInitials(name: string): string {
+  const parts = name.split(/[\s_-]+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getAvatarColor(name: string): string {
+  // Generate a consistent color based on the name
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-purple-500',
+    'bg-orange-500',
+    'bg-pink-500',
+    'bg-cyan-500',
+    'bg-indigo-500',
+    'bg-teal-500',
+  ];
+  return colors[Math.abs(hash) % colors.length];
 }
 
 interface EventCardProps {
@@ -228,59 +382,295 @@ interface EventCardProps {
 
 function EventCard({ event }: EventCardProps) {
   const colors = EVENT_TYPE_COLORS[event.eventType] || EVENT_TYPE_COLORS.updated;
-  const summary = generateEventSummary(event);
+  const EventIcon = EVENT_TYPE_ICONS[event.eventType] || Pencil;
+  const elementType = event.elementType || inferElementType(event.elementId);
+  const ElementIcon = ELEMENT_TYPE_ICONS[elementType] || ListTodo;
+  const elementColor = ELEMENT_TYPE_COLORS[elementType] || 'bg-gray-100 text-gray-700';
+  const changesPreview = generateChangesPreview(event);
+  const avatarColor = getAvatarColor(event.actor);
 
   return (
     <div
-      className={`p-3 rounded-lg border ${colors.border} ${colors.bg}`}
+      className="p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
       data-testid="event-card"
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start gap-3">
+        {/* Event type icon */}
+        <div className={`p-2 rounded-lg ${colors.iconBg} shrink-0`} data-testid="event-icon">
+          <EventIcon className={`w-4 h-4 ${colors.text}`} />
+        </div>
+
+        {/* Main content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`px-2 py-0.5 text-xs font-medium rounded ${colors.text} ${colors.bg}`}>
+          {/* Top row: event type badge + element type badge + timestamp */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${colors.bg} ${colors.text}`}
+              data-testid="event-type-badge"
+            >
               {EVENT_TYPE_DISPLAY[event.eventType]}
             </span>
-            <span className="text-xs text-gray-500">{formatTimeAgo(event.createdAt)}</span>
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${elementColor}`}
+              data-testid="element-type-badge"
+            >
+              <ElementIcon className="w-3 h-3" />
+              {elementType}
+            </span>
+            <span className="text-xs text-gray-400 ml-auto shrink-0" data-testid="event-time">
+              {formatTimeAgo(event.createdAt)}
+            </span>
           </div>
-          <p className="text-sm text-gray-900">{summary}</p>
-          <p className="text-xs text-gray-500 mt-1 font-mono">{event.elementId}</p>
+
+          {/* Element ID */}
+          <p className="text-sm text-gray-900 mt-1.5 font-mono truncate" data-testid="element-id">
+            {event.elementId}
+          </p>
+
+          {/* Changes preview */}
+          {changesPreview && (
+            <p className="text-xs text-gray-500 mt-1 truncate" data-testid="changes-preview">
+              {changesPreview}
+            </p>
+          )}
+
+          {/* Actor row */}
+          <div className="flex items-center gap-2 mt-2">
+            <div
+              className={`w-5 h-5 rounded-full ${avatarColor} flex items-center justify-center shrink-0`}
+              data-testid="actor-avatar"
+            >
+              <span className="text-[10px] font-medium text-white">{getInitials(event.actor)}</span>
+            </div>
+            <span className="text-xs text-gray-600 truncate">{event.actor}</span>
+            <span className="text-xs text-gray-400 ml-auto shrink-0">{formatTime(event.createdAt)}</span>
+          </div>
         </div>
-        <span className="text-xs text-gray-400 shrink-0">{formatTime(event.createdAt)}</span>
       </div>
     </div>
   );
 }
 
-interface FilterToggleProps {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  color?: string;
+function inferElementType(elementId: string): string {
+  // Try to infer element type from ID prefix patterns
+  const prefix = elementId.slice(0, 2).toLowerCase();
+  const prefixMap: Record<string, string> = {
+    ts: 'task',
+    tk: 'task',
+    pl: 'plan',
+    wf: 'workflow',
+    ch: 'channel',
+    ms: 'message',
+    dc: 'document',
+    lb: 'library',
+    en: 'entity',
+    tm: 'team',
+    pb: 'playbook',
+  };
+  return prefixMap[prefix] || 'element';
 }
 
-function FilterToggle({ label, active, onClick, color }: FilterToggleProps) {
+interface FilterChipProps {
+  label: string;
+  icon?: typeof Plus;
+  active: boolean;
+  onClick: () => void;
+  color?: { bg: string; text: string };
+}
+
+function FilterChip({ label, icon: Icon, active, onClick, color }: FilterChipProps) {
   return (
     <button
       onClick={onClick}
+      data-testid={`filter-chip-${label.toLowerCase().replace(/\s+/g, '-')}`}
       className={`
-        px-2 py-1 text-xs font-medium rounded-md transition-colors
+        inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all
         ${active
-          ? `${color || 'bg-blue-100 text-blue-700'} ring-1 ring-blue-300`
+          ? color
+            ? `${color.bg} ${color.text} ring-2 ring-offset-1 ring-current`
+            : 'bg-blue-100 text-blue-700 ring-2 ring-offset-1 ring-blue-400'
           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
         }
       `}
     >
+      {Icon && <Icon className="w-3.5 h-3.5" />}
       {label}
+      {active && <X className="w-3 h-3 ml-0.5" />}
     </button>
+  );
+}
+
+interface MultiSelectDropdownProps {
+  label: string;
+  icon: typeof Users;
+  options: string[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+  testId: string;
+}
+
+function MultiSelectDropdown({ label, icon: Icon, options, selected, onChange, testId }: MultiSelectDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleOption = (option: string) => {
+    if (selected.includes(option)) {
+      onChange(selected.filter((s) => s !== option));
+    } else {
+      onChange([...selected, option]);
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        data-testid={testId}
+        className={`
+          inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all
+          ${selected.length > 0
+            ? 'bg-blue-100 text-blue-700 ring-2 ring-offset-1 ring-blue-400'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }
+        `}
+      >
+        <Icon className="w-3.5 h-3.5" />
+        {label}
+        {selected.length > 0 && (
+          <span className="ml-0.5 bg-blue-600 text-white text-[10px] px-1.5 rounded-full">
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && options.length > 0 && (
+        <div
+          className="absolute top-full left-0 mt-1 w-48 max-h-60 overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+          data-testid={`${testId}-dropdown`}
+        >
+          <div className="p-1">
+            {options.map((option) => (
+              <button
+                key={option}
+                onClick={() => toggleOption(option)}
+                className={`
+                  w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors
+                  ${selected.includes(option) ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}
+                `}
+              >
+                <div
+                  className={`w-4 h-4 rounded border flex items-center justify-center
+                    ${selected.includes(option) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}
+                  `}
+                >
+                  {selected.includes(option) && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <span className="truncate">{option}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DatePickerProps {
+  value: string | null;
+  onChange: (date: string | null) => void;
+}
+
+function JumpToDatePicker({ value, onChange }: DatePickerProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => inputRef.current?.showPicker?.()}
+        data-testid="jump-to-date-button"
+        className={`
+          inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all
+          ${value
+            ? 'bg-blue-100 text-blue-700 ring-2 ring-offset-1 ring-blue-400'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }
+        `}
+      >
+        <Calendar className="w-3.5 h-3.5" />
+        {value ? formatDate(value) : 'Jump to date'}
+        {value && (
+          <X
+            className="w-3 h-3 ml-0.5"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(null);
+            }}
+          />
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="date"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="absolute opacity-0 w-0 h-0"
+        data-testid="jump-to-date-input"
+      />
+    </div>
+  );
+}
+
+interface TimePeriodGroupProps {
+  period: TimePeriod;
+  events: Event[];
+  isFirst: boolean;
+}
+
+function TimePeriodGroup({ period, events, isFirst }: TimePeriodGroupProps) {
+  if (events.length === 0) return null;
+
+  return (
+    <div className="mb-6" data-testid={`time-period-${period}`}>
+      <div
+        className={`sticky top-0 z-10 bg-gray-50 py-2 px-3 -mx-3 ${isFirst ? '' : 'mt-4'}`}
+        data-testid={`time-period-header-${period}`}
+      >
+        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          {TIME_PERIOD_LABELS[period]}
+          <span className="text-xs font-normal text-gray-400">({events.length})</span>
+        </h3>
+      </div>
+      <div className="space-y-2 mt-2">
+        {events.map((event) => (
+          <EventCard key={event.id} event={event} />
+        ))}
+      </div>
+    </div>
   );
 }
 
 export function TimelinePage() {
   const [filter, setFilter] = useState<EventFilterState>({
     eventTypes: [],
-    actor: '',
+    actors: [],
+    elementTypes: [],
     search: '',
+    jumpToDate: null,
   });
 
   const { data: events, isLoading, isError } = useEvents(filter);
@@ -292,19 +682,74 @@ export function TimelinePage() {
     return Array.from(actorSet).sort();
   }, [events]);
 
-  // Apply client-side search filter
+  // Get unique element types from events
+  const uniqueElementTypes = useMemo(() => {
+    if (!events) return [];
+    const typeSet = new Set(events.map((e) => e.elementType || inferElementType(e.elementId)));
+    return Array.from(typeSet).sort();
+  }, [events]);
+
+  // Apply client-side filters
   const filteredEvents = useMemo(() => {
     if (!events) return [];
-    if (!filter.search) return events;
 
-    const searchLower = filter.search.toLowerCase();
-    return events.filter(
-      (event) =>
-        event.elementId.toLowerCase().includes(searchLower) ||
-        event.actor.toLowerCase().includes(searchLower) ||
-        generateEventSummary(event).toLowerCase().includes(searchLower)
-    );
-  }, [events, filter.search]);
+    return events.filter((event) => {
+      // Actor filter (multi-select)
+      if (filter.actors.length > 0 && !filter.actors.includes(event.actor)) {
+        return false;
+      }
+
+      // Element type filter
+      if (filter.elementTypes.length > 0) {
+        const elementType = event.elementType || inferElementType(event.elementId);
+        if (!filter.elementTypes.includes(elementType)) {
+          return false;
+        }
+      }
+
+      // Search filter
+      if (filter.search) {
+        const searchLower = filter.search.toLowerCase();
+        const matchesId = event.elementId.toLowerCase().includes(searchLower);
+        const matchesActor = event.actor.toLowerCase().includes(searchLower);
+        const matchesSummary = generateEventSummary(event).toLowerCase().includes(searchLower);
+        if (!matchesId && !matchesActor && !matchesSummary) {
+          return false;
+        }
+      }
+
+      // Jump to date filter
+      if (filter.jumpToDate) {
+        const eventDate = new Date(event.createdAt);
+        const targetDate = new Date(filter.jumpToDate);
+        // Show events from the target date and later (going back in time)
+        eventDate.setHours(0, 0, 0, 0);
+        targetDate.setHours(0, 0, 0, 0);
+        if (eventDate > targetDate) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [events, filter]);
+
+  // Group events by time period
+  const groupedEvents = useMemo(() => {
+    const groups: Record<TimePeriod, Event[]> = {
+      today: [],
+      yesterday: [],
+      thisWeek: [],
+      earlier: [],
+    };
+
+    for (const event of filteredEvents) {
+      const period = getTimePeriod(event.createdAt);
+      groups[period].push(event);
+    }
+
+    return groups;
+  }, [filteredEvents]);
 
   const toggleEventType = (eventType: EventType) => {
     setFilter((prev) => ({
@@ -316,87 +761,123 @@ export function TimelinePage() {
   };
 
   const clearFilters = () => {
-    setFilter({ eventTypes: [], actor: '', search: '' });
+    setFilter({ eventTypes: [], actors: [], elementTypes: [], search: '', jumpToDate: null });
   };
 
-  const hasActiveFilters = filter.eventTypes.length > 0 || filter.actor !== '' || filter.search !== '';
+  const hasActiveFilters =
+    filter.eventTypes.length > 0 ||
+    filter.actors.length > 0 ||
+    filter.elementTypes.length > 0 ||
+    filter.search !== '' ||
+    filter.jumpToDate !== null;
+
+  const timePeriodOrder: TimePeriod[] = ['today', 'yesterday', 'thisWeek', 'earlier'];
 
   return (
     <div className="h-full flex flex-col" data-testid="timeline-page">
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-gray-900">Timeline</h2>
-        <p className="text-sm text-gray-500">Event history across all elements</p>
+        <div>
+          <h2 className="text-lg font-medium text-gray-900">Timeline</h2>
+          <p className="text-sm text-gray-500">Event history across all elements</p>
+        </div>
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+            data-testid="clear-filters-button"
+          >
+            <X className="w-4 h-4" />
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* Filter controls */}
       <div className="mb-4 space-y-3">
         {/* Search bar */}
-        <div className="flex gap-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Search events..."
             value={filter.search}
             onChange={(e) => setFilter((prev) => ({ ...prev, search: e.target.value }))}
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             data-testid="search-input"
           />
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Clear filters
-            </button>
-          )}
         </div>
 
-        {/* Event type filters */}
-        <div className="flex flex-wrap gap-1.5" data-testid="event-type-filters">
-          {ALL_EVENT_TYPES.map(({ value, label }) => {
-            const colors = EVENT_TYPE_COLORS[value];
-            return (
-              <FilterToggle
-                key={value}
-                label={label}
-                active={filter.eventTypes.includes(value)}
-                onClick={() => toggleEventType(value)}
-                color={filter.eventTypes.includes(value) ? `${colors.bg} ${colors.text}` : undefined}
-              />
-            );
-          })}
-        </div>
-
-        {/* Actor filter */}
-        {uniqueActors.length > 0 && (
-          <div className="flex items-center gap-2" data-testid="actor-filter">
-            <span className="text-xs text-gray-500">Actor:</span>
-            <select
-              value={filter.actor}
-              onChange={(e) => setFilter((prev) => ({ ...prev, actor: e.target.value }))}
-              className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All actors</option>
-              {uniqueActors.map((actor) => (
-                <option key={actor} value={actor}>
-                  {actor}
-                </option>
-              ))}
-            </select>
+        {/* Filter chips row */}
+        <div className="flex flex-wrap gap-2 items-center" data-testid="filter-chips">
+          {/* Event type filter chips */}
+          <div className="flex flex-wrap gap-1.5" data-testid="event-type-filters">
+            {ALL_EVENT_TYPES.map(({ value, label, icon }) => {
+              const colors = EVENT_TYPE_COLORS[value];
+              return (
+                <FilterChip
+                  key={value}
+                  label={label}
+                  icon={icon}
+                  active={filter.eventTypes.includes(value)}
+                  onClick={() => toggleEventType(value)}
+                  color={filter.eventTypes.includes(value) ? { bg: colors.bg, text: colors.text } : undefined}
+                />
+              );
+            })}
           </div>
-        )}
+
+          {/* Separator */}
+          <div className="h-6 w-px bg-gray-300 mx-1" />
+
+          {/* Actor multi-select dropdown */}
+          <MultiSelectDropdown
+            label="Actors"
+            icon={Users}
+            options={uniqueActors}
+            selected={filter.actors}
+            onChange={(actors) => setFilter((prev) => ({ ...prev, actors }))}
+            testId="actor-filter"
+          />
+
+          {/* Element type multi-select dropdown */}
+          <MultiSelectDropdown
+            label="Types"
+            icon={ListTodo}
+            options={uniqueElementTypes}
+            selected={filter.elementTypes}
+            onChange={(elementTypes) => setFilter((prev) => ({ ...prev, elementTypes }))}
+            testId="element-type-filter"
+          />
+
+          {/* Jump to date picker */}
+          <JumpToDatePicker
+            value={filter.jumpToDate}
+            onChange={(jumpToDate) => setFilter((prev) => ({ ...prev, jumpToDate }))}
+          />
+        </div>
       </div>
 
       {/* Event count */}
-      <div className="mb-3 text-sm text-gray-500" data-testid="event-count">
-        {isLoading
-          ? 'Loading events...'
-          : `${filteredEvents.length} events${hasActiveFilters ? ' (filtered)' : ''}`}
+      <div className="mb-3 text-sm text-gray-500 flex items-center gap-2" data-testid="event-count">
+        {isLoading ? (
+          'Loading events...'
+        ) : (
+          <>
+            <span>{filteredEvents.length} events</span>
+            {hasActiveFilters && (
+              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">(filtered)</span>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Events list */}
-      <div className="flex-1 overflow-y-auto space-y-2 min-h-0" data-testid="events-list">
+      {/* Events list with time period grouping */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-3 -mx-3" data-testid="events-list">
         {isLoading && (
-          <div className="text-center py-8 text-gray-500">Loading events...</div>
+          <div className="text-center py-8 text-gray-500">
+            <div className="animate-pulse">Loading events...</div>
+          </div>
         )}
         {isError && (
           <div className="text-center py-8 text-red-600">Failed to load events</div>
@@ -408,7 +889,15 @@ export function TimelinePage() {
         )}
         {!isLoading &&
           !isError &&
-          filteredEvents.map((event) => <EventCard key={event.id} event={event} />)}
+          filteredEvents.length > 0 &&
+          timePeriodOrder.map((period, index) => (
+            <TimePeriodGroup
+              key={period}
+              period={period}
+              events={groupedEvents[period]}
+              isFirst={index === 0 || timePeriodOrder.slice(0, index).every((p) => groupedEvents[p].length === 0)}
+            />
+          ))}
       </div>
     </div>
   );

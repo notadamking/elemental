@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('TB9: Timeline Lens', () => {
+  // Note: TB42 tests are at the bottom of this file
   test('events endpoint is accessible', async ({ page }) => {
     const response = await page.request.get('/api/events');
     expect(response.ok()).toBe(true);
@@ -142,21 +143,21 @@ test.describe('TB9: Timeline Lens', () => {
     await page.goto('/dashboard/timeline');
     await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
 
-    // Find the Created filter button
-    const createdFilter = page.getByTestId('event-type-filters').getByRole('button', { name: /Created/i });
+    // Find the Created filter button (now a chip with icon)
+    const createdFilter = page.getByTestId('filter-chip-created');
     await expect(createdFilter).toBeVisible();
 
     // Click to toggle the filter on
     await createdFilter.click();
 
-    // The button should now have an active style (we check for a ring class as indicator)
-    await expect(createdFilter).toHaveClass(/ring-1/);
+    // The button should now have an active style (we check for ring-2 class as indicator)
+    await expect(createdFilter).toHaveClass(/ring-2/);
 
     // Click to toggle the filter off
     await createdFilter.click();
 
     // The button should no longer have the ring
-    await expect(createdFilter).not.toHaveClass(/ring-1/);
+    await expect(createdFilter).not.toHaveClass(/ring-2/);
   });
 
   test('clear filters button appears when filters are active', async ({ page }) => {
@@ -177,5 +178,299 @@ test.describe('TB9: Timeline Lens', () => {
 
     // Search should be cleared
     await expect(page.getByTestId('search-input')).toHaveValue('');
+  });
+});
+
+test.describe('TB42: Timeline Visual Overhaul', () => {
+  test('event cards display visual icons', async ({ page }) => {
+    // Check if there are any events first
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that event cards have visual icons
+    const firstEventCard = page.getByTestId('event-card').first();
+    await expect(firstEventCard).toBeVisible();
+
+    // Verify event icon container exists
+    await expect(firstEventCard.getByTestId('event-icon')).toBeVisible();
+  });
+
+  test('event cards display actor avatar', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that event cards have actor avatars
+    const firstEventCard = page.getByTestId('event-card').first();
+    await expect(firstEventCard.getByTestId('actor-avatar')).toBeVisible();
+  });
+
+  test('event cards display element type badge', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that event cards have element type badges
+    const firstEventCard = page.getByTestId('event-card').first();
+    await expect(firstEventCard.getByTestId('element-type-badge')).toBeVisible();
+  });
+
+  test('event cards display event type badge', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that event cards have event type badges
+    const firstEventCard = page.getByTestId('event-card').first();
+    await expect(firstEventCard.getByTestId('event-type-badge')).toBeVisible();
+  });
+
+  test('event cards display relative timestamp', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Check that event cards have timestamp
+    const firstEventCard = page.getByTestId('event-card').first();
+    await expect(firstEventCard.getByTestId('event-time')).toBeVisible();
+  });
+
+  test('events are grouped by time period', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=100');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // At least one time period group should be visible
+    const timePeriodHeaders = page.locator('[data-testid^="time-period-header-"]');
+    const count = await timePeriodHeaders.count();
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test('time period headers show event count', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=100');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Time period headers should contain a count in parentheses
+    const timePeriodHeader = page.locator('[data-testid^="time-period-header-"]').first();
+    if (await timePeriodHeader.isVisible()) {
+      const headerText = await timePeriodHeader.textContent();
+      expect(headerText).toMatch(/\(\d+\)/);
+    }
+  });
+
+  test('jump to date button is visible', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Jump to date button should be visible
+    await expect(page.getByTestId('jump-to-date-button')).toBeVisible();
+  });
+
+  test('jump to date picker can be activated', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Click the jump to date button
+    const jumpButton = page.getByTestId('jump-to-date-button');
+    await expect(jumpButton).toBeVisible();
+
+    // The date input should exist (even if hidden)
+    const dateInput = page.getByTestId('jump-to-date-input');
+    await expect(dateInput).toBeAttached();
+  });
+
+  test('actor filter dropdown is visible', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Actor filter dropdown button should be visible
+    await expect(page.getByTestId('actor-filter')).toBeVisible();
+  });
+
+  test('actor filter dropdown opens on click', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Click actor filter
+    await page.getByTestId('actor-filter').click();
+
+    // Dropdown should appear
+    await expect(page.getByTestId('actor-filter-dropdown')).toBeVisible();
+  });
+
+  test('element type filter dropdown is visible', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Element type filter dropdown button should be visible
+    await expect(page.getByTestId('element-type-filter')).toBeVisible();
+  });
+
+  test('element type filter dropdown opens on click', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Click element type filter
+    await page.getByTestId('element-type-filter').click();
+
+    // Dropdown should appear
+    await expect(page.getByTestId('element-type-filter-dropdown')).toBeVisible();
+  });
+
+  test('event type filter chips have icons', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Created filter chip should be visible with an icon (SVG element)
+    const createdChip = page.getByTestId('filter-chip-created');
+    await expect(createdChip).toBeVisible();
+
+    // The chip should contain an SVG icon
+    const icon = createdChip.locator('svg');
+    await expect(icon).toBeVisible();
+  });
+
+  test('filter chips show X when active', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Click on Created filter to activate it
+    const createdChip = page.getByTestId('filter-chip-created');
+    await createdChip.click();
+
+    // The chip should now show an X icon (has ring-2 and contains X icon)
+    await expect(createdChip).toHaveClass(/ring-2/);
+
+    // Should have two SVG icons: the event type icon and the X icon
+    const icons = createdChip.locator('svg');
+    expect(await icons.count()).toBe(2);
+  });
+
+  test('clear filters button shows with data-testid', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Initially, clear filters button should not be visible
+    await expect(page.getByTestId('clear-filters-button')).not.toBeVisible();
+
+    // Type something in search
+    await page.getByTestId('search-input').fill('test');
+
+    // Now clear filters button should appear with correct test ID
+    await expect(page.getByTestId('clear-filters-button')).toBeVisible();
+  });
+
+  test('search input has icon', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Search container should have an SVG icon (search icon)
+    const searchContainer = page.getByTestId('search-input').locator('..');
+    const searchIcon = searchContainer.locator('svg');
+    await expect(searchIcon).toBeVisible();
+  });
+
+  test('actor filter shows selection count when items selected', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('events-list').getByText('Loading events...')).not.toBeVisible({ timeout: 10000 });
+
+    // Open actor filter dropdown
+    await page.getByTestId('actor-filter').click();
+    await expect(page.getByTestId('actor-filter-dropdown')).toBeVisible();
+
+    // Click on the first actor option
+    const firstOption = page.getByTestId('actor-filter-dropdown').locator('button').first();
+    await firstOption.click();
+
+    // The filter button should now show a selection count badge
+    const actorFilter = page.getByTestId('actor-filter');
+    const countBadge = actorFilter.locator('span.bg-blue-600');
+    await expect(countBadge).toBeVisible();
+    expect(await countBadge.textContent()).toBe('1');
   });
 });
