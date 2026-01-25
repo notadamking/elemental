@@ -75,6 +75,19 @@ function getQueryKeysForEvent(event: WebSocketEvent): string[][] {
       keys.push(['stats']);
       break;
 
+    case 'inbox-item':
+      // Invalidate inbox queries for the recipient
+      // The recipientId is included in the newValue by the server
+      if (event.newValue?.recipientId) {
+        const recipientId = event.newValue.recipientId as string;
+        keys.push(['entities', recipientId, 'inbox']);
+        keys.push(['entities', recipientId, 'inbox', 'count']);
+        keys.push(['entities', recipientId, 'inbox', 'unread']);
+        keys.push(['entities', recipientId, 'inbox', 'read']);
+        keys.push(['entities', recipientId, 'inbox', 'archived']);
+      }
+      break;
+
     default:
       // For unknown types, just invalidate stats
       keys.push(['stats']);

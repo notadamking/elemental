@@ -68,6 +68,15 @@ function shouldReceiveEvent(
     }
   }
 
+  // Check for entity-specific inbox subscription
+  // For inbox items, also check inbox:${recipientId} subscriptions
+  if (event.elementType === 'inbox-item' && event.newValue) {
+    const recipientId = (event.newValue as Record<string, unknown>).recipientId as string | undefined;
+    if (recipientId && subscriptions.has(`inbox:${recipientId}` as SubscriptionChannel)) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -192,5 +201,40 @@ export function getClientCount(): number {
 export function broadcastToAll(message: ServerMessage): void {
   for (const client of clients.values()) {
     sendToClient(client, message);
+  }
+}
+
+/**
+ * Broadcast an inbox event to subscribed clients
+ * Sends to clients subscribed to 'inbox', 'inbox:${recipientId}', or '*'
+ */
+export function broadcastInboxEvent(
+  itemId: string,
+  recipientId: string,
+  eventType: 'created' | 'updated' | 'deleted',
+  oldValue: Record<string, unknown> | null,
+  newValue: Record<string, unknown> | null,
+  actor?: string
+): void {
+  const event: WebSocketEvent = {
+    id: Date.now(), // Use timestamp as pseudo-ID since inbox events aren't in events table
+    elementId: itemId as import('@elemental/cli').ElementId,
+    elementType: 'inbox-item',
+    eventType: eventType as import('@elemental/cli').EventType,
+    actor: (actor || 'system') as import('@elemental/cli').EntityId,
+    oldValue,
+    newValue: { ...newValue, recipientId }, // Include recipientId for entity-specific subscriptions
+    createdAt: new Date().toISOString() as import('@elemental/cli').Timestamp,
+  };
+
+  const message: ServerMessage = {
+    type: 'event',
+    event,
+  };
+
+  for (const client of clients.values()) {
+    if (shouldReceiveEvent(client.data.subscriptions, event)) {
+      sendToClient(client, message);
+    }
   }
 }

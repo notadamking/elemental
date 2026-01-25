@@ -18,8 +18,10 @@ export type SubscriptionChannel =
   | 'channels'
   | 'messages'
   | 'teams'
+  | 'inbox'
   | '*' // Wildcard - all events
-  | `messages:${string}`; // Channel-specific messages
+  | `messages:${string}` // Channel-specific messages
+  | `inbox:${string}`; // Entity-specific inbox
 
 /**
  * Client -> Server message types
@@ -126,6 +128,8 @@ export function getChannelForElementType(elementType: string): SubscriptionChann
       return 'messages';
     case 'team':
       return 'teams';
+    case 'inbox-item':
+      return 'inbox';
     default:
       return null;
   }

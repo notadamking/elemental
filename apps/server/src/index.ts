@@ -13,7 +13,7 @@ import type { SyncService, InboxService } from '@elemental/cli';
 import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow, InboxFilter, InboxStatus } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
-import { handleOpen, handleMessage, handleClose, handleError, getClientCount, type ClientData } from './ws/handler.js';
+import { handleOpen, handleMessage, handleClose, handleError, getClientCount, broadcastInboxEvent, type ClientData } from './ws/handler.js';
 
 // ============================================================================
 // Server Configuration
@@ -1137,6 +1137,19 @@ app.post('/api/entities/:id/inbox/mark-all-read', async (c) => {
     }
 
     const count = inboxService.markAllAsRead(id);
+
+    // Broadcast bulk update event for real-time updates
+    // Since this is a bulk operation, broadcast a single event with count info
+    if (count > 0) {
+      broadcastInboxEvent(
+        `bulk-${id}`, // Pseudo ID for bulk operation
+        id,
+        'updated',
+        null,
+        { bulkMarkRead: true, count }
+      );
+    }
+
     return c.json({ markedCount: count });
   } catch (error) {
     console.error('[elemental] Failed to mark all as read:', error);
@@ -1156,6 +1169,12 @@ app.patch('/api/inbox/:itemId', async (c) => {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'status is required' } }, 400);
     }
 
+    // Get old item state for event broadcasting
+    const oldItem = inboxService.getInboxItem(itemId);
+    if (!oldItem) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Inbox item not found' } }, 404);
+    }
+
     let item;
     switch (body.status) {
       case 'read':
@@ -1170,6 +1189,15 @@ app.patch('/api/inbox/:itemId', async (c) => {
       default:
         return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid status. Must be read, unread, or archived' } }, 400);
     }
+
+    // Broadcast inbox event for real-time updates
+    broadcastInboxEvent(
+      itemId,
+      item.recipientId,
+      'updated',
+      { status: oldItem.status, readAt: oldItem.readAt },
+      { status: item.status, readAt: item.readAt }
+    );
 
     return c.json(item);
   } catch (error) {

@@ -17,7 +17,9 @@ export type SubscriptionChannel =
   | 'channels'
   | 'messages'
   | 'teams'
-  | '*'; // Wildcard - all events
+  | 'inbox'
+  | '*' // Wildcard - all events
+  | `inbox:${string}`; // Entity-specific inbox
 
 /**
  * WebSocket event with element type information
