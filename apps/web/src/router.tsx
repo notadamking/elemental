@@ -12,11 +12,11 @@ import { PlansPage } from './routes/plans';
 import { WorkflowsPage } from './routes/workflows';
 import { EntitiesPage } from './routes/entities';
 import { TeamsPage } from './routes/teams';
-import { SettingsPage, getDefaultDashboardLens } from './routes/settings';
+import { SettingsPage, getDefaultDashboardLens, getLastVisitedDashboardSection } from './routes/settings';
 
 // Map dashboard lens settings to routes
 const DASHBOARD_LENS_ROUTES: Record<ReturnType<typeof getDefaultDashboardLens>, string> = {
-  'overview': '/dashboard',
+  'overview': '/dashboard/overview',
   'task-flow': '/dashboard/task-flow',
   'agents': '/dashboard/agents',
   'dependencies': '/dashboard/dependencies',
@@ -39,10 +39,21 @@ const indexRoute = createRoute({
   },
 });
 
-// Dashboard route
-const dashboardRoute = createRoute({
+// Dashboard index redirect - redirects /dashboard to last-visited lens or /dashboard/overview
+const dashboardIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard',
+  beforeLoad: () => {
+    const lastVisited = getLastVisitedDashboardSection();
+    const targetRoute = DASHBOARD_LENS_ROUTES[lastVisited] || '/dashboard/overview';
+    throw redirect({ to: targetRoute });
+  },
+});
+
+// Dashboard Overview route
+const dashboardOverviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/overview',
   component: DashboardPage,
 });
 
@@ -194,7 +205,8 @@ const settingsRoute = createRoute({
 // Build the route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  dashboardRoute,
+  dashboardIndexRoute,
+  dashboardOverviewRoute,
   taskFlowRoute,
   agentActivityRoute,
   dependencyGraphRoute,

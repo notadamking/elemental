@@ -1192,14 +1192,14 @@ For mutations (create, update, delete):
 
 **Goal:** Improve dashboard UX with better navigation structure, modal-based actions, and enhanced visualizations.
 
-- [ ] **TB76: Dashboard Sub-Section Navigation**
-  - [ ] Web: Move dashboard lenses into sidebar as collapsible sub-section under "Dashboard"
-    - [ ] Dashboard (parent) → Overview, Task Flow, Agents, Dependencies, Timeline (children)
-  - [ ] Web: Remove tab navigation from dashboard content area
-  - [ ] Web: Each sub-section is a full-height view
-  - [ ] Web: Persist last-visited dashboard section in localStorage
-  - [ ] Web: Update routes: `/dashboard/overview`, `/dashboard/task-flow`, etc.
-  - [ ] **Verify:** Navigate between dashboard sections via sidebar; Playwright tests passing
+- [x] **TB76: Dashboard Sub-Section Navigation**
+  - [x] Web: Move dashboard lenses into sidebar as collapsible sub-section under "Dashboard"
+    - [x] Dashboard (parent) → Overview, Task Flow, Agents, Dependencies, Timeline (children)
+  - [x] Web: Remove tab navigation from dashboard content area (already done - no tabs existed)
+  - [x] Web: Each sub-section is a full-height view (already done)
+  - [x] Web: Persist last-visited dashboard section in localStorage (`dashboard.lastVisited`)
+  - [x] Web: Update routes: `/dashboard/overview`, `/dashboard/task-flow`, etc.
+  - [x] **Verify:** Navigate between dashboard sections via sidebar; Playwright tests passing (13 tests)
 
 - [ ] **TB77: Dashboard Quick Actions with Modals**
   - [ ] Web: "Create Task" button opens CreateTaskModal (not navigate away)

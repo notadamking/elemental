@@ -11,6 +11,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Filter, ArrowUpDown } from 'lucide-react';
+import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
 
 interface Task {
   id: string;
@@ -1522,6 +1523,9 @@ function TaskSlideOver({ taskId, onClose }: TaskSlideOverProps) {
 // ============================================================================
 
 export function TaskFlowPage() {
+  // Track this dashboard section visit
+  useTrackDashboardSection('task-flow');
+
   const readyTasks = useReadyTasks();
   const inProgressTasks = useInProgressTasks();
   const blockedTasks = useBlockedTasks();

@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
 import {
   ReactFlow,
   Background,
@@ -903,6 +904,9 @@ function DependencyGraphInner({
 }
 
 export function DependencyGraphPage() {
+  // Track this dashboard section visit
+  useTrackDashboardSection('dependencies');
+
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<TaskNodeData>>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

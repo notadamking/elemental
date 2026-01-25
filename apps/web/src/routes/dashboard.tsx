@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { Plus, Zap, ListTodo, CheckCircle, Clock, AlertCircle, Users, Bot, Activity, FileText, MessageSquare, ArrowRight } from 'lucide-react';
 import { TaskCard } from '../components/entity/TaskCard';
 import type { Task } from '../components/entity/types';
+import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
 
 interface StatsResponse {
   totalElements: number;
@@ -379,6 +380,9 @@ function MetricsOverview() {
 }
 
 export function DashboardPage() {
+  // Track this dashboard section visit
+  useTrackDashboardSection('overview');
+
   const stats = useStats();
   const health = useHealth();
 

@@ -659,6 +659,32 @@ export function getDefaultDashboardLens(): DashboardLens {
   return defaults.dashboardLens;
 }
 
+// Storage key for last visited dashboard section
+const LAST_VISITED_DASHBOARD_KEY = 'dashboard.lastVisited';
+
+/**
+ * Get the last visited dashboard section from localStorage
+ * Falls back to user's default dashboard lens if not set
+ */
+export function getLastVisitedDashboardSection(): DashboardLens {
+  if (typeof window === 'undefined') {
+    return getDefaultDashboardLens();
+  }
+  const stored = localStorage.getItem(LAST_VISITED_DASHBOARD_KEY);
+  if (stored && ['overview', 'task-flow', 'agents', 'dependencies', 'timeline'].includes(stored)) {
+    return stored as DashboardLens;
+  }
+  return getDefaultDashboardLens();
+}
+
+/**
+ * Set the last visited dashboard section in localStorage
+ */
+export function setLastVisitedDashboardSection(section: DashboardLens): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(LAST_VISITED_DASHBOARD_KEY, section);
+}
+
 export function getDefaultSortOrder(): DefaultSortOrder {
   const defaults = getStoredDefaults();
   return defaults.sortOrder;

@@ -67,7 +67,7 @@ test.describe('Keyboard Shortcuts', () => {
       await expect(page.getByTestId('documents-page')).toBeVisible();
     });
 
-    test('G H navigates to Dashboard page', async ({ page }) => {
+    test('G H navigates to Dashboard Overview page', async ({ page }) => {
       await page.goto('/tasks');
       await expect(page.getByTestId('tasks-page')).toBeVisible();
 
@@ -75,8 +75,8 @@ test.describe('Keyboard Shortcuts', () => {
       await page.keyboard.press('g');
       await page.keyboard.press('h');
 
-      // Should navigate to dashboard page
-      await expect(page).toHaveURL(/\/dashboard$/);
+      // Should navigate to dashboard overview page
+      await expect(page).toHaveURL(/\/dashboard\/overview/);
       await expect(page.getByTestId('dashboard-page')).toBeVisible();
     });
 

@@ -44,7 +44,7 @@ const NAV_SECTIONS: NavSection[] = [
     icon: LayoutDashboard,
     defaultExpanded: true,
     items: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Overview', shortcut: 'G H', testId: 'nav-dashboard' },
+      { to: '/dashboard/overview', icon: LayoutDashboard, label: 'Overview', shortcut: 'G H', testId: 'nav-dashboard' },
       { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F', testId: 'nav-task-flow' },
       { to: '/dashboard/agents', icon: Bot, label: 'Agents', shortcut: 'G A', testId: 'nav-agents' },
       { to: '/dashboard/dependencies', icon: Network, label: 'Dependencies', shortcut: 'G G', testId: 'nav-dependencies' },
@@ -112,10 +112,8 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   }, []);
 
   const isPathActive = (path: string) => {
-    if (path === '/dashboard') {
-      return currentPath === '/dashboard';
-    }
-    return currentPath === path || currentPath.startsWith(path + '/');
+    // Exact match for overview and all other paths
+    return currentPath === path;
   };
 
   const renderNavItem = (item: NavItem, inSection: boolean = false) => {

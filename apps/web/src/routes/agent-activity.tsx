@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { Clock, CheckCircle, ArrowRight, AlertTriangle } from 'lucide-react';
+import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
 
 interface Entity {
   id: string;
@@ -317,6 +318,9 @@ function WorkloadChart({ entities, tasksByEntity }: { entities: Entity[]; tasksB
 }
 
 export function AgentActivityPage() {
+  // Track this dashboard section visit
+  useTrackDashboardSection('agents');
+
   const navigate = useNavigate();
   const entities = useEntities();
 

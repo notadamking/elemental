@@ -7,7 +7,7 @@ import { keyboardManager, type ShortcutHandler } from '../lib/keyboard';
  * Maps shortcut keys to route paths.
  */
 const NAVIGATION_SHORTCUTS: Record<string, string> = {
-  'G H': '/dashboard',
+  'G H': '/dashboard/overview',
   'G F': '/dashboard/task-flow',
   'G A': '/dashboard/agents',
   'G G': '/dashboard/dependencies',

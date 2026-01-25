@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
+import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
 
 // Estimated event card height for virtualization
 const EVENT_CARD_HEIGHT = 140;
@@ -707,6 +708,9 @@ function TimePeriodGroup({ period, events, isFirst }: TimePeriodGroupProps) {
 }
 
 export function TimelinePage() {
+  // Track this dashboard section visit
+  useTrackDashboardSection('timeline');
+
   const navigate = useNavigate();
   const search = useSearch({ from: '/dashboard/timeline' });
 
