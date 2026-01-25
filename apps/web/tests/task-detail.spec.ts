@@ -203,13 +203,11 @@ test.describe('TB11: Task Detail Panel', () => {
     await page.getByTestId(`task-row-${firstTaskId}`).click();
     await expect(page.getByTestId('task-detail-panel')).toBeVisible({ timeout: 10000 });
 
-    // Check for status badge (common statuses)
-    const statusBadge = page.getByTestId('task-detail-panel').locator('span:has-text("Open"), span:has-text("In Progress"), span:has-text("Blocked"), span:has-text("Completed")').first();
-    await expect(statusBadge).toBeVisible();
+    // Check for status dropdown (clickable status badge)
+    await expect(page.getByTestId('task-status-dropdown')).toBeVisible();
 
-    // Check for priority badge (common priorities)
-    const priorityBadge = page.getByTestId('task-detail-panel').locator('span:has-text("Critical"), span:has-text("High"), span:has-text("Medium"), span:has-text("Low"), span:has-text("Trivial")').first();
-    await expect(priorityBadge).toBeVisible();
+    // Check for priority dropdown (clickable priority badge)
+    await expect(page.getByTestId('task-priority-dropdown')).toBeVisible();
   });
 
   test('task detail shows metadata grid', async ({ page }) => {

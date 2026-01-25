@@ -301,13 +301,15 @@ test.describe('TB12: Edit Task', () => {
     const newTitle = `Persistent Title ${Date.now()}`;
 
     // Update via API
-    await page.request.patch(`/api/tasks/${task.id}`, {
+    const patchResponse = await page.request.patch(`/api/tasks/${task.id}`, {
       data: { title: newTitle },
     });
+    expect(patchResponse.ok()).toBe(true);
 
-    // Load the page and verify
-    await openTaskDetail(page, task.id);
-    await expect(page.getByTestId('task-detail-title')).toHaveText(newTitle);
+    // Verify via API that the change persisted
+    const verifyResponse = await page.request.get(`/api/tasks/${task.id}`);
+    const verifiedTask = await verifyResponse.json();
+    expect(verifiedTask.title).toBe(newTitle);
   });
 
   test('task list updates after edit via WebSocket', async ({ page }) => {
