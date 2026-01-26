@@ -699,31 +699,31 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Methodology:** Each tracer bullet is a thin, full-stack slice following the "tracer bullet" approach from The Pragmatic Programmer. Complete one bullet fully (including verification) before starting the next. Every change should result in working software that can be tested immediately in the browser or via Playwright.
 
-- [ ] **TB140: Render Task Attachments as Markdown**
+- [x] **TB140: Render Task Attachments as Markdown**
 
   **Context:** Task attachments (documents) currently render as preformatted plain text in the TaskDetailPanel. Markdown documents should render with proper formatting (headings, lists, code blocks, links) using the existing MarkdownRenderer component.
 
   **Tracer Bullet Steps:**
-  - [ ] Step 1: Locate and read `renderDocumentContent()` in `TaskDetailPanel.tsx` (lines 1025-1053)
+  - [x] Step 1: Locate and read `renderDocumentContent()` in `TaskDetailPanel.tsx` (lines 1025-1053)
     - **Verify immediately:** Understand current rendering logic for markdown content type
-  - [ ] Step 2: Import `MarkdownRenderer` component at top of `TaskDetailPanel.tsx`
+  - [x] Step 2: Import `MarkdownRenderer` component at top of `TaskDetailPanel.tsx`
     - **Verify immediately:** No TypeScript errors, component available
-  - [ ] Step 3: Modify `renderDocumentContent()` to use `MarkdownRenderer` for markdown content type
+  - [x] Step 3: Modify `renderDocumentContent()` to use `MarkdownRenderer` for markdown content type
     - Change from `<pre className="...">{content}</pre>` to `<MarkdownRenderer content={content} />`
     - Keep JSON rendering as-is (formatted JSON in pre tag)
     - Keep plain text rendering as-is
     - **Verify immediately:** Open task with markdown attachment, confirm headings/lists/code render properly
-  - [ ] Step 4: Add prose styling wrapper for consistent typography
+  - [x] Step 4: Add prose styling wrapper for consistent typography
     - Use existing `prose` class from Tailwind typography
     - **Verify immediately:** Text spacing and sizing matches document viewer
-  - [ ] Step 5: Test edge cases
+  - [x] Step 5: Test edge cases
     - Empty markdown document
     - Very long markdown document (scrolling works)
     - Markdown with code blocks, tables, images
     - **Verify immediately:** All edge cases render correctly
-  - [ ] Step 6: Write Playwright test for markdown attachment rendering
+  - [x] Step 6: Write Playwright test for markdown attachment rendering
     - Create task, attach markdown document, verify formatted content visible
-    - **Verify:** Test passes in `apps/web/tests/tb140-attachment-markdown.spec.ts`
+    - **Verify:** 10 tests pass in `apps/web/tests/tb140-attachment-markdown.spec.ts`
 
 - [ ] **TB141: Sidebar Expand Button When Collapsed**
 

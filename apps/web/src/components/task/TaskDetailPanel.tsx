@@ -1038,11 +1038,12 @@ function renderDocumentContent(content: string, contentType: string): React.Reac
   }
 
   if (contentType === 'markdown') {
-    // For now, render as preformatted text - a full markdown renderer could be added
     return (
-      <div className="prose prose-sm max-w-none text-gray-700">
-        <pre className="whitespace-pre-wrap font-sans text-sm">{content}</pre>
-      </div>
+      <MarkdownRenderer
+        content={content}
+        className="text-sm text-gray-700 dark:text-gray-300"
+        testId="attachment-markdown-content"
+      />
     );
   }
 
