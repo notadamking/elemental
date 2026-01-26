@@ -1266,12 +1266,14 @@ For mutations (create, update, delete):
   - [x] Web: Task type definitions updated with count fields: `_attachmentCount`, `_blocksCount`, `_blockedByCount`, `description`
   - [x] **Verify:** Playwright tests passing (13 TB83 tests) - API, Dashboard TaskCard, and count calculations verified
 
-- [ ] **TB84: Dependencies as Sub-Issues Display**
-  - [ ] Web: TaskDetailPanel shows "Blocked By" section as expandable sub-task list
-  - [ ] Web: Each blocker shown as mini-card (title, status badge, click to navigate)
-  - [ ] Web: TaskDetailPanel shows "Blocks" section similarly
-  - [ ] Web: Show progress: "2 of 5 blockers resolved"
-  - [ ] Web: Add "Create Blocker" button to quickly create a sub-task that blocks this one
+- [x] **TB84: Dependencies as Sub-Issues Display**
+  - [x] Server: New endpoint `/api/tasks/:id/dependency-tasks` returns hydrated task details for dependencies
+  - [x] Web: TaskDetailPanel shows "Blocked By" section as expandable sub-task list with DependencySubIssues component
+  - [x] Web: Each blocker shown as SubIssueCard (title, status icon, priority badge, click to navigate)
+  - [x] Web: TaskDetailPanel shows "Blocks" section similarly
+  - [x] Web: Show progress in header: "0 of 1 resolved" format
+  - [x] Web: Add "Create Blocker Task" button with CreateBlockerModal to quickly create a sub-task that blocks this one
+  - [x] **Verify:** Playwright tests passing (16 TB84 tests) - API, UI sections, cards, navigation, and create blocker flow verified
   - [ ] **Verify:** View task with dependencies, see them as sub-issues; Playwright tests passing
 
 - [ ] **TB85: Kanban Pagination Fix**

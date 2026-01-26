@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 
 interface Dependency {
   sourceId: string;
@@ -238,6 +239,109 @@ function useDocuments(searchQuery: string) {
   });
 }
 
+// Types for hydrated dependency tasks (TB84)
+interface DependencyTask {
+  id: string;
+  title: string;
+  status: string;
+  priority: number;
+}
+
+interface HydratedDependency {
+  dependencyType: string;
+  task: DependencyTask;
+}
+
+interface DependencyTasksResponse {
+  blockedBy: HydratedDependency[];
+  blocks: HydratedDependency[];
+  progress: {
+    resolved: number;
+    total: number;
+  };
+}
+
+// Hook to fetch hydrated dependency tasks (TB84)
+function useDependencyTasks(taskId: string) {
+  return useQuery<DependencyTasksResponse>({
+    queryKey: ['tasks', taskId, 'dependency-tasks'],
+    queryFn: async () => {
+      const response = await fetch(`/api/tasks/${taskId}/dependency-tasks`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to fetch dependency tasks');
+      }
+      return response.json();
+    },
+    enabled: !!taskId,
+  });
+}
+
+// Hook to create a blocking task (TB84)
+function useCreateBlockerTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      blockedTaskId,
+      title,
+      createdBy,
+      priority,
+    }: {
+      blockedTaskId: string;
+      title: string;
+      createdBy: string;
+      priority?: number;
+    }) => {
+      // First create the task
+      const createResponse = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          createdBy,
+          priority: priority ?? 3,
+          taskType: 'task',
+        }),
+      });
+
+      if (!createResponse.ok) {
+        const error = await createResponse.json();
+        throw new Error(error.error?.message || 'Failed to create blocker task');
+      }
+
+      const newTask = await createResponse.json();
+
+      // Then create the dependency (new task blocks the target task)
+      const depResponse = await fetch('/api/dependencies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceId: newTask.id,
+          targetId: blockedTaskId,
+          type: 'blocks',
+          actor: createdBy,
+        }),
+      });
+
+      if (!depResponse.ok) {
+        const error = await depResponse.json();
+        throw new Error(error.error?.message || 'Failed to create dependency');
+      }
+
+      return newTask;
+    },
+    onSuccess: (_data, { blockedTaskId }) => {
+      // Invalidate queries to refresh the dependency list
+      queryClient.invalidateQueries({ queryKey: ['tasks', blockedTaskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', blockedTaskId, 'dependency-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'ready'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'blocked'] });
+    },
+  });
+}
+
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
   1: { label: 'Critical', color: 'bg-red-100 text-red-800 border-red-200' },
   2: { label: 'High', color: 'bg-orange-100 text-orange-800 border-orange-200' },
@@ -384,26 +488,398 @@ function formatRelativeTime(dateString: string): string {
   return formatDate(dateString);
 }
 
-function DependencyList({ dependencies, title, type }: { dependencies: Dependency[]; title: string; type: 'blockers' | 'blocking' }) {
-  if (dependencies.length === 0) return null;
+// Mini status badge for sub-issue display (TB84)
+const SUB_ISSUE_STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: string; bgColor: string }> = {
+  open: { icon: <Circle className="w-3 h-3" />, color: 'text-blue-600', bgColor: 'bg-blue-50' },
+  in_progress: { icon: <CircleDot className="w-3 h-3" />, color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
+  blocked: { icon: <AlertTriangle className="w-3 h-3" />, color: 'text-red-600', bgColor: 'bg-red-50' },
+  completed: { icon: <CheckCircle2 className="w-3 h-3" />, color: 'text-green-600', bgColor: 'bg-green-50' },
+  cancelled: { icon: <X className="w-3 h-3" />, color: 'text-gray-500', bgColor: 'bg-gray-50' },
+  deferred: { icon: <Clock className="w-3 h-3" />, color: 'text-purple-600', bgColor: 'bg-purple-50' },
+};
+
+// CircleDot icon component for in_progress status
+function CircleDot({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
+    </svg>
+  );
+}
+
+// Single sub-issue card component (TB84)
+function SubIssueCard({
+  task,
+  dependencyType: _dependencyType,
+  onClick,
+}: {
+  task: DependencyTask;
+  dependencyType: string;
+  onClick: () => void;
+}) {
+  const statusConfig = SUB_ISSUE_STATUS_CONFIG[task.status] || SUB_ISSUE_STATUS_CONFIG.open;
+  const priorityConfig = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
+  const isResolved = task.status === 'completed' || task.status === 'cancelled';
 
   return (
-    <div className="mt-4">
-      <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{title}</h4>
-      <div className="space-y-1">
-        {dependencies.map((dep) => (
-          <div
-            key={`${dep.sourceId}-${dep.targetId}-${dep.type}`}
-            className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded px-2 py-1"
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 p-2 rounded-lg border transition-colors text-left ${
+        isResolved
+          ? 'bg-gray-50 border-gray-200 opacity-70 hover:opacity-100'
+          : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+      }`}
+      data-testid={`sub-issue-${task.id}`}
+    >
+      {/* Status icon */}
+      <span className={`flex-shrink-0 ${statusConfig.color}`} title={task.status}>
+        {statusConfig.icon}
+      </span>
+
+      {/* Task title */}
+      <span
+        className={`flex-1 text-sm truncate ${
+          isResolved ? 'text-gray-500 line-through' : 'text-gray-900'
+        }`}
+        title={task.title}
+      >
+        {task.title}
+      </span>
+
+      {/* Priority badge (compact) */}
+      <span
+        className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded ${priorityConfig.color}`}
+        title={`Priority: ${priorityConfig.label}`}
+      >
+        P{task.priority}
+      </span>
+
+      {/* Navigate icon */}
+      <ExternalLink className="w-3 h-3 text-gray-400 flex-shrink-0" />
+    </button>
+  );
+}
+
+// Create Blocker Modal Component (TB84)
+function CreateBlockerModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  isCreating,
+  blockedTaskTitle,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (title: string, priority: number) => void;
+  isCreating: boolean;
+  blockedTaskTitle: string;
+}) {
+  const [title, setTitle] = useState('');
+  const [priority, setPriority] = useState(3);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTitle('');
+      setPriority(3);
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && !isCreating) {
+          onClose();
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, isCreating, onClose]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (title.trim()) {
+      onSubmit(title.trim(), priority);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      data-testid="create-blocker-modal"
+    >
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={() => !isCreating && onClose()}
+      />
+      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Create Blocker Task</h3>
+          <button
+            onClick={onClose}
+            disabled={isCreating}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
           >
-            <Link2 className="w-3 h-3 text-gray-400" />
-            <span className="font-mono text-xs">
-              {type === 'blockers' ? dep.targetId : dep.sourceId}
-            </span>
-            <span className="text-xs text-gray-400">({dep.type})</span>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          This will create a new task that blocks:{' '}
+          <span className="font-medium text-gray-900">"{blockedTaskTitle}"</span>
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Blocker Task Title
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter task title..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isCreating}
+              data-testid="blocker-title-input"
+            />
           </div>
-        ))}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Priority
+            </label>
+            <div className="flex gap-2">
+              {PRIORITY_OPTIONS.map((p) => {
+                const config = PRIORITY_LABELS[p];
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPriority(p)}
+                    disabled={isCreating}
+                    className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                      priority === p
+                        ? `${config.color} ring-2 ring-blue-500`
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                    data-testid={`blocker-priority-${p}`}
+                  >
+                    {config.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isCreating}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCreating || !title.trim()}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              data-testid="create-blocker-submit"
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Create Blocker
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
+    </div>
+  );
+}
+
+// Dependency Sub-Issues Section Component (TB84)
+function DependencySubIssues({
+  taskId,
+  taskTitle,
+  taskCreatedBy,
+}: {
+  taskId: string;
+  taskTitle: string;
+  taskCreatedBy: string;
+}) {
+  const navigate = useNavigate();
+  const { data, isLoading, isError } = useDependencyTasks(taskId);
+  const createBlocker = useCreateBlockerTask();
+  const [isBlockedByExpanded, setIsBlockedByExpanded] = useState(true);
+  const [isBlocksExpanded, setIsBlocksExpanded] = useState(true);
+  const [showCreateBlocker, setShowCreateBlocker] = useState(false);
+
+  const handleNavigateToTask = (id: string) => {
+    navigate({ to: '/tasks', search: { page: 1, limit: 25, selected: id } });
+  };
+
+  const handleCreateBlocker = (title: string, priority: number) => {
+    createBlocker.mutate(
+      {
+        blockedTaskId: taskId,
+        title,
+        createdBy: taskCreatedBy,
+        priority,
+      },
+      {
+        onSuccess: () => {
+          setShowCreateBlocker(false);
+        },
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="mt-4" data-testid="dependency-sub-issues-loading">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading dependencies...
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return null;
+  }
+
+  const hasBlockedBy = data.blockedBy.length > 0;
+  const hasBlocks = data.blocks.length > 0;
+
+  if (!hasBlockedBy && !hasBlocks) {
+    return (
+      <div className="mt-4" data-testid="dependency-sub-issues-section">
+        {/* Show create blocker button even when no dependencies */}
+        <button
+          onClick={() => setShowCreateBlocker(true)}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors w-full"
+          data-testid="create-blocker-btn"
+        >
+          <Plus className="w-4 h-4" />
+          Create Blocker Task
+        </button>
+        <CreateBlockerModal
+          isOpen={showCreateBlocker}
+          onClose={() => setShowCreateBlocker(false)}
+          onSubmit={handleCreateBlocker}
+          isCreating={createBlocker.isPending}
+          blockedTaskTitle={taskTitle}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-4" data-testid="dependency-sub-issues-section">
+      {/* Blocked By Section */}
+      {hasBlockedBy && (
+        <div>
+          <button
+            onClick={() => setIsBlockedByExpanded(!isBlockedByExpanded)}
+            className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 hover:text-gray-700 w-full"
+            data-testid="blocked-by-toggle"
+          >
+            {isBlockedByExpanded ? (
+              <ChevronDown className="w-3 h-3" />
+            ) : (
+              <ChevronRight className="w-3 h-3" />
+            )}
+            <Link2 className="w-3 h-3" />
+            Blocked By ({data.progress.resolved} of {data.progress.total} resolved)
+          </button>
+          {isBlockedByExpanded && (
+            <div className="space-y-1.5 ml-4" data-testid="blocked-by-list">
+              {data.blockedBy.map((dep) => (
+                <SubIssueCard
+                  key={dep.task.id}
+                  task={dep.task}
+                  dependencyType={dep.dependencyType}
+                  onClick={() => handleNavigateToTask(dep.task.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Blocks Section */}
+      {hasBlocks && (
+        <div>
+          <button
+            onClick={() => setIsBlocksExpanded(!isBlocksExpanded)}
+            className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 hover:text-gray-700 w-full"
+            data-testid="blocks-toggle"
+          >
+            {isBlocksExpanded ? (
+              <ChevronDown className="w-3 h-3" />
+            ) : (
+              <ChevronRight className="w-3 h-3" />
+            )}
+            <Link2 className="w-3 h-3" />
+            Blocks ({data.blocks.length})
+          </button>
+          {isBlocksExpanded && (
+            <div className="space-y-1.5 ml-4" data-testid="blocks-list">
+              {data.blocks.map((dep) => (
+                <SubIssueCard
+                  key={dep.task.id}
+                  task={dep.task}
+                  dependencyType={dep.dependencyType}
+                  onClick={() => handleNavigateToTask(dep.task.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create Blocker Button */}
+      <button
+        onClick={() => setShowCreateBlocker(true)}
+        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors w-full"
+        data-testid="create-blocker-btn"
+      >
+        <Plus className="w-4 h-4" />
+        Create Blocker Task
+      </button>
+
+      <CreateBlockerModal
+        isOpen={showCreateBlocker}
+        onClose={() => setShowCreateBlocker(false)}
+        onSubmit={handleCreateBlocker}
+        isCreating={createBlocker.isPending}
+        blockedTaskTitle={taskTitle}
+      />
     </div>
   );
 }
@@ -1076,10 +1552,6 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
     );
   }
 
-  // Separate dependencies by type
-  const blockers = task._dependencies.filter(d => d.type === 'blocks' || d.type === 'awaits');
-  const blocking = task._dependents.filter(d => d.type === 'blocks' || d.type === 'awaits');
-
   return (
     <div className="h-full flex flex-col bg-white" data-testid="task-detail-panel">
       {/* Delete Confirmation Dialog */}
@@ -1229,9 +1701,12 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         {/* Attachments */}
         <AttachmentsSection taskId={taskId} />
 
-        {/* Dependencies */}
-        <DependencyList dependencies={blockers} title="Blocked By" type="blockers" />
-        <DependencyList dependencies={blocking} title="Blocking" type="blocking" />
+        {/* Dependencies as Sub-Issues (TB84) */}
+        <DependencySubIssues
+          taskId={taskId}
+          taskTitle={task.title}
+          taskCreatedBy={task.createdBy}
+        />
 
         {/* Timestamps */}
         <div className="mt-6 pt-4 border-t border-gray-100">

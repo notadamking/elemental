@@ -794,6 +794,109 @@ app.delete('/api/tasks/:id/attachments/:docId', async (c) => {
   }
 });
 
+/**
+ * GET /api/tasks/:id/dependency-tasks
+ * Returns hydrated task details for dependencies (blocks/blocked-by)
+ * Used for displaying dependencies as sub-issues in TaskDetailPanel (TB84)
+ */
+app.get('/api/tasks/:id/dependency-tasks', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+
+    // Verify task exists
+    const task = await api.get(taskId);
+    if (!task) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+    if (task.type !== 'task') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // getDependencies(taskId) = rows where taskId is SOURCE (this task blocks others)
+    // getDependents(taskId) = rows where taskId is TARGET (other tasks block this task)
+    const [outgoingDeps, incomingDeps] = await Promise.all([
+      api.getDependencies(taskId),  // This task is source -> this task BLOCKS others
+      api.getDependents(taskId),    // This task is target -> other tasks BLOCK this task
+    ]);
+
+    // Filter to only include blocks/awaits dependency types (not references)
+    // blockedByDeps: dependencies where THIS task is blocked BY other tasks (incoming)
+    const blockedByDeps = incomingDeps.filter(d => d.type === 'blocks' || d.type === 'awaits');
+    // blocksDeps: dependencies where THIS task blocks other tasks (outgoing)
+    const blocksDeps = outgoingDeps.filter(d => d.type === 'blocks' || d.type === 'awaits');
+
+    // Collect all unique task IDs we need to fetch
+    // For blockedBy: this task is the target, so fetch the source (the blocker)
+    // For blocks: this task is the source, so fetch the target (the blocked task)
+    const blockerTaskIds = blockedByDeps.map(d => d.sourceId);
+    const blockedTaskIds = blocksDeps.map(d => d.targetId);
+    const allTaskIds = [...new Set([...blockerTaskIds, ...blockedTaskIds])];
+
+    // Fetch all related tasks in parallel
+    const tasksMap = new Map<string, { id: string; title: string; status: string; priority: number }>();
+
+    if (allTaskIds.length > 0) {
+      const taskPromises = allTaskIds.map(async (id) => {
+        try {
+          const t = await api.get(id as ElementId);
+          if (t && t.type === 'task') {
+            return {
+              id: t.id,
+              title: (t as unknown as { title: string }).title,
+              status: (t as unknown as { status: string }).status,
+              priority: (t as unknown as { priority: number }).priority,
+            };
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      });
+
+      const tasks = await Promise.all(taskPromises);
+      tasks.forEach((t) => {
+        if (t) tasksMap.set(t.id, t);
+      });
+    }
+
+    // Build hydrated blocker list (tasks that block this task)
+    const blockedBy = blockedByDeps.map((dep) => {
+      const blockerTask = tasksMap.get(dep.sourceId);
+      return {
+        dependencyType: dep.type,
+        task: blockerTask || { id: dep.sourceId, title: `Unknown (${dep.sourceId})`, status: 'unknown', priority: 3 },
+      };
+    });
+
+    // Build hydrated blocking list (tasks blocked by this task)
+    const blocks = blocksDeps.map((dep) => {
+      const blockedTask = tasksMap.get(dep.targetId);
+      return {
+        dependencyType: dep.type,
+        task: blockedTask || { id: dep.targetId, title: `Unknown (${dep.targetId})`, status: 'unknown', priority: 3 },
+      };
+    });
+
+    // Calculate progress stats
+    const blockedByResolved = blockedBy.filter(b =>
+      b.task.status === 'completed' || b.task.status === 'cancelled'
+    ).length;
+    const blockedByTotal = blockedBy.length;
+
+    return c.json({
+      blockedBy,
+      blocks,
+      progress: {
+        resolved: blockedByResolved,
+        total: blockedByTotal,
+      },
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get dependency tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get dependency tasks' } }, 500);
+  }
+});
+
 // ============================================================================
 // Entities Endpoints
 // ============================================================================
