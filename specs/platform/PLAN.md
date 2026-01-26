@@ -1305,15 +1305,15 @@ For mutations (create, update, delete):
   - [x] Web: Search persists in localStorage, / keyboard shortcut to focus, Escape to clear
   - [x] **Verify:** Search for plans, matching plans shown with highlighting; 16 Playwright tests passing
 
-- [ ] **TB88: Plan Roadmap View**
-  - [ ] Web: Add "Roadmap" view toggle (alongside List view)
-  - [ ] Web: Roadmap shows plans as horizontal bars on a timeline
-  - [ ] Web: X-axis: time (weeks/months)
-  - [ ] Web: Y-axis: plans (stacked rows)
-  - [ ] Web: Bar length based on plan duration (first task created → last task deadline or completed date)
-  - [ ] Web: Color based on status (draft=gray, active=blue, completed=green)
-  - [ ] Web: Click bar → navigate to plan detail
-  - [ ] **Verify:** Roadmap view shows plans on timeline; Claude in Chrome visual inspection
+- [x] **TB88: Plan Roadmap View** ✅
+  - [x] Web: Add "Roadmap" view toggle (alongside List view)
+  - [x] Web: Roadmap shows plans as horizontal bars on a timeline
+  - [x] Web: X-axis: time (weeks/months)
+  - [x] Web: Y-axis: plans (stacked rows)
+  - [x] Web: Bar length based on plan duration (first task created → last task deadline or completed date)
+  - [x] Web: Color based on status (draft=gray, active=blue, completed=green)
+  - [x] Web: Click bar → navigate to plan detail
+  - [x] **Verify:** Roadmap view shows plans on timeline; Playwright tests passing (`tb88-plan-roadmap.spec.ts`)
 
 ### Phase 22: Inbox Improvements (Linear-inspired)
 
