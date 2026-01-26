@@ -293,7 +293,7 @@ function QuickActions({
           data-testid="quick-action-pour-workflow"
         >
           <Zap className="w-4 h-4" />
-          Pour Workflow
+          Create Workflow
           <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">C W</kbd>
         </button>
         <Link

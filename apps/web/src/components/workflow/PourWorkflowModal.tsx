@@ -125,7 +125,7 @@ function usePourWorkflow() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to pour workflow');
+        throw new Error(error.error?.message || 'Failed to create workflow');
       }
 
       return response.json();
@@ -410,12 +410,12 @@ export function PourWorkflowModal({
         {pourWorkflow.isPending ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
-            Pouring...
+            Creating...
           </>
         ) : (
           <>
             <Plus className="w-4 h-4" />
-            Pour
+            Create
           </>
         )}
       </button>
@@ -426,7 +426,7 @@ export function PourWorkflowModal({
     <ResponsiveModal
       open={isOpen}
       onClose={onClose}
-      title="Pour New Workflow"
+      title="Create Workflow"
       icon={<Book className="w-5 h-5 text-purple-500" />}
       size="lg"
       data-testid="pour-workflow-modal"
@@ -588,7 +588,7 @@ export function PourWorkflowModal({
 
         {pourWorkflow.isError && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-            {pourWorkflow.error?.message || 'Failed to pour workflow'}
+            {pourWorkflow.error?.message || 'Failed to create workflow'}
           </div>
         )}
       </form>

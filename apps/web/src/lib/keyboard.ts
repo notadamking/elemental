@@ -39,7 +39,7 @@ export const DEFAULT_SHORTCUTS: Record<string, { keys: string; description: stri
   'action.commandPalette': { keys: 'Cmd+K', description: 'Open Command Palette', category: 'actions' },
   'action.toggleSidebar': { keys: 'Cmd+B', description: 'Toggle Sidebar', category: 'actions' },
   'action.createTask': { keys: 'C T', description: 'Create Task', category: 'actions' },
-  'action.pourWorkflow': { keys: 'C W', description: 'Pour Workflow', category: 'actions' },
+  'action.pourWorkflow': { keys: 'C W', description: 'Create Workflow', category: 'actions' },
   // Views
   'view.list': { keys: 'V L', description: 'List View', category: 'views' },
   'view.kanban': { keys: 'V K', description: 'Kanban View', category: 'views' },

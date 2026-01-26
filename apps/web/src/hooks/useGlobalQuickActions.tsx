@@ -56,7 +56,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
   }, [navigate]);
 
   const handleWorkflowPoured = useCallback((workflow: { id: string; title: string }) => {
-    toast.success('Workflow poured successfully', {
+    toast.success('Workflow created successfully', {
       description: `"${workflow.title}" has been created.`,
       action: {
         label: 'View Workflow',
@@ -82,7 +82,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     };
 
     keyboardManager.register('C T', createTaskHandler, 'Create Task');
-    keyboardManager.register('C W', pourWorkflowHandler, 'Pour Workflow');
+    keyboardManager.register('C W', pourWorkflowHandler, 'Create Workflow');
 
     return () => {
       keyboardManager.unregister('C T');
@@ -117,7 +117,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
         onSuccess={handleTaskCreated}
       />
 
-      {/* Global Pour Workflow Modal */}
+      {/* Global Create Workflow Modal */}
       <PourWorkflowModal
         isOpen={isPourWorkflowModalOpen}
         onClose={() => setIsPourWorkflowModalOpen(false)}

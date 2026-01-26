@@ -125,7 +125,7 @@ test.describe('TB77: Dashboard Quick Actions with Modals', () => {
       await expect(page.getByTestId('pour-workflow-modal')).not.toBeVisible();
 
       // Toast should appear
-      await expect(page.getByText('Workflow poured successfully')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText('Workflow created successfully')).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -237,7 +237,7 @@ test.describe('TB77: Dashboard Quick Actions with Modals', () => {
       await page.getByTestId('pour-submit-button').click();
 
       // Toast should be visible with success message
-      await expect(page.getByText('Workflow poured successfully')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText('Workflow created successfully')).toBeVisible({ timeout: 5000 });
     });
 
     test('toast has View Workflow action button after workflow creation', async ({ page }) => {
@@ -246,7 +246,7 @@ test.describe('TB77: Dashboard Quick Actions with Modals', () => {
       await page.getByTestId('pour-submit-button').click();
 
       // Wait for toast to appear
-      await expect(page.getByText('Workflow poured successfully')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText('Workflow created successfully')).toBeVisible({ timeout: 5000 });
 
       // Toast should have View Workflow action
       await expect(page.getByRole('button', { name: 'View Workflow' })).toBeVisible();

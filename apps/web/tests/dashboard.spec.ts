@@ -60,12 +60,12 @@ test.describe('TB41: Dashboard Overview Panel', () => {
     await expect(page.getByTestId('quick-action-create-task')).toHaveText(/Create Task/);
   });
 
-  test('quick actions has pour workflow button', async ({ page }) => {
+  test('quick actions has create workflow button', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page.getByTestId('dashboard-page')).toBeVisible({ timeout: 10000 });
 
     await expect(page.getByTestId('quick-action-pour-workflow')).toBeVisible();
-    await expect(page.getByTestId('quick-action-pour-workflow')).toHaveText(/Pour Workflow/);
+    await expect(page.getByTestId('quick-action-pour-workflow')).toHaveText(/Create Workflow/);
   });
 
   test('quick actions has view ready tasks button', async ({ page }) => {

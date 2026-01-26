@@ -1125,7 +1125,7 @@ export function WorkflowsPage() {
                 className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
               >
                 <Plus className="w-4 h-4" />
-                Pour Workflow
+                Create Workflow
                 <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">C W</kbd>
               </button>
             </div>
@@ -1250,7 +1250,7 @@ export function WorkflowsPage() {
         </MobileDetailSheet>
       )}
 
-      {/* Mobile Floating Action Button for Pour Workflow (TB148) */}
+      {/* Mobile Floating Action Button for Create Workflow (TB148) */}
       {isMobile && !selectedWorkflowId && (
         <button
           onClick={openPourWorkflowModal}
