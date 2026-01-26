@@ -131,6 +131,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB116-horizontal-timeline.md](./platform/TB116-horizontal-timeline.md) | Horizontal Timeline View - Timeline visualization with time axis, pan/zoom, and time range selector | timeline, horizontal, visualization, events, time axis, pan, zoom |
 | [platform/TB117-timeline-brush-selection.md](./platform/TB117-timeline-brush-selection.md) | Timeline Brush Selection - Drag to select time range with filtered events list and URL sync | timeline, brush, selection, drag, filter, URL sync |
 | [platform/TB119_ACCESSIBILITY_AUDIT.md](./platform/TB119_ACCESSIBILITY_AUDIT.md) | Accessibility Audit - axe-core integration, WCAG 2.1 AA compliance, color contrast fixes, ARIA labels, keyboard navigation | accessibility, a11y, wcag, contrast, aria, keyboard, screen reader |
+| [platform/TB120-performance-audit.md](./platform/TB120-performance-audit.md) | Performance Audit - Bundle optimization, code splitting, skeleton components, load time verification | performance, bundle, code splitting, skeleton, loading, memoization, virtualization |
 
 ---
 
