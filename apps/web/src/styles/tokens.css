@@ -610,6 +610,146 @@
 }
 
 /* =============================================================================
+   RESPONSIVE BREAKPOINT TOKENS
+   Custom breakpoints for consistent responsive design.
+   Note: Tailwind CSS v4 uses @media queries directly. These tokens are for
+   reference and use in JavaScript hooks.
+   ============================================================================= */
+:root {
+  /* Breakpoint values in pixels */
+  --breakpoint-xs: 0;       /* 0 - 479px: small phones */
+  --breakpoint-sm: 480px;   /* 480 - 639px: large phones */
+  --breakpoint-md: 640px;   /* 640 - 767px: small tablets */
+  --breakpoint-lg: 768px;   /* 768 - 1023px: tablets */
+  --breakpoint-xl: 1024px;  /* 1024 - 1279px: small laptops */
+  --breakpoint-2xl: 1280px; /* 1280px+: desktops */
+}
+
+/* =============================================================================
+   RESPONSIVE SPACING TOKENS
+   Spacing values that adapt based on screen size.
+   ============================================================================= */
+:root {
+  /* Base responsive gaps - use these for adaptive layouts */
+  --gap-responsive: var(--spacing-4);        /* 16px base */
+  --padding-responsive: var(--spacing-4);    /* 16px base */
+  --margin-responsive: var(--spacing-4);     /* 16px base */
+
+  /* Container padding - adjusts for screen size */
+  --container-padding: var(--spacing-4);     /* 16px on mobile */
+
+  /* Touch target minimum - 44px for accessibility */
+  --touch-target-min: 2.75rem;               /* 44px */
+}
+
+/* Responsive spacing adjustments for tablets and up */
+@media (min-width: 768px) {
+  :root {
+    --gap-responsive: var(--spacing-6);      /* 24px */
+    --padding-responsive: var(--spacing-6);  /* 24px */
+    --margin-responsive: var(--spacing-6);   /* 24px */
+    --container-padding: var(--spacing-6);   /* 24px */
+  }
+}
+
+/* Responsive spacing adjustments for desktops */
+@media (min-width: 1280px) {
+  :root {
+    --gap-responsive: var(--spacing-8);      /* 32px */
+    --padding-responsive: var(--spacing-8);  /* 32px */
+    --margin-responsive: var(--spacing-8);   /* 32px */
+    --container-padding: var(--spacing-8);   /* 32px */
+  }
+}
+
+/* =============================================================================
+   RESPONSIVE TYPOGRAPHY TOKENS
+   Font sizes that adapt based on screen size for optimal readability.
+   ============================================================================= */
+:root {
+  /* Base responsive text sizes */
+  --font-size-responsive-base: 0.875rem;     /* 14px on mobile */
+  --font-size-responsive-lg: 1rem;           /* 16px on mobile */
+  --font-size-responsive-xl: 1.125rem;       /* 18px on mobile */
+
+  /* Responsive headings */
+  --font-size-responsive-h1: 1.5rem;         /* 24px on mobile */
+  --font-size-responsive-h2: 1.25rem;        /* 20px on mobile */
+  --font-size-responsive-h3: 1.125rem;       /* 18px on mobile */
+
+  /* Responsive line heights */
+  --line-height-responsive: 1.6;             /* Slightly looser on mobile */
+}
+
+/* Typography adjustments for tablets */
+@media (min-width: 768px) {
+  :root {
+    --font-size-responsive-base: 0.9375rem;  /* 15px */
+    --font-size-responsive-lg: 1.0625rem;    /* 17px */
+    --font-size-responsive-xl: 1.1875rem;    /* 19px */
+    --font-size-responsive-h1: 1.75rem;      /* 28px */
+    --font-size-responsive-h2: 1.375rem;     /* 22px */
+    --font-size-responsive-h3: 1.1875rem;    /* 19px */
+    --line-height-responsive: 1.55;
+  }
+}
+
+/* Typography adjustments for desktops */
+@media (min-width: 1280px) {
+  :root {
+    --font-size-responsive-base: 1rem;       /* 16px */
+    --font-size-responsive-lg: 1.125rem;     /* 18px */
+    --font-size-responsive-xl: 1.25rem;      /* 20px */
+    --font-size-responsive-h1: 2rem;         /* 32px */
+    --font-size-responsive-h2: 1.5rem;       /* 24px */
+    --font-size-responsive-h3: 1.25rem;      /* 20px */
+    --line-height-responsive: 1.5;
+  }
+}
+
+/* =============================================================================
+   RESPONSIVE LAYOUT TOKENS
+   Layout values that adapt for different screen sizes.
+   ============================================================================= */
+:root {
+  /* Sidebar width tokens */
+  --sidebar-width: 0;                        /* Hidden on mobile by default */
+  --sidebar-width-collapsed: 3.5rem;         /* 56px for icons */
+  --sidebar-width-expanded: 15rem;           /* 240px when expanded */
+
+  /* Detail panel widths */
+  --detail-panel-width: 100%;                /* Full screen on mobile */
+
+  /* Content max widths */
+  --content-max-width: 100%;                 /* Full width on mobile */
+  --prose-max-width: 100%;                   /* Full width prose on mobile */
+}
+
+/* Layout adjustments for tablets */
+@media (min-width: 768px) {
+  :root {
+    --sidebar-width: var(--sidebar-width-collapsed); /* Collapsed by default on tablet */
+    --detail-panel-width: 20rem;             /* 320px */
+    --content-max-width: calc(100% - var(--sidebar-width));
+    --prose-max-width: 42rem;                /* 672px */
+  }
+}
+
+/* Layout adjustments for desktops */
+@media (min-width: 1024px) {
+  :root {
+    --sidebar-width: var(--sidebar-width-expanded); /* Expanded on desktop */
+    --detail-panel-width: 25rem;             /* 400px */
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --prose-max-width: 50rem;                /* 800px */
+  }
+}
+
+/* =============================================================================
    TAILWIND CSS V4 THEME INTEGRATION
    ============================================================================= */
 /*
@@ -623,3 +763,85 @@
  *   padding: var(--spacing-4);
  *   border-radius: var(--radius-lg);
  */
+
+/* =============================================================================
+   RESPONSIVE UTILITY CLASSES
+   These utility classes use the responsive tokens for consistent adaptive styling.
+   ============================================================================= */
+
+/* Gap utilities that adapt to screen size */
+.gap-responsive {
+  gap: var(--gap-responsive);
+}
+
+.p-responsive {
+  padding: var(--padding-responsive);
+}
+
+.px-responsive {
+  padding-left: var(--padding-responsive);
+  padding-right: var(--padding-responsive);
+}
+
+.py-responsive {
+  padding-top: var(--padding-responsive);
+  padding-bottom: var(--padding-responsive);
+}
+
+.m-responsive {
+  margin: var(--margin-responsive);
+}
+
+.mx-responsive {
+  margin-left: var(--margin-responsive);
+  margin-right: var(--margin-responsive);
+}
+
+.my-responsive {
+  margin-top: var(--margin-responsive);
+  margin-bottom: var(--margin-responsive);
+}
+
+/* Container padding utility */
+.container-padding {
+  padding-left: var(--container-padding);
+  padding-right: var(--container-padding);
+}
+
+/* Touch-friendly minimum size */
+.min-touch-target {
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+}
+
+/* Responsive text utilities */
+.text-responsive {
+  font-size: var(--font-size-responsive-base);
+  line-height: var(--line-height-responsive);
+}
+
+.text-responsive-lg {
+  font-size: var(--font-size-responsive-lg);
+  line-height: var(--line-height-responsive);
+}
+
+/* Responsive heading utilities */
+.text-responsive-h1 {
+  font-size: var(--font-size-responsive-h1);
+  line-height: var(--line-height-tight);
+}
+
+.text-responsive-h2 {
+  font-size: var(--font-size-responsive-h2);
+  line-height: var(--line-height-tight);
+}
+
+.text-responsive-h3 {
+  font-size: var(--font-size-responsive-h3);
+  line-height: var(--line-height-snug);
+}
+
+/* Prose max width utility */
+.prose-width {
+  max-width: var(--prose-max-width);
+}

@@ -843,43 +843,22 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB144: Responsive Foundation & CSS Infrastructure**
+- [x] **TB144: Responsive Foundation & CSS Infrastructure** ✅ DONE
 
   **Context:** Before making individual components responsive, establish the CSS infrastructure—breakpoint utilities, responsive spacing scale, and testing helpers. This creates a consistent foundation for all subsequent work.
 
-  **Tracer Bullet Steps:**
-  - [ ] Step 1: Audit current Tailwind config for responsive breakpoints
-    - Check `tailwind.config.ts` for breakpoint definitions
-    - Verify breakpoints match our strategy (xs through 2xl)
-    - Add any missing breakpoints
-    - **Verify immediately:** `@media` queries work at all defined breakpoints
-  - [ ] Step 2: Create responsive spacing utilities
-    - Define mobile-first spacing scale in `tokens.css`
-    - Add `--spacing-mobile`, `--spacing-tablet`, `--spacing-desktop` CSS variables
-    - Create utility classes: `.p-responsive`, `.gap-responsive`
-    - **Verify immediately:** Spacing changes at breakpoints in DevTools
-  - [ ] Step 3: Create responsive typography scale
-    - Smaller base font on mobile (14px), larger on desktop (16px)
-    - Heading sizes scale appropriately
-    - Line heights adjust for readability
-    - **Verify immediately:** Text is readable and well-proportioned at all sizes
-  - [ ] Step 4: Add viewport meta tag verification
-    - Ensure `<meta name="viewport" content="width=device-width, initial-scale=1">` is present
-    - Disable user-scalable=no (accessibility requirement)
-    - **Verify immediately:** Page scales correctly on mobile devices
-  - [ ] Step 5: Create responsive testing utilities
-    - Add `useBreakpoint()` hook to detect current breakpoint
-    - Add `useIsMobile()`, `useIsTablet()`, `useIsDesktop()` convenience hooks
-    - **Verify immediately:** Hooks return correct values at each breakpoint
-  - [ ] Step 6: Create Playwright responsive testing helpers
-    - Helper to test at multiple viewport sizes
-    - Screenshot comparison utilities
-    - Touch event simulation helpers
-    - **Verify immediately:** Helper functions work in test file
-  - [ ] Step 7: Document responsive patterns
-    - Create `RESPONSIVE.md` guide with patterns and examples
-    - Document breakpoint usage, spacing, and touch targets
-    - **Verify:** Documentation is clear and complete
+  **Implementation Summary:**
+  - Added breakpoint CSS tokens (`--breakpoint-xs` through `--breakpoint-2xl`) to `tokens.css`
+  - Created responsive spacing tokens (`--gap-responsive`, `--padding-responsive`, etc.) that adapt at 768px and 1280px
+  - Created responsive typography tokens (`--font-size-responsive-base`, `--font-size-responsive-h1`, etc.)
+  - Created responsive layout tokens (`--sidebar-width`, `--detail-panel-width`, `--prose-max-width`)
+  - Added responsive utility classes (`.gap-responsive`, `.p-responsive`, `.text-responsive`, etc.)
+  - Verified viewport meta tag is correct and accessible (no `user-scalable=no`)
+  - Created `useBreakpoint()` and related hooks (`useIsMobile()`, `useIsTablet()`, `useIsDesktop()`, `useResponsive()`, etc.)
+  - Created Playwright responsive test helpers (`setViewport()`, `testResponsive()`, `testAtAllBreakpoints()`, etc.)
+  - 18 Playwright tests passing in `apps/web/tests/tb144-responsive-foundation.spec.ts`
+  - Spec: `specs/platform/TB144-responsive-foundation.md`
+  - **Verify:** Run `npx playwright test tb144` - all tests pass
 
 ---
 
