@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sun, Moon, Monitor, Palette, Keyboard, Settings2, Bell, RefreshCw, RotateCcw, X, AlertCircle, Check, List, LayoutGrid, Home, Workflow, Users, GitBranch, Clock, ArrowUp, Calendar, FileText, BellRing, MessageSquare, CheckCircle2, AlertTriangle, Download, Upload, Loader2, HardDrive, Contrast } from 'lucide-react';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import {
   DEFAULT_SHORTCUTS,
   getCurrentBinding,
@@ -106,6 +107,7 @@ function ThemeOption({
   icon: Icon,
   isSelected,
   onSelect,
+  isMobile,
 }: {
   theme: Theme;
   label: string;
@@ -113,31 +115,32 @@ function ThemeOption({
   icon: React.ComponentType<{ className?: string }>;
   isSelected: boolean;
   onSelect: () => void;
+  isMobile?: boolean;
 }) {
   return (
     <button
       onClick={onSelect}
       className={`
-        flex items-start gap-4 p-4 rounded-lg border transition-all text-left w-full
+        flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-all text-left w-full min-h-[60px]
         ${isSelected
           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400 ring-2 ring-blue-200 dark:ring-blue-800'
-          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 active:bg-gray-100 dark:active:bg-gray-700'
         }
       `}
       data-testid={`theme-option-${theme}`}
     >
       <div className={`
-        w-10 h-10 rounded-lg flex items-center justify-center
+        w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0
         ${isSelected
           ? 'bg-blue-500 text-white'
           : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
         }
       `}>
-        <Icon className="w-5 h-5" />
+        <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
       </div>
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className={`font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-100'}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`font-medium text-sm sm:text-base ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-100'}`}>
             {label}
           </span>
           {isSelected && (
@@ -146,7 +149,7 @@ function ThemeOption({
             </span>
           )}
         </div>
-        <p className={`text-sm mt-0.5 ${isSelected ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>{description}</p>
+        <p className={`text-xs sm:text-sm mt-0.5 ${isSelected ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'} ${isMobile ? 'line-clamp-2' : ''}`}>{description}</p>
       </div>
     </button>
   );
@@ -155,9 +158,11 @@ function ThemeOption({
 function ThemeSection({
   currentTheme,
   onThemeChange,
+  isMobile,
 }: {
   currentTheme: Theme;
   onThemeChange: (theme: Theme) => void;
+  isMobile: boolean;
 }) {
   const [highContrastBase, setHighContrastBaseState] = useState<'light' | 'dark'>('light');
 
@@ -184,12 +189,12 @@ function ThemeSection({
 
   return (
     <div data-testid="settings-theme-section">
-      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Theme</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Theme</h3>
+      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4 sm:mb-6">
         Choose how the application looks. You can select light mode, dark mode, high contrast mode, or follow your system settings.
       </p>
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         <ThemeOption
           theme="light"
           label="Light"
@@ -197,6 +202,7 @@ function ThemeSection({
           icon={Sun}
           isSelected={currentTheme === 'light'}
           onSelect={() => onThemeChange('light')}
+          isMobile={isMobile}
         />
         <ThemeOption
           theme="dark"
@@ -205,6 +211,7 @@ function ThemeSection({
           icon={Moon}
           isSelected={currentTheme === 'dark'}
           onSelect={() => onThemeChange('dark')}
+          isMobile={isMobile}
         />
         <ThemeOption
           theme="high-contrast"
@@ -213,6 +220,7 @@ function ThemeSection({
           icon={Contrast}
           isSelected={currentTheme === 'high-contrast'}
           onSelect={() => onThemeChange('high-contrast')}
+          isMobile={isMobile}
         />
         <ThemeOption
           theme="system"
@@ -221,24 +229,25 @@ function ThemeSection({
           icon={Monitor}
           isSelected={currentTheme === 'system'}
           onSelect={() => onThemeChange('system')}
+          isMobile={isMobile}
         />
       </div>
 
       {/* High Contrast Base Toggle */}
       {currentTheme === 'high-contrast' && (
-        <div className="mt-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50" data-testid="high-contrast-base-section">
-          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">High Contrast Base</h4>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+        <div className="mt-4 sm:mt-6 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50" data-testid="high-contrast-base-section">
+          <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">High Contrast Base</h4>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">
             Choose whether high contrast mode uses a light or dark base.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={() => handleHighContrastBaseChange('light')}
               className={`
-                flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
+                flex items-center justify-center sm:justify-start gap-2 px-4 py-3 sm:py-2 rounded-lg border transition-all text-sm min-h-[44px]
                 ${highContrastBase === 'light'
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700'
                 }
               `}
               data-testid="high-contrast-base-light"
@@ -249,10 +258,10 @@ function ThemeSection({
             <button
               onClick={() => handleHighContrastBaseChange('dark')}
               className={`
-                flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
+                flex items-center justify-center sm:justify-start gap-2 px-4 py-3 sm:py-2 rounded-lg border transition-all text-sm min-h-[44px]
                 ${highContrastBase === 'dark'
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700'
                 }
               `}
               data-testid="high-contrast-base-dark"
@@ -265,8 +274,8 @@ function ThemeSection({
       )}
 
       {/* Theme Preview */}
-      <div className="mt-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Preview</h4>
+      <div className="mt-6 sm:mt-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Preview</h4>
         <div className={`
           p-4 rounded-lg border
           ${currentTheme === 'high-contrast'
@@ -371,9 +380,10 @@ interface ShortcutEditModalProps {
   defaultKeys: string;
   onSave: (keys: string) => void;
   onCancel: () => void;
+  isMobile: boolean;
 }
 
-function ShortcutEditModal({ actionId, description, currentKeys, defaultKeys, onSave, onCancel }: ShortcutEditModalProps) {
+function ShortcutEditModal({ actionId, description, currentKeys, defaultKeys, onSave, onCancel, isMobile }: ShortcutEditModalProps) {
   const [capturedKeys, setCapturedKeys] = useState<string[]>([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
@@ -454,20 +464,26 @@ function ShortcutEditModal({ actionId, description, currentKeys, defaultKeys, on
     : formatShortcutDisplay(currentKeys);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" data-testid="shortcut-edit-modal">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" data-testid="shortcut-edit-modal">
+      <div className={`
+        bg-white dark:bg-gray-800 shadow-xl w-full p-4 sm:p-6
+        ${isMobile
+          ? 'rounded-t-2xl max-h-[90vh] overflow-y-auto pb-safe'
+          : 'rounded-lg max-w-md'
+        }
+      `}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Shortcut</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Shortcut</h3>
           <button
             onClick={onCancel}
-            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 min-h-[44px] min-w-[44px] flex items-center justify-center"
             data-testid="shortcut-edit-close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{description}</p>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4">{description}</p>
 
         <div
           ref={inputRef}
@@ -475,7 +491,7 @@ function ShortcutEditModal({ actionId, description, currentKeys, defaultKeys, on
           onClick={handleStartCapture}
           onBlur={handleStopCapture}
           className={`
-            p-4 rounded-lg border-2 text-center font-mono text-lg cursor-pointer transition-all
+            p-4 sm:p-6 rounded-lg border-2 text-center font-mono text-base sm:text-lg cursor-pointer transition-all min-h-[60px] flex items-center justify-center
             ${isCapturing
               ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
               : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900'
@@ -500,25 +516,25 @@ function ShortcutEditModal({ actionId, description, currentKeys, defaultKeys, on
         {conflict && (
           <div className="flex items-center gap-2 mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
             <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-            <p className="text-sm text-red-600 dark:text-red-400" data-testid="shortcut-conflict-warning">
+            <p className="text-xs sm:text-sm text-red-600 dark:text-red-400" data-testid="shortcut-conflict-warning">
               Conflicts with: {conflict}
             </p>
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-6">
+        <div className={`mt-6 ${isMobile ? 'space-y-3' : 'flex items-center justify-between'}`}>
           <button
             onClick={handleResetToDefault}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+            className={`flex items-center justify-center gap-2 px-3 py-3 sm:py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 min-h-[44px] ${isMobile ? 'w-full border border-gray-200 dark:border-gray-700 rounded-lg' : ''}`}
             data-testid="shortcut-reset-default"
           >
             <RotateCcw className="w-4 h-4" />
             Reset to Default
           </button>
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${isMobile ? 'flex-col-reverse' : ''}`}>
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              className={`px-4 py-3 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg min-h-[44px] ${isMobile ? 'w-full border border-gray-200 dark:border-gray-700' : ''}`}
               data-testid="shortcut-edit-cancel"
             >
               Cancel
@@ -526,7 +542,7 @@ function ShortcutEditModal({ actionId, description, currentKeys, defaultKeys, on
             <button
               onClick={handleSave}
               disabled={capturedKeys.length === 0 || !!conflict}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
+              className={`px-4 py-3 sm:py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center justify-center gap-2 min-h-[44px] ${isMobile ? 'w-full' : ''}`}
               data-testid="shortcut-edit-save"
             >
               <Check className="w-4 h-4" />
@@ -545,39 +561,42 @@ interface ShortcutRowProps {
   currentKeys: string;
   isCustomized: boolean;
   onEdit: () => void;
+  isMobile?: boolean;
 }
 
-function ShortcutRow({ actionId, description, currentKeys, isCustomized, onEdit }: ShortcutRowProps) {
+function ShortcutRow({ actionId, description, currentKeys, isCustomized, onEdit, isMobile }: ShortcutRowProps) {
   return (
-    <div
-      className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg group"
+    <button
+      onClick={onEdit}
+      className={`
+        w-full text-left py-3 px-3 sm:px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 active:bg-gray-100 dark:active:bg-gray-700 rounded-lg group min-h-[56px]
+        ${isMobile ? 'flex flex-col gap-2' : 'flex items-center justify-between'}
+      `}
       data-testid={`shortcut-row-${actionId}`}
     >
-      <div className="flex-1">
-        <span className="text-sm text-gray-900 dark:text-gray-100">{description}</span>
+      <div className={`${isMobile ? 'w-full' : 'flex-1'}`}>
+        <span className="text-xs sm:text-sm text-gray-900 dark:text-gray-100">{description}</span>
         {isCustomized && (
           <span className="ml-2 text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
             Customized
           </span>
         )}
       </div>
-      <div className="flex items-center gap-3">
-        <kbd className="px-2 py-1 text-sm font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded border border-gray-200 dark:border-gray-700">
+      <div className={`flex items-center gap-3 ${isMobile ? 'w-full justify-between' : ''}`}>
+        <kbd className="px-2 py-1 text-xs sm:text-sm font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded border border-gray-200 dark:border-gray-700">
           {formatShortcutDisplay(currentKeys)}
         </kbd>
-        <button
-          onClick={onEdit}
-          className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-          data-testid={`shortcut-edit-${actionId}`}
+        <span
+          className={`text-xs sm:text-sm text-blue-600 dark:text-blue-400 ${isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
         >
-          Customize
-        </button>
+          {isMobile ? 'Edit' : 'Customize'}
+        </span>
       </div>
-    </div>
+    </button>
   );
 }
 
-function ShortcutsSection() {
+function ShortcutsSection({ isMobile }: { isMobile: boolean }) {
   const [customShortcuts, setCustomShortcuts] = useState<Record<string, string>>({});
   const [editingShortcut, setEditingShortcut] = useState<{
     actionId: string;
@@ -618,12 +637,12 @@ function ShortcutsSection() {
 
   return (
     <div data-testid="settings-shortcuts-section">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Keyboard Shortcuts</h3>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+        <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">Keyboard Shortcuts</h3>
         {hasCustomizations && (
           <button
             onClick={() => setShowResetConfirm(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+            className="flex items-center gap-2 px-3 py-2 sm:py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 sm:border-0 min-h-[44px] sm:min-h-0"
             data-testid="shortcuts-reset-all"
           >
             <RotateCcw className="w-4 h-4" />
@@ -631,8 +650,8 @@ function ShortcutsSection() {
           </button>
         )}
       </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        View and customize keyboard shortcuts. Click "Customize" to change a shortcut, or use the search to find specific actions.
+      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4 sm:mb-6">
+        View and customize keyboard shortcuts. {isMobile ? 'Tap' : 'Click "Customize"'} to change a shortcut.
       </p>
 
       {/* Shortcut Categories */}
@@ -658,6 +677,7 @@ function ShortcutsSection() {
                       currentKeys={currentKeys}
                       isCustomized={isCustomized}
                       onEdit={() => setEditingShortcut({ actionId, description, currentKeys, defaultKeys })}
+                      isMobile={isMobile}
                     />
                   );
                 })}
@@ -676,28 +696,32 @@ function ShortcutsSection() {
           defaultKeys={editingShortcut.defaultKeys}
           onSave={handleSaveShortcut}
           onCancel={() => setEditingShortcut(null)}
+          isMobile={isMobile}
         />
       )}
 
       {/* Reset Confirmation */}
       {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" data-testid="reset-confirm-modal">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Reset All Shortcuts?</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" data-testid="reset-confirm-modal">
+          <div className={`
+            bg-white dark:bg-gray-800 shadow-xl w-full p-4 sm:p-6
+            ${isMobile ? 'rounded-t-2xl' : 'rounded-lg max-w-sm'}
+          `}>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Reset All Shortcuts?</h3>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4 sm:mb-6">
               This will reset all keyboard shortcuts to their default values. This action cannot be undone.
             </p>
-            <div className="flex justify-end gap-2">
+            <div className={`flex gap-2 ${isMobile ? 'flex-col-reverse' : 'justify-end'}`}>
               <button
                 onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                className={`px-4 py-3 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg min-h-[44px] ${isMobile ? 'w-full border border-gray-200 dark:border-gray-700' : ''}`}
                 data-testid="reset-confirm-cancel"
               >
                 Cancel
               </button>
               <button
                 onClick={handleResetAll}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg"
+                className={`px-4 py-3 sm:py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg min-h-[44px] ${isMobile ? 'w-full' : ''}`}
                 data-testid="reset-confirm-yes"
               >
                 Reset All
@@ -824,39 +848,39 @@ function OptionCard<T extends string>({
     <button
       onClick={onSelect}
       className={`
-        flex items-start gap-3 p-3 rounded-lg border transition-all text-left w-full
+        flex items-start gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg border transition-all text-left w-full min-h-[56px] active:scale-[0.98]
         ${isSelected
           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'
-          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 active:bg-gray-100 dark:active:bg-gray-700'
         }
       `}
       data-testid={testId}
     >
       <div className={`
-        w-8 h-8 rounded flex items-center justify-center flex-shrink-0
+        w-7 h-7 sm:w-8 sm:h-8 rounded flex items-center justify-center flex-shrink-0
         ${isSelected
           ? 'bg-blue-500 text-white'
           : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
         }
       `}>
-        <Icon className="w-4 h-4" />
+        <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={`text-sm font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-100'}`}>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <span className={`text-xs sm:text-sm font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-100'}`}>
             {label}
           </span>
           {isSelected && (
-            <Check className="w-4 h-4 text-blue-500" />
+            <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
           )}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
+        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{description}</p>
       </div>
     </button>
   );
 }
 
-function DefaultsSection() {
+function DefaultsSection({ isMobile: _isMobile }: { isMobile: boolean }) {
   const [defaults, setDefaults] = useState<DefaultsSettings>(DEFAULT_SETTINGS);
 
   // Load settings on mount
@@ -872,18 +896,18 @@ function DefaultsSection() {
 
   return (
     <div data-testid="settings-defaults-section">
-      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Default Views</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Default Views</h3>
+      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4 sm:mb-6">
         Set default view preferences that will be applied when you first load pages.
       </p>
 
       {/* Tasks Default View */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Tasks View</h4>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Tasks View</h4>
+        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">
           Choose the default view when opening the Tasks page.
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <OptionCard
             value="list"
             label="List View"
@@ -906,12 +930,12 @@ function DefaultsSection() {
       </div>
 
       {/* Dashboard Default Lens */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Dashboard Lens</h4>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Dashboard Lens</h4>
+        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">
           Choose the default dashboard view when navigating to the Dashboard.
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <OptionCard
             value="overview"
             label="Overview"
@@ -952,12 +976,12 @@ function DefaultsSection() {
       </div>
 
       {/* Default Sort Order */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Default Sort Order</h4>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Default Sort Order</h4>
+        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">
           Choose how lists are sorted by default across the application.
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <OptionCard
             value="updated_at"
             label="Last Updated"
@@ -1110,7 +1134,7 @@ function ToggleSwitch({ enabled, onToggle, disabled = false, testId }: ToggleSwi
       onClick={onToggle}
       disabled={disabled}
       className={`
-        relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+        relative inline-flex h-7 w-12 sm:h-6 sm:w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex-shrink-0
         ${enabled ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
       `}
@@ -1120,8 +1144,8 @@ function ToggleSwitch({ enabled, onToggle, disabled = false, testId }: ToggleSwi
     >
       <span
         className={`
-          inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-          ${enabled ? 'translate-x-6' : 'translate-x-1'}
+          inline-block h-5 w-5 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform
+          ${enabled ? 'translate-x-6 sm:translate-x-6' : 'translate-x-1'}
         `}
       />
     </button>
@@ -1149,16 +1173,16 @@ function NotificationToggleRow({
 }: NotificationToggleRowProps) {
   return (
     <div
-      className={`flex items-center justify-between py-4 px-4 ${disabled ? 'opacity-50' : ''}`}
+      className={`flex items-center justify-between py-3 sm:py-4 px-3 sm:px-4 gap-3 min-h-[56px] ${disabled ? 'opacity-50' : ''}`}
       data-testid={testId}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-          <Icon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+          <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600 dark:text-gray-400" />
         </div>
-        <div>
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</span>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
+        <div className="min-w-0 flex-1">
+          <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 block">{label}</span>
+          <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{description}</p>
         </div>
       </div>
       <ToggleSwitch
@@ -1171,7 +1195,7 @@ function NotificationToggleRow({
   );
 }
 
-function NotificationsSection() {
+function NotificationsSection({ isMobile }: { isMobile: boolean }) {
   const [settings, setSettings] = useState<NotificationsSettings>(DEFAULT_NOTIFICATIONS);
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [permissionRequesting, setPermissionRequesting] = useState(false);
@@ -1228,14 +1252,14 @@ function NotificationsSection() {
 
   return (
     <div data-testid="settings-notifications-section">
-      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Notifications</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Notifications</h3>
+      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4 sm:mb-6">
         Configure how you receive notifications about activity in your workspace.
       </p>
 
       {/* Browser Notifications */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Browser Notifications</h4>
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Browser Notifications</h4>
 
         {browserPermission === 'unsupported' && (
           <div className="mb-4 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
@@ -1344,16 +1368,16 @@ function NotificationsSection() {
       </div>
 
       {/* Toast Settings */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Toast Notifications</h4>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Toast Notifications</h4>
+        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-3 sm:mb-4">
           Configure how in-app toast notifications appear.
         </p>
 
         {/* Duration */}
         <div className="mb-4">
-          <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">Duration</label>
-          <div className="flex gap-2">
+          <label className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-2 block">Duration</label>
+          <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
             {([
               { value: 3000 as ToastDuration, label: '3 seconds' },
               { value: 5000 as ToastDuration, label: '5 seconds' },
@@ -1363,11 +1387,12 @@ function NotificationsSection() {
                 key={value}
                 onClick={() => setToastDuration(value)}
                 className={`
-                  px-4 py-2 text-sm rounded-lg border transition-all
+                  px-4 py-3 sm:py-2 text-xs sm:text-sm rounded-lg border transition-all min-h-[44px] active:scale-[0.98]
                   ${settings.toastDuration === value
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700'
                   }
+                  ${isMobile ? 'w-full' : ''}
                 `}
                 data-testid={`toast-duration-${value}`}
               >
@@ -1379,7 +1404,7 @@ function NotificationsSection() {
 
         {/* Position */}
         <div>
-          <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">Position</label>
+          <label className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-2 block">Position</label>
           <div className="grid grid-cols-2 gap-2">
             {([
               { value: 'top-right' as ToastPosition, label: 'Top Right' },
@@ -1391,10 +1416,10 @@ function NotificationsSection() {
                 key={value}
                 onClick={() => setToastPosition(value)}
                 className={`
-                  px-4 py-2 text-sm rounded-lg border transition-all
+                  px-4 py-3 sm:py-2 text-xs sm:text-sm rounded-lg border transition-all min-h-[44px] active:scale-[0.98]
                   ${settings.toastPosition === value
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700'
                   }
                 `}
                 data-testid={`toast-position-${value}`}
@@ -1482,7 +1507,7 @@ function setStoredSyncSettings(settings: SyncSettings) {
 // Sync Section Component
 // ============================================================================
 
-function SyncSection() {
+function SyncSection({ isMobile }: { isMobile: boolean }) {
   const queryClient = useQueryClient();
   const [syncSettings, setSyncSettings] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -1611,38 +1636,38 @@ function SyncSection() {
 
   return (
     <div data-testid="settings-sync-section">
-      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Sync</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Sync</h3>
+      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4 sm:mb-6">
         Export and import your data as JSONL files. This allows you to backup your data, share it across machines, or version control your work.
       </p>
 
       {/* Status Section */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Status</h4>
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Status</h4>
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-3">
           {statusLoading ? (
             <div className="flex items-center gap-2 text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Loading status...</span>
+              <span className="text-xs sm:text-sm">Loading status...</span>
             </div>
           ) : syncStatus ? (
             <>
-              <div className="flex items-center justify-between">
+              <div className={`flex gap-2 ${isMobile ? 'flex-col' : 'items-center justify-between'}`}>
                 <div className="flex items-center gap-2">
-                  <HardDrive className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Export Path</span>
+                  <HardDrive className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Export Path</span>
                 </div>
-                <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded" data-testid="export-path">
+                <code className="text-[10px] sm:text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded truncate max-w-full" data-testid="export-path">
                   {syncStatus.exportPath}
                 </code>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Pending Changes</span>
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Pending Changes</span>
                 </div>
                 <span
-                  className={`text-sm font-medium ${syncStatus.hasPendingChanges ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}
+                  className={`text-xs sm:text-sm font-medium ${syncStatus.hasPendingChanges ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}
                   data-testid="dirty-element-count"
                 >
                   {syncStatus.dirtyElementCount} elements
@@ -1650,36 +1675,36 @@ function SyncSection() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Download className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Last Export</span>
+                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Last Export</span>
                 </div>
-                <span className="text-sm text-gray-600 dark:text-gray-400" data-testid="last-export-time">
+                <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400" data-testid="last-export-time">
                   {formatTimestamp(syncSettings.lastExportAt)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Upload className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Last Import</span>
+                  <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Last Import</span>
                 </div>
-                <span className="text-sm text-gray-600 dark:text-gray-400" data-testid="last-import-time">
+                <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400" data-testid="last-import-time">
                   {formatTimestamp(syncSettings.lastImportAt)}
                 </span>
               </div>
             </>
           ) : (
-            <div className="text-sm text-red-500">Failed to load status</div>
+            <div className="text-xs sm:text-sm text-red-500">Failed to load status</div>
           )}
         </div>
       </div>
 
       {/* Auto-Export Toggle */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Auto Export</h4>
-        <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <div>
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Enable Auto Export</span>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Auto Export</h4>
+        <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="min-w-0 flex-1">
+            <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 block">Enable Auto Export</span>
+            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5">
               Automatically export changes to JSONL files (feature coming soon)
             </p>
           </div>
@@ -1693,16 +1718,16 @@ function SyncSection() {
       </div>
 
       {/* Export Section */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Export Data</h4>
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Export Data</h4>
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4">
+          <p className="text-[10px] sm:text-sm text-gray-500 dark:text-gray-400 mb-3 sm:mb-4">
             Export all elements and dependencies to JSONL files in the .elemental directory.
           </p>
           <button
             onClick={handleExport}
             disabled={exportMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm min-h-[44px] ${isMobile ? 'w-full' : ''}`}
             data-testid="export-now-button"
           >
             {exportMutation.isPending ? (
@@ -1715,15 +1740,15 @@ function SyncSection() {
 
           {/* Export Result */}
           {exportResult && (
-            <div className="mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800" data-testid="export-result">
+            <div className="mt-3 sm:mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800" data-testid="export-result">
               <div className="flex items-center gap-2 text-green-700 dark:text-green-300 mb-2">
-                <Check className="w-4 h-4" />
-                <span className="font-medium">Export Successful</span>
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="font-medium text-xs sm:text-sm">Export Successful</span>
               </div>
-              <div className="text-sm text-green-600 dark:text-green-400 space-y-1">
+              <div className="text-[10px] sm:text-sm text-green-600 dark:text-green-400 space-y-1">
                 <div>Elements exported: {exportResult.elementsExported}</div>
                 <div>Dependencies exported: {exportResult.dependenciesExported}</div>
-                <div className="text-xs mt-2">
+                <div className="text-[10px] sm:text-xs mt-2 break-all">
                   <div>Elements file: {exportResult.elementsFile}</div>
                   <div>Dependencies file: {exportResult.dependenciesFile}</div>
                 </div>
@@ -1732,10 +1757,10 @@ function SyncSection() {
           )}
 
           {exportMutation.isError && (
-            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <div className="mt-3 sm:mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
               <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                <AlertCircle className="w-4 h-4" />
-                <span>Export failed. Please try again.</span>
+                <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="text-xs sm:text-sm">Export failed. Please try again.</span>
               </div>
             </div>
           )}
@@ -1743,10 +1768,10 @@ function SyncSection() {
       </div>
 
       {/* Import Section */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Import Data</h4>
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <div className="mb-6 sm:mb-8">
+        <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Import Data</h4>
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4">
+          <p className="text-[10px] sm:text-sm text-gray-500 dark:text-gray-400 mb-3 sm:mb-4">
             Import elements and dependencies from JSONL files. Select both elements.jsonl and dependencies.jsonl files.
           </p>
           <input
@@ -1761,7 +1786,7 @@ function SyncSection() {
           <button
             onClick={handleImportClick}
             disabled={importMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm min-h-[44px] ${isMobile ? 'w-full' : ''}`}
             data-testid="import-button"
           >
             {importMutation.isPending ? (
@@ -1775,7 +1800,7 @@ function SyncSection() {
           {/* Import Result */}
           {importResult && (
             <div
-              className={`mt-4 p-3 rounded-lg ${
+              className={`mt-3 sm:mt-4 p-3 rounded-lg ${
                 importResult.errors.length > 0
                   ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
                   : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
@@ -1788,15 +1813,15 @@ function SyncSection() {
                   : 'text-green-700 dark:text-green-300'
               } mb-2`}>
                 {importResult.errors.length > 0 ? (
-                  <AlertTriangle className="w-4 h-4" />
+                  <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 ) : (
-                  <Check className="w-4 h-4" />
+                  <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 )}
-                <span className="font-medium">
+                <span className="font-medium text-xs sm:text-sm">
                   {importResult.errors.length > 0 ? 'Import Completed with Warnings' : 'Import Successful'}
                 </span>
               </div>
-              <div className={`text-sm ${
+              <div className={`text-[10px] sm:text-sm ${
                 importResult.errors.length > 0
                   ? 'text-yellow-600 dark:text-yellow-400'
                   : 'text-green-600 dark:text-green-400'
@@ -1809,11 +1834,11 @@ function SyncSection() {
                   <div className="mt-2">Conflicts resolved: {importResult.conflicts.length}</div>
                 )}
                 {importResult.errors.length > 0 && (
-                  <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  <div className="mt-2 text-[10px] sm:text-xs text-red-600 dark:text-red-400">
                     Errors: {importResult.errors.length}
                     <ul className="list-disc list-inside mt-1">
                       {importResult.errors.slice(0, 3).map((err, i) => (
-                        <li key={i}>{err.file}:{err.line} - {err.message}</li>
+                        <li key={i} className="break-all">{err.file}:{err.line} - {err.message}</li>
                       ))}
                       {importResult.errors.length > 3 && (
                         <li>... and {importResult.errors.length - 3} more</li>
@@ -1826,10 +1851,10 @@ function SyncSection() {
           )}
 
           {importMutation.isError && (
-            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <div className="mt-3 sm:mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
               <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                <AlertCircle className="w-4 h-4" />
-                <span>Import failed. Please check your files and try again.</span>
+                <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="text-xs sm:text-sm">Import failed. Please check your files and try again.</span>
               </div>
             </div>
           )}
@@ -1863,6 +1888,7 @@ function ComingSoonSection({ section }: { section: SectionNavItem }) {
 }
 
 export function SettingsPage() {
+  const isMobile = useIsMobile();
   const [currentTheme, setCurrentTheme] = useState<Theme>('system');
   const [activeSection, setActiveSection] = useState<SettingsSection>('theme');
 
@@ -1898,24 +1924,25 @@ export function SettingsPage() {
         <ThemeSection
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
+          isMobile={isMobile}
         />
       );
     }
 
     if (activeSection === 'shortcuts') {
-      return <ShortcutsSection />;
+      return <ShortcutsSection isMobile={isMobile} />;
     }
 
     if (activeSection === 'defaults') {
-      return <DefaultsSection />;
+      return <DefaultsSection isMobile={isMobile} />;
     }
 
     if (activeSection === 'notifications') {
-      return <NotificationsSection />;
+      return <NotificationsSection isMobile={isMobile} />;
     }
 
     if (activeSection === 'sync') {
-      return <SyncSection />;
+      return <SyncSection isMobile={isMobile} />;
     }
 
     const section = SETTINGS_SECTIONS.find((s) => s.id === activeSection);
@@ -1927,47 +1954,86 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="h-full flex" data-testid="settings-page">
-      {/* Settings Sidebar */}
-      <div className="w-64 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-        <div className="p-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Settings</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Customize your experience</p>
+    <div className="h-full flex flex-col lg:flex-row" data-testid="settings-page">
+      {/* Mobile Header */}
+      {isMobile && (
+        <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
         </div>
-        <nav className="px-2 py-2 space-y-1" data-testid="settings-nav">
-          {SETTINGS_SECTIONS.map((section) => {
-            const Icon = section.icon;
-            const isActive = activeSection === section.id;
+      )}
 
-            return (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className={`
-                  w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors
-                  ${isActive
-                    ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
-                  }
-                `}
-                data-testid={`settings-nav-${section.id}`}
-              >
-                <Icon className="w-5 h-5" />
-                <div className="flex-1">
-                  <span className="font-medium">{section.label}</span>
-                  {!section.implemented && (
-                    <span className="ml-2 text-xs text-gray-400">Soon</span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+      {/* Mobile: Horizontal scrollable tabs / Desktop: Sidebar */}
+      {isMobile ? (
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+          <nav
+            className="flex overflow-x-auto px-2 py-2 gap-1 no-scrollbar"
+            data-testid="settings-nav"
+          >
+            {SETTINGS_SECTIONS.map((section) => {
+              const Icon = section.icon;
+              const isActive = activeSection === section.id;
+
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className={`
+                    flex items-center gap-2 px-3 py-2 rounded-lg whitespace-nowrap transition-colors flex-shrink-0 min-h-[44px]
+                    ${isActive
+                      ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 active:bg-white dark:active:bg-gray-800'
+                    }
+                  `}
+                  data-testid={`settings-nav-${section.id}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-sm font-medium">{section.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      ) : (
+        <div className="w-64 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex-shrink-0">
+          <div className="p-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Settings</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Customize your experience</p>
+          </div>
+          <nav className="px-2 py-2 space-y-1" data-testid="settings-nav">
+            {SETTINGS_SECTIONS.map((section) => {
+              const Icon = section.icon;
+              const isActive = activeSection === section.id;
+
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className={`
+                    w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors
+                    ${isActive
+                      ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
+                    }
+                  `}
+                  data-testid={`settings-nav-${section.id}`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <div className="flex-1">
+                    <span className="font-medium">{section.label}</span>
+                    {!section.implemented && (
+                      <span className="ml-2 text-xs text-gray-400">Soon</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      )}
 
       {/* Settings Content */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-2xl mx-auto p-8">
+        <div className={`mx-auto ${isMobile ? 'p-4' : 'max-w-2xl p-8'}`}>
           {renderSection()}
         </div>
       </div>

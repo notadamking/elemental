@@ -154,7 +154,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB149_RESPONSIVE_MESSAGES.md](./platform/TB149_RESPONSIVE_MESSAGES.md) | Responsive Messages Page - Slack-style two-screen mobile navigation | responsive, messages, channels, mobile, two-screen |
 | [platform/TB150_RESPONSIVE_DOCUMENTS.md](./platform/TB150_RESPONSIVE_DOCUMENTS.md) | Responsive Documents Page - Notion-style mobile layout with MobileDetailSheet, FAB | responsive, documents, mobile, notion, touch, FAB |
 | [platform/TB151-RESPONSIVE-ENTITIES-TEAMS.md](./platform/TB151-RESPONSIVE-ENTITIES-TEAMS.md) | Responsive Entities & Teams Pages - Lists, details, and modals on mobile | responsive, entities, teams, mobile, touch, detail sheet |
-| platform/PLAN.md#tb152 | Responsive Settings Page - All settings sections accessible on mobile | responsive, settings, mobile, touch |
+| [platform/TB152-responsive-settings.md](./platform/TB152-responsive-settings.md) | Responsive Settings Page - Horizontal tabs, responsive modals, touch-friendly controls | responsive, settings, mobile, touch, theme, shortcuts |
 | platform/PLAN.md#tb153 | Responsive Modals & Dialogs - Full-screen sheets on mobile | responsive, modals, dialogs, sheets, mobile |
 | platform/PLAN.md#tb154 | Responsive Command Palette - Touch-friendly power-user navigation | responsive, command palette, cmdk, mobile, touch |
 | platform/PLAN.md#tb155 | Responsive Data Tables - Card view on mobile, horizontal scroll on tablet | responsive, tables, cards, mobile, data display |

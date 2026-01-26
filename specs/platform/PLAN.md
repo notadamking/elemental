@@ -1055,9 +1055,22 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB152: Responsive Settings Page**
+- [x] **TB152: Responsive Settings Page** *(Completed 2026-01-26)*
 
   **Context:** The Settings page has multiple sections (theme, shortcuts, defaults, notifications, sync). Ensure all settings are accessible and usable on mobile.
+
+  **Implementation:**
+  - Mobile: Horizontal scrollable tabs instead of sidebar navigation
+  - Mobile: Full-width content with smaller padding (16px vs 32px)
+  - Mobile: Bottom-sheet style modals for shortcut editing
+  - Mobile: Stacked toast duration buttons (vertical layout)
+  - Mobile: Full-width export/import buttons
+  - All: 44px minimum touch targets for interactive elements
+  - All: Responsive typography (smaller on mobile)
+  - All: Active states for touch feedback
+  - Desktop: Fixed-width sidebar with navigation labels
+  - Desktop: Centered content with max-width constraint
+  - Tests: 26 Playwright tests covering all responsive behaviors
 
   **Tracer Bullet Steps:**
   - [ ] Step 1: Audit Settings page layout
