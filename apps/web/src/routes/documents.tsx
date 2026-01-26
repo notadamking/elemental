@@ -1016,6 +1016,9 @@ function DocumentListItem({
   );
 }
 
+// TB130: Document list item height for virtualization (p-3 padding + content)
+const DOCUMENT_ITEM_HEIGHT = 64;
+
 function LibraryView({
   libraryId,
   selectedDocumentId,
@@ -1031,30 +1034,27 @@ function LibraryView({
 }) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
-  const [displayCount, setDisplayCount] = useState(25);
-
-  // Reset display count when library changes
-  useEffect(() => {
-    setDisplayCount(25);
-  }, [libraryId]);
 
   const isLoading = libraryLoading || docsLoading;
 
   // Include both documents from API and embedded _documents
-  const allDocuments = [
+  const allDocuments = useMemo(() => [
     ...documents,
     ...(library?._documents || []),
   ].filter((doc, index, self) =>
     index === self.findIndex((d) => d.id === doc.id)
-  );
+  ), [documents, library?._documents]);
 
-  // Paginate documents for display
-  const displayedDocuments = allDocuments.slice(0, displayCount);
-  const hasMore = displayCount < allDocuments.length;
-
-  const handleLoadMore = () => {
-    setDisplayCount(prev => prev + 25);
-  };
+  // TB130: Render function for virtualized document list item
+  const renderDocumentItem = useCallback((doc: DocumentType) => (
+    <div className="px-4">
+      <DocumentListItem
+        document={doc}
+        isSelected={selectedDocumentId === doc.id}
+        onClick={onSelectDocument}
+      />
+    </div>
+  ), [selectedDocumentId, onSelectDocument]);
 
   return (
     <div
@@ -1081,7 +1081,7 @@ function LibraryView({
                   data-testid="library-doc-count"
                   className="text-sm text-gray-400"
                 >
-                  {displayedDocuments.length} of {allDocuments.length} {allDocuments.length === 1 ? 'document' : 'documents'}
+                  {allDocuments.length} {allDocuments.length === 1 ? 'document' : 'documents'}
                 </span>
               </>
             ) : (
@@ -1131,10 +1131,10 @@ function LibraryView({
         </div>
       )}
 
-      {/* Scrollable Documents Area */}
+      {/* TB130: Virtualized Documents Area */}
       <div
         data-testid="documents-container"
-        className="flex-1 overflow-y-auto min-h-0"
+        className="flex-1 min-h-0"
       >
         {isLoading ? (
           <div
@@ -1162,30 +1162,17 @@ function LibraryView({
             </p>
           </div>
         ) : (
-          <div className="p-4">
-            <div data-testid="documents-list" className="space-y-2">
-              {displayedDocuments.map((doc) => (
-                <DocumentListItem
-                  key={doc.id}
-                  document={doc}
-                  isSelected={selectedDocumentId === doc.id}
-                  onClick={onSelectDocument}
-                />
-              ))}
-            </div>
-            {/* Load More Button */}
-            {hasMore && (
-              <div className="mt-4 flex justify-center">
-                <button
-                  onClick={handleLoadMore}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
-                  data-testid="load-more-button"
-                >
-                  Load more
-                </button>
-              </div>
-            )}
-          </div>
+          <VirtualizedList
+            items={allDocuments}
+            getItemKey={(doc) => doc.id}
+            estimateSize={DOCUMENT_ITEM_HEIGHT}
+            renderItem={renderDocumentItem}
+            overscan={5}
+            className="h-full pt-2"
+            scrollRestoreId={`library-documents-${libraryId}`}
+            testId="virtualized-documents-list"
+            gap={8}
+          />
         )}
       </div>
     </div>
@@ -2469,13 +2456,11 @@ function AllDocumentsView({
   onNewDocument: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [displayCount, setDisplayCount] = useState(25); // How many to show with "Load More"
-  const pageSize = 25;
 
   // Use upfront-loaded data (TB67) instead of server-side pagination
   const { data: allDocuments, isLoading: isDocumentsLoading } = useAllDocumentsPreloaded();
 
-  // Client-side filtering (TB69)
+  // TB130: Client-side filtering with instant results (no Load More pattern)
   const filteredDocuments = useMemo((): DocumentType[] => {
     if (!allDocuments) return [];
 
@@ -2488,24 +2473,19 @@ function AllDocumentsView({
     return sortData(filtered, { field: 'updatedAt', direction: 'desc' });
   }, [allDocuments, searchQuery]);
 
-  // "Load More" pattern - show displayCount items
-  const displayedDocuments = useMemo(() => {
-    return filteredDocuments.slice(0, displayCount);
-  }, [filteredDocuments, displayCount]);
-
-  const hasMore = displayCount < filteredDocuments.length;
-
-  // Reset display count when search changes
-  useEffect(() => {
-    setDisplayCount(pageSize);
-  }, [searchQuery]);
-
-  const handleLoadMore = () => {
-    setDisplayCount(prev => prev + pageSize);
-  };
-
   const totalItems = filteredDocuments.length;
   const isLoading = isDocumentsLoading;
+
+  // TB130: Render function for virtualized document list item
+  const renderDocumentItem = useCallback((doc: DocumentType) => (
+    <div className="px-4">
+      <DocumentListItem
+        document={doc}
+        isSelected={selectedDocumentId === doc.id}
+        onClick={onSelectDocument}
+      />
+    </div>
+  ), [selectedDocumentId, onSelectDocument]);
 
   return (
     <div
@@ -2523,8 +2503,8 @@ function AllDocumentsView({
             <h3 className="font-semibold text-gray-900 text-lg">
               All Documents
             </h3>
-            <span className="text-sm text-gray-400">
-              {displayedDocuments.length} of {totalItems} {totalItems === 1 ? 'document' : 'documents'}
+            <span className="text-sm text-gray-400" data-testid="all-documents-count">
+              {totalItems} {totalItems === 1 ? 'document' : 'documents'}
             </span>
           </div>
           <button
@@ -2550,10 +2530,10 @@ function AllDocumentsView({
         </div>
       </div>
 
-      {/* Scrollable Documents Area */}
+      {/* TB130: Virtualized Documents Area */}
       <div
         data-testid="all-documents-container"
-        className="flex-1 overflow-y-auto min-h-0"
+        className="flex-1 min-h-0"
       >
         {isLoading ? (
           <div
@@ -2562,7 +2542,7 @@ function AllDocumentsView({
           >
             Loading documents...
           </div>
-        ) : displayedDocuments.length === 0 ? (
+        ) : filteredDocuments.length === 0 ? (
           <div
             data-testid="all-documents-empty"
             className="flex flex-col items-center justify-center h-full text-gray-500"
@@ -2574,30 +2554,17 @@ function AllDocumentsView({
             </p>
           </div>
         ) : (
-          <div className="p-4">
-            <div data-testid="all-documents-list" className="space-y-2">
-              {displayedDocuments.map((doc) => (
-                <DocumentListItem
-                  key={doc.id}
-                  document={doc}
-                  isSelected={selectedDocumentId === doc.id}
-                  onClick={onSelectDocument}
-                />
-              ))}
-            </div>
-            {/* Load More Button */}
-            {hasMore && (
-              <div className="mt-4 flex justify-center">
-                <button
-                  onClick={handleLoadMore}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
-                  data-testid="load-more-button"
-                >
-                  Load more
-                </button>
-              </div>
-            )}
-          </div>
+          <VirtualizedList
+            items={filteredDocuments}
+            getItemKey={(doc) => doc.id}
+            estimateSize={DOCUMENT_ITEM_HEIGHT}
+            renderItem={renderDocumentItem}
+            overscan={5}
+            className="h-full pt-2"
+            scrollRestoreId="all-documents-scroll"
+            testId="virtualized-all-documents-list"
+            gap={8}
+          />
         )}
       </div>
     </div>

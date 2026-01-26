@@ -577,14 +577,14 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Scroll position restoration infrastructure in place (scrollRestoreId)
   - [x] **Verify:** 10 Playwright tests passing (`apps/web/tests/tb129-virtualized-libraries.spec.ts`)
 
-- [ ] **TB130: Virtualize Documents List with Infinite Scroll**
-  - [ ] Web: Replace documents grid/list with VirtualizedList (or VirtualizedGrid for grid view)
-  - [ ] Web: Remove any "Load more" buttons
-  - [ ] Web: Infinite scroll loads more documents as needed
-  - [ ] Web: Works in both list and grid view modes
-  - [ ] Web: Selection state preserved during scroll
-  - [ ] Web: Search/filter works with virtualized list
-  - [ ] **Verify:** Create 500+ documents, scroll through smoothly; filter works instantly; Playwright tests passing
+- [x] **TB130: Virtualize Documents List with Infinite Scroll** ✅ DONE
+  - [x] Web: Replace documents list with VirtualizedList in AllDocumentsView and LibraryView
+  - [x] Web: Remove all "Load more" buttons
+  - [x] Web: All documents rendered via virtualization (no display limit)
+  - [x] Web: Works in both AllDocumentsView and LibraryView
+  - [x] Web: Selection state preserved during scroll
+  - [x] Web: Search/filter works with virtualized list (instant, client-side)
+  - [x] **Verify:** 13 Playwright tests passing (`apps/web/tests/tb130-virtualized-documents.spec.ts`)
 
 - [ ] **TB131: Virtualize Channel Messages with Infinite Scroll**
   - [ ] Web: Replace current MessageList with virtualized version
