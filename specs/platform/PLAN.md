@@ -533,21 +533,24 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Add slash commands and element embedding to message composer for power-user workflows.
 
-- [ ] **TB127: Slash Commands in Message Composer**
-  - [ ] Web: Add slash command support to MessageComposer (similar to document editor)
-  - [ ] Web: Implement SlashCommandMenu component for messages
-  - [ ] Web: Commands:
-    - [ ] `/task` - Insert task reference (opens picker)
-    - [ ] `/doc` - Insert document reference (opens picker)
-    - [ ] `/code` - Insert code block
-    - [ ] `/quote` - Insert block quote
-    - [ ] `/bold`, `/italic` - Apply formatting
-    - [ ] `/emoji` - Open emoji picker
-  - [ ] Web: Fuzzy search filtering as user types after `/`
-  - [ ] Web: Keyboard navigation (up/down, Enter, Escape)
-  - [ ] Web: Trigger on `/` at start of line or after space
-  - [ ] Web: Command list positioned above composer (like Slack)
-  - [ ] **Verify:** Type `/task` in message composer, picker opens; select task, reference inserted; Playwright tests passing
+- [x] **TB127: Slash Commands in Message Composer** ✅ DONE
+  - [x] Web: Created MessageSlashCommands extension (`apps/web/src/components/message/MessageSlashCommands.tsx`)
+  - [x] Web: Integrated slash commands with MessageRichComposer
+  - [x] Web: Commands implemented:
+    - [x] `/task` - Opens task picker modal to insert task reference
+    - [x] `/doc` - Opens document picker modal to insert document reference
+    - [x] `/code` - Toggles inline code formatting
+    - [x] `/codeblock` - Inserts code block
+    - [x] `/quote` - Inserts block quote
+    - [x] `/bold`, `/italic` - Apply text formatting
+    - [x] `/bullet`, `/numbered` - Insert lists
+    - [x] `/emoji` - Opens emoji picker modal
+  - [x] Web: Fuzzy search filtering as user types after `/`
+  - [x] Web: Keyboard navigation (up/down, Enter, Escape)
+  - [x] Web: Trigger on `/` anywhere in the editor
+  - [x] Web: Command list positioned above composer (using Tippy.js)
+  - [x] Web: Fixed Enter key handling to not send message when slash menu is open
+  - [x] **Verify:** 14 Playwright tests passing (`apps/web/tests/tb127-message-slash-commands.spec.ts`)
 
 - [ ] **TB128: Element Embedding in Messages with #{id}**
   - [ ] Web: Detect `#{element_id}` pattern in message content

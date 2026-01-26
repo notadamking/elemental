@@ -19,6 +19,10 @@ import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
 import { MessageRichComposer, type MessageRichComposerRef } from '../components/message/MessageRichComposer';
 import { MessageImageAttachment } from '../components/message/MessageImageAttachment';
+import { TaskPickerModal } from '../components/editor/TaskPickerModal';
+import { DocumentPickerModal } from '../components/editor/DocumentPickerModal';
+import { EmojiPickerModal } from '../components/editor/EmojiPickerModal';
+import type { MessageEmbedCallbacks } from '../components/message/MessageSlashCommands';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useAllChannels } from '../api/hooks/useAllElements';
@@ -1137,6 +1141,10 @@ function MessageComposer({
   const [showPicker, setShowPicker] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  // TB127: Slash command picker states
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [showDocumentPicker, setShowDocumentPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const sendMessage = useSendMessage();
   const editorRef = useRef<MessageRichComposerRef>(null);
   const dropZoneRef = useRef<HTMLFormElement>(null);
@@ -1146,6 +1154,48 @@ function MessageComposer({
   useEffect(() => {
     editorRef.current?.focus();
   }, [channelId]);
+
+  // TB127: Embed callbacks for slash commands
+  const embedCallbacks = useMemo<MessageEmbedCallbacks>(
+    () => ({
+      onTaskEmbed: () => setShowTaskPicker(true),
+      onDocumentEmbed: () => setShowDocumentPicker(true),
+      onEmojiInsert: () => setShowEmojiPicker(true),
+    }),
+    []
+  );
+
+  // TB127: Handle task selection from picker - insert text reference
+  const handleTaskSelect = useCallback(
+    (taskId: string) => {
+      // Insert task reference as text that will be rendered by TB128
+      setContent((prev) => prev + `#task:${taskId}`);
+      setShowTaskPicker(false);
+      editorRef.current?.focus();
+    },
+    []
+  );
+
+  // TB127: Handle document selection from picker - insert text reference
+  const handleDocumentSelect = useCallback(
+    (documentId: string) => {
+      // Insert document reference as text that will be rendered by TB128
+      setContent((prev) => prev + `#doc:${documentId}`);
+      setShowDocumentPicker(false);
+      editorRef.current?.focus();
+    },
+    []
+  );
+
+  // TB127: Handle emoji selection from picker
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      setContent((prev) => prev + emoji);
+      setShowEmojiPicker(false);
+      editorRef.current?.focus();
+    },
+    []
+  );
 
   const handleAddAttachment = (doc: AttachedDocument) => {
     setAttachments(prev => [...prev, doc]);
@@ -1401,6 +1451,7 @@ function MessageComposer({
               disabled={sendMessage.isPending}
               maxHeight={180}
               minHeight={60}
+              embedCallbacks={embedCallbacks}
             />
           </div>
           <button
@@ -1432,6 +1483,27 @@ function MessageComposer({
         isOpen={showImagePicker}
         onClose={() => setShowImagePicker(false)}
         onAttach={handleAddImageAttachment}
+      />
+
+      {/* TB127: Task picker modal for slash commands */}
+      <TaskPickerModal
+        isOpen={showTaskPicker}
+        onClose={() => setShowTaskPicker(false)}
+        onSelect={handleTaskSelect}
+      />
+
+      {/* TB127: Document picker modal for slash commands */}
+      <DocumentPickerModal
+        isOpen={showDocumentPicker}
+        onClose={() => setShowDocumentPicker(false)}
+        onSelect={handleDocumentSelect}
+      />
+
+      {/* TB127: Emoji picker modal for slash commands */}
+      <EmojiPickerModal
+        isOpen={showEmojiPicker}
+        onClose={() => setShowEmojiPicker(false)}
+        onSelect={handleEmojiSelect}
       />
     </>
   );

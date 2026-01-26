@@ -10,8 +10,9 @@
  * - Markdown shortcuts (e.g., **bold**, _italic_)
  * - Enter to send, Shift+Enter for newline
  * - Image paste support (TB102)
+ * - Slash commands for quick block insertion (TB127)
  *
- * TB101, TB102 Implementation
+ * TB101, TB102, TB127 Implementation
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -20,6 +21,7 @@ import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
+import { MessageSlashCommands, type MessageEmbedCallbacks } from './MessageSlashCommands';
 import {
   useCallback,
   useEffect,
@@ -66,6 +68,8 @@ interface MessageRichComposerProps {
   channelName?: string;
   /** Called when an image is pasted from clipboard (TB102) */
   onImagePaste?: (file: File) => void;
+  /** Embed callbacks for slash commands (TB127) */
+  embedCallbacks?: MessageEmbedCallbacks;
 }
 
 export interface MessageRichComposerRef {
@@ -125,6 +129,7 @@ export const MessageRichComposer = forwardRef<
     minHeight = 60,
     channelName,
     onImagePaste,
+    embedCallbacks,
   },
   ref
 ) {
@@ -152,6 +157,10 @@ export const MessageRichComposer = forwardRef<
       CodeBlockLowlight.configure({
         lowlight,
       }),
+      // TB127: Slash commands for quick block insertion
+      MessageSlashCommands.configure({
+        embedCallbacks,
+      }),
     ],
     content: getInitialContent(),
     editable: !disabled,
@@ -174,6 +183,14 @@ export const MessageRichComposer = forwardRef<
           // Don't send if content is in a list or code block (allow natural enter behavior)
           const isInList = editor?.isActive('bulletList') || editor?.isActive('orderedList');
           const isInCodeBlock = editor?.isActive('codeBlock');
+
+          // TB127: Check if slash command menu is active by looking for the tippy popup
+          // If a tippy popup exists with our slash command menu, don't intercept Enter
+          const slashMenuOpen = document.querySelector('[data-testid="message-slash-command-menu"]');
+          if (slashMenuOpen) {
+            // Let the suggestion plugin handle Enter
+            return false;
+          }
 
           if (!isInList && !isInCodeBlock) {
             event.preventDefault();
