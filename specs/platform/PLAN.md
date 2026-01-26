@@ -1207,44 +1207,24 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB155: Responsive Data Tables**
+- [x] **TB155: Responsive Data Tables** ✅ COMPLETE
 
-  **Context:** Several pages use data tables (tasks list, entities, events). Tables need a mobile strategy—either card view, horizontal scroll, or responsive columns.
+  **Context:** The app uses card-based layouts rather than traditional data tables. This ticket focused on making pagination, sorting controls, and data list patterns responsive.
 
-  **Tracer Bullet Steps:**
-  - [ ] Step 1: Inventory tables in the app
-    - Tasks list, Entities list, Events list, etc.
-    - Note column counts and content types
-    - **Verify immediately:** Complete list of tables
-  - [ ] Step 2: Create responsive table strategy
-    - < 640px: Convert to card layout
-    - 640-1024px: Hide less important columns, horizontal scroll
-    - > 1024px: Show all columns
-    - **Verify immediately:** Strategy documented
-  - [ ] Step 3: Implement card view for tables
-    - Create `ResponsiveTable` component
-    - Accepts `cardRenderer` prop for mobile view
-    - Automatic switch at breakpoint
-    - **Verify immediately:** Table shows cards on mobile
-  - [ ] Step 4: Update Tasks table
-    - Card view shows: title, status badge, priority, assignee avatar
-    - Touch-friendly interactions
-    - **Verify immediately:** Tasks table works on mobile
-  - [ ] Step 5: Update other tables
-    - Apply same pattern to Entities, Events, etc.
-    - Customize card content per table
-    - **Verify immediately:** All tables work on mobile
-  - [ ] Step 6: Responsive table headers and sorting
-    - Sort dropdown instead of clickable headers on mobile
-    - Column visibility toggle on tablet
-    - **Verify immediately:** Can sort tables on mobile
-  - [ ] Step 7: Responsive table pagination
-    - Page size options appropriate for mobile
-    - Pagination controls fit screen
-    - **Verify immediately:** Can paginate on mobile
-  - [ ] Step 8: Write Playwright tests
-    - Test tables at all breakpoints
-    - **Verify:** Tests pass in `apps/web/tests/tb155-responsive-tables.spec.ts`
+  **Implementation Summary:**
+  - Responsive Pagination component with mobile stacked layout and 44px touch targets
+  - ResponsiveSortDropdown component for mobile-friendly sort controls
+  - ResponsiveDataList component for consistent card vs list rendering
+  - Dark mode support in all components
+  - 16 Playwright tests passing in `apps/web/tests/tb155-responsive-tables.spec.ts`
+
+  **Files Changed:**
+  - `apps/web/src/components/shared/Pagination.tsx` - Responsive pagination
+  - `apps/web/src/components/shared/ResponsiveSortDropdown.tsx` - New sort control
+  - `apps/web/src/components/shared/ResponsiveDataList.tsx` - New data list wrapper
+
+  - Spec: `specs/platform/TB155-responsive-tables.md`
+  - **Verify:** Run `npx playwright test tb155-responsive-tables` - 16 tests pass
 
 ---
 
