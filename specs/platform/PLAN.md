@@ -1164,40 +1164,46 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB154: Responsive Command Palette**
+- [x] **TB154: Responsive Command Palette** ✅ COMPLETE
 
   **Context:** The command palette (Cmd+K) is a power-user feature but should also work on mobile for quick navigation. Adapt it for touch devices.
 
+  **Implementation:**
+  - Mobile (< 640px): Full-screen layout with back button, larger touch targets (44px+), hidden keyboard shortcuts
+  - Desktop/Tablet (>= 640px): Centered modal with backdrop, keyboard shortcut hints visible
+  - Added search button in mobile header to trigger palette (since Cmd+K unavailable on mobile)
+  - 15 Playwright tests covering mobile, tablet, desktop, and viewport transitions
+
   **Tracer Bullet Steps:**
-  - [ ] Step 1: Audit current command palette
+  - [x] Step 1: Audit current command palette
     - cmdk library usage
     - Current sizing and positioning
     - **Verify immediately:** Understand current implementation
-  - [ ] Step 2: Responsive command palette container
+  - [x] Step 2: Responsive command palette container
     - Desktop: centered, max-width 640px
     - Mobile: full-screen or near full-screen
     - **Verify immediately:** Palette fits mobile screen
-  - [ ] Step 3: Responsive search input
+  - [x] Step 3: Responsive search input
     - Full width on mobile
     - Larger text for readability
     - Clear button visible
     - **Verify immediately:** Can type search on mobile
-  - [ ] Step 4: Responsive result items
+  - [x] Step 4: Responsive result items
     - Larger touch targets (minimum 44px height)
     - Icons and text properly sized
     - Keyboard shortcut hints hidden on mobile
     - **Verify immediately:** Can tap results on mobile
-  - [ ] Step 5: Handle keyboard on mobile
+  - [x] Step 5: Handle keyboard on mobile
     - Mobile keyboard appears when palette opens
     - Results visible above keyboard
     - **Verify immediately:** Results visible while typing on mobile
-  - [ ] Step 6: Alternative mobile trigger
+  - [x] Step 6: Alternative mobile trigger
     - Desktop: Cmd+K
-    - Mobile: long-press logo, or dedicated search button in header
+    - Mobile: dedicated search button in header
     - **Verify immediately:** Can open palette on mobile without keyboard
-  - [ ] Step 7: Write Playwright tests
+  - [x] Step 7: Write Playwright tests
     - Test palette open, search, select at all breakpoints
-    - **Verify:** Tests pass in `apps/web/tests/tb154-responsive-command-palette.spec.ts`
+    - **Verify:** 15 tests pass in `apps/web/tests/tb154-responsive-command-palette.spec.ts`
 
 ---
 

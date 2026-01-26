@@ -156,7 +156,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB151-RESPONSIVE-ENTITIES-TEAMS.md](./platform/TB151-RESPONSIVE-ENTITIES-TEAMS.md) | Responsive Entities & Teams Pages - Lists, details, and modals on mobile | responsive, entities, teams, mobile, touch, detail sheet |
 | [platform/TB152-responsive-settings.md](./platform/TB152-responsive-settings.md) | Responsive Settings Page - Horizontal tabs, responsive modals, touch-friendly controls | responsive, settings, mobile, touch, theme, shortcuts |
 | platform/PLAN.md#tb153 | Responsive Modals & Dialogs - Full-screen sheets on mobile | responsive, modals, dialogs, sheets, mobile |
-| platform/PLAN.md#tb154 | Responsive Command Palette - Touch-friendly power-user navigation | responsive, command palette, cmdk, mobile, touch |
+| [platform/TB154-responsive-command-palette.md](./platform/TB154-responsive-command-palette.md) | Responsive Command Palette - Touch-friendly power-user navigation with mobile search button | responsive, command palette, cmdk, mobile, touch |
 | platform/PLAN.md#tb155 | Responsive Data Tables - Card view on mobile, horizontal scroll on tablet | responsive, tables, cards, mobile, data display |
 | platform/PLAN.md#tb156 | Responsive Charts & Visualizations - Touch interactions for all charts | responsive, charts, recharts, react flow, touch, mobile |
 | platform/PLAN.md#tb157 | Responsive Empty States & Loading States - Properly sized for all screens | responsive, empty state, skeleton, loading, mobile |

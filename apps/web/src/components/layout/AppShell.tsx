@@ -22,6 +22,7 @@ import {
   GitBranch,
   History,
   Menu,
+  Search,
 } from 'lucide-react';
 
 interface HealthResponse {
@@ -355,7 +356,7 @@ export function AppShell() {
           className="flex items-center justify-between h-14 px-4 md:px-6 bg-[var(--color-header-bg)] border-b border-[var(--color-header-border)]"
           data-testid="header"
         >
-          {/* Mobile: Hamburger menu + centered title */}
+          {/* Mobile: Hamburger menu + centered title + search button */}
           {isMobile && (
             <div className="flex items-center gap-3 flex-1">
               <button
@@ -370,8 +371,15 @@ export function AppShell() {
               <div className="flex-1 text-center">
                 <BreadcrumbsMobile />
               </div>
-              {/* Spacer for symmetry */}
-              <div className="w-9" />
+              {/* Search button for command palette */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+                className="p-2 -mr-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
+                aria-label="Search"
+                data-testid="mobile-search-button"
+              >
+                <Search className="w-5 h-5" />
+              </button>
             </div>
           )}
 
