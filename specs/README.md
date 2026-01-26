@@ -107,6 +107,8 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB94b-core-formatting-fixes.md](./platform/TB94b-core-formatting-fixes.md) | Fix BlockEditor to preserve rich text formatting on save | editor, tiptap, formatting, bold, italic, headings, lists, code, blockquote, html |
 | [platform/TB94c-markdown-first-editor.md](./platform/TB94c-markdown-first-editor.md) | Markdown-first editor architecture with Markdown as storage format | editor, markdown, turndown, marked, storage, conversion, AI agents |
 | [platform/TB94d-text-alignment.md](./platform/TB94d-text-alignment.md) | Text alignment controls (left, center, right, justify) with toolbar, slash commands, keyboard shortcuts | editor, tiptap, alignment, text-align, toolbar, shortcuts, markdown |
+| [platform/TB94e-image-support.md](./platform/TB94e-image-support.md) | Image block support with upload, URL insert, and standard Markdown syntax | editor, image, upload, markdown, drag-drop, alt text |
+| [platform/TB94f-task-document-embedding.md](./platform/TB94f-task-document-embedding.md) | Task and document embedding with ![[task:ID]] and ![[doc:ID]] syntax | editor, embed, task, document, obsidian, markdown, slash commands |
 
 ---
 

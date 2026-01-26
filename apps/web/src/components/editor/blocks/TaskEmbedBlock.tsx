@@ -114,13 +114,28 @@ export const TaskEmbedBlock = Node.create({
   parseHTML() {
     return [
       {
+        // Parse the custom tag format
         tag: 'task-embed',
+      },
+      {
+        // Parse the div format from Markdown conversion
+        tag: 'div[data-type="taskEmbed"]',
+        getAttrs: (node: HTMLElement) => ({
+          taskId: node.getAttribute('data-task-id'),
+        }),
       },
     ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['task-embed', mergeAttributes(HTMLAttributes)];
+    // Render as div with data attributes for Markdown conversion compatibility
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, {
+        'data-type': 'taskEmbed',
+        'data-task-id': HTMLAttributes.taskId,
+      }),
+    ];
   },
 
   addNodeView() {

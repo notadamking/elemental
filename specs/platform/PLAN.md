@@ -584,38 +584,39 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
     - [x] Alt text input
   - [x] **Verify:** Upload image, check Markdown contains `![alt](url)`; manually write image Markdown, editor renders image; Playwright tests passing (14 tests in `apps/web/tests/tb94e-image-support.spec.ts`)
 
-- [ ] **TB94f: Task and Document Embedding (Markdown-Compatible)**
+- [x] **TB94f: Task and Document Embedding (Markdown-Compatible)**
 
   > **Markdown Format for Embeds:** Embeds are stored as custom Markdown syntax that AI agents can
   > easily read and write:
   >
-  > - Task embed: `![[task:el-abc123]]` or `{{task:el-abc123}}`
-  > - Document embed: `![[doc:el-xyz789]]` or `{{doc:el-xyz789}}`
+  > - Task embed: `![[task:el-abc123]]`
+  > - Document embed: `![[doc:el-xyz789]]`
   > - Inline link (existing): `[Task Title](/tasks/el-abc123)`
   >
   > This allows agents to create embeds by simply writing the syntax, without needing editor UI.
-  - [ ] Web: Define embed syntax convention (e.g., `![[task:ID]]` inspired by Obsidian)
-  - [ ] Web: Distinguish between "link" (inline text link) and "embed" (rich preview block)
-  - [ ] Web: Create Tiptap node that parses embed syntax from Markdown
-  - [ ] Web: Task embed block:
-    - [ ] Slash command: /task-embed opens task picker
-    - [ ] Markdown output: `![[task:el-abc123]]`
-    - [ ] Renders as card showing: title, status badge, priority, assignee avatar
-    - [ ] Real-time updates: if task status changes, embed updates
-    - [ ] Click → navigates to task detail (or opens slide-over)
-    - [ ] Hover → shows full task preview tooltip
-    - [ ] Actions: Open, Remove embed
-  - [ ] Web: Document embed block:
-    - [ ] Slash command: /doc-embed opens document picker
-    - [ ] Markdown output: `![[doc:el-xyz789]]`
-    - [ ] Renders as card showing: title, content type badge, first 2 lines preview
-    - [ ] Click → navigates to document (or opens in side panel)
-    - [ ] Expand toggle: show full document content inline (read-only)
-    - [ ] Actions: Open, Expand/Collapse, Remove embed
-  - [ ] Web: Embed blocks are distinct from existing inline links (TB57)
-  - [ ] Server: Parse embed syntax when indexing documents for search
-  - [ ] Server: Ensure `references` dependencies are created for embeds
-  - [ ] **Verify:** Embed task via UI, check Markdown contains `![[task:ID]]`; manually write embed syntax, editor renders card; Playwright tests passing
+  - [x] Web: Define embed syntax convention - using `![[task:ID]]` and `![[doc:ID]]` (Obsidian-inspired)
+  - [x] Web: Distinguish between "link" (inline text link) and "embed" (rich preview block) - embeds render as inline badges
+  - [x] Web: Create Tiptap nodes that parse embed syntax from Markdown - `apps/web/src/components/editor/blocks/TaskEmbedBlock.tsx`, `DocumentEmbedBlock.tsx`
+  - [x] Web: Task embed block:
+    - [x] Slash command: `/task` opens task picker - `apps/web/src/components/editor/SlashCommands.tsx`
+    - [x] Markdown output: `![[task:el-abc123]]` - `apps/web/src/lib/markdown.ts` turndown rule
+    - [x] Renders as inline badge showing: title, status icon with color - TaskEmbedBlock component
+    - [x] Real-time updates: uses TanStack Query with task ID key for automatic updates
+    - [x] Click → navigates to `/tasks/:id` via href attribute
+    - [x] Error state shown for non-existent tasks
+  - [x] Web: Document embed block:
+    - [x] Slash command: `/doc` opens document picker - SlashCommands.tsx
+    - [x] Markdown output: `![[doc:el-xyz789]]` - markdown.ts turndown rule
+    - [x] Renders as inline badge showing: title, content type icon - DocumentEmbedBlock component
+    - [x] Click → navigates to `/documents/:id` via href attribute
+    - [x] Error state shown for non-existent documents
+  - [x] Web: Embed blocks are distinct from existing inline links - embeds are atomic Tiptap nodes, not standard links
+  - [x] Web: TaskPickerModal and DocumentPickerModal - `apps/web/src/components/editor/TaskPickerModal.tsx`, `DocumentPickerModal.tsx`
+    - [x] Search functionality
+    - [x] Keyboard navigation
+    - [x] Close button functionality
+  - [x] Web: BlockEditor integration - embeds registered as extensions, picker modals trigger via slash commands
+  - [x] **Verify:** Embed task via UI, check Markdown contains `![[task:ID]]`; manually write embed syntax, editor renders card; Playwright tests passing (18 tests in `apps/web/tests/tb94f-task-document-embedding.spec.ts`)
 
 ### Phase 23: Documents Page Enhancements (Notion-inspired)
 

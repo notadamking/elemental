@@ -110,13 +110,28 @@ export const DocumentEmbedBlock = Node.create({
   parseHTML() {
     return [
       {
+        // Parse the custom tag format
         tag: 'document-embed',
+      },
+      {
+        // Parse the div format from Markdown conversion
+        tag: 'div[data-type="documentEmbed"]',
+        getAttrs: (node: HTMLElement) => ({
+          documentId: node.getAttribute('data-document-id'),
+        }),
       },
     ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['document-embed', mergeAttributes(HTMLAttributes)];
+    // Render as div with data attributes for Markdown conversion compatibility
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, {
+        'data-type': 'documentEmbed',
+        'data-document-id': HTMLAttributes.documentId,
+      }),
+    ];
   },
 
   addNodeView() {
