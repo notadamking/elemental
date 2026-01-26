@@ -174,7 +174,7 @@ export function CommandPalette() {
       id: 'nav-timeline',
       label: 'Go to Timeline',
       icon: History,
-      action: () => navigate({ to: '/dashboard/timeline', search: { page: 1, limit: 100, actor: undefined } }),
+      action: () => navigate({ to: '/dashboard/timeline', search: { page: 1, limit: 100, actor: undefined, startTime: undefined, endTime: undefined } }),
       shortcut: 'G L',
       group: 'Dashboard',
       keywords: ['events', 'history', 'activity'],

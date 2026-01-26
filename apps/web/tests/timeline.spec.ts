@@ -788,3 +788,347 @@ test.describe('TB116: Horizontal Timeline View', () => {
     await expect(page.getByTestId('filter-chip-created')).toHaveClass(/ring-2/);
   });
 });
+
+test.describe('TB117: Timeline Brush Selection', () => {
+  test('mode toggle is visible in horizontal view', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Mode toggle should be visible with Pan and Select options
+    await expect(page.getByTestId('mode-toggle')).toBeVisible();
+    await expect(page.getByTestId('pan-mode-button')).toBeVisible();
+    await expect(page.getByTestId('brush-mode-button')).toBeVisible();
+  });
+
+  test('pan mode is default', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Pan button should be active (has shadow-sm)
+    const panButton = page.getByTestId('pan-mode-button');
+    await expect(panButton).toHaveClass(/shadow-sm/);
+  });
+
+  test('can switch to brush/select mode', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Click brush/select mode button
+    await page.getByTestId('brush-mode-button').click();
+
+    // Brush button should be active
+    const brushButton = page.getByTestId('brush-mode-button');
+    await expect(brushButton).toHaveClass(/shadow-sm/);
+  });
+
+  test('brush selection creates time range selection via drag', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Enable brush mode
+    await page.getByTestId('brush-mode-button').click();
+
+    // Get the canvas bounding box
+    const canvas = page.getByTestId('timeline-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) {
+      test.skip();
+      return;
+    }
+
+    // Drag across the canvas to create a selection
+    await page.mouse.move(box.x + 50, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Brush selection info should appear
+    await expect(page.getByTestId('brush-selection-info')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('brush selection shows clear button', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Enable brush mode
+    await page.getByTestId('brush-mode-button').click();
+
+    // Get the canvas bounding box
+    const canvas = page.getByTestId('timeline-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) {
+      test.skip();
+      return;
+    }
+
+    // Drag across the canvas to create a selection
+    await page.mouse.move(box.x + 50, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Clear selection button should appear
+    await expect(page.getByTestId('clear-selection-button')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('clear button removes selection', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Enable brush mode
+    await page.getByTestId('brush-mode-button').click();
+
+    // Get the canvas bounding box
+    const canvas = page.getByTestId('timeline-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) {
+      test.skip();
+      return;
+    }
+
+    // Drag across the canvas to create a selection
+    await page.mouse.move(box.x + 50, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Wait for selection to appear
+    await expect(page.getByTestId('clear-selection-button')).toBeVisible({ timeout: 5000 });
+
+    // Click clear button
+    await page.getByTestId('clear-selection-button').click();
+
+    // Selection should be cleared
+    await expect(page.getByTestId('brush-selection-info')).not.toBeVisible();
+    await expect(page.getByTestId('clear-selection-button')).not.toBeVisible();
+  });
+
+  test('brush selection shows selected events list', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Enable brush mode
+    await page.getByTestId('brush-mode-button').click();
+
+    // Get the canvas bounding box
+    const canvas = page.getByTestId('timeline-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) {
+      test.skip();
+      return;
+    }
+
+    // Drag across the entire canvas to select all events
+    await page.mouse.move(box.x + 10, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 10, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Selected events list should appear
+    await expect(page.getByTestId('selected-events-list')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('brush selection syncs with URL params', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Enable brush mode
+    await page.getByTestId('brush-mode-button').click();
+
+    // Get the canvas bounding box
+    const canvas = page.getByTestId('timeline-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) {
+      test.skip();
+      return;
+    }
+
+    // Drag across the canvas to create a selection
+    await page.mouse.move(box.x + 50, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Wait for selection to appear
+    await expect(page.getByTestId('brush-selection-info')).toBeVisible({ timeout: 5000 });
+
+    // URL should contain startTime and endTime params
+    const url = page.url();
+    expect(url).toContain('startTime=');
+    expect(url).toContain('endTime=');
+  });
+
+  test('brush selection is restored from URL on page load', async ({ page }) => {
+    // Navigate with startTime and endTime in URL
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1000;
+
+    await page.goto(`/dashboard/timeline?startTime=${oneHourAgo}&endTime=${now}`);
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Brush selection info should be visible (restored from URL)
+    await expect(page.getByTestId('brush-selection-info')).toBeVisible();
+  });
+
+  test('committed selection shows dashed border overlay', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Enable brush mode
+    await page.getByTestId('brush-mode-button').click();
+
+    // Get the canvas bounding box
+    const canvas = page.getByTestId('timeline-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) {
+      test.skip();
+      return;
+    }
+
+    // Drag across the canvas to create a selection
+    await page.mouse.move(box.x + 50, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Wait for selection info to appear
+    await expect(page.getByTestId('brush-selection-info')).toBeVisible({ timeout: 5000 });
+
+    // Committed selection overlay should be visible
+    await expect(page.getByTestId('brush-selection-committed')).toBeVisible();
+  });
+
+  test('can switch back to pan mode after selection', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Enable brush mode
+    await page.getByTestId('brush-mode-button').click();
+
+    // Get the canvas bounding box
+    const canvas = page.getByTestId('timeline-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) {
+      test.skip();
+      return;
+    }
+
+    // Drag across the canvas to create a selection
+    await page.mouse.move(box.x + 50, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Wait for selection to appear
+    await expect(page.getByTestId('brush-selection-info')).toBeVisible({ timeout: 5000 });
+
+    // Switch back to pan mode
+    await page.getByTestId('pan-mode-button').click();
+
+    // Pan button should be active
+    await expect(page.getByTestId('pan-mode-button')).toHaveClass(/shadow-sm/);
+
+    // Selection should still be visible
+    await expect(page.getByTestId('brush-selection-info')).toBeVisible();
+  });
+});

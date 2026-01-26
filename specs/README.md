@@ -129,6 +129,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB115a-edge-type-labels.md](./platform/TB115a-edge-type-labels.md) | Edge Type Labels - Dependency type labels on graph edges with color coding | dependency, graph, edge, labels, colors, legend, toggle |
 | [platform/TB115b-auto-layout-graph.md](./platform/TB115b-auto-layout-graph.md) | Auto-Layout Graph Formatting - Hierarchical, force-directed, and radial layout algorithms | dependency, graph, layout, dagre, hierarchical, force, radial |
 | [platform/TB116-horizontal-timeline.md](./platform/TB116-horizontal-timeline.md) | Horizontal Timeline View - Timeline visualization with time axis, pan/zoom, and time range selector | timeline, horizontal, visualization, events, time axis, pan, zoom |
+| [platform/TB117-timeline-brush-selection.md](./platform/TB117-timeline-brush-selection.md) | Timeline Brush Selection - Drag to select time range with filtered events list and URL sync | timeline, brush, selection, drag, filter, URL sync |
 
 ---
 

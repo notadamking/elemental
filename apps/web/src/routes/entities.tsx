@@ -3136,7 +3136,7 @@ function EntityDetailPanel({
               {/* TB109: View all activity link - navigates to filtered timeline */}
               {events.length > 0 && (
                 <button
-                  onClick={() => navigate({ to: '/dashboard/timeline', search: { page: 1, limit: 100, actor: entity.id } })}
+                  onClick={() => navigate({ to: '/dashboard/timeline', search: { page: 1, limit: 100, actor: entity.id, startTime: undefined, endTime: undefined } })}
                   className="w-full mt-3 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded py-2 transition-colors flex items-center justify-center gap-1"
                   data-testid="view-all-activity"
                 >

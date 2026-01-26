@@ -109,6 +109,11 @@ const timelineRoute = createRoute({
              typeof search.limit === 'string' ? parseInt(search.limit, 10) || 100 : 100,
       // TB109: Support actor filter for "View all activity" from EntityDetailPanel
       actor: typeof search.actor === 'string' ? search.actor : undefined,
+      // TB117: Support brush selection time range for shareability
+      startTime: typeof search.startTime === 'number' ? search.startTime :
+                 typeof search.startTime === 'string' ? parseInt(search.startTime, 10) || undefined : undefined,
+      endTime: typeof search.endTime === 'number' ? search.endTime :
+               typeof search.endTime === 'string' ? parseInt(search.endTime, 10) || undefined : undefined,
     };
   },
 });

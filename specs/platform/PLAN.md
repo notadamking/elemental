@@ -741,13 +741,13 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Legend showing event type colors
   - [x] **Verify:** 25 Playwright tests passing (`apps/web/tests/timeline.spec.ts`); horizontal timeline with pan/zoom/time range selection
 
-- [ ] **TB117: Timeline Brush Selection**
-  - [ ] Web: Add brush selection tool to horizontal timeline
-  - [ ] Web: Drag to select time range
-  - [ ] Web: Selected range shows filtered events in list below
-  - [ ] Web: "Clear selection" button
-  - [ ] Web: Selection syncs with URL params for shareability
-  - [ ] **Verify:** Brush select time range, events filtered; Playwright tests passing
+- [x] **TB117: Timeline Brush Selection** ([spec](./TB117-timeline-brush-selection.md))
+  - [x] Web: Add brush selection tool to horizontal timeline (mode toggle: Pan vs Select)
+  - [x] Web: Drag to select time range (crosshair cursor, visual overlays)
+  - [x] Web: Selected range shows filtered events in list below (scrollable, uses EventCard)
+  - [x] Web: "Clear selection" button (removes overlay and resets URL)
+  - [x] Web: Selection syncs with URL params for shareability (startTime, endTime)
+  - [x] **Verify:** 11 Playwright tests passing (`apps/web/tests/timeline.spec.ts`)
 
 ### Phase 29: Polish and Fixes
 

@@ -52,6 +52,8 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize,
+  Paintbrush,
+  Hand,
 } from 'lucide-react';
 
 // Event types from the API spec
@@ -727,10 +729,19 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; hours: number | nul
   { value: 'all', label: 'All Time', hours: null },
 ];
 
+// TB117: Brush selection state
+interface BrushSelection {
+  startTime: number;
+  endTime: number;
+}
+
 // TB116: Horizontal Timeline Component
 interface HorizontalTimelineProps {
   events: Event[];
   isLoading: boolean;
+  // TB117: Brush selection props
+  brushSelection: BrushSelection | null;
+  onBrushSelectionChange: (selection: BrushSelection | null) => void;
 }
 
 interface EventDot {
@@ -740,7 +751,7 @@ interface EventDot {
   stackIndex: number;
 }
 
-function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
+function HorizontalTimeline({ events, isLoading, brushSelection, onBrushSelectionChange }: HorizontalTimelineProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
@@ -751,6 +762,12 @@ function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [hoveredEvent, setHoveredEvent] = useState<Event | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // TB117: Brush selection state
+  const [isBrushing, setIsBrushing] = useState(false);
+  const [brushStart, setBrushStart] = useState<number | null>(null);
+  const [brushEnd, setBrushEnd] = useState<number | null>(null);
+  const [brushMode, setBrushMode] = useState(false); // Toggle between pan and brush modes
 
   // Filter events by time range
   const filteredEvents = useMemo(() => {
@@ -857,24 +874,75 @@ function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
     return labels;
   }, [minTime, timeSpan, zoom]);
 
-  // Pan handlers
+  // TB117: Convert x position to time
+  const xToTime = useCallback((clientX: number): number => {
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return minTime;
+    const containerWidth = containerRect.width;
+    const effectiveWidth = containerWidth * zoom;
+    const relativeX = clientX - containerRect.left + panOffset;
+    const ratio = relativeX / effectiveWidth;
+    return minTime + timeSpan * ratio;
+  }, [minTime, timeSpan, zoom, panOffset]);
+
+  // TB117: Convert time to x position for rendering brush overlay
+  const timeToX = useCallback((time: number): number => {
+    const containerWidth = containerRef.current?.clientWidth ?? 800;
+    const effectiveWidth = containerWidth * zoom;
+    const ratio = (time - minTime) / timeSpan;
+    return ratio * effectiveWidth;
+  }, [minTime, timeSpan, zoom]);
+
+  // Pan handlers (modified for TB117: brush mode support)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return; // Only left click
-    setIsDragging(true);
-    setDragStart(e.clientX + panOffset);
-  }, [panOffset]);
+
+    if (brushMode) {
+      // TB117: Start brush selection
+      const time = xToTime(e.clientX);
+      setBrushStart(time);
+      setBrushEnd(time);
+      setIsBrushing(true);
+    } else {
+      // Normal pan mode
+      setIsDragging(true);
+      setDragStart(e.clientX + panOffset);
+    }
+  }, [panOffset, brushMode, xToTime]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const newOffset = dragStart - e.clientX;
-    const containerWidth = containerRef.current?.clientWidth ?? 800;
-    const maxOffset = Math.max(0, containerWidth * zoom - containerWidth);
-    setPanOffset(Math.max(0, Math.min(maxOffset, newOffset)));
-  }, [isDragging, dragStart, zoom]);
+    if (isBrushing) {
+      // TB117: Update brush end position
+      const time = xToTime(e.clientX);
+      setBrushEnd(time);
+    } else if (isDragging) {
+      const newOffset = dragStart - e.clientX;
+      const containerWidth = containerRef.current?.clientWidth ?? 800;
+      const maxOffset = Math.max(0, containerWidth * zoom - containerWidth);
+      setPanOffset(Math.max(0, Math.min(maxOffset, newOffset)));
+    }
+  }, [isDragging, dragStart, zoom, isBrushing, xToTime]);
 
   const handleMouseUp = useCallback(() => {
+    if (isBrushing && brushStart !== null && brushEnd !== null) {
+      // TB117: Complete brush selection
+      const start = Math.min(brushStart, brushEnd);
+      const end = Math.max(brushStart, brushEnd);
+      // Only set selection if there's a meaningful range (more than 1 second)
+      if (end - start > 1000) {
+        onBrushSelectionChange({ startTime: start, endTime: end });
+      }
+      setIsBrushing(false);
+    }
     setIsDragging(false);
-  }, []);
+  }, [isBrushing, brushStart, brushEnd, onBrushSelectionChange]);
+
+  // TB117: Clear brush selection
+  const handleClearBrushSelection = useCallback(() => {
+    onBrushSelectionChange(null);
+    setBrushStart(null);
+    setBrushEnd(null);
+  }, [onBrushSelectionChange]);
 
   // Zoom handlers
   const handleZoomIn = useCallback(() => {
@@ -962,6 +1030,36 @@ function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
           </select>
         </div>
 
+        {/* TB117: Mode toggle (Pan vs Brush) */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5" data-testid="mode-toggle">
+          <button
+            onClick={() => setBrushMode(false)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              !brushMode
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+            title="Pan mode (drag to navigate)"
+            data-testid="pan-mode-button"
+          >
+            <Hand className="w-3.5 h-3.5" />
+            Pan
+          </button>
+          <button
+            onClick={() => setBrushMode(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+              brushMode
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+            title="Brush mode (drag to select time range)"
+            data-testid="brush-mode-button"
+          >
+            <Paintbrush className="w-3.5 h-3.5" />
+            Select
+          </button>
+        </div>
+
         {/* Zoom controls */}
         <div className="flex items-center gap-1" data-testid="zoom-controls">
           <button
@@ -996,11 +1094,47 @@ function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
           </button>
         </div>
 
-        {/* Event count */}
-        <div className="text-sm text-gray-500">
-          {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+        {/* Event count and clear selection */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">
+            {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+          </span>
+          {brushSelection && (
+            <button
+              onClick={handleClearBrushSelection}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              data-testid="clear-selection-button"
+            >
+              <X className="w-3 h-3" />
+              Clear selection
+            </button>
+          )}
         </div>
       </div>
+
+      {/* TB117: Brush selection info bar */}
+      {brushSelection && (
+        <div
+          className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2"
+          data-testid="brush-selection-info"
+        >
+          <div className="flex items-center gap-3">
+            <Paintbrush className="w-4 h-4 text-blue-600" />
+            <span className="text-sm text-blue-800">
+              Time range selected:{' '}
+              <strong>
+                {new Date(brushSelection.startTime).toLocaleString()} — {new Date(brushSelection.endTime).toLocaleString()}
+              </strong>
+            </span>
+          </div>
+          <span className="text-sm text-blue-600">
+            {filteredEvents.filter(e => {
+              const time = new Date(e.createdAt).getTime();
+              return time >= brushSelection.startTime && time <= brushSelection.endTime;
+            }).length} events in selection
+          </span>
+        </div>
+      )}
 
       {/* Timeline canvas */}
       <div
@@ -1011,7 +1145,11 @@ function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
-        style={{ cursor: isDragging ? 'grabbing' : zoom > 1 ? 'grab' : 'default' }}
+        style={{
+          cursor: brushMode
+            ? (isBrushing ? 'crosshair' : 'crosshair')
+            : (isDragging ? 'grabbing' : zoom > 1 ? 'grab' : 'default')
+        }}
         data-testid="timeline-canvas"
       >
         {/* Scrollable content */}
@@ -1062,6 +1200,34 @@ function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
               aria-label={`${EVENT_TYPE_DISPLAY[dot.event.eventType]} event on ${dot.event.elementId}`}
             />
           ))}
+
+          {/* TB117: Brush selection overlay (during brushing) */}
+          {isBrushing && brushStart !== null && brushEnd !== null && (
+            <div
+              className="absolute bg-blue-500/20 border border-blue-500"
+              style={{
+                left: Math.min(timeToX(brushStart), timeToX(brushEnd)),
+                width: Math.abs(timeToX(brushEnd) - timeToX(brushStart)),
+                top: 0,
+                bottom: 0,
+              }}
+              data-testid="brush-selection-active"
+            />
+          )}
+
+          {/* TB117: Committed brush selection overlay */}
+          {brushSelection && !isBrushing && (
+            <div
+              className="absolute bg-blue-500/10 border-2 border-blue-500 border-dashed"
+              style={{
+                left: timeToX(brushSelection.startTime),
+                width: timeToX(brushSelection.endTime) - timeToX(brushSelection.startTime),
+                top: 0,
+                bottom: 0,
+              }}
+              data-testid="brush-selection-committed"
+            />
+          )}
         </div>
 
         {/* Empty state */}
@@ -1136,6 +1302,37 @@ function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
         ))}
         <span className="text-gray-400">+ {ALL_EVENT_TYPES.length - 6} more</span>
       </div>
+
+      {/* TB117: Selected events list */}
+      {brushSelection && (
+        <div className="border border-gray-200 rounded-lg" data-testid="selected-events-list">
+          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+            <h3 className="text-sm font-medium text-gray-900">
+              Events in selected range
+            </h3>
+          </div>
+          <div className="max-h-64 overflow-y-auto p-2 space-y-2">
+            {(() => {
+              const selectedEvents = filteredEvents.filter(e => {
+                const time = new Date(e.createdAt).getTime();
+                return time >= brushSelection.startTime && time <= brushSelection.endTime;
+              });
+
+              if (selectedEvents.length === 0) {
+                return (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    No events in the selected time range
+                  </div>
+                );
+              }
+
+              return selectedEvents.map(event => (
+                <EventCard key={event.id} event={event} />
+              ));
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1201,6 +1398,41 @@ export function TimelinePage() {
   const pageSize = search.limit ?? DEFAULT_EVENT_PAGE_SIZE;
   // TB109: Actor filter from URL for "View all activity" link from EntityDetailPanel
   const actorFromUrl = search.actor;
+  // TB117: Brush selection from URL for shareability
+  const startTimeFromUrl = search.startTime;
+  const endTimeFromUrl = search.endTime;
+
+  // TB117: Brush selection state synchronized with URL
+  const [brushSelection, setBrushSelection] = useState<BrushSelection | null>(() => {
+    if (startTimeFromUrl && endTimeFromUrl) {
+      return { startTime: startTimeFromUrl, endTime: endTimeFromUrl };
+    }
+    return null;
+  });
+
+  // TB117: Handle brush selection change and sync to URL
+  const handleBrushSelectionChange = useCallback((selection: BrushSelection | null) => {
+    setBrushSelection(selection);
+    navigate({
+      to: '/dashboard/timeline',
+      search: {
+        page: currentPage,
+        limit: pageSize,
+        actor: actorFromUrl,
+        startTime: selection?.startTime,
+        endTime: selection?.endTime,
+      },
+    });
+  }, [navigate, currentPage, pageSize, actorFromUrl]);
+
+  // TB117: Sync brush selection when URL params change
+  useEffect(() => {
+    if (startTimeFromUrl && endTimeFromUrl) {
+      setBrushSelection({ startTime: startTimeFromUrl, endTime: endTimeFromUrl });
+    } else {
+      setBrushSelection(null);
+    }
+  }, [startTimeFromUrl, endTimeFromUrl]);
 
   const [filter, setFilter] = useState<EventFilterState>(() => ({
     eventTypes: [],
@@ -1229,11 +1461,29 @@ export function TimelinePage() {
   const hasMore = eventsData?.hasMore ?? false;
 
   const handlePageChange = (page: number) => {
-    navigate({ to: '/dashboard/timeline', search: { page, limit: pageSize, actor: actorFromUrl } });
+    navigate({
+      to: '/dashboard/timeline',
+      search: {
+        page,
+        limit: pageSize,
+        actor: actorFromUrl,
+        startTime: brushSelection?.startTime,
+        endTime: brushSelection?.endTime,
+      },
+    });
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
-    navigate({ to: '/dashboard/timeline', search: { page: 1, limit: newPageSize, actor: actorFromUrl } });
+    navigate({
+      to: '/dashboard/timeline',
+      search: {
+        page: 1,
+        limit: newPageSize,
+        actor: actorFromUrl,
+        startTime: brushSelection?.startTime,
+        endTime: brushSelection?.endTime,
+      },
+    });
   };
 
   // Get unique actors from events for filtering
@@ -1427,7 +1677,12 @@ export function TimelinePage() {
       {viewMode === 'horizontal' ? (
         /* Horizontal Timeline View */
         <div className="flex-1 min-h-0 overflow-y-auto" data-testid="horizontal-timeline-container">
-          <HorizontalTimeline events={filteredEvents} isLoading={isLoading} />
+          <HorizontalTimeline
+            events={filteredEvents}
+            isLoading={isLoading}
+            brushSelection={brushSelection}
+            onBrushSelectionChange={handleBrushSelectionChange}
+          />
         </div>
       ) : (
         /* List View */
