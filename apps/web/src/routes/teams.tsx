@@ -17,6 +17,8 @@ import { useAllTeams } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTeamFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
 import { useIsMobile } from '../hooks/useBreakpoint';
+import { useShortcutVersion } from '../hooks';
+import { getCurrentBinding } from '../lib/keyboard';
 import { EntityLink } from '../components/entity/EntityLink';
 
 interface Team {
@@ -1193,6 +1195,8 @@ export function TeamsPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/teams' });
   const isMobile = useIsMobile();
+  // Track shortcut changes to update the badge
+  useShortcutVersion();
 
   // Pagination state from URL
   const currentPage = search.page ?? 1;
@@ -1315,7 +1319,7 @@ export function TeamsPage() {
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Create Team</span>
               <span className="sm:hidden">Add</span>
-              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">C M</kbd>
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">{getCurrentBinding('action.createTeam')}</kbd>
             </button>
           </div>
         </div>

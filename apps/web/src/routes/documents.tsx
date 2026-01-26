@@ -14,8 +14,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useDeepLink } from '../hooks/useDeepLink';
-import { useDebounce } from '../hooks';
+import { useDebounce, useShortcutVersion } from '../hooks';
 import { useIsMobile } from '../hooks/useBreakpoint';
+import { getCurrentBinding } from '../lib/keyboard';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
 import {
@@ -1045,6 +1046,8 @@ function LibraryView({
 }) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
+  // Track shortcut changes to update the badge
+  useShortcutVersion();
 
   const isLoading = libraryLoading || docsLoading;
 
@@ -1108,7 +1111,7 @@ function LibraryView({
             >
               <Plus className="w-4 h-4" />
               Create Document
-              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C D</kbd>
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createDocument')}</kbd>
             </button>
           )}
         </div>
@@ -2543,7 +2546,7 @@ function AllDocumentsView({
             >
               <Plus className="w-4 h-4" />
               Create Document
-              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C D</kbd>
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createDocument')}</kbd>
             </button>
           )}
         </div>
@@ -2610,6 +2613,8 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/documents' });
   const isMobile = useIsMobile();
+  // Track shortcut changes to update the badge
+  useShortcutVersion();
 
   const { data: libraries = [], isLoading, error } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(

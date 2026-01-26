@@ -18,7 +18,8 @@ import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
 import { MobileWorkflowCard } from '../components/workflow/MobileWorkflowCard';
 import { useAllWorkflows } from '../api/hooks/useAllElements';
 import { useDeepLink } from '../hooks/useDeepLink';
-import { useIsMobile, useGlobalQuickActions } from '../hooks';
+import { useIsMobile, useGlobalQuickActions, useShortcutVersion } from '../hooks';
+import { getCurrentBinding } from '../lib/keyboard';
 import {
   GitBranch,
   Clock,
@@ -1028,6 +1029,8 @@ export function WorkflowsPage() {
 
   // Global quick actions for C W shortcut
   const { openPourWorkflowModal } = useGlobalQuickActions();
+  // Track shortcut changes to update the badge
+  useShortcutVersion();
 
   // Use upfront-loaded data (TB67)
   const { data: allWorkflows, isLoading: isWorkflowsLoading } = useAllWorkflows();
@@ -1126,7 +1129,7 @@ export function WorkflowsPage() {
               >
                 <Plus className="w-4 h-4" />
                 Create Workflow
-                <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">C W</kbd>
+                <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createWorkflow')}</kbd>
               </button>
             </div>
 

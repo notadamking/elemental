@@ -4,7 +4,8 @@ import { Plus, Zap, ListTodo, CheckCircle, Clock, AlertCircle, Users, Bot, Activ
 import { TaskCard } from '../components/entity/TaskCard';
 import type { Task } from '../components/entity/types';
 import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
-import { useGlobalQuickActions } from '../hooks';
+import { useGlobalQuickActions, useShortcutVersion } from '../hooks';
+import { getCurrentBinding } from '../lib/keyboard';
 import { DashboardCharts } from '../components/dashboard/DashboardCharts';
 
 interface StatsResponse {
@@ -274,6 +275,9 @@ function QuickActions({
   onCreateTask: () => void;
   onPourWorkflow: () => void;
 }) {
+  // Track shortcut changes to update badges
+  useShortcutVersion();
+
   return (
     <div className="mt-8" data-testid="quick-actions">
       <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Quick Actions</h3>
@@ -285,7 +289,7 @@ function QuickActions({
         >
           <Plus className="w-4 h-4" />
           Create Task
-          <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C T</kbd>
+          <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createTask')}</kbd>
         </button>
         <button
           onClick={onPourWorkflow}
@@ -294,7 +298,7 @@ function QuickActions({
         >
           <Zap className="w-4 h-4" />
           Create Workflow
-          <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">C W</kbd>
+          <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createWorkflow')}</kbd>
         </button>
         <Link
           to="/tasks"

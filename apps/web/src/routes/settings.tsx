@@ -621,10 +621,6 @@ function ShortcutsSection({ isMobile }: { isMobile: boolean }) {
     setCustomShortcut(editingShortcut.actionId, keys);
     setCustomShortcuts(getCustomShortcuts());
     setEditingShortcut(null);
-
-    // Note: In a real implementation, we'd also need to re-register the shortcuts
-    // with the keyboard manager. For now, this requires a page refresh to take effect.
-    // The user can refresh the page or the app can be enhanced to support hot-reloading.
   };
 
   const handleResetAll = () => {
@@ -731,9 +727,9 @@ function ShortcutsSection({ isMobile }: { isMobile: boolean }) {
         </div>
       )}
 
-      {/* Note about reloading */}
+      {/* Note about shortcuts */}
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-6 text-center">
-        Changes to keyboard shortcuts take effect after refreshing the page.
+        Changes to keyboard shortcuts take effect immediately.
       </p>
     </div>
   );

@@ -5,6 +5,9 @@ export {
   getKeyboardManager,
 } from './useKeyboardShortcuts';
 
+// Re-export useShortcutVersion from keyboard lib for components that display shortcut hints
+export { useShortcutVersion } from '../lib/keyboard';
+
 export {
   GlobalQuickActionsProvider,
   useGlobalQuickActions,

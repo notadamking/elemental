@@ -3,6 +3,8 @@
  * and sequential shortcuts (G T, G P).
  */
 
+import { useState, useEffect } from 'react';
+
 export type ShortcutHandler = () => void;
 
 export interface Shortcut {
@@ -34,6 +36,7 @@ export const DEFAULT_SHORTCUTS: Record<string, { keys: string; description: stri
   'nav.documents': { keys: 'G D', description: 'Go to Documents', category: 'navigation' },
   'nav.entities': { keys: 'G E', description: 'Go to Entities', category: 'navigation' },
   'nav.teams': { keys: 'G R', description: 'Go to Teams', category: 'navigation' },
+  'nav.inbox': { keys: 'G I', description: 'Go to Inbox', category: 'navigation' },
   'nav.settings': { keys: 'G S', description: 'Go to Settings', category: 'navigation' },
   // Actions
   'action.commandPalette': { keys: 'Cmd+K', description: 'Open Command Palette', category: 'actions' },
@@ -43,6 +46,7 @@ export const DEFAULT_SHORTCUTS: Record<string, { keys: string; description: stri
   'action.createEntity': { keys: 'C E', description: 'Create Entity', category: 'actions' },
   'action.createTeam': { keys: 'C M', description: 'Create Team', category: 'actions' },
   'action.createDocument': { keys: 'C D', description: 'Create Document', category: 'actions' },
+  'action.createPlan': { keys: 'C P', description: 'Create Plan', category: 'actions' },
   // Views
   'view.list': { keys: 'V L', description: 'List View', category: 'views' },
   'view.kanban': { keys: 'V K', description: 'Kanban View', category: 'views' },
@@ -106,6 +110,40 @@ export function checkShortcutConflict(keys: string, excludeActionId?: string): s
 export function resetAllShortcuts(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(CUSTOM_SHORTCUTS_KEY);
+  notifyShortcutsChanged();
+}
+
+/** Event name for shortcut changes */
+export const SHORTCUTS_CHANGED_EVENT = 'elemental:shortcuts-changed';
+
+/**
+ * Dispatch an event when shortcuts change (for hot-reloading)
+ */
+function notifyShortcutsChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SHORTCUTS_CHANGED_EVENT));
+  }
+}
+
+/**
+ * Hook to track shortcut changes and trigger re-render.
+ * Use this in components that display shortcut hints to keep them up-to-date.
+ */
+export function useShortcutVersion(): number {
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const handleShortcutsChanged = () => {
+      setVersion(v => v + 1);
+    };
+
+    window.addEventListener(SHORTCUTS_CHANGED_EVENT, handleShortcutsChanged);
+    return () => {
+      window.removeEventListener(SHORTCUTS_CHANGED_EVENT, handleShortcutsChanged);
+    };
+  }, []);
+
+  return version;
 }
 
 /**
@@ -120,6 +158,7 @@ export function setCustomShortcut(actionId: string, keys: string): void {
     custom[actionId] = keys;
   }
   setCustomShortcuts(custom);
+  notifyShortcutsChanged();
 }
 
 /**

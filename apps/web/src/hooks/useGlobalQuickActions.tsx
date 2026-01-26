@@ -9,7 +9,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { keyboardManager } from '../lib/keyboard';
+import { keyboardManager, getCurrentBinding, SHORTCUTS_CHANGED_EVENT } from '../lib/keyboard';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
 import { CreateEntityModal } from '../components/entity/CreateEntityModal';
@@ -62,6 +62,20 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
   const [isCreateDocumentModalOpen, setIsCreateDocumentModalOpen] = useState(false);
   const [isCreatePlanModalOpen, setIsCreatePlanModalOpen] = useState(false);
+
+  // Track shortcut version to trigger re-registration when shortcuts change
+  const [shortcutVersion, setShortcutVersion] = useState(0);
+
+  // Listen for shortcut changes to hot-reload
+  useEffect(() => {
+    const handleShortcutsChanged = () => {
+      setShortcutVersion(v => v + 1);
+    };
+    window.addEventListener(SHORTCUTS_CHANGED_EVENT, handleShortcutsChanged);
+    return () => {
+      window.removeEventListener(SHORTCUTS_CHANGED_EVENT, handleShortcutsChanged);
+    };
+  }, []);
 
   // Check if any modal is open
   const isAnyModalOpen = isCreateTaskModalOpen || isCreateWorkflowModalOpen || isCreateEntityModalOpen || isCreateTeamModalOpen || isCreateDocumentModalOpen || isCreatePlanModalOpen;
@@ -152,7 +166,8 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     });
   }, [navigate]);
 
-  // Register global keyboard shortcuts for C T, C W, C E, C M, C D, and C P
+  // Register global keyboard shortcuts for create actions
+  // Uses getCurrentBinding() to respect custom shortcut bindings
   useEffect(() => {
     const createTaskHandler = () => {
       // Don't open if another modal is already open
@@ -196,22 +211,48 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
       }
     };
 
-    keyboardManager.register('C T', createTaskHandler, 'Create Task');
-    keyboardManager.register('C W', createWorkflowHandler, 'Create Workflow');
-    keyboardManager.register('C E', createEntityHandler, 'Create Entity');
-    keyboardManager.register('C M', createTeamHandler, 'Create Team');
-    keyboardManager.register('C D', createDocumentHandler, 'Create Document');
-    keyboardManager.register('C P', createPlanHandler, 'Create Plan');
+    // Get current bindings (respects custom shortcuts from settings)
+    const createTaskKeys = getCurrentBinding('action.createTask');
+    const createWorkflowKeys = getCurrentBinding('action.createWorkflow');
+    const createEntityKeys = getCurrentBinding('action.createEntity');
+    const createTeamKeys = getCurrentBinding('action.createTeam');
+    const createDocumentKeys = getCurrentBinding('action.createDocument');
+    const createPlanKeys = getCurrentBinding('action.createPlan');
+
+    // Track registered keys for cleanup
+    const registeredKeys: string[] = [];
+
+    if (createTaskKeys) {
+      keyboardManager.register(createTaskKeys, createTaskHandler, 'Create Task');
+      registeredKeys.push(createTaskKeys);
+    }
+    if (createWorkflowKeys) {
+      keyboardManager.register(createWorkflowKeys, createWorkflowHandler, 'Create Workflow');
+      registeredKeys.push(createWorkflowKeys);
+    }
+    if (createEntityKeys) {
+      keyboardManager.register(createEntityKeys, createEntityHandler, 'Create Entity');
+      registeredKeys.push(createEntityKeys);
+    }
+    if (createTeamKeys) {
+      keyboardManager.register(createTeamKeys, createTeamHandler, 'Create Team');
+      registeredKeys.push(createTeamKeys);
+    }
+    if (createDocumentKeys) {
+      keyboardManager.register(createDocumentKeys, createDocumentHandler, 'Create Document');
+      registeredKeys.push(createDocumentKeys);
+    }
+    if (createPlanKeys) {
+      keyboardManager.register(createPlanKeys, createPlanHandler, 'Create Plan');
+      registeredKeys.push(createPlanKeys);
+    }
 
     return () => {
-      keyboardManager.unregister('C T');
-      keyboardManager.unregister('C W');
-      keyboardManager.unregister('C E');
-      keyboardManager.unregister('C M');
-      keyboardManager.unregister('C D');
-      keyboardManager.unregister('C P');
+      registeredKeys.forEach(keys => {
+        keyboardManager.unregister(keys);
+      });
     };
-  }, [isAnyModalOpen]);
+  }, [isAnyModalOpen, shortcutVersion]);
 
   // Disable keyboard shortcuts when modals are open
   useEffect(() => {

@@ -19,8 +19,9 @@ import { CreateEntityModal } from '../components/entity/CreateEntityModal';
 import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
 import { usePaginatedData, createEntityFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
-import { useKeyboardShortcut } from '../hooks';
+import { useKeyboardShortcut, useShortcutVersion } from '../hooks';
 import { useIsMobile } from '../hooks/useBreakpoint';
+import { getCurrentBinding } from '../lib/keyboard';
 import { groupByTimePeriod, TIME_PERIOD_LABELS, type TimePeriod, formatCompactTime } from '../lib';
 
 interface Entity {
@@ -3539,6 +3540,8 @@ export function EntitiesPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/entities' });
   const isMobile = useIsMobile();
+  // Track shortcut changes to update the badge
+  useShortcutVersion();
 
   // Pagination state from URL
   const currentPage = search.page ?? 1;
@@ -3698,7 +3701,7 @@ export function EntitiesPage() {
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Create Entity</span>
               <span className="sm:hidden">Add</span>
-              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">C E</kbd>
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">{getCurrentBinding('action.createEntity')}</kbd>
             </button>
           </div>
         </div>

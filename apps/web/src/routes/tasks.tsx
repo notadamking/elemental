@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, ChevronRight, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles, Layers, Search, SlidersHorizontal } from 'lucide-react';
-import { useDebounce, useIsMobile, useIsTablet, useGlobalQuickActions } from '../hooks';
+import { useDebounce, useIsMobile, useIsTablet, useGlobalQuickActions, useShortcutVersion } from '../hooks';
+import { getCurrentBinding } from '../lib/keyboard';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 import { Pagination } from '../components/shared/Pagination';
@@ -1848,6 +1849,8 @@ export function TasksPage() {
 
   // Global quick actions for C T shortcut
   const { openCreateTaskModal } = useGlobalQuickActions();
+  // Track shortcut changes to update the badge
+  useShortcutVersion();
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -2255,7 +2258,7 @@ export function TasksPage() {
                 >
                   <Plus className="w-4 h-4" />
                   Create Task
-                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C T</kbd>
+                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createTask')}</kbd>
                 </button>
               </div>
             </div>

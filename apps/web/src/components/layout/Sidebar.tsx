@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
+import { getCurrentBinding, useShortcutVersion } from '../../lib/keyboard';
 
 // Hook to fetch global inbox unread count
 function useGlobalInboxCount() {
@@ -40,7 +41,8 @@ interface NavItem {
   to: string;
   icon: LucideIcon;
   label: string;
-  shortcut?: string;
+  /** Action ID for looking up the shortcut binding via getCurrentBinding() */
+  actionId?: string;
   testId?: string;
   search?: Record<string, unknown>;
   badgeKey?: 'inbox'; // Badge to show for this item
@@ -61,9 +63,9 @@ const NAV_SECTIONS: NavSection[] = [
     icon: LayoutDashboard,
     defaultExpanded: true,
     items: [
-      { to: '/dashboard/overview', icon: LayoutDashboard, label: 'Overview', shortcut: 'G H', testId: 'nav-dashboard' },
-      { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F', testId: 'nav-task-flow' },
-      { to: '/dashboard/timeline', icon: History, label: 'Timeline', shortcut: 'G L', testId: 'nav-timeline', search: { page: 1, limit: 100, actor: undefined } },
+      { to: '/dashboard/overview', icon: LayoutDashboard, label: 'Overview', actionId: 'nav.dashboard', testId: 'nav-dashboard' },
+      { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', actionId: 'nav.taskFlow', testId: 'nav-task-flow' },
+      { to: '/dashboard/timeline', icon: History, label: 'Timeline', actionId: 'nav.timeline', testId: 'nav-timeline', search: { page: 1, limit: 100, actor: undefined } },
     ],
   },
   {
@@ -71,10 +73,10 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Work',
     defaultExpanded: true,
     items: [
-      { to: '/tasks', icon: CheckSquare, label: 'Tasks', shortcut: 'G T', testId: 'nav-tasks', search: { page: 1, limit: 25 } },
-      { to: '/plans', icon: Folder, label: 'Plans', shortcut: 'G P', testId: 'nav-plans' },
-      { to: '/workflows', icon: Workflow, label: 'Workflows', shortcut: 'G W', testId: 'nav-workflows' },
-      { to: '/dependencies', icon: Network, label: 'Dependencies', shortcut: 'G G', testId: 'nav-dependencies' },
+      { to: '/tasks', icon: CheckSquare, label: 'Tasks', actionId: 'nav.tasks', testId: 'nav-tasks', search: { page: 1, limit: 25 } },
+      { to: '/plans', icon: Folder, label: 'Plans', actionId: 'nav.plans', testId: 'nav-plans' },
+      { to: '/workflows', icon: Workflow, label: 'Workflows', actionId: 'nav.workflows', testId: 'nav-workflows' },
+      { to: '/dependencies', icon: Network, label: 'Dependencies', actionId: 'nav.dependencies', testId: 'nav-dependencies' },
     ],
   },
   {
@@ -82,9 +84,9 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Collaborate',
     defaultExpanded: true,
     items: [
-      { to: '/inbox', icon: Inbox, label: 'Inbox', shortcut: 'G I', testId: 'nav-inbox', search: { message: undefined }, badgeKey: 'inbox' },
-      { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M', testId: 'nav-messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } },
-      { to: '/documents', icon: FileText, label: 'Documents', shortcut: 'G D', testId: 'nav-documents', search: { selected: undefined, library: undefined, page: 1, limit: 25 } },
+      { to: '/inbox', icon: Inbox, label: 'Inbox', actionId: 'nav.inbox', testId: 'nav-inbox', search: { message: undefined }, badgeKey: 'inbox' },
+      { to: '/messages', icon: MessageSquare, label: 'Messages', actionId: 'nav.messages', testId: 'nav-messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } },
+      { to: '/documents', icon: FileText, label: 'Documents', actionId: 'nav.documents', testId: 'nav-documents', search: { selected: undefined, library: undefined, page: 1, limit: 25 } },
     ],
   },
   {
@@ -92,8 +94,8 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Organize',
     defaultExpanded: true,
     items: [
-      { to: '/entities', icon: Users, label: 'Entities', shortcut: 'G E', testId: 'nav-entities', search: { selected: undefined, name: undefined, page: 1, limit: 25 } },
-      { to: '/teams', icon: UsersRound, label: 'Teams', shortcut: 'G R', testId: 'nav-teams', search: { selected: undefined, page: 1, limit: 25 } },
+      { to: '/entities', icon: Users, label: 'Entities', actionId: 'nav.entities', testId: 'nav-entities', search: { selected: undefined, name: undefined, page: 1, limit: 25 } },
+      { to: '/teams', icon: UsersRound, label: 'Teams', actionId: 'nav.teams', testId: 'nav-teams', search: { selected: undefined, page: 1, limit: 25 } },
     ],
   },
 ];
@@ -115,6 +117,9 @@ export function Sidebar({ collapsed = false, onToggle, isMobileDrawer = false }:
 
   // Fetch inbox unread count for badge (TB137)
   const { data: inboxCount } = useGlobalInboxCount();
+
+  // Track shortcut changes to re-render with updated hints
+  useShortcutVersion();
 
   // Track expanded sections - default to section's defaultExpanded
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() =>
@@ -196,9 +201,9 @@ export function Sidebar({ collapsed = false, onToggle, isMobileDrawer = false }:
                 {badgeCount > 99 ? '99+' : badgeCount}
               </span>
             )}
-            {!badgeCount && item.shortcut && (
+            {!badgeCount && item.actionId && (
               <span className="text-[10px] text-[var(--color-text-muted)] font-mono tracking-wide opacity-0 group-hover:opacity-100 transition-opacity">
-                {item.shortcut}
+                {getCurrentBinding(item.actionId)}
               </span>
             )}
           </>

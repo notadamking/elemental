@@ -15,7 +15,8 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useDebounce, useIsMobile, useGlobalQuickActions } from '../hooks';
+import { useDebounce, useIsMobile, useGlobalQuickActions, useShortcutVersion } from '../hooks';
+import { getCurrentBinding } from '../lib/keyboard';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
@@ -1700,6 +1701,8 @@ export function PlansPage() {
   const search = useSearch({ from: '/plans' });
   const isMobile = useIsMobile();
   const { openCreatePlanModal } = useGlobalQuickActions();
+  // Track shortcut changes to update the badge
+  useShortcutVersion();
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(search.selected ?? null);
@@ -1870,7 +1873,7 @@ export function PlansPage() {
                 >
                   <Plus className="w-4 h-4" />
                   Create Plan
-                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C P</kbd>
+                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createPlan')}</kbd>
                 </button>
 
                 {/* Search Bar (TB87) */}
