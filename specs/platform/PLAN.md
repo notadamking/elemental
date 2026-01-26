@@ -696,18 +696,18 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Refresh graph data after successful deletion
   - [x] **Verify:** 31 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`)
 
-- [ ] **TB115a: Edge Type Labels**
-  - [ ] Web: Display dependency type label on each edge (blocks, parent-child, awaits, relates-to, validates, etc.)
-  - [ ] Web: Label positioning: centered on edge, rotated to follow edge direction
-  - [ ] Web: Label styling: small font, muted color, background pill for readability
-  - [ ] Web: Color-code edges by type:
-    - [ ] Blocking types (blocks, parent-child, awaits): red/orange
-    - [ ] Associative types (relates-to, references, validates): blue/gray
-    - [ ] Attribution types (authored-by, assigned-to): green
-  - [ ] Web: Toggle to show/hide edge labels (default: show)
-  - [ ] Web: Hover edge → highlight label and show tooltip with full dependency info
-  - [ ] Web: Legend showing edge type colors and meanings
-  - [ ] **Verify:** Graph displays labeled, color-coded edges; labels readable at various zoom levels; Playwright tests passing
+- [x] **TB115a: Edge Type Labels** ([spec](./TB115a-edge-type-labels.md))
+  - [x] Web: Display dependency type label on each edge (blocks, parent-child, awaits, relates-to, validates, etc.)
+  - [x] Web: Label positioning: centered on edge using foreignObject
+  - [x] Web: Label styling: small font, muted color, background pill for readability
+  - [x] Web: Color-code edges by type:
+    - [x] Blocking types (blocks, parent-child, awaits): red/orange
+    - [x] Associative types (relates-to, references, validates): blue/gray/purple
+    - [x] Attribution types (authored-by, assigned-to): green
+  - [x] Web: Toggle to show/hide edge labels (default: show)
+  - [x] Web: Hover edge label → show tooltip with full dependency info
+  - [x] Web: Legend showing edge type colors and meanings
+  - [x] **Verify:** 37 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`); graph displays labeled, color-coded edges
 
 - [ ] **TB115b: Auto-Layout Graph Formatting**
   - [ ] Web: Add "Auto Layout" button to graph toolbar

@@ -29,7 +29,7 @@ import {
   getSmoothStepPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Edit3, Trash2, Link2, Loader2 } from 'lucide-react';
+import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Edit3, Trash2, Link2, Loader2, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Task {
@@ -63,7 +63,31 @@ const DEPENDENCY_TYPES = [
   { value: 'parent-child', label: 'Parent-Child', description: 'Hierarchical containment' },
   { value: 'relates-to', label: 'Relates To', description: 'Semantic bidirectional link' },
   { value: 'references', label: 'References', description: 'Citation (unidirectional)' },
+  { value: 'awaits', label: 'Awaits', description: 'Waiting for external event' },
+  { value: 'validates', label: 'Validates', description: 'Validation relationship' },
+  { value: 'authored-by', label: 'Authored By', description: 'Attribution to creator' },
+  { value: 'assigned-to', label: 'Assigned To', description: 'Work assignment' },
 ] as const;
+
+// Edge colors by dependency type category
+const EDGE_TYPE_COLORS: Record<string, { stroke: string; label: string; labelBg: string }> = {
+  // Blocking types - red/orange (critical path)
+  'blocks': { stroke: '#ef4444', label: '#ef4444', labelBg: '#fef2f2' },
+  'parent-child': { stroke: '#f97316', label: '#f97316', labelBg: '#fff7ed' },
+  'awaits': { stroke: '#f59e0b', label: '#f59e0b', labelBg: '#fffbeb' },
+  // Associative types - blue/gray (informational)
+  'relates-to': { stroke: '#3b82f6', label: '#3b82f6', labelBg: '#eff6ff' },
+  'references': { stroke: '#6b7280', label: '#6b7280', labelBg: '#f9fafb' },
+  'validates': { stroke: '#8b5cf6', label: '#8b5cf6', labelBg: '#f5f3ff' },
+  // Attribution types - green (people)
+  'authored-by': { stroke: '#22c55e', label: '#22c55e', labelBg: '#f0fdf4' },
+  'assigned-to': { stroke: '#10b981', label: '#10b981', labelBg: '#ecfdf5' },
+};
+
+// Get edge color for a dependency type (with fallback)
+function getEdgeColor(type: string) {
+  return EDGE_TYPE_COLORS[type] || { stroke: '#94a3b8', label: '#64748b', labelBg: '#f8fafc' };
+}
 
 function useReadyTasks() {
   return useQuery<Task[]>({
@@ -252,10 +276,11 @@ function TaskNode({ data }: { data: TaskNodeData }) {
   );
 }
 
-// Custom edge with right-click context menu support
+// Custom edge with right-click context menu support and labels
 interface CustomEdgeData extends Record<string, unknown> {
   dependencyType: string;
   editMode: boolean;
+  showLabels: boolean;
   onDelete: (sourceId: string, targetId: string, type: string) => void;
 }
 
@@ -288,7 +313,7 @@ function CustomEdge({
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const edgeRef = useRef<SVGGElement>(null);
 
-  const [edgePath] = getSmoothStepPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -296,6 +321,13 @@ function CustomEdge({
     targetY,
     targetPosition,
   });
+
+  const dependencyType = data?.dependencyType || 'blocks';
+  const showLabels = data?.showLabels ?? true;
+  const colors = getEdgeColor(dependencyType);
+
+  // Get a short display label for the edge
+  const displayLabel = dependencyType.replace('-', ' ');
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     if (!data?.editMode) return;
@@ -324,7 +356,11 @@ function CustomEdge({
 
   return (
     <g ref={edgeRef}>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      <BaseEdge
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={{ ...style, stroke: colors.stroke }}
+      />
       {/* Wider invisible path for easier interaction */}
       <path
         d={edgePath}
@@ -335,7 +371,32 @@ function CustomEdge({
         style={{ cursor: data?.editMode ? 'context-menu' : 'default' }}
         data-testid="edge-interaction-zone"
         data-edge-id={id}
+        data-edge-type={dependencyType}
       />
+      {/* Edge label */}
+      {showLabels && (
+        <foreignObject
+          x={labelX - 40}
+          y={labelY - 10}
+          width={80}
+          height={20}
+          style={{ overflow: 'visible', pointerEvents: 'none' }}
+          data-testid="edge-label"
+          data-edge-type={dependencyType}
+        >
+          <div
+            style={{
+              backgroundColor: colors.labelBg,
+              color: colors.label,
+              border: `1px solid ${colors.stroke}`,
+            }}
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium text-center whitespace-nowrap"
+            title={DEPENDENCY_TYPES.find(t => t.value === dependencyType)?.description || dependencyType}
+          >
+            {displayLabel}
+          </div>
+        </foreignObject>
+      )}
       {showContextMenu && (
         <foreignObject
           x={contextMenuPos.x - 100}
@@ -382,6 +443,7 @@ interface GraphOptions {
   statusFilter: string[];
   selectedNodeId: string | null;
   editMode: boolean;
+  showEdgeLabels: boolean;
 }
 
 // Build a map of dependency types for quick lookup
@@ -414,7 +476,7 @@ function buildGraphFromTree(
   const edges: Edge<CustomEdgeData>[] = [];
   const visited = new Set<string>();
 
-  const { searchQuery, statusFilter, selectedNodeId, editMode } = options;
+  const { searchQuery, statusFilter, selectedNodeId, editMode, showEdgeLabels } = options;
   const hasSearch = searchQuery.trim().length > 0;
   const hasStatusFilter = statusFilter.length > 0;
   const hasAnyFilter = hasSearch || hasStatusFilter;
@@ -479,17 +541,19 @@ function buildGraphFromTree(
       }
       const edgeId = `${node.element.id}->${dep.element.id}`;
       const depType = dependencyTypeMap.get(edgeId) || 'blocks';
+      const edgeColors = getEdgeColor(depType);
       edges.push({
         id: edgeId,
         source: node.element.id,
         target: dep.element.id,
-        type: editMode ? 'custom' : 'smoothstep',
+        type: 'custom', // Always use custom edge to show labels and colors
         animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: '#94a3b8' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: edgeColors.stroke },
+        style: { stroke: edgeColors.stroke },
         data: {
           dependencyType: depType,
           editMode: editMode,
+          showLabels: showEdgeLabels,
           onDelete: onDeleteEdge,
         },
       });
@@ -502,17 +566,19 @@ function buildGraphFromTree(
       }
       const edgeId = `${dep.element.id}->${node.element.id}`;
       const depType = dependencyTypeMap.get(edgeId) || 'blocks';
+      const edgeColors = getEdgeColor(depType);
       edges.push({
         id: edgeId,
         source: dep.element.id,
         target: node.element.id,
-        type: editMode ? 'custom' : 'smoothstep',
+        type: 'custom', // Always use custom edge to show labels and colors
         animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: '#94a3b8' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: edgeColors.stroke },
+        style: { stroke: edgeColors.stroke },
         data: {
           dependencyType: depType,
           editMode: editMode,
+          showLabels: showEdgeLabels,
           onDelete: onDeleteEdge,
         },
       });
@@ -653,6 +719,8 @@ function GraphToolbar({
   onEditModeToggle,
   selectedSourceNode,
   onCancelSelection,
+  showEdgeLabels,
+  onToggleEdgeLabels,
 }: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -668,6 +736,8 @@ function GraphToolbar({
   onEditModeToggle: () => void;
   selectedSourceNode: Task | null;
   onCancelSelection: () => void;
+  showEdgeLabels: boolean;
+  onToggleEdgeLabels: () => void;
 }) {
   const [showStatusFilter, setShowStatusFilter] = useState(false);
   const hasFilters = searchQuery.trim().length > 0 || statusFilter.length > 0;
@@ -816,8 +886,24 @@ function GraphToolbar({
         </>
       )}
 
-      {/* Zoom Controls */}
+      {/* Edge Labels Toggle and Zoom Controls */}
       <div className="flex items-center gap-1 ml-auto">
+        {/* Edge Labels Toggle */}
+        <button
+          onClick={onToggleEdgeLabels}
+          className={`
+            p-2 rounded-lg transition-colors
+            ${showEdgeLabels
+              ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+              : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+            }
+          `}
+          title={showEdgeLabels ? 'Hide edge labels' : 'Show edge labels'}
+          data-testid="toggle-edge-labels-button"
+        >
+          <Tag className="w-4 h-4" />
+        </button>
+        <div className="w-px h-4 bg-gray-300 mx-1" />
         <button
           onClick={onZoomOut}
           className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
@@ -869,6 +955,8 @@ interface DependencyGraphInnerProps {
   selectedSourceNode: Task | null;
   onCancelSelection: () => void;
   onNodeClick: NodeMouseHandler<Node<TaskNodeData>>;
+  showEdgeLabels: boolean;
+  onToggleEdgeLabels: () => void;
 }
 
 // Inner component that uses useReactFlow (must be inside ReactFlowProvider)
@@ -892,6 +980,8 @@ function DependencyGraphInner({
   selectedSourceNode,
   onCancelSelection,
   onNodeClick,
+  showEdgeLabels,
+  onToggleEdgeLabels,
 }: DependencyGraphInnerProps) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
@@ -924,6 +1014,8 @@ function DependencyGraphInner({
         onEditModeToggle={onEditModeToggle}
         selectedSourceNode={selectedSourceNode}
         onCancelSelection={onCancelSelection}
+        showEdgeLabels={showEdgeLabels}
+        onToggleEdgeLabels={onToggleEdgeLabels}
       />
       <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden" data-testid="graph-canvas">
         {isLoadingTree && (
@@ -994,6 +1086,9 @@ export function DependencyGraphPage() {
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [dependencyError, setDependencyError] = useState<string | null>(null);
 
+  // Edge label visibility state (default: true)
+  const [showEdgeLabels, setShowEdgeLabels] = useState(true);
+
   const readyTasks = useReadyTasks();
   const blockedTasks = useBlockedTasks();
   const dependencyTree = useDependencyTree(selectedTaskId);
@@ -1050,7 +1145,7 @@ export function DependencyGraphPage() {
     if (dependencyTree.data) {
       const { nodes: newNodes, edges: newEdges } = buildGraphFromTree(
         dependencyTree.data,
-        { searchQuery, statusFilter, selectedNodeId: selectedSourceNode?.id || null, editMode },
+        { searchQuery, statusFilter, selectedNodeId: selectedSourceNode?.id || null, editMode, showEdgeLabels },
         handleDeleteEdge,
         dependencyTypeMap
       );
@@ -1060,7 +1155,7 @@ export function DependencyGraphPage() {
       setNodes([]);
       setEdges([]);
     }
-  }, [dependencyTree.data, dependencyTypeMap, searchQuery, statusFilter, editMode, selectedSourceNode, setNodes, setEdges, handleDeleteEdge]);
+  }, [dependencyTree.data, dependencyTypeMap, searchQuery, statusFilter, editMode, showEdgeLabels, selectedSourceNode, setNodes, setEdges, handleDeleteEdge]);
 
   // Calculate match count for the filter display
   const matchCount = useMemo(() => {
@@ -1205,20 +1300,38 @@ export function DependencyGraphPage() {
               selectedSourceNode={selectedSourceNode}
               onCancelSelection={handleCancelSelection}
               onNodeClick={handleNodeClick}
+              showEdgeLabels={showEdgeLabels}
+              onToggleEdgeLabels={() => setShowEdgeLabels(prev => !prev)}
             />
           </ReactFlowProvider>
         </div>
       )}
 
       {/* Legend */}
-      <div className="mt-4 flex items-center gap-6 text-sm text-gray-600">
-        <span className="font-medium">Status:</span>
-        {Object.entries(STATUS_COLORS).map(([status, colors]) => (
-          <div key={status} className="flex items-center gap-1">
-            <div className={`w-3 h-3 rounded border ${colors.bg} ${colors.border}`} />
-            <span className="capitalize">{status.replace('_', ' ')}</span>
-          </div>
-        ))}
+      <div className="mt-4 space-y-2">
+        {/* Status Legend */}
+        <div className="flex items-center gap-6 text-sm text-gray-600">
+          <span className="font-medium">Status:</span>
+          {Object.entries(STATUS_COLORS).map(([status, colors]) => (
+            <div key={status} className="flex items-center gap-1">
+              <div className={`w-3 h-3 rounded border ${colors.bg} ${colors.border}`} />
+              <span className="capitalize">{status.replace('_', ' ')}</span>
+            </div>
+          ))}
+        </div>
+        {/* Edge Type Legend */}
+        <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap" data-testid="edge-type-legend">
+          <span className="font-medium">Edge Types:</span>
+          {Object.entries(EDGE_TYPE_COLORS).map(([type, colors]) => (
+            <div key={type} className="flex items-center gap-1.5" data-testid={`edge-legend-${type}`}>
+              <div
+                className="w-4 h-0.5"
+                style={{ backgroundColor: colors.stroke }}
+              />
+              <span className="capitalize">{type.replace('-', ' ')}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Dependency Type Picker Modal */}

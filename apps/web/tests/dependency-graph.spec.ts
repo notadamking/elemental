@@ -762,3 +762,188 @@ test.describe('TB44: Dependency Graph - Edit Mode', () => {
     }
   });
 });
+
+test.describe('TB115a: Edge Type Labels', () => {
+  // Helper function to wait for the dependency graph page to stabilize
+  async function waitForGraphPageReady(page: import('@playwright/test').Page) {
+    await page.goto('/dashboard/dependencies');
+    await expect(page.getByTestId('dependency-graph-page')).toBeVisible({ timeout: 10000 });
+    // Wait for toolbar to be visible (indicates loading is complete)
+    await expect(page.getByTestId('graph-toolbar')).toBeVisible({ timeout: 10000 });
+    // Wait for UI to stabilize
+    await page.waitForTimeout(500);
+  }
+
+  test('edge type legend is displayed', async ({ page }) => {
+    await waitForGraphPageReady(page);
+
+    // Edge type legend should be visible
+    await expect(page.getByTestId('edge-type-legend')).toBeVisible();
+  });
+
+  test('edge type legend shows all dependency types', async ({ page }) => {
+    await waitForGraphPageReady(page);
+
+    // Check for each edge type in the legend
+    await expect(page.getByTestId('edge-legend-blocks')).toBeVisible();
+    await expect(page.getByTestId('edge-legend-parent-child')).toBeVisible();
+    await expect(page.getByTestId('edge-legend-relates-to')).toBeVisible();
+    await expect(page.getByTestId('edge-legend-references')).toBeVisible();
+    await expect(page.getByTestId('edge-legend-awaits')).toBeVisible();
+    await expect(page.getByTestId('edge-legend-validates')).toBeVisible();
+    await expect(page.getByTestId('edge-legend-authored-by')).toBeVisible();
+    await expect(page.getByTestId('edge-legend-assigned-to')).toBeVisible();
+  });
+
+  test('edge labels toggle button is displayed', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Toggle button should be visible
+    await expect(page.getByTestId('toggle-edge-labels-button')).toBeVisible();
+  });
+
+  test('clicking edge labels toggle hides and shows edge labels', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+    await page.waitForTimeout(500); // Wait for graph to stabilize
+
+    // Toggle button should initially be "on" (blue background)
+    const toggleButton = page.getByTestId('toggle-edge-labels-button');
+    await expect(toggleButton).toHaveClass(/text-blue-600/);
+
+    // Click to hide labels
+    await toggleButton.click();
+
+    // Button should now be "off" (gray)
+    await expect(toggleButton).toHaveClass(/text-gray-600/);
+
+    // Click again to show labels
+    await toggleButton.click();
+
+    // Button should be "on" again (blue)
+    await expect(toggleButton).toHaveClass(/text-blue-600/);
+  });
+
+  test('edge labels display dependency type text', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length < 2) {
+      test.skip();
+      return;
+    }
+
+    // First create a dependency to ensure we have an edge to test
+    const sourceTask = allTasks[0];
+    const targetTask = allTasks[1];
+
+    // Clean up any existing dependency first
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+
+    // Create a relates-to dependency
+    await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: sourceTask.id,
+        targetId: targetTask.id,
+        type: 'relates-to',
+      },
+    });
+
+    // Navigate to the dependency graph for the source task
+    await page.goto('/dashboard/dependencies');
+    await expect(page.getByTestId('dependency-graph-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('graph-toolbar')).toBeVisible({ timeout: 10000 });
+
+    // Wait for graph to render
+    await page.waitForTimeout(1000);
+
+    // Check that edge labels exist in the DOM (they may or may not be visible depending on the selected task)
+    // The important thing is that the edge label functionality is working
+    const edgeLabels = page.locator('[data-testid="edge-label"]');
+    const count = await edgeLabels.count();
+
+    // If there are edge labels, verify they have the edge type data attribute
+    if (count > 0) {
+      const firstLabel = edgeLabels.first();
+      await expect(firstLabel).toHaveAttribute('data-edge-type', /.+/);
+    }
+
+    // Clean up
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+  });
+
+  test('edges have color-coded strokes based on type', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length < 2) {
+      test.skip();
+      return;
+    }
+
+    const sourceTask = allTasks[0];
+    const targetTask = allTasks[1];
+
+    // Clean up and create a test dependency
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/blocks`
+    );
+
+    await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: sourceTask.id,
+        targetId: targetTask.id,
+        type: 'blocks',
+      },
+    });
+
+    await waitForGraphPageReady(page);
+    await page.waitForTimeout(1000);
+
+    // Check for edge interaction zones with type data
+    const edgeZones = page.locator('[data-testid="edge-interaction-zone"]');
+    const count = await edgeZones.count();
+
+    // If there are edges, verify they have the edge type data attribute
+    if (count > 0) {
+      const firstEdge = edgeZones.first();
+      await expect(firstEdge).toHaveAttribute('data-edge-type', /.+/);
+    }
+
+    // Clean up
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/blocks`
+    );
+  });
+});

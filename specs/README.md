@@ -126,6 +126,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB113-entity-tags-display.md](./platform/TB113-entity-tags-display.md) | Entity Tags Display - Mentioned In section showing documents/tasks that @mention the entity | entity, mentions, tags, @mention, documents, tasks, navigation |
 | [platform/TB114-fix-adding-edges.md](./platform/TB114-fix-adding-edges.md) | Fix Adding Edges - Loading states and toast notifications for edge creation | dependency, graph, edge, loading, toast, edit mode |
 | [platform/TB115-fix-removing-edges.md](./platform/TB115-fix-removing-edges.md) | Fix Removing Edges - Correct dependency type lookup for edge deletion | dependency, graph, edge, delete, type, fix |
+| [platform/TB115a-edge-type-labels.md](./platform/TB115a-edge-type-labels.md) | Edge Type Labels - Dependency type labels on graph edges with color coding | dependency, graph, edge, labels, colors, legend, toggle |
 
 ---
 
