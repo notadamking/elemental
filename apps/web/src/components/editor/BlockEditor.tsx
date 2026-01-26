@@ -80,6 +80,7 @@ interface BlockEditorProps {
   onSave?: () => void;
   placeholder?: string;
   readOnly?: boolean;
+  onComment?: (selectedText: string, from: number, to: number) => void;
 }
 
 interface ToolbarButtonProps {
@@ -160,6 +161,7 @@ export function BlockEditor({
   onSave,
   placeholder = 'Start writing...',
   readOnly = false,
+  onComment,
 }: BlockEditorProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [showOverflow, setShowOverflow] = useState(false);
@@ -715,7 +717,7 @@ export function BlockEditor({
         <div className={`relative ${isCodeMode ? 'font-mono text-sm bg-gray-900 text-gray-100' : ''}`}>
           <EditorContent editor={editor} />
           {/* Bubble Menu - only for non-code modes and non-readonly */}
-          {!isCodeMode && !readOnly && <EditorBubbleMenu editor={editor} />}
+          {!isCodeMode && !readOnly && <EditorBubbleMenu editor={editor} onComment={onComment} />}
         </div>
       </div>
     </>

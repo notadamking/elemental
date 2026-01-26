@@ -17,6 +17,7 @@ import {
   Code,
   Strikethrough,
   Highlighter,
+  MessageSquare,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 
@@ -66,9 +67,10 @@ function BubbleMenuDivider() {
 
 interface EditorBubbleMenuProps {
   editor: Editor;
+  onComment?: (selectedText: string, from: number, to: number) => void;
 }
 
-export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
+export function EditorBubbleMenu({ editor, onComment }: EditorBubbleMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   // Track editor state to force re-renders when formatting changes
@@ -174,6 +176,24 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       >
         <Highlighter className="w-4 h-4" />
       </BubbleMenuButton>
+
+      {/* Comment button - only shown if onComment callback is provided */}
+      {onComment && (
+        <>
+          <BubbleMenuDivider />
+          <BubbleMenuButton
+            onClick={() => {
+              const { from, to } = editor.state.selection;
+              const selectedText = editor.state.doc.textBetween(from, to, ' ');
+              onComment(selectedText, from, to);
+            }}
+            label="Add Comment"
+            testId="bubble-menu-comment"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </BubbleMenuButton>
+        </>
+      )}
     </div>
   );
 }

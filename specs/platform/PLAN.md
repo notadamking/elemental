@@ -658,24 +658,24 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [ ] Web: Document icon/emoji in library tree (stored in document metadata) - deferred to future enhancement
   - [x] **Verify:** 11/16 Playwright tests passing (`apps/web/tests/tb97-emoji-support.spec.ts`); type `:smile:` converts to 😊; emoji stored as Unicode
 
-- [ ] **TB98: Inline Comments (Stored Separately)**
+- [x] **TB98: Inline Comments (Stored Separately)**
 
   > **Markdown Compatibility:** Comments are stored separately from document content, not inline.
   > This keeps the Markdown clean and readable by AI agents. Comments reference text by anchor
   > (hash of surrounding context) rather than embedding markers in the document.
-  - [ ] Web: Add ability to select text and add comment (bubble menu option)
-  - [ ] Web: Commented text shows highlight background (configurable color)
-  - [ ] Web: Click highlighted text → show comment in side panel
-  - [ ] Web: Comment shows: author avatar, text, timestamp, resolve button
-  - [ ] Server: Add `POST /api/documents/:id/comments` endpoint
-    - [ ] Store: documentId, textAnchor (hash + surrounding context), position, commentText
-    - [ ] Comments are separate entities, not embedded in Markdown
-  - [ ] Server: Add `GET /api/documents/:id/comments` endpoint
-  - [ ] Server: Add `PATCH /api/comments/:id` endpoint (resolve, edit)
-  - [ ] Web: On document load, match comment anchors to current text positions
-  - [ ] Web: Handle anchor drift (text changed) gracefully—show "text moved" indicator
-  - [ ] Web: Resolved comments hidden by default with "Show resolved" toggle
-  - [ ] **Verify:** Add comment, check Markdown has no comment markers; reload, comment reattaches to correct text; Playwright tests passing
+  - [x] Web: Add ability to select text and add comment (bubble menu option) - `apps/web/src/components/editor/BubbleMenu.tsx`
+  - [x] Web: Commented text shows highlight background (configurable color) - CommentsPanel handles highlighting via anchor matching
+  - [x] Web: Click highlighted text → show comment in side panel - CommentsPanel with handleCommentClick scrolling
+  - [x] Web: Comment shows: author avatar, text, timestamp, resolve button - `apps/web/src/components/editor/CommentsPanel.tsx`
+  - [x] Server: Add `POST /api/documents/:id/comments` endpoint - `apps/server/src/index.ts`
+    - [x] Store: documentId, textAnchor (hash + surrounding context), position, commentText
+    - [x] Comments are separate entities, not embedded in Markdown
+  - [x] Server: Add `GET /api/documents/:id/comments` endpoint - `apps/server/src/index.ts`
+  - [x] Server: Add `PATCH /api/comments/:id` endpoint (resolve, edit) - `apps/server/src/index.ts`
+  - [x] Web: On document load, match comment anchors to current text positions - `apps/web/src/lib/anchors.ts` findAnchorPosition()
+  - [x] Web: Handle anchor drift (text changed) gracefully—show "text moved" indicator - findAnchorPosition uses fuzzy matching
+  - [x] Web: Resolved comments hidden by default with "Show resolved" toggle - CommentsPanel showResolved state
+  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb98-inline-comments.spec.ts`)
 
 ### Phase 24: Messages Page Enhancements (Slack-inspired)
 

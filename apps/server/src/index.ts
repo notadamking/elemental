@@ -3488,6 +3488,343 @@ app.delete('/api/documents/:sourceId/links/:targetId', async (c) => {
 });
 
 // ============================================================================
+// Document Comments Endpoints (TB98)
+// ============================================================================
+
+// Comment type for the comments table
+interface CommentRow {
+  [key: string]: unknown;  // Index signature for Row compatibility
+  id: string;
+  document_id: string;
+  author_id: string;
+  content: string;
+  anchor: string;
+  start_offset: number | null;
+  end_offset: number | null;
+  resolved: number;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+/**
+ * GET /api/documents/:id/comments
+ * Returns all comments for a document
+ * Query params:
+ *   - includeResolved: 'true' to include resolved comments (default: false)
+ */
+app.get('/api/documents/:id/comments', async (c) => {
+  try {
+    const documentId = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const includeResolved = url.searchParams.get('includeResolved') === 'true';
+
+    // Verify document exists
+    const doc = await api.get(documentId);
+    if (!doc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (doc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Query comments from the database
+    let query = `
+      SELECT * FROM comments
+      WHERE document_id = ? AND deleted_at IS NULL
+    `;
+    if (!includeResolved) {
+      query += ' AND resolved = 0';
+    }
+    query += ' ORDER BY created_at ASC';
+
+    const comments = storageBackend.query<CommentRow>(query, [documentId]);
+
+    // Hydrate with author info
+    const hydratedComments = await Promise.all(
+      comments.map(async (comment) => {
+        const author = await api.get(comment.author_id as ElementId);
+        let resolvedByEntity = null;
+        if (comment.resolved_by) {
+          resolvedByEntity = await api.get(comment.resolved_by as ElementId);
+        }
+
+        return {
+          id: comment.id,
+          documentId: comment.document_id,
+          author: author ? {
+            id: author.id,
+            name: (author as unknown as { name: string }).name,
+            entityType: (author as unknown as { entityType: string }).entityType,
+          } : { id: comment.author_id, name: 'Unknown', entityType: 'unknown' },
+          content: comment.content,
+          anchor: JSON.parse(comment.anchor),
+          startOffset: comment.start_offset,
+          endOffset: comment.end_offset,
+          resolved: comment.resolved === 1,
+          resolvedBy: resolvedByEntity ? {
+            id: resolvedByEntity.id,
+            name: (resolvedByEntity as unknown as { name: string }).name,
+          } : null,
+          resolvedAt: comment.resolved_at,
+          createdAt: comment.created_at,
+          updatedAt: comment.updated_at,
+        };
+      })
+    );
+
+    return c.json({
+      comments: hydratedComments,
+      total: hydratedComments.length,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get document comments:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get document comments' } }, 500);
+  }
+});
+
+/**
+ * POST /api/documents/:id/comments
+ * Creates a new comment on a document
+ * Body: {
+ *   authorId: string,
+ *   content: string,
+ *   anchor: { hash: string, prefix: string, text: string, suffix: string },
+ *   startOffset?: number,
+ *   endOffset?: number
+ * }
+ */
+app.post('/api/documents/:id/comments', async (c) => {
+  try {
+    const documentId = c.req.param('id') as ElementId;
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.authorId || typeof body.authorId !== 'string') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'authorId is required' } }, 400);
+    }
+    if (!body.content || typeof body.content !== 'string' || body.content.trim().length === 0) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'content is required' } }, 400);
+    }
+    if (!body.anchor || typeof body.anchor !== 'object') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'anchor is required' } }, 400);
+    }
+    if (!body.anchor.hash || !body.anchor.text) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'anchor must include hash and text' } }, 400);
+    }
+
+    // Verify document exists
+    const doc = await api.get(documentId);
+    if (!doc) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+    if (doc.type !== 'document') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+    }
+
+    // Verify author exists
+    const author = await api.get(body.authorId as ElementId);
+    if (!author) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Author not found' } }, 404);
+    }
+    if (author.type !== 'entity') {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'authorId must be an entity' } }, 400);
+    }
+
+    // Generate comment ID
+    const commentId = `cmt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const now = new Date().toISOString();
+
+    // Insert comment
+    storageBackend.run(`
+      INSERT INTO comments (id, document_id, author_id, content, anchor, start_offset, end_offset, resolved, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+    `, [
+      commentId,
+      documentId,
+      body.authorId,
+      body.content.trim(),
+      JSON.stringify(body.anchor),
+      body.startOffset ?? null,
+      body.endOffset ?? null,
+      now,
+      now,
+    ]);
+
+    return c.json({
+      id: commentId,
+      documentId,
+      author: {
+        id: author.id,
+        name: (author as unknown as { name: string }).name,
+        entityType: (author as unknown as { entityType: string }).entityType,
+      },
+      content: body.content.trim(),
+      anchor: body.anchor,
+      startOffset: body.startOffset ?? null,
+      endOffset: body.endOffset ?? null,
+      resolved: false,
+      resolvedBy: null,
+      resolvedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }, 201);
+  } catch (error) {
+    console.error('[elemental] Failed to create comment:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create comment' } }, 500);
+  }
+});
+
+/**
+ * PATCH /api/comments/:id
+ * Updates a comment (content, resolved status)
+ * Body: {
+ *   content?: string,
+ *   resolved?: boolean,
+ *   resolvedBy?: string
+ * }
+ */
+app.patch('/api/comments/:id', async (c) => {
+  try {
+    const commentId = c.req.param('id');
+    const body = await c.req.json();
+
+    // Find existing comment
+    const existing = storageBackend.query<CommentRow>(
+      'SELECT * FROM comments WHERE id = ? AND deleted_at IS NULL',
+      [commentId]
+    );
+
+    if (existing.length === 0) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Comment not found' } }, 404);
+    }
+
+    const now = new Date().toISOString();
+
+    // Build update query
+    const updates: string[] = [];
+    const values: (string | number | null)[] = [];
+
+    if (body.content !== undefined) {
+      if (typeof body.content !== 'string' || body.content.trim().length === 0) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'content cannot be empty' } }, 400);
+      }
+      updates.push('content = ?');
+      values.push(body.content.trim());
+    }
+
+    if (body.resolved !== undefined) {
+      updates.push('resolved = ?');
+      values.push(body.resolved ? 1 : 0);
+
+      if (body.resolved) {
+        // Verify resolver exists
+        if (body.resolvedBy) {
+          const resolver = await api.get(body.resolvedBy as ElementId);
+          if (!resolver || resolver.type !== 'entity') {
+            return c.json({ error: { code: 'NOT_FOUND', message: 'Resolver entity not found' } }, 404);
+          }
+          updates.push('resolved_by = ?');
+          values.push(body.resolvedBy);
+        }
+        updates.push('resolved_at = ?');
+        values.push(now);
+      } else {
+        // Unresolving
+        updates.push('resolved_by = NULL');
+        updates.push('resolved_at = NULL');
+      }
+    }
+
+    if (updates.length === 0) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' } }, 400);
+    }
+
+    updates.push('updated_at = ?');
+    values.push(now);
+    values.push(commentId);
+
+    storageBackend.run(
+      `UPDATE comments SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    // Fetch updated comment
+    const updated = storageBackend.query<CommentRow>(
+      'SELECT * FROM comments WHERE id = ?',
+      [commentId]
+    )[0];
+
+    // Hydrate with author info
+    const author = await api.get(updated.author_id as ElementId);
+    let resolvedByEntity = null;
+    if (updated.resolved_by) {
+      resolvedByEntity = await api.get(updated.resolved_by as ElementId);
+    }
+
+    return c.json({
+      id: updated.id,
+      documentId: updated.document_id,
+      author: author ? {
+        id: author.id,
+        name: (author as unknown as { name: string }).name,
+        entityType: (author as unknown as { entityType: string }).entityType,
+      } : { id: updated.author_id, name: 'Unknown', entityType: 'unknown' },
+      content: updated.content,
+      anchor: JSON.parse(updated.anchor),
+      startOffset: updated.start_offset,
+      endOffset: updated.end_offset,
+      resolved: updated.resolved === 1,
+      resolvedBy: resolvedByEntity ? {
+        id: resolvedByEntity.id,
+        name: (resolvedByEntity as unknown as { name: string }).name,
+      } : null,
+      resolvedAt: updated.resolved_at,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to update comment:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update comment' } }, 500);
+  }
+});
+
+/**
+ * DELETE /api/comments/:id
+ * Soft-deletes a comment
+ */
+app.delete('/api/comments/:id', async (c) => {
+  try {
+    const commentId = c.req.param('id');
+
+    // Find existing comment
+    const existing = storageBackend.query<CommentRow>(
+      'SELECT * FROM comments WHERE id = ? AND deleted_at IS NULL',
+      [commentId]
+    );
+
+    if (existing.length === 0) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Comment not found' } }, 404);
+    }
+
+    const now = new Date().toISOString();
+
+    // Soft delete
+    storageBackend.run(
+      'UPDATE comments SET deleted_at = ?, updated_at = ? WHERE id = ?',
+      [now, now, commentId]
+    );
+
+    return c.json({ success: true, id: commentId });
+  } catch (error) {
+    console.error('[elemental] Failed to delete comment:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete comment' } }, 500);
+  }
+});
+
+// ============================================================================
 // Plans Endpoints (TB24)
 // ============================================================================
 

@@ -47,11 +47,16 @@ import {
   Search,
   Unlink,
   Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
 import { CreateLibraryModal } from '../components/document/CreateLibraryModal';
+import { AddCommentModal } from '../components/editor/AddCommentModal';
+import { CommentsPanel } from '../components/editor/CommentsPanel';
 import { useAllDocuments as useAllDocumentsPreloaded } from '../api/hooks/useAllElements';
+import { useCreateComment, useDocumentComments, type Comment } from '../api/hooks/useDocumentComments';
+import { createTextAnchor, findAnchorPosition, getPlainTextForAnchoring } from '../lib/anchors';
 import { sortData, createSimpleDocumentSearchFilter } from '../hooks/usePaginatedData';
 import { markdownToHtml, isHtmlContent } from '../lib/markdown';
 
@@ -1788,11 +1793,23 @@ function DocumentDetailPanel({
   const { data: document, isLoading, isError, error } = useDocument(documentId);
   const updateDocument = useUpdateDocument();
   const cloneDocument = useCloneDocument();
+  const createComment = useCreateComment();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [editedTitle, setEditedTitle] = useState('');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
+
+  // Comments state (TB98)
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [pendingComment, setPendingComment] = useState<{
+    selectedText: string;
+    from: number;
+    to: number;
+  } | null>(null);
+  const { data: commentsData } = useDocumentComments(documentId);
+  const commentCount = commentsData?.comments.filter((c: Comment) => !c.resolved).length || 0;
 
   // Fetch the previewing version content
   const { data: previewDocument } = useDocumentVersion(
@@ -1839,6 +1856,54 @@ function DocumentDetailPanel({
       }
     } else {
       setIsEditing(false);
+    }
+  };
+
+  // Handle comment from bubble menu (TB98)
+  const handleComment = (selectedText: string, from: number, to: number) => {
+    setPendingComment({ selectedText, from, to });
+    setCommentModalOpen(true);
+  };
+
+  // Submit comment (TB98)
+  const handleSubmitComment = async (content: string) => {
+    if (!document || !pendingComment) return;
+
+    // Get plain text version of document for anchoring
+    const plainText = getPlainTextForAnchoring(document.content || '', document.contentType);
+    const anchor = createTextAnchor(
+      plainText,
+      pendingComment.from,
+      pendingComment.to
+    );
+
+    try {
+      await createComment.mutateAsync({
+        documentId: document.id,
+        input: {
+          authorId: 'el-0000', // TODO: Use actual current user ID
+          content,
+          anchor,
+          startOffset: pendingComment.from,
+          endOffset: pendingComment.to,
+        },
+      });
+      setCommentModalOpen(false);
+      setPendingComment(null);
+      setShowCommentsPanel(true); // Show comments panel after adding
+    } catch {
+      // Error handling done by mutation
+    }
+  };
+
+  // Handle clicking a comment to scroll to its position
+  const handleCommentClick = (comment: Comment) => {
+    // Find anchor position in current document
+    const plainText = getPlainTextForAnchoring(document?.content || '', document?.contentType || 'text');
+    const match = findAnchorPosition(comment.anchor, plainText);
+    if (match) {
+      // TODO: Scroll to position in editor - this would require editor ref
+      console.log('Comment position:', match.startOffset, match.endOffset);
     }
   };
 
@@ -2026,6 +2091,25 @@ function DocumentDetailPanel({
               >
                 <History className="w-5 h-5" />
               </button>
+              {/* Comments button (TB98) */}
+              <button
+                onClick={() => setShowCommentsPanel(!showCommentsPanel)}
+                data-testid="document-comments-button"
+                className={`p-1.5 rounded relative ${
+                  showCommentsPanel
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+                aria-label={showCommentsPanel ? 'Hide comments' : 'Show comments'}
+                title="Comments"
+              >
+                <MessageSquare className="w-5 h-5" />
+                {commentCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
+                    {commentCount > 9 ? '9+' : commentCount}
+                  </span>
+                )}
+              </button>
             </>
           )}
           {/* Expand button - always visible regardless of edit mode */}
@@ -2124,6 +2208,7 @@ function DocumentDetailPanel({
                 onChange={setEditedContent}
                 onSave={handleSave}
                 placeholder="Start writing..."
+                onComment={handleComment}
               />
             ) : (
               <DocumentRenderer
@@ -2176,7 +2261,30 @@ function DocumentDetailPanel({
             }}
           />
         )}
+
+        {/* Comments Panel (TB98) */}
+        {showCommentsPanel && (
+          <div className="w-80 flex-shrink-0 border-l border-gray-200 h-full overflow-hidden">
+            <CommentsPanel
+              documentId={documentId}
+              onCommentClick={handleCommentClick}
+              currentUserId="el-0000" // TODO: Use actual current user ID
+            />
+          </div>
+        )}
       </div>
+
+      {/* Add Comment Modal (TB98) */}
+      <AddCommentModal
+        isOpen={commentModalOpen}
+        onClose={() => {
+          setCommentModalOpen(false);
+          setPendingComment(null);
+        }}
+        selectedText={pendingComment?.selectedText || ''}
+        onSubmit={handleSubmitComment}
+        isSubmitting={createComment.isPending}
+      />
     </div>
   );
 }

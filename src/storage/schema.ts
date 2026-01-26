@@ -14,7 +14,7 @@ import type { Migration, MigrationResult, StorageBackend } from './index.js';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 // ============================================================================
 // Migrations
@@ -230,9 +230,60 @@ DROP TABLE IF EXISTS inbox_items;
 };
 
 /**
+ * Migration 5: Add comments table for inline document comments
+ *
+ * Comments are stored separately from document content to:
+ * - Keep Markdown clean and AI-agent readable
+ * - Allow comments to be toggled on/off in view
+ * - Survive document content changes via text anchoring
+ */
+const migration005: Migration = {
+  version: 5,
+  description: 'Add comments table for inline document comments with text anchoring',
+  up: `
+-- Comments for document annotations
+CREATE TABLE comments (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    author_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    anchor TEXT NOT NULL,
+    start_offset INTEGER,
+    end_offset INTEGER,
+    resolved INTEGER NOT NULL DEFAULT 0,
+    resolved_by TEXT,
+    resolved_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    FOREIGN KEY (document_id) REFERENCES elements(id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES elements(id)
+);
+
+-- Index for querying comments by document (primary use case)
+CREATE INDEX idx_comments_document ON comments(document_id);
+
+-- Index for querying unresolved comments
+CREATE INDEX idx_comments_resolved ON comments(resolved);
+
+-- Index for querying by author
+CREATE INDEX idx_comments_author ON comments(author_id);
+`,
+  down: `
+-- Drop indexes first
+DROP INDEX IF EXISTS idx_comments_author;
+DROP INDEX IF EXISTS idx_comments_resolved;
+DROP INDEX IF EXISTS idx_comments_document;
+
+-- Drop table
+DROP TABLE IF EXISTS comments;
+`,
+};
+
+/**
  * All migrations in order
  */
-export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003, migration004];
+export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003, migration004, migration005];
 
 // ============================================================================
 // Schema Functions
@@ -318,6 +369,7 @@ export const EXPECTED_TABLES = [
   'child_counters',
   'blocked_cache',
   'inbox_items',
+  'comments',
 ] as const;
 
 /**
