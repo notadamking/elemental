@@ -12,6 +12,7 @@ import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, Mess
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
+import { ContributionChart } from '../components/shared/ContributionChart';
 import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
 import { usePaginatedData, createEntityFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
@@ -208,6 +209,27 @@ function useEntityEvents(id: string | null) {
     queryFn: async () => {
       const response = await fetch(`/api/entities/${id}/events?limit=20`);
       if (!response.ok) throw new Error('Failed to fetch entity events');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+// TB108: Hook for entity activity data (contribution chart)
+interface EntityActivity {
+  entityId: string;
+  startDate: string;
+  endDate: string;
+  totalEvents: number;
+  activity: { date: string; count: number }[];
+}
+
+function useEntityActivity(id: string | null, days: number = 365) {
+  return useQuery<EntityActivity>({
+    queryKey: ['entities', id, 'activity', days],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/activity?days=${days}`);
+      if (!response.ok) throw new Error('Failed to fetch entity activity');
       return response.json();
     },
     enabled: !!id,
@@ -1906,6 +1928,8 @@ function EntityDetailPanel({
   const { data: stats, isLoading: statsLoading } = useEntityStats(entityId);
   const { data: tasks, isLoading: tasksLoading } = useEntityTasks(entityId);
   const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
+  // TB108: Entity Contribution Chart - activity data for GitHub-style grid
+  const { data: activityData, isLoading: activityLoading } = useEntityActivity(entityId);
   const { data: inboxCount } = useEntityInboxCount(entityId);
   const { data: archivedData } = useEntityInboxViewCount(entityId, 'archived');
   const [inboxView, setInboxView] = useState<InboxViewType>(() => getStoredInboxView());
@@ -2598,6 +2622,21 @@ function EntityDetailPanel({
               <StatCard icon={FileText} label="Documents Created" value={stats.documentCount} />
             </div>
           ) : null}
+        </div>
+
+        {/* TB108: Activity Contribution Chart - GitHub-style activity grid */}
+        <div className="border-t border-gray-100 pt-4">
+          <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Activity
+          </h3>
+          <ContributionChart
+            activity={activityData?.activity || []}
+            startDate={activityData?.startDate}
+            endDate={activityData?.endDate}
+            isLoading={activityLoading}
+            testId="entity-contribution-chart"
+          />
         </div>
 
         {/* Active Tasks */}

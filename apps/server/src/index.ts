@@ -1256,6 +1256,63 @@ app.get('/api/entities/:id/events', async (c) => {
   }
 });
 
+// GET /api/entities/:id/activity - Get daily activity counts for contribution chart
+// TB108: Entity Contribution Chart - GitHub-style activity grid
+app.get('/api/entities/:id/activity', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const daysParam = url.searchParams.get('days');
+    const days = daysParam ? parseInt(daysParam, 10) : 365;
+
+    // Verify entity exists
+    const entity = await api.get(id);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Get all events by this actor in the date range
+    const events = await api.listEvents({
+      actor: id as unknown as EntityId,
+      after: startDate.toISOString(),
+      before: endDate.toISOString(),
+      limit: 10000, // Get all events in range
+    });
+
+    // Aggregate by date (YYYY-MM-DD)
+    const activityByDate: Record<string, number> = {};
+    for (const event of events) {
+      const date = event.createdAt.split('T')[0]; // Extract YYYY-MM-DD
+      activityByDate[date] = (activityByDate[date] || 0) + 1;
+    }
+
+    // Convert to array format for frontend
+    const activity = Object.entries(activityByDate).map(([date, count]) => ({
+      date,
+      count,
+    }));
+
+    // Sort by date ascending
+    activity.sort((a, b) => a.date.localeCompare(b.date));
+
+    return c.json({
+      entityId: id,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+      totalEvents: events.length,
+      activity,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get entity activity:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity activity' } }, 500);
+  }
+});
+
 // ============================================================================
 // Inbox Endpoints
 // ============================================================================

@@ -607,13 +607,18 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Real-time update via TanStack Query cache invalidation
   - [x] **Verify:** 67 Playwright tests passing (`apps/web/tests/teams.spec.ts`); tests cover add/remove members via UI
 
-- [ ] **TB108: Entity Contribution Chart**
-  - [ ] Web: Add "Activity" section to EntityDetailPanel
-  - [ ] Web: Github-style contribution chart (grid of squares)
-  - [ ] Web: Each square = one day, color intensity = activity level (events count)
-  - [ ] Web: Hover square shows date and activity count
-  - [ ] Web: Last 365 days (or configurable range)
-  - [ ] **Verify:** Entity activity chart renders with accurate data; Claude in Chrome visual inspection
+- [x] **TB108: Entity Contribution Chart** ([spec](./TB108-entity-contribution-chart.md))
+  - [x] Server: Add `/api/entities/:id/activity` endpoint with days parameter - `apps/server/src/index.ts`
+  - [x] Web: Add "Activity" section to EntityDetailPanel - `apps/web/src/routes/entities.tsx`
+  - [x] Web: Create `ContributionChart` component - `apps/web/src/components/shared/ContributionChart.tsx`
+  - [x] Web: Github-style contribution chart (grid of squares with 5 color levels)
+  - [x] Web: Each square = one day, color intensity = activity level (events count)
+  - [x] Web: Hover square shows date and activity count with tooltip
+  - [x] Web: Last 365 days (configurable via `days` parameter)
+  - [x] Web: Month labels and day-of-week labels
+  - [x] Web: Legend showing activity level scale (Less/More)
+  - [x] Web: Total contributions count display
+  - [x] **Verify:** 10 Playwright tests passing (`apps/web/tests/tb108-entity-contribution-chart.spec.ts`)
 
 - [ ] **TB109: Entity Activity Overview**
   - [ ] Web: Show recent activity feed in EntityDetailPanel
