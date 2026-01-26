@@ -12,11 +12,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar, Copy, Check } from 'lucide-react';
+import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar, Copy, Check, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
 import { MessageRichComposer, type MessageRichComposerRef } from '../components/message/MessageRichComposer';
+import { MessageImageAttachment } from '../components/message/MessageImageAttachment';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useAllChannels } from '../api/hooks/useAllElements';
@@ -79,7 +80,7 @@ interface Message {
 }
 
 // ============================================================================
-// Mention Highlighting
+// Mention and Image Rendering (TB102)
 // ============================================================================
 
 /**
@@ -90,27 +91,30 @@ interface Message {
 const MENTION_REGEX = /(?<![a-zA-Z0-9])@([a-zA-Z][a-zA-Z0-9_-]*)/g;
 
 /**
- * Renders message content with @mentions highlighted in blue and linked to entities
+ * Regex pattern to match markdown images: ![alt](url)
  */
-function renderMessageContent(content: string): React.ReactNode {
-  if (!content) return null;
+const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
 
+/**
+ * Renders a single text segment, processing mentions within it
+ */
+function renderTextWithMentions(text: string, keyPrefix: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   const regex = new RegExp(MENTION_REGEX.source, 'g');
   let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(content)) !== null) {
+  while ((match = regex.exec(text)) !== null) {
     // Add text before the mention
     if (match.index > lastIndex) {
-      parts.push(content.slice(lastIndex, match.index));
+      parts.push(text.slice(lastIndex, match.index));
     }
 
     // Add the highlighted mention as a link to the entity
     const entityName = match[1];
     parts.push(
       <Link
-        key={`mention-${match.index}`}
+        key={`${keyPrefix}-mention-${match.index}`}
         to="/entities"
         search={{ name: entityName, selected: undefined, page: 1, limit: 25 }}
         className="text-blue-600 font-medium hover:underline"
@@ -124,8 +128,53 @@ function renderMessageContent(content: string): React.ReactNode {
   }
 
   // Add remaining text after last mention
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
+
+/**
+ * Renders message content with @mentions highlighted and images displayed (TB102)
+ */
+function renderMessageContent(content: string): React.ReactNode {
+  if (!content) return null;
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  const imageRegex = new RegExp(IMAGE_REGEX.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = imageRegex.exec(content)) !== null) {
+    // Add text before the image (with mention processing)
+    if (match.index > lastIndex) {
+      const textBefore = content.slice(lastIndex, match.index);
+      parts.push(...renderTextWithMentions(textBefore, `text-${lastIndex}`));
+    }
+
+    // Add the image element
+    const altText = match[1] || 'Image';
+    const imageUrl = match[2];
+    parts.push(
+      <div key={`image-${match.index}`} className="my-2">
+        <img
+          src={imageUrl}
+          alt={altText}
+          className="max-w-full max-h-80 rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+          onClick={() => window.open(imageUrl, '_blank')}
+          data-testid={`message-image-${match.index}`}
+        />
+      </div>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last image (with mention processing)
   if (lastIndex < content.length) {
-    parts.push(content.slice(lastIndex));
+    const textAfter = content.slice(lastIndex);
+    parts.push(...renderTextWithMentions(textAfter, `text-${lastIndex}`));
   }
 
   return parts.length > 0 ? parts : content;
@@ -977,6 +1026,14 @@ function MessageAttachmentPicker({
   );
 }
 
+// Image attachment type for TB102
+interface ImageAttachment {
+  url: string;
+  filename?: string;
+}
+
+const API_BASE = 'http://localhost:3456';
+
 function MessageComposer({
   channelId,
   channel,
@@ -986,9 +1043,14 @@ function MessageComposer({
 }) {
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<AttachedDocument[]>([]);
+  const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
   const [showPicker, setShowPicker] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const sendMessage = useSendMessage();
   const editorRef = useRef<MessageRichComposerRef>(null);
+  const dropZoneRef = useRef<HTMLFormElement>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   // Focus editor when channel changes
   useEffect(() => {
@@ -1004,22 +1066,127 @@ function MessageComposer({
     setAttachments(prev => prev.filter(a => a.id !== docId));
   };
 
+  // TB102: Handle image attachment
+  const handleAddImageAttachment = (imageUrl: string) => {
+    // Extract filename from URL
+    const filename = imageUrl.split('/').pop() || 'image';
+    setImageAttachments(prev => [...prev, { url: imageUrl, filename }]);
+    setShowImagePicker(false);
+  };
+
+  const handleRemoveImageAttachment = (url: string) => {
+    setImageAttachments(prev => prev.filter(a => a.url !== url));
+  };
+
+  // TB102: Upload image file
+  const uploadImageFile = async (file: File): Promise<string | null> => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error(`Invalid file type: ${file.type}`);
+      return null;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File too large (max 10MB)');
+      return null;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE}/api/uploads`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+      return `${API_BASE}${result.url}`;
+    } catch (err) {
+      toast.error('Failed to upload image');
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // TB102: Handle image paste from clipboard
+  const handleImagePaste = async (file: File) => {
+    const url = await uploadImageFile(file);
+    if (url) {
+      handleAddImageAttachment(url);
+      toast.success('Image attached');
+    }
+  };
+
+  // TB102: Handle drag and drop images
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const url = await uploadImageFile(file);
+      if (url) {
+        handleAddImageAttachment(url);
+        toast.success('Image attached');
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes('Files')) {
+      setDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+  };
+
   const handleSubmit = async () => {
-    if (!content.trim() || !channel) return;
+    // Allow sending with only images (no text required if images attached)
+    const hasContent = content.trim().length > 0;
+    const hasImages = imageAttachments.length > 0;
+    const hasAttachments = attachments.length > 0;
+
+    if (!hasContent && !hasImages && !hasAttachments) return;
+    if (!channel) return;
 
     // Use first member as sender for now (would be current user in real app)
     const sender = channel.members[0];
     if (!sender) return;
 
     try {
+      // Include image URLs in the message content using Markdown
+      let finalContent = content.trim();
+
+      // Append image URLs as markdown images
+      if (imageAttachments.length > 0) {
+        const imageMarkdown = imageAttachments
+          .map(img => `![${img.filename || 'image'}](${img.url})`)
+          .join('\n');
+        finalContent = finalContent
+          ? `${finalContent}\n\n${imageMarkdown}`
+          : imageMarkdown;
+      }
+
       await sendMessage.mutateAsync({
         channelId,
         sender,
-        content: content.trim(),
+        content: finalContent,
         attachmentIds: attachments.map(a => a.id),
       });
       setContent('');
       setAttachments([]);
+      setImageAttachments([]);
       editorRef.current?.clear();
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -1031,13 +1198,59 @@ function MessageComposer({
     handleSubmit();
   };
 
+  const hasAnyAttachments = attachments.length > 0 || imageAttachments.length > 0;
+  const canSend = content.trim() || hasAnyAttachments;
+
   return (
     <>
       <form
+        ref={dropZoneRef}
         data-testid="message-composer"
         onSubmit={handleFormSubmit}
-        className="p-4 border-t border-gray-200 bg-white"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`p-4 border-t border-gray-200 bg-white relative ${
+          dragOver ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''
+        }`}
       >
+        {/* Drag overlay */}
+        {dragOver && (
+          <div className="absolute inset-0 flex items-center justify-center bg-blue-50/90 z-10 pointer-events-none">
+            <div className="flex flex-col items-center text-blue-600">
+              <ImageIcon className="w-8 h-8 mb-2" />
+              <span className="text-sm font-medium">Drop image here</span>
+            </div>
+          </div>
+        )}
+
+        {/* TB102: Image attachments preview */}
+        {imageAttachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2" data-testid="message-image-attachments-preview">
+            {imageAttachments.map((img) => (
+              <div
+                key={img.url}
+                className="relative group"
+                data-testid={`image-attachment-preview-${img.filename}`}
+              >
+                <img
+                  src={img.url}
+                  alt={img.filename || 'Attached image'}
+                  className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImageAttachment(img.url)}
+                  className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  data-testid={`remove-image-attachment-${img.filename}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Attached documents preview */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2" data-testid="message-attachments-preview">
@@ -1063,6 +1276,21 @@ function MessageComposer({
         )}
 
         <div className="flex gap-2 items-end">
+          {/* TB102: Image attachment button */}
+          <button
+            type="button"
+            onClick={() => setShowImagePicker(true)}
+            disabled={uploadingImage}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors self-end mb-1 disabled:opacity-50"
+            data-testid="message-image-attach-button"
+            title="Attach image"
+          >
+            {uploadingImage ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <ImageIcon className="w-5 h-5" />
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setShowPicker(true)}
@@ -1078,6 +1306,7 @@ function MessageComposer({
               content={content}
               onChange={setContent}
               onSubmit={handleSubmit}
+              onImagePaste={handleImagePaste}
               channelName={channel?.name}
               disabled={sendMessage.isPending}
               maxHeight={180}
@@ -1087,7 +1316,7 @@ function MessageComposer({
           <button
             type="submit"
             data-testid="message-send-button"
-            disabled={!content.trim() || sendMessage.isPending}
+            disabled={!canSend || sendMessage.isPending}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end mb-1"
           >
             <Send className="w-4 h-4" />
@@ -1106,6 +1335,13 @@ function MessageComposer({
         onClose={() => setShowPicker(false)}
         onSelect={handleAddAttachment}
         selectedIds={attachments.map(a => a.id)}
+      />
+
+      {/* TB102: Image attachment modal */}
+      <MessageImageAttachment
+        isOpen={showImagePicker}
+        onClose={() => setShowImagePicker(false)}
+        onAttach={handleAddImageAttachment}
       />
     </>
   );

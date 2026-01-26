@@ -551,15 +551,15 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Markdown shortcuts work (e.g., **bold**, _italic_)
   - [x] **Verify:** 20 Playwright tests passing (`apps/web/tests/tb101-rich-text-message-composer.spec.ts`)
 
-- [ ] **TB102: Image Input in Messages**
-  - [ ] Web: Add image attachment button to MessageComposer
-  - [ ] Web: Click → file picker for image
-  - [ ] Web: Drag-and-drop image into composer
-  - [ ] Web: Paste image from clipboard
-  - [ ] Web: Preview attached image before sending
-  - [ ] Web: Remove attachment button (X on preview)
-  - [ ] Server: Images uploaded to server, URL stored in message document
-  - [ ] **Verify:** Attach image, send message, image renders in chat; Playwright tests passing
+- [x] **TB102: Image Input in Messages**
+  - [x] Web: Add image attachment button to MessageComposer
+  - [x] Web: Click → file picker for image
+  - [x] Web: Drag-and-drop image into composer
+  - [x] Web: Paste image from clipboard
+  - [x] Web: Preview attached image before sending
+  - [x] Web: Remove attachment button (X on preview)
+  - [x] Server: Images uploaded to server, URL stored in message content (Markdown format)
+  - [x] **Verify:** 15 Playwright tests passing (`apps/web/tests/tb102-image-input-messages.spec.ts`)
 
 - [ ] **TB103: Message Search**
   - [ ] Web: Add search input to channel header

@@ -114,6 +114,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB99-message-day-separation.md](./platform/TB99-message-day-separation.md) | Message day separation with date headers (Today, Yesterday, full date) | messages, channel, date, separator, grouping, calendar |
 | [platform/TB100-copy-message.md](./platform/TB100-copy-message.md) | Copy message action with hover menu button and keyboard shortcut | messages, copy, clipboard, keyboard shortcut, toast, hover menu |
 | [platform/TB101-RICH-TEXT-MESSAGE-COMPOSER.md](./platform/TB101-RICH-TEXT-MESSAGE-COMPOSER.md) | Rich text message composer with Tiptap editor and formatting toolbar | messages, composer, tiptap, rich text, bold, italic, code, lists, blockquote |
+| [platform/TB102-image-input-messages.md](./platform/TB102-image-input-messages.md) | Image input in messages with upload, library, paste, drag-drop | messages, image, upload, attachment, paste, drag-drop, media |
 
 ---
 

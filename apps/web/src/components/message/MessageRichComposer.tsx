@@ -9,8 +9,9 @@
  * - Compact toolbar (toggleable)
  * - Markdown shortcuts (e.g., **bold**, _italic_)
  * - Enter to send, Shift+Enter for newline
+ * - Image paste support (TB102)
  *
- * TB101 Implementation
+ * TB101, TB102 Implementation
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -63,6 +64,8 @@ interface MessageRichComposerProps {
   maxHeight?: number;
   minHeight?: number;
   channelName?: string;
+  /** Called when an image is pasted from clipboard (TB102) */
+  onImagePaste?: (file: File) => void;
 }
 
 export interface MessageRichComposerRef {
@@ -121,6 +124,7 @@ export const MessageRichComposer = forwardRef<
     maxHeight = 200,
     minHeight = 60,
     channelName,
+    onImagePaste,
   },
   ref
 ) {
@@ -175,6 +179,23 @@ export const MessageRichComposer = forwardRef<
             event.preventDefault();
             onSubmit();
             return true;
+          }
+        }
+        return false;
+      },
+      // Handle paste for image support (TB102)
+      handlePaste: (_view, event) => {
+        const items = event.clipboardData?.items;
+        if (!items || !onImagePaste) return false;
+
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+              event.preventDefault();
+              onImagePaste(file);
+              return true;
+            }
           }
         }
         return false;
