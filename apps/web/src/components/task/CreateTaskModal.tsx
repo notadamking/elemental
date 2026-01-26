@@ -17,6 +17,7 @@ interface CreateTaskInput {
   taskType?: string;
   assignee?: string;
   tags?: string[];
+  description?: string;
 }
 
 interface CreateTaskModalProps {
@@ -96,6 +97,7 @@ const TASK_TYPE_OPTIONS = [
 
 export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalProps) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [priority, setPriority] = useState(3);
   const [complexity, setComplexity] = useState(3);
   const [taskType, setTaskType] = useState('task');
@@ -118,6 +120,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   useEffect(() => {
     if (!isOpen) {
       setTitle('');
+      setDescription('');
       setPriority(3);
       setComplexity(3);
       setTaskType('task');
@@ -158,6 +161,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       input.tags = tags;
     }
 
+    if (description.trim()) {
+      input.description = description.trim();
+    }
+
     try {
       const result = await createTask.mutateAsync(input);
       onSuccess?.(result);
@@ -185,8 +192,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       />
 
       {/* Dialog */}
-      <div className="absolute left-1/2 top-1/4 -translate-x-1/2 w-full max-w-lg">
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-xl shadow-2xl border border-gray-200">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Create Task</h2>
@@ -217,6 +224,22 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 data-testid="create-task-title-input"
                 required
+              />
+            </div>
+
+            {/* Description (TB124) */}
+            <div className="mb-4">
+              <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-1">
+                Description <span className="text-gray-400 text-xs font-normal">(optional, supports Markdown)</span>
+              </label>
+              <textarea
+                id="task-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add a description..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+                data-testid="create-task-description-input"
               />
             </div>
 

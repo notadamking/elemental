@@ -454,6 +454,21 @@ app.post('/api/tasks', async (c) => {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required' } }, 400);
     }
 
+    // Handle description field - creates linked Document (TB124)
+    let descriptionRef = body.descriptionRef;
+    if (body.description !== undefined && body.description.trim().length > 0 && !descriptionRef) {
+      const docInput: CreateDocumentInput = {
+        contentType: 'markdown',
+        content: body.description,
+        createdBy: body.createdBy as EntityId,
+        tags: ['task-description'],
+      };
+      const newDoc = await createDocument(docInput);
+      const docWithTitle = { ...newDoc, title: `Description for task ${body.title}` };
+      const createdDoc = await api.create(docWithTitle as unknown as Element & Record<string, unknown>);
+      descriptionRef = createdDoc.id;
+    }
+
     // Build CreateTaskInput from request body
     const taskInput: CreateTaskInput = {
       title: body.title,
@@ -467,7 +482,7 @@ app.post('/api/tasks', async (c) => {
       ...(body.deadline !== undefined && { deadline: body.deadline }),
       ...(body.scheduledFor !== undefined && { scheduledFor: body.scheduledFor }),
       ...(body.tags !== undefined && { tags: body.tags }),
-      ...(body.descriptionRef !== undefined && { descriptionRef: body.descriptionRef }),
+      ...(descriptionRef !== undefined && { descriptionRef }),
       ...(body.designRef !== undefined && { designRef: body.designRef }),
       ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria }),
       ...(body.notes !== undefined && { notes: body.notes }),
@@ -620,12 +635,39 @@ app.patch('/api/tasks/:id', async (c) => {
     const updates: Record<string, unknown> = {};
     const allowedFields = [
       'title', 'status', 'priority', 'complexity', 'taskType',
-      'assignee', 'owner', 'deadline', 'scheduledFor', 'tags', 'metadata'
+      'assignee', 'owner', 'deadline', 'scheduledFor', 'tags', 'metadata', 'notes'
     ];
 
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updates[field] = body[field];
+      }
+    }
+
+    // Handle description field - creates or updates linked Document (TB124)
+    if (body.description !== undefined) {
+      const task = existing as { descriptionRef?: string; createdBy: string };
+
+      if (task.descriptionRef) {
+        // Update existing description document
+        const descDoc = await api.get(task.descriptionRef as ElementId);
+        if (descDoc && descDoc.type === 'document') {
+          await api.update(task.descriptionRef as ElementId, {
+            content: body.description,
+          } as unknown as Partial<Document>);
+        }
+      } else if (body.description.trim().length > 0) {
+        // Create new description document and link it
+        const docInput: CreateDocumentInput = {
+          contentType: 'markdown',
+          content: body.description,
+          createdBy: task.createdBy as EntityId,
+          tags: ['task-description'],
+        };
+        const newDoc = await createDocument(docInput);
+        const docWithTitle = { ...newDoc, title: `Description for task ${id}` };
+        const createdDoc = await api.create(docWithTitle as unknown as Element & Record<string, unknown>);
+        updates.descriptionRef = createdDoc.id;
       }
     }
 

@@ -1368,6 +1368,143 @@ function TaskNotesSection({
   );
 }
 
+// Task Description Section with editing support (TB124)
+function TaskDescriptionSection({
+  description,
+  onUpdate,
+  isUpdating,
+}: {
+  taskId?: string; // Reserved for future use
+  description?: string;
+  onUpdate: (description: string) => void;
+  isUpdating: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedDescription, setEditedDescription] = useState(description || '');
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Get entities for @mention autocomplete
+  const { data: entitiesData } = useAllEntities();
+  const mentionEntities: MentionEntity[] = useMemo(() => {
+    if (!entitiesData) return [];
+    return entitiesData.map((e) => ({
+      id: e.id,
+      name: e.name,
+      entityType: e.entityType,
+    }));
+  }, [entitiesData]);
+
+  // Reset edit state when description changes externally
+  useEffect(() => {
+    if (!isEditing) {
+      setEditedDescription(description || '');
+    }
+  }, [description, isEditing]);
+
+  const handleSave = useCallback(() => {
+    if (editedDescription !== (description || '')) {
+      onUpdate(editedDescription);
+    }
+    setIsEditing(false);
+  }, [editedDescription, description, onUpdate]);
+
+  const handleCancel = useCallback(() => {
+    setEditedDescription(description || '');
+    setIsEditing(false);
+  }, [description]);
+
+  const hasDescription = description && description.trim().length > 0;
+
+  return (
+    <div className="mb-6" data-testid="task-description-section">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 hover:text-gray-700"
+        data-testid="description-toggle"
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-3 h-3" />
+        ) : (
+          <ChevronRight className="w-3 h-3" />
+        )}
+        <FileText className="w-3 h-3" />
+        Description
+        {!hasDescription && (
+          <span className="text-xs text-gray-400 normal-case tracking-normal font-normal">(none)</span>
+        )}
+      </button>
+
+      {isExpanded && (
+        <div className="space-y-2">
+          {isEditing ? (
+            <>
+              <BlockEditor
+                content={editedDescription}
+                contentType="markdown"
+                onChange={setEditedDescription}
+                placeholder="Add a description with @mentions..."
+                mentionEntities={mentionEntities}
+              />
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={handleCancel}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                  data-testid="description-cancel-btn"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isUpdating}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors disabled:opacity-50"
+                  data-testid="description-save-btn"
+                >
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      Save
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          ) : hasDescription ? (
+            <div
+              onClick={() => setIsEditing(true)}
+              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all group"
+              data-testid="task-description-content"
+            >
+              <MarkdownRenderer
+                content={description}
+                className="text-gray-700 dark:text-gray-300"
+                testId="task-description-markdown"
+              />
+              <div className="mt-2 flex items-center gap-1 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Pencil className="w-3 h-3" />
+                Click to edit
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors w-full"
+              data-testid="add-description-btn"
+            >
+              <Plus className="w-4 h-4" />
+              Add Description
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Extract @mentions from markdown content (TB112)
 // Entity names can contain letters, numbers, hyphens, and underscores
 function extractMentions(content?: string): string[] {
@@ -1916,19 +2053,13 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           </div>
         )}
 
-        {/* Description - supports @mentions (TB112) */}
-        {task.description && (
-          <div className="mb-6">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Description</div>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3" data-testid="task-detail-description">
-              <MarkdownRenderer
-                content={task.description}
-                className="text-gray-700 dark:text-gray-300"
-                testId="task-description-markdown"
-              />
-            </div>
-          </div>
-        )}
+        {/* Description - editable with @mentions (TB124) */}
+        <TaskDescriptionSection
+          taskId={taskId}
+          description={task.description}
+          onUpdate={(description) => handleUpdate({ description }, 'description')}
+          isUpdating={updateField === 'description'}
+        />
 
         {/* Design - supports @mentions (TB112) */}
         {task.design && (

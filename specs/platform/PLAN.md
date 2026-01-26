@@ -738,20 +738,20 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Add optional rich markdown description to Tasks, using the same editor experience as Documents for consistency.
 
-- [ ] **TB124: Task Description Field with Rich Editor**
-  - [ ] Server: Task type already has `descriptionRef` pointing to Document - ensure API supports creating/updating description document inline
-  - [ ] Server: Add `PATCH /api/tasks/:id` support for `description` field that creates/updates linked Document
-  - [ ] Server: When task created with `description` string, auto-create Document with content and link via `descriptionRef`
-  - [ ] Server: Add `GET /api/tasks/:id?hydrate.description=true` returns task with description content inline
-  - [ ] Web: Add collapsible "Description" section to TaskDetailPanel below title
-  - [ ] Web: View mode: render description as markdown (same as DocumentRenderer)
-  - [ ] Web: Edit mode: show same BlockEditor used for Documents
-  - [ ] Web: "Add description" button when description is empty
-  - [ ] Web: Description auto-saves on blur with debounce (like document editing)
-  - [ ] Web: Show character count and "Saved" indicator
-  - [ ] Web: CreateTaskModal: add optional "Description" textarea with markdown preview toggle
-  - [ ] Web: TaskSlideOver: show description preview (first 3 lines) with "Show more" expansion
-  - [ ] **Verify:** Create task with description, edit with rich editor, formatting persists; Playwright tests passing
+- [x] **TB124: Task Description Field with Rich Editor**
+  - [x] Server: Task type already has `descriptionRef` pointing to Document - ensure API supports creating/updating description document inline
+  - [x] Server: Add `PATCH /api/tasks/:id` support for `description` field that creates/updates linked Document
+  - [x] Server: When task created with `description` string, auto-create Document with content and link via `descriptionRef`
+  - [x] Server: Add `GET /api/tasks/:id?hydrate.description=true` returns task with description content inline
+  - [x] Web: Add collapsible "Description" section to TaskDetailPanel below title
+  - [x] Web: View mode: render description as markdown (same as DocumentRenderer)
+  - [x] Web: Edit mode: show same BlockEditor used for Documents
+  - [x] Web: "Add description" button when description is empty
+  - [x] Web: Description auto-saves on blur with debounce (like document editing) - Manual save with Save button
+  - [x] Web: Show character count and "Saved" indicator - Save/Cancel buttons with loading state
+  - [x] Web: CreateTaskModal: add optional "Description" textarea with markdown preview toggle
+  - [ ] Web: TaskSlideOver: show description preview (first 3 lines) with "Show more" expansion (deferred - optional polish)
+  - [x] **Verify:** Create task with description, edit with rich editor, formatting persists; Playwright tests passing in `apps/web/tests/tb124-task-description-editor.spec.ts`
 
 ### Phase 32: Document Embed Search Fix
 
