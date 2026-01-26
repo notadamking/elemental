@@ -336,7 +336,7 @@ test.describe('TB24: Plan List with Progress', () => {
     ).toBeVisible();
   });
 
-  test('plan detail panel shows progress bar', async ({ page }) => {
+  test('plan detail panel shows progress ring (TB86)', async ({ page }) => {
     const response = await page.request.get('/api/plans');
     const plans = await response.json();
 
@@ -352,8 +352,8 @@ test.describe('TB24: Plan List with Progress', () => {
     await page.getByTestId(`plan-item-${plans[0].id}`).click();
     await expect(page.getByTestId('plan-detail-panel')).toBeVisible({ timeout: 5000 });
 
-    // Check progress bar is displayed
-    await expect(page.getByTestId('progress-bar')).toBeVisible();
+    // Check progress ring is displayed instead of progress bar (TB86)
+    await expect(page.getByTestId('plan-detail-progress-ring')).toBeVisible();
   });
 
   test('plan detail panel shows task status summary', async ({ page }) => {
@@ -946,5 +946,290 @@ test.describe('TB47: Edit Plan', () => {
 
     // Task should be removed
     await expect(page.getByTestId(`plan-task-${task.id}`)).not.toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ============================================================================
+// TB86: Plan Visual Progress Indicator
+// ============================================================================
+test.describe('TB86: Plan Visual Progress Indicator', () => {
+  // API Tests
+  test('GET /api/plans with hydrate.progress returns plans with progress', async ({ page }) => {
+    const response = await page.request.get('/api/plans?hydrate.progress=true');
+    expect(response.ok()).toBe(true);
+    const plans = await response.json();
+    expect(Array.isArray(plans)).toBe(true);
+
+    // Each plan should have _progress field
+    for (const plan of plans) {
+      expect(plan._progress).toBeDefined();
+      expect(typeof plan._progress.totalTasks).toBe('number');
+      expect(typeof plan._progress.completedTasks).toBe('number');
+      expect(typeof plan._progress.completionPercentage).toBe('number');
+      expect(plan._progress.completionPercentage).toBeGreaterThanOrEqual(0);
+      expect(plan._progress.completionPercentage).toBeLessThanOrEqual(100);
+    }
+  });
+
+  test('GET /api/plans without hydrate.progress does not include progress', async ({ page }) => {
+    const response = await page.request.get('/api/plans');
+    expect(response.ok()).toBe(true);
+    const plans = await response.json();
+
+    if (plans.length === 0) {
+      test.skip();
+      return;
+    }
+
+    // Plans should NOT have _progress field
+    expect(plans[0]._progress).toBeUndefined();
+  });
+
+  // UI Tests - Plan List Progress Ring
+  test('plan list item shows mini progress ring', async ({ page }) => {
+    const response = await page.request.get('/api/plans?hydrate.progress=true');
+    const plans = await response.json();
+
+    if (plans.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/plans');
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('plans-list')).toBeVisible({ timeout: 5000 });
+
+    // Find plans with and without tasks
+    const planWithTasks = plans.find((p: { _progress: { totalTasks: number } }) => p._progress?.totalTasks > 0);
+    const planWithoutTasks = plans.find((p: { _progress: { totalTasks: number } }) => p._progress?.totalTasks === 0);
+
+    // At least one type of indicator should be visible
+    let foundIndicator = false;
+
+    if (planWithTasks) {
+      // Plan with tasks should show progress ring
+      await expect(page.getByTestId(`plan-progress-${planWithTasks.id}`)).toBeVisible();
+      foundIndicator = true;
+    }
+
+    if (planWithoutTasks) {
+      // Plan without tasks should show empty indicator
+      await expect(page.getByTestId(`plan-progress-empty-${planWithoutTasks.id}`)).toBeVisible();
+      foundIndicator = true;
+    }
+
+    // If no specific plans found, check that at least the first plan has some kind of progress indicator
+    if (!foundIndicator) {
+      const firstPlan = plans[0];
+      const progressRingVisible = await page.getByTestId(`plan-progress-${firstPlan.id}`).isVisible().catch(() => false);
+      const emptyIndicatorVisible = await page.getByTestId(`plan-progress-empty-${firstPlan.id}`).isVisible().catch(() => false);
+      expect(progressRingVisible || emptyIndicatorVisible).toBe(true);
+    }
+  });
+
+  test('mini progress ring shows correct percentage', async ({ page }) => {
+    // Create a plan with tasks to verify percentage display
+    const createPlanResponse = await page.request.post('/api/plans', {
+      data: {
+        title: `Progress Ring Test ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'draft',
+      },
+    });
+    const plan = await createPlanResponse.json();
+
+    // Create a task
+    const createTaskResponse = await page.request.post('/api/tasks', {
+      data: {
+        title: `Task for Progress Ring ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'open',
+      },
+    });
+    const task = await createTaskResponse.json();
+
+    // Add task to plan
+    await page.request.post(`/api/plans/${plan.id}/tasks`, {
+      data: { taskId: task.id },
+    });
+
+    await page.goto('/plans');
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId(`plan-item-${plan.id}`)).toBeVisible({ timeout: 5000 });
+
+    // Progress ring should show 0% (task is open, not completed)
+    const progressRing = page.getByTestId(`plan-progress-${plan.id}`);
+    await expect(progressRing).toBeVisible();
+    await expect(progressRing).toHaveAttribute('data-percentage', '0');
+  });
+
+  // UI Tests - Plan Detail Progress Ring
+  test('plan detail panel shows large progress ring with breakdown', async ({ page }) => {
+    const response = await page.request.get('/api/plans?hydrate.progress=true');
+    const plans = await response.json();
+
+    if (plans.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/plans');
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+
+    // Click on first plan
+    await page.getByTestId(`plan-item-${plans[0].id}`).click();
+    await expect(page.getByTestId('plan-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Check progress ring with breakdown is displayed
+    await expect(page.getByTestId('progress-ring-breakdown')).toBeVisible();
+    await expect(page.getByTestId('plan-detail-progress-ring')).toBeVisible();
+    await expect(page.getByTestId('progress-breakdown-count')).toBeVisible();
+    await expect(page.getByTestId('progress-breakdown-remaining')).toBeVisible();
+  });
+
+  test('progress ring breakdown shows correct task counts', async ({ page }) => {
+    // Create a plan with known task counts
+    const createPlanResponse = await page.request.post('/api/plans', {
+      data: {
+        title: `Breakdown Test ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'active',
+      },
+    });
+    const plan = await createPlanResponse.json();
+
+    // Create and add 2 tasks - 1 completed, 1 open
+    const task1Response = await page.request.post('/api/tasks', {
+      data: {
+        title: `Completed Task ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'closed',
+      },
+    });
+    const task1 = await task1Response.json();
+    await page.request.post(`/api/plans/${plan.id}/tasks`, {
+      data: { taskId: task1.id },
+    });
+
+    const task2Response = await page.request.post('/api/tasks', {
+      data: {
+        title: `Open Task ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'open',
+      },
+    });
+    const task2 = await task2Response.json();
+    await page.request.post(`/api/plans/${plan.id}/tasks`, {
+      data: { taskId: task2.id },
+    });
+
+    await page.goto('/plans');
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+
+    // Click on the plan
+    await page.getByTestId(`plan-item-${plan.id}`).click();
+    await expect(page.getByTestId('plan-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Check breakdown text shows "1 of 2 tasks"
+    await expect(page.getByTestId('progress-breakdown-count')).toContainText('1 of 2 tasks');
+    await expect(page.getByTestId('progress-breakdown-remaining')).toContainText('1 remaining');
+  });
+
+  test('progress ring color changes based on percentage', async ({ page }) => {
+    // Test that progress ring has correct status attribute based on percentage
+    const response = await page.request.get('/api/plans?hydrate.progress=true');
+    const plans = await response.json();
+
+    if (plans.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/plans');
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+
+    // Click on first plan
+    await page.getByTestId(`plan-item-${plans[0].id}`).click();
+    await expect(page.getByTestId('plan-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Check that progress ring has a status attribute (healthy, at-risk, or behind)
+    const progressRing = page.getByTestId('plan-detail-progress-ring');
+    await expect(progressRing).toBeVisible();
+    const status = await progressRing.getAttribute('data-status');
+    expect(['healthy', 'at-risk', 'behind']).toContain(status);
+  });
+
+  test('progress ring updates when task is completed', async ({ page }) => {
+    // Create a plan with an open task
+    const createPlanResponse = await page.request.post('/api/plans', {
+      data: {
+        title: `Update Test ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'active',
+      },
+    });
+    const plan = await createPlanResponse.json();
+
+    const createTaskResponse = await page.request.post('/api/tasks', {
+      data: {
+        title: `Task to Complete ${Date.now()}`,
+        createdBy: 'test-user',
+        status: 'open',
+      },
+    });
+    const task = await createTaskResponse.json();
+
+    await page.request.post(`/api/plans/${plan.id}/tasks`, {
+      data: { taskId: task.id },
+    });
+
+    await page.goto('/plans');
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+
+    // Click on the plan
+    await page.getByTestId(`plan-item-${plan.id}`).click();
+    await expect(page.getByTestId('plan-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Initial percentage should be 0%
+    const progressRing = page.getByTestId('plan-detail-progress-ring');
+    await expect(progressRing).toHaveAttribute('data-percentage', '0');
+
+    // Complete the task via API
+    await page.request.patch(`/api/tasks/${task.id}`, {
+      data: { status: 'closed' },
+    });
+
+    // Reload the page to see the update
+    await page.reload();
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+
+    // Click on the plan again
+    await page.getByTestId(`plan-item-${plan.id}`).click();
+    await expect(page.getByTestId('plan-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Percentage should now be 100%
+    const updatedRing = page.getByTestId('plan-detail-progress-ring');
+    await expect(updatedRing).toHaveAttribute('data-percentage', '100');
+  });
+
+  test('task status summary is still visible alongside progress ring', async ({ page }) => {
+    const response = await page.request.get('/api/plans?hydrate.progress=true');
+    const plans = await response.json();
+
+    if (plans.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/plans');
+    await expect(page.getByTestId('plans-page')).toBeVisible({ timeout: 10000 });
+
+    // Click on first plan
+    await page.getByTestId(`plan-item-${plans[0].id}`).click();
+    await expect(page.getByTestId('plan-detail-panel')).toBeVisible({ timeout: 5000 });
+
+    // Both progress ring and task status summary should be visible
+    await expect(page.getByTestId('plan-detail-progress-ring')).toBeVisible();
+    await expect(page.getByTestId('task-status-summary')).toBeVisible();
   });
 });

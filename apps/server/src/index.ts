@@ -3064,6 +3064,7 @@ app.get('/api/plans', async (c) => {
     const statusParam = url.searchParams.get('status');
     const limitParam = url.searchParams.get('limit');
     const offsetParam = url.searchParams.get('offset');
+    const hydrateProgress = url.searchParams.get('hydrate.progress') === 'true';
 
     const filter: Record<string, unknown> = {
       type: 'plan',
@@ -3082,6 +3083,18 @@ app.get('/api/plans', async (c) => {
     }
 
     const plans = await api.list(filter as Parameters<typeof api.list>[0]);
+
+    // Optionally hydrate progress for all plans (TB86)
+    if (hydrateProgress) {
+      const plansWithProgress = await Promise.all(
+        plans.map(async (plan) => {
+          const progress = await api.getPlanProgress(plan.id as ElementId);
+          return { ...plan, _progress: progress };
+        })
+      );
+      return c.json(plansWithProgress);
+    }
+
     return c.json(plans);
   } catch (error) {
     console.error('[elemental] Failed to get plans:', error);

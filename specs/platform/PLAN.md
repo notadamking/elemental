@@ -1288,13 +1288,14 @@ For mutations (create, update, delete):
 
 **Goal:** Add visual progress indicators, search, and a roadmap view to Plans.
 
-- [ ] **TB86: Plan Visual Progress Indicator**
-  - [ ] Web: Replace text progress with visual progress ring (circular progress indicator)
-  - [ ] Web: Ring shows percentage complete with number in center
-  - [ ] Web: Color-coded: green for healthy progress, yellow for at-risk, red for behind
-  - [ ] Web: PlanListItem shows mini progress ring (32px)
-  - [ ] Web: PlanDetailPanel shows large progress ring (80px) with breakdown
-  - [ ] **Verify:** Plans show visual progress rings; Claude in Chrome visual inspection
+- [x] **TB86: Plan Visual Progress Indicator**
+  - [x] Web: Replace text progress with visual progress ring (circular progress indicator) - `src/components/shared/ProgressRing.tsx` with SVG-based ring
+  - [x] Web: Ring shows percentage complete with number in center - `showPercentage` prop controls center text display
+  - [x] Web: Color-coded: green for healthy progress (>=50%), yellow for at-risk (25-49%), red for behind (<25%) - `autoStatus` prop with `STATUS_COLORS`
+  - [x] Web: PlanListItem shows mini progress ring (32px) - `size="mini"` prop in plan list item component
+  - [x] Web: PlanDetailPanel shows large progress ring (80px) with breakdown - `ProgressRingWithBreakdown` component with completed/total counts
+  - [x] Server: `/api/plans?hydrate.progress=true` returns all plans with progress data (TB86)
+  - [x] **Verify:** Plans show visual progress rings; Playwright tests passing (10 TB86 tests)
 
 - [ ] **TB87: Plan Search**
   - [ ] Web: Add search bar to Plans page

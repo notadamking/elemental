@@ -15,6 +15,7 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { ProgressRing, ProgressRingWithBreakdown } from '../components/shared/ProgressRing';
 import { useAllPlans } from '../api/hooks/useAllElements';
 import { useDeepLink } from '../hooks/useDeepLink';
 import {
@@ -121,10 +122,11 @@ const STATUS_CONFIG: Record<
 // ============================================================================
 
 function usePlans(status?: string) {
-  return useQuery<PlanType[]>({
-    queryKey: ['plans', status],
+  return useQuery<HydratedPlan[]>({
+    queryKey: ['plans', status, 'with-progress'],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.set('hydrate.progress', 'true');
       if (status) {
         params.set('status', status);
       }
@@ -323,42 +325,6 @@ function formatRelativeTime(dateString: string): string {
 // ============================================================================
 
 /**
- * Progress Bar component with completion percentage
- */
-function ProgressBar({
-  progress,
-  showLabel = true,
-  size = 'md',
-}: {
-  progress: PlanProgress;
-  showLabel?: boolean;
-  size?: 'sm' | 'md';
-}) {
-  const { completionPercentage, completedTasks, totalTasks } = progress;
-  const height = size === 'sm' ? 'h-1.5' : 'h-2.5';
-
-  return (
-    <div data-testid="progress-bar" className="flex items-center gap-2">
-      <div className={`flex-1 bg-gray-200 rounded-full ${height} overflow-hidden`}>
-        <div
-          className={`${height} bg-green-500 rounded-full transition-all duration-300`}
-          style={{ width: `${completionPercentage}%` }}
-          data-testid="progress-bar-fill"
-        />
-      </div>
-      {showLabel && (
-        <span
-          data-testid="progress-label"
-          className="text-xs text-gray-500 whitespace-nowrap"
-        >
-          {completedTasks}/{totalTasks} ({Math.round(completionPercentage)}%)
-        </span>
-      )}
-    </div>
-  );
-}
-
-/**
  * Status Badge component
  */
 function StatusBadge({ status }: { status: string }) {
@@ -376,17 +342,20 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /**
- * Plan List Item component
+ * Plan List Item component with mini progress ring (TB86)
  */
 function PlanListItem({
   plan,
   isSelected,
   onClick,
 }: {
-  plan: PlanType;
+  plan: HydratedPlan;
   isSelected: boolean;
   onClick: (id: string) => void;
 }) {
+  const progress = plan._progress;
+  const hasProgress = progress && progress.totalTasks > 0;
+
   return (
     <div
       data-testid={`plan-item-${plan.id}`}
@@ -397,38 +366,62 @@ function PlanListItem({
       }`}
       onClick={() => onClick(plan.id)}
     >
-      <div className="flex items-start justify-between mb-2">
-        <h3
-          data-testid="plan-item-title"
-          className="font-medium text-gray-900 truncate flex-1"
-        >
-          {plan.title}
-        </h3>
-        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
-      </div>
-
-      <div className="flex items-center gap-2 mb-2">
-        <StatusBadge status={plan.status} />
-        <span className="text-xs text-gray-500" title={formatDate(plan.updatedAt)}>
-          Updated {formatRelativeTime(plan.updatedAt)}
-        </span>
-      </div>
-
-      {plan.tags && plan.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {plan.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
+      <div className="flex items-start justify-between gap-3">
+        {/* Left side: Title and metadata */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between mb-2">
+            <h3
+              data-testid="plan-item-title"
+              className="font-medium text-gray-900 truncate flex-1"
             >
-              {tag}
+              {plan.title}
+            </h3>
+          </div>
+
+          <div className="flex items-center gap-2 mb-2">
+            <StatusBadge status={plan.status} />
+            <span className="text-xs text-gray-500" title={formatDate(plan.updatedAt)}>
+              Updated {formatRelativeTime(plan.updatedAt)}
             </span>
-          ))}
-          {plan.tags.length > 3 && (
-            <span className="text-xs text-gray-400">+{plan.tags.length - 3}</span>
+          </div>
+
+          {plan.tags && plan.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {plan.tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
+                >
+                  {tag}
+                </span>
+              ))}
+              {plan.tags.length > 3 && (
+                <span className="text-xs text-gray-400">+{plan.tags.length - 3}</span>
+              )}
+            </div>
           )}
         </div>
-      )}
+
+        {/* Right side: Progress ring (mini, 32px) */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {hasProgress ? (
+            <ProgressRing
+              percentage={progress.completionPercentage}
+              size="mini"
+              testId={`plan-progress-${plan.id}`}
+            />
+          ) : (
+            <div
+              className="w-8 h-8 rounded-full border-2 border-dashed border-gray-200 flex items-center justify-center"
+              title="No tasks in plan"
+              data-testid={`plan-progress-empty-${plan.id}`}
+            >
+              <span className="text-[8px] text-gray-400">--</span>
+            </div>
+          )}
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -992,13 +985,24 @@ function PlanDetailPanel({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
-          {/* Progress Section */}
+          {/* Progress Section with Progress Ring (TB86) */}
           {progress && (
-            <div className="mb-6">
-              <div className="text-sm font-medium text-gray-700 mb-2">Progress</div>
-              <ProgressBar progress={progress} />
-              <div className="mt-4">
-                <TaskStatusSummary progress={progress} />
+            <div className="mb-6" data-testid="plan-progress-section">
+              <div className="text-sm font-medium text-gray-700 mb-4">Progress</div>
+              <div className="flex flex-col items-center gap-4">
+                {/* Large Progress Ring (80px) */}
+                <ProgressRingWithBreakdown
+                  percentage={progress.completionPercentage}
+                  completed={progress.completedTasks}
+                  total={progress.totalTasks}
+                  itemLabel="tasks"
+                  size="large"
+                  testId="plan-detail-progress-ring"
+                />
+                {/* Task Status Summary */}
+                <div className="w-full mt-2">
+                  <TaskStatusSummary progress={progress} />
+                </div>
               </div>
             </div>
           )}
@@ -1123,25 +1127,30 @@ export function PlansPage() {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(search.selected ?? null);
 
-  // Use upfront-loaded data (TB67)
-  const { data: allPlans, isLoading: isPlansLoading } = useAllPlans();
+  // Use upfront-loaded data (TB67) - but note it doesn't include progress
+  const { data: allPlans } = useAllPlans();
 
-  // Also keep the server-side query for now (fallback)
+  // Use server-side query with progress hydration (TB86)
+  // This is the primary data source for plans with progress info
   const { data: serverPlans = [], isLoading: isServerLoading, error } = usePlans(selectedStatus ?? undefined);
 
-  // Use preloaded data if available, otherwise fall back to server query
+  // Prefer server data with progress (TB86), fall back to allPlans for deep-linking checks
   const plans = useMemo(() => {
+    // Server query returns plans with progress hydration - always use if available
+    if (serverPlans && serverPlans.length > 0) {
+      return serverPlans;
+    }
+    // Fallback to upfront-loaded data (may not have progress)
     if (allPlans && allPlans.length > 0) {
-      // Client-side filtering by status
       if (selectedStatus) {
         return (allPlans as HydratedPlan[]).filter(p => p.status === selectedStatus);
       }
       return allPlans as HydratedPlan[];
     }
-    return serverPlans;
+    return [];
   }, [allPlans, serverPlans, selectedStatus]);
 
-  const isLoading = isPlansLoading || isServerLoading;
+  const isLoading = isServerLoading;
 
   // Deep-link navigation (TB70)
   const deepLink = useDeepLink({
