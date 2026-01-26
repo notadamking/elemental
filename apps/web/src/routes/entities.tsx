@@ -13,10 +13,13 @@ import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { ContributionChart } from '../components/shared/ContributionChart';
+import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { MobileEntityCard } from '../components/entity/MobileEntityCard';
 import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
 import { usePaginatedData, createEntityFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
 import { useKeyboardShortcut } from '../hooks';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import { groupByTimePeriod, TIME_PERIOD_LABELS, type TimePeriod, formatCompactTime } from '../lib';
 
 interface Entity {
@@ -725,6 +728,8 @@ function RegisterEntityModal({
     }
   };
 
+  const isMobileModal = useIsMobile();
+
   if (!isOpen) return null;
 
   return (
@@ -736,15 +741,24 @@ function RegisterEntityModal({
         data-testid="register-entity-modal-backdrop"
       />
 
-      {/* Dialog */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] flex flex-col">
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-full">
+      {/* Dialog - full screen on mobile */}
+      <div className={`
+        ${isMobileModal
+          ? 'absolute inset-0'
+          : 'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh]'
+        } flex flex-col
+      `}>
+        <div className={`
+          bg-[var(--color-bg)] dark:bg-[var(--color-surface)] shadow-2xl border border-[var(--color-border)]
+          overflow-hidden flex flex-col h-full
+          ${isMobileModal ? '' : 'rounded-xl max-h-full'}
+        `}>
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Register Entity</h2>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+            <h2 className="text-lg font-semibold text-[var(--color-text)]">Register Entity</h2>
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+              className="p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded touch-target"
               aria-label="Close"
               data-testid="register-entity-modal-close"
             >
@@ -756,7 +770,7 @@ function RegisterEntityModal({
           <form onSubmit={handleSubmit} className="p-4 overflow-auto flex-1">
             {/* Name */}
             <div className="mb-4">
-              <label htmlFor="entity-name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="entity-name" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                 Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -766,18 +780,18 @@ function RegisterEntityModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter entity name..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2.5 border border-[var(--color-border)] rounded-md bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 data-testid="register-entity-name-input"
                 required
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                 Must start with a letter, followed by alphanumeric characters, hyphens, or underscores
               </p>
             </div>
 
             {/* Entity Type */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                 Type <span className="text-red-500">*</span>
               </label>
               <div className="space-y-2" data-testid="register-entity-type-options">
@@ -786,10 +800,10 @@ function RegisterEntityModal({
                   return (
                     <label
                       key={option.value}
-                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors touch-target ${
                         entityType === option.value
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'
                       }`}
                       data-testid={`register-entity-type-${option.value}`}
                     >
@@ -801,12 +815,12 @@ function RegisterEntityModal({
                         onChange={() => setEntityType(option.value)}
                         className="sr-only"
                       />
-                      <Icon className={`w-5 h-5 ${entityType === option.value ? 'text-blue-600' : 'text-gray-400'}`} />
-                      <div>
-                        <div className={`font-medium ${entityType === option.value ? 'text-blue-900' : 'text-gray-900'}`}>
+                      <Icon className={`w-5 h-5 ${entityType === option.value ? 'text-blue-600 dark:text-blue-400' : 'text-[var(--color-text-muted)]'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-medium ${entityType === option.value ? 'text-blue-900 dark:text-blue-100' : 'text-[var(--color-text)]'}`}>
                           {option.label}
                         </div>
-                        <div className="text-xs text-gray-500">{option.description}</div>
+                        <div className="text-xs text-[var(--color-text-muted)]">{option.description}</div>
                       </div>
                     </label>
                   );
@@ -816,8 +830,8 @@ function RegisterEntityModal({
 
             {/* Public Key (optional) */}
             <div className="mb-4">
-              <label htmlFor="entity-public-key" className="block text-sm font-medium text-gray-700 mb-1">
-                Public Key <span className="text-gray-400">(optional)</span>
+              <label htmlFor="entity-public-key" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+                Public Key <span className="text-[var(--color-text-muted)]">(optional)</span>
               </label>
               <textarea
                 id="entity-public-key"
@@ -825,15 +839,15 @@ function RegisterEntityModal({
                 onChange={(e) => setPublicKey(e.target.value)}
                 placeholder="Ed25519 public key, base64 encoded..."
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                className="w-full px-3 py-2.5 border border-[var(--color-border)] rounded-md bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
                 data-testid="register-entity-public-key-input"
               />
             </div>
 
             {/* Tags (optional) */}
             <div className="mb-4">
-              <label htmlFor="entity-tags" className="block text-sm font-medium text-gray-700 mb-1">
-                Tags <span className="text-gray-400">(optional)</span>
+              <label htmlFor="entity-tags" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+                Tags <span className="text-[var(--color-text-muted)]">(optional)</span>
               </label>
               <input
                 id="entity-tags"
@@ -841,24 +855,24 @@ function RegisterEntityModal({
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="Enter tags separated by commas..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2.5 border border-[var(--color-border)] rounded-md bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 data-testid="register-entity-tags-input"
               />
             </div>
 
             {/* Error */}
             {createEntity.isError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600" data-testid="register-entity-error">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-600 dark:text-red-400" data-testid="register-entity-error">
                 {createEntity.error.message}
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
+            {/* Actions - stack on mobile */}
+            <div className={`flex gap-3 pt-2 ${isMobileModal ? 'flex-col-reverse' : 'justify-end'}`}>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                className={`px-4 py-2.5 text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors ${isMobileModal ? 'w-full' : ''}`}
                 data-testid="register-entity-cancel"
               >
                 Cancel
@@ -866,7 +880,7 @@ function RegisterEntityModal({
               <button
                 type="submit"
                 disabled={!name.trim() || createEntity.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobileModal ? 'w-full' : ''}`}
                 data-testid="register-entity-submit"
               >
                 {createEntity.isPending ? (
@@ -3803,6 +3817,7 @@ function HistoryTabContent({ entityId }: { entityId: string }) {
 export function EntitiesPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/entities' });
+  const isMobile = useIsMobile();
 
   // Pagination state from URL
   const currentPage = search.page ?? 1;
@@ -3934,6 +3949,8 @@ export function EntitiesPage() {
     navigate({ to: '/entities', search: { page: 1, limit: pageSize, selected: selectedEntityId ?? undefined, name: undefined } });
   };
 
+  // Mobile: show full-screen detail sheet
+  // Desktop: show split view with list and detail panel
   return (
     <div className="h-full flex" data-testid="entities-page">
       {/* Register Entity Modal */}
@@ -3943,30 +3960,33 @@ export function EntitiesPage() {
         onSuccess={handleEntityCreated}
       />
 
-      {/* Entity List */}
-      <div className={`flex flex-col ${selectedEntityId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
+      {/* Entity List - full width on mobile, split on desktop when entity selected */}
+      <div className={`flex flex-col ${!isMobile && selectedEntityId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-medium text-gray-900">Entities</h2>
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-gray-500">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <h2 className="text-lg font-medium text-[var(--color-text)]">Entities</h2>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <p className="text-xs sm:text-sm text-[var(--color-text-muted)] hidden sm:block">
               {entityItems.length} of {totalItems} entities
             </p>
             <button
               onClick={() => setIsRegisterModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors touch-target"
               data-testid="register-entity-button"
             >
               <Plus className="w-4 h-4" />
-              Register Entity
+              <span className="hidden sm:inline">Register Entity</span>
+              <span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <FilterTabs selected={typeFilter} onChange={handleTypeFilterChange} counts={counts} />
-          <div className="sm:ml-auto sm:w-64">
+        {/* Filters - scrollable on mobile */}
+        <div className="flex flex-col gap-3 mb-4 sm:mb-6">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <FilterTabs selected={typeFilter} onChange={handleTypeFilterChange} counts={counts} />
+          </div>
+          <div className="w-full sm:w-64 sm:ml-auto">
             <SearchBox value={searchQuery} onChange={handleSearchChange} />
           </div>
         </div>
@@ -3974,7 +3994,7 @@ export function EntitiesPage() {
         {/* Loading state */}
         {isLoading && (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-gray-500" data-testid="entities-loading">
+            <div className="text-[var(--color-text-muted)]" data-testid="entities-loading">
               Loading entities...
             </div>
           </div>
@@ -3983,13 +4003,13 @@ export function EntitiesPage() {
         {/* Empty state */}
         {!isLoading && entityItems.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center" data-testid="entities-empty">
+            <div className="text-center px-4" data-testid="entities-empty">
               {searchQuery || typeFilter !== 'all' ? (
                 <>
-                  <p className="text-gray-500">No entities match your filters</p>
+                  <p className="text-[var(--color-text-muted)]">No entities match your filters</p>
                   <button
                     onClick={handleClearFilters}
-                    className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700 touch-target"
                     data-testid="clear-filters-button"
                   >
                     Clear filters
@@ -3997,9 +4017,9 @@ export function EntitiesPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-gray-500">No entities registered</p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    Use <code className="bg-gray-100 px-1 rounded">el entity register</code> to add an entity
+                  <p className="text-[var(--color-text-muted)]">No entities registered</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
+                    Use <code className="bg-[var(--color-surface-hover)] px-1 rounded">el entity register</code> to add an entity
                   </p>
                 </>
               )}
@@ -4007,21 +4027,37 @@ export function EntitiesPage() {
           </div>
         )}
 
-        {/* Entity grid */}
+        {/* Entity list - cards on mobile, grid on desktop */}
         {!isLoading && entityItems.length > 0 && (
-          <div className="flex-1 overflow-auto" data-testid="entities-grid">
-            <div className={`grid gap-4 ${selectedEntityId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
-              {entityItems.map((entity) => (
-                <EntityCard
-                  key={entity.id}
-                  entity={entity}
-                  isSelected={entity.id === selectedEntityId}
-                  onClick={() => handleEntityClick(entity.id)}
-                />
-              ))}
-            </div>
+          <div className="flex-1 overflow-auto -mx-4 sm:mx-0" data-testid="entities-grid">
+            {isMobile ? (
+              // Mobile: stacked cards
+              <div className="divide-y divide-[var(--color-border)]">
+                {entityItems.map((entity) => (
+                  <MobileEntityCard
+                    key={entity.id}
+                    entity={entity}
+                    isSelected={entity.id === selectedEntityId}
+                    onClick={() => handleEntityClick(entity.id)}
+                    searchQuery={searchQuery}
+                  />
+                ))}
+              </div>
+            ) : (
+              // Desktop: grid layout
+              <div className={`grid gap-4 ${selectedEntityId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+                {entityItems.map((entity) => (
+                  <EntityCard
+                    key={entity.id}
+                    entity={entity}
+                    isSelected={entity.id === selectedEntityId}
+                    onClick={() => handleEntityClick(entity.id)}
+                  />
+                ))}
+              </div>
+            )}
             {/* Pagination */}
-            <div className="mt-6">
+            <div className="mt-4 sm:mt-6 px-4 sm:px-0 pb-4">
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -4035,9 +4071,31 @@ export function EntitiesPage() {
         )}
       </div>
 
-      {/* Entity Detail Panel or Not Found (TB70) */}
-      {selectedEntityId && (
-        <div className="w-1/2 border-l border-gray-200" data-testid="entity-detail-container">
+      {/* Mobile: Full-screen detail sheet */}
+      {isMobile && selectedEntityId && (
+        <MobileDetailSheet
+          open={!!selectedEntityId}
+          onClose={handleCloseDetail}
+          title="Entity Details"
+          data-testid="entity-detail-sheet"
+        >
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Entity"
+              elementId={selectedEntityId}
+              backRoute="/entities"
+              backLabel="Back to Entities"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <EntityDetailPanel entityId={selectedEntityId} onClose={handleCloseDetail} />
+          )}
+        </MobileDetailSheet>
+      )}
+
+      {/* Desktop: Side panel */}
+      {!isMobile && selectedEntityId && (
+        <div className="w-1/2 border-l border-[var(--color-border)]" data-testid="entity-detail-container">
           {deepLink.notFound ? (
             <ElementNotFound
               elementType="Entity"

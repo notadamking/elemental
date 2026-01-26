@@ -11,9 +11,12 @@ import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2, Pencil, Save, Trash2, UserMinus } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { MobileTeamCard } from '../components/team/MobileTeamCard';
 import { useAllTeams } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTeamFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import { EntityLink } from '../components/entity/EntityLink';
 
 interface Team {
@@ -321,6 +324,8 @@ function CreateTeamModal({
     }
   };
 
+  const isMobileModal = useIsMobile();
+
   if (!isOpen) return null;
 
   return (
@@ -332,15 +337,24 @@ function CreateTeamModal({
         data-testid="create-team-modal-backdrop"
       />
 
-      {/* Dialog */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] flex flex-col">
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-full">
+      {/* Dialog - full screen on mobile */}
+      <div className={`
+        ${isMobileModal
+          ? 'absolute inset-0'
+          : 'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh]'
+        } flex flex-col
+      `}>
+        <div className={`
+          bg-[var(--color-bg)] dark:bg-[var(--color-surface)] shadow-2xl border border-[var(--color-border)]
+          overflow-hidden flex flex-col h-full
+          ${isMobileModal ? '' : 'rounded-xl max-h-full'}
+        `}>
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Create Team</h2>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+            <h2 className="text-lg font-semibold text-[var(--color-text)]">Create Team</h2>
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+              className="p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded touch-target"
               aria-label="Close"
               data-testid="create-team-modal-close"
             >
@@ -352,7 +366,7 @@ function CreateTeamModal({
           <form onSubmit={handleSubmit} className="p-4 overflow-auto flex-1">
             {/* Name */}
             <div className="mb-4">
-              <label htmlFor="team-name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="team-name" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                 Team Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -362,7 +376,7 @@ function CreateTeamModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter team name..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2.5 border border-[var(--color-border)] rounded-md bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 data-testid="create-team-name-input"
                 required
               />
@@ -370,11 +384,11 @@ function CreateTeamModal({
 
             {/* Members - TB123: Required */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                 Members <span className="text-red-500">*</span>
               </label>
               {selectedMembers.length === 0 && (
-                <p className="text-xs text-amber-600 mb-2">
+                <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
                   Teams must have at least one member. Search and select an entity below.
                 </p>
               )}
@@ -388,15 +402,15 @@ function CreateTeamModal({
                     return (
                       <div
                         key={entity.id}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-full text-sm"
+                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-[var(--color-surface-hover)] rounded-full text-sm"
                         data-testid={`selected-member-${entity.id}`}
                       >
                         <Icon className={`w-3.5 h-3.5 ${styles.text}`} />
-                        <span className="text-gray-700">{entity.name}</span>
+                        <span className="text-[var(--color-text)]">{entity.name}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveMember(entity.id)}
-                          className="p-0.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200"
+                          className="p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--color-surface)]"
                           data-testid={`remove-member-${entity.id}`}
                         >
                           <X className="w-3 h-3" />
@@ -409,24 +423,24 @@ function CreateTeamModal({
 
               {/* Member Search */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
                 <input
                   type="text"
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
                   placeholder="Search entities to add..."
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full pl-8 pr-3 py-2.5 border border-[var(--color-border)] rounded-md bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   data-testid="member-search-input"
                 />
               </div>
 
               {/* Available Entities */}
               {memberSearch.trim() && (
-                <div className="mt-2 max-h-40 overflow-auto border border-gray-200 rounded-md" data-testid="entity-search-results">
+                <div className="mt-2 max-h-40 overflow-auto border border-[var(--color-border)] rounded-md" data-testid="entity-search-results">
                   {entities.isLoading ? (
-                    <div className="p-3 text-sm text-gray-500 text-center">Loading entities...</div>
+                    <div className="p-3 text-sm text-[var(--color-text-muted)] text-center">Loading entities...</div>
                   ) : availableEntities.length === 0 ? (
-                    <div className="p-3 text-sm text-gray-500 text-center">No matching entities</div>
+                    <div className="p-3 text-sm text-[var(--color-text-muted)] text-center">No matching entities</div>
                   ) : (
                     availableEntities.slice(0, 10).map((entity) => {
                       const styles = ENTITY_TYPE_STYLES[entity.entityType] || ENTITY_TYPE_STYLES.system;
@@ -436,11 +450,11 @@ function CreateTeamModal({
                           key={entity.id}
                           type="button"
                           onClick={() => handleAddMember(entity.id)}
-                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left"
+                          className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[var(--color-surface-hover)] text-left touch-target"
                           data-testid={`add-member-${entity.id}`}
                         >
                           <Icon className={`w-4 h-4 ${styles.text}`} />
-                          <span className="text-sm text-gray-900">{entity.name}</span>
+                          <span className="text-sm text-[var(--color-text)]">{entity.name}</span>
                           <span className={`ml-auto px-1.5 py-0.5 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
                             {entity.entityType}
                           </span>
@@ -454,8 +468,8 @@ function CreateTeamModal({
 
             {/* Tags (optional) */}
             <div className="mb-4">
-              <label htmlFor="team-tags" className="block text-sm font-medium text-gray-700 mb-1">
-                Tags <span className="text-gray-400">(optional)</span>
+              <label htmlFor="team-tags" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+                Tags <span className="text-[var(--color-text-muted)]">(optional)</span>
               </label>
               <input
                 id="team-tags"
@@ -463,24 +477,24 @@ function CreateTeamModal({
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="Enter tags separated by commas..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2.5 border border-[var(--color-border)] rounded-md bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 data-testid="create-team-tags-input"
               />
             </div>
 
             {/* Error */}
             {createTeam.isError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600" data-testid="create-team-error">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-600 dark:text-red-400" data-testid="create-team-error">
                 {createTeam.error.message}
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
+            {/* Actions - stack on mobile */}
+            <div className={`flex gap-3 pt-2 ${isMobileModal ? 'flex-col-reverse' : 'justify-end'}`}>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                className={`px-4 py-2.5 text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors ${isMobileModal ? 'w-full' : ''}`}
                 data-testid="create-team-cancel"
               >
                 Cancel
@@ -488,7 +502,7 @@ function CreateTeamModal({
               <button
                 type="submit"
                 disabled={!name.trim() || selectedMembers.length === 0 || createTeam.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobileModal ? 'w-full' : ''}`}
                 data-testid="create-team-submit"
                 title={selectedMembers.length === 0 ? 'Select at least one member to create a team' : undefined}
               >
@@ -1178,6 +1192,7 @@ function TeamDetailPanel({
 export function TeamsPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/teams' });
+  const isMobile = useIsMobile();
 
   // Pagination state from URL
   const currentPage = search.page ?? 1;
@@ -1272,6 +1287,8 @@ export function TeamsPage() {
     navigate({ to: '/teams', search: { page: 1, limit: pageSize, selected: selectedTeamId ?? undefined } });
   };
 
+  // Mobile: show full-screen detail sheet
+  // Desktop: show split view with list and detail panel
   return (
     <div className="h-full flex" data-testid="teams-page">
       {/* Create Team Modal */}
@@ -1281,35 +1298,36 @@ export function TeamsPage() {
         onSuccess={handleTeamCreated}
       />
 
-      {/* Team List */}
-      <div className={`flex flex-col ${selectedTeamId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
+      {/* Team List - full width on mobile, split on desktop when team selected */}
+      <div className={`flex flex-col ${!isMobile && selectedTeamId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-medium text-gray-900">Teams</h2>
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-gray-500">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <h2 className="text-lg font-medium text-[var(--color-text)]">Teams</h2>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <p className="text-xs sm:text-sm text-[var(--color-text-muted)] hidden sm:block">
               {teamItems.length} of {totalItems} teams
             </p>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors touch-target"
               data-testid="new-team-button"
             >
               <Plus className="w-4 h-4" />
-              New Team
+              <span className="hidden sm:inline">New Team</span>
+              <span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>
 
         {/* Search */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6">
           <SearchBox value={searchQuery} onChange={handleSearchChange} />
         </div>
 
         {/* Loading state */}
         {isLoading && (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-gray-500" data-testid="teams-loading">
+            <div className="text-[var(--color-text-muted)]" data-testid="teams-loading">
               Loading teams...
             </div>
           </div>
@@ -1318,13 +1336,13 @@ export function TeamsPage() {
         {/* Empty state */}
         {!isLoading && teamItems.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center" data-testid="teams-empty">
+            <div className="text-center px-4" data-testid="teams-empty">
               {searchQuery ? (
                 <>
-                  <p className="text-gray-500">No teams match your search</p>
+                  <p className="text-[var(--color-text-muted)]">No teams match your search</p>
                   <button
                     onClick={handleClearSearch}
-                    className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700 touch-target"
                     data-testid="clear-search-button"
                   >
                     Clear search
@@ -1332,10 +1350,10 @@ export function TeamsPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-gray-500">No teams created</p>
+                  <p className="text-[var(--color-text-muted)]">No teams created</p>
                   <button
                     onClick={() => setIsCreateModalOpen(true)}
-                    className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700 touch-target"
                     data-testid="create-team-empty-button"
                   >
                     Create one
@@ -1346,21 +1364,37 @@ export function TeamsPage() {
           </div>
         )}
 
-        {/* Teams grid */}
+        {/* Team list - cards on mobile, grid on desktop */}
         {!isLoading && teamItems.length > 0 && (
-          <div className="flex-1 overflow-auto" data-testid="teams-grid">
-            <div className={`grid gap-4 ${selectedTeamId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
-              {teamItems.map((team) => (
-                <TeamCard
-                  key={team.id}
-                  team={team}
-                  isSelected={team.id === selectedTeamId}
-                  onClick={() => handleTeamClick(team.id)}
-                />
-              ))}
-            </div>
+          <div className="flex-1 overflow-auto -mx-4 sm:mx-0" data-testid="teams-grid">
+            {isMobile ? (
+              // Mobile: stacked cards
+              <div className="divide-y divide-[var(--color-border)]">
+                {teamItems.map((team) => (
+                  <MobileTeamCard
+                    key={team.id}
+                    team={team}
+                    isSelected={team.id === selectedTeamId}
+                    onClick={() => handleTeamClick(team.id)}
+                    searchQuery={searchQuery}
+                  />
+                ))}
+              </div>
+            ) : (
+              // Desktop: grid layout
+              <div className={`grid gap-4 ${selectedTeamId ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+                {teamItems.map((team) => (
+                  <TeamCard
+                    key={team.id}
+                    team={team}
+                    isSelected={team.id === selectedTeamId}
+                    onClick={() => handleTeamClick(team.id)}
+                  />
+                ))}
+              </div>
+            )}
             {/* Pagination */}
-            <div className="mt-6">
+            <div className="mt-4 sm:mt-6 px-4 sm:px-0 pb-4">
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -1374,9 +1408,31 @@ export function TeamsPage() {
         )}
       </div>
 
-      {/* Team Detail Panel or Not Found (TB70) */}
-      {selectedTeamId && (
-        <div className="w-1/2 border-l border-gray-200" data-testid="team-detail-container">
+      {/* Mobile: Full-screen detail sheet */}
+      {isMobile && selectedTeamId && (
+        <MobileDetailSheet
+          open={!!selectedTeamId}
+          onClose={handleCloseDetail}
+          title="Team Details"
+          data-testid="team-detail-sheet"
+        >
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Team"
+              elementId={selectedTeamId}
+              backRoute="/teams"
+              backLabel="Back to Teams"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <TeamDetailPanel teamId={selectedTeamId} onClose={handleCloseDetail} onDeleted={() => setSelectedTeamId(null)} />
+          )}
+        </MobileDetailSheet>
+      )}
+
+      {/* Desktop: Side panel */}
+      {!isMobile && selectedTeamId && (
+        <div className="w-1/2 border-l border-[var(--color-border)]" data-testid="team-detail-container">
           {deepLink.notFound ? (
             <ElementNotFound
               elementType="Team"

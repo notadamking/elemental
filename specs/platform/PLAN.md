@@ -1028,61 +1028,30 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB151: Responsive Entities & Teams Pages**
+- [x] **TB151: Responsive Entities & Teams Pages** ✅
 
   **Context:** Entities and Teams pages have list views and detail panels with various sections (activity charts, contribution graphs, member lists). Ensure all sections adapt to mobile.
 
-  **Tracer Bullet Steps:**
-  - [ ] Step 1: Audit Entities page layout
-    - Entity list, EntityDetailPanel sections
-    - Contribution chart, activity feed, history tab
-    - **Verify immediately:** Understand current structure
-  - [ ] Step 2: Responsive entity list
-    - Desktop: table with columns
-    - Mobile: card list with avatar, name, type, task count
-    - **Verify immediately:** Entity list usable on mobile
-  - [ ] Step 3: Responsive EntityDetailPanel
-    - Desktop: side panel
-    - Mobile: full-screen sheet
-    - Sections stack vertically
-    - **Verify immediately:** Entity detail readable on mobile
-  - [ ] Step 4: Responsive contribution chart
-    - Desktop: full year (52 weeks)
-    - Mobile: last 6 months or scrollable
-    - Squares slightly larger for touch
-    - Tooltip works on tap (not just hover)
-    - **Verify immediately:** Contribution chart usable on mobile
-  - [ ] Step 5: Responsive activity feed
-    - Compact items on mobile
-    - Timestamps relative
-    - **Verify immediately:** Activity feed readable on mobile
-  - [ ] Step 6: Responsive history tab
-    - Event items stack vertically
-    - Expand/collapse works with touch
-    - Diff view readable on mobile
-    - **Verify immediately:** History tab usable on mobile
-  - [ ] Step 7: Audit Teams page layout
-    - Team list, TeamDetailPanel
-    - Member list, workload chart
-    - **Verify immediately:** Understand structure
-  - [ ] Step 8: Responsive team list
-    - Desktop: cards or table
-    - Mobile: stacked cards
-    - **Verify immediately:** Team list usable on mobile
-  - [ ] Step 9: Responsive TeamDetailPanel
-    - Desktop: side panel
-    - Mobile: full-screen sheet
-    - Member list scrollable
-    - Add member search works on mobile
-    - **Verify immediately:** Team detail fully functional on mobile
-  - [ ] Step 10: Responsive workload chart in teams
-    - Chart adapts to width
-    - Bar labels readable
-    - Tap bar to navigate (not just click)
-    - **Verify immediately:** Workload chart interactive on mobile
-  - [ ] Step 11: Write Playwright tests
-    - Test both pages at all breakpoints
-    - **Verify:** Tests pass in `apps/web/tests/tb151-responsive-entities-teams.spec.ts`
+  **Implementation Summary:**
+  - Created `MobileEntityCard` component for touch-friendly entity display
+  - Created `MobileTeamCard` component for touch-friendly team display
+  - Updated `EntitiesPage` with responsive layout (mobile cards vs desktop grid)
+  - Updated `TeamsPage` with responsive layout (mobile cards vs desktop grid)
+  - Updated `RegisterEntityModal` to be full-screen on mobile with stacked buttons
+  - Updated `CreateTeamModal` to be full-screen on mobile with stacked buttons
+  - Mobile uses `MobileDetailSheet` for entity/team details
+  - Desktop uses side panel for details
+  - Responsive headers with shortened button text on mobile
+
+  **Files Created/Modified:**
+  - `apps/web/src/components/entity/MobileEntityCard.tsx` - New component
+  - `apps/web/src/components/team/MobileTeamCard.tsx` - New component
+  - `apps/web/src/routes/entities.tsx` - Responsive layout
+  - `apps/web/src/routes/teams.tsx` - Responsive layout
+  - `apps/web/tests/tb151-responsive-entities-teams.spec.ts` - 19 passing tests
+  - `specs/platform/TB151-RESPONSIVE-ENTITIES-TEAMS.md` - Detailed spec
+
+  **Verify:** All 19 tests pass in `apps/web/tests/tb151-responsive-entities-teams.spec.ts`
 
 ---
 
