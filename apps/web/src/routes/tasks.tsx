@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, ChevronRight, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles, Layers, Search } from 'lucide-react';
-import { useDebounce } from '../hooks';
+import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, ChevronRight, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles, Layers, Search, SlidersHorizontal } from 'lucide-react';
+import { useDebounce, useIsMobile, useIsTablet } from '../hooks';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { MobileTaskCard } from '../components/task/MobileTaskCard';
 import { useAllTasks } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortConfig } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
@@ -571,44 +573,50 @@ const STATUS_COLORS: Record<string, string> = {
 
 function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (view: ViewMode) => void }) {
   return (
-    <div className="flex items-center bg-gray-100 rounded-md p-0.5" data-testid="view-toggle">
+    <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-md p-0.5" data-testid="view-toggle">
       <button
         onClick={() => onViewChange('list')}
-        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-all duration-200 ${
-          view === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+        className={`inline-flex items-center justify-center px-2 py-1.5 sm:py-1 text-sm rounded transition-all duration-200 touch-target ${
+          view === 'list'
+            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
         }`}
         data-testid="view-toggle-list"
         aria-label="List view (V L)"
         title="List view (V L)"
       >
-        <List className="w-4 h-4" />
+        <List className="w-4 h-4 sm:w-4 sm:h-4" />
         <span className="sr-only">List</span>
       </button>
       <button
         onClick={() => onViewChange('kanban')}
-        className={`inline-flex items-center gap-1 px-2 py-1 text-sm rounded transition-all duration-200 ${
-          view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+        className={`inline-flex items-center justify-center px-2 py-1.5 sm:py-1 text-sm rounded transition-all duration-200 touch-target ${
+          view === 'kanban'
+            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
         }`}
         data-testid="view-toggle-kanban"
         aria-label="Kanban view (V K)"
         title="Kanban view (V K)"
       >
-        <LayoutGrid className="w-4 h-4" />
+        <LayoutGrid className="w-4 h-4 sm:w-4 sm:h-4" />
         <span className="sr-only">Kanban</span>
       </button>
     </div>
   );
 }
 
-// Task Search Bar component (TB82)
+// Task Search Bar component (TB82, TB147)
 function TaskSearchBar({
   value,
   onChange,
   onClear,
+  compact = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   onClear: () => void;
+  compact?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -636,23 +644,23 @@ function TaskSearchBar({
   }, [onClear]);
 
   return (
-    <div className="relative flex-1 max-w-md" data-testid="task-search-container">
+    <div className={`relative ${compact ? 'w-full' : 'flex-1 max-w-md'}`} data-testid="task-search-container">
       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Search className="w-4 h-4 text-gray-400" />
+        <Search className="w-4 h-4 text-gray-400 dark:text-gray-500" />
       </div>
       <input
         ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search tasks... (Press / to focus)"
-        className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+        placeholder={compact ? "Search..." : "Search tasks... (Press / to focus)"}
+        className="w-full pl-9 pr-8 py-2 sm:py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
         data-testid="task-search-input"
       />
       {value && (
         <button
           onClick={onClear}
-          className="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-400 hover:text-gray-600"
+          className="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 touch-target"
           data-testid="task-search-clear"
           aria-label="Clear search (Escape)"
         >
@@ -1822,9 +1830,15 @@ export function TasksPage() {
       setFilters(prev => ({ ...prev, assignee: assigneeFromUrl }));
     }
   }, [assigneeFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Responsive hooks (TB147)
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Handle view mode changes and persist to localStorage
   const handleViewModeChange = useCallback((mode: ViewMode) => {
@@ -2052,6 +2066,9 @@ export function TasksPage() {
     setSelectedIds(new Set());
   };
 
+  // Compute active filter count for mobile filter button
+  const activeFilterCount = filters.status.length + filters.priority.length + (filters.assignee ? 1 : 0);
+
   return (
     <div className="flex h-full" data-testid="tasks-page">
       {/* Create Task Modal */}
@@ -2061,46 +2078,191 @@ export function TasksPage() {
         onSuccess={handleCreateSuccess}
       />
 
-      {/* Task List - shrinks when detail panel is open */}
-      <div className={`flex flex-col ${selectedTaskId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-4 flex-1 mr-4">
-            <h2 className="text-lg font-medium text-gray-900 flex-shrink-0">Tasks</h2>
-            {/* Search Bar (TB82) */}
-            <TaskSearchBar
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onClear={handleClearSearch}
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            {viewMode === 'list' && (
-              <>
-                <SortByDropdown
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  secondarySort={secondarySort}
-                  onSortFieldChange={handleSortFieldChange}
-                  onSortDirectionChange={handleSortDirectionChange}
-                  onSecondarySortChange={handleSecondarySortChange}
-                />
-                <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
-              </>
+      {/* Mobile Filter Sheet */}
+      {isMobile && mobileFilterOpen && (
+        <MobileDetailSheet
+          open={mobileFilterOpen}
+          onClose={() => setMobileFilterOpen(false)}
+          title="Filters"
+          data-testid="mobile-filter-sheet"
+        >
+          <div className="p-4 space-y-6">
+            {/* Status filter */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Status</label>
+              <div className="flex flex-wrap gap-2">
+                {STATUS_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      const newStatus = filters.status.includes(option.value)
+                        ? filters.status.filter(s => s !== option.value)
+                        : [...filters.status, option.value];
+                      handleFilterChange({ ...filters, status: newStatus });
+                    }}
+                    className={`px-3 py-2 text-sm rounded-lg border transition-colors touch-target ${
+                      filters.status.includes(option.value)
+                        ? `${option.color} border-transparent font-medium`
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    }`}
+                    data-testid={`mobile-filter-status-${option.value}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Priority filter */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Priority</label>
+              <div className="flex flex-wrap gap-2">
+                {PRIORITY_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      const newPriority = filters.priority.includes(option.value)
+                        ? filters.priority.filter(p => p !== option.value)
+                        : [...filters.priority, option.value];
+                      handleFilterChange({ ...filters, priority: newPriority });
+                    }}
+                    className={`px-3 py-2 text-sm rounded-lg border transition-colors touch-target ${
+                      filters.priority.includes(option.value)
+                        ? `${option.color} border-transparent font-medium`
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    }`}
+                    data-testid={`mobile-filter-priority-${option.value}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Assignee filter */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Assignee</label>
+              <select
+                value={filters.assignee}
+                onChange={(e) => handleFilterChange({ ...filters, assignee: e.target.value })}
+                className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] touch-target"
+                data-testid="mobile-filter-assignee"
+              >
+                <option value="">All assignees</option>
+                {entities.data?.map((entity) => (
+                  <option key={entity.id} value={entity.id}>
+                    {entity.name || entity.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Clear filters button */}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => {
+                  handleClearFilters();
+                  setMobileFilterOpen(false);
+                }}
+                className="w-full py-2.5 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors touch-target"
+                data-testid="mobile-clear-filters"
+              >
+                Clear all filters ({activeFilterCount})
+              </button>
             )}
-            <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
+
+            {/* Apply button */}
             <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-              data-testid="create-task-button"
+              onClick={() => setMobileFilterOpen(false)}
+              className="w-full py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors touch-target"
+              data-testid="mobile-apply-filters"
             >
-              <Plus className="w-4 h-4" />
-              Create Task
+              Apply Filters
             </button>
           </div>
+        </MobileDetailSheet>
+      )}
+
+      {/* Task List - full width on mobile, shrinks when detail panel is open on desktop */}
+      <div className={`flex flex-col ${selectedTaskId && !isMobile ? 'w-1/2' : 'w-full'} transition-all duration-200 ${selectedTaskId && isMobile ? 'hidden' : ''}`}>
+        {/* Header - Responsive layout (TB147) */}
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          {/* Mobile header */}
+          {isMobile ? (
+            <div className="p-3 space-y-3">
+              {/* Search bar - full width on mobile */}
+              <TaskSearchBar
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onClear={handleClearSearch}
+                compact
+              />
+              {/* Controls row */}
+              <div className="flex items-center justify-between gap-2">
+                <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
+                <button
+                  onClick={() => setMobileFilterOpen(true)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors touch-target ${
+                    activeFilterCount > 0
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                  }`}
+                  data-testid="mobile-filter-button"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span>Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-600 text-white rounded-full">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Desktop/Tablet header */
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-4 flex-1 mr-4">
+                <h2 className="text-lg font-medium text-[var(--color-text)] flex-shrink-0">Tasks</h2>
+                {/* Search Bar (TB82) */}
+                <TaskSearchBar
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onClear={handleClearSearch}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                {viewMode === 'list' && (
+                  <>
+                    {!isTablet && (
+                      <SortByDropdown
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                        secondarySort={secondarySort}
+                        onSortFieldChange={handleSortFieldChange}
+                        onSortDirectionChange={handleSortDirectionChange}
+                        onSecondarySortChange={handleSecondarySortChange}
+                      />
+                    )}
+                    {!isTablet && <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />}
+                  </>
+                )}
+                <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                  data-testid="create-task-button"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Task
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Bulk Action Menu */}
-        {selectedIds.size > 0 && viewMode === 'list' && (
+        {/* Bulk Action Menu - hide on mobile */}
+        {selectedIds.size > 0 && viewMode === 'list' && !isMobile && (
           <BulkActionMenu
             selectedCount={selectedIds.size}
             onChangeStatus={handleBulkStatusChange}
@@ -2112,8 +2274,8 @@ export function TasksPage() {
           />
         )}
 
-        {/* Filter Bar */}
-        {viewMode === 'list' && (
+        {/* Filter Bar - hide on mobile (uses mobile filter sheet instead) */}
+        {viewMode === 'list' && !isMobile && (
           <FilterBar
             filters={filters}
             onFilterChange={handleFilterChange}
@@ -2147,7 +2309,27 @@ export function TasksPage() {
 
           {!isLoading && viewMode === 'list' && (
             <div className="animate-fade-in" data-testid="list-view-content">
-              {groupBy === 'none' ? (
+              {/* Mobile list view with cards (TB147) */}
+              {isMobile ? (
+                <div data-testid="mobile-list-view">
+                  {taskItems.map((task) => (
+                    <MobileTaskCard
+                      key={task.id}
+                      task={task}
+                      isSelected={selectedTaskId === task.id}
+                      isChecked={selectedIds.has(task.id)}
+                      onCheck={(checked) => handleTaskCheck(task.id, checked)}
+                      onClick={() => handleTaskClick(task.id)}
+                      searchQuery={debouncedSearch}
+                    />
+                  ))}
+                  {taskItems.length === 0 && (
+                    <div className="p-8 text-center text-[var(--color-text-muted)]">
+                      No tasks found
+                    </div>
+                  )}
+                </div>
+              ) : groupBy === 'none' ? (
                 <ListView
                   tasks={taskItems}
                   selectedTaskId={selectedTaskId}
@@ -2194,9 +2376,9 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Task Detail Panel or Not Found (TB70) */}
-      {selectedTaskId && (
-        <div className="w-1/2 border-l border-gray-200" data-testid="task-detail-container">
+      {/* Task Detail Panel - Desktop (side panel) */}
+      {selectedTaskId && !isMobile && (
+        <div className="w-1/2 border-l border-gray-200 dark:border-gray-700" data-testid="task-detail-container">
           {deepLink.notFound ? (
             <ElementNotFound
               elementType="Task"
@@ -2209,6 +2391,40 @@ export function TasksPage() {
             <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
           )}
         </div>
+      )}
+
+      {/* Task Detail Panel - Mobile (full-screen sheet) (TB147) */}
+      {selectedTaskId && isMobile && (
+        <MobileDetailSheet
+          open={!!selectedTaskId}
+          onClose={handleCloseDetail}
+          title="Task Details"
+          data-testid="mobile-task-detail-sheet"
+        >
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Task"
+              elementId={selectedTaskId}
+              backRoute="/tasks"
+              backLabel="Back to Tasks"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
+          )}
+        </MobileDetailSheet>
+      )}
+
+      {/* Mobile Floating Action Button for Create Task (TB147) */}
+      {isMobile && !selectedTaskId && (
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg z-40 touch-target"
+          aria-label="Create new task"
+          data-testid="mobile-create-task-fab"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
       )}
     </div>
   );

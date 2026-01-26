@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { X, Loader2, Plus } from 'lucide-react';
+import { X, Loader2, Plus, ChevronLeft } from 'lucide-react';
 import { TagInput } from '../ui/TagInput';
+import { useIsMobile } from '../../hooks';
 
 interface Entity {
   id: string;
@@ -180,8 +181,199 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     }
   };
 
+  // Responsive hook (TB147)
+  const isMobile = useIsMobile();
+
   if (!isOpen) return null;
 
+  // Mobile: Full-screen modal (TB147)
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[var(--color-bg)]" data-testid="create-task-modal" onKeyDown={handleKeyDown}>
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
+          <button
+            onClick={onClose}
+            className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
+            aria-label="Cancel"
+            data-testid="create-task-modal-close"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="flex-1 text-lg font-semibold text-[var(--color-text)]">Create Task</h2>
+          <button
+            onClick={handleSubmit as unknown as () => void}
+            disabled={createTask.isPending || !title.trim() || !createdBy}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors touch-target"
+            data-testid="create-task-submit-mobile"
+          >
+            {createTask.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
+          </button>
+        </div>
+
+        {/* Form - scrollable */}
+        <form onSubmit={handleSubmit} className="p-4 pb-20 overflow-y-auto h-[calc(100vh-60px)]">
+          {/* Error display */}
+          {createTask.isError && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+              {createTask.error?.message || 'Failed to create task'}
+            </div>
+          )}
+
+          {/* Title */}
+          <div className="mb-4">
+            <label htmlFor="task-title" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              ref={titleInputRef}
+              id="task-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter task title..."
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              data-testid="create-task-title-input"
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div className="mb-4">
+            <label htmlFor="task-description" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Description <span className="text-[var(--color-text-muted)] text-xs font-normal">(optional)</span>
+            </label>
+            <textarea
+              id="task-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add a description..."
+              rows={4}
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              data-testid="create-task-description-input"
+            />
+          </div>
+
+          {/* Created By */}
+          <div className="mb-4">
+            <label htmlFor="task-created-by" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Created By <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="task-created-by"
+              value={createdBy}
+              onChange={(e) => setCreatedBy(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
+              data-testid="create-task-created-by-select"
+              required
+            >
+              <option value="">Select entity...</option>
+              {entities?.map((entity) => (
+                <option key={entity.id} value={entity.id}>
+                  {entity.name} ({entity.entityType})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Priority */}
+          <div className="mb-4">
+            <label htmlFor="task-priority" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Priority
+            </label>
+            <select
+              id="task-priority"
+              value={priority}
+              onChange={(e) => setPriority(Number(e.target.value))}
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
+              data-testid="create-task-priority-select"
+            >
+              {PRIORITY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Complexity */}
+          <div className="mb-4">
+            <label htmlFor="task-complexity" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Complexity
+            </label>
+            <select
+              id="task-complexity"
+              value={complexity}
+              onChange={(e) => setComplexity(Number(e.target.value))}
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
+              data-testid="create-task-complexity-select"
+            >
+              {COMPLEXITY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Task Type */}
+          <div className="mb-4">
+            <label htmlFor="task-type" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Type
+            </label>
+            <select
+              id="task-type"
+              value={taskType}
+              onChange={(e) => setTaskType(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
+              data-testid="create-task-type-select"
+            >
+              {TASK_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Assignee */}
+          <div className="mb-4">
+            <label htmlFor="task-assignee" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Assignee <span className="text-[var(--color-text-muted)] text-xs font-normal">(optional)</span>
+            </label>
+            <select
+              id="task-assignee"
+              value={assignee}
+              onChange={(e) => setAssignee(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
+              data-testid="create-task-assignee-select"
+            >
+              <option value="">Unassigned</option>
+              {entities?.map((entity) => (
+                <option key={entity.id} value={entity.id}>
+                  {entity.name} ({entity.entityType})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tags */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Tags <span className="text-[var(--color-text-muted)] text-xs font-normal">(optional)</span>
+            </label>
+            <TagInput
+              tags={tags}
+              onChange={setTags}
+              placeholder="Add tags..."
+            />
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // Desktop: Centered modal
   return (
     <div className="fixed inset-0 z-50" data-testid="create-task-modal" onKeyDown={handleKeyDown}>
       {/* Backdrop */}
@@ -193,13 +385,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
 
       {/* Dialog */}
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-200">
+        <div className="bg-white dark:bg-[var(--color-surface)] rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Create Task</h2>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Create Task</h2>
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
               aria-label="Close"
               data-testid="create-task-modal-close"
             >
