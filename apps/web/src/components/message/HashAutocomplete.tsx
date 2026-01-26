@@ -12,6 +12,7 @@
 
 import { Extension } from '@tiptap/core';
 import Suggestion, { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion';
+import { PluginKey } from '@tiptap/pm/state';
 import { ReactRenderer } from '@tiptap/react';
 import tippy, { Instance as TippyInstance, Props as TippyProps } from 'tippy.js';
 import { forwardRef, useEffect, useImperativeHandle, useState, useCallback } from 'react';
@@ -368,6 +369,9 @@ export interface HashAutocompleteOptions {
   fetchElements?: (query: string) => Promise<HashAutocompleteItem[]>;
 }
 
+// Unique plugin key for hash autocomplete (distinct from other suggestion plugins)
+const hashAutocompletePluginKey = new PluginKey('hashAutocomplete');
+
 // The main hash autocomplete extension
 export const HashAutocomplete = Extension.create<HashAutocompleteOptions>({
   name: 'hashAutocomplete',
@@ -382,6 +386,7 @@ export const HashAutocomplete = Extension.create<HashAutocompleteOptions>({
     return [
       Suggestion({
         editor: this.editor,
+        pluginKey: hashAutocompletePluginKey,
         ...createHashSuggestionConfig(this.options.fetchElements || defaultFetchElements),
       }),
     ];

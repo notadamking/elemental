@@ -12,6 +12,7 @@
 
 import { Extension, Range } from '@tiptap/core';
 import Suggestion, { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion';
+import { PluginKey } from '@tiptap/pm/state';
 import { ReactRenderer } from '@tiptap/react';
 import tippy, { Instance as TippyInstance, Props as TippyProps } from 'tippy.js';
 import { forwardRef, useEffect, useImperativeHandle, useState, useCallback } from 'react';
@@ -424,6 +425,9 @@ export interface MessageSlashCommandsOptions {
   embedCallbacks?: MessageEmbedCallbacks;
 }
 
+// Unique plugin key for message slash commands (distinct from other suggestion plugins)
+const messageSlashCommandsPluginKey = new PluginKey('messageSlashCommands');
+
 // The main slash commands extension for messages
 export const MessageSlashCommands = Extension.create<MessageSlashCommandsOptions>({
   name: 'messageSlashCommands',
@@ -438,6 +442,7 @@ export const MessageSlashCommands = Extension.create<MessageSlashCommandsOptions
     return [
       Suggestion({
         editor: this.editor,
+        pluginKey: messageSlashCommandsPluginKey,
         ...createSuggestionConfig(this.options.embedCallbacks),
       }),
     ];

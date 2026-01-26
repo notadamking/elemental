@@ -24,7 +24,7 @@ import { DocumentPickerModal } from '../components/editor/DocumentPickerModal';
 import { EmojiPickerModal } from '../components/editor/EmojiPickerModal';
 import type { MessageEmbedCallbacks } from '../components/message/MessageSlashCommands';
 import { Pagination } from '../components/shared/Pagination';
-import { VirtualizedList } from '../components/shared/VirtualizedList';
+import { VirtualizedChatList } from '../components/shared/VirtualizedChatList';
 import { useAllChannels } from '../api/hooks/useAllElements';
 import { usePaginatedData, createChannelFilter } from '../hooks/usePaginatedData';
 import { groupMessagesByDay } from '../lib';
@@ -919,13 +919,8 @@ function ThreadPanel({
   onClose: () => void;
 }) {
   const { data: replies = [], isLoading } = useThreadReplies(parentMessage.id);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when replies change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [replies]);
-
+  // TB131: Use VirtualizedChatList for thread replies
   return (
     <div
       data-testid="thread-panel"
@@ -951,29 +946,35 @@ function ThreadPanel({
         <MessageBubble message={parentMessage} isThreaded />
       </div>
 
-      {/* Thread Replies */}
+      {/* Thread Replies - TB131: Virtualized */}
       <div
         data-testid="thread-replies"
-        className="flex-1 overflow-y-auto p-2"
+        className="flex-1 overflow-hidden p-2"
       >
         {isLoading ? (
           <div className="text-center py-4 text-gray-500 text-sm">
             Loading replies...
           </div>
-        ) : replies.length === 0 ? (
-          <div
-            data-testid="thread-empty"
-            className="text-center py-4 text-gray-500 text-sm"
-          >
-            No replies yet
-          </div>
         ) : (
-          <div data-testid="thread-replies-list" className="space-y-1">
-            {replies.map((reply) => (
-              <MessageBubble key={reply.id} message={reply} isThreaded />
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+          <VirtualizedChatList
+            items={replies}
+            getItemKey={(reply) => reply.id}
+            estimateSize={80} // Threaded messages are typically smaller
+            testId="virtualized-thread-replies"
+            gap={4}
+            latestMessageId={replies[replies.length - 1]?.id}
+            renderEmpty={() => (
+              <div
+                data-testid="thread-empty"
+                className="text-center py-4 text-gray-500 text-sm"
+              >
+                No replies yet
+              </div>
+            )}
+            renderItem={(reply) => (
+              <MessageBubble message={reply} isThreaded />
+            )}
+          />
         )}
       </div>
 
@@ -1705,7 +1706,6 @@ function ChannelView({ channelId }: { channelId: string }) {
   const { data: channel } = useChannel(channelId);
   const { data: messages = [], isLoading, error } = useChannelMessages(channelId);
   const { data: entities } = useEntities();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const [showMembersPanel, setShowMembersPanel] = useState(false);
 
@@ -1721,12 +1721,7 @@ function ChannelView({ channelId }: { channelId: string }) {
     entities?.[0]?.id ||
     '';
 
-  // Scroll to bottom when messages change (only if not searching)
-  useEffect(() => {
-    if (!highlightedMessageId) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, highlightedMessageId]);
+  // TB131: Auto-scroll is now handled by VirtualizedChatList component
 
   // TB103: Handle search result selection - scroll to and highlight message
   const handleSearchResultSelect = useCallback((messageId: string) => {
@@ -1888,10 +1883,10 @@ function ChannelView({ channelId }: { channelId: string }) {
           </div>
         </div>
 
-        {/* Messages Area */}
+        {/* Messages Area - TB131: Always use virtualized chat list */}
         <div
           data-testid="messages-container"
-          className="flex-1 overflow-y-auto p-4"
+          className="flex-1 overflow-hidden p-4"
         >
           {isLoading ? (
             <div
@@ -1907,27 +1902,27 @@ function ChannelView({ channelId }: { channelId: string }) {
             >
               Failed to load messages
             </div>
-          ) : rootMessages.length === 0 ? (
-            <div
-              data-testid="messages-empty"
-              className="flex flex-col items-center justify-center h-full text-gray-500"
-            >
-              <MessageSquare className="w-12 h-12 mb-3 text-gray-300" />
-              <p className="text-sm">No messages yet</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Be the first to send a message!
-              </p>
-            </div>
-          ) : rootMessages.length > 100 ? (
-            // Use virtualization for large message lists with day separators (TB99)
-            <VirtualizedList
+          ) : (
+            <VirtualizedChatList
               items={groupedMessages}
               getItemKey={(grouped) => grouped.item.id}
               estimateSize={(index) => groupedMessages[index]?.isFirstInDay ? MESSAGE_ROW_HEIGHT + 48 : MESSAGE_ROW_HEIGHT}
               scrollRestoreId={`messages-${channelId}`}
-              className="h-full"
               testId="virtualized-messages-list"
               gap={8}
+              latestMessageId={rootMessages[rootMessages.length - 1]?.id}
+              renderEmpty={() => (
+                <div
+                  data-testid="messages-empty"
+                  className="flex flex-col items-center justify-center h-full text-gray-500"
+                >
+                  <MessageSquare className="w-12 h-12 mb-3 text-gray-300" />
+                  <p className="text-sm">No messages yet</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Be the first to send a message!
+                  </p>
+                </div>
+              )}
               renderItem={(grouped) => (
                 <div>
                   {grouped.isFirstInDay && (
@@ -1942,23 +1937,6 @@ function ChannelView({ channelId }: { channelId: string }) {
                 </div>
               )}
             />
-          ) : (
-            <div data-testid="messages-list" className="space-y-0">
-              {groupedMessages.map((grouped) => (
-                <div key={grouped.item.id}>
-                  {grouped.isFirstInDay && (
-                    <DateSeparator date={grouped.formattedDate} />
-                  )}
-                  <MessageBubble
-                    message={grouped.item}
-                    onReply={handleReply}
-                    replyCount={replyCounts[grouped.item.id] || 0}
-                    isHighlighted={highlightedMessageId === grouped.item.id}
-                  />
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
           )}
         </div>
 

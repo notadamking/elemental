@@ -41,8 +41,15 @@ test.describe('TB99: Message Day Separation', () => {
     // Click on the channel with messages
     await page.getByTestId(`channel-item-${channelData.channel.id}`).click();
 
-    // Wait for messages container to be visible
-    await expect(page.getByTestId('messages-container')).toBeVisible({ timeout: 5000 });
+    // Wait for virtualized messages list (TB131: always use virtualization)
+    const virtualizedList = page.getByTestId('virtualized-messages-list');
+    await expect(virtualizedList).toBeVisible({ timeout: 5000 });
+
+    // Scroll to top to ensure date separator is rendered (virtualization only renders visible items)
+    await virtualizedList.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.waitForTimeout(200);
 
     // At least one date separator should be visible
     // Date separators have testids like "date-separator-today" or "date-separator-monday,-january-15"
@@ -63,8 +70,15 @@ test.describe('TB99: Message Day Separation', () => {
     await expect(page.getByTestId('channel-list')).toBeVisible({ timeout: 5000 });
     await page.getByTestId(`channel-item-${channelData.channel.id}`).click();
 
-    // Wait for messages container
-    await expect(page.getByTestId('messages-container')).toBeVisible({ timeout: 5000 });
+    // Wait for virtualized messages list (TB131: always use virtualization)
+    const virtualizedList = page.getByTestId('virtualized-messages-list');
+    await expect(virtualizedList).toBeVisible({ timeout: 5000 });
+
+    // Scroll to top to ensure date separator is rendered (virtualization only renders visible items)
+    await virtualizedList.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.waitForTimeout(200);
 
     // Find any date separator label
     const dateSeparatorLabels = page.locator('[data-testid="date-separator-label"]');
@@ -95,8 +109,15 @@ test.describe('TB99: Message Day Separation', () => {
     await expect(page.getByTestId('channel-list')).toBeVisible({ timeout: 5000 });
     await page.getByTestId(`channel-item-${channelData.channel.id}`).click();
 
-    // Wait for messages container
-    await expect(page.getByTestId('messages-container')).toBeVisible({ timeout: 5000 });
+    // Wait for messages container (virtualized list)
+    const virtualizedList = page.getByTestId('virtualized-messages-list');
+    await expect(virtualizedList).toBeVisible({ timeout: 5000 });
+
+    // Scroll to top to ensure date separator is rendered (virtualization only renders visible items)
+    await virtualizedList.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.waitForTimeout(200);
 
     // Find date separator
     const dateSeparator = page.locator('[data-testid^="date-separator-"]').first();
@@ -317,19 +338,20 @@ test.describe('TB99: Message Day Separation', () => {
     // Wait for messages container
     await expect(page.getByTestId('messages-container')).toBeVisible({ timeout: 5000 });
 
-    // Check for either virtualized or regular list
+    // Check for virtualized list (TB131: messages are now always virtualized)
     const virtualizedList = page.getByTestId('virtualized-messages-list');
-    const regularList = page.getByTestId('messages-list');
+    await expect(virtualizedList).toBeVisible({ timeout: 5000 });
 
-    const isVirtualized = await virtualizedList.isVisible().catch(() => false);
-    const isRegular = await regularList.isVisible().catch(() => false);
+    // Scroll to top to ensure date separator is rendered (virtualization only renders visible items)
+    await virtualizedList.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.waitForTimeout(200); // Wait for virtual items to update
 
-    // One of the lists should be visible
-    expect(isVirtualized || isRegular).toBe(true);
-
-    // Date separators should be present in whichever list is shown
+    // Date separators should be present at the top of the list (first item of each day)
     const dateSeparators = page.locator('[data-testid^="date-separator-"]');
     const count = await dateSeparators.count();
+    // There should be at least one date separator (for "Today" or another day)
     expect(count).toBeGreaterThan(0);
   });
 });

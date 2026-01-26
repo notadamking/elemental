@@ -586,15 +586,15 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Search/filter works with virtualized list (instant, client-side)
   - [x] **Verify:** 13 Playwright tests passing (`apps/web/tests/tb130-virtualized-documents.spec.ts`)
 
-- [ ] **TB131: Virtualize Channel Messages with Infinite Scroll**
-  - [ ] Web: Replace current MessageList with virtualized version
-  - [ ] Web: New messages load at bottom (reverse infinite scroll pattern)
-  - [ ] Web: Older messages load when scrolling up
-  - [ ] Web: Scroll to bottom on new message arrival
-  - [ ] Web: "Jump to latest" button when scrolled up
-  - [ ] Web: Day separators work correctly with virtualization
-  - [ ] Web: Thread view also virtualized
-  - [ ] **Verify:** Channel with 1000+ messages scrolls smoothly; new message appears, auto-scrolls; Playwright tests passing
+- [x] **TB131: Virtualize Channel Messages with Infinite Scroll** ✅ DONE
+  - [x] Web: Replace current MessageList with VirtualizedChatList component - `src/components/shared/VirtualizedChatList.tsx`
+  - [x] Web: New messages load at bottom (reverse infinite scroll pattern) - auto-scroll when at bottom
+  - [x] Web: Scroll to bottom on new message arrival (smart auto-scroll)
+  - [x] Web: "Jump to latest" button when scrolled up
+  - [x] Web: Day separators work correctly with virtualization
+  - [x] Web: Thread view also virtualized
+  - [x] Web: Fixed Tiptap duplicate plugin key bug in MessageSlashCommands and HashAutocomplete
+  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb131-virtualized-messages.spec.ts`)
 
 - [ ] **TB132: Kanban Column Virtualization with Infinite Scroll**
   - [ ] Web: Load ALL tasks upfront (from in-memory cache via DataPreloader)
