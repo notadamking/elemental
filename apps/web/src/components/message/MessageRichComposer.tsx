@@ -11,8 +11,9 @@
  * - Enter to send, Shift+Enter for newline
  * - Image paste support (TB102)
  * - Slash commands for quick block insertion (TB127)
+ * - # autocomplete for element embedding (TB128)
  *
- * TB101, TB102, TB127 Implementation
+ * TB101, TB102, TB127, TB128 Implementation
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -22,6 +23,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import { MessageSlashCommands, type MessageEmbedCallbacks } from './MessageSlashCommands';
+import { HashAutocomplete, createElementFetcher } from './HashAutocomplete';
 import {
   useCallback,
   useEffect,
@@ -161,6 +163,10 @@ export const MessageRichComposer = forwardRef<
       MessageSlashCommands.configure({
         embedCallbacks,
       }),
+      // TB128: Hash autocomplete for element embedding
+      HashAutocomplete.configure({
+        fetchElements: createElementFetcher(),
+      }),
     ],
     content: getInitialContent(),
     editable: !disabled,
@@ -184,10 +190,11 @@ export const MessageRichComposer = forwardRef<
           const isInList = editor?.isActive('bulletList') || editor?.isActive('orderedList');
           const isInCodeBlock = editor?.isActive('codeBlock');
 
-          // TB127: Check if slash command menu is active by looking for the tippy popup
-          // If a tippy popup exists with our slash command menu, don't intercept Enter
+          // TB127/TB128: Check if suggestion menu is active by looking for tippy popups
+          // If a tippy popup exists with slash command or hash autocomplete menu, don't intercept Enter
           const slashMenuOpen = document.querySelector('[data-testid="message-slash-command-menu"]');
-          if (slashMenuOpen) {
+          const hashMenuOpen = document.querySelector('[data-testid="hash-autocomplete-menu"]');
+          if (slashMenuOpen || hashMenuOpen) {
             // Let the suggestion plugin handle Enter
             return false;
           }

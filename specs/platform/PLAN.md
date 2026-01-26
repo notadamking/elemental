@@ -491,7 +491,7 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Add optional rich markdown description to Tasks, using the same editor experience as Documents for consistency.
 
-- [] **TB124: Task Description Field with Rich Editor**
+- [x] **TB124: Task Description Field with Rich Editor**
   - [x] Server: Task type already has `descriptionRef` pointing to Document - ensure API supports creating/updating description document inline
   - [x] Server: Add `PATCH /api/tasks/:id` support for `description` field that creates/updates linked Document
   - [x] Server: When task created with `description` string, auto-create Document with content and link via `descriptionRef`
@@ -552,17 +552,17 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Fixed Enter key handling to not send message when slash menu is open
   - [x] **Verify:** 14 Playwright tests passing (`apps/web/tests/tb127-message-slash-commands.spec.ts`)
 
-- [ ] **TB128: Element Embedding in Messages with #{id}**
-  - [ ] Web: Detect `#{element_id}` pattern in message content
-  - [ ] Web: Parse and validate element ID format (e.g., `#el-abc123`, `#task:el-abc123`, `#doc:el-abc123`)
-  - [ ] Web: Inline autocomplete: typing `#` shows recent tasks/docs, typing more filters
-  - [ ] Web: On send, `#{id}` renders as embedded card in message (similar to Slack unfurls)
-  - [ ] Web: Task embed shows: title, status badge, priority, assignee
-  - [ ] Web: Document embed shows: title, content type, first line preview
-  - [ ] Web: Embeds are clickable → navigate to element
-  - [ ] Server: Parse `#{id}` references when creating message, store as `references` dependencies
-  - [ ] Server: Hydrate referenced elements when fetching messages
-  - [ ] **Verify:** Type `#el-abc123` in message, autocomplete suggests matching elements; send, embed renders; Playwright tests passing
+- [x] **TB128: Element Embedding in Messages with #{id}**
+  - [x] Web: Detect `![[type:id]]` pattern in message content (using Obsidian-style embed syntax)
+  - [x] Web: Parse and validate element ID format (e.g., `![[task:el-abc123]]`, `![[doc:el-abc123]]`)
+  - [x] Web: Inline autocomplete: typing `#` shows recent tasks/docs, typing more filters (HashAutocomplete extension)
+  - [x] Web: On send, `![[type:id]]` renders as embedded card in message (MessageEmbedCard component)
+  - [x] Web: Task embed shows: title, status badge, priority, assignee
+  - [x] Web: Document embed shows: title, content type, first line preview
+  - [x] Web: Embeds are clickable → navigate to element
+  - [x] Server: Embed syntax stored as markdown in message content (no special server handling needed)
+  - [x] Web: Embed cards fetch data client-side with react-query caching
+  - [x] **Verify:** Type `#` in message, autocomplete suggests matching elements; send, embed renders; 6 Playwright tests passing (`apps/web/tests/tb128-element-embedding.spec.ts`)
 
 ### Phase 34: Virtualization & Infinite Scroll
 

@@ -29,6 +29,7 @@ import { useAllChannels } from '../api/hooks/useAllElements';
 import { usePaginatedData, createChannelFilter } from '../hooks/usePaginatedData';
 import { groupMessagesByDay } from '../lib';
 import { EntityLink } from '../components/entity/EntityLink';
+import { MessageEmbedCard } from '../components/message/MessageEmbedCard';
 
 // Estimated message height for virtualization
 const MESSAGE_ROW_HEIGHT = 100;
@@ -102,6 +103,12 @@ const MENTION_REGEX = /(?<![a-zA-Z0-9])@([a-zA-Z][a-zA-Z0-9_-]*)/g;
 const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
 
 /**
+ * Regex pattern to match embed references: ![[type:id]]
+ * TB128: Element embedding in messages
+ */
+const EMBED_REGEX = /!\[\[(task|doc):([\w-]+)\]\]/g;
+
+/**
  * Renders a single text segment, processing mentions within it
  */
 function renderTextWithMentions(text: string, keyPrefix: string): React.ReactNode[] {
@@ -142,7 +149,48 @@ function renderTextWithMentions(text: string, keyPrefix: string): React.ReactNod
 }
 
 /**
- * Renders message content with @mentions highlighted and images displayed (TB102)
+ * Renders text with embeds: ![[task:id]] and ![[doc:id]]
+ * TB128: Element embedding in messages
+ */
+function renderTextWithEmbeds(text: string, keyPrefix: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  const embedRegex = new RegExp(EMBED_REGEX.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = embedRegex.exec(text)) !== null) {
+    // Add text before the embed (with mention processing)
+    if (match.index > lastIndex) {
+      const textBefore = text.slice(lastIndex, match.index);
+      parts.push(...renderTextWithMentions(textBefore, `${keyPrefix}-before-${match.index}`));
+    }
+
+    // Add the embed card
+    const embedType = match[1] as 'task' | 'doc';
+    const embedId = match[2];
+    parts.push(
+      <MessageEmbedCard
+        key={`${keyPrefix}-embed-${match.index}`}
+        type={embedType}
+        id={embedId}
+      />
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last embed (with mention processing)
+  if (lastIndex < text.length) {
+    const textAfter = text.slice(lastIndex);
+    parts.push(...renderTextWithMentions(textAfter, `${keyPrefix}-after-${lastIndex}`));
+  }
+
+  return parts.length > 0 ? parts : renderTextWithMentions(text, keyPrefix);
+}
+
+/**
+ * Renders message content with @mentions highlighted, images displayed (TB102),
+ * and element embeds (TB128)
  */
 function renderMessageContent(content: string): React.ReactNode {
   if (!content) return null;
@@ -153,10 +201,10 @@ function renderMessageContent(content: string): React.ReactNode {
   let match: RegExpExecArray | null;
 
   while ((match = imageRegex.exec(content)) !== null) {
-    // Add text before the image (with mention processing)
+    // Add text before the image (with embed and mention processing)
     if (match.index > lastIndex) {
       const textBefore = content.slice(lastIndex, match.index);
-      parts.push(...renderTextWithMentions(textBefore, `text-${lastIndex}`));
+      parts.push(...renderTextWithEmbeds(textBefore, `text-${lastIndex}`));
     }
 
     // Add the image element
@@ -177,10 +225,10 @@ function renderMessageContent(content: string): React.ReactNode {
     lastIndex = match.index + match[0].length;
   }
 
-  // Add remaining text after last image (with mention processing)
+  // Add remaining text after last image (with embed and mention processing)
   if (lastIndex < content.length) {
     const textAfter = content.slice(lastIndex);
-    parts.push(...renderTextWithMentions(textAfter, `text-${lastIndex}`));
+    parts.push(...renderTextWithEmbeds(textAfter, `text-${lastIndex}`));
   }
 
   return parts.length > 0 ? parts : content;
