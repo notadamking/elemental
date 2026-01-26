@@ -370,4 +370,178 @@ test.describe('TB12: Edit Task', () => {
     // The title should update immediately (before server confirms)
     await expect(page.getByTestId('task-detail-title')).toHaveText(newTitle, { timeout: 1000 });
   });
+
+  test('assignee dropdown is visible in task detail', async ({ page }) => {
+    const task = await getFirstTask(page);
+    if (!task) {
+      test.skip();
+      return;
+    }
+
+    await openTaskDetail(page, task.id);
+
+    // Assignee dropdown should be visible
+    await expect(page.getByTestId('task-assignee-dropdown')).toBeVisible();
+  });
+
+  test('assignee dropdown shows entity options', async ({ page }) => {
+    const task = await getFirstTask(page);
+    if (!task) {
+      test.skip();
+      return;
+    }
+
+    await openTaskDetail(page, task.id);
+
+    // Click assignee dropdown
+    await page.getByTestId('task-assignee-dropdown').click();
+
+    // Options panel should be visible
+    await expect(page.getByTestId('task-assignee-options')).toBeVisible();
+
+    // Unassigned option should always be present
+    await expect(page.getByTestId('assignee-option-unassigned')).toBeVisible();
+
+    // Search input should be visible
+    await expect(page.getByTestId('assignee-search-input')).toBeVisible();
+  });
+
+  test('selecting entity assigns task', async ({ page }) => {
+    const task = await getFirstTask(page);
+    if (!task) {
+      test.skip();
+      return;
+    }
+
+    // Get an entity to assign
+    const entitiesResponse = await page.request.get('/api/entities?limit=1');
+    const entitiesData = await entitiesResponse.json();
+    const entities = entitiesData.items || entitiesData;
+    if (!entities || entities.length === 0) {
+      test.skip();
+      return;
+    }
+    const entity = entities[0];
+
+    await openTaskDetail(page, task.id);
+
+    // Click assignee dropdown
+    await page.getByTestId('task-assignee-dropdown').click();
+    await expect(page.getByTestId('task-assignee-options')).toBeVisible();
+
+    // Select the entity
+    await page.getByTestId(`assignee-option-${entity.id}`).click();
+
+    // Wait for dropdown to close
+    await expect(page.getByTestId('task-assignee-options')).not.toBeVisible();
+
+    // Verify the assignee changed in the dropdown
+    await expect(page.getByTestId('task-assignee-dropdown')).toContainText(entity.name, { timeout: 5000 });
+
+    // Verify via API
+    const response = await page.request.get(`/api/tasks/${task.id}`);
+    const updated = await response.json();
+    expect(updated.assignee).toBe(entity.id);
+  });
+
+  test('selecting unassigned clears task assignee', async ({ page }) => {
+    const task = await getFirstTask(page);
+    if (!task) {
+      test.skip();
+      return;
+    }
+
+    // First assign an entity to the task
+    const entitiesResponse = await page.request.get('/api/entities?limit=1');
+    const entitiesData = await entitiesResponse.json();
+    const entities = entitiesData.items || entitiesData;
+    if (!entities || entities.length === 0) {
+      test.skip();
+      return;
+    }
+    const entity = entities[0];
+
+    // Assign the entity via API
+    await page.request.patch(`/api/tasks/${task.id}`, {
+      data: { assignee: entity.id },
+    });
+
+    await openTaskDetail(page, task.id);
+
+    // Verify the entity is assigned
+    await expect(page.getByTestId('task-assignee-dropdown')).toContainText(entity.name);
+
+    // Click assignee dropdown and select unassigned
+    await page.getByTestId('task-assignee-dropdown').click();
+    await expect(page.getByTestId('task-assignee-options')).toBeVisible();
+    await page.getByTestId('assignee-option-unassigned').click();
+
+    // Wait for dropdown to close
+    await expect(page.getByTestId('task-assignee-options')).not.toBeVisible();
+
+    // Verify the dropdown now shows "Unassigned"
+    await expect(page.getByTestId('task-assignee-dropdown')).toContainText('Unassigned', { timeout: 5000 });
+
+    // Verify via API
+    const response = await page.request.get(`/api/tasks/${task.id}`);
+    const updated = await response.json();
+    expect(updated.assignee).toBeUndefined();
+  });
+
+  test('assignee search filters entity options', async ({ page }) => {
+    const task = await getFirstTask(page);
+    if (!task) {
+      test.skip();
+      return;
+    }
+
+    // Get entities to verify search works
+    const entitiesResponse = await page.request.get('/api/entities?limit=10');
+    const entitiesData = await entitiesResponse.json();
+    const entities = entitiesData.items || entitiesData;
+    if (!entities || entities.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await openTaskDetail(page, task.id);
+
+    // Click assignee dropdown
+    await page.getByTestId('task-assignee-dropdown').click();
+    await expect(page.getByTestId('task-assignee-options')).toBeVisible();
+
+    // Type in search to filter
+    const searchInput = page.getByTestId('assignee-search-input');
+    await searchInput.fill('nonexistententityname12345');
+
+    // No entity options should match (but unassigned should still be visible)
+    await expect(page.getByTestId('assignee-option-unassigned')).toBeVisible();
+
+    // Clear search and type a valid entity name
+    await searchInput.clear();
+    await searchInput.fill(entities[0].name.slice(0, 3)); // First 3 chars of first entity name
+
+    // The entity should be visible
+    await expect(page.getByTestId(`assignee-option-${entities[0].id}`)).toBeVisible();
+  });
+
+  test('clicking outside assignee dropdown closes it', async ({ page }) => {
+    const task = await getFirstTask(page);
+    if (!task) {
+      test.skip();
+      return;
+    }
+
+    await openTaskDetail(page, task.id);
+
+    // Open assignee dropdown
+    await page.getByTestId('task-assignee-dropdown').click();
+    await expect(page.getByTestId('task-assignee-options')).toBeVisible();
+
+    // Click outside
+    await page.getByTestId('task-detail-panel').click({ position: { x: 10, y: 10 } });
+
+    // Dropdown should close
+    await expect(page.getByTestId('task-assignee-options')).not.toBeVisible();
+  });
 });

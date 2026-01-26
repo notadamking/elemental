@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, StickyNote, Save } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, StickyNote, Save, Bot, Server } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { EntityLink } from '../entity/EntityLink';
 import { MarkdownRenderer } from '../shared/MarkdownRenderer';
@@ -1865,6 +1865,174 @@ function ComplexityDropdown({
   );
 }
 
+// Entity type icons for assignee dropdown
+const ENTITY_TYPE_ICONS: Record<string, { icon: typeof User; color: string }> = {
+  agent: { icon: Bot, color: 'text-purple-600' },
+  human: { icon: User, color: 'text-blue-600' },
+  system: { icon: Server, color: 'text-gray-600' },
+};
+
+// Assignee dropdown component
+function AssigneeDropdown({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value?: string;
+  onSave: (value: string | null) => void;
+  isUpdating: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { data: entities } = useAllEntities();
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  // Filter entities based on search query
+  const filteredEntities = useMemo(() => {
+    if (!entities) return [];
+    const activeEntities = entities.filter(e => e.active !== false);
+    if (!searchQuery.trim()) return activeEntities;
+    const query = searchQuery.toLowerCase();
+    return activeEntities.filter(e =>
+      e.name.toLowerCase().includes(query) ||
+      e.entityType.toLowerCase().includes(query)
+    );
+  }, [entities, searchQuery]);
+
+  // Get current assignee entity
+  const currentAssignee = useMemo(() => {
+    if (!value || !entities) return null;
+    return entities.find(e => e.id === value) ?? null;
+  }, [value, entities]);
+
+  const displayText = currentAssignee?.name ?? 'Unassigned';
+  const entityTypeConfig = currentAssignee
+    ? ENTITY_TYPE_ICONS[currentAssignee.entityType] ?? ENTITY_TYPE_ICONS.human
+    : null;
+  const IconComponent = entityTypeConfig?.icon ?? User;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`inline-flex items-center gap-1.5 px-2 py-1 text-sm rounded cursor-pointer hover:ring-2 hover:ring-blue-300 transition-colors ${
+          currentAssignee
+            ? 'text-gray-900 bg-gray-50 hover:bg-gray-100'
+            : 'text-gray-500 bg-gray-50 hover:bg-gray-100'
+        }`}
+        disabled={isUpdating}
+        data-testid="task-assignee-dropdown"
+      >
+        <IconComponent className={`w-3.5 h-3.5 ${entityTypeConfig?.color ?? 'text-gray-400'}`} />
+        <span className={currentAssignee ? '' : 'italic'}>{displayText}</span>
+        {isUpdating && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
+      </button>
+      {isOpen && (
+        <div
+          className="absolute z-20 mt-1 bg-white border border-gray-200 rounded-md shadow-lg min-w-[200px] max-w-[280px]"
+          data-testid="task-assignee-options"
+        >
+          {/* Search input */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search entities..."
+                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                data-testid="assignee-search-input"
+              />
+            </div>
+          </div>
+
+          {/* Options list */}
+          <div className="max-h-[240px] overflow-y-auto py-1">
+            {/* Unassigned option */}
+            <button
+              onClick={() => {
+                if (value) {
+                  onSave(null);
+                }
+                setIsOpen(false);
+                setSearchQuery('');
+              }}
+              className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 ${
+                !value ? 'bg-blue-50' : ''
+              }`}
+              data-testid="assignee-option-unassigned"
+            >
+              <User className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-gray-500 italic">Unassigned</span>
+              {!value && <Check className="w-3 h-3 text-blue-600 ml-auto" />}
+            </button>
+
+            {/* Divider */}
+            <div className="border-t border-gray-100 my-1" />
+
+            {/* Entity options */}
+            {filteredEntities.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-gray-500 text-center">
+                {searchQuery ? 'No entities match your search' : 'No entities available'}
+              </div>
+            ) : (
+              filteredEntities.map((entity) => {
+                const typeConfig = ENTITY_TYPE_ICONS[entity.entityType] ?? ENTITY_TYPE_ICONS.human;
+                const EntityIcon = typeConfig.icon;
+                const isSelected = entity.id === value;
+
+                return (
+                  <button
+                    key={entity.id}
+                    onClick={() => {
+                      if (!isSelected) {
+                        onSave(entity.id);
+                      }
+                      setIsOpen(false);
+                      setSearchQuery('');
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 ${
+                      isSelected ? 'bg-blue-50' : ''
+                    }`}
+                    data-testid={`assignee-option-${entity.id}`}
+                  >
+                    <EntityIcon className={`w-3.5 h-3.5 ${typeConfig.color}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 truncate">{entity.name}</div>
+                      <div className="text-gray-500 capitalize">{entity.entityType}</div>
+                    </div>
+                    {isSelected && <Check className="w-3 h-3 text-blue-600 flex-shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const { data: task, isLoading, isError, error } = useTaskDetail(taskId);
   const updateTask = useUpdateTask();
@@ -1987,21 +2155,17 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               isUpdating={updateField === 'complexity'}
             />
           </div>
-          {task.assignee && (
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
-                <User className="w-3 h-3" />
-                Assignee
-              </div>
-              <div className="text-sm">
-                <EntityLink
-                  entityRef={task.assignee}
-                  showIcon
-                  data-testid="task-detail-assignee-link"
-                />
-              </div>
+          <div>
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
+              <User className="w-3 h-3" />
+              Assignee
             </div>
-          )}
+            <AssigneeDropdown
+              value={task.assignee}
+              onSave={(assignee) => handleUpdate({ assignee } as unknown as Partial<TaskDetail>, 'assignee')}
+              isUpdating={updateField === 'assignee'}
+            />
+          </div>
           {task.owner && (
             <div>
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Owner</div>
