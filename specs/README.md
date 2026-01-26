@@ -144,6 +144,7 @@ Detailed specifications for web platform features (tracer bullets).
 | platform/PLAN.md#tb143 | Timeline Eager Event Loading - Load all events upfront with client-side pagination for instant totals | timeline, events, pagination, eager loading, performance |
 | [platform/TB129-virtualized-libraries.md](./platform/TB129-virtualized-libraries.md) | Virtualize Libraries List - VirtualizedList component for library tree with expand/collapse state | virtualization, libraries, tree, scroll, performance, infinite scroll |
 | [platform/TB130-virtualized-documents.md](./platform/TB130-virtualized-documents.md) | Virtualize Documents List - VirtualizedList for All Documents and Library views with instant filtering | virtualization, documents, scroll, performance, filtering |
+| platform/PLAN.md#tb135 | Audit and Fix Text Contrast Issues - WCAG AA compliance for text contrast in light and dark modes | accessibility, contrast, wcag, text, gray, dark mode, light mode |
 | platform/PLAN.md#tb144 | Responsive Foundation & CSS Infrastructure - Breakpoints, spacing, typography, testing utilities | responsive, breakpoints, css, tokens, mobile, tablet, desktop |
 | platform/PLAN.md#tb145 | Responsive AppShell & Sidebar - Mobile drawer, tablet collapsed, desktop always visible | responsive, sidebar, drawer, hamburger, mobile navigation |
 | platform/PLAN.md#tb146 | Responsive Dashboard Page - All lenses adapted for mobile with touch interactions | responsive, dashboard, charts, graphs, mobile, touch |

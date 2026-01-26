@@ -206,7 +206,7 @@ function TaskNode({ data }: { data: TaskNodeData }) {
       <div className="font-medium text-gray-900 text-sm leading-tight line-clamp-2">
         {title}
       </div>
-      <div className="mt-1 text-xs text-gray-500 font-mono truncate">{task.id}</div>
+      <div className="mt-1 text-xs text-gray-600 font-mono truncate">{task.id}</div>
       <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
     </div>
   );
@@ -796,7 +796,7 @@ function TaskSelector({
           `}
         >
           <div className="font-medium text-gray-900 text-sm truncate">{task.title}</div>
-          <div className="text-xs text-gray-500 font-mono mt-1">{task.id}</div>
+          <div className="text-xs text-gray-600 font-mono mt-1">{task.id}</div>
         </button>
       ))}
     </div>

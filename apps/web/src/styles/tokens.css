@@ -118,6 +118,9 @@
   --color-text-muted: #6b7280;
   --color-text-inverted: #ffffff;
 
+  /* Accessible muted text - meets WCAG AA 4.5:1 on white */
+  --color-text-muted-accessible: #6b7280;
+
   --color-border: #e5e7eb;
   --color-border-secondary: #f3f4f6;
   --color-border-focus: #3b82f6;
@@ -192,6 +195,9 @@
   --color-text-tertiary: #a1a1aa;
   --color-text-muted: #a1a1aa;
   --color-text-inverted: #0d0d0d;
+
+  /* Accessible muted text - meets WCAG AA 4.5:1 on dark backgrounds */
+  --color-text-muted-accessible: #a1a1aa;
 
   --color-border: #262626;
   --color-border-secondary: #303030;

@@ -377,8 +377,8 @@ test.describe('TB119: Accessibility Audit', () => {
         console.log('Contrast violations in light mode:', JSON.stringify(contrastViolations, null, 2));
       }
 
-      // Allow up to 5 minor contrast issues that may be intentional design choices
-      expect(contrastViolations.length).toBeLessThanOrEqual(5);
+      // Contrast violations should be 0 after TB135 fixes
+      expect(contrastViolations.length).toBe(0);
     });
 
     test('text has sufficient color contrast in dark mode', async ({ page }) => {
@@ -401,8 +401,8 @@ test.describe('TB119: Accessibility Audit', () => {
         console.log('Contrast violations in dark mode:', JSON.stringify(contrastViolations, null, 2));
       }
 
-      // Allow up to 5 minor contrast issues
-      expect(contrastViolations.length).toBeLessThanOrEqual(5);
+      // Contrast violations should be 0 after TB135 fixes
+      expect(contrastViolations.length).toBe(0);
     });
   });
 

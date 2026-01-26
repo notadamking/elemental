@@ -2503,7 +2503,7 @@ function AllDocumentsView({
             <h3 className="font-semibold text-gray-900 text-lg">
               All Documents
             </h3>
-            <span className="text-sm text-gray-400" data-testid="all-documents-count">
+            <span className="text-sm text-gray-500 dark:text-gray-400" data-testid="all-documents-count">
               {totalItems} {totalItems === 1 ? 'document' : 'documents'}
             </span>
           </div>

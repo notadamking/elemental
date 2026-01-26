@@ -430,15 +430,16 @@ function getAvatarColor(name: string): string {
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
+  // Use 700 variants for WCAG AA compliant contrast with white text (4.5:1)
   const colors = [
-    'bg-blue-500',
-    'bg-green-500',
-    'bg-purple-500',
-    'bg-orange-500',
-    'bg-pink-500',
-    'bg-cyan-500',
-    'bg-indigo-500',
-    'bg-teal-500',
+    'bg-blue-700',
+    'bg-green-700',
+    'bg-purple-700',
+    'bg-orange-700',
+    'bg-pink-700',
+    'bg-cyan-700',
+    'bg-indigo-700',
+    'bg-teal-700',
   ];
   return colors[Math.abs(hash) % colors.length];
 }
@@ -484,7 +485,7 @@ function EventCard({ event }: EventCardProps) {
               <ElementIcon className="w-3 h-3" />
               {elementType}
             </span>
-            <span className="text-xs text-gray-400 ml-auto shrink-0" data-testid="event-time">
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto shrink-0" data-testid="event-time">
               {formatTimeAgo(event.createdAt)}
             </span>
           </div>
@@ -510,7 +511,7 @@ function EventCard({ event }: EventCardProps) {
               <span className="text-[10px] font-medium text-white">{getInitials(event.actor)}</span>
             </div>
             <span className="text-xs text-gray-600 truncate">{event.actor}</span>
-            <span className="text-xs text-gray-400 ml-auto shrink-0">{formatTime(event.createdAt)}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto shrink-0">{formatTime(event.createdAt)}</span>
           </div>
         </div>
       </div>
@@ -723,7 +724,7 @@ function TimePeriodGroup({ period, events, isFirst }: TimePeriodGroupProps) {
       >
         <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
           {TIME_PERIOD_LABELS[period]}
-          <span className="text-xs font-normal text-gray-400">({events.length})</span>
+          <span className="text-xs font-normal text-gray-500 dark:text-gray-400">({events.length})</span>
         </h3>
       </div>
       {useVirtualization ? (
@@ -1270,7 +1271,7 @@ function HorizontalTimeline({ events, isLoading, brushSelection, onBrushSelectio
 
         {/* Pan hint */}
         {zoom > 1 && !isDragging && (
-          <div className="absolute bottom-2 right-2 text-xs text-gray-400 bg-white/80 px-2 py-1 rounded">
+          <div className="absolute bottom-2 right-2 text-xs text-gray-600 dark:text-gray-300 bg-white/90 dark:bg-gray-800/90 px-2 py-1 rounded">
             Drag to pan • Ctrl+scroll to zoom
           </div>
         )}
@@ -1331,7 +1332,7 @@ function HorizontalTimeline({ events, isLoading, brushSelection, onBrushSelectio
             <span className="text-gray-600">{label}</span>
           </div>
         ))}
-        <span className="text-gray-400">+ {ALL_EVENT_TYPES.length - 6} more</span>
+        <span className="text-gray-500 dark:text-gray-400">+ {ALL_EVENT_TYPES.length - 6} more</span>
       </div>
 
       {/* TB117: Selected events list */}
@@ -1760,7 +1761,7 @@ export function TimelinePage() {
                   <span className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full" />
                   <span>Loading {totalCount > 0 ? `${totalCount.toLocaleString()} events...` : 'events...'}</span>
                   {totalCount > 5000 && (
-                    <span className="text-xs text-gray-400">This may take a moment for large datasets</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">This may take a moment for large datasets</span>
                   )}
                 </div>
               </div>

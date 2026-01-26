@@ -613,7 +613,7 @@ function TeamCard({
         </div>
       )}
 
-      <div className="mt-3 text-xs text-gray-400">
+      <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
         Created {new Date(team.createdAt).toLocaleDateString()}
       </div>
     </div>
@@ -1166,7 +1166,7 @@ function TeamDetailPanel({
         </div>
 
         {/* Timestamps */}
-        <div className="text-xs text-gray-400 pt-4 border-t border-gray-100">
+        <div className="text-xs text-gray-500 dark:text-gray-400 pt-4 border-t border-gray-100">
           <div>Created: {new Date(team.createdAt).toLocaleString()}</div>
           <div>Updated: {new Date(team.updatedAt).toLocaleString()}</div>
         </div>
