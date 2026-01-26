@@ -532,12 +532,14 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Works with both virtualized (>100 msgs) and non-virtualized lists
   - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb99-message-day-separation.spec.ts`)
 
-- [ ] **TB100: Copy Message Action**
-  - [ ] Web: Add "Copy" action to message hover menu (or right-click context menu)
-  - [ ] Web: Copies message content as plain text
-  - [ ] Web: Show toast confirmation "Message copied"
-  - [ ] Web: Keyboard shortcut: `C` when message focused
-  - [ ] **Verify:** Right-click message → Copy, content in clipboard; Playwright tests passing
+- [x] **TB100: Copy Message Action**
+  - [x] Web: Add "Copy" action to message hover menu - `apps/web/src/routes/messages.tsx` MessageBubble component
+  - [x] Web: Copies message content as plain text via navigator.clipboard.writeText()
+  - [x] Web: Show toast confirmation "Message copied" via sonner toast.success()
+  - [x] Web: Keyboard shortcut: `C` when message focused (onKeyDown handler)
+  - [x] Web: Focus styling (blue background, ring) when message is focused
+  - [x] Web: Copy button shows checkmark icon after successful copy
+  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb100-copy-message.spec.ts`)
 
 - [ ] **TB101: Rich Text in MessageComposer**
   - [ ] Web: Replace plain textarea with mini Tiptap editor

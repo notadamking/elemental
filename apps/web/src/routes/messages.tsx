@@ -12,7 +12,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar } from 'lucide-react';
+import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
 import { Pagination } from '../components/shared/Pagination';
@@ -548,15 +549,41 @@ function MessageBubble({
   replyCount?: number;
   isThreaded?: boolean;
 }) {
+  const [copied, setCopied] = useState(false);
+  const messageRef = useRef<HTMLDivElement>(null);
+
   const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
   });
 
+  const handleCopy = async () => {
+    const content = message._content || '';
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      toast.success('Message copied');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy message');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Copy on 'c' key when focused (not with modifiers)
+    if (e.key === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      handleCopy();
+    }
+  };
+
   return (
     <div
+      ref={messageRef}
       data-testid={`message-${message.id}`}
-      className="flex gap-3 p-3 hover:bg-gray-50 rounded-lg group"
+      className="flex gap-3 p-3 hover:bg-gray-50 rounded-lg group relative focus:bg-blue-50 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
     >
       {/* Avatar placeholder */}
       <div
@@ -656,6 +683,35 @@ function MessageBubble({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Hover action menu - positioned at top right */}
+      <div
+        data-testid={`message-actions-${message.id}`}
+        className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-gray-200 rounded-lg shadow-sm p-1"
+      >
+        <button
+          data-testid={`message-copy-button-${message.id}`}
+          onClick={handleCopy}
+          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+          title="Copy message (C when focused)"
+        >
+          {copied ? (
+            <Check className="w-4 h-4 text-green-500" />
+          ) : (
+            <Copy className="w-4 h-4" />
+          )}
+        </button>
+        {!isThreaded && onReply && (
+          <button
+            data-testid={`message-reply-action-${message.id}`}
+            onClick={() => onReply(message)}
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            title="Reply in thread"
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );
