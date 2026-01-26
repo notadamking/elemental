@@ -578,12 +578,12 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Make entities and teams more interactive with clickable links and Github-inspired activity displays.
 
-- [ ] **TB104: Clickable Member Names**
-  - [ ] Web: Team member names in TeamDetailPanel are clickable links
-  - [ ] Web: Click → navigate to `/entities/:id`
-  - [ ] Web: Entity references throughout app are clickable (assignee in tasks, sender in messages, etc.)
-  - [ ] Web: Hover shows entity preview card (name, type, avatar, current task)
-  - [ ] **Verify:** Click member name in team, navigates to entity; Playwright tests passing
+- [x] **TB104: Clickable Member Names** ([spec](./TB104-clickable-member-names.md))
+  - [x] Web: Team member names in TeamDetailPanel are clickable links
+  - [x] Web: Click → navigate to `/entities?selected=:id`
+  - [x] Web: Entity references throughout app are clickable (assignee in tasks, sender in messages, etc.)
+  - [x] Web: Hover shows entity preview card (name, type, avatar, stats)
+  - [x] **Verify:** 6/7 Playwright tests passing (`apps/web/tests/tb104-clickable-member-names.spec.ts`)
 
 - [ ] **TB105: Clickable Workload Distribution**
   - [ ] Web: Workload chart bars in EntityDetailPanel and TeamDetailPanel are clickable

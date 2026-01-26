@@ -116,6 +116,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB101-RICH-TEXT-MESSAGE-COMPOSER.md](./platform/TB101-RICH-TEXT-MESSAGE-COMPOSER.md) | Rich text message composer with Tiptap editor and formatting toolbar | messages, composer, tiptap, rich text, bold, italic, code, lists, blockquote |
 | [platform/TB102-image-input-messages.md](./platform/TB102-image-input-messages.md) | Image input in messages with upload, library, paste, drag-drop | messages, image, upload, attachment, paste, drag-drop, media |
 | [platform/TB103-message-search.md](./platform/TB103-message-search.md) | Message search within channels and global search in command palette | messages, search, channel, highlight, scroll, command palette |
+| [platform/TB104-clickable-member-names.md](./platform/TB104-clickable-member-names.md) | Clickable entity references with hover preview cards | entity, link, hover, preview, teams, tasks, messages, navigation |
 
 ---
 

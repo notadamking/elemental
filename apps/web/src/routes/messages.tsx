@@ -24,6 +24,7 @@ import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useAllChannels } from '../api/hooks/useAllElements';
 import { usePaginatedData, createChannelFilter } from '../hooks/usePaginatedData';
 import { groupMessagesByDay } from '../lib';
+import { EntityLink } from '../components/entity/EntityLink';
 
 // Estimated message height for virtualization
 const MESSAGE_ROW_HEIGHT = 100;
@@ -738,12 +739,11 @@ function MessageBubble({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <span
+          <EntityLink
+            entityRef={message.sender}
+            className="font-semibold"
             data-testid={`message-sender-${message.id}`}
-            className="font-semibold text-gray-900"
-          >
-            {message.sender}
-          </span>
+          />
           <span
             data-testid={`message-time-${message.id}`}
             className="text-xs text-gray-400"
@@ -1555,7 +1555,11 @@ function MessageSearchDropdown({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className="font-medium text-gray-900 text-sm">{result.sender}</span>
+                    <EntityLink
+                      entityRef={result.sender}
+                      className="font-medium text-sm"
+                      showPreview={false}
+                    />
                     <span className="text-xs text-gray-400">{formatTime(result.createdAt)}</span>
                   </div>
                   <p className="text-sm text-gray-600 truncate mt-0.5">

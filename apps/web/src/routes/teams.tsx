@@ -14,6 +14,7 @@ import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useAllTeams } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTeamFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
+import { EntityLink } from '../components/entity/EntityLink';
 
 interface Team {
   id: string;
@@ -1087,7 +1088,13 @@ function TeamDetailPanel({
                   >
                     <div className="flex items-center gap-2">
                       <Icon className={`w-4 h-4 ${styles.text}`} />
-                      <span className="text-sm text-gray-900">{member.name}</span>
+                      <EntityLink
+                        entityRef={member.id}
+                        className="text-sm"
+                        data-testid={`member-link-${member.id}`}
+                      >
+                        {member.name}
+                      </EntityLink>
                       <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${styles.bg} ${styles.text}`}>
                         {member.entityType}
                       </span>

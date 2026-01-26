@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
+import { EntityLink } from '../entity/EntityLink';
 
 interface Dependency {
   sourceId: string;
@@ -1629,13 +1630,25 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                 <User className="w-3 h-3" />
                 Assignee
               </div>
-              <div className="text-sm text-gray-900 font-mono">{task.assignee}</div>
+              <div className="text-sm">
+                <EntityLink
+                  entityRef={task.assignee}
+                  showIcon
+                  data-testid="task-detail-assignee-link"
+                />
+              </div>
             </div>
           )}
           {task.owner && (
             <div>
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Owner</div>
-              <div className="text-sm text-gray-900 font-mono">{task.owner}</div>
+              <div className="text-sm">
+                <EntityLink
+                  entityRef={task.owner}
+                  showIcon
+                  data-testid="task-detail-owner-link"
+                />
+              </div>
             </div>
           )}
           {task.deadline && (
@@ -1721,7 +1734,10 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
             </div>
             <div>
               <span className="font-medium">Created by:</span>{' '}
-              <span className="font-mono">{task.createdBy}</span>
+              <EntityLink
+                entityRef={task.createdBy}
+                data-testid="task-detail-creator-link"
+              />
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, UserPlus, UserMinus, Users, Crown, LogOut, Loader2, AlertCircle } from 'lucide-react';
+import { EntityLink } from '../entity/EntityLink';
 
 // ============================================================================
 // Types
@@ -243,11 +244,20 @@ function MemberRow({
       <MemberAvatar name={member.name} entityType={entityType} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span
-            className={`text-sm font-medium truncate ${isNotFound ? 'text-gray-400 italic' : 'text-gray-900'}`}
-          >
-            {member.name}
-          </span>
+          {isNotFound ? (
+            <span className="text-sm font-medium truncate text-gray-400 italic">
+              {member.name}
+            </span>
+          ) : (
+            <EntityLink
+              entityRef={member.id}
+              className="text-sm font-medium truncate"
+              showPreview={false}
+              data-testid={`member-link-${member.id}`}
+            >
+              {member.name}
+            </EntityLink>
+          )}
           {isCreator && (
             <span title="Channel creator">
               <Crown className="w-4 h-4 text-amber-500 flex-shrink-0" />
