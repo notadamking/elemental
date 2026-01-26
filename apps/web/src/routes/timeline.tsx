@@ -667,6 +667,7 @@ function JumpToDatePicker({ value, onChange }: DatePickerProps) {
         onChange={(e) => onChange(e.target.value || null)}
         className="absolute opacity-0 w-0 h-0"
         data-testid="jump-to-date-input"
+        aria-label="Jump to date"
       />
     </div>
   );

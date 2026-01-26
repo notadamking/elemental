@@ -193,7 +193,7 @@ export const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(
             )}
             {blocksCount > 0 && (
               <span
-                className="inline-flex items-center gap-1 text-[11px] text-[var(--color-warning)]"
+                className="inline-flex items-center gap-1 text-[11px] text-[var(--color-warning-text)]"
                 data-testid="task-blocks-count"
                 title={`Blocks ${blocksCount} task${blocksCount > 1 ? 's' : ''}`}
               >
@@ -203,7 +203,7 @@ export const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(
             )}
             {blockedByCount > 0 && (
               <span
-                className="inline-flex items-center gap-1 text-[11px] text-[var(--color-error)]"
+                className="inline-flex items-center gap-1 text-[11px] text-[var(--color-danger-text)]"
                 data-testid="task-blocked-by-count"
                 title={`Blocked by ${blockedByCount} task${blockedByCount > 1 ? 's' : ''}`}
               >

@@ -199,6 +199,9 @@ export function VirtualizedList<T>({
       style={height ? { height } : undefined}
       data-testid={testId}
       onScroll={handleScroll}
+      tabIndex={0}
+      role="region"
+      aria-label="Scrollable list"
     >
       <div
         className={innerClassName}

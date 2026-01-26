@@ -141,19 +141,19 @@ const STATUS_CONFIG: Record<
   running: {
     label: 'Running',
     icon: <Play className="w-4 h-4" />,
-    color: 'text-blue-600',
+    color: 'text-blue-700',
     bgColor: 'bg-blue-100',
   },
   completed: {
     label: 'Completed',
     icon: <CheckCircle2 className="w-4 h-4" />,
-    color: 'text-green-600',
+    color: 'text-green-700',
     bgColor: 'bg-green-100',
   },
   failed: {
     label: 'Failed',
     icon: <AlertTriangle className="w-4 h-4" />,
-    color: 'text-red-600',
+    color: 'text-red-700',
     bgColor: 'bg-red-100',
   },
   cancelled: {
@@ -491,7 +491,7 @@ function WorkflowListItem({
       <div className="flex items-center gap-2 mb-2">
         <StatusBadge status={workflow.status} />
         {workflow.ephemeral && (
-          <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+          <span className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
             Ephemeral
           </span>
         )}
@@ -822,7 +822,7 @@ function WorkflowDetailPanel({
             {workflow.ephemeral && (
               <span
                 data-testid="ephemeral-badge"
-                className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
+                className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded"
               >
                 Ephemeral
               </span>
@@ -1640,7 +1640,7 @@ export function WorkflowsPage() {
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Workflow List */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+        <div className="flex-1 overflow-y-auto p-4 bg-gray-50" tabIndex={0} role="region" aria-label="Workflow list">
           {isLoading && (
             <div
               data-testid="workflows-loading"

@@ -739,15 +739,17 @@ function LibraryTreeItem({
             onToggleExpand(node.id);
           }}
           className="p-0.5 hover:bg-gray-200 rounded"
+          aria-label={hasChildren ? (isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`) : 'No children'}
+          aria-expanded={hasChildren ? isExpanded : undefined}
         >
           {hasChildren ? (
             isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-400" />
+              <ChevronDown className="w-4 h-4 text-gray-500" />
             ) : (
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <ChevronRight className="w-4 h-4 text-gray-500" />
             )
           ) : (
-            <span className="w-4 h-4" />
+            <span className="w-4 h-4" aria-hidden="true" />
           )}
         </button>
 

@@ -35,19 +35,19 @@ const ENTITY_TYPE_CONFIG: Record<string, {
   agent: {
     icon: Bot,
     bgColor: 'bg-[var(--color-primary-muted)]',
-    textColor: 'text-[var(--color-primary)]',
+    textColor: 'text-[var(--color-primary-text)]',
     variant: 'primary',
   },
   human: {
     icon: User,
     bgColor: 'bg-[var(--color-success-bg)]',
-    textColor: 'text-[var(--color-success)]',
+    textColor: 'text-[var(--color-success-text)]',
     variant: 'success',
   },
   system: {
     icon: Server,
     bgColor: 'bg-[var(--color-warning-bg)]',
-    textColor: 'text-[var(--color-warning)]',
+    textColor: 'text-[var(--color-warning-text)]',
     variant: 'warning',
   },
 };

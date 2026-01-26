@@ -1244,6 +1244,8 @@ function GraphToolbar({
               onClick={() => setShowLayoutDropdown(!showLayoutDropdown)}
               className="px-2 py-2 border border-gray-300 rounded-r-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
               data-testid="layout-options-dropdown-toggle"
+              aria-label="Layout options"
+              aria-expanded={showLayoutDropdown}
             >
               <ChevronDown className="w-4 h-4" />
             </button>

@@ -255,12 +255,12 @@ function RecentActivityFeed() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <ElementIcon className="w-4 h-4 text-gray-400" />
+                    <ElementIcon className="w-4 h-4 text-gray-500" />
                     <span className="text-sm font-medium text-gray-900 capitalize">{event.eventType}</span>
                     <span className="text-sm text-gray-500">{event.elementType}</span>
                   </div>
                   <p className="text-xs text-gray-500 font-mono mt-0.5">{event.elementId}</p>
-                  <p className="text-xs text-gray-400 mt-1">{getRelativeTime(event.createdAt)}</p>
+                  <p className="text-xs text-gray-500 mt-1">{getRelativeTime(event.createdAt)}</p>
                 </div>
               </div>
             );
@@ -289,7 +289,7 @@ function QuickActions({
         >
           <Plus className="w-4 h-4" />
           Create Task
-          <kbd className="ml-1 text-xs opacity-70 bg-blue-700 px-1 py-0.5 rounded">C T</kbd>
+          <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C T</kbd>
         </button>
         <button
           onClick={onPourWorkflow}
@@ -298,7 +298,7 @@ function QuickActions({
         >
           <Zap className="w-4 h-4" />
           Pour Workflow
-          <kbd className="ml-1 text-xs opacity-70 bg-purple-700 px-1 py-0.5 rounded">C W</kbd>
+          <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">C W</kbd>
         </button>
         <Link
           to="/tasks"
@@ -356,7 +356,7 @@ function MetricsOverview() {
             <p className="text-2xl font-semibold text-gray-900">
               {stats.isLoading ? '...' : `${readyRatio}%`}
             </p>
-            <p className="text-xs text-gray-400">{readyCount} ready, {blockedCount} blocked</p>
+            <p className="text-xs text-gray-500">{readyCount} ready, {blockedCount} blocked</p>
           </div>
         </div>
       </div>
@@ -452,7 +452,7 @@ export function DashboardPage() {
 
   return (
     <div data-testid="dashboard-page">
-      <h2 className="text-lg font-medium text-gray-900 mb-6">Dashboard</h2>
+      <h1 className="text-lg font-medium text-gray-900 mb-6">Dashboard</h1>
 
       {/* Key Metrics Overview */}
       <MetricsOverview />
@@ -499,7 +499,7 @@ export function DashboardPage() {
                 const Icon = ELEMENT_TYPE_ICONS[type] || Activity;
                 return (
                   <div key={type} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <Icon className="w-5 h-5 text-gray-400" />
+                    <Icon className="w-5 h-5 text-gray-500" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{count}</p>
                       <p className="text-xs text-gray-500 capitalize">{type}s</p>

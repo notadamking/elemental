@@ -94,12 +94,14 @@ export function Pagination({
         {/* Page size selector */}
         {showPageSizeSelector && onPageSizeChange && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Show</span>
+            <label htmlFor="pagination-page-size" className="text-sm text-gray-500">Show</label>
             <select
+              id="pagination-page-size"
               value={pageSize}
               onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
               className="px-2 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               data-testid="pagination-page-size"
+              aria-label="Items per page"
             >
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>

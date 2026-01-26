@@ -981,7 +981,7 @@ function EntityCard({
         </div>
       )}
 
-      <div className="mt-3 text-xs text-gray-400">
+      <div className="mt-3 text-xs text-gray-500">
         Created {new Date(entity.createdAt).toLocaleDateString()}
       </div>
     </div>
@@ -1017,7 +1017,7 @@ function FilterTabs({
             <span>{tab.label}</span>
             <span
               className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
-                isSelected ? 'bg-gray-100 text-gray-600' : 'bg-gray-200 text-gray-500'
+                isSelected ? 'bg-gray-100 text-gray-700' : 'bg-gray-200 text-gray-700'
               }`}
             >
               {counts[tab.value]}

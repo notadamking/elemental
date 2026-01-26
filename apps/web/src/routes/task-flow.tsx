@@ -447,7 +447,7 @@ function TaskCard({ task, showBlockReason, onClick }: { task: Task | BlockedTask
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
-          <p className="text-xs text-gray-500 mt-0.5 font-mono">{task.id}</p>
+          <p className="text-xs text-gray-600 mt-0.5 font-mono">{task.id}</p>
         </div>
         <span className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${priority.color}`}>
           {priority.label}
@@ -459,7 +459,7 @@ function TaskCard({ task, showBlockReason, onClick }: { task: Task | BlockedTask
             <span className="font-medium">Blocked by:</span>{' '}
             <span className="font-mono">{blockedTask.blockedBy}</span>
           </p>
-          <p className="text-xs text-red-600 mt-0.5">{blockedTask.blockReason}</p>
+          <p className="text-xs text-red-700 mt-0.5">{blockedTask.blockReason}</p>
         </div>
       )}
       <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -485,7 +485,7 @@ function InProgressTaskCard({ task, onClick }: { task: Task; onClick?: () => voi
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
-          <p className="text-xs text-gray-500 mt-0.5 font-mono">{task.id}</p>
+          <p className="text-xs text-gray-600 mt-0.5 font-mono">{task.id}</p>
         </div>
         <span className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${priority.color}`}>
           {priority.label}
@@ -526,19 +526,19 @@ function CompletedTaskCard({ task, onClick }: { task: Task; onClick?: () => void
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h4 className="font-medium text-gray-700 text-sm truncate line-through">{task.title}</h4>
-          <p className="text-xs text-gray-500 mt-0.5 font-mono">{task.id}</p>
+          <p className="text-xs text-gray-600 mt-0.5 font-mono">{task.id}</p>
         </div>
         <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800 shrink-0">
           {task.status === 'cancelled' ? 'Cancelled' : 'Done'}
         </span>
       </div>
-      <div className="mt-2 flex items-center gap-2 text-xs text-gray-500" data-testid={`task-completed-time-${task.id}`}>
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-600" data-testid={`task-completed-time-${task.id}`}>
         <Clock className="w-3 h-3" />
         <span title={`${formattedDate} at ${formattedTime}`}>
           {timeAgo}
         </span>
-        <span className="text-gray-400">·</span>
-        <span className="text-gray-400">{formattedDate}</span>
+        <span className="text-gray-500">·</span>
+        <span className="text-gray-600">{formattedDate}</span>
       </div>
     </div>
   );
@@ -826,7 +826,7 @@ function Column({
           />
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-2 min-h-0" tabIndex={0} role="region" aria-label={`${title} tasks`}>
         {isLoading && (
           <div className="text-sm text-gray-500 p-3">Loading...</div>
         )}
@@ -1703,6 +1703,7 @@ export function TaskFlowPage() {
                 onChange={(e) => setCompletedDateRange(e.target.value as DateRange)}
                 className="text-xs px-2 py-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 data-testid="completed-date-range-select"
+                aria-label="Filter completed tasks by date range"
               >
                 {DATE_RANGE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1717,7 +1718,7 @@ export function TaskFlowPage() {
               />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-0" tabIndex={0} role="region" aria-label="Completed tasks">
             {completedTasksQuery.isLoading && completedOffset === 0 && (
               <div className="text-sm text-gray-500 p-3">Loading...</div>
             )}

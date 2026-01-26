@@ -123,7 +123,7 @@ function ThemeOption({
             </span>
           )}
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
+        <p className={`text-sm mt-0.5 ${isSelected ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>{description}</p>
       </div>
     </button>
   );

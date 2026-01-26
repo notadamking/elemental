@@ -1334,6 +1334,7 @@ function ListView({
             onClick={onSelectAll}
             className="p-1 hover:bg-gray-200 rounded"
             data-testid="task-select-all"
+            aria-label={allSelected ? 'Deselect all tasks' : 'Select all tasks'}
           >
             {allSelected ? (
               <CheckSquare className="w-4 h-4 text-blue-600" />
@@ -1342,7 +1343,7 @@ function ListView({
                 <div className="w-2 h-0.5 bg-blue-600" />
               </div>
             ) : (
-              <Square className="w-4 h-4 text-gray-400" />
+              <Square className="w-4 h-4 text-gray-500" />
             )}
           </button>
         </div>
@@ -1483,6 +1484,7 @@ function GroupedListView({
             onClick={handleSelectAll}
             className="p-1 hover:bg-gray-200 rounded"
             data-testid="task-select-all"
+            aria-label={allSelected ? 'Deselect all tasks' : 'Select all tasks'}
           >
             {allSelected ? (
               <CheckSquare className="w-4 h-4 text-blue-600" />
@@ -1491,7 +1493,7 @@ function GroupedListView({
                 <div className="w-2 h-0.5 bg-blue-600" />
               </div>
             ) : (
-              <Square className="w-4 h-4 text-gray-400" />
+              <Square className="w-4 h-4 text-gray-500" />
             )}
           </button>
         </div>
@@ -1649,11 +1651,12 @@ function VirtualTaskRow({
           onClick={handleCheckboxClick}
           className="p-1 hover:bg-gray-200 rounded"
           data-testid={`task-checkbox-${task.id}`}
+          aria-label={isChecked ? `Deselect task: ${task.title}` : `Select task: ${task.title}`}
         >
           {isChecked ? (
             <CheckSquare className="w-4 h-4 text-blue-600" />
           ) : (
-            <Square className="w-4 h-4 text-gray-400" />
+            <Square className="w-4 h-4 text-gray-500" />
           )}
         </button>
       </div>

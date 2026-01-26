@@ -49,7 +49,7 @@ function useHealth() {
 function ConnectionStatus({ wsState, health }: { wsState: ConnectionState; health: ReturnType<typeof useHealth> }) {
   if (wsState === 'connecting' || wsState === 'reconnecting') {
     return (
-      <div className="flex items-center gap-2 text-[var(--color-warning)]">
+      <div className="flex items-center gap-2 text-[var(--color-warning-text)]">
         <div className="w-2 h-2 rounded-full bg-[var(--color-warning)] animate-pulse" />
         <span className="text-sm font-medium">{wsState === 'connecting' ? 'Connecting...' : 'Reconnecting...'}</span>
       </div>
@@ -58,7 +58,7 @@ function ConnectionStatus({ wsState, health }: { wsState: ConnectionState; healt
 
   if (wsState === 'connected') {
     return (
-      <div className="flex items-center gap-2 text-[var(--color-success)]">
+      <div className="flex items-center gap-2 text-[var(--color-success-text)]">
         <div className="w-2 h-2 rounded-full bg-[var(--color-success)]" />
         <span className="text-sm font-medium">Live</span>
       </div>
@@ -76,7 +76,7 @@ function ConnectionStatus({ wsState, health }: { wsState: ConnectionState; healt
 
   if (health.isError) {
     return (
-      <div className="flex items-center gap-2 text-[var(--color-danger)]">
+      <div className="flex items-center gap-2 text-[var(--color-danger-text)]">
         <div className="w-2 h-2 rounded-full bg-[var(--color-danger)]" />
         <span className="text-sm font-medium">Disconnected</span>
       </div>
@@ -84,7 +84,7 @@ function ConnectionStatus({ wsState, health }: { wsState: ConnectionState; healt
   }
 
   return (
-    <div className="flex items-center gap-2 text-[var(--color-warning)]">
+    <div className="flex items-center gap-2 text-[var(--color-warning-text)]">
       <div className="w-2 h-2 rounded-full bg-[var(--color-warning)]" />
       <span className="text-sm font-medium">Polling</span>
     </div>

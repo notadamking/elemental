@@ -202,19 +202,19 @@ const STATUS_CONFIG: Record<
   active: {
     label: 'Active',
     icon: <CircleDot className="w-4 h-4" />,
-    color: 'text-blue-600',
+    color: 'text-blue-700',
     bgColor: 'bg-blue-100',
   },
   completed: {
     label: 'Completed',
     icon: <CheckCircle2 className="w-4 h-4" />,
-    color: 'text-green-600',
+    color: 'text-green-700',
     bgColor: 'bg-green-100',
   },
   cancelled: {
     label: 'Cancelled',
     icon: <XCircle className="w-4 h-4" />,
-    color: 'text-red-600',
+    color: 'text-red-700',
     bgColor: 'bg-red-100',
   },
 };
@@ -1828,7 +1828,7 @@ export function PlansPage() {
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Plan Content - List or Roadmap View (TB88) */}
-        <div className={`flex-1 overflow-y-auto p-4 bg-gray-50 ${viewMode === 'roadmap' ? 'overflow-x-auto' : ''}`}>
+        <div className={`flex-1 overflow-y-auto p-4 bg-gray-50 ${viewMode === 'roadmap' ? 'overflow-x-auto' : ''}`} tabIndex={0} role="region" aria-label="Plan content">
           {isLoading && (
             <div
               data-testid="plans-loading"

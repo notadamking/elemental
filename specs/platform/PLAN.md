@@ -759,13 +759,13 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Check all Settings sections for padding consistency - notification container no longer has `px-4`, individual rows do
   - [x] **Verify:** 3 Playwright tests passing (`apps/web/tests/notification-settings.spec.ts` TB118 section); notification types list has proper padding matching shortcuts pattern
 
-- [ ] **TB119: Accessibility Audit**
-  - [ ] Web: Run axe-core accessibility audit on all pages
-  - [ ] Web: Fix any color contrast issues (especially in dark mode)
-  - [ ] Web: Ensure all interactive elements have focus states
-  - [ ] Web: Add ARIA labels where missing
-  - [ ] Web: Ensure keyboard navigation works throughout
-  - [ ] **Verify:** axe audit passes with no critical issues; Playwright accessibility tests passing
+- [x] **TB119: Accessibility Audit**
+  - [x] Web: Run axe-core accessibility audit on all pages - added `@axe-core/playwright` package, created comprehensive test suite
+  - [x] Web: Fix any color contrast issues (especially in dark mode) - updated design tokens in `tokens.css`, added `-text` variants for semantic colors
+  - [x] Web: Ensure all interactive elements have focus states - existing focus states verified, added `tabIndex` to scrollable regions
+  - [x] Web: Add ARIA labels where missing - added to checkboxes, dropdowns, dialogs, date inputs, layout controls
+  - [x] Web: Ensure keyboard navigation works throughout - command palette accessible, scrollable regions focusable
+  - [x] **Verify:** 31 Playwright accessibility tests passing (`apps/web/tests/tb119-accessibility.spec.ts`); all critical accessibility issues resolved
 
 - [ ] **TB120: Performance Audit**
   - [ ] Web: Run Lighthouse performance audit

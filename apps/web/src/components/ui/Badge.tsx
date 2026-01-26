@@ -32,17 +32,17 @@ const variantStyles = {
 
   success: [
     'bg-[var(--color-success-bg)] text-[var(--color-success-700)]',
-    'dark:bg-[var(--color-success-bg)] dark:text-[var(--color-success)]',
+    'dark:bg-[var(--color-success-bg)] dark:text-[var(--color-success-text)]',
   ].join(' '),
 
   warning: [
     'bg-[var(--color-warning-bg)] text-[var(--color-warning-700)]',
-    'dark:bg-[var(--color-warning-bg)] dark:text-[var(--color-warning)]',
+    'dark:bg-[var(--color-warning-bg)] dark:text-[var(--color-warning-text)]',
   ].join(' '),
 
   error: [
     'bg-[var(--color-danger-bg)] text-[var(--color-error-700)]',
-    'dark:bg-[var(--color-danger-bg)] dark:text-[var(--color-danger)]',
+    'dark:bg-[var(--color-danger-bg)] dark:text-[var(--color-danger-text)]',
   ].join(' '),
 
   outline: [

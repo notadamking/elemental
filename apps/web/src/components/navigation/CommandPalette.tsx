@@ -319,12 +319,13 @@ export function CommandPalette() {
   }
 
   return (
-    <div className="fixed inset-0 z-50" data-testid="command-palette">
+    <div className="fixed inset-0 z-50" data-testid="command-palette" role="dialog" aria-modal="true" aria-label="Command palette">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-[var(--color-bg-overlay)] backdrop-blur-sm"
         onClick={() => setOpen(false)}
         data-testid="command-palette-backdrop"
+        aria-hidden="true"
       />
 
       {/* Dialog */}
