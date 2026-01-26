@@ -29,7 +29,8 @@ import {
   getSmoothStepPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Edit3, Trash2, Link2 } from 'lucide-react';
+import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Edit3, Trash2, Link2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Task {
   id: string;
@@ -86,12 +87,39 @@ function useBlockedTasks() {
   });
 }
 
+interface Dependency {
+  sourceId: string;
+  targetId: string;
+  type: string;
+  createdAt: string;
+  createdBy: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface DependencyListResponse {
+  dependencies: Dependency[];
+  dependents: Dependency[];
+}
+
 function useDependencyTree(taskId: string | null) {
   return useQuery<DependencyTree>({
     queryKey: ['dependencies', 'tree', taskId],
     queryFn: async () => {
       const response = await fetch(`/api/dependencies/${taskId}/tree`);
       if (!response.ok) throw new Error('Failed to fetch dependency tree');
+      return response.json();
+    },
+    enabled: !!taskId,
+  });
+}
+
+// Fetch actual dependency relationships with type information
+function useDependencyList(taskId: string | null) {
+  return useQuery<DependencyListResponse>({
+    queryKey: ['dependencies', 'list', taskId],
+    queryFn: async () => {
+      const response = await fetch(`/api/dependencies/${taskId}`);
+      if (!response.ok) throw new Error('Failed to fetch dependencies');
       return response.json();
     },
     enabled: !!taskId,
@@ -113,10 +141,18 @@ function useAddDependency() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       // Invalidate dependency queries to refresh the graph
       queryClient.invalidateQueries({ queryKey: ['dependencies'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success(`Dependency created`, {
+        description: `Added ${variables.type} relationship`,
+      });
+    },
+    onError: (error) => {
+      toast.error('Failed to create dependency', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
     },
   });
 }
@@ -139,6 +175,12 @@ function useRemoveDependency() {
       // Invalidate dependency queries to refresh the graph
       queryClient.invalidateQueries({ queryKey: ['dependencies'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Dependency removed');
+    },
+    onError: (error) => {
+      toast.error('Failed to remove dependency', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
     },
   });
 }
@@ -342,10 +384,31 @@ interface GraphOptions {
   editMode: boolean;
 }
 
+// Build a map of dependency types for quick lookup
+function buildDependencyTypeMap(depList: DependencyListResponse | undefined): Map<string, string> {
+  const typeMap = new Map<string, string>();
+  if (!depList) return typeMap;
+
+  // Map dependencies (outgoing from selected node)
+  for (const dep of depList.dependencies) {
+    const key = `${dep.sourceId}->${dep.targetId}`;
+    typeMap.set(key, dep.type);
+  }
+
+  // Map dependents (incoming to selected node)
+  for (const dep of depList.dependents) {
+    const key = `${dep.sourceId}->${dep.targetId}`;
+    typeMap.set(key, dep.type);
+  }
+
+  return typeMap;
+}
+
 function buildGraphFromTree(
   tree: DependencyTree,
   options: GraphOptions,
-  onDeleteEdge: (sourceId: string, targetId: string, type: string) => void
+  onDeleteEdge: (sourceId: string, targetId: string, type: string) => void,
+  dependencyTypeMap: Map<string, string>
 ): { nodes: Node<TaskNodeData>[]; edges: Edge[] } {
   const nodes: Node<TaskNodeData>[] = [];
   const edges: Edge<CustomEdgeData>[] = [];
@@ -414,8 +477,10 @@ function buildGraphFromTree(
       if (!visited.has(dep.element.id)) {
         processNode(dep, level + 1, position + i - Math.floor(node.dependencies.length / 2), 'up');
       }
+      const edgeId = `${node.element.id}->${dep.element.id}`;
+      const depType = dependencyTypeMap.get(edgeId) || 'blocks';
       edges.push({
-        id: `${node.element.id}->${dep.element.id}`,
+        id: edgeId,
         source: node.element.id,
         target: dep.element.id,
         type: editMode ? 'custom' : 'smoothstep',
@@ -423,7 +488,7 @@ function buildGraphFromTree(
         markerEnd: { type: MarkerType.ArrowClosed },
         style: { stroke: '#94a3b8' },
         data: {
-          dependencyType: 'blocks',
+          dependencyType: depType,
           editMode: editMode,
           onDelete: onDeleteEdge,
         },
@@ -435,8 +500,10 @@ function buildGraphFromTree(
       if (!visited.has(dep.element.id)) {
         processNode(dep, level + 1, position + i - Math.floor(node.dependents.length / 2), 'down');
       }
+      const edgeId = `${dep.element.id}->${node.element.id}`;
+      const depType = dependencyTypeMap.get(edgeId) || 'blocks';
       edges.push({
-        id: `${dep.element.id}->${node.element.id}`,
+        id: edgeId,
         source: dep.element.id,
         target: node.element.id,
         type: editMode ? 'custom' : 'smoothstep',
@@ -444,7 +511,7 @@ function buildGraphFromTree(
         markerEnd: { type: MarkerType.ArrowClosed },
         style: { stroke: '#94a3b8' },
         data: {
-          dependencyType: 'blocks',
+          dependencyType: depType,
           editMode: editMode,
           onDelete: onDeleteEdge,
         },
@@ -525,8 +592,14 @@ function DependencyTypePicker({
         data-testid="dependency-type-picker"
       >
         <div className="flex items-center gap-2 mb-4">
-          <Link2 className="w-5 h-5 text-purple-600" />
-          <h3 className="font-medium text-gray-900">Add Dependency</h3>
+          {isLoading ? (
+            <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+          ) : (
+            <Link2 className="w-5 h-5 text-purple-600" />
+          )}
+          <h3 className="font-medium text-gray-900">
+            {isLoading ? 'Creating dependency...' : 'Add Dependency'}
+          </h3>
         </div>
 
         {error && (
@@ -924,8 +997,14 @@ export function DependencyGraphPage() {
   const readyTasks = useReadyTasks();
   const blockedTasks = useBlockedTasks();
   const dependencyTree = useDependencyTree(selectedTaskId);
+  const dependencyList = useDependencyList(selectedTaskId);
   const addDependency = useAddDependency();
   const removeDependency = useRemoveDependency();
+
+  // Build dependency type map for looking up actual types
+  const dependencyTypeMap = useMemo(() => {
+    return buildDependencyTypeMap(dependencyList.data);
+  }, [dependencyList.data]);
 
   // Combine tasks for the selector
   const allTasks = useMemo(() => {
@@ -972,7 +1051,8 @@ export function DependencyGraphPage() {
       const { nodes: newNodes, edges: newEdges } = buildGraphFromTree(
         dependencyTree.data,
         { searchQuery, statusFilter, selectedNodeId: selectedSourceNode?.id || null, editMode },
-        handleDeleteEdge
+        handleDeleteEdge,
+        dependencyTypeMap
       );
       setNodes(newNodes);
       setEdges(newEdges);
@@ -980,7 +1060,7 @@ export function DependencyGraphPage() {
       setNodes([]);
       setEdges([]);
     }
-  }, [dependencyTree.data, searchQuery, statusFilter, editMode, selectedSourceNode, setNodes, setEdges, handleDeleteEdge]);
+  }, [dependencyTree.data, dependencyTypeMap, searchQuery, statusFilter, editMode, selectedSourceNode, setNodes, setEdges, handleDeleteEdge]);
 
   // Calculate match count for the filter display
   const matchCount = useMemo(() => {

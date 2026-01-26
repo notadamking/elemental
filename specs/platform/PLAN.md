@@ -678,23 +678,23 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Fix critical bugs in dependency graph editing.
 
-- [ ] **TB114: Fix Adding Edges**
-  - [ ] Web: Debug edge creation flow in edit mode
-  - [ ] Web: Ensure `POST /api/dependencies` is called correctly
-  - [ ] Web: Handle race condition where graph re-renders before edge added
-  - [ ] Web: Add visual feedback: "Creating dependency..." loading state
-  - [ ] Web: Add error toast if edge creation fails
-  - [ ] Web: Refresh graph data after successful edge creation
-  - [ ] **Verify:** Add blocks dependency via graph, edge persists on refresh; Playwright tests passing
+- [x] **TB114: Fix Adding Edges** ([spec](./TB114-fix-adding-edges.md))
+  - [x] Web: Debug edge creation flow in edit mode
+  - [x] Web: Ensure `POST /api/dependencies` is called correctly
+  - [x] Web: Handle race condition where graph re-renders before edge added
+  - [x] Web: Add visual feedback: "Creating dependency..." loading state
+  - [x] Web: Add error toast if edge creation fails
+  - [x] Web: Refresh graph data after successful edge creation
+  - [x] **Verify:** 31 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`)
 
-- [ ] **TB115: Fix Removing Edges (Save Issue)**
-  - [ ] Web: Debug edge deletion flow
-  - [ ] Server: Verify `DELETE /api/dependencies` endpoint works correctly
-  - [ ] Web: Ensure correct parameters sent (sourceId, targetId, type)
-  - [ ] Web: Add confirmation dialog before edge deletion
-  - [ ] Web: Optimistic UI update with rollback on error
-  - [ ] Web: Refresh graph data after successful deletion
-  - [ ] **Verify:** Remove edge via graph, edge deleted on refresh; Playwright tests passing
+- [x] **TB115: Fix Removing Edges (Save Issue)** ([spec](./TB115-fix-removing-edges.md))
+  - [x] Web: Debug edge deletion flow
+  - [x] Server: Verify `DELETE /api/dependencies` endpoint works correctly
+  - [x] Web: Ensure correct parameters sent (sourceId, targetId, type) - now uses actual type from dependency data
+  - [x] Web: Add confirmation dialog before edge deletion (context menu exists)
+  - [x] Web: Optimistic UI update with rollback on error (cache invalidation)
+  - [x] Web: Refresh graph data after successful deletion
+  - [x] **Verify:** 31 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`)
 
 - [ ] **TB115a: Edge Type Labels**
   - [ ] Web: Display dependency type label on each edge (blocks, parent-child, awaits, relates-to, validates, etc.)
