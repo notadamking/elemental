@@ -19,7 +19,7 @@ const DASHBOARD_LENS_ROUTES: Record<ReturnType<typeof getDefaultDashboardLens>, 
   'overview': '/dashboard/overview',
   'task-flow': '/dashboard/task-flow',
   'agents': '/dashboard/agents',
-  'dependencies': '/dashboard/dependencies',
+  'dependencies': '/dependencies',
   'timeline': '/dashboard/timeline',
 };
 
@@ -89,10 +89,10 @@ const agentActivityRoute = createRoute({
   component: AgentActivityPage,
 });
 
-// Dependency Graph Lens route (Dashboard sub-view)
+// Dependency Graph route (Work section)
 const dependencyGraphRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/dependencies',
+  path: '/dependencies',
   component: DependencyGraphPage,
 });
 

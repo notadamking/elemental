@@ -758,39 +758,38 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
     - Click expand button, verify sidebar expands
     - **Verify:** 9 tests pass in `apps/web/tests/tb141-sidebar-expand-button.spec.ts`
 
-- [ ] **TB142: Move Dependencies to Work Section in Sidebar**
+- [x] **TB142: Move Dependencies to Work Section in Sidebar**
 
   **Context:** The Dependencies navigation item is currently in the Dashboard section. For better information architecture, it should be in the Work section (alongside Tasks, Plans, Workflows) since dependencies are integral to work management.
 
   **Tracer Bullet Steps:**
-  - [ ] Step 1: Read `NAV_SECTIONS` array in `Sidebar.tsx` (lines 40-82)
+  - [x] Step 1: Read `NAV_SECTIONS` array in `Sidebar.tsx` (lines 40-82)
     - Identify Dependencies item in Dashboard section (line 50)
     - Identify Work section structure (lines 53-58)
     - **Verify immediately:** Understand current nav structure
-  - [ ] Step 2: Move Dependencies nav item from Dashboard to Work section
+  - [x] Step 2: Move Dependencies nav item from Dashboard to Work section
     - Remove from Dashboard items array
     - Add to Work items array (after Workflows)
     - **Verify immediately:** Refresh browser, see Dependencies under Work section
-  - [ ] Step 3: Update route if needed
-    - Check if `/dashboard/dependencies` route should change to `/dependencies`
-    - If changing route, update router.tsx accordingly
+  - [x] Step 3: Update route if needed
+    - Changed route from `/dashboard/dependencies` to `/dependencies`
+    - Updated router.tsx, DASHBOARD_LENS_ROUTES map
     - **Verify immediately:** Click Dependencies in sidebar, navigate to correct page
-  - [ ] Step 4: Update keyboard shortcut hint if needed
-    - Currently `G G` - consider if this still makes sense
-    - Could change to `G D` for "Go to Dependencies" (check conflicts)
+  - [x] Step 4: Update keyboard shortcut hint if needed
+    - Kept `G G` shortcut, updated to point to `/dependencies`
+    - Updated useKeyboardShortcuts.ts
     - **Verify immediately:** Keyboard shortcut works from anywhere
-  - [ ] Step 5: Update command palette entry
-    - Search "dependencies" in command palette should still work
-    - **Verify immediately:** Cmd+K, type "dep", action appears
-  - [ ] Step 6: Update Dashboard section if needed
-    - Remove any orphaned references
-    - Check Dashboard overview page doesn't break
+  - [x] Step 5: Update command palette entry
+    - Moved to Work group, updated route to `/dependencies`
+    - **Verify immediately:** Cmd+K, type "dep", action appears in Work group
+  - [x] Step 6: Update Dashboard section if needed
+    - Removed Dependencies from Dashboard items
+    - Fixed type errors in ElementNotFound.tsx and useDeepLink.ts
     - **Verify immediately:** Dashboard overview page loads correctly
-  - [ ] Step 7: Write Playwright test
-    - Verify Dependencies appears in Work section
-    - Verify navigation works
-    - Verify keyboard shortcut works
-    - **Verify:** Test passes in `apps/web/tests/tb142-dependencies-nav-location.spec.ts`
+  - [x] Step 7: Write Playwright test
+    - 7 tests passing in `apps/web/tests/tb142-dependencies-nav-location.spec.ts`
+    - Tests: Work section placement, not in Dashboard, route works, keyboard shortcut, command palette, page loads, correct order
+    - **Verify:** All tests pass
 
 - [ ] **TB143: Timeline Eager Event Loading with UI Pagination**
 

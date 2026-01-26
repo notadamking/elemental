@@ -162,15 +162,6 @@ export function CommandPalette() {
       keywords: ['entities', 'ai', 'workload'],
     },
     {
-      id: 'nav-dependencies',
-      label: 'Go to Dependencies',
-      icon: Network,
-      action: () => navigate({ to: '/dashboard/dependencies' }),
-      shortcut: 'G G',
-      group: 'Dashboard',
-      keywords: ['graph', 'blocks', 'relationships'],
-    },
-    {
       id: 'nav-timeline',
       label: 'Go to Timeline',
       icon: History,
@@ -206,6 +197,15 @@ export function CommandPalette() {
       shortcut: 'G W',
       group: 'Work',
       keywords: ['automation', 'pour', 'playbook'],
+    },
+    {
+      id: 'nav-dependencies',
+      label: 'Go to Dependencies',
+      icon: Network,
+      action: () => navigate({ to: '/dependencies' }),
+      shortcut: 'G G',
+      group: 'Work',
+      keywords: ['graph', 'blocks', 'relationships'],
     },
     // Collaborate section
     {

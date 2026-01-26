@@ -32,7 +32,7 @@ export function ElementNotFound({
 
   const handleBack = () => {
     onDismiss?.();
-    navigate({ to: backRoute as '/' | '/tasks' | '/plans' | '/workflows' | '/messages' | '/documents' | '/entities' | '/teams' | '/settings' | '/dashboard' | '/dashboard/task-flow' | '/dashboard/agents' | '/dashboard/dependencies' | '/dashboard/timeline' });
+    navigate({ to: backRoute as '/' | '/tasks' | '/plans' | '/workflows' | '/dependencies' | '/messages' | '/documents' | '/entities' | '/teams' | '/settings' | '/dashboard' | '/dashboard/task-flow' | '/dashboard/agents' | '/dashboard/timeline' });
   };
 
   return (
