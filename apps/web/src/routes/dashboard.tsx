@@ -1,14 +1,10 @@
-import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { Plus, Zap, ListTodo, CheckCircle, Clock, AlertCircle, Users, Bot, Activity, FileText, MessageSquare, ArrowRight } from 'lucide-react';
-import { toast } from 'sonner';
 import { TaskCard } from '../components/entity/TaskCard';
 import type { Task } from '../components/entity/types';
 import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
-import { CreateTaskModal } from '../components/task/CreateTaskModal';
-import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
-import { useKeyboardShortcut, useDisableKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useGlobalQuickActions } from '../hooks';
 import { DashboardCharts } from '../components/dashboard/DashboardCharts';
 
 interface StatsResponse {
@@ -396,59 +392,11 @@ export function DashboardPage() {
   // Track this dashboard section visit
   useTrackDashboardSection('overview');
 
-  const navigate = useNavigate();
   const stats = useStats();
   const health = useHealth();
 
-  // Modal states
-  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
-  const [isPourWorkflowModalOpen, setIsPourWorkflowModalOpen] = useState(false);
-
-  // Disable keyboard shortcuts when modals are open
-  useDisableKeyboardShortcuts(isCreateTaskModalOpen || isPourWorkflowModalOpen);
-
-  // Handlers for opening modals
-  const handleOpenCreateTaskModal = useCallback(() => {
-    setIsCreateTaskModalOpen(true);
-  }, []);
-
-  const handleOpenPourWorkflowModal = useCallback(() => {
-    setIsPourWorkflowModalOpen(true);
-  }, []);
-
-  // Handlers for modal success
-  const handleTaskCreated = useCallback((task: { id: string }) => {
-    toast.success('Task created successfully', {
-      description: 'Your new task has been created.',
-      action: {
-        label: 'View Task',
-        onClick: () => navigate({ to: '/tasks', search: { selected: task.id, page: 1, limit: 25 } }),
-      },
-    });
-  }, [navigate]);
-
-  const handleWorkflowPoured = useCallback((workflow: { id: string; title: string }) => {
-    toast.success('Workflow poured successfully', {
-      description: `"${workflow.title}" has been created.`,
-      action: {
-        label: 'View Workflow',
-        onClick: () => navigate({ to: '/workflows', search: { selected: workflow.id } }),
-      },
-    });
-  }, [navigate]);
-
-  // Register keyboard shortcuts for quick creation (only on dashboard)
-  useKeyboardShortcut(
-    'C T',
-    handleOpenCreateTaskModal,
-    'Create Task from Dashboard'
-  );
-
-  useKeyboardShortcut(
-    'C W',
-    handleOpenPourWorkflowModal,
-    'Pour Workflow from Dashboard'
-  );
+  // Use global quick actions for C T and C W shortcuts
+  const { openCreateTaskModal, openPourWorkflowModal } = useGlobalQuickActions();
 
   return (
     <div data-testid="dashboard-page">
@@ -459,22 +407,8 @@ export function DashboardPage() {
 
       {/* Quick Actions */}
       <QuickActions
-        onCreateTask={handleOpenCreateTaskModal}
-        onPourWorkflow={handleOpenPourWorkflowModal}
-      />
-
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        isOpen={isCreateTaskModalOpen}
-        onClose={() => setIsCreateTaskModalOpen(false)}
-        onSuccess={handleTaskCreated}
-      />
-
-      {/* Pour Workflow Modal */}
-      <PourWorkflowModal
-        isOpen={isPourWorkflowModalOpen}
-        onClose={() => setIsPourWorkflowModalOpen(false)}
-        onSuccess={handleWorkflowPoured}
+        onCreateTask={openCreateTaskModal}
+        onPourWorkflow={openPourWorkflowModal}
       />
 
       {/* Dashboard Charts */}

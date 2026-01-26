@@ -2,9 +2,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, ChevronRight, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles, Layers, Search, SlidersHorizontal } from 'lucide-react';
-import { useDebounce, useIsMobile, useIsTablet } from '../hooks';
+import { useDebounce, useIsMobile, useIsTablet, useGlobalQuickActions } from '../hooks';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
-import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
@@ -1847,7 +1846,8 @@ export function TasksPage() {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
 
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // Global quick actions for C T shortcut
+  const { openCreateTaskModal } = useGlobalQuickActions();
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -1968,11 +1968,6 @@ export function TasksPage() {
     navigate({ to: '/tasks', search: { page: currentPage, limit: pageSize } });
   };
 
-  const handleCreateSuccess = (task: { id: string }) => {
-    // Optionally select the newly created task
-    setSelectedTaskId(task.id);
-  };
-
   const handleTaskCheck = (taskId: string, checked: boolean) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -2083,13 +2078,6 @@ export function TasksPage() {
 
   return (
     <div className="flex h-full" data-testid="tasks-page">
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={handleCreateSuccess}
-      />
-
       {/* Mobile Filter Sheet */}
       {isMobile && mobileFilterOpen && (
         <MobileDetailSheet
@@ -2261,12 +2249,13 @@ export function TasksPage() {
                 )}
                 <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
                 <button
-                  onClick={() => setIsCreateModalOpen(true)}
+                  onClick={openCreateTaskModal}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
                   data-testid="create-task-button"
                 >
                   <Plus className="w-4 h-4" />
                   Create Task
+                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C T</kbd>
                 </button>
               </div>
             </div>
@@ -2430,7 +2419,7 @@ export function TasksPage() {
       {/* Mobile Floating Action Button for Create Task (TB147) */}
       {isMobile && !selectedTaskId && (
         <button
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={openCreateTaskModal}
           className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg z-40 touch-target"
           aria-label="Create new task"
           data-testid="mobile-create-task-fab"

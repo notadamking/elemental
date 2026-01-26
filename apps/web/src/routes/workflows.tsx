@@ -18,7 +18,7 @@ import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
 import { MobileWorkflowCard } from '../components/workflow/MobileWorkflowCard';
 import { useAllWorkflows } from '../api/hooks/useAllElements';
 import { useDeepLink } from '../hooks/useDeepLink';
-import { useIsMobile } from '../hooks';
+import { useIsMobile, useGlobalQuickActions } from '../hooks';
 import {
   GitBranch,
   Clock,
@@ -26,7 +26,6 @@ import {
   XCircle,
   AlertTriangle,
   ChevronRight,
-  ChevronLeft,
   X,
   ListTodo,
   CircleDot,
@@ -35,9 +34,6 @@ import {
   Play,
   Plus,
   Loader2,
-  FileText,
-  ChevronDown,
-  Book,
   Pencil,
   Check,
   Flame,
@@ -91,41 +87,6 @@ interface TaskType {
   createdAt: string;
   updatedAt: string;
   tags: string[];
-}
-
-interface DiscoveredPlaybook {
-  name: string;
-  path: string;
-  directory: string;
-}
-
-interface PlaybookVariable {
-  name: string;
-  description?: string;
-  type: 'string' | 'number' | 'boolean';
-  required: boolean;
-  default?: unknown;
-  enum?: unknown[];
-}
-
-interface PlaybookStep {
-  id: string;
-  title: string;
-  description?: string;
-  priority?: number;
-  complexity?: number;
-  dependsOn?: string[];
-}
-
-interface PlaybookDetail {
-  id: string;
-  name: string;
-  title: string;
-  version: number;
-  steps: PlaybookStep[];
-  variables: PlaybookVariable[];
-  filePath: string;
-  directory: string;
 }
 
 // ============================================================================
@@ -237,52 +198,6 @@ function useWorkflowProgress(workflowId: string | null) {
   });
 }
 
-function usePourWorkflow() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: {
-      playbook: {
-        name: string;
-        version: string;
-        steps: Array<{
-          id: string;
-          title: string;
-          taskType?: string;
-          priority?: number;
-          complexity?: number;
-        }>;
-        variables?: Array<{
-          name: string;
-          type: string;
-          default?: unknown;
-        }>;
-      };
-      variables?: Record<string, unknown>;
-      createdBy: string;
-      title?: string;
-      ephemeral?: boolean;
-      tags?: string[];
-    }) => {
-      const response = await fetch('/api/workflows/pour', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to pour workflow');
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workflows'] });
-    },
-  });
-}
-
 function useUpdateWorkflow() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -342,35 +257,6 @@ function useSquashWorkflow() {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
       queryClient.invalidateQueries({ queryKey: ['workflows', variables.workflowId] });
     },
-  });
-}
-
-function usePlaybooks() {
-  return useQuery<DiscoveredPlaybook[]>({
-    queryKey: ['playbooks'],
-    queryFn: async () => {
-      const response = await fetch('/api/playbooks');
-      if (!response.ok) {
-        throw new Error('Failed to fetch playbooks');
-      }
-      return response.json();
-    },
-  });
-}
-
-function usePlaybook(name: string | null) {
-  return useQuery<PlaybookDetail>({
-    queryKey: ['playbooks', name],
-    queryFn: async () => {
-      if (!name) throw new Error('No playbook selected');
-      const response = await fetch(`/api/playbooks/${encodeURIComponent(name)}`);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to fetch playbook');
-      }
-      return response.json();
-    },
-    enabled: !!name,
   });
 }
 
@@ -1130,606 +1016,6 @@ function WorkflowDetailPanel({
 }
 
 /**
- * Playbook Picker Component - Shows available playbooks to choose from
- */
-function PlaybookPicker({
-  selectedPlaybook,
-  onSelect,
-}: {
-  selectedPlaybook: string | null;
-  onSelect: (name: string) => void;
-}) {
-  const { data: playbooks = [], isLoading, isError } = usePlaybooks();
-  const [isOpen, setIsOpen] = useState(false);
-
-  if (isLoading) {
-    return (
-      <div
-        data-testid="playbook-picker-loading"
-        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 flex items-center gap-2"
-      >
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Loading playbooks...
-      </div>
-    );
-  }
-
-  if (isError || playbooks.length === 0) {
-    return (
-      <div
-        data-testid="playbook-picker-empty"
-        className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-md bg-gray-50 text-gray-500 text-center"
-      >
-        <Book className="w-5 h-5 mx-auto mb-1 text-gray-400" />
-        <p className="text-sm">No playbooks found</p>
-        <p className="text-xs">Add .playbook.yaml files to .elemental/playbooks</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative" data-testid="playbook-picker">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        data-testid="playbook-picker-trigger"
-        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left flex items-center justify-between hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        {selectedPlaybook ? (
-          <span className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-purple-500" />
-            <span className="text-gray-900">{selectedPlaybook}</span>
-          </span>
-        ) : (
-          <span className="text-gray-400">Select a playbook...</span>
-        )}
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div
-          data-testid="playbook-picker-dropdown"
-          className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto"
-        >
-          {playbooks.map((playbook) => (
-            <button
-              key={playbook.name}
-              type="button"
-              onClick={() => {
-                onSelect(playbook.name);
-                setIsOpen(false);
-              }}
-              data-testid={`playbook-option-${playbook.name}`}
-              className={`w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-2 ${
-                selectedPlaybook === playbook.name ? 'bg-purple-50' : ''
-              }`}
-            >
-              <FileText className={`w-4 h-4 ${selectedPlaybook === playbook.name ? 'text-purple-500' : 'text-gray-400'}`} />
-              <span className={selectedPlaybook === playbook.name ? 'text-purple-700 font-medium' : 'text-gray-700'}>
-                {playbook.name}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Variable Input Form - Renders inputs for playbook variables
- */
-function VariableInputForm({
-  variables,
-  values,
-  onChange,
-}: {
-  variables: PlaybookVariable[];
-  values: Record<string, unknown>;
-  onChange: (name: string, value: unknown) => void;
-}) {
-  if (variables.length === 0) {
-    return null;
-  }
-
-  return (
-    <div data-testid="variable-input-form" className="space-y-3">
-      <div className="text-sm font-medium text-gray-700">Variables</div>
-      {variables.map((variable) => (
-        <div key={variable.name}>
-          <label className="block text-sm text-gray-600 mb-1">
-            {variable.name}
-            {variable.required && <span className="text-red-500 ml-1">*</span>}
-          </label>
-          {variable.description && (
-            <p className="text-xs text-gray-400 mb-1">{variable.description}</p>
-          )}
-          {variable.type === 'boolean' ? (
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(values[variable.name] ?? variable.default ?? false)}
-                onChange={(e) => onChange(variable.name, e.target.checked)}
-                data-testid={`variable-input-${variable.name}`}
-                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-              />
-              <span className="text-sm text-gray-700">Enable</span>
-            </label>
-          ) : variable.enum && variable.enum.length > 0 ? (
-            <select
-              value={String(values[variable.name] ?? variable.default ?? '')}
-              onChange={(e) => onChange(variable.name, variable.type === 'number' ? Number(e.target.value) : e.target.value)}
-              data-testid={`variable-input-${variable.name}`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="">Select...</option>
-              {variable.enum.map((opt) => (
-                <option key={String(opt)} value={String(opt)}>
-                  {String(opt)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type={variable.type === 'number' ? 'number' : 'text'}
-              value={String(values[variable.name] ?? variable.default ?? '')}
-              onChange={(e) => onChange(variable.name, variable.type === 'number' ? Number(e.target.value) : e.target.value)}
-              data-testid={`variable-input-${variable.name}`}
-              placeholder={variable.default ? `Default: ${variable.default}` : ''}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Pour Workflow Modal (TB148 - responsive)
- */
-function PourWorkflowModal({
-  isOpen,
-  onClose,
-  isMobile = false,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  isMobile?: boolean;
-}) {
-  const pourWorkflow = usePourWorkflow();
-  const [title, setTitle] = useState('');
-  const [selectedPlaybookName, setSelectedPlaybookName] = useState<string | null>(null);
-  const [variables, setVariables] = useState<Record<string, unknown>>({});
-  const [useQuickMode, setUseQuickMode] = useState(true);
-  const [quickPlaybookName, setQuickPlaybookName] = useState('');
-
-  const { data: selectedPlaybook, isLoading: isLoadingPlaybook } = usePlaybook(selectedPlaybookName);
-
-  // Reset variables when playbook changes
-  useEffect(() => {
-    if (selectedPlaybook) {
-      const defaults: Record<string, unknown> = {};
-      for (const v of selectedPlaybook.variables) {
-        if (v.default !== undefined) {
-          defaults[v.name] = v.default;
-        }
-      }
-      setVariables(defaults);
-    } else {
-      setVariables({});
-    }
-  }, [selectedPlaybook]);
-
-  if (!isOpen) return null;
-
-  const handleVariableChange = (name: string, value: unknown) => {
-    setVariables((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    let playbook;
-
-    if (useQuickMode || !selectedPlaybook) {
-      // Create a simple playbook for quick mode
-      playbook = {
-        name: quickPlaybookName || 'Quick Workflow',
-        version: '1.0.0',
-        variables: [],
-        steps: [
-          { id: 'step-1', title: 'Step 1', priority: 3 },
-          { id: 'step-2', title: 'Step 2', priority: 3 },
-          { id: 'step-3', title: 'Step 3', priority: 3 },
-        ],
-      };
-    } else {
-      // Use the selected playbook
-      playbook = {
-        name: selectedPlaybook.name,
-        version: String(selectedPlaybook.version),
-        variables: selectedPlaybook.variables,
-        steps: selectedPlaybook.steps,
-      };
-    }
-
-    try {
-      await pourWorkflow.mutateAsync({
-        playbook,
-        variables: useQuickMode ? undefined : variables,
-        createdBy: 'web-user',
-        title: title || playbook.name || 'New Workflow',
-      });
-      onClose();
-      setTitle('');
-      setSelectedPlaybookName(null);
-      setQuickPlaybookName('');
-      setVariables({});
-    } catch {
-      // Error handled by mutation
-    }
-  };
-
-  // Mobile: Full-screen modal (TB148)
-  if (isMobile) {
-    return (
-      <div className="fixed inset-0 z-50 bg-[var(--color-bg)]" data-testid="pour-workflow-modal">
-        {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
-          <button
-            onClick={onClose}
-            className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
-            aria-label="Cancel"
-            data-testid="pour-modal-close"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="flex-1 text-lg font-semibold text-[var(--color-text)]">Pour Workflow</h2>
-          <button
-            onClick={handleSubmit as unknown as () => void}
-            disabled={pourWorkflow.isPending || (!useQuickMode && !selectedPlaybook)}
-            className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors touch-target"
-            data-testid="pour-submit-button"
-          >
-            {pourWorkflow.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pour'}
-          </button>
-        </div>
-
-        {/* Content - scrollable */}
-        <form onSubmit={handleSubmit} className="p-4 pb-20 overflow-y-auto h-[calc(100vh-60px)]">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-              Workflow Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              data-testid="pour-title-input"
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="My Workflow"
-            />
-          </div>
-
-          {/* Mode Toggle */}
-          <div className="mb-4">
-            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setUseQuickMode(true)}
-                data-testid="mode-quick"
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors touch-target ${
-                  useQuickMode ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                Quick Create
-              </button>
-              <button
-                type="button"
-                onClick={() => setUseQuickMode(false)}
-                data-testid="mode-playbook"
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors touch-target ${
-                  !useQuickMode ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                From Playbook
-              </button>
-            </div>
-          </div>
-
-          {useQuickMode ? (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                Playbook Name
-              </label>
-              <input
-                type="text"
-                value={quickPlaybookName}
-                onChange={(e) => setQuickPlaybookName(e.target.value)}
-                data-testid="pour-playbook-input"
-                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Quick Setup"
-              />
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                A simple 3-step workflow will be created with this name
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Select Playbook
-                </label>
-                <PlaybookPicker
-                  selectedPlaybook={selectedPlaybookName}
-                  onSelect={setSelectedPlaybookName}
-                />
-              </div>
-
-              {selectedPlaybookName && isLoadingPlaybook && (
-                <div className="mb-4 flex items-center gap-2 text-[var(--color-text-secondary)] text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading playbook details...
-                </div>
-              )}
-
-              {selectedPlaybook && (
-                <>
-                  {/* Playbook Info */}
-                  <div
-                    data-testid="playbook-info"
-                    className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Book className="w-4 h-4 text-purple-500" />
-                      <span className="font-medium text-purple-900 dark:text-purple-200">{selectedPlaybook.title}</span>
-                    </div>
-                    <div className="text-xs text-purple-700 dark:text-purple-300">
-                      {selectedPlaybook.steps.length} steps • Version {selectedPlaybook.version}
-                    </div>
-                  </div>
-
-                  {/* Variable Inputs */}
-                  {selectedPlaybook.variables.length > 0 && (
-                    <div className="mb-4">
-                      <VariableInputForm
-                        variables={selectedPlaybook.variables}
-                        values={variables}
-                        onChange={handleVariableChange}
-                      />
-                    </div>
-                  )}
-
-                  {/* Steps Preview */}
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-[var(--color-text)] mb-2">
-                      Steps ({selectedPlaybook.steps.length})
-                    </div>
-                    <div
-                      data-testid="playbook-steps-preview"
-                      className="space-y-1 max-h-40 overflow-y-auto"
-                    >
-                      {selectedPlaybook.steps.map((step, index) => (
-                        <div
-                          key={step.id}
-                          className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] py-1"
-                        >
-                          <span className="w-5 h-5 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded text-xs font-medium">
-                            {index + 1}
-                          </span>
-                          <span>{step.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {pourWorkflow.isError && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm rounded-lg">
-              {pourWorkflow.error?.message || 'Failed to pour workflow'}
-            </div>
-          )}
-        </form>
-      </div>
-    );
-  }
-
-  // Desktop: Centered modal
-  return (
-    <div
-      data-testid="pour-workflow-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">Pour New Workflow</h2>
-          <button
-            onClick={onClose}
-            data-testid="pour-modal-close"
-            className="p-1 text-gray-400 hover:text-gray-600 rounded"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex-1">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Workflow Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              data-testid="pour-title-input"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="My Workflow"
-            />
-          </div>
-
-          {/* Mode Toggle */}
-          <div className="mb-4">
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setUseQuickMode(true)}
-                data-testid="mode-quick"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  useQuickMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Quick Create
-              </button>
-              <button
-                type="button"
-                onClick={() => setUseQuickMode(false)}
-                data-testid="mode-playbook"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  !useQuickMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                From Playbook
-              </button>
-            </div>
-          </div>
-
-          {useQuickMode ? (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Playbook Name
-              </label>
-              <input
-                type="text"
-                value={quickPlaybookName}
-                onChange={(e) => setQuickPlaybookName(e.target.value)}
-                data-testid="pour-playbook-input"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Quick Setup"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                A simple 3-step workflow will be created with this name
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Playbook
-                </label>
-                <PlaybookPicker
-                  selectedPlaybook={selectedPlaybookName}
-                  onSelect={setSelectedPlaybookName}
-                />
-              </div>
-
-              {selectedPlaybookName && isLoadingPlaybook && (
-                <div className="mb-4 flex items-center gap-2 text-gray-500 text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading playbook details...
-                </div>
-              )}
-
-              {selectedPlaybook && (
-                <>
-                  {/* Playbook Info */}
-                  <div
-                    data-testid="playbook-info"
-                    className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-100"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Book className="w-4 h-4 text-purple-500" />
-                      <span className="font-medium text-purple-900">{selectedPlaybook.title}</span>
-                    </div>
-                    <div className="text-xs text-purple-700">
-                      {selectedPlaybook.steps.length} steps • Version {selectedPlaybook.version}
-                    </div>
-                  </div>
-
-                  {/* Variable Inputs */}
-                  {selectedPlaybook.variables.length > 0 && (
-                    <div className="mb-4">
-                      <VariableInputForm
-                        variables={selectedPlaybook.variables}
-                        values={variables}
-                        onChange={handleVariableChange}
-                      />
-                    </div>
-                  )}
-
-                  {/* Steps Preview */}
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-gray-700 mb-2">
-                      Steps ({selectedPlaybook.steps.length})
-                    </div>
-                    <div
-                      data-testid="playbook-steps-preview"
-                      className="space-y-1 max-h-32 overflow-y-auto"
-                    >
-                      {selectedPlaybook.steps.map((step, index) => (
-                        <div
-                          key={step.id}
-                          className="flex items-center gap-2 text-sm text-gray-600 py-1"
-                        >
-                          <span className="w-5 h-5 flex items-center justify-center bg-gray-100 rounded text-xs font-medium">
-                            {index + 1}
-                          </span>
-                          <span>{step.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {pourWorkflow.isError && (
-            <div className="mb-4 p-2 bg-red-50 text-red-700 text-sm rounded">
-              {pourWorkflow.error?.message || 'Failed to pour workflow'}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={pourWorkflow.isPending || (!useQuickMode && !selectedPlaybook)}
-              data-testid="pour-submit-button"
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              {pourWorkflow.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Pouring...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  Pour Workflow
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/**
  * Main Workflows Page Component (TB148 - responsive)
  */
 export function WorkflowsPage() {
@@ -1739,7 +1025,9 @@ export function WorkflowsPage() {
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(search.selected ?? null);
-  const [isPourModalOpen, setIsPourModalOpen] = useState(false);
+
+  // Global quick actions for C W shortcut
+  const { openPourWorkflowModal } = useGlobalQuickActions();
 
   // Use upfront-loaded data (TB67)
   const { data: allWorkflows, isLoading: isWorkflowsLoading } = useAllWorkflows();
@@ -1832,12 +1120,13 @@ export function WorkflowsPage() {
                 )}
               </div>
               <button
-                onClick={() => setIsPourModalOpen(true)}
+                onClick={openPourWorkflowModal}
                 data-testid="pour-workflow-button"
                 className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
               >
                 <Plus className="w-4 h-4" />
                 Pour Workflow
+                <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">C W</kbd>
               </button>
             </div>
 
@@ -1964,7 +1253,7 @@ export function WorkflowsPage() {
       {/* Mobile Floating Action Button for Pour Workflow (TB148) */}
       {isMobile && !selectedWorkflowId && (
         <button
-          onClick={() => setIsPourModalOpen(true)}
+          onClick={openPourWorkflowModal}
           className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-lg z-40 touch-target"
           aria-label="Pour new workflow"
           data-testid="mobile-pour-workflow-fab"
@@ -1972,13 +1261,6 @@ export function WorkflowsPage() {
           <Plus className="w-6 h-6" />
         </button>
       )}
-
-      {/* Pour Workflow Modal (TB148 - responsive) */}
-      <PourWorkflowModal
-        isOpen={isPourModalOpen}
-        onClose={() => setIsPourModalOpen(false)}
-        isMobile={isMobile}
-      />
     </div>
   );
 }

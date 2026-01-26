@@ -6,7 +6,7 @@ import { CommandPalette } from '../navigation';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
-import { useGlobalKeyboardShortcuts, useKeyboardShortcut, useIsMobile, useIsTablet } from '../../hooks';
+import { useGlobalKeyboardShortcuts, useKeyboardShortcut, useIsMobile, useIsTablet, GlobalQuickActionsProvider } from '../../hooks';
 import type { ConnectionState } from '../../api/websocket';
 import {
   ChevronRight,
@@ -326,6 +326,7 @@ export function AppShell() {
   const sidebarCollapsed = isMobile ? true : isTablet ? true : desktopCollapsed;
 
   return (
+    <GlobalQuickActionsProvider>
     <div className="flex h-screen bg-[var(--color-bg)]" data-testid="app-shell">
       <CommandPalette />
 
@@ -406,5 +407,6 @@ export function AppShell() {
         </main>
       </div>
     </div>
+    </GlobalQuickActionsProvider>
   );
 }

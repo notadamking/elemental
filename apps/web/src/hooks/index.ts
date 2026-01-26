@@ -5,6 +5,11 @@ export {
   getKeyboardManager,
 } from './useKeyboardShortcuts';
 
+export {
+  GlobalQuickActionsProvider,
+  useGlobalQuickActions,
+} from './useGlobalQuickActions';
+
 export { useTheme } from './useTheme';
 export type { Theme } from './useTheme';
 

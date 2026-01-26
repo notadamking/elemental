@@ -97,7 +97,7 @@ test.describe('TB77: Dashboard Quick Actions with Modals', () => {
       await page.getByTestId('quick-action-pour-workflow').click();
       await expect(page.getByTestId('pour-workflow-modal')).toBeVisible();
 
-      await page.getByTestId('pour-modal-close').click();
+      await page.getByTestId('pour-workflow-modal-close').click();
       await expect(page.getByTestId('pour-workflow-modal')).not.toBeVisible();
     });
 
@@ -250,6 +250,78 @@ test.describe('TB77: Dashboard Quick Actions with Modals', () => {
 
       // Toast should have View Workflow action
       await expect(page.getByRole('button', { name: 'View Workflow' })).toBeVisible();
+    });
+  });
+
+  test.describe('Global Keyboard Shortcuts', () => {
+    test('C T keyboard shortcut works on Tasks page', async ({ page }) => {
+      // Navigate to Tasks page
+      await page.goto('/tasks');
+      await expect(page.getByTestId('tasks-page')).toBeVisible();
+
+      // Press C T to open create task modal
+      await page.keyboard.press('c');
+      await page.keyboard.press('t');
+
+      // Modal should open
+      await expect(page.getByTestId('create-task-modal')).toBeVisible({ timeout: 2000 });
+    });
+
+    test('C W keyboard shortcut works on Tasks page', async ({ page }) => {
+      // Navigate to Tasks page
+      await page.goto('/tasks');
+      await expect(page.getByTestId('tasks-page')).toBeVisible();
+
+      // Press C W to open pour workflow modal
+      await page.keyboard.press('c');
+      await page.keyboard.press('w');
+
+      // Modal should open
+      await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 2000 });
+    });
+
+    test('C T keyboard shortcut works on Workflows page', async ({ page }) => {
+      // Navigate to Workflows page
+      await page.goto('/workflows');
+      await expect(page.getByTestId('workflows-page')).toBeVisible();
+
+      // Press C T to open create task modal
+      await page.keyboard.press('c');
+      await page.keyboard.press('t');
+
+      // Modal should open
+      await expect(page.getByTestId('create-task-modal')).toBeVisible({ timeout: 2000 });
+    });
+
+    test('C W keyboard shortcut works on Workflows page', async ({ page }) => {
+      // Navigate to Workflows page
+      await page.goto('/workflows');
+      await expect(page.getByTestId('workflows-page')).toBeVisible();
+
+      // Press C W to open pour workflow modal
+      await page.keyboard.press('c');
+      await page.keyboard.press('w');
+
+      // Modal should open
+      await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 2000 });
+    });
+
+    test('Tasks page Create Task button shows keyboard hint', async ({ page }) => {
+      await page.goto('/tasks');
+      await expect(page.getByTestId('tasks-page')).toBeVisible();
+
+      // Button should show C T keyboard hint
+      const button = page.getByTestId('create-task-button');
+      await expect(button).toContainText('C T');
+    });
+
+    test('Workflows page Pour Workflow button shows keyboard hint', async ({ page }) => {
+      await page.goto('/workflows');
+      await expect(page.getByTestId('workflows-page')).toBeVisible();
+
+      // Button should show C W keyboard hint
+      const button = page.getByTestId('pour-workflow-button');
+      await expect(button).toContainText('C W');
     });
   });
 });
