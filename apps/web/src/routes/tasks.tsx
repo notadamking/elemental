@@ -556,20 +556,28 @@ function useEntities() {
 }
 
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: 'Critical', color: 'bg-red-100 text-red-800' },
-  2: { label: 'High', color: 'bg-orange-100 text-orange-800' },
-  3: { label: 'Medium', color: 'bg-yellow-100 text-yellow-800' },
-  4: { label: 'Low', color: 'bg-green-100 text-green-800' },
-  5: { label: 'Trivial', color: 'bg-gray-100 text-gray-800' },
+  1: { label: 'Critical', color: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200' },
+  2: { label: 'High', color: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200' },
+  3: { label: 'Medium', color: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200' },
+  4: { label: 'Low', color: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' },
+  5: { label: 'Trivial', color: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200' },
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-blue-100 text-blue-800',
-  in_progress: 'bg-yellow-100 text-yellow-800',
-  blocked: 'bg-red-100 text-red-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-gray-100 text-gray-800',
+  open: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
+  in_progress: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
+  blocked: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
+  completed: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
+  cancelled: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200',
 };
+
+// Format status for display with proper capitalization
+function formatStatus(status: string): string {
+  return status
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (view: ViewMode) => void }) {
   return (
@@ -1591,19 +1599,19 @@ function SortableHeaderCell({
 
   return (
     <button
-      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none w-full flex items-center gap-1"
+      className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 select-none w-full flex items-center gap-1 transition-colors"
       onClick={() => onSort(field)}
       data-testid={`sort-header-${field}`}
     >
       <span>{label}</span>
       {isActive ? (
         currentSort.direction === 'asc' ? (
-          <ArrowUp className="w-3.5 h-3.5 text-blue-600" />
+          <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
         ) : (
-          <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+          <ArrowDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
         )
       ) : (
-        <ArrowUpDown className="w-3.5 h-3.5 text-gray-300" />
+        <ArrowUpDown className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600" />
       )}
     </button>
   );
@@ -1647,8 +1655,12 @@ function VirtualTaskRow({
 
   return (
     <div
-      className={`flex items-center border-b border-gray-200 cursor-pointer transition-colors ${
-        isSelected ? 'bg-blue-50 hover:bg-blue-100' : isOdd ? 'bg-gray-50 hover:bg-gray-100' : 'bg-white hover:bg-gray-50'
+      className={`flex items-center border-b border-gray-200 dark:border-gray-700 cursor-pointer transition-colors ${
+        isSelected
+          ? 'bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+          : isOdd
+            ? 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800'
+            : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50'
       }`}
       onClick={onClick}
       data-testid={`task-row-${task.id}`}
@@ -1657,24 +1669,24 @@ function VirtualTaskRow({
       <div className="px-2 py-3 w-10 flex-shrink-0">
         <button
           onClick={handleCheckboxClick}
-          className="p-1 hover:bg-gray-200 rounded"
+          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
           data-testid={`task-checkbox-${task.id}`}
           aria-label={isChecked ? `Deselect task: ${task.title}` : `Select task: ${task.title}`}
         >
           {isChecked ? (
-            <CheckSquare className="w-4 h-4 text-blue-600" />
+            <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           ) : (
-            <Square className="w-4 h-4 text-gray-500" />
+            <Square className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           )}
         </button>
       </div>
       <div className="flex-1 min-w-[200px] px-4 py-3">
-        <div className="font-medium text-gray-900 truncate" data-testid={`task-title-${task.id}`}>{highlightedTitle}</div>
-        <div className="text-xs text-gray-500 font-mono truncate">{task.id}</div>
+        <div className="font-medium text-gray-900 dark:text-gray-100 truncate" data-testid={`task-title-${task.id}`}>{highlightedTitle}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">{task.id}</div>
       </div>
       <div className="w-28 px-4 py-3">
-        <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-          {task.status.replace('_', ' ')}
+        <span className={`px-2 py-1 text-xs font-medium rounded whitespace-nowrap ${statusColor}`}>
+          {formatStatus(task.status)}
         </span>
       </div>
       <div className="w-28 px-4 py-3">
@@ -1682,21 +1694,21 @@ function VirtualTaskRow({
           {priority.label}
         </span>
       </div>
-      <div className="w-28 px-4 py-3 text-sm text-gray-600 capitalize truncate">
+      <div className="w-28 px-4 py-3 text-sm text-gray-600 dark:text-gray-400 capitalize truncate">
         {task.taskType}
       </div>
-      <div className="w-32 px-4 py-3 text-sm text-gray-600 truncate">
+      <div className="w-32 px-4 py-3 text-sm text-gray-600 dark:text-gray-400 truncate">
         {task.assignee || '-'}
       </div>
       <div className="w-32 px-4 py-3">
         <div className="flex gap-1">
           {task.tags.slice(0, 2).map((tag) => (
-            <span key={tag} className="px-1.5 py-0.5 text-xs bg-gray-200 rounded truncate max-w-[60px]">
+            <span key={tag} className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded truncate max-w-[60px]">
               {tag}
             </span>
           ))}
           {task.tags.length > 2 && (
-            <span className="text-xs text-gray-500">+{task.tags.length - 2}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">+{task.tags.length - 2}</span>
           )}
         </div>
       </div>

@@ -398,27 +398,27 @@ function useDeleteTask() {
 }
 
 const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: 'Critical', color: 'bg-red-100 text-red-800' },
-  2: { label: 'High', color: 'bg-orange-100 text-orange-800' },
-  3: { label: 'Medium', color: 'bg-yellow-100 text-yellow-800' },
-  4: { label: 'Low', color: 'bg-green-100 text-green-800' },
-  5: { label: 'Trivial', color: 'bg-gray-100 text-gray-800' },
+  1: { label: 'Critical', color: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200' },
+  2: { label: 'High', color: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200' },
+  3: { label: 'Medium', color: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200' },
+  4: { label: 'Low', color: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' },
+  5: { label: 'Trivial', color: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200' },
 };
 
 const TASK_TYPE_COLORS: Record<string, string> = {
-  bug: 'bg-red-50 border-red-200',
-  feature: 'bg-purple-50 border-purple-200',
-  task: 'bg-blue-50 border-blue-200',
-  chore: 'bg-gray-50 border-gray-200',
+  bug: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+  feature: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800',
+  task: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
+  chore: 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700',
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  open: { label: 'Open', color: 'bg-blue-100 text-blue-800', icon: null },
-  in_progress: { label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', icon: null },
-  blocked: { label: 'Blocked', color: 'bg-red-100 text-red-800', icon: <AlertTriangle className="w-3 h-3" /> },
-  completed: { label: 'Completed', color: 'bg-green-100 text-green-800', icon: <CheckCircle2 className="w-3 h-3" /> },
-  cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-800', icon: null },
-  deferred: { label: 'Deferred', color: 'bg-purple-100 text-purple-800', icon: null },
+  open: { label: 'Open', color: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200', icon: null },
+  in_progress: { label: 'In Progress', color: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200', icon: null },
+  blocked: { label: 'Blocked', color: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200', icon: <AlertTriangle className="w-3 h-3" /> },
+  completed: { label: 'Completed', color: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200', icon: <CheckCircle2 className="w-3 h-3" /> },
+  cancelled: { label: 'Cancelled', color: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200', icon: null },
+  deferred: { label: 'Deferred', color: 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200', icon: null },
 };
 
 const COMPLEXITY_LABELS: Record<number, string> = {
@@ -446,26 +446,26 @@ function TaskCard({ task, showBlockReason, onClick }: { task: Task | BlockedTask
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
-          <p className="text-xs text-gray-600 mt-0.5 font-mono">{task.id}</p>
+          <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{task.title}</h4>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 font-mono">{task.id}</p>
         </div>
         <span className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${priority.color}`}>
           {priority.label}
         </span>
       </div>
       {blockedTask && (
-        <div className="mt-2 p-2 bg-red-50 rounded border border-red-100">
-          <p className="text-xs text-red-700">
+        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/30 rounded border border-red-100 dark:border-red-800">
+          <p className="text-xs text-red-700 dark:text-red-300">
             <span className="font-medium">Blocked by:</span>{' '}
             <span className="font-mono">{blockedTask.blockedBy}</span>
           </p>
-          <p className="text-xs text-red-700 mt-0.5">{blockedTask.blockReason}</p>
+          <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">{blockedTask.blockReason}</p>
         </div>
       )}
       <div className="mt-2 flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-600 capitalize">{task.taskType}</span>
+        <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">{task.taskType}</span>
         {task.assignee && (
-          <span className="text-xs text-gray-500">→ {task.assignee}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">→ {task.assignee}</span>
         )}
       </div>
     </div>
@@ -478,26 +478,26 @@ function InProgressTaskCard({ task, onClick }: { task: Task; onClick?: () => voi
 
   return (
     <div
-      className={`p-3 rounded-lg border bg-yellow-50 border-yellow-200 ${onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-400 transition-all' : ''}`}
+      className={`p-3 rounded-lg border bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700 ${onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-400 transition-all' : ''}`}
       onClick={onClick}
       data-testid={`task-card-${task.id}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
-          <p className="text-xs text-gray-600 mt-0.5 font-mono">{task.id}</p>
+          <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{task.title}</h4>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 font-mono">{task.id}</p>
         </div>
         <span className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${priority.color}`}>
           {priority.label}
         </span>
       </div>
       <div className="mt-2 flex items-center gap-2 flex-wrap">
-        <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-yellow-100 text-yellow-800">
+        <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-yellow-100 dark:bg-yellow-800/50 text-yellow-800 dark:text-yellow-200">
           In Progress
         </span>
-        <span className="text-xs text-gray-500">Started {timeAgo}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">Started {timeAgo}</span>
         {task.assignee && (
-          <span className="text-xs text-gray-500">→ {task.assignee}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">→ {task.assignee}</span>
         )}
       </div>
     </div>
@@ -519,26 +519,26 @@ function CompletedTaskCard({ task, onClick }: { task: Task; onClick?: () => void
 
   return (
     <div
-      className={`p-3 rounded-lg border bg-green-50 border-green-200 ${onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-400 transition-all' : ''}`}
+      className={`p-3 rounded-lg border bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 ${onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-400 transition-all' : ''}`}
       onClick={onClick}
       data-testid={`task-card-${task.id}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-gray-700 text-sm truncate line-through">{task.title}</h4>
-          <p className="text-xs text-gray-600 mt-0.5 font-mono">{task.id}</p>
+          <h4 className="font-medium text-gray-700 dark:text-gray-300 text-sm truncate line-through">{task.title}</h4>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 font-mono">{task.id}</p>
         </div>
-        <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800 shrink-0">
+        <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-200 shrink-0">
           {task.status === 'cancelled' ? 'Cancelled' : 'Done'}
         </span>
       </div>
-      <div className="mt-2 flex items-center gap-2 text-xs text-gray-600" data-testid={`task-completed-time-${task.id}`}>
+      <div className="mt-2 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400" data-testid={`task-completed-time-${task.id}`}>
         <Clock className="w-3 h-3" />
         <span title={`${formattedDate} at ${formattedTime}`}>
           {timeAgo}
         </span>
-        <span className="text-gray-500">·</span>
-        <span className="text-gray-600">{formattedDate}</span>
+        <span className="text-gray-500 dark:text-gray-500">·</span>
+        <span className="text-gray-600 dark:text-gray-400">{formattedDate}</span>
       </div>
     </div>
   );
@@ -1251,17 +1251,17 @@ function DeleteConfirmDialog({
       />
       <div
         ref={dialogRef}
-        className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+        className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
       >
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-            <Trash2 className="w-5 h-5 text-red-600" />
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+            <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">Delete Task</h3>
-            <p className="mt-2 text-sm text-gray-600">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete Task</h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               Are you sure you want to delete{' '}
-              <span className="font-medium text-gray-900">"{taskTitle}"</span>?
+              <span className="font-medium text-gray-900 dark:text-gray-100">"{taskTitle}"</span>?
               This action cannot be undone.
             </p>
           </div>
@@ -1270,7 +1270,7 @@ function DeleteConfirmDialog({
           <button
             onClick={onCancel}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
             data-testid="delete-cancel-button"
           >
             Cancel

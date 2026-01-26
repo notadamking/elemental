@@ -23,6 +23,7 @@ import {
   History,
   Menu,
   Search,
+  Inbox,
 } from 'lucide-react';
 
 interface HealthResponse {
@@ -107,6 +108,7 @@ const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/tasks': { label: 'Tasks', icon: CheckSquare },
   '/plans': { label: 'Plans', icon: Folder },
   '/workflows': { label: 'Workflows', icon: Workflow },
+  '/inbox': { label: 'Inbox', icon: Inbox },
   '/messages': { label: 'Messages', icon: MessageSquare },
   '/documents': { label: 'Documents', icon: FileText },
   '/entities': { label: 'Entities', icon: Users },

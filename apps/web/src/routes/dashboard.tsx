@@ -280,7 +280,7 @@ function QuickActions({
 }) {
   return (
     <div className="mt-8" data-testid="quick-actions">
-      <h3 className="text-md font-medium text-gray-900 mb-4">Quick Actions</h3>
+      <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Quick Actions</h3>
       <div className="flex flex-wrap gap-3">
         <button
           onClick={onCreateTask}
@@ -303,7 +303,7 @@ function QuickActions({
         <Link
           to="/tasks"
           search={{ page: 1, limit: 25, readyOnly: true }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           data-testid="quick-action-view-tasks"
         >
           <ListTodo className="w-4 h-4" />
@@ -452,7 +452,7 @@ export function DashboardPage() {
 
   return (
     <div data-testid="dashboard-page">
-      <h1 className="text-lg font-medium text-gray-900 mb-6">Dashboard</h1>
+      <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-6">Dashboard</h1>
 
       {/* Key Metrics Overview */}
       <MetricsOverview />
@@ -502,7 +502,7 @@ export function DashboardPage() {
                     <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{count}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 capitalize truncate">{type}s</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 capitalize truncate">{type === 'entity' ? 'Entities' : type === 'library' ? 'Libraries' : `${type}s`}</p>
                     </div>
                   </div>
                 );

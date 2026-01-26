@@ -4,6 +4,9 @@
 /* Import Tailwind */
 @import "tailwindcss";
 
+/* Configure Tailwind to use class-based dark mode instead of prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Apply theme colors to body with smooth 300ms transition */
 body {
   background-color: var(--color-bg);
@@ -34,17 +37,58 @@ nav,
   background-color: var(--color-bg);
 }
 
-.dark .border-gray-200 {
+.dark .bg-gray-100 {
+  background-color: var(--color-surface);
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300 {
   border-color: var(--color-border);
 }
 
-.dark .text-gray-900 {
+.dark .border-gray-100 {
+  border-color: var(--color-border-subtle);
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800 {
   color: var(--color-text);
+}
+
+.dark .text-gray-700 {
+  color: var(--color-text-secondary);
 }
 
 .dark .text-gray-600,
 .dark .text-gray-500 {
+  color: var(--color-text-tertiary);
+}
+
+.dark .text-gray-400 {
+  color: var(--color-text-tertiary);
+}
+
+/* Dark mode hover state overrides */
+.dark .hover\:bg-gray-50:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--color-surface-active);
+}
+
+.dark .hover\:text-gray-900:hover {
+  color: var(--color-text);
+}
+
+.dark .hover\:text-gray-600:hover {
   color: var(--color-text-secondary);
+}
+
+/* Dark mode placeholder text */
+.dark .placeholder-gray-400::placeholder,
+.dark .placeholder-gray-500::placeholder {
+  color: var(--color-text-tertiary);
 }
 
 /* Custom animations for slide-over panels */

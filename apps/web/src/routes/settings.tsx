@@ -314,14 +314,14 @@ function ThemeSection({
             text-xs px-2 py-1 rounded inline-block
             ${currentTheme === 'high-contrast'
               ? highContrastBase === 'dark'
-                ? 'bg-[rgba(102,255,102,0.2)] text-[#66ff66]'
-                : 'bg-[#ccffcc] text-[#006600]'
+                ? 'bg-[rgba(102,178,255,0.2)] text-[#66b3ff]'
+                : 'bg-[#cce5ff] text-[#0052cc]'
               : resolvedTheme === 'dark'
-                ? 'bg-green-900/50 text-green-300'
-                : 'bg-green-100 text-green-700'
+                ? 'bg-blue-900/50 text-blue-200'
+                : 'bg-blue-100 text-blue-800'
             }
           `}>
-            Status: Active
+            Open
           </div>
         </div>
       </div>

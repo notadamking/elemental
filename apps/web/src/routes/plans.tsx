@@ -176,7 +176,7 @@ function highlightMatches(title: string, indices: number[]): React.ReactNode {
       }
       // Add highlighted character
       result.push(
-        <mark key={`match-${i}`} className="bg-yellow-200 text-gray-900 rounded-sm px-0.5">
+        <mark key={`match-${i}`} className="bg-yellow-200 dark:bg-yellow-700/50 text-gray-900 dark:text-yellow-100 rounded-sm px-0.5">
           {title[i]}
         </mark>
       );
@@ -548,8 +548,8 @@ function PlanListItem({
       data-testid={`plan-item-${plan.id}`}
       className={`p-4 rounded-lg border cursor-pointer transition-colors ${
         isSelected
-          ? 'bg-blue-50 border-blue-200'
-          : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+          ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700'
+          : 'bg-white dark:bg-[var(--color-surface)] border-gray-200 dark:border-[var(--color-border)] hover:border-gray-300 dark:hover:border-[var(--color-border-hover)] hover:bg-gray-50 dark:hover:bg-[var(--color-surface-hover)]'
       }`}
       onClick={() => onClick(plan.id)}
     >
@@ -559,7 +559,7 @@ function PlanListItem({
           <div className="flex items-start justify-between mb-2">
             <h3
               data-testid="plan-item-title"
-              className="font-medium text-gray-900 truncate flex-1"
+              className="font-medium text-gray-900 dark:text-[var(--color-text)] truncate flex-1"
             >
               {titleContent}
             </h3>
@@ -567,7 +567,7 @@ function PlanListItem({
 
           <div className="flex items-center gap-2 mb-2">
             <StatusBadge status={plan.status} />
-            <span className="text-xs text-gray-500" title={formatDate(plan.updatedAt)}>
+            <span className="text-xs text-gray-500 dark:text-[var(--color-text-tertiary)]" title={formatDate(plan.updatedAt)}>
               Updated {formatRelativeTime(plan.updatedAt)}
             </span>
           </div>
@@ -577,13 +577,13 @@ function PlanListItem({
               {plan.tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag}
-                  className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
+                  className="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-[var(--color-surface-hover)] text-gray-600 dark:text-[var(--color-text-secondary)] rounded"
                 >
                   {tag}
                 </span>
               ))}
               {plan.tags.length > 3 && (
-                <span className="text-xs text-gray-400">+{plan.tags.length - 3}</span>
+                <span className="text-xs text-gray-400 dark:text-[var(--color-text-tertiary)]">+{plan.tags.length - 3}</span>
               )}
             </div>
           )}
@@ -599,14 +599,14 @@ function PlanListItem({
             />
           ) : (
             <div
-              className="w-8 h-8 rounded-full border-2 border-dashed border-gray-200 flex items-center justify-center"
+              className="w-8 h-8 rounded-full border-2 border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center"
               title="No tasks in plan"
               data-testid={`plan-progress-empty-${plan.id}`}
             >
-              <span className="text-[8px] text-gray-400">--</span>
+              <span className="text-[8px] text-gray-400 dark:text-gray-500">--</span>
             </div>
           )}
-          <ChevronRight className="w-4 h-4 text-gray-400" />
+          <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500" />
         </div>
       </div>
     </div>

@@ -66,6 +66,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
           'inline-flex items-center',
           'font-medium',
           'rounded-md',
+          'whitespace-nowrap',
           // Variant
           variantStyles[variant],
           // Size

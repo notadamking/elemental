@@ -239,13 +239,13 @@ function MemberRow({
   return (
     <div
       data-testid={`member-${member.id}`}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 group relative"
+      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 group relative transition-colors"
     >
       <MemberAvatar name={member.name} entityType={entityType} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           {isNotFound ? (
-            <span className="text-sm font-medium truncate text-gray-400 italic">
+            <span className="text-sm font-medium truncate text-gray-400 dark:text-gray-500 italic">
               {member.name}
             </span>
           ) : (
@@ -265,10 +265,10 @@ function MemberRow({
           )}
         </div>
         {entityType && !isNotFound && (
-          <span className="text-xs text-gray-500 capitalize">{entityType}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{entityType}</span>
         )}
         {isNotFound && (
-          <span className="text-xs text-gray-400">Entity not found</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Entity not found</span>
         )}
       </div>
       {canModify && canRemove && !showConfirm && (
@@ -446,22 +446,22 @@ export function ChannelMembersPanel({
   return (
     <div
       data-testid="channel-members-panel"
-      className="fixed inset-y-0 right-0 w-80 bg-white shadow-xl border-l border-gray-200 flex flex-col z-50 animate-slide-in-right"
+      className="fixed inset-y-0 right-0 w-80 bg-white dark:bg-[var(--color-bg-secondary)] shadow-xl border-l border-gray-200 dark:border-[var(--color-border)] flex flex-col z-50 animate-slide-in-right"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[var(--color-border)]">
         <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-gray-500" />
-          <h3 className="font-medium text-gray-900">Members</h3>
+          <Users className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          <h3 className="font-medium text-gray-900 dark:text-[var(--color-text)]">Members</h3>
           {membersData && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 dark:text-gray-400">
               ({membersData.members.length})
             </span>
           )}
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
           data-testid="close-members-panel"
         >
           <X className="w-5 h-5" />
