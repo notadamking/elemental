@@ -984,64 +984,25 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB149: Responsive Messages Page (Slack-style)**
+- [x] **TB149: Responsive Messages Page (Slack-style)** *(Completed 2026-01-26)*
 
   **Context:** The Messages page has a Slack-style layout: channel list on left, message view on right. On mobile, this needs to become a two-screen navigation pattern.
 
-  **Tracer Bullet Steps:**
-  - [ ] Step 1: Audit current Messages layout
-    - Identify channel list, message list, composer
-    - Note any existing responsive behavior
-    - **Verify immediately:** Understand current structure
-  - [ ] Step 2: Implement two-screen mobile navigation
-    - Mobile: Channel list is full screen initially
-    - Tap channel → navigate to full-screen message view
-    - Back button returns to channel list
-    - URL reflects current view (/messages vs /messages/:channelId)
-    - **Verify immediately:** Can navigate between channels and messages on mobile
-  - [ ] Step 3: Responsive channel list
-    - Desktop: fixed-width sidebar (250px)
-    - Mobile: full width, larger touch targets
-    - Unread badges clearly visible
-    - **Verify immediately:** Channel list usable on mobile
-  - [ ] Step 4: Responsive message list
-    - Messages take full width on mobile
-    - Sender avatars smaller on mobile
-    - Timestamps adapt (relative on mobile, full on desktop)
-    - Day separators work at all widths
-    - **Verify immediately:** Messages readable on mobile
-  - [ ] Step 5: Responsive message bubbles
-    - Max width constraint (80% on mobile)
-    - Long messages wrap correctly
-    - Code blocks have horizontal scroll
-    - Images scale to fit
-    - **Verify immediately:** All message types render correctly on mobile
-  - [ ] Step 6: Responsive message composer
-    - Full width on mobile
-    - Formatting toolbar: collapsed into menu on mobile
-    - Attachment button accessible
-    - Send button always visible
-    - **Verify immediately:** Can compose message with formatting on mobile
-  - [ ] Step 7: Responsive @mention and emoji picker
-    - Autocomplete dropdown fits screen
-    - Emoji picker: full-screen or bottom sheet on mobile
-    - **Verify immediately:** Can @mention and add emoji on mobile
-  - [ ] Step 8: Responsive message actions
-    - Desktop: hover to reveal actions
-    - Mobile: long-press to show action menu
-    - Copy, react, reply actions accessible
-    - **Verify immediately:** Can copy message on mobile via long-press
-  - [ ] Step 9: Responsive search
-    - Search results fit mobile width
-    - Jump to message works on mobile
-    - **Verify immediately:** Can search messages on mobile
-  - [ ] Step 10: Handle keyboard appearance on mobile
-    - Composer stays visible above keyboard
-    - Scroll to keep context when keyboard opens
-    - **Verify immediately:** Keyboard doesn't obscure composer on iOS/Android
-  - [ ] Step 11: Write Playwright tests
-    - Test channel navigation, message viewing, composing
-    - Test at all breakpoints
+  **Implementation Summary:**
+  - Two-screen mobile navigation (channel list → full-screen channel view)
+  - Back button navigation from channel view
+  - Mobile FAB for creating channels
+  - Responsive channel list with full width and larger touch targets
+  - Responsive message bubbles with smaller avatars and action sheet (long-press)
+  - Responsive message composer with compact layout
+  - Mobile search toggle with expandable search bar
+  - Thread panel as full-screen overlay on mobile
+  - 18 Playwright tests covering all responsive behaviors
+
+  **Files:**
+  - `apps/web/src/routes/messages.tsx` - Main implementation
+  - `apps/web/tests/tb149-responsive-messages.spec.ts` - Playwright tests
+  - `specs/platform/TB149_RESPONSIVE_MESSAGES.md` - Detailed spec
     - **Verify:** Tests pass in `apps/web/tests/tb149-responsive-messages.spec.ts`
 
 ---

@@ -12,7 +12,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar, Copy, Check, ImageIcon, XCircle } from 'lucide-react';
+import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar, Copy, Check, ImageIcon, XCircle, ChevronLeft, MoreVertical } from 'lucide-react';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import { useDebounce } from '../hooks/useDebounce';
 import { toast } from 'sonner';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
@@ -508,24 +509,28 @@ function ChannelListItem({
   channel,
   isSelected,
   onClick,
+  isMobile = false,
 }: {
   channel: Channel;
   isSelected: boolean;
   onClick: () => void;
+  isMobile?: boolean;
 }) {
   return (
     <button
       data-testid={`channel-item-${channel.id}`}
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left transition-colors ${
+      className={`w-full flex items-center gap-2 sm:gap-2 rounded-md text-left transition-colors touch-target ${
+        isMobile ? 'px-4 py-3 gap-3' : 'px-3 py-2'
+      } ${
         isSelected
-          ? 'bg-blue-50 text-blue-700'
-          : 'text-gray-700 hover:bg-gray-100'
+          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
       }`}
     >
       <ChannelIcon channel={channel} />
-      <span className="truncate text-sm font-medium">{channel.name}</span>
-      <span className="ml-auto text-xs text-gray-400">
+      <span className={`truncate font-medium ${isMobile ? 'text-base' : 'text-sm'}`}>{channel.name}</span>
+      <span className={`ml-auto text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
         {channel.members.length}
       </span>
     </button>
@@ -545,6 +550,7 @@ function ChannelList({
   onPageSizeChange,
   searchQuery,
   onSearchChange,
+  isMobile = false,
 }: {
   channels: Channel[];
   selectedChannelId: string | null;
@@ -558,6 +564,7 @@ function ChannelList({
   onPageSizeChange: (pageSize: number) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  isMobile?: boolean;
 }) {
   // Separate channels into groups and direct
   const groupChannels = channels.filter((c) => c.channelType === 'group');
@@ -566,54 +573,63 @@ function ChannelList({
   return (
     <div
       data-testid="channel-list"
-      className="w-64 border-r border-gray-200 bg-white flex flex-col h-full"
+      className={`flex flex-col h-full bg-[var(--color-bg)] ${
+        isMobile ? 'w-full' : 'w-64 border-r border-[var(--color-border)]'
+      }`}
     >
-      <div className="p-4 border-b border-gray-200">
+      <div className={`border-b border-[var(--color-border)] ${isMobile ? 'p-4 pt-2' : 'p-4'}`}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Channels</h2>
+          <h2 className={`font-semibold text-[var(--color-text)] ${isMobile ? 'text-xl' : 'text-lg'}`}>Channels</h2>
           <button
             onClick={onNewChannel}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            className={`text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors ${
+              isMobile ? 'p-2 touch-target' : 'p-1.5'
+            }`}
             title="New Channel"
             data-testid="new-channel-button-sidebar"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className={isMobile ? 'w-6 h-6' : 'w-5 h-5'} />
           </button>
         </div>
         {/* Search box */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${isMobile ? 'left-3 w-5 h-5' : 'left-2.5 w-4 h-4'}`} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search channels..."
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder={isMobile ? 'Search...' : 'Search channels...'}
+            className={`w-full border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)] ${
+              isMobile ? 'pl-10 pr-4 py-2.5 text-base' : 'pl-8 pr-3 py-1.5 text-sm'
+            }`}
             data-testid="channels-search-input"
           />
         </div>
-        <div className="mt-2 text-xs text-gray-500">
+        <div className={`mt-2 text-gray-500 dark:text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
           {channels.length} of {totalItems} channels
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-2' : 'p-2'}`}>
         {/* Group Channels */}
         {groupChannels.length > 0 && (
           <div className="mb-4">
             <div
               data-testid="channel-group-label"
-              className="px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+              className={`px-3 py-1 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
+                isMobile ? 'text-sm' : 'text-xs'
+              }`}
             >
               Channels
             </div>
-            <div data-testid="channel-group-list" className="space-y-1">
+            <div data-testid="channel-group-list" className={`${isMobile ? 'space-y-1' : 'space-y-1'}`}>
               {groupChannels.map((channel) => (
                 <ChannelListItem
                   key={channel.id}
                   channel={channel}
                   isSelected={selectedChannelId === channel.id}
                   onClick={() => onSelectChannel(channel.id)}
+                  isMobile={isMobile}
                 />
               ))}
             </div>
@@ -625,17 +641,20 @@ function ChannelList({
           <div>
             <div
               data-testid="channel-direct-label"
-              className="px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+              className={`px-3 py-1 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
+                isMobile ? 'text-sm' : 'text-xs'
+              }`}
             >
               Direct Messages
             </div>
-            <div data-testid="channel-direct-list" className="space-y-1">
+            <div data-testid="channel-direct-list" className={`${isMobile ? 'space-y-1' : 'space-y-1'}`}>
               {directChannels.map((channel) => (
                 <ChannelListItem
                   key={channel.id}
                   channel={channel}
                   isSelected={selectedChannelId === channel.id}
                   onClick={() => onSelectChannel(channel.id)}
+                  isMobile={isMobile}
                 />
               ))}
             </div>
@@ -646,14 +665,14 @@ function ChannelList({
         {channels.length === 0 && (
           <div
             data-testid="channel-empty-state"
-            className="text-center py-8 text-gray-500"
+            className={`text-center text-gray-500 dark:text-gray-400 ${isMobile ? 'py-12' : 'py-8'}`}
           >
-            <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-sm">{searchQuery ? 'No channels match your search' : 'No channels yet'}</p>
+            <MessageSquare className={`mx-auto mb-3 text-gray-300 dark:text-gray-600 ${isMobile ? 'w-16 h-16' : 'w-12 h-12'}`} />
+            <p className={isMobile ? 'text-base' : 'text-sm'}>{searchQuery ? 'No channels match your search' : 'No channels yet'}</p>
             {!searchQuery && (
               <button
                 onClick={onNewChannel}
-                className="mt-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                className={`mt-3 text-blue-600 hover:text-blue-700 hover:underline ${isMobile ? 'text-base py-2 px-4' : 'text-sm'}`}
                 data-testid="new-channel-button-empty"
               >
                 Create one
@@ -663,9 +682,9 @@ function ChannelList({
         )}
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="border-t border-gray-200 p-2">
+      {/* Pagination - hide on mobile to save space */}
+      {totalPages > 1 && !isMobile && (
+        <div className="border-t border-[var(--color-border)] p-2">
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
@@ -681,18 +700,18 @@ function ChannelList({
   );
 }
 
-function ChannelPlaceholder() {
+function ChannelPlaceholder({ isMobile = false }: { isMobile?: boolean }) {
   return (
     <div
       data-testid="channel-placeholder"
-      className="flex-1 flex items-center justify-center bg-gray-50"
+      className={`flex-1 flex items-center justify-center bg-[var(--color-surface)] ${isMobile ? 'hidden' : ''}`}
     >
-      <div className="text-center">
-        <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-        <h3 className="text-lg font-medium text-gray-900 mb-1">
+      <div className="text-center px-4">
+        <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+        <h3 className="text-lg font-medium text-[var(--color-text)] mb-1">
           Select a channel
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Choose a channel from the sidebar to view messages
         </p>
       </div>
@@ -731,14 +750,17 @@ function MessageBubble({
   replyCount = 0,
   isThreaded = false,
   isHighlighted = false,
+  isMobile = false,
 }: {
   message: Message;
   onReply?: (message: Message) => void;
   replyCount?: number;
   isThreaded?: boolean;
   isHighlighted?: boolean;
+  isMobile?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const [showMobileActions, setShowMobileActions] = useState(false);
   const messageRef = useRef<HTMLDivElement>(null);
 
   const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
@@ -753,6 +775,7 @@ function MessageBubble({
       setCopied(true);
       toast.success('Message copied');
       setTimeout(() => setCopied(false), 2000);
+      setShowMobileActions(false);
     } catch {
       toast.error('Failed to copy message');
     }
@@ -766,146 +789,256 @@ function MessageBubble({
     }
   };
 
-  return (
-    <div
-      ref={messageRef}
-      data-testid={`message-${message.id}`}
-      className={`flex gap-3 p-3 rounded-lg group relative focus:bg-blue-50 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors duration-300 ${
-        isHighlighted
-          ? 'bg-yellow-100 ring-2 ring-yellow-300'
-          : 'hover:bg-gray-50'
-      }`}
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-    >
-      {/* Avatar placeholder */}
-      <div
-        data-testid={`message-avatar-${message.id}`}
-        className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0"
-      >
-        <span className="text-blue-600 font-medium text-sm">
-          {message.sender.slice(-2).toUpperCase()}
-        </span>
-      </div>
+  // Long-press handler for mobile
+  const handleLongPress = () => {
+    if (isMobile) {
+      setShowMobileActions(true);
+    }
+  };
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <EntityLink
-            entityRef={message.sender}
-            className="font-semibold"
-            data-testid={`message-sender-${message.id}`}
-          />
-          <span
-            data-testid={`message-time-${message.id}`}
-            className="text-xs text-gray-400"
-          >
-            {formattedTime}
+  // Touch handlers for long-press detection
+  const touchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTouchStart = () => {
+    if (isMobile) {
+      touchTimeoutRef.current = setTimeout(handleLongPress, 500);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimeoutRef.current) {
+      clearTimeout(touchTimeoutRef.current);
+      touchTimeoutRef.current = null;
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (touchTimeoutRef.current) {
+      clearTimeout(touchTimeoutRef.current);
+      touchTimeoutRef.current = null;
+    }
+  };
+
+  return (
+    <>
+      <div
+        ref={messageRef}
+        data-testid={`message-${message.id}`}
+        className={`flex rounded-lg group relative focus:bg-blue-50 dark:focus:bg-blue-900/20 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 focus:outline-none transition-colors duration-300 ${
+          isMobile ? 'gap-2 p-2' : 'gap-3 p-3'
+        } ${
+          isHighlighted
+            ? 'bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-300 dark:ring-yellow-600'
+            : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+        }`}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Avatar placeholder - smaller on mobile */}
+        <div
+          data-testid={`message-avatar-${message.id}`}
+          className={`rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0 ${
+            isMobile ? 'w-8 h-8' : 'w-10 h-10'
+          }`}
+        >
+          <span className={`text-blue-600 dark:text-blue-400 font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
+            {message.sender.slice(-2).toUpperCase()}
           </span>
         </div>
-        <div
-          data-testid={`message-content-${message.id}`}
-          className="text-gray-700 mt-1 break-words"
-        >
-          {message._content ? (
-            renderMessageContent(message._content)
-          ) : (
-            <span className="text-gray-400 italic">Content not loaded</span>
-          )}
-        </div>
 
-        {/* Attachments */}
-        {message._attachments && message._attachments.length > 0 && (
-          <div className="mt-2 space-y-1" data-testid={`message-attachments-${message.id}`}>
-            {message._attachments.map((doc) => (
-              <a
-                key={doc.id}
-                href={`/documents?selected=${doc.id}`}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
-                data-testid={`message-attachment-${doc.id}`}
-              >
-                <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-blue-600 truncate">
-                    {doc.title || 'Untitled Document'}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    <span className="px-1 py-0.5 bg-gray-200 text-gray-600 rounded text-[10px]">
-                      {doc.contentType}
-                    </span>
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-        )}
-
-        {/* Thread indicators and reply button */}
-        <div className="flex items-center gap-2 mt-2">
-          {message.threadId && (
-            <div
-              data-testid={`message-thread-indicator-${message.id}`}
-              className="text-xs text-blue-500"
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className={`flex items-baseline ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
+            <EntityLink
+              entityRef={message.sender}
+              className={`font-semibold ${isMobile ? 'text-sm' : ''}`}
+              data-testid={`message-sender-${message.id}`}
+            />
+            <span
+              data-testid={`message-time-${message.id}`}
+              className={`text-gray-400 dark:text-gray-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}
             >
-              Reply in thread
+              {formattedTime}
+            </span>
+          </div>
+          <div
+            data-testid={`message-content-${message.id}`}
+            className={`text-[var(--color-text-secondary)] mt-1 break-words ${isMobile ? 'text-sm' : ''}`}
+          >
+            {message._content ? (
+              renderMessageContent(message._content)
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500 italic">Content not loaded</span>
+            )}
+          </div>
+
+          {/* Attachments */}
+          {message._attachments && message._attachments.length > 0 && (
+            <div className="mt-2 space-y-1" data-testid={`message-attachments-${message.id}`}>
+              {message._attachments.map((doc) => (
+                <a
+                  key={doc.id}
+                  href={`/documents?selected=${doc.id}`}
+                  className={`flex items-center gap-2 bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] rounded-lg border border-[var(--color-border)] transition-colors ${
+                    isMobile ? 'px-2 py-1.5' : 'px-3 py-2'
+                  }`}
+                  data-testid={`message-attachment-${doc.id}`}
+                >
+                  <FileText className={`text-gray-400 flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-medium text-blue-600 dark:text-blue-400 truncate ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                      {doc.title || 'Untitled Document'}
+                    </div>
+                    <div className={isMobile ? 'text-[10px]' : 'text-xs'}>
+                      <span className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-[10px]">
+                        {doc.contentType}
+                      </span>
+                    </div>
+                  </div>
+                </a>
+              ))}
             </div>
           )}
 
-          {/* Show reply count for root messages */}
-          {!isThreaded && replyCount > 0 && (
-            <button
-              data-testid={`message-replies-${message.id}`}
-              onClick={() => onReply?.(message)}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-            >
-              <MessageCircle className="w-3 h-3" />
-              <span>{replyCount} {replyCount === 1 ? 'reply' : 'replies'}</span>
-            </button>
-          )}
+          {/* Thread indicators and reply button */}
+          <div className={`flex items-center gap-2 ${isMobile ? 'mt-1.5' : 'mt-2'}`}>
+            {message.threadId && (
+              <div
+                data-testid={`message-thread-indicator-${message.id}`}
+                className={`text-blue-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}
+              >
+                Reply in thread
+              </div>
+            )}
 
-          {/* Reply button (shown on hover for non-threaded messages without replies) */}
-          {!isThreaded && !message.threadId && onReply && (
-            <button
-              data-testid={`message-reply-button-${message.id}`}
-              onClick={() => onReply(message)}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <MessageCircle className="w-3 h-3" />
-              <span>Reply</span>
-            </button>
-          )}
+            {/* Show reply count for root messages */}
+            {!isThreaded && replyCount > 0 && (
+              <button
+                data-testid={`message-replies-${message.id}`}
+                onClick={() => onReply?.(message)}
+                className={`flex items-center gap-1 text-blue-600 hover:text-blue-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}
+              >
+                <MessageCircle className={isMobile ? 'w-2.5 h-2.5' : 'w-3 h-3'} />
+                <span>{replyCount} {replyCount === 1 ? 'reply' : 'replies'}</span>
+              </button>
+            )}
+
+            {/* Reply button (shown on hover for non-threaded messages without replies - desktop only) */}
+            {!isThreaded && !message.threadId && onReply && !isMobile && (
+              <button
+                data-testid={`message-reply-button-${message.id}`}
+                onClick={() => onReply(message)}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <MessageCircle className="w-3 h-3" />
+                <span>Reply</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Hover action menu - positioned at top right */}
-      <div
-        data-testid={`message-actions-${message.id}`}
-        className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-gray-200 rounded-lg shadow-sm p-1"
-      >
-        <button
-          data-testid={`message-copy-button-${message.id}`}
-          onClick={handleCopy}
-          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-          title="Copy message (C when focused)"
-        >
-          {copied ? (
-            <Check className="w-4 h-4 text-green-500" />
-          ) : (
-            <Copy className="w-4 h-4" />
-          )}
-        </button>
-        {!isThreaded && onReply && (
-          <button
-            data-testid={`message-reply-action-${message.id}`}
-            onClick={() => onReply(message)}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-            title="Reply in thread"
+        {/* Hover action menu - positioned at top right (desktop only) */}
+        {!isMobile && (
+          <div
+            data-testid={`message-actions-${message.id}`}
+            className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-sm p-1"
           >
-            <MessageCircle className="w-4 h-4" />
+            <button
+              data-testid={`message-copy-button-${message.id}`}
+              onClick={handleCopy}
+              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="Copy message (C when focused)"
+            >
+              {copied ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
+            {!isThreaded && onReply && (
+              <button
+                data-testid={`message-reply-action-${message.id}`}
+                onClick={() => onReply(message)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                title="Reply in thread"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Mobile: More actions button (always visible) */}
+        {isMobile && (
+          <button
+            data-testid={`message-more-button-${message.id}`}
+            onClick={() => setShowMobileActions(true)}
+            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 self-start mt-1 touch-target"
+            aria-label="More actions"
+          >
+            <MoreVertical className="w-4 h-4" />
           </button>
         )}
       </div>
-    </div>
+
+      {/* Mobile action sheet */}
+      {isMobile && showMobileActions && (
+        <div
+          className="fixed inset-0 z-50"
+          data-testid={`message-action-sheet-${message.id}`}
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowMobileActions(false)}
+          />
+
+          {/* Action sheet */}
+          <div className="absolute bottom-0 inset-x-0 bg-[var(--color-bg)] rounded-t-2xl shadow-2xl p-4 space-y-2 animate-in slide-in-from-bottom duration-200">
+            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-4" />
+
+            <button
+              onClick={handleCopy}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors touch-target"
+              data-testid={`message-copy-action-mobile-${message.id}`}
+            >
+              {copied ? (
+                <Check className="w-5 h-5 text-green-500" />
+              ) : (
+                <Copy className="w-5 h-5 text-gray-500" />
+              )}
+              <span className="text-[var(--color-text)]">Copy message</span>
+            </button>
+
+            {!isThreaded && onReply && (
+              <button
+                onClick={() => {
+                  onReply(message);
+                  setShowMobileActions(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors touch-target"
+                data-testid={`message-reply-action-mobile-${message.id}`}
+              >
+                <MessageCircle className="w-5 h-5 text-gray-500" />
+                <span className="text-[var(--color-text)]">Reply in thread</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowMobileActions(false)}
+              className="w-full flex items-center justify-center px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mt-2 touch-target"
+            >
+              <span className="text-[var(--color-text)] font-medium">Cancel</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1180,9 +1313,11 @@ const API_BASE = 'http://localhost:3456';
 function MessageComposer({
   channelId,
   channel,
+  isMobile = false,
 }: {
   channelId: string;
   channel: Channel | undefined;
+  isMobile?: boolean;
 }) {
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<AttachedDocument[]>([]);
@@ -1399,23 +1534,25 @@ function MessageComposer({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        className={`p-4 border-t border-gray-200 bg-white relative ${
-          dragOver ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''
+        className={`border-t border-[var(--color-border)] bg-[var(--color-bg)] relative ${
+          isMobile ? 'p-2' : 'p-4'
+        } ${
+          dragOver ? 'ring-2 ring-blue-500 ring-inset bg-blue-50 dark:bg-blue-900/30' : ''
         }`}
       >
         {/* Drag overlay */}
         {dragOver && (
-          <div className="absolute inset-0 flex items-center justify-center bg-blue-50/90 z-10 pointer-events-none">
-            <div className="flex flex-col items-center text-blue-600">
-              <ImageIcon className="w-8 h-8 mb-2" />
-              <span className="text-sm font-medium">Drop image here</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-blue-50/90 dark:bg-blue-900/80 z-10 pointer-events-none">
+            <div className="flex flex-col items-center text-blue-600 dark:text-blue-400">
+              <ImageIcon className={isMobile ? 'w-6 h-6 mb-1' : 'w-8 h-8 mb-2'} />
+              <span className={`font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>Drop image here</span>
             </div>
           </div>
         )}
 
         {/* TB102: Image attachments preview */}
         {imageAttachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-2" data-testid="message-image-attachments-preview">
+          <div className={`flex flex-wrap mb-2 ${isMobile ? 'gap-1.5' : 'gap-2'}`} data-testid="message-image-attachments-preview">
             {imageAttachments.map((img) => (
               <div
                 key={img.url}
@@ -1425,12 +1562,14 @@ function MessageComposer({
                 <img
                   src={img.url}
                   alt={img.filename || 'Attached image'}
-                  className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                  className={`object-cover rounded-lg border border-[var(--color-border)] ${isMobile ? 'w-14 h-14' : 'w-20 h-20'}`}
                 />
                 <button
                   type="button"
                   onClick={() => handleRemoveImageAttachment(img.url)}
-                  className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  className={`absolute -top-1 -right-1 bg-red-500 text-white rounded-full transition-opacity ${
+                    isMobile ? 'p-0.5 opacity-100' : 'p-1 opacity-0 group-hover:opacity-100'
+                  }`}
                   data-testid={`remove-image-attachment-${img.filename}`}
                 >
                   <X className="w-3 h-3" />
@@ -1442,15 +1581,15 @@ function MessageComposer({
 
         {/* Attached documents preview */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-2" data-testid="message-attachments-preview">
+          <div className={`flex flex-wrap mb-2 ${isMobile ? 'gap-1.5' : 'gap-2'}`} data-testid="message-attachments-preview">
             {attachments.map((doc) => (
               <div
                 key={doc.id}
-                className="flex items-center gap-2 px-2 py-1 bg-gray-100 rounded-md text-sm"
+                className={`flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-md ${isMobile ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm'}`}
                 data-testid={`attachment-preview-${doc.id}`}
               >
-                <FileText className="w-4 h-4 text-gray-400" />
-                <span className="truncate max-w-[150px]">{doc.title || 'Untitled'}</span>
+                <FileText className={`text-gray-400 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                <span className={`truncate ${isMobile ? 'max-w-[100px]' : 'max-w-[150px]'}`}>{doc.title || 'Untitled'}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveAttachment(doc.id)}
@@ -1464,32 +1603,36 @@ function MessageComposer({
           </div>
         )}
 
-        <div className="flex gap-2 items-end">
-          {/* TB102: Image attachment button */}
+        <div className={`flex items-end ${isMobile ? 'gap-1' : 'gap-2'}`}>
+          {/* TB102: Image attachment button - collapsed to icon on mobile */}
           <button
             type="button"
             onClick={() => setShowImagePicker(true)}
             disabled={uploadingImage}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors self-end mb-1 disabled:opacity-50"
+            className={`text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors self-end disabled:opacity-50 ${
+              isMobile ? 'p-2 touch-target' : 'p-2 mb-1'
+            }`}
             data-testid="message-image-attach-button"
             title="Attach image"
           >
             {uploadingImage ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className={isMobile ? 'w-5 h-5 animate-spin' : 'w-5 h-5 animate-spin'} />
             ) : (
-              <ImageIcon className="w-5 h-5" />
+              <ImageIcon className={isMobile ? 'w-5 h-5' : 'w-5 h-5'} />
             )}
           </button>
           <button
             type="button"
             onClick={() => setShowPicker(true)}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors self-end mb-1"
+            className={`text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors self-end ${
+              isMobile ? 'p-2 touch-target' : 'p-2 mb-1'
+            }`}
             data-testid="message-attach-button"
             title="Attach document"
           >
-            <Paperclip className="w-5 h-5" />
+            <Paperclip className={isMobile ? 'w-5 h-5' : 'w-5 h-5'} />
           </button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <MessageRichComposer
               ref={editorRef}
               content={content}
@@ -1498,8 +1641,8 @@ function MessageComposer({
               onImagePaste={handleImagePaste}
               channelName={channel?.name}
               disabled={sendMessage.isPending}
-              maxHeight={180}
-              minHeight={60}
+              maxHeight={isMobile ? 120 : 180}
+              minHeight={isMobile ? 44 : 60}
               embedCallbacks={embedCallbacks}
             />
           </div>
@@ -1507,14 +1650,16 @@ function MessageComposer({
             type="submit"
             data-testid="message-send-button"
             disabled={!canSend || sendMessage.isPending}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end mb-1"
+            className={`bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center self-end ${
+              isMobile ? 'p-2.5 touch-target' : 'px-4 py-2 gap-2 mb-1'
+            }`}
           >
-            <Send className="w-4 h-4" />
+            <Send className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} />
             <span className="sr-only">Send</span>
           </button>
         </div>
         {sendMessage.isError && (
-          <p data-testid="message-send-error" className="mt-2 text-sm text-red-500">
+          <p data-testid="message-send-error" className={`mt-2 text-red-500 ${isMobile ? 'text-xs' : 'text-sm'}`}>
             Failed to send message. Please try again.
           </p>
         )}
@@ -1702,12 +1847,21 @@ function MessageSearchDropdown({
   );
 }
 
-function ChannelView({ channelId }: { channelId: string }) {
+function ChannelView({
+  channelId,
+  isMobile = false,
+  onBack,
+}: {
+  channelId: string;
+  isMobile?: boolean;
+  onBack?: () => void;
+}) {
   const { data: channel } = useChannel(channelId);
   const { data: messages = [], isLoading, error } = useChannelMessages(channelId);
   const { data: entities } = useEntities();
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   // TB103: Message search state
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
@@ -1799,99 +1953,194 @@ function ChannelView({ channelId }: { channelId: string }) {
   return (
     <div
       data-testid="channel-view"
-      className="flex-1 flex bg-white"
+      className={`flex-1 flex bg-[var(--color-bg)] ${isMobile ? 'absolute inset-0 z-40' : ''}`}
     >
       {/* Main Channel Area */}
       <div className="flex-1 flex flex-col">
         {/* Channel Header */}
         <div
           data-testid="channel-header"
-          className="p-4 border-b border-gray-200"
+          className={`border-b border-[var(--color-border)] ${isMobile ? 'p-3' : 'p-4'}`}
         >
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-2'}`}>
+            {/* Mobile back button */}
+            {isMobile && onBack && (
+              <button
+                onClick={onBack}
+                className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+                data-testid="channel-back-button"
+                aria-label="Back to channels"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+
             {channel && (
               <>
                 {channel.channelType === 'direct' ? (
-                  <Users className="w-5 h-5 text-gray-400" />
+                  <Users className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                 ) : channel.permissions.visibility === 'private' ? (
-                  <Lock className="w-5 h-5 text-gray-400" />
+                  <Lock className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                 ) : (
-                  <Hash className="w-5 h-5 text-gray-400" />
+                  <Hash className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                 )}
-                <h3 data-testid="channel-name" className="font-medium text-gray-900">
+                <h3 data-testid="channel-name" className={`font-medium text-[var(--color-text)] truncate ${isMobile ? 'text-base flex-1' : ''}`}>
                   {channel.name}
                 </h3>
-                <button
-                  onClick={() => setShowMembersPanel(true)}
-                  className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                  data-testid="channel-members-button"
-                >
-                  <UserCog className="w-4 h-4" />
-                  {channel.members.length} members
-                </button>
-                <div className="flex-1" />
-                {/* TB103: Message Search Input */}
-                <div className="relative" data-testid="message-search-container">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      value={messageSearchQuery}
-                      onChange={(e) => {
-                        setMessageSearchQuery(e.target.value);
-                        setIsSearchOpen(e.target.value.length > 0);
-                      }}
-                      onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setMessageSearchQuery('');
-                          setIsSearchOpen(false);
-                          searchInputRef.current?.blur();
-                        }
-                      }}
-                      placeholder="Search messages..."
-                      className="w-48 pl-8 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      data-testid="message-search-input"
-                    />
-                    {messageSearchQuery && (
-                      <button
-                        onClick={() => {
-                          setMessageSearchQuery('');
-                          setIsSearchOpen(false);
-                          searchInputRef.current?.focus();
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        data-testid="message-search-clear"
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </button>
-                    )}
+
+                {/* Desktop: show members button and search inline */}
+                {!isMobile && (
+                  <>
+                    <button
+                      onClick={() => setShowMembersPanel(true)}
+                      className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition-colors"
+                      data-testid="channel-members-button"
+                    >
+                      <UserCog className="w-4 h-4" />
+                      {channel.members.length} members
+                    </button>
+                    <div className="flex-1" />
+                    {/* TB103: Message Search Input */}
+                    <div className="relative" data-testid="message-search-container">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          value={messageSearchQuery}
+                          onChange={(e) => {
+                            setMessageSearchQuery(e.target.value);
+                            setIsSearchOpen(e.target.value.length > 0);
+                          }}
+                          onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setMessageSearchQuery('');
+                              setIsSearchOpen(false);
+                              searchInputRef.current?.blur();
+                            }
+                          }}
+                          placeholder="Search messages..."
+                          className="w-48 pl-8 pr-8 py-1.5 text-sm border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+                          data-testid="message-search-input"
+                        />
+                        {messageSearchQuery && (
+                          <button
+                            onClick={() => {
+                              setMessageSearchQuery('');
+                              setIsSearchOpen(false);
+                              searchInputRef.current?.focus();
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            data-testid="message-search-clear"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      {/* Search Results Dropdown */}
+                      {isSearchOpen && (
+                        <MessageSearchDropdown
+                          searchQuery={messageSearchQuery}
+                          channelId={channelId}
+                          onSelectResult={handleSearchResultSelect}
+                          onClose={() => setIsSearchOpen(false)}
+                        />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Mobile: show search and members as icon buttons */}
+                {isMobile && (
+                  <div className="flex items-center gap-1 ml-auto">
+                    <button
+                      onClick={() => setShowMobileSearch(!showMobileSearch)}
+                      className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+                      data-testid="mobile-search-toggle"
+                      aria-label="Search messages"
+                    >
+                      <Search className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setShowMembersPanel(true)}
+                      className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+                      data-testid="channel-members-button"
+                      aria-label="View members"
+                    >
+                      <Users className="w-5 h-5" />
+                    </button>
                   </div>
-                  {/* Search Results Dropdown */}
-                  {isSearchOpen && (
-                    <MessageSearchDropdown
-                      searchQuery={messageSearchQuery}
-                      channelId={channelId}
-                      onSelectResult={handleSearchResultSelect}
-                      onClose={() => setIsSearchOpen(false)}
-                    />
-                  )}
-                </div>
+                )}
               </>
             )}
           </div>
+
+          {/* Mobile search bar (shown below header when toggled) */}
+          {isMobile && showMobileSearch && (
+            <div className="mt-3 relative" data-testid="mobile-message-search-container">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={messageSearchQuery}
+                onChange={(e) => {
+                  setMessageSearchQuery(e.target.value);
+                  setIsSearchOpen(e.target.value.length > 0);
+                }}
+                onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setMessageSearchQuery('');
+                    setIsSearchOpen(false);
+                    setShowMobileSearch(false);
+                  }
+                }}
+                placeholder="Search..."
+                className="w-full pl-10 pr-10 py-2.5 text-base border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+                data-testid="mobile-message-search-input"
+                autoFocus
+              />
+              {messageSearchQuery && (
+                <button
+                  onClick={() => {
+                    setMessageSearchQuery('');
+                    setIsSearchOpen(false);
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              )}
+              {/* Search Results Dropdown */}
+              {isSearchOpen && (
+                <MessageSearchDropdown
+                  searchQuery={messageSearchQuery}
+                  channelId={channelId}
+                  onSelectResult={(messageId) => {
+                    handleSearchResultSelect(messageId);
+                    setShowMobileSearch(false);
+                  }}
+                  onClose={() => {
+                    setIsSearchOpen(false);
+                    setShowMobileSearch(false);
+                  }}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Messages Area - TB131: Always use virtualized chat list */}
         <div
           data-testid="messages-container"
-          className="flex-1 overflow-hidden p-4"
+          className={`flex-1 overflow-hidden ${isMobile ? 'p-2' : 'p-4'}`}
         >
           {isLoading ? (
             <div
               data-testid="messages-loading"
-              className="flex items-center justify-center h-full text-gray-500"
+              className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400"
             >
               Loading messages...
             </div>
@@ -1906,19 +2155,22 @@ function ChannelView({ channelId }: { channelId: string }) {
             <VirtualizedChatList
               items={groupedMessages}
               getItemKey={(grouped) => grouped.item.id}
-              estimateSize={(index) => groupedMessages[index]?.isFirstInDay ? MESSAGE_ROW_HEIGHT + 48 : MESSAGE_ROW_HEIGHT}
+              estimateSize={(index) => {
+                const baseHeight = isMobile ? 80 : MESSAGE_ROW_HEIGHT;
+                return groupedMessages[index]?.isFirstInDay ? baseHeight + 48 : baseHeight;
+              }}
               scrollRestoreId={`messages-${channelId}`}
               testId="virtualized-messages-list"
-              gap={8}
+              gap={isMobile ? 4 : 8}
               latestMessageId={rootMessages[rootMessages.length - 1]?.id}
               renderEmpty={() => (
                 <div
                   data-testid="messages-empty"
-                  className="flex flex-col items-center justify-center h-full text-gray-500"
+                  className={`flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 ${isMobile ? 'px-4' : ''}`}
                 >
-                  <MessageSquare className="w-12 h-12 mb-3 text-gray-300" />
-                  <p className="text-sm">No messages yet</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <MessageSquare className={`mb-3 text-gray-300 dark:text-gray-600 ${isMobile ? 'w-10 h-10' : 'w-12 h-12'}`} />
+                  <p className={isMobile ? 'text-base' : 'text-sm'}>No messages yet</p>
+                  <p className={`text-gray-400 dark:text-gray-500 mt-1 ${isMobile ? 'text-sm' : 'text-xs'}`}>
                     Be the first to send a message!
                   </p>
                 </div>
@@ -1933,6 +2185,7 @@ function ChannelView({ channelId }: { channelId: string }) {
                     onReply={handleReply}
                     replyCount={replyCounts[grouped.item.id] || 0}
                     isHighlighted={highlightedMessageId === grouped.item.id}
+                    isMobile={isMobile}
                   />
                 </div>
               )}
@@ -1941,16 +2194,40 @@ function ChannelView({ channelId }: { channelId: string }) {
         </div>
 
         {/* Message Composer */}
-        <MessageComposer channelId={channelId} channel={channel} />
+        <MessageComposer channelId={channelId} channel={channel} isMobile={isMobile} />
       </div>
 
-      {/* Thread Panel */}
-      {selectedThread && (
+      {/* Thread Panel - hide on mobile when showing channel view */}
+      {selectedThread && !isMobile && (
         <ThreadPanel
           parentMessage={selectedThread}
           channel={channel}
           onClose={() => setSelectedThread(null)}
         />
+      )}
+
+      {/* Thread Panel as full-screen modal on mobile */}
+      {selectedThread && isMobile && (
+        <div className="fixed inset-0 z-50 bg-[var(--color-bg)] flex flex-col" data-testid="mobile-thread-panel">
+          <div className="flex items-center gap-2 p-3 border-b border-[var(--color-border)]">
+            <button
+              onClick={() => setSelectedThread(null)}
+              className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+              data-testid="mobile-thread-back"
+              aria-label="Close thread"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="font-medium text-[var(--color-text)]">Thread</span>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <ThreadPanel
+              parentMessage={selectedThread}
+              channel={channel}
+              onClose={() => setSelectedThread(null)}
+            />
+          </div>
+        </div>
       )}
 
       {/* Members Panel */}
@@ -1972,6 +2249,7 @@ function ChannelView({ channelId }: { channelId: string }) {
 export function MessagesPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/messages' });
+  const isMobile = useIsMobile();
 
   // Pagination state from URL
   const currentPage = search.page ?? 1;
@@ -2040,28 +2318,99 @@ export function MessagesPage() {
     navigate({ to: '/messages', search: { channel: channel.id, message: undefined, page: currentPage, limit: pageSize } });
   };
 
+  // Handle back navigation on mobile
+  const handleMobileBack = () => {
+    setSelectedChannelId(null);
+    navigate({ to: '/messages', search: { page: currentPage, limit: pageSize, channel: undefined, message: undefined } });
+  };
+
   if (error) {
     return (
       <div
         data-testid="messages-page-error"
         className="flex items-center justify-center h-full"
       >
-        <div className="text-center">
+        <div className="text-center px-4">
           <p className="text-red-500 mb-2">Failed to load channels</p>
-          <p className="text-sm text-gray-500">{(error as Error).message}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{(error as Error).message}</p>
         </div>
       </div>
     );
   }
 
+  // Mobile: Two-screen navigation pattern
+  // - When no channel selected: show full-screen channel list
+  // - When channel selected: show full-screen channel view with back button
+  if (isMobile) {
+    return (
+      <div data-testid="messages-page" className="flex flex-col h-full relative">
+        {/* Mobile: Show channel list when no channel selected */}
+        {!selectedChannelId && (
+          <>
+            {isLoading ? (
+              <div
+                data-testid="channels-loading"
+                className="flex-1 flex items-center justify-center"
+              >
+                <div className="text-gray-500 dark:text-gray-400">Loading channels...</div>
+              </div>
+            ) : (
+              <ChannelList
+                channels={channels}
+                selectedChannelId={selectedChannelId}
+                onSelectChannel={handleSelectChannel}
+                onNewChannel={() => setIsCreateModalOpen(true)}
+                totalItems={totalItems}
+                totalPages={totalPages}
+                currentPage={currentPage}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                isMobile={true}
+              />
+            )}
+
+            {/* Mobile FAB for creating new channel */}
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="fixed bottom-20 right-4 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-30 touch-target"
+              data-testid="mobile-create-channel-fab"
+              aria-label="Create new channel"
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          </>
+        )}
+
+        {/* Mobile: Show channel view when channel selected */}
+        {selectedChannelId && (
+          <ChannelView
+            channelId={selectedChannelId}
+            isMobile={true}
+            onBack={handleMobileBack}
+          />
+        )}
+
+        <CreateChannelModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={handleChannelCreated}
+        />
+      </div>
+    );
+  }
+
+  // Desktop: Side-by-side layout
   return (
     <div data-testid="messages-page" className="flex h-full">
       {isLoading ? (
         <div
           data-testid="channels-loading"
-          className="w-64 border-r border-gray-200 flex items-center justify-center"
+          className="w-64 border-r border-[var(--color-border)] flex items-center justify-center"
         >
-          <div className="text-gray-500">Loading channels...</div>
+          <div className="text-gray-500 dark:text-gray-400">Loading channels...</div>
         </div>
       ) : (
         <ChannelList
@@ -2077,13 +2426,14 @@ export function MessagesPage() {
           onPageSizeChange={handlePageSizeChange}
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
+          isMobile={false}
         />
       )}
 
       {selectedChannelId ? (
-        <ChannelView channelId={selectedChannelId} />
+        <ChannelView channelId={selectedChannelId} isMobile={false} />
       ) : (
-        <ChannelPlaceholder />
+        <ChannelPlaceholder isMobile={false} />
       )}
 
       <CreateChannelModal
