@@ -139,7 +139,7 @@ Detailed specifications for web platform features (tracer bullets).
 | platform/PLAN.md#tb125 | Fix Task Embed Search in Editor - Server-side search support for TaskPickerModal | task, embed, search, picker, modal, fuzzy match |
 | platform/PLAN.md#tb126 | Fix Document Embed Search in Editor - Server-side search support for DocumentPickerModal | document, embed, search, picker, modal, fuzzy match |
 | [platform/TB140-attachment-markdown-rendering.md](./platform/TB140-attachment-markdown-rendering.md) | Render Task Attachments as Markdown - Use MarkdownRenderer for document attachments in TaskDetailPanel | task, attachments, markdown, render, document, TaskDetailPanel |
-| platform/PLAN.md#tb141 | Sidebar Expand Button When Collapsed - Visual button to expand sidebar without keyboard shortcut | sidebar, collapse, expand, button, accessibility, navigation |
+| [platform/TB141-sidebar-expand-button.md](./platform/TB141-sidebar-expand-button.md) | Sidebar Expand Button When Collapsed - Visual button to expand sidebar without keyboard shortcut | sidebar, collapse, expand, button, accessibility, navigation |
 | platform/PLAN.md#tb142 | Move Dependencies to Work Section - Reorganize sidebar navigation for better information architecture | sidebar, navigation, dependencies, work, information architecture |
 | platform/PLAN.md#tb143 | Timeline Eager Event Loading - Load all events upfront with client-side pagination for instant totals | timeline, events, pagination, eager loading, performance |
 | platform/PLAN.md#tb144 | Responsive Foundation & CSS Infrastructure - Breakpoints, spacing, typography, testing utilities | responsive, breakpoints, css, tokens, mobile, tablet, desktop |

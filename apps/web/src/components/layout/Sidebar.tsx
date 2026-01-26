@@ -11,14 +11,15 @@ import {
   UsersRound,
   Settings,
   ChevronLeft,
-  ChevronRight,
   ChevronDown,
   GitBranch,
   Bot,
   Network,
   History,
+  PanelLeftOpen,
   type LucideIcon,
 } from 'lucide-react';
+import { Tooltip } from '../ui/Tooltip';
 
 interface NavItem {
   to: string;
@@ -231,23 +232,18 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             <span className="text-white text-sm font-bold">E</span>
           </div>
         )}
-        <button
-          onClick={onToggle}
-          className={`
-            p-1.5 rounded-md text-[var(--color-text-tertiary)]
-            hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-sidebar-item-hover)]
-            transition-colors duration-150
-            ${collapsed ? 'absolute left-1/2 -translate-x-1/2 bottom-20' : ''}
-          `}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          data-testid="sidebar-toggle"
-        >
-          {collapsed ? (
-            <ChevronRight className="w-4 h-4" />
-          ) : (
+        {/* Collapse button in header - visible when expanded */}
+        {!collapsed && (
+          <button
+            onClick={onToggle}
+            className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-sidebar-item-hover)] transition-colors duration-150"
+            aria-label="Collapse sidebar"
+            aria-expanded="true"
+            data-testid="sidebar-toggle"
+          >
             <ChevronLeft className="w-4 h-4" />
-          )}
-        </button>
+          </button>
+        )}
       </div>
 
       {/* Main Navigation */}
@@ -259,6 +255,23 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
       <div className="px-2 py-3 border-t border-[var(--color-sidebar-border)] space-y-0.5">
         {BOTTOM_NAV_ITEMS.map((item) => renderNavItem(item, false))}
       </div>
+
+      {/* Expand button - visible when collapsed */}
+      {collapsed && (
+        <div className="px-2 py-3 border-t border-[var(--color-sidebar-border)]">
+          <Tooltip content="Expand sidebar" shortcut="⌘B" side="right">
+            <button
+              onClick={onToggle}
+              className="w-full flex items-center justify-center p-2 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-sidebar-item-hover)] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-1 focus:ring-offset-[var(--color-sidebar-bg)]"
+              aria-label="Expand sidebar"
+              aria-expanded="false"
+              data-testid="sidebar-expand-button"
+            >
+              <PanelLeftOpen className="w-5 h-5" />
+            </button>
+          </Tooltip>
+        </div>
+      )}
 
       {/* Keyboard hint */}
       {!collapsed && (

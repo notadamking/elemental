@@ -725,38 +725,38 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
     - Create task, attach markdown document, verify formatted content visible
     - **Verify:** 10 tests pass in `apps/web/tests/tb140-attachment-markdown.spec.ts`
 
-- [ ] **TB141: Sidebar Expand Button When Collapsed**
+- [x] **TB141: Sidebar Expand Button When Collapsed**
 
   **Context:** The sidebar can be collapsed with `Cmd+B`, but users without keyboard access (or those who don't know the shortcut) have no way to expand it. Add a visible button/affordance to expand the sidebar when it's in collapsed state.
 
   **Tracer Bullet Steps:**
-  - [ ] Step 1: Read current sidebar collapse implementation in `Sidebar.tsx` and `AppShell.tsx`
+  - [x] Step 1: Read current sidebar collapse implementation in `Sidebar.tsx` and `AppShell.tsx`
     - Understand how `collapsed` prop flows and `onToggle` is called
     - **Verify immediately:** Know where to add the expand button
-  - [ ] Step 2: Add expand button to collapsed sidebar state
-    - Position at bottom of collapsed sidebar (above Settings icon)
-    - Use `PanelLeftOpen` or `ChevronRight` icon from lucide-react
+  - [x] Step 2: Add expand button to collapsed sidebar state
+    - Position at bottom of collapsed sidebar (below Settings icon)
+    - Use `PanelLeftOpen` icon from lucide-react
     - Only visible when `collapsed={true}`
     - **Verify immediately:** Collapse sidebar with Cmd+B, see expand button appear
-  - [ ] Step 3: Wire button to call `onToggle`
+  - [x] Step 3: Wire button to call `onToggle`
     - On click, expand sidebar
     - **Verify immediately:** Click button, sidebar expands
-  - [ ] Step 4: Add tooltip to button
-    - Tooltip: "Expand sidebar (⌘B)"
-    - Uses existing tooltip component
+  - [x] Step 4: Add tooltip to button
+    - Tooltip: "Expand sidebar" with shortcut "⌘B"
+    - Uses existing Tooltip component
     - **Verify immediately:** Hover button, see tooltip
-  - [ ] Step 5: Style button for visual consistency
+  - [x] Step 5: Style button for visual consistency
     - Match other sidebar icon styling (muted color, hover state)
-    - Ensure button is keyboard accessible (tabIndex, focus ring)
+    - Ensure button is keyboard accessible (focus ring)
     - **Verify immediately:** Button looks native to sidebar design
-  - [ ] Step 6: Add accessibility attributes
+  - [x] Step 6: Add accessibility attributes
     - `aria-label="Expand sidebar"`
     - `aria-expanded="false"` when collapsed
     - **Verify immediately:** Screen reader announces button purpose
-  - [ ] Step 7: Write Playwright test
+  - [x] Step 7: Write Playwright test
     - Collapse sidebar, verify expand button visible
     - Click expand button, verify sidebar expands
-    - **Verify:** Test passes in `apps/web/tests/tb141-sidebar-expand-button.spec.ts`
+    - **Verify:** 9 tests pass in `apps/web/tests/tb141-sidebar-expand-button.spec.ts`
 
 - [ ] **TB142: Move Dependencies to Work Section in Sidebar**
 
