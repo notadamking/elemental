@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -15,6 +16,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import type { Task } from '../entity/types';
+import { useIsMobile, useTouchDevice } from '../../hooks';
 
 // Types for chart data
 interface TasksByStatusData {
@@ -240,6 +242,16 @@ function BarChartTooltip({ active, payload }: { active?: boolean; payload?: Arra
 
 export function TasksByStatusChart() {
   const { data: tasks, isLoading, isError } = useAllTasks();
+  const isMobile = useIsMobile();
+  const isTouchDevice = useTouchDevice();
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  // Handle touch interactions for mobile tooltips
+  const handlePieClick = useCallback((_: unknown, index: number) => {
+    if (isTouchDevice) {
+      setActiveIndex(activeIndex === index ? null : index);
+    }
+  }, [isTouchDevice, activeIndex]);
 
   if (isLoading) {
     return (
@@ -277,6 +289,9 @@ export function TasksByStatusChart() {
     );
   }
 
+  // On mobile, hide pie labels to prevent overlap and rely on legend
+  const showLabels = !isMobile;
+
   return (
     <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-by-status-chart">
       <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Tasks by Status</h4>
@@ -287,32 +302,50 @@ export function TasksByStatusChart() {
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={35}
-              outerRadius={60}
+              innerRadius={isMobile ? 30 : 35}
+              outerRadius={isMobile ? 50 : 60}
               dataKey="value"
               labelLine={false}
-              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+              label={showLabels ? ({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : undefined}
+              onClick={handlePieClick}
+              className={isTouchDevice ? 'cursor-pointer' : ''}
             >
               {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={STATUS_COLORS[entry.status] || PIE_COLORS[index % PIE_COLORS.length]}
                   data-testid={`chart-segment-${entry.status}`}
+                  stroke={activeIndex === index ? 'var(--color-foreground)' : undefined}
+                  strokeWidth={activeIndex === index ? 2 : 0}
                 />
               ))}
             </Pie>
-            <Tooltip content={<DonutTooltip />} />
+            <Tooltip
+              content={<DonutTooltip />}
+              trigger={isTouchDevice ? 'click' : 'hover'}
+              wrapperStyle={{ zIndex: 1000 }}
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>
+      {/* Mobile: show active segment details */}
+      {isMobile && activeIndex !== null && chartData[activeIndex] && (
+        <div className="mt-2 text-center text-sm text-foreground" data-testid="mobile-tooltip">
+          <span className="font-medium">{chartData[activeIndex].name}</span>
+          <span className="text-muted-foreground ml-2">{chartData[activeIndex].value} tasks</span>
+        </div>
+      )}
       <div className="mt-3 sm:mt-4 flex justify-center gap-2 sm:gap-4 flex-wrap" data-testid="chart-legend">
-        {chartData.map((entry) => (
+        {chartData.map((entry, index) => (
           <Link
             key={entry.status}
             to="/tasks"
             search={{ page: 1, limit: 25 }}
-            className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className={`flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground transition-colors min-h-[28px] px-1 ${
+              activeIndex === index ? 'text-foreground font-medium' : ''
+            }`}
             data-testid={`legend-${entry.status}`}
+            onTouchStart={() => isTouchDevice && setActiveIndex(index)}
           >
             <span
               className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0"
@@ -328,6 +361,8 @@ export function TasksByStatusChart() {
 
 export function TasksCompletedOverTimeChart() {
   const { data: tasks, isLoading, isError } = useAllTasks();
+  const isMobile = useIsMobile();
+  const isTouchDevice = useTouchDevice();
 
   if (isLoading) {
     return (
@@ -371,25 +406,33 @@ export function TasksCompletedOverTimeChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" />
             <XAxis
               dataKey="dateLabel"
-              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              tick={{ fontSize: isMobile ? 9 : 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
+              interval={isMobile ? 1 : 0}
             />
             <YAxis
               allowDecimals={false}
-              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              tick={{ fontSize: isMobile ? 9 : 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
-              width={30}
+              width={isMobile ? 25 : 30}
             />
-            <Tooltip content={<LineChartTooltip />} />
+            <Tooltip
+              content={<LineChartTooltip />}
+              trigger={isTouchDevice ? 'click' : 'hover'}
+              wrapperStyle={{ zIndex: 1000 }}
+            />
             <Line
               type="monotone"
               dataKey="completed"
               stroke="var(--color-success, #22c55e)"
               strokeWidth={2}
-              dot={{ fill: 'var(--color-success, #22c55e)', strokeWidth: 0, r: 3 }}
-              activeDot={{ r: 5, fill: 'var(--color-success, #22c55e)' }}
+              dot={{ fill: 'var(--color-success, #22c55e)', strokeWidth: 0, r: isMobile ? 4 : 3 }}
+              activeDot={{
+                r: isMobile ? 6 : 5,
+                fill: 'var(--color-success, #22c55e)',
+              }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -402,17 +445,32 @@ export function WorkloadByAgentChart() {
   const { data: tasks, isLoading: tasksLoading, isError: tasksError } = useAllTasks();
   const { data: entities, isLoading: entitiesLoading, isError: entitiesError } = useAllEntities();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const isTouchDevice = useTouchDevice();
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const isLoading = tasksLoading || entitiesLoading;
   const isError = tasksError || entitiesError;
 
   // Handle bar click - navigate to tasks filtered by assignee
-  const handleBarClick = (data: WorkloadByAgentData) => {
-    navigate({
-      to: '/tasks',
-      search: { assignee: data.entityId, page: 1, limit: 25 },
-    });
-  };
+  const handleBarClick = useCallback((data: WorkloadByAgentData, index: number) => {
+    if (isTouchDevice) {
+      // On touch devices, first tap shows tooltip, second tap navigates
+      if (activeIndex === index) {
+        navigate({
+          to: '/tasks',
+          search: { assignee: data.entityId, page: 1, limit: 25 },
+        });
+      } else {
+        setActiveIndex(index);
+      }
+    } else {
+      navigate({
+        to: '/tasks',
+        search: { assignee: data.entityId, page: 1, limit: 25 },
+      });
+    }
+  }, [navigate, isTouchDevice, activeIndex]);
 
   if (isLoading) {
     return (
@@ -449,39 +507,57 @@ export function WorkloadByAgentChart() {
     );
   }
 
+  // Truncate names on mobile for better display
+  const displayData = chartData.map(d => ({
+    ...d,
+    displayName: isMobile && d.name.length > 8 ? d.name.slice(0, 8) + '...' : d.name,
+  }));
+
   return (
     <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="workload-by-agent-chart">
       <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Workload by Agent</h4>
       <div className="h-40 sm:h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} layout="vertical">
+          <BarChart data={displayData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" />
             <XAxis
               type="number"
               allowDecimals={false}
-              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              tick={{ fontSize: isMobile ? 9 : 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
             />
             <YAxis
               type="category"
-              dataKey="name"
-              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              dataKey="displayName"
+              tick={{ fontSize: isMobile ? 9 : 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
-              width={70}
+              width={isMobile ? 55 : 70}
             />
-            <Tooltip content={<BarChartTooltip />} />
+            <Tooltip
+              content={<BarChartTooltip />}
+              trigger={isTouchDevice ? 'click' : 'hover'}
+              wrapperStyle={{ zIndex: 1000 }}
+            />
             <Bar
               dataKey="tasks"
               fill="var(--color-primary, #3b82f6)"
               radius={[0, 4, 4, 0]}
               className="cursor-pointer"
-              onClick={(data) => handleBarClick(data as unknown as WorkloadByAgentData)}
+              onClick={(data, index) => handleBarClick(data as unknown as WorkloadByAgentData, index)}
             />
           </BarChart>
         </ResponsiveContainer>
       </div>
+      {/* Mobile: show tapped bar details with tap again hint */}
+      {isMobile && activeIndex !== null && chartData[activeIndex] && (
+        <div className="mt-2 text-center text-sm" data-testid="mobile-tooltip-bar">
+          <span className="font-medium text-foreground">{chartData[activeIndex].name}</span>
+          <span className="text-muted-foreground ml-2">{chartData[activeIndex].tasks} tasks</span>
+          <p className="text-xs text-muted-foreground mt-1">Tap again to view tasks</p>
+        </div>
+      )}
     </div>
   );
 }

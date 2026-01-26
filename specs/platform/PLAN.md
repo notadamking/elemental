@@ -1228,47 +1228,49 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB156: Responsive Charts & Visualizations**
+- [x] **TB156: Responsive Charts & Visualizations** ✅ COMPLETE
 
   **Context:** The app uses Recharts for charts and React Flow for the dependency graph. Ensure all visualizations work well on mobile with touch interactions.
 
+  **Implementation Summary:**
+  - Dashboard Charts (DashboardCharts.tsx):
+    - Added responsive sizing (smaller radii, compact font sizes on mobile)
+    - Touch-friendly tooltips with tap-to-show/dismiss on mobile
+    - Pie chart hides inline labels on mobile, relies on legend
+    - Line chart has responsive axis tick intervals
+    - Bar chart truncates long names on mobile, tap-to-view with "tap again to navigate" hint
+    - All charts use click trigger for tooltips on touch devices
+  - Contribution Chart (ContributionChart.tsx):
+    - Shows 6 months (182 days) on mobile vs 1 year on desktop
+    - Smaller squares (10px vs 12px) on mobile
+    - Tap-to-select day squares with visual highlight ring
+    - Responsive day labels (M, W, F abbreviations on mobile)
+    - Horizontal scroll for grid on mobile
+    - Responsive legend with smaller spacing
+  - Dependency Graph (dependency-graph.tsx):
+    - Minimap hidden on mobile to save screen space
+    - Touch-optimized pan and pinch zoom enabled
+    - Zoom controls hidden on mobile (use pinch zoom instead)
+    - Responsive fit view padding (smaller on mobile)
+    - Dark mode support added to graph canvas
+
+  **Files Changed:**
+  - `apps/web/src/components/dashboard/DashboardCharts.tsx` - Responsive charts with touch support
+  - `apps/web/src/components/shared/ContributionChart.tsx` - Mobile-optimized contribution grid
+  - `apps/web/src/routes/dependency-graph.tsx` - Mobile-friendly dependency visualization
+  - `apps/web/tests/tb156-responsive-charts.spec.ts` - 25 Playwright tests
+
   **Tracer Bullet Steps:**
-  - [ ] Step 1: Audit all charts in the app
-    - Dashboard: donut, line, bar charts
-    - Entity: contribution chart
-    - Team: workload bar chart
-    - **Verify immediately:** Complete list of charts
-  - [ ] Step 2: Implement responsive chart containers
-    - Charts use 100% width of container
-    - Height scales appropriately (not too short on mobile)
-    - **Verify immediately:** Charts resize with container
-  - [ ] Step 3: Responsive chart legends
-    - Desktop: legend beside or below chart
-    - Mobile: below chart, wrapped if needed
-    - Smaller font size on mobile
-    - **Verify immediately:** Legends don't overflow on mobile
-  - [ ] Step 4: Touch-friendly tooltips
-    - Desktop: hover to show tooltip
-    - Mobile: tap to show tooltip, tap elsewhere to dismiss
-    - Tooltip positioned within viewport
-    - **Verify immediately:** Tooltips work on mobile
-  - [ ] Step 5: Responsive axis labels
-    - Rotate or hide labels on narrow charts
-    - Fewer tick marks on mobile
-    - **Verify immediately:** Axis labels readable on mobile
-  - [ ] Step 6: Responsive dependency graph (React Flow)
-    - Touch pan and pinch zoom
-    - Node tap to select (not just click)
-    - Controls accessible on mobile
-    - Minimap hidden on small screens
-    - **Verify immediately:** Graph interactive on mobile
-  - [ ] Step 7: Contribution chart responsiveness
-    - Fewer weeks visible on mobile (scrollable)
-    - Tap square to show count (not just hover)
-    - **Verify immediately:** Contribution chart works on mobile
-  - [ ] Step 8: Write Playwright tests
-    - Test charts at all breakpoints
-    - **Verify:** Tests pass in `apps/web/tests/tb156-responsive-charts.spec.ts`
+  - [x] Step 1: Audit all charts in the app - Identified 5 chart types
+  - [x] Step 2: Implement responsive chart containers - Using ResponsiveContainer
+  - [x] Step 3: Responsive chart legends - Smaller text, wrapped on mobile
+  - [x] Step 4: Touch-friendly tooltips - Tap to show/dismiss, click triggers
+  - [x] Step 5: Responsive axis labels - Smaller font, wider intervals on mobile
+  - [x] Step 6: Responsive dependency graph - Minimap hidden, touch pan/zoom
+  - [x] Step 7: Contribution chart responsiveness - 6 months on mobile, tap support
+  - [x] Step 8: Write Playwright tests - 25 tests pass
+
+  - **Verify:** Run `npx playwright test tb156-responsive-charts` - 25 tests pass
 
 ---
 

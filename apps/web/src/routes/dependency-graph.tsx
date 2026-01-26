@@ -30,6 +30,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Loader2, Tag, LayoutGrid, ArrowDown, ArrowRight, ArrowUp, ArrowLeft, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { useIsMobile } from '../hooks';
 
 interface Task {
   id: string;
@@ -1224,6 +1225,7 @@ function DependencyGraphInner({
   isLayouting,
 }: DependencyGraphInnerProps) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
+  const isMobile = useIsMobile();
 
   const handleFitView = useCallback(() => {
     fitView({ padding: 0.3, duration: 300 });
@@ -1257,19 +1259,19 @@ function DependencyGraphInner({
         onApplyLayout={onApplyLayout}
         isLayouting={isLayouting}
       />
-      <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden" data-testid="graph-canvas">
+      <div className="flex-1 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden" data-testid="graph-canvas">
         {isLoadingTree && (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400 text-sm">
             Loading dependency tree...
           </div>
         )}
         {isError && (
-          <div className="flex items-center justify-center h-full text-red-600">
+          <div className="flex items-center justify-center h-full text-red-600 text-sm">
             Failed to load dependency tree
           </div>
         )}
         {hasData && nodes.length === 0 && (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400 text-sm">
             No dependencies found for this task
           </div>
         )}
@@ -1282,23 +1284,37 @@ function DependencyGraphInner({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
-            fitViewOptions={{ padding: 0.3 }}
+            fitViewOptions={{ padding: isMobile ? 0.1 : 0.3 }}
             proOptions={{ hideAttribution: true }}
+            panOnScroll={!isMobile}
+            panOnDrag={true}
+            zoomOnScroll={!isMobile}
+            zoomOnPinch={true}
+            zoomOnDoubleClick={true}
+            minZoom={0.1}
+            maxZoom={2}
           >
             <Background />
-            <Controls showZoom={false} showFitView={false} />
-            <MiniMap
-              nodeColor={(node) => {
-                const task = (node.data as TaskNodeData).task;
-                return STATUS_COLORS[task.status]?.border.replace('border-', '#').replace('-300', '') || '#cbd5e1';
-              }}
-              maskColor="rgba(255, 255, 255, 0.8)"
-              data-testid="graph-minimap"
+            <Controls
+              showZoom={!isMobile}
+              showFitView={!isMobile}
+              position="bottom-right"
             />
+            {/* Hide minimap on mobile to save screen space */}
+            {!isMobile && (
+              <MiniMap
+                nodeColor={(node) => {
+                  const task = (node.data as TaskNodeData).task;
+                  return STATUS_COLORS[task.status]?.border.replace('border-', '#').replace('-300', '') || '#cbd5e1';
+                }}
+                maskColor="rgba(255, 255, 255, 0.8)"
+                data-testid="graph-minimap"
+              />
+            )}
           </ReactFlow>
         )}
         {!hasData && !isLoadingTree && !isError && (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400 text-sm">
             Select a task to view its dependencies
           </div>
         )}
