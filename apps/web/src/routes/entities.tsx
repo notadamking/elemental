@@ -8,14 +8,15 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft, Filter, ArrowUpDown, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
 import { usePaginatedData, createEntityFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
-import { useKeyboardShortcut } from '../hooks/useKeyboardShortcuts';
+import { useKeyboardShortcut } from '../hooks';
+import { groupByTimePeriod, TIME_PERIOD_LABELS, type TimePeriod, formatCompactTime } from '../lib';
 
 interface Entity {
   id: string;
@@ -1181,34 +1182,43 @@ function _InboxItemCard({
 void _InboxItemCard; // Suppress unused warning - kept for reference
 
 /**
+ * TB94: Time period sticky header for inbox list grouping
+ * Shows the time period label (Today, Yesterday, This Week, Earlier)
+ */
+function InboxTimePeriodHeader({ period }: { period: TimePeriod }) {
+  return (
+    <div
+      className="sticky top-0 z-10 px-3 py-1.5 bg-gray-100 border-b border-gray-200 flex items-center gap-2"
+      data-testid={`inbox-time-period-${period}`}
+    >
+      <Calendar className="w-3 h-3 text-gray-500" />
+      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+        {TIME_PERIOD_LABELS[period]}
+      </span>
+    </div>
+  );
+}
+
+/**
  * TB91: Compact message list item for the left side of split layout
+ * TB94: Updated with relative time display that updates periodically
  * Shows: avatar, sender name, preview (first line), time ago, unread indicator
  */
 function InboxMessageListItem({
   item,
   isSelected,
   onSelect,
+  formattedTime,
 }: {
   item: InboxItem;
   isSelected: boolean;
   onSelect: () => void;
+  formattedTime?: string; // TB94: Pre-formatted time for periodic updates
 }) {
   const isUnread = item.status === 'unread';
 
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 1) return 'now';
-    if (minutes < 60) return `${minutes}m`;
-    if (hours < 24) return `${hours}h`;
-    if (days < 7) return `${days}d`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
+  // TB94: Use pre-formatted time if provided, otherwise format locally
+  const displayTime = formattedTime ?? formatCompactTime(item.createdAt);
 
   const senderName = item.sender?.name ?? 'Unknown';
   const senderType = item.sender?.entityType ?? 'agent';
@@ -1258,7 +1268,7 @@ function InboxMessageListItem({
             {senderName}
           </span>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <span className="text-xs text-gray-400">{formatTime(item.createdAt)}</span>
+            <span className="text-xs text-gray-400" data-testid={`inbox-list-item-time-${item.id}`}>{displayTime}</span>
             {isUnread && (
               <span className="w-2 h-2 rounded-full bg-blue-500" data-testid={`inbox-list-item-unread-${item.id}`} />
             )}
@@ -2022,6 +2032,33 @@ function EntityDetailPanel({
 
     return items;
   }, [inboxData?.items, inboxSourceFilter, inboxSortOrder]);
+
+  // TB94: Group inbox items by time period (Today, Yesterday, This Week, Earlier)
+  const groupedInboxItems = useMemo(() => {
+    if (filteredAndSortedInboxItems.length === 0) return [];
+
+    // Only group when sorted by date (newest/oldest), not by sender
+    if (inboxSortOrder === 'sender') {
+      // No grouping for sender sort - just wrap items without group info
+      return filteredAndSortedInboxItems.map((item) => ({
+        item,
+        period: 'today' as TimePeriod, // Placeholder - won't show headers
+        isFirstInGroup: false,
+      }));
+    }
+
+    return groupByTimePeriod(filteredAndSortedInboxItems, (item) => item.createdAt);
+  }, [filteredAndSortedInboxItems, inboxSortOrder]);
+
+  // TB94: Periodic update trigger for relative times
+  // Forces re-render every minute for time-sensitive displays
+  const [timeUpdateTrigger, setTimeUpdateTrigger] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeUpdateTrigger((prev) => prev + 1);
+    }, 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, []);
 
   // TB91: Get currently selected inbox item (updated to use filtered list)
   const selectedInboxItem = useMemo(() => {
@@ -2905,17 +2942,35 @@ function EntityDetailPanel({
                   </div>
                 ) : (
                   <VirtualizedList
-                    items={filteredAndSortedInboxItems}
-                    getItemKey={(item) => item.id}
-                    estimateSize={56}
+                    items={groupedInboxItems}
+                    getItemKey={(groupedItem) => groupedItem.item.id}
+                    // TB94: Estimate size accounts for headers (24px) + items (56px)
+                    estimateSize={(index) => {
+                      const groupedItem = groupedInboxItems[index];
+                      // Show headers only when not sorted by sender
+                      if (groupedItem?.isFirstInGroup && inboxSortOrder !== 'sender') {
+                        return 56 + 28; // Item + header
+                      }
+                      return 56;
+                    }}
                     height="100%"
                     testId="inbox-items-list"
-                    renderItem={(item) => (
-                      <InboxMessageListItem
-                        item={item}
-                        isSelected={selectedInboxItemId === item.id}
-                        onSelect={() => setSelectedInboxItemId(item.id)}
-                      />
+                    renderItem={(groupedItem) => (
+                      <>
+                        {/* TB94: Show time period header for first item in each group */}
+                        {groupedItem.isFirstInGroup && inboxSortOrder !== 'sender' && (
+                          <InboxTimePeriodHeader period={groupedItem.period} />
+                        )}
+                        <InboxMessageListItem
+                          item={groupedItem.item}
+                          isSelected={selectedInboxItemId === groupedItem.item.id}
+                          onSelect={() => setSelectedInboxItemId(groupedItem.item.id)}
+                          // TB94: Pass pre-formatted time for periodic updates
+                          // eslint-disable-next-line react-hooks/exhaustive-deps
+                          formattedTime={formatCompactTime(groupedItem.item.createdAt)}
+                          key={`${groupedItem.item.id}-${timeUpdateTrigger}`}
+                        />
+                      </>
                     )}
                   />
                 )}

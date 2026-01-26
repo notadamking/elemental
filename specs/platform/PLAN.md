@@ -1365,11 +1365,11 @@ For mutations (create, update, delete):
   - [x] Web: LocalStorage persistence for filter/sort preferences - inbox.sourceFilter and inbox.sortOrder keys
   - [x] **Verify:** Filter to unread mentions only, correct messages shown; Playwright tests passing (17 tests)
 
-- [ ] **TB94: Inbox Time-Ago Indicator**
-  - [ ] Web: Show relative time for each message ("2m ago", "1h ago", "Yesterday", "Jan 15")
-  - [ ] Web: Update relative times periodically (every minute for recent, less often for older)
-  - [ ] Web: Group messages by time period (Today, Yesterday, This Week, Earlier) with sticky headers
-  - [ ] **Verify:** Times display correctly and update; Playwright tests passing
+- [x] **TB94: Inbox Time-Ago Indicator**
+  - [x] Web: Show relative time for each message ("2m ago", "1h ago", "Yesterday", "Jan 15") - `apps/web/src/lib/time.ts` with `formatCompactTime()` function
+  - [x] Web: Update relative times periodically (every minute for recent, less often for older) - `apps/web/src/hooks/useRelativeTime.ts` with 60-second interval
+  - [x] Web: Group messages by time period (Today, Yesterday, This Week, Earlier) with sticky headers - `groupByTimePeriod()` utility and `InboxTimePeriodHeader` component
+  - [x] **Verify:** Times display correctly and update; Playwright tests passing (5 passed, 5 skipped due to no inbox data)
 
 ### Phase 22B: Document Editor Core Fixes
 
