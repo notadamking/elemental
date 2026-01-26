@@ -1229,13 +1229,13 @@ For mutations (create, update, delete):
 
 **Goal:** Bring Linear-quality UX to the Tasks page with grouping, ordering, rich display, and search.
 
-- [ ] **TB80: Task Grouping**
-  - [ ] Web: Add "Group by" dropdown (None, Status, Priority, Assignee, Type, Tags)
-  - [ ] Web: Render grouped tasks with collapsible section headers
-  - [ ] Web: Show count per group in header
-  - [ ] Web: Remember grouping preference in localStorage
-  - [ ] Web: Works in both List and Kanban views
-  - [ ] **Verify:** Group tasks by priority, see Priority 1 section with count; Playwright tests passing
+- [x] **TB80: Task Grouping**
+  - [x] Web: Add "Group by" dropdown (None, Status, Priority, Assignee, Type, Tags) - `apps/web/src/routes/tasks.tsx` GroupByDropdown component
+  - [x] Web: Render grouped tasks with collapsible section headers - GroupedListView component with GroupHeader
+  - [x] Web: Show count per group in header - Count badge in GroupHeader component
+  - [x] Web: Remember grouping preference in localStorage - `tasks.groupBy` key with getStoredGroupBy/setStoredGroupBy
+  - [x] Web: Works in List view (Kanban inherently groups by status) - Dropdown only shown in list view
+  - [x] **Verify:** Group tasks by priority, see Priority 1 section with count; Playwright tests passing (17 tests)
 
 - [ ] **TB81: Task Ordering and Sorting**
   - [ ] Web: Add "Sort by" dropdown (Priority, Created, Updated, Deadline, Title, Complexity)

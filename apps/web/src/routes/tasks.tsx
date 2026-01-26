@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles } from 'lucide-react';
+import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, ChevronRight, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles, Layers } from 'lucide-react';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
@@ -13,6 +13,7 @@ import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortCon
 import { useDeepLink } from '../hooks/useDeepLink';
 
 const VIEW_MODE_STORAGE_KEY = 'tasks.viewMode';
+const GROUP_BY_STORAGE_KEY = 'tasks.groupBy';
 
 function getStoredViewMode(): ViewMode {
   if (typeof window === 'undefined') return 'list';
@@ -23,6 +24,166 @@ function getStoredViewMode(): ViewMode {
 function setStoredViewMode(mode: ViewMode) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+}
+
+// GroupBy types and helpers
+type GroupByField = 'none' | 'status' | 'priority' | 'assignee' | 'taskType' | 'tags';
+
+const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'status', label: 'Status' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'assignee', label: 'Assignee' },
+  { value: 'taskType', label: 'Type' },
+  { value: 'tags', label: 'Tags' },
+];
+
+function getStoredGroupBy(): GroupByField {
+  if (typeof window === 'undefined') return 'none';
+  const stored = localStorage.getItem(GROUP_BY_STORAGE_KEY);
+  if (stored && GROUP_BY_OPTIONS.some(opt => opt.value === stored)) {
+    return stored as GroupByField;
+  }
+  return 'none';
+}
+
+function setStoredGroupBy(groupBy: GroupByField) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(GROUP_BY_STORAGE_KEY, groupBy);
+}
+
+interface TaskGroup {
+  key: string;
+  label: string;
+  color?: string;
+  tasks: Task[];
+}
+
+// Group tasks by the specified field
+function groupTasks(tasks: Task[], groupBy: GroupByField, entities: Entity[]): TaskGroup[] {
+  if (groupBy === 'none') {
+    return [{ key: 'all', label: 'All Tasks', tasks }];
+  }
+
+  const groups: Map<string, Task[]> = new Map();
+
+  for (const task of tasks) {
+    let keys: string[];
+
+    switch (groupBy) {
+      case 'status':
+        keys = [task.status];
+        break;
+      case 'priority':
+        keys = [String(task.priority)];
+        break;
+      case 'assignee':
+        keys = [task.assignee || 'unassigned'];
+        break;
+      case 'taskType':
+        keys = [task.taskType || 'task'];
+        break;
+      case 'tags':
+        keys = task.tags.length > 0 ? task.tags : ['untagged'];
+        break;
+      default:
+        keys = ['other'];
+    }
+
+    for (const key of keys) {
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(task);
+    }
+  }
+
+  // Convert to array and add labels/colors
+  const result: TaskGroup[] = [];
+
+  if (groupBy === 'status') {
+    // Use specific order for status
+    const statusOrder = ['open', 'in_progress', 'blocked', 'closed', 'deferred', 'completed', 'cancelled'];
+    for (const status of statusOrder) {
+      if (groups.has(status)) {
+        const option = STATUS_OPTIONS.find(o => o.value === status);
+        result.push({
+          key: status,
+          label: option?.label || status.replace('_', ' '),
+          color: option?.color,
+          tasks: groups.get(status)!,
+        });
+      }
+    }
+    // Add any remaining statuses
+    for (const [key, groupTasks] of groups) {
+      if (!statusOrder.includes(key)) {
+        result.push({
+          key,
+          label: key.replace('_', ' '),
+          tasks: groupTasks,
+        });
+      }
+    }
+  } else if (groupBy === 'priority') {
+    // Sort by priority number (1 is highest)
+    const priorityOrder = [1, 2, 3, 4, 5];
+    for (const priority of priorityOrder) {
+      const key = String(priority);
+      if (groups.has(key)) {
+        const option = PRIORITY_OPTIONS.find(o => o.value === priority);
+        result.push({
+          key,
+          label: option?.label || `Priority ${priority}`,
+          color: option?.color,
+          tasks: groups.get(key)!,
+        });
+      }
+    }
+  } else if (groupBy === 'assignee') {
+    // Sort alphabetically with "Unassigned" first
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+      if (a === 'unassigned') return -1;
+      if (b === 'unassigned') return 1;
+      const nameA = entities.find(e => e.id === a)?.name || a;
+      const nameB = entities.find(e => e.id === b)?.name || b;
+      return nameA.localeCompare(nameB);
+    });
+    for (const key of sortedKeys) {
+      const entityName = key === 'unassigned' ? 'Unassigned' : (entities.find(e => e.id === key)?.name || key);
+      result.push({
+        key,
+        label: entityName,
+        tasks: groups.get(key)!,
+      });
+    }
+  } else if (groupBy === 'taskType') {
+    // Sort alphabetically
+    const sortedKeys = Array.from(groups.keys()).sort();
+    for (const key of sortedKeys) {
+      result.push({
+        key,
+        label: key.charAt(0).toUpperCase() + key.slice(1),
+        tasks: groups.get(key)!,
+      });
+    }
+  } else if (groupBy === 'tags') {
+    // Sort alphabetically with "Untagged" first
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+      if (a === 'untagged') return -1;
+      if (b === 'untagged') return 1;
+      return a.localeCompare(b);
+    });
+    for (const key of sortedKeys) {
+      result.push({
+        key,
+        label: key === 'untagged' ? 'Untagged' : key,
+        tasks: groups.get(key)!,
+      });
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -275,6 +436,102 @@ function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (vie
         <span className="sr-only">Kanban</span>
       </button>
     </div>
+  );
+}
+
+function GroupByDropdown({
+  groupBy,
+  onGroupByChange,
+}: {
+  groupBy: GroupByField;
+  onGroupByChange: (groupBy: GroupByField) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = GROUP_BY_OPTIONS.find(opt => opt.value === groupBy) || GROUP_BY_OPTIONS[0];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+        data-testid="group-by-dropdown"
+      >
+        <Layers className="w-4 h-4" />
+        <span>Group: {selectedOption.label}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div
+          className="absolute z-20 mt-1 right-0 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-40"
+          data-testid="group-by-options"
+        >
+          {GROUP_BY_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                onGroupByChange(option.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                groupBy === option.value ? 'text-blue-600 font-medium' : 'text-gray-700'
+              }`}
+              data-testid={`group-by-option-${option.value}`}
+            >
+              <span>{option.label}</span>
+              {groupBy === option.value && (
+                <span className="text-blue-600">✓</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Collapsible group section header
+function GroupHeader({
+  group,
+  isCollapsed,
+  onToggle,
+}: {
+  group: TaskGroup;
+  isCollapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-150 border-b border-gray-200 transition-colors"
+      data-testid={`group-header-${group.key}`}
+    >
+      <span className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
+        <ChevronRight className="w-4 h-4 text-gray-500" />
+      </span>
+      {group.color && (
+        <span className={`px-2 py-0.5 text-xs font-medium rounded ${group.color}`}>
+          {group.label}
+        </span>
+      )}
+      {!group.color && (
+        <span className="text-sm font-medium text-gray-700">{group.label}</span>
+      )}
+      <span className="ml-auto px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-600 rounded-full" data-testid={`group-count-${group.key}`}>
+        {group.tasks.length}
+      </span>
+    </button>
   );
 }
 
@@ -779,6 +1036,136 @@ function ListView({
   );
 }
 
+// Grouped List View with collapsible sections
+function GroupedListView({
+  groups,
+  selectedTaskId,
+  selectedIds,
+  onTaskClick,
+  onTaskCheck,
+  sort,
+  onSort,
+}: {
+  groups: TaskGroup[];
+  selectedTaskId: string | null;
+  selectedIds: Set<string>;
+  onTaskClick: (taskId: string) => void;
+  onTaskCheck: (taskId: string, checked: boolean) => void;
+  sort: SortConfig;
+  onSort: (field: SortField) => void;
+}) {
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const allTasks = groups.flatMap(g => g.tasks);
+  const allSelected = allTasks.length > 0 && allTasks.every(t => selectedIds.has(t.id));
+  const someSelected = selectedIds.size > 0;
+
+  const handleSelectAll = () => {
+    // This will be handled by the parent
+  };
+
+  // Header row component (stays sticky)
+  const TableHeader = () => (
+    <div className="bg-gray-50 sticky top-0 z-10 border-b border-gray-200">
+      <div className="flex items-center" data-testid="tasks-list-header">
+        <div className="px-2 py-3 w-10 flex-shrink-0">
+          <button
+            onClick={handleSelectAll}
+            className="p-1 hover:bg-gray-200 rounded"
+            data-testid="task-select-all"
+          >
+            {allSelected ? (
+              <CheckSquare className="w-4 h-4 text-blue-600" />
+            ) : someSelected ? (
+              <div className="w-4 h-4 border-2 border-blue-600 rounded flex items-center justify-center">
+                <div className="w-2 h-0.5 bg-blue-600" />
+              </div>
+            ) : (
+              <Square className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <SortableHeaderCell label="Task" field="title" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Status" field="status" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Priority" field="priority" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Type" field="taskType" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-32">
+          <SortableHeaderCell label="Assignee" field="assignee" currentSort={sort} onSort={onSort} />
+        </div>
+        <div className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          Tags
+        </div>
+      </div>
+    </div>
+  );
+
+  if (allTasks.length === 0) {
+    return (
+      <div data-testid="tasks-grouped-list-view">
+        <TableHeader />
+        <div className="p-6 text-center text-gray-500">
+          No tasks found.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="tasks-grouped-list-view">
+      <TableHeader />
+      <div className="bg-white">
+        {groups.map((group) => {
+          const isCollapsed = collapsedGroups.has(group.key);
+          return (
+            <div key={group.key} data-testid={`task-group-${group.key}`}>
+              <GroupHeader
+                group={group}
+                isCollapsed={isCollapsed}
+                onToggle={() => toggleGroup(group.key)}
+              />
+              {!isCollapsed && (
+                <div>
+                  {group.tasks.map((task, index) => (
+                    <VirtualTaskRow
+                      key={task.id}
+                      task={task}
+                      isSelected={task.id === selectedTaskId}
+                      isChecked={selectedIds.has(task.id)}
+                      onCheck={(checked) => onTaskCheck(task.id, checked)}
+                      onClick={() => onTaskClick(task.id)}
+                      isOdd={index % 2 === 1}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Sortable header cell for flex-based layout
 function SortableHeaderCell({
   label,
@@ -909,6 +1296,7 @@ export function TasksPage() {
   const [sortField, setSortField] = useState<SortField>('updated_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
+  const [groupBy, setGroupBy] = useState<GroupByField>(getStoredGroupBy);
 
   // Use upfront-loaded data (TB67) instead of server-side pagination
   const { data: allTasks, isLoading: isTasksLoading } = useAllTasks();
@@ -988,6 +1376,14 @@ export function TasksPage() {
     setStoredViewMode(mode);
   }, []);
 
+  // Handle group by changes and persist to localStorage
+  const handleGroupByChange = useCallback((newGroupBy: GroupByField) => {
+    setGroupBy(newGroupBy);
+    setStoredGroupBy(newGroupBy);
+    // Reset to first page when grouping changes
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+  }, [navigate, pageSize, readyOnly]);
+
   // Keyboard shortcuts for view toggle (V L = list, V K = kanban)
   useEffect(() => {
     let lastKey = '';
@@ -1031,6 +1427,11 @@ export function TasksPage() {
   const totalItems = paginatedData.filteredTotal;
   const totalPages = paginatedData.totalPages;
   const isLoading = isTasksLoading || paginatedData.isLoading || (readyOnly && isReadyTasksLoading);
+
+  // Group tasks if grouping is enabled (TB80)
+  const taskGroups = useMemo(() => {
+    return groupTasks(taskItems, groupBy, entities.data ?? []);
+  }, [taskItems, groupBy, entities.data]);
 
   // Handle task click - update URL with selected task (TB70)
   const handleTaskClick = (taskId: string) => {
@@ -1157,6 +1558,9 @@ export function TasksPage() {
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
           <div className="flex items-center gap-3">
+            {viewMode === 'list' && (
+              <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
+            )}
             <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
             <button
               onClick={() => setIsCreateModalOpen(true)}
@@ -1217,16 +1621,28 @@ export function TasksPage() {
 
           {!isLoading && viewMode === 'list' && (
             <div className="animate-fade-in" data-testid="list-view-content">
-              <ListView
-                tasks={taskItems}
-                selectedTaskId={selectedTaskId}
-                selectedIds={selectedIds}
-                onTaskClick={handleTaskClick}
-                onTaskCheck={handleTaskCheck}
-                onSelectAll={handleSelectAll}
-                sort={{ field: sortField, direction: sortDirection }}
-                onSort={handleSort}
-              />
+              {groupBy === 'none' ? (
+                <ListView
+                  tasks={taskItems}
+                  selectedTaskId={selectedTaskId}
+                  selectedIds={selectedIds}
+                  onTaskClick={handleTaskClick}
+                  onTaskCheck={handleTaskCheck}
+                  onSelectAll={handleSelectAll}
+                  sort={{ field: sortField, direction: sortDirection }}
+                  onSort={handleSort}
+                />
+              ) : (
+                <GroupedListView
+                  groups={taskGroups}
+                  selectedTaskId={selectedTaskId}
+                  selectedIds={selectedIds}
+                  onTaskClick={handleTaskClick}
+                  onTaskCheck={handleTaskCheck}
+                  sort={{ field: sortField, direction: sortDirection }}
+                  onSort={handleSort}
+                />
+              )}
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
