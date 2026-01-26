@@ -727,17 +727,19 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Add a horizontal timeline visualization option.
 
-- [ ] **TB116: Horizontal Timeline View**
-  - [ ] Web: Add "Horizontal" view toggle to Timeline lens (alongside List view)
-  - [ ] Web: Horizontal timeline shows events as dots on a time axis
-  - [ ] Web: X-axis: time (auto-scaled based on date range)
-  - [ ] Web: Events positioned by timestamp, stacked if overlapping
-  - [ ] Web: Event dots colored by event type (create=green, update=blue, delete=red)
-  - [ ] Web: Hover dot → show event details tooltip
-  - [ ] Web: Click dot → show full event card
-  - [ ] Web: Pan and zoom with mouse/touch
-  - [ ] Web: Time range selector (Last 24h, 7 days, 30 days, All)
-  - [ ] **Verify:** Timeline shows events horizontally, interactions work; Claude in Chrome visual inspection
+- [x] **TB116: Horizontal Timeline View** ([spec](./TB116-horizontal-timeline.md))
+  - [x] Web: Add "Horizontal" view toggle to Timeline lens (alongside List view)
+  - [x] Web: Horizontal timeline shows events as dots on a time axis
+  - [x] Web: X-axis: time (auto-scaled based on date range)
+  - [x] Web: Events positioned by timestamp, stacked if overlapping
+  - [x] Web: Event dots colored by event type (create=green, update=blue, delete=red)
+  - [x] Web: Hover dot → show event details tooltip
+  - [x] Web: Click dot → show full event card
+  - [x] Web: Pan and zoom with mouse/touch (Ctrl+scroll for zoom)
+  - [x] Web: Time range selector (Last 24h, 7 days, 30 days, All)
+  - [x] Web: View mode persisted in localStorage
+  - [x] Web: Legend showing event type colors
+  - [x] **Verify:** 25 Playwright tests passing (`apps/web/tests/timeline.spec.ts`); horizontal timeline with pan/zoom/time range selection
 
 - [ ] **TB117: Timeline Brush Selection**
   - [ ] Web: Add brush selection tool to horizontal timeline

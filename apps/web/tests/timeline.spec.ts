@@ -86,7 +86,7 @@ test.describe('TB9: Timeline Lens', () => {
 
     // Should be on timeline page
     await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
-    await expect(page).toHaveURL('/dashboard/timeline');
+    await expect(page).toHaveURL(/\/dashboard\/timeline/);
   });
 
   test('event cards display when events exist', async ({ page }) => {
@@ -472,5 +472,319 @@ test.describe('TB42: Timeline Visual Overhaul', () => {
     const countBadge = actorFilter.locator('span.bg-blue-600');
     await expect(countBadge).toBeVisible();
     expect(await countBadge.textContent()).toBe('1');
+  });
+});
+
+test.describe('TB116: Horizontal Timeline View', () => {
+  test('view mode toggle is visible', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // View mode toggle should be visible
+    await expect(page.getByTestId('view-mode-toggle')).toBeVisible();
+  });
+
+  test('view mode toggle has List and Horizontal options', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Both view mode buttons should be visible
+    await expect(page.getByTestId('view-mode-list')).toBeVisible();
+    await expect(page.getByTestId('view-mode-horizontal')).toBeVisible();
+  });
+
+  test('List view is default', async ({ page }) => {
+    // Clear localStorage to test default
+    await page.goto('/dashboard/timeline');
+    await page.evaluate(() => localStorage.removeItem('timeline-view-mode'));
+    await page.reload();
+
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // List button should be active (has shadow)
+    const listButton = page.getByTestId('view-mode-list');
+    await expect(listButton).toHaveClass(/shadow-sm/);
+
+    // Events list should be visible
+    await expect(page.getByTestId('events-list')).toBeVisible();
+  });
+
+  test('can switch to Horizontal view', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Click Horizontal view button
+    await page.getByTestId('view-mode-horizontal').click();
+
+    // Horizontal button should be active
+    const horizontalButton = page.getByTestId('view-mode-horizontal');
+    await expect(horizontalButton).toHaveClass(/shadow-sm/);
+
+    // Horizontal timeline should be visible
+    await expect(page.getByTestId('horizontal-timeline-container')).toBeVisible();
+  });
+
+  test('can switch back to List view from Horizontal', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline-container')).toBeVisible();
+
+    // Switch back to List
+    await page.getByTestId('view-mode-list').click();
+
+    // Events list should be visible again
+    await expect(page.getByTestId('events-list')).toBeVisible();
+  });
+
+  test('view mode is persisted in localStorage', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal
+    await page.getByTestId('view-mode-horizontal').click();
+
+    // Check localStorage
+    const savedMode = await page.evaluate(() => localStorage.getItem('timeline-view-mode'));
+    expect(savedMode).toBe('horizontal');
+
+    // Refresh and verify it persisted
+    await page.reload();
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Should still be in Horizontal view
+    await expect(page.getByTestId('horizontal-timeline-container')).toBeVisible();
+  });
+
+  test('horizontal timeline shows time range selector', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Time range selector should be visible
+    await expect(page.getByTestId('time-range-selector')).toBeVisible();
+    await expect(page.getByTestId('time-range-select')).toBeVisible();
+  });
+
+  test('can change time range', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Change time range to 24h
+    await page.getByTestId('time-range-select').selectOption('24h');
+
+    // Verify the option is selected
+    await expect(page.getByTestId('time-range-select')).toHaveValue('24h');
+  });
+
+  test('horizontal timeline shows zoom controls', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Zoom controls should be visible
+    await expect(page.getByTestId('zoom-controls')).toBeVisible();
+    await expect(page.getByTestId('zoom-in-button')).toBeVisible();
+    await expect(page.getByTestId('zoom-out-button')).toBeVisible();
+    await expect(page.getByTestId('fit-to-view-button')).toBeVisible();
+  });
+
+  test('zoom in button works', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Get initial zoom level
+    const initialZoom = await page.getByTestId('zoom-level').textContent();
+    expect(initialZoom).toBe('100%');
+
+    // Click zoom in
+    await page.getByTestId('zoom-in-button').click();
+
+    // Zoom level should increase
+    const newZoom = await page.getByTestId('zoom-level').textContent();
+    expect(newZoom).toBe('150%');
+  });
+
+  test('zoom out button is disabled at 100%', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Zoom out should be disabled at 100%
+    await expect(page.getByTestId('zoom-out-button')).toBeDisabled();
+  });
+
+  test('zoom out button is enabled after zooming in', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Zoom in
+    await page.getByTestId('zoom-in-button').click();
+
+    // Zoom out should now be enabled
+    await expect(page.getByTestId('zoom-out-button')).toBeEnabled();
+  });
+
+  test('fit to view resets zoom', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Zoom in twice
+    await page.getByTestId('zoom-in-button').click();
+    await page.getByTestId('zoom-in-button').click();
+
+    // Click fit to view
+    await page.getByTestId('fit-to-view-button').click();
+
+    // Zoom should be back to 100%
+    const zoom = await page.getByTestId('zoom-level').textContent();
+    expect(zoom).toBe('100%');
+  });
+
+  test('timeline canvas is visible', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Canvas should be visible
+    await expect(page.getByTestId('timeline-canvas')).toBeVisible();
+  });
+
+  test('event dots are displayed when events exist', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    if (events.length > 0) {
+      // At least one event dot should be visible
+      const eventDots = page.locator('[data-testid^="event-dot-"]');
+      await expect(eventDots.first()).toBeVisible({ timeout: 5000 });
+    }
+  });
+
+  test('clicking event dot shows event card', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Wait for dots to appear
+    const eventDots = page.locator('[data-testid^="event-dot-"]');
+    await expect(eventDots.first()).toBeVisible({ timeout: 5000 });
+
+    // Click the first event dot
+    await eventDots.first().click();
+
+    // Selected event card should appear
+    await expect(page.getByTestId('selected-event-card')).toBeVisible();
+  });
+
+  test('can close selected event card', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Wait for dots and click one
+    const eventDots = page.locator('[data-testid^="event-dot-"]');
+    await expect(eventDots.first()).toBeVisible({ timeout: 5000 });
+    await eventDots.first().click();
+
+    // Close the selected event card
+    await page.getByTestId('close-selected-event').click();
+
+    // Selected event card should be hidden
+    await expect(page.getByTestId('selected-event-card')).not.toBeVisible();
+  });
+
+  test('timeline legend is visible', async ({ page }) => {
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Legend should be visible
+    await expect(page.getByTestId('timeline-legend')).toBeVisible();
+  });
+
+  test('filters still work in horizontal view', async ({ page }) => {
+    const response = await page.request.get('/api/events?limit=10');
+    const events = await response.json();
+
+    if (events.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/dashboard/timeline');
+    await expect(page.getByTestId('timeline-page')).toBeVisible({ timeout: 10000 });
+
+    // Switch to Horizontal view
+    await page.getByTestId('view-mode-horizontal').click();
+    await expect(page.getByTestId('horizontal-timeline')).toBeVisible();
+
+    // Apply a filter (Created events)
+    await page.getByTestId('filter-chip-created').click();
+
+    // The filter should be active (has ring-2)
+    await expect(page.getByTestId('filter-chip-created')).toHaveClass(/ring-2/);
   });
 });

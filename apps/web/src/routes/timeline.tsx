@@ -1,5 +1,5 @@
 /**
- * Timeline Lens - TB42: Visual Overhaul
+ * Timeline Lens - TB42: Visual Overhaul + TB116: Horizontal Timeline View
  *
  * Chronological view of all events in the system with:
  * - Visual event type icons (plus, pencil, trash, etc.)
@@ -7,9 +7,10 @@
  * - Enhanced event cards with actor avatar, element type badge, preview
  * - Jump to date picker for navigation
  * - Multi-select chips for filtering (instead of dropdowns)
+ * - TB116: Horizontal timeline visualization with pan/zoom
  */
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Pagination } from '../components/shared/Pagination';
@@ -46,6 +47,11 @@ import {
   X,
   ChevronDown,
   Search,
+  List,
+  Clock,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
 } from 'lucide-react';
 
 // Event types from the API spec
@@ -93,6 +99,12 @@ interface PaginatedResult<T> {
 }
 
 const DEFAULT_EVENT_PAGE_SIZE = 100;
+
+// TB116: View modes
+type TimelineViewMode = 'list' | 'horizontal';
+
+// TB116: Time range presets for horizontal timeline
+type TimeRange = '24h' | '7d' | '30d' | 'all';
 
 // Time period grouping
 type TimePeriod = 'today' | 'yesterday' | 'thisWeek' | 'earlier';
@@ -707,9 +719,479 @@ function TimePeriodGroup({ period, events, isFirst }: TimePeriodGroupProps) {
   );
 }
 
+// TB116: Time range presets configuration
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; hours: number | null }[] = [
+  { value: '24h', label: 'Last 24 Hours', hours: 24 },
+  { value: '7d', label: 'Last 7 Days', hours: 24 * 7 },
+  { value: '30d', label: 'Last 30 Days', hours: 24 * 30 },
+  { value: 'all', label: 'All Time', hours: null },
+];
+
+// TB116: Horizontal Timeline Component
+interface HorizontalTimelineProps {
+  events: Event[];
+  isLoading: boolean;
+}
+
+interface EventDot {
+  event: Event;
+  x: number;
+  y: number;
+  stackIndex: number;
+}
+
+function HorizontalTimeline({ events, isLoading }: HorizontalTimelineProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [timeRange, setTimeRange] = useState<TimeRange>('7d');
+  const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState(0);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [hoveredEvent, setHoveredEvent] = useState<Event | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Filter events by time range
+  const filteredEvents = useMemo(() => {
+    const option = TIME_RANGE_OPTIONS.find(o => o.value === timeRange);
+    if (!option || option.hours === null) return events;
+
+    const cutoff = new Date();
+    cutoff.setHours(cutoff.getHours() - option.hours);
+    return events.filter(e => new Date(e.createdAt) >= cutoff);
+  }, [events, timeRange]);
+
+  // Calculate time bounds
+  const { minTime, timeSpan } = useMemo(() => {
+    if (filteredEvents.length === 0) {
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return { minTime: weekAgo.getTime(), maxTime: now.getTime(), timeSpan: 7 * 24 * 60 * 60 * 1000 };
+    }
+
+    const times = filteredEvents.map(e => new Date(e.createdAt).getTime());
+    const min = Math.min(...times);
+    const max = Math.max(...times);
+    // Add 5% padding on each side
+    const span = max - min || 24 * 60 * 60 * 1000; // Default to 1 day if single event
+    const padding = span * 0.05;
+    return { minTime: min - padding, maxTime: max + padding, timeSpan: span + padding * 2 };
+  }, [filteredEvents]);
+
+  // Calculate dot positions with collision detection
+  const eventDots = useMemo((): EventDot[] => {
+    const containerWidth = containerRef.current?.clientWidth ?? 800;
+    const effectiveWidth = containerWidth * zoom;
+    const dotRadius = 8;
+    const dotDiameter = dotRadius * 2;
+    const verticalGap = 4;
+    const baseY = 100; // Y position of the time axis
+
+    // Sort events by time
+    const sorted = [...filteredEvents].sort((a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    // Calculate positions with stacking for overlaps
+    const dots: EventDot[] = [];
+    const occupiedSlots: { x: number; stackIndex: number }[] = [];
+
+    for (const event of sorted) {
+      const time = new Date(event.createdAt).getTime();
+      const x = ((time - minTime) / timeSpan) * effectiveWidth;
+
+      // Find the lowest available stack position
+      let stackIndex = 0;
+      for (const slot of occupiedSlots) {
+        if (Math.abs(slot.x - x) < dotDiameter + 4) {
+          stackIndex = Math.max(stackIndex, slot.stackIndex + 1);
+        }
+      }
+
+      // Clean up old slots that don't overlap anymore
+      const relevantSlots = occupiedSlots.filter(slot => Math.abs(slot.x - x) < dotDiameter + 4);
+      occupiedSlots.length = 0;
+      occupiedSlots.push(...relevantSlots);
+      occupiedSlots.push({ x, stackIndex });
+
+      dots.push({
+        event,
+        x,
+        y: baseY - stackIndex * (dotDiameter + verticalGap),
+        stackIndex,
+      });
+    }
+
+    return dots;
+  }, [filteredEvents, minTime, timeSpan, zoom]);
+
+  // Format time axis labels
+  const timeAxisLabels = useMemo(() => {
+    const containerWidth = containerRef.current?.clientWidth ?? 800;
+    const effectiveWidth = containerWidth * zoom;
+    const labelCount = Math.max(4, Math.floor(effectiveWidth / 150));
+    const labels: { x: number; label: string }[] = [];
+
+    for (let i = 0; i <= labelCount; i++) {
+      const ratio = i / labelCount;
+      const time = minTime + timeSpan * ratio;
+      const date = new Date(time);
+
+      // Format based on time span
+      let label: string;
+      if (timeSpan < 2 * 24 * 60 * 60 * 1000) {
+        // Less than 2 days: show time
+        label = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else if (timeSpan < 30 * 24 * 60 * 60 * 1000) {
+        // Less than 30 days: show date + time
+        label = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      } else {
+        // More than 30 days: show month + year
+        label = date.toLocaleDateString([], { month: 'short', year: '2-digit' });
+      }
+
+      labels.push({ x: ratio * effectiveWidth, label });
+    }
+
+    return labels;
+  }, [minTime, timeSpan, zoom]);
+
+  // Pan handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    setIsDragging(true);
+    setDragStart(e.clientX + panOffset);
+  }, [panOffset]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const newOffset = dragStart - e.clientX;
+    const containerWidth = containerRef.current?.clientWidth ?? 800;
+    const maxOffset = Math.max(0, containerWidth * zoom - containerWidth);
+    setPanOffset(Math.max(0, Math.min(maxOffset, newOffset)));
+  }, [isDragging, dragStart, zoom]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Zoom handlers
+  const handleZoomIn = useCallback(() => {
+    setZoom(z => Math.min(z * 1.5, 10));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(z => Math.max(z / 1.5, 1));
+    // Reset pan if zoom is back to 1
+    if (zoom <= 1.5) setPanOffset(0);
+  }, [zoom]);
+
+  const handleFitToView = useCallback(() => {
+    setZoom(1);
+    setPanOffset(0);
+  }, []);
+
+  // Handle wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setZoom(z => Math.max(1, Math.min(10, z * delta)));
+    }
+  }, []);
+
+  // Event dot color based on event type
+  const getEventDotColor = (eventType: EventType): string => {
+    const colors: Record<EventType, string> = {
+      created: '#22c55e',
+      updated: '#3b82f6',
+      closed: '#a855f7',
+      reopened: '#eab308',
+      deleted: '#ef4444',
+      dependency_added: '#6366f1',
+      dependency_removed: '#ec4899',
+      tag_added: '#06b6d4',
+      tag_removed: '#f97316',
+      member_added: '#14b8a6',
+      member_removed: '#f43f5e',
+      auto_blocked: '#ef4444',
+      auto_unblocked: '#10b981',
+    };
+    return colors[eventType] || '#6b7280';
+  };
+
+  // Handle event dot hover
+  const handleDotMouseEnter = (event: Event, e: React.MouseEvent) => {
+    setHoveredEvent(event);
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setTooltipPosition({ x: rect.left + rect.width / 2, y: rect.top });
+  };
+
+  const handleDotMouseLeave = () => {
+    setHoveredEvent(null);
+    setTooltipPosition(null);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+        <div className="animate-pulse text-gray-500">Loading timeline...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="horizontal-timeline">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Time range selector */}
+        <div className="flex items-center gap-2" data-testid="time-range-selector">
+          <Clock className="w-4 h-4 text-gray-400" />
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            data-testid="time-range-select"
+          >
+            {TIME_RANGE_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1" data-testid="zoom-controls">
+          <button
+            onClick={handleZoomOut}
+            disabled={zoom <= 1}
+            className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Zoom out"
+            data-testid="zoom-out-button"
+          >
+            <ZoomOut className="w-4 h-4 text-gray-600" />
+          </button>
+          <span className="text-xs text-gray-500 w-12 text-center" data-testid="zoom-level">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={handleZoomIn}
+            disabled={zoom >= 10}
+            className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Zoom in"
+            data-testid="zoom-in-button"
+          >
+            <ZoomIn className="w-4 h-4 text-gray-600" />
+          </button>
+          <div className="w-px h-4 bg-gray-300 mx-1" />
+          <button
+            onClick={handleFitToView}
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Fit to view"
+            data-testid="fit-to-view-button"
+          >
+            <Maximize className="w-4 h-4 text-gray-600" />
+          </button>
+        </div>
+
+        {/* Event count */}
+        <div className="text-sm text-gray-500">
+          {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Timeline canvas */}
+      <div
+        ref={containerRef}
+        className="relative h-64 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden select-none"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+        style={{ cursor: isDragging ? 'grabbing' : zoom > 1 ? 'grab' : 'default' }}
+        data-testid="timeline-canvas"
+      >
+        {/* Scrollable content */}
+        <div
+          ref={canvasRef}
+          className="absolute inset-0"
+          style={{ transform: `translateX(-${panOffset}px)` }}
+        >
+          {/* Time axis line */}
+          <div
+            className="absolute left-0 right-0 h-px bg-gray-300"
+            style={{
+              top: '100px',
+              width: `${100 * zoom}%`,
+            }}
+          />
+
+          {/* Time axis labels */}
+          {timeAxisLabels.map((label, i) => (
+            <div
+              key={i}
+              className="absolute text-xs text-gray-500 whitespace-nowrap"
+              style={{
+                left: label.x,
+                top: '110px',
+                transform: 'translateX(-50%)',
+              }}
+              data-testid={`axis-label-${i}`}
+            >
+              {label.label}
+            </div>
+          ))}
+
+          {/* Event dots */}
+          {eventDots.map((dot) => (
+            <button
+              key={dot.event.id}
+              className="absolute w-4 h-4 rounded-full border-2 border-white shadow-sm hover:scale-125 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              style={{
+                left: dot.x - 8,
+                top: dot.y - 8,
+                backgroundColor: getEventDotColor(dot.event.eventType),
+              }}
+              onClick={() => setSelectedEvent(dot.event)}
+              onMouseEnter={(e) => handleDotMouseEnter(dot.event, e)}
+              onMouseLeave={handleDotMouseLeave}
+              data-testid={`event-dot-${dot.event.id}`}
+              aria-label={`${EVENT_TYPE_DISPLAY[dot.event.eventType]} event on ${dot.event.elementId}`}
+            />
+          ))}
+        </div>
+
+        {/* Empty state */}
+        {filteredEvents.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+            No events in the selected time range
+          </div>
+        )}
+
+        {/* Pan hint */}
+        {zoom > 1 && !isDragging && (
+          <div className="absolute bottom-2 right-2 text-xs text-gray-400 bg-white/80 px-2 py-1 rounded">
+            Drag to pan • Ctrl+scroll to zoom
+          </div>
+        )}
+      </div>
+
+      {/* Tooltip */}
+      {hoveredEvent && tooltipPosition && (
+        <div
+          className="fixed z-50 bg-white shadow-lg rounded-lg border border-gray-200 p-3 max-w-xs pointer-events-none"
+          style={{
+            left: tooltipPosition.x,
+            top: tooltipPosition.y - 10,
+            transform: 'translate(-50%, -100%)',
+          }}
+          data-testid="event-tooltip"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: getEventDotColor(hoveredEvent.eventType) }}
+            />
+            <span className="text-sm font-medium">{EVENT_TYPE_DISPLAY[hoveredEvent.eventType]}</span>
+          </div>
+          <p className="text-xs text-gray-600 font-mono">{hoveredEvent.elementId}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {new Date(hoveredEvent.createdAt).toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-500">by {hoveredEvent.actor}</p>
+        </div>
+      )}
+
+      {/* Selected event card */}
+      {selectedEvent && (
+        <div className="border border-blue-200 rounded-lg bg-blue-50 p-4" data-testid="selected-event-card">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <EventCard event={selectedEvent} />
+            </div>
+            <button
+              onClick={() => setSelectedEvent(null)}
+              className="p-1 hover:bg-blue-100 rounded-lg transition-colors ml-2"
+              data-testid="close-selected-event"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-xs" data-testid="timeline-legend">
+        {ALL_EVENT_TYPES.slice(0, 6).map(({ value, label }) => (
+          <div key={value} className="flex items-center gap-1.5">
+            <span
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ backgroundColor: getEventDotColor(value) }}
+            />
+            <span className="text-gray-600">{label}</span>
+          </div>
+        ))}
+        <span className="text-gray-400">+ {ALL_EVENT_TYPES.length - 6} more</span>
+      </div>
+    </div>
+  );
+}
+
+// TB116: View mode toggle component
+interface ViewModeToggleProps {
+  mode: TimelineViewMode;
+  onChange: (mode: TimelineViewMode) => void;
+}
+
+function ViewModeToggle({ mode, onChange }: ViewModeToggleProps) {
+  return (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5" data-testid="view-mode-toggle">
+      <button
+        onClick={() => onChange('list')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+          mode === 'list'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+        data-testid="view-mode-list"
+      >
+        <List className="w-3.5 h-3.5" />
+        List
+      </button>
+      <button
+        onClick={() => onChange('horizontal')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+          mode === 'horizontal'
+            ? 'bg-white text-gray-900 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+        data-testid="view-mode-horizontal"
+      >
+        <Clock className="w-3.5 h-3.5" />
+        Horizontal
+      </button>
+    </div>
+  );
+}
+
 export function TimelinePage() {
   // Track this dashboard section visit
   useTrackDashboardSection('timeline');
+
+  // TB116: View mode state
+  const [viewMode, setViewMode] = useState<TimelineViewMode>(() => {
+    // Persist view mode preference in localStorage
+    const saved = localStorage.getItem('timeline-view-mode');
+    return (saved === 'list' || saved === 'horizontal') ? saved : 'list';
+  });
+
+  // Save view mode preference
+  useEffect(() => {
+    localStorage.setItem('timeline-view-mode', viewMode);
+  }, [viewMode]);
 
   const navigate = useNavigate();
   const search = useSearch({ from: '/dashboard/timeline' });
@@ -860,16 +1342,20 @@ export function TimelinePage() {
           <h2 className="text-lg font-medium text-gray-900">Timeline</h2>
           <p className="text-sm text-gray-500">Event history across all elements</p>
         </div>
-        {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1.5"
-            data-testid="clear-filters-button"
-          >
-            <X className="w-4 h-4" />
-            Clear filters
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* TB116: View mode toggle */}
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+              data-testid="clear-filters-button"
+            >
+              <X className="w-4 h-4" />
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter controls */}
@@ -937,64 +1423,75 @@ export function TimelinePage() {
         </div>
       </div>
 
-      {/* Event count */}
-      <div className="mb-3 text-sm text-gray-500 flex items-center gap-2" data-testid="event-count">
-        {isLoading ? (
-          'Loading events...'
-        ) : (
-          <>
-            <span>{filteredEvents.length} of {totalItems} events</span>
-            {hasActiveFilters && (
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">(filtered)</span>
+      {/* TB116: Conditional rendering based on view mode */}
+      {viewMode === 'horizontal' ? (
+        /* Horizontal Timeline View */
+        <div className="flex-1 min-h-0 overflow-y-auto" data-testid="horizontal-timeline-container">
+          <HorizontalTimeline events={filteredEvents} isLoading={isLoading} />
+        </div>
+      ) : (
+        /* List View */
+        <>
+          {/* Event count */}
+          <div className="mb-3 text-sm text-gray-500 flex items-center gap-2" data-testid="event-count">
+            {isLoading ? (
+              'Loading events...'
+            ) : (
+              <>
+                <span>{filteredEvents.length} of {totalItems} events</span>
+                {hasActiveFilters && (
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">(filtered)</span>
+                )}
+                {hasMore && (
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">more available</span>
+                )}
+              </>
             )}
-            {hasMore && (
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">more available</span>
+          </div>
+
+          {/* Events list with time period grouping */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-3 -mx-3" data-testid="events-list">
+            {isLoading && (
+              <div className="text-center py-8 text-gray-500">
+                <div className="animate-pulse">Loading events...</div>
+              </div>
             )}
-          </>
-        )}
-      </div>
+            {isError && (
+              <div className="text-center py-8 text-red-600">Failed to load events</div>
+            )}
+            {!isLoading && !isError && filteredEvents.length === 0 && (
+              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                {hasActiveFilters ? 'No events match the current filters' : 'No events recorded yet'}
+              </div>
+            )}
+            {!isLoading &&
+              !isError &&
+              filteredEvents.length > 0 &&
+              timePeriodOrder.map((period, index) => (
+                <TimePeriodGroup
+                  key={period}
+                  period={period}
+                  events={groupedEvents[period]}
+                  isFirst={index === 0 || timePeriodOrder.slice(0, index).every((p) => groupedEvents[p].length === 0)}
+                />
+              ))}
 
-      {/* Events list with time period grouping */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-3 -mx-3" data-testid="events-list">
-        {isLoading && (
-          <div className="text-center py-8 text-gray-500">
-            <div className="animate-pulse">Loading events...</div>
+            {/* Pagination */}
+            {!isLoading && !isError && totalPages > 1 && (
+              <div className="mt-4 mb-2">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  pageSize={pageSize}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                />
+              </div>
+            )}
           </div>
-        )}
-        {isError && (
-          <div className="text-center py-8 text-red-600">Failed to load events</div>
-        )}
-        {!isLoading && !isError && filteredEvents.length === 0 && (
-          <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-            {hasActiveFilters ? 'No events match the current filters' : 'No events recorded yet'}
-          </div>
-        )}
-        {!isLoading &&
-          !isError &&
-          filteredEvents.length > 0 &&
-          timePeriodOrder.map((period, index) => (
-            <TimePeriodGroup
-              key={period}
-              period={period}
-              events={groupedEvents[period]}
-              isFirst={index === 0 || timePeriodOrder.slice(0, index).every((p) => groupedEvents[p].length === 0)}
-            />
-          ))}
-
-        {/* Pagination */}
-        {!isLoading && !isError && totalPages > 1 && (
-          <div className="mt-4 mb-2">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
