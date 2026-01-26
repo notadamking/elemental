@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
@@ -215,8 +215,14 @@ function useEntityEvents(id: string | null) {
 
 type InboxViewType = 'unread' | 'all' | 'archived';
 
-// LocalStorage key for persisting inbox view preference
+// TB93: Filter and sort types for inbox
+type InboxSourceFilter = 'all' | 'direct' | 'mention';
+type InboxSortOrder = 'newest' | 'oldest' | 'sender';
+
+// LocalStorage keys for persisting inbox preferences
 const INBOX_VIEW_STORAGE_KEY = 'inbox.view';
+const INBOX_SOURCE_FILTER_KEY = 'inbox.sourceFilter';
+const INBOX_SORT_ORDER_KEY = 'inbox.sortOrder';
 
 function getStoredInboxView(): InboxViewType {
   try {
@@ -233,6 +239,50 @@ function getStoredInboxView(): InboxViewType {
 function setStoredInboxView(view: InboxViewType): void {
   try {
     localStorage.setItem(INBOX_VIEW_STORAGE_KEY, view);
+  } catch {
+    // localStorage not available
+  }
+}
+
+// TB93: Get stored source filter
+function getStoredSourceFilter(): InboxSourceFilter {
+  try {
+    const stored = localStorage.getItem(INBOX_SOURCE_FILTER_KEY);
+    if (stored === 'all' || stored === 'direct' || stored === 'mention') {
+      return stored;
+    }
+  } catch {
+    // localStorage not available
+  }
+  return 'all'; // Default to all
+}
+
+// TB93: Set stored source filter
+function setStoredSourceFilter(filter: InboxSourceFilter): void {
+  try {
+    localStorage.setItem(INBOX_SOURCE_FILTER_KEY, filter);
+  } catch {
+    // localStorage not available
+  }
+}
+
+// TB93: Get stored sort order
+function getStoredSortOrder(): InboxSortOrder {
+  try {
+    const stored = localStorage.getItem(INBOX_SORT_ORDER_KEY);
+    if (stored === 'newest' || stored === 'oldest' || stored === 'sender') {
+      return stored;
+    }
+  } catch {
+    // localStorage not available
+  }
+  return 'newest'; // Default to newest first
+}
+
+// TB93: Set stored sort order
+function setStoredSortOrder(order: InboxSortOrder): void {
+  try {
+    localStorage.setItem(INBOX_SORT_ORDER_KEY, order);
   } catch {
     // localStorage not available
   }
@@ -1845,11 +1895,28 @@ function EntityDetailPanel({
   // TB91: Selected inbox message for split layout
   const [selectedInboxItemId, setSelectedInboxItemId] = useState<string | null>(null);
   const inboxListRef = useRef<HTMLDivElement>(null);
+  // TB93: Filter and sort state for inbox
+  const [inboxSourceFilter, setInboxSourceFilter] = useState<InboxSourceFilter>(() => getStoredSourceFilter());
+  const [inboxSortOrder, setInboxSortOrder] = useState<InboxSortOrder>(() => getStoredSortOrder());
 
   // Handle inbox view change and persist to localStorage
   const handleInboxViewChange = (view: InboxViewType) => {
     setInboxView(view);
     setStoredInboxView(view);
+  };
+
+  // TB93: Handle source filter change
+  const handleSourceFilterChange = (filter: InboxSourceFilter) => {
+    setInboxSourceFilter(filter);
+    setStoredSourceFilter(filter);
+    // Reset selection when filter changes
+    setSelectedInboxItemId(null);
+  };
+
+  // TB93: Handle sort order change
+  const handleSortOrderChange = (order: InboxSortOrder) => {
+    setInboxSortOrder(order);
+    setStoredSortOrder(order);
   };
 
   // Initialize edit values when entity loads or editing starts
@@ -1926,18 +1993,48 @@ function EntityDetailPanel({
     });
   };
 
-  // TB91: Get currently selected inbox item
-  const selectedInboxItem = useMemo(() => {
-    if (!selectedInboxItemId || !inboxData?.items) return null;
-    return inboxData.items.find((item) => item.id === selectedInboxItemId) ?? null;
-  }, [selectedInboxItemId, inboxData?.items]);
+  // TB93: Client-side filtering and sorting of inbox items
+  const filteredAndSortedInboxItems = useMemo(() => {
+    if (!inboxData?.items) return [];
 
-  // TB91: Keyboard navigation for inbox (J = next, K = previous)
+    let items = [...inboxData.items];
+
+    // Apply source filter
+    if (inboxSourceFilter !== 'all') {
+      items = items.filter((item) => item.sourceType === inboxSourceFilter);
+    }
+
+    // Apply sorting
+    items.sort((a, b) => {
+      switch (inboxSortOrder) {
+        case 'newest':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'oldest':
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'sender':
+          const senderA = a.sender?.name || '';
+          const senderB = b.sender?.name || '';
+          return senderA.localeCompare(senderB);
+        default:
+          return 0;
+      }
+    });
+
+    return items;
+  }, [inboxData?.items, inboxSourceFilter, inboxSortOrder]);
+
+  // TB91: Get currently selected inbox item (updated to use filtered list)
+  const selectedInboxItem = useMemo(() => {
+    if (!selectedInboxItemId || !filteredAndSortedInboxItems) return null;
+    return filteredAndSortedInboxItems.find((item) => item.id === selectedInboxItemId) ?? null;
+  }, [selectedInboxItemId, filteredAndSortedInboxItems]);
+
+  // TB91: Keyboard navigation for inbox (J = next, K = previous) - updated to use filtered list
   const handleInboxKeyNavigation = useCallback(
     (direction: 'next' | 'prev') => {
-      if (!inboxData?.items || inboxData.items.length === 0) return;
+      if (!filteredAndSortedInboxItems || filteredAndSortedInboxItems.length === 0) return;
 
-      const items = inboxData.items;
+      const items = filteredAndSortedInboxItems;
       const currentIndex = selectedInboxItemId
         ? items.findIndex((item) => item.id === selectedInboxItemId)
         : -1;
@@ -1953,7 +2050,7 @@ function EntityDetailPanel({
         setSelectedInboxItemId(items[newIndex].id);
       }
     },
-    [inboxData?.items, selectedInboxItemId]
+    [filteredAndSortedInboxItems, selectedInboxItemId]
   );
 
   // TB91: Reset selection when inbox view changes or entity changes
@@ -2557,6 +2654,195 @@ function EntityDetailPanel({
                   );
                 })}
               </div>
+
+              {/* TB93: Filter and Sort Controls */}
+              <div className="flex items-center gap-2" data-testid="inbox-filter-sort-controls">
+                {/* Source Filter Dropdown */}
+                <div className="relative">
+                  <button
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md border transition-colors ${
+                      inboxSourceFilter !== 'all'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      const dropdown = document.getElementById('inbox-filter-dropdown');
+                      if (dropdown) {
+                        dropdown.classList.toggle('hidden');
+                      }
+                    }}
+                    data-testid="inbox-filter-button"
+                  >
+                    <Filter className="w-3 h-3" />
+                    Filter
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  <div
+                    id="inbox-filter-dropdown"
+                    className="hidden absolute left-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-10"
+                    data-testid="inbox-filter-dropdown"
+                  >
+                    <div className="p-1">
+                      <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">Source Type</div>
+                      {[
+                        { value: 'all', label: 'All Messages', icon: Mail },
+                        { value: 'direct', label: 'Direct Messages', icon: MessageSquare },
+                        { value: 'mention', label: 'Mentions', icon: AtSign },
+                      ].map((option) => {
+                        const OptionIcon = option.icon;
+                        const isSelected = inboxSourceFilter === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              handleSourceFilterChange(option.value as InboxSourceFilter);
+                              const dropdown = document.getElementById('inbox-filter-dropdown');
+                              if (dropdown) dropdown.classList.add('hidden');
+                            }}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors ${
+                              isSelected
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                            data-testid={`inbox-filter-${option.value}`}
+                          >
+                            <OptionIcon className="w-3.5 h-3.5" />
+                            {option.label}
+                            {isSelected && <CheckCircle className="w-3 h-3 ml-auto" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sort Dropdown */}
+                <div className="relative">
+                  <button
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md border transition-colors ${
+                      inboxSortOrder !== 'newest'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      const dropdown = document.getElementById('inbox-sort-dropdown');
+                      if (dropdown) {
+                        dropdown.classList.toggle('hidden');
+                      }
+                    }}
+                    data-testid="inbox-sort-button"
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                    Sort
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  <div
+                    id="inbox-sort-dropdown"
+                    className="hidden absolute left-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-md shadow-lg z-10"
+                    data-testid="inbox-sort-dropdown"
+                  >
+                    <div className="p-1">
+                      {[
+                        { value: 'newest', label: 'Newest First', icon: ArrowDown },
+                        { value: 'oldest', label: 'Oldest First', icon: ArrowUp },
+                        { value: 'sender', label: 'By Sender', icon: User },
+                      ].map((option) => {
+                        const OptionIcon = option.icon;
+                        const isSelected = inboxSortOrder === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              handleSortOrderChange(option.value as InboxSortOrder);
+                              const dropdown = document.getElementById('inbox-sort-dropdown');
+                              if (dropdown) dropdown.classList.add('hidden');
+                            }}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors ${
+                              isSelected
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                            data-testid={`inbox-sort-${option.value}`}
+                          >
+                            <OptionIcon className="w-3.5 h-3.5" />
+                            {option.label}
+                            {isSelected && <CheckCircle className="w-3 h-3 ml-auto" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TB93: Active Filter Chips */}
+              {(inboxSourceFilter !== 'all' || inboxSortOrder !== 'newest') && (
+                <div className="flex flex-wrap gap-1.5" data-testid="inbox-active-filters">
+                  {inboxSourceFilter !== 'all' && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-full"
+                      data-testid={`inbox-filter-chip-${inboxSourceFilter}`}
+                    >
+                      {inboxSourceFilter === 'direct' ? (
+                        <>
+                          <MessageSquare className="w-3 h-3" />
+                          Direct Messages
+                        </>
+                      ) : (
+                        <>
+                          <AtSign className="w-3 h-3" />
+                          Mentions
+                        </>
+                      )}
+                      <button
+                        onClick={() => handleSourceFilterChange('all')}
+                        className="ml-0.5 hover:text-blue-900"
+                        data-testid="inbox-clear-source-filter"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {inboxSortOrder !== 'newest' && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-full"
+                      data-testid={`inbox-sort-chip-${inboxSortOrder}`}
+                    >
+                      {inboxSortOrder === 'oldest' ? (
+                        <>
+                          <ArrowUp className="w-3 h-3" />
+                          Oldest First
+                        </>
+                      ) : (
+                        <>
+                          <User className="w-3 h-3" />
+                          By Sender
+                        </>
+                      )}
+                      <button
+                        onClick={() => handleSortOrderChange('newest')}
+                        className="ml-0.5 hover:text-gray-900"
+                        data-testid="inbox-clear-sort"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {/* Clear All button */}
+                  {inboxSourceFilter !== 'all' && inboxSortOrder !== 'newest' && (
+                    <button
+                      onClick={() => {
+                        handleSourceFilterChange('all');
+                        handleSortOrderChange('newest');
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                      data-testid="inbox-clear-all-filters"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* TB91: Split Layout - Message List (left 40%) + Content (right 60%) */}
@@ -2601,9 +2887,25 @@ function EntityDetailPanel({
                         : 'Direct messages and @mentions will appear here'}
                     </p>
                   </div>
+                ) : filteredAndSortedInboxItems.length === 0 ? (
+                  /* TB93: Empty state when filters exclude all items */
+                  <div className="text-center py-8 px-4" data-testid="inbox-filtered-empty">
+                    <Filter className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No messages match your filters</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Try adjusting your filter settings
+                    </p>
+                    <button
+                      onClick={() => handleSourceFilterChange('all')}
+                      className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700"
+                      data-testid="inbox-clear-filters-link"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
                 ) : (
                   <VirtualizedList
-                    items={inboxData.items}
+                    items={filteredAndSortedInboxItems}
                     getItemKey={(item) => item.id}
                     estimateSize={56}
                     height="100%"
@@ -2617,9 +2919,22 @@ function EntityDetailPanel({
                     )}
                   />
                 )}
-                {inboxData?.hasMore && (
+                {/* TB93: Show count info with filter count */}
+                {inboxData && inboxData.items.length > 0 && (
                   <div className="text-center text-xs text-gray-500 py-2 border-t border-gray-100">
-                    Showing {inboxData.items.length} of {inboxData.total} items
+                    {inboxSourceFilter !== 'all' ? (
+                      <>
+                        Showing {filteredAndSortedInboxItems.length} of {inboxData.items.length} (filtered)
+                      </>
+                    ) : inboxData.hasMore ? (
+                      <>
+                        Showing {inboxData.items.length} of {inboxData.total} items
+                      </>
+                    ) : (
+                      <>
+                        {inboxData.items.length} {inboxData.items.length === 1 ? 'item' : 'items'}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -102,6 +102,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB83-rich-task-display.md](./platform/TB83-rich-task-display.md) | Rich task display with description preview, attachment count, dependency counts | tasks, TaskCard, description, attachments, dependencies, tooltip, counts |
 | [platform/TB84-dependency-sub-issues.md](./platform/TB84-dependency-sub-issues.md) | Dependencies as sub-issues display with progress, navigation, and create blocker | dependencies, sub-issues, blockers, blocks, TaskDetailPanel, progress, navigation |
 | [platform/TB86-plan-progress-ring.md](./platform/TB86-plan-progress-ring.md) | Visual circular progress rings for plans with color-coded status | plans, progress, ring, circular, percentage, status, color-coded |
+| [platform/TB93-inbox-filtering-sorting.md](./platform/TB93-inbox-filtering-sorting.md) | Inbox filtering by source type and sorting by date/sender | inbox, filter, sort, direct messages, mentions, localStorage |
 
 ---
 

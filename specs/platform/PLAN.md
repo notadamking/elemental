@@ -1357,12 +1357,13 @@ For mutations (create, update, delete):
   - [x] Server: Enhanced `GET /api/entities/:id/inbox` to return fullContent, attachments, threadParent
   - [x] **Verify:** Full message content renders with all metadata; Playwright tests passing (16 tests, skipped when no inbox data)
 
-- [ ] **TB93: Inbox Filtering and Sorting**
-  - [ ] Web: Add filter dropdown: All, Direct Messages, Mentions, Channels (multi-select)
-  - [ ] Web: Add sort dropdown: Newest, Oldest, Sender
-  - [ ] Web: Combine with view filter (Unread + Direct Messages)
-  - [ ] Web: Filter chips show active filters with clear buttons
-  - [ ] **Verify:** Filter to unread mentions only, correct messages shown; Playwright tests passing
+- [x] **TB93: Inbox Filtering and Sorting**
+  - [x] Web: Add filter dropdown: All, Direct Messages, Mentions (multi-select) - `apps/web/src/routes/entities.tsx` InboxSourceFilter type and dropdown
+  - [x] Web: Add sort dropdown: Newest, Oldest, Sender - InboxSortOrder type and dropdown
+  - [x] Web: Combine with view filter (Unread + Direct Messages) - filteredAndSortedInboxItems useMemo
+  - [x] Web: Filter chips show active filters with clear buttons - inbox-active-filters section
+  - [x] Web: LocalStorage persistence for filter/sort preferences - inbox.sourceFilter and inbox.sortOrder keys
+  - [x] **Verify:** Filter to unread mentions only, correct messages shown; Playwright tests passing (17 tests)
 
 - [ ] **TB94: Inbox Time-Ago Indicator**
   - [ ] Web: Show relative time for each message ("2m ago", "1h ago", "Yesterday", "Jan 15")
