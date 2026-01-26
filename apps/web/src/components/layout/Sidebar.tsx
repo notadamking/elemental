@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -16,9 +17,24 @@ import {
   Network,
   History,
   PanelLeftOpen,
+  Inbox,
   type LucideIcon,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
+
+// Hook to fetch global inbox unread count
+function useGlobalInboxCount() {
+  return useQuery<{ count: number }>({
+    queryKey: ['inbox', 'global', 'count'],
+    queryFn: async () => {
+      const response = await fetch('/api/inbox/count');
+      if (!response.ok) return { count: 0 };
+      return response.json();
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 10000,
+  });
+}
 
 interface NavItem {
   to: string;
@@ -27,6 +43,7 @@ interface NavItem {
   shortcut?: string;
   testId?: string;
   search?: Record<string, unknown>;
+  badgeKey?: 'inbox'; // Badge to show for this item
 }
 
 interface NavSection {
@@ -65,6 +82,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Collaborate',
     defaultExpanded: true,
     items: [
+      { to: '/inbox', icon: Inbox, label: 'Inbox', shortcut: 'G I', testId: 'nav-inbox', search: { message: undefined }, badgeKey: 'inbox' },
       { to: '/messages', icon: MessageSquare, label: 'Messages', shortcut: 'G M', testId: 'nav-messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } },
       { to: '/documents', icon: FileText, label: 'Documents', shortcut: 'G D', testId: 'nav-documents', search: { selected: undefined, library: undefined, page: 1, limit: 25 } },
     ],
@@ -93,6 +111,9 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
+  // Fetch inbox unread count for badge (TB137)
+  const { data: inboxCount } = useGlobalInboxCount();
+
   // Track expanded sections - default to section's defaultExpanded
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() =>
     new Set(NAV_SECTIONS.filter(s => s.defaultExpanded).map(s => s.id))
@@ -119,6 +140,12 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
     const isActive = isPathActive(item.to);
     const Icon = item.icon;
 
+    // Get badge count for items that have badges (TB137)
+    let badgeCount: number | undefined;
+    if (item.badgeKey === 'inbox' && inboxCount?.count && inboxCount.count > 0) {
+      badgeCount = inboxCount.count;
+    }
+
     return (
       <Link
         key={item.to}
@@ -144,11 +171,30 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             data-testid="active-indicator"
           />
         )}
-        <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[var(--color-sidebar-item-text-active)]' : 'text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)]'}`} />
+        {/* Icon with optional badge dot when collapsed */}
+        <div className="relative flex-shrink-0">
+          <Icon className={`w-4 h-4 ${isActive ? 'text-[var(--color-sidebar-item-text-active)]' : 'text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)]'}`} />
+          {/* Badge dot when collapsed (TB137) */}
+          {collapsed && badgeCount !== undefined && (
+            <span
+              className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500"
+              data-testid={`${item.testId}-badge-dot`}
+            />
+          )}
+        </div>
         {!collapsed && (
           <>
             <span className="flex-1 truncate">{item.label}</span>
-            {item.shortcut && (
+            {/* Badge count when expanded (TB137) */}
+            {badgeCount !== undefined && (
+              <span
+                className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full"
+                data-testid={`${item.testId}-badge`}
+              >
+                {badgeCount > 99 ? '99+' : badgeCount}
+              </span>
+            )}
+            {!badgeCount && item.shortcut && (
               <span className="text-[10px] text-[var(--color-text-muted)] font-mono tracking-wide opacity-0 group-hover:opacity-100 transition-opacity">
                 {item.shortcut}
               </span>

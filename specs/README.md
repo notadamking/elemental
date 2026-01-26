@@ -161,6 +161,9 @@ Detailed specifications for web platform features (tracer bullets).
 | platform/PLAN.md#tb156 | Responsive Charts & Visualizations - Touch interactions for all charts | responsive, charts, recharts, react flow, touch, mobile |
 | platform/PLAN.md#tb157 | Responsive Empty States & Loading States - Properly sized for all screens | responsive, empty state, skeleton, loading, mobile |
 | platform/PLAN.md#tb158 | Final Responsive Audit & Polish - Comprehensive testing and device verification | responsive, audit, testing, real devices, accessibility |
+| platform/PLAN.md#tb137 | Human Inbox Page - Dedicated full-page inbox for human operator | inbox, page, messages, mentions, sidebar badge, keyboard |
+| platform/PLAN.md#tb138 | Inbox Notification Dot - Sidebar badge/dot for unread count | inbox, badge, notification, dot, sidebar |
+| platform/PLAN.md#tb139 | Inbox Empty State & Onboarding - Helpful empty states for inbox | inbox, empty state, onboarding, tips |
 
 ---
 

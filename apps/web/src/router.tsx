@@ -12,6 +12,7 @@ import { WorkflowsPage } from './routes/workflows';
 import { EntitiesPage } from './routes/entities';
 import { TeamsPage } from './routes/teams';
 import { SettingsPage, getDefaultDashboardLens, getLastVisitedDashboardSection } from './routes/settings';
+import { InboxPage } from './routes/inbox';
 
 // Map dashboard lens settings to routes
 const DASHBOARD_LENS_ROUTES: Record<ReturnType<typeof getDefaultDashboardLens>, string> = {
@@ -202,6 +203,18 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+// Inbox route (TB137)
+const inboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/inbox',
+  component: InboxPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      message: typeof search.message === 'string' ? search.message : undefined,
+    };
+  },
+});
+
 // Build the route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -218,6 +231,7 @@ const routeTree = rootRoute.addChildren([
   entitiesRoute,
   teamsRoute,
   settingsRoute,
+  inboxRoute,
 ]);
 
 // Create and export the router

@@ -1996,6 +1996,30 @@ app.get('/api/inbox/all', async (c) => {
   }
 });
 
+// GET /api/inbox/count - Global inbox unread count (TB137)
+// NOTE: This route MUST be defined before /api/inbox/:itemId to prevent "count" being matched as itemId
+app.get('/api/inbox/count', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const statusParam = url.searchParams.get('status');
+
+    // Default to unread count if no status specified
+    const statusCondition = statusParam
+      ? `WHERE status = '${statusParam}'`
+      : `WHERE status = 'unread'`;
+
+    const countResult = storageBackend.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM inbox_items ${statusCondition}`,
+      []
+    );
+
+    return c.json({ count: countResult?.count ?? 0 });
+  } catch (error) {
+    console.error('[elemental] Failed to get global inbox count:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get global inbox count' } }, 500);
+  }
+});
+
 // GET /api/inbox/:itemId - Get single inbox item
 app.get('/api/inbox/:itemId', async (c) => {
   try {

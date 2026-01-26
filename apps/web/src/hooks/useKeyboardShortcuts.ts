@@ -14,6 +14,7 @@ const NAVIGATION_SHORTCUTS: Record<string, string> = {
   'G P': '/plans',
   'G W': '/workflows',
   'G G': '/dependencies',
+  'G I': '/inbox', // TB137: Inbox page
   'G M': '/messages',
   'G D': '/documents',
   'G E': '/entities',

@@ -18,6 +18,7 @@ import {
   Search,
   Command as CommandIcon,
   Loader2,
+  Inbox,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -198,6 +199,15 @@ export function CommandPalette() {
       keywords: ['graph', 'blocks', 'relationships'],
     },
     // Collaborate section
+    {
+      id: 'nav-inbox',
+      label: 'Go to Inbox',
+      icon: Inbox,
+      action: () => navigate({ to: '/inbox', search: { message: undefined } }),
+      shortcut: 'G I',
+      group: 'Collaborate',
+      keywords: ['notifications', 'unread', 'mentions', 'direct messages'],
+    },
     {
       id: 'nav-messages',
       label: 'Go to Messages',
