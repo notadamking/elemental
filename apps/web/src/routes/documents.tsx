@@ -9,12 +9,13 @@
  * - Document detail display (TB21)
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useDeepLink } from '../hooks/useDeepLink';
 import { useDebounce } from '../hooks';
+import { VirtualizedList } from '../components/shared/VirtualizedList';
 import {
   Library,
   FileText,
@@ -349,6 +350,46 @@ function buildLibraryTree(libraries: LibraryType[]): LibraryTreeNode[] {
   sortChildren(roots);
 
   return roots;
+}
+
+/**
+ * Flatten a library tree for virtualization (TB129)
+ *
+ * Returns only the visible items based on which nodes are expanded.
+ * Each item includes its level (for indentation) and metadata needed for rendering.
+ */
+interface FlatLibraryItem {
+  node: LibraryTreeNode;
+  level: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
+}
+
+function flattenLibraryTree(
+  nodes: LibraryTreeNode[],
+  expandedIds: Set<string>,
+  level = 0
+): FlatLibraryItem[] {
+  const result: FlatLibraryItem[] = [];
+
+  for (const node of nodes) {
+    const hasChildren = node.children.length > 0;
+    const isExpanded = expandedIds.has(node.id);
+
+    result.push({
+      node,
+      level,
+      hasChildren,
+      isExpanded,
+    });
+
+    // Only include children if this node is expanded
+    if (hasChildren && isExpanded) {
+      result.push(...flattenLibraryTree(node.children, expandedIds, level + 1));
+    }
+  }
+
+  return result;
 }
 
 interface DocumentType {
@@ -701,24 +742,23 @@ function useAllDocuments() {
 // Components
 // ============================================================================
 
-function LibraryTreeItem({
-  node,
+/**
+ * Flat library item for virtualized rendering (TB129)
+ * This is a non-recursive version that works with the flattened tree
+ */
+function FlatLibraryTreeItem({
+  item,
   selectedLibraryId,
-  expandedIds,
   onSelect,
   onToggleExpand,
-  level = 0,
 }: {
-  node: LibraryTreeNode;
+  item: FlatLibraryItem;
   selectedLibraryId: string | null;
-  expandedIds: Set<string>;
   onSelect: (id: string) => void;
   onToggleExpand: (id: string) => void;
-  level?: number;
 }) {
-  const hasChildren = node.children.length > 0;
+  const { node, level, hasChildren, isExpanded } = item;
   const isSelected = selectedLibraryId === node.id;
-  const isExpanded = expandedIds.has(node.id);
 
   return (
     <div data-testid={`library-tree-item-${node.id}`}>
@@ -768,27 +808,17 @@ function LibraryTreeItem({
           {node.name}
         </span>
       </div>
-
-      {/* Children - recursively render nested libraries */}
-      {isExpanded && hasChildren && (
-        <div data-testid={`library-children-${node.id}`}>
-          {node.children.map((child) => (
-            <LibraryTreeItem
-              key={child.id}
-              node={child}
-              selectedLibraryId={selectedLibraryId}
-              expandedIds={expandedIds}
-              onSelect={onSelect}
-              onToggleExpand={onToggleExpand}
-              level={level + 1}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
 
+/**
+ * LibraryTree - Virtualized library tree sidebar (TB129)
+ *
+ * Uses VirtualizedList for efficient rendering of large library trees.
+ * Flattens the tree structure based on expand/collapse state and
+ * renders only visible items for optimal performance.
+ */
 function LibraryTree({
   libraries,
   selectedLibraryId,
@@ -809,7 +839,29 @@ function LibraryTree({
   onSelectDocument: (documentId: string) => void;
 }) {
   // Build tree structure from flat list
-  const treeNodes = buildLibraryTree(libraries);
+  const treeNodes = useMemo(() => buildLibraryTree(libraries), [libraries]);
+
+  // Flatten tree for virtualization based on expanded state (TB129)
+  const flatItems = useMemo(
+    () => flattenLibraryTree(treeNodes, expandedIds),
+    [treeNodes, expandedIds]
+  );
+
+  // Item height for virtualization (36px = py-1.5 * 2 + content)
+  const ITEM_HEIGHT = 36;
+
+  // Render a single flat library item
+  const renderLibraryItem = useCallback(
+    (item: FlatLibraryItem, _index: number) => (
+      <FlatLibraryTreeItem
+        item={item}
+        selectedLibraryId={selectedLibraryId}
+        onSelect={onSelectLibrary}
+        onToggleExpand={onToggleExpand}
+      />
+    ),
+    [selectedLibraryId, onSelectLibrary, onToggleExpand]
+  );
 
   return (
     <div
@@ -845,20 +897,22 @@ function LibraryTree({
         <DocumentSearchBar onSelectDocument={onSelectDocument} />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
-        {/* All Documents option - always visible */}
-        <button
-          onClick={() => onSelectLibrary(null)}
-          className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm mb-2 ${
-            selectedLibraryId === null
-              ? 'bg-blue-50 text-blue-700 font-medium'
-              : 'text-gray-700 hover:bg-gray-100'
-          }`}
-          data-testid="all-documents-button"
-        >
-          <FileText className="w-4 h-4" />
-          All Documents
-        </button>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* All Documents option - always visible outside virtualized list */}
+        <div className="p-2 pb-0">
+          <button
+            onClick={() => onSelectLibrary(null)}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm mb-2 ${
+              selectedLibraryId === null
+                ? 'bg-blue-50 text-blue-700 font-medium'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+            data-testid="all-documents-button"
+          >
+            <FileText className="w-4 h-4" />
+            All Documents
+          </button>
+        </div>
 
         {libraries.length === 0 ? (
           <div
@@ -876,17 +930,22 @@ function LibraryTree({
             </button>
           </div>
         ) : (
-          <div data-testid="library-list" className="space-y-1">
-            {treeNodes.map((node) => (
-              <LibraryTreeItem
-                key={node.id}
-                node={node}
-                selectedLibraryId={selectedLibraryId}
-                expandedIds={expandedIds}
-                onSelect={onSelectLibrary}
-                onToggleExpand={onToggleExpand}
-              />
-            ))}
+          <div data-testid="library-list" className="flex-1 overflow-hidden px-2">
+            <VirtualizedList
+              items={flatItems}
+              getItemKey={(item) => item.node.id}
+              estimateSize={ITEM_HEIGHT}
+              renderItem={renderLibraryItem}
+              overscan={5}
+              className="h-full"
+              scrollRestoreId="library-tree-scroll"
+              testId="virtualized-library-list"
+              renderEmpty={() => (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  No libraries to display
+                </div>
+              )}
+            />
           </div>
         )}
       </div>

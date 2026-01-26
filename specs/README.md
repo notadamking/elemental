@@ -142,6 +142,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB141-sidebar-expand-button.md](./platform/TB141-sidebar-expand-button.md) | Sidebar Expand Button When Collapsed - Visual button to expand sidebar without keyboard shortcut | sidebar, collapse, expand, button, accessibility, navigation |
 | platform/PLAN.md#tb142 | Move Dependencies to Work Section - Reorganize sidebar navigation for better information architecture | sidebar, navigation, dependencies, work, information architecture |
 | platform/PLAN.md#tb143 | Timeline Eager Event Loading - Load all events upfront with client-side pagination for instant totals | timeline, events, pagination, eager loading, performance |
+| [platform/TB129-virtualized-libraries.md](./platform/TB129-virtualized-libraries.md) | Virtualize Libraries List - VirtualizedList component for library tree with expand/collapse state | virtualization, libraries, tree, scroll, performance, infinite scroll |
 | platform/PLAN.md#tb144 | Responsive Foundation & CSS Infrastructure - Breakpoints, spacing, typography, testing utilities | responsive, breakpoints, css, tokens, mobile, tablet, desktop |
 | platform/PLAN.md#tb145 | Responsive AppShell & Sidebar - Mobile drawer, tablet collapsed, desktop always visible | responsive, sidebar, drawer, hamburger, mobile navigation |
 | platform/PLAN.md#tb146 | Responsive Dashboard Page - All lenses adapted for mobile with touch interactions | responsive, dashboard, charts, graphs, mobile, touch |
