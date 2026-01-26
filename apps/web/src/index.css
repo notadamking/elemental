@@ -227,3 +227,30 @@ nav,
     background-color: rgba(250, 204, 21, 0);
   }
 }
+
+/* @mention chip styling (TB111) */
+.mention-chip {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  color: #2563eb;
+  background-color: #dbeafe;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.mention-chip:hover {
+  background-color: #bfdbfe;
+}
+
+.dark .mention-chip {
+  color: #93c5fd;
+  background-color: rgba(37, 99, 235, 0.3);
+}
+
+.dark .mention-chip:hover {
+  background-color: rgba(37, 99, 235, 0.4);
+}

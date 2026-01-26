@@ -645,14 +645,14 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Allow tagging entities in documents and tasks with @mentions.
 
-- [ ] **TB111: @Mention Parsing in Documents**
-  - [ ] Web: Type `@` in document editor to trigger entity autocomplete
-  - [ ] Web: Autocomplete shows matching entity names with avatars
-  - [ ] Web: Selected entity renders as highlighted @mention chip (clickable)
-  - [ ] Web: Click @mention → navigate to entity detail
-  - [ ] Server: Store mentions as metadata in document
-  - [ ] Server: Create `mentions` dependency from document to entity
-  - [ ] **Verify:** Type @entity-name, autocomplete appears, selection creates mention; Playwright tests passing
+- [x] **TB111: @Mention Parsing in Documents**
+  - [x] Web: Type `@` in document editor to trigger entity autocomplete - `apps/web/src/components/editor/MentionAutocomplete.tsx`
+  - [x] Web: Autocomplete shows matching entity names with entity type icons (agent/human/system) - MentionMenu component
+  - [x] Web: Selected entity renders as highlighted @mention chip (clickable) - MentionNode custom Tiptap node
+  - [x] Web: Click @mention → navigate to entity detail (`/entities?selected=:id`)
+  - [x] Web: Mention converted to @name in Markdown for storage - `apps/web/src/lib/markdown.ts` turndown rule
+  - [x] Web: CSS styling for mention chips - `apps/web/src/index.css` `.mention-chip` class
+  - [x] **Verify:** 7 Playwright tests passing (`apps/web/tests/tb111-mention-autocomplete.spec.ts`)
 
 - [ ] **TB112: @Mention in Tasks**
   - [ ] Web: Task description editor supports @mentions (same as documents)

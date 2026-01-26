@@ -56,7 +56,8 @@ import { CreateDocumentModal } from '../components/document/CreateDocumentModal'
 import { CreateLibraryModal } from '../components/document/CreateLibraryModal';
 import { AddCommentModal } from '../components/editor/AddCommentModal';
 import { CommentsPanel } from '../components/editor/CommentsPanel';
-import { useAllDocuments as useAllDocumentsPreloaded } from '../api/hooks/useAllElements';
+import { useAllDocuments as useAllDocumentsPreloaded, useAllEntities } from '../api/hooks/useAllElements';
+import type { MentionEntity } from '../components/editor/MentionAutocomplete';
 import { useCreateComment, useDocumentComments, type Comment } from '../api/hooks/useDocumentComments';
 import { createTextAnchor, findAnchorPosition, getPlainTextForAnchoring } from '../lib/anchors';
 import { sortData, createSimpleDocumentSearchFilter } from '../hooks/usePaginatedData';
@@ -1811,6 +1812,7 @@ function DocumentDetailPanel({
   const updateDocument = useUpdateDocument();
   const cloneDocument = useCloneDocument();
   const createComment = useCreateComment();
+  const { data: entitiesData } = useAllEntities();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [editedTitle, setEditedTitle] = useState('');
@@ -1830,6 +1832,16 @@ function DocumentDetailPanel({
 
   // Document icon/emoji state (TB97)
   const [showIconPicker, setShowIconPicker] = useState(false);
+
+  // Convert entities to mention format for @mention autocomplete (TB111)
+  const mentionEntities: MentionEntity[] = useMemo(() => {
+    if (!entitiesData) return [];
+    return entitiesData.map((e) => ({
+      id: e.id,
+      name: e.name,
+      entityType: e.entityType,
+    }));
+  }, [entitiesData]);
 
   // Fetch the previewing version content
   const { data: previewDocument } = useDocumentVersion(
@@ -2298,6 +2310,7 @@ function DocumentDetailPanel({
                 onSave={handleSave}
                 placeholder="Start writing..."
                 onComment={handleComment}
+                mentionEntities={mentionEntities}
               />
             ) : (
               <DocumentRenderer

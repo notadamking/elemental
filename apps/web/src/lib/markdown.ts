@@ -75,6 +75,20 @@ turndownService.addRule('documentEmbed', {
   },
 });
 
+// Handle @mentions - convert to @name syntax
+turndownService.addRule('mention', {
+  filter: function (node) {
+    return (
+      node.nodeName === 'A' &&
+      node.hasAttribute('data-mention-id')
+    );
+  },
+  replacement: function (_content, node) {
+    const name = (node as HTMLElement).getAttribute('data-mention-name');
+    return name ? `@${name}` : '';
+  },
+});
+
 // Handle text alignment - preserve style="text-align: ..." on paragraphs and headings
 // For non-left alignment, wrap content in a div with align attribute
 turndownService.addRule('textAlign', {

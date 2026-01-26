@@ -32,6 +32,7 @@ import { DocumentPickerModal } from './DocumentPickerModal';
 import { ImageUploadModal } from './ImageUploadModal';
 import { EmojiPickerModal } from './EmojiPickerModal';
 import { EmojiAutocomplete } from './EmojiAutocomplete';
+import { MentionAutocomplete, MentionNode, type MentionEntity } from './MentionAutocomplete';
 import { EditorBubbleMenu } from './BubbleMenu';
 import { common, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -81,6 +82,8 @@ interface BlockEditorProps {
   placeholder?: string;
   readOnly?: boolean;
   onComment?: (selectedText: string, from: number, to: number) => void;
+  /** Entities available for @mention autocomplete */
+  mentionEntities?: MentionEntity[];
 }
 
 interface ToolbarButtonProps {
@@ -162,6 +165,7 @@ export function BlockEditor({
   placeholder = 'Start writing...',
   readOnly = false,
   onComment,
+  mentionEntities = [],
 }: BlockEditorProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [showOverflow, setShowOverflow] = useState(false);
@@ -182,6 +186,13 @@ export function BlockEditor({
     }),
     []
   );
+
+  // Store mentionEntities in a ref to avoid recreation of getEntities callback
+  const mentionEntitiesRef = useRef(mentionEntities);
+  mentionEntitiesRef.current = mentionEntities;
+
+  // Memoize getEntities callback
+  const getEntities = useCallback(() => mentionEntitiesRef.current, []);
 
   // Convert content (Markdown or legacy HTML) to HTML for Tiptap editor
   // Uses the markdown utilities for proper conversion
@@ -231,6 +242,10 @@ export function BlockEditor({
       TaskEmbedBlock,
       DocumentEmbedBlock,
       EmojiAutocomplete,
+      MentionNode,
+      MentionAutocomplete.configure({
+        getEntities,
+      }),
     ],
     content: getInitialContent(),
     editable: !readOnly,
