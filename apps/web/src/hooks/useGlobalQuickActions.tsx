@@ -1,8 +1,8 @@
 /**
  * Global Quick Actions Context
  *
- * Provides global keyboard shortcuts (C T, C W, C E, C M) for creating tasks, workflows,
- * entities, and teams from any page in the application. The shortcuts are registered at the
+ * Provides global keyboard shortcuts (C T, C W, C E, C M, C D) for creating tasks, workflows,
+ * entities, teams, and documents from any page in the application. The shortcuts are registered at the
  * app level and work consistently across dashboard, tasks, workflows, and other pages.
  */
 
@@ -14,6 +14,7 @@ import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
 import { CreateEntityModal } from '../components/entity/CreateEntityModal';
 import { CreateTeamModal } from '../components/team/CreateTeamModal';
+import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
 
 interface GlobalQuickActionsContextValue {
   /** Open the create task modal */
@@ -26,6 +27,8 @@ interface GlobalQuickActionsContextValue {
   openCreateEntityModal: () => void;
   /** Open the create team modal */
   openCreateTeamModal: () => void;
+  /** Open the create document modal */
+  openCreateDocumentModal: () => void;
   /** Whether the create task modal is open */
   isCreateTaskModalOpen: boolean;
   /** Whether the create workflow modal is open */
@@ -36,6 +39,8 @@ interface GlobalQuickActionsContextValue {
   isCreateEntityModalOpen: boolean;
   /** Whether the create team modal is open */
   isCreateTeamModalOpen: boolean;
+  /** Whether the create document modal is open */
+  isCreateDocumentModalOpen: boolean;
 }
 
 const GlobalQuickActionsContext = createContext<GlobalQuickActionsContextValue | null>(null);
@@ -50,9 +55,10 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
   const [isCreateWorkflowModalOpen, setIsCreateWorkflowModalOpen] = useState(false);
   const [isCreateEntityModalOpen, setIsCreateEntityModalOpen] = useState(false);
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
+  const [isCreateDocumentModalOpen, setIsCreateDocumentModalOpen] = useState(false);
 
   // Check if any modal is open
-  const isAnyModalOpen = isCreateTaskModalOpen || isCreateWorkflowModalOpen || isCreateEntityModalOpen || isCreateTeamModalOpen;
+  const isAnyModalOpen = isCreateTaskModalOpen || isCreateWorkflowModalOpen || isCreateEntityModalOpen || isCreateTeamModalOpen || isCreateDocumentModalOpen;
 
   // Handlers for opening modals
   const openCreateTaskModal = useCallback(() => {
@@ -69,6 +75,10 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
 
   const openCreateTeamModal = useCallback(() => {
     setIsCreateTeamModalOpen(true);
+  }, []);
+
+  const openCreateDocumentModal = useCallback(() => {
+    setIsCreateDocumentModalOpen(true);
   }, []);
 
   // Handlers for modal success
@@ -112,7 +122,17 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     });
   }, [navigate]);
 
-  // Register global keyboard shortcuts for C T, C W, C E, and C M
+  const handleDocumentCreated = useCallback((document: { id: string }) => {
+    toast.success('Document created successfully', {
+      description: 'Your new document has been created.',
+      action: {
+        label: 'View Document',
+        onClick: () => navigate({ to: '/documents', search: { selected: document.id, library: undefined, page: 1, limit: 25 } }),
+      },
+    });
+  }, [navigate]);
+
+  // Register global keyboard shortcuts for C T, C W, C E, C M, and C D
   useEffect(() => {
     const createTaskHandler = () => {
       // Don't open if another modal is already open
@@ -142,16 +162,25 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
       }
     };
 
+    const createDocumentHandler = () => {
+      // Don't open if another modal is already open
+      if (!isAnyModalOpen) {
+        setIsCreateDocumentModalOpen(true);
+      }
+    };
+
     keyboardManager.register('C T', createTaskHandler, 'Create Task');
     keyboardManager.register('C W', createWorkflowHandler, 'Create Workflow');
     keyboardManager.register('C E', createEntityHandler, 'Create Entity');
     keyboardManager.register('C M', createTeamHandler, 'Create Team');
+    keyboardManager.register('C D', createDocumentHandler, 'Create Document');
 
     return () => {
       keyboardManager.unregister('C T');
       keyboardManager.unregister('C W');
       keyboardManager.unregister('C E');
       keyboardManager.unregister('C M');
+      keyboardManager.unregister('C D');
     };
   }, [isAnyModalOpen]);
 
@@ -170,11 +199,13 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     openPourWorkflowModal: openCreateWorkflowModal, // deprecated alias
     openCreateEntityModal,
     openCreateTeamModal,
+    openCreateDocumentModal,
     isCreateTaskModalOpen,
     isCreateWorkflowModalOpen,
     isPourWorkflowModalOpen: isCreateWorkflowModalOpen, // deprecated alias
     isCreateEntityModalOpen,
     isCreateTeamModalOpen,
+    isCreateDocumentModalOpen,
   };
 
   return (
@@ -207,6 +238,13 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
         isOpen={isCreateTeamModalOpen}
         onClose={() => setIsCreateTeamModalOpen(false)}
         onSuccess={handleTeamCreated}
+      />
+
+      {/* Global Create Document Modal */}
+      <CreateDocumentModal
+        isOpen={isCreateDocumentModalOpen}
+        onClose={() => setIsCreateDocumentModalOpen(false)}
+        onSuccess={handleDocumentCreated}
       />
     </GlobalQuickActionsContext.Provider>
   );

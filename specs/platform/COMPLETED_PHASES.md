@@ -226,7 +226,7 @@
 - [x] **TB27: Create Document**
   - [x] Server: Add `POST /api/documents` endpoint (title, contentType, content, optional libraryId)
   - [x] Web: Create CreateDocumentModal component (title input, content type selector, initial content)
-  - [x] Web: Add "New Document" button to Documents page (sidebar + library view + all docs view)
+  - [x] Web: Add "Create Document" button to Documents page (sidebar + library view + all docs view)
   - [x] **Verify:** Create document from UI (Playwright tests passing - 19 passed, 2 skipped)
 
 - [x] **TB28: Task Flow - Click to Open**

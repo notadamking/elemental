@@ -892,7 +892,7 @@ function LibraryTree({
               <button
                 onClick={onNewDocument}
                 className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
-                title="New Document"
+                title="Create Document"
                 data-testid="new-document-button-sidebar"
               >
                 <Plus className="w-4 h-4" />
@@ -1103,11 +1103,12 @@ function LibraryView({
           {!isMobile && (
             <button
               onClick={onNewDocument}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
               data-testid="new-document-button-library"
             >
               <Plus className="w-4 h-4" />
-              New Document
+              Create Document
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C D</kbd>
             </button>
           )}
         </div>
@@ -2537,11 +2538,12 @@ function AllDocumentsView({
           {!isMobile && (
             <button
               onClick={onNewDocument}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
               data-testid="new-document-button-all"
             >
               <Plus className="w-4 h-4" />
-              New Document
+              Create Document
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C D</kbd>
             </button>
           )}
         </div>

@@ -200,13 +200,13 @@ test.describe('TB27: Create Document', () => {
   // UI Tests
   // ============================================================================
 
-  test('New Document button is visible in sidebar', async ({ page }) => {
+  test('Create Document button is visible in sidebar', async ({ page }) => {
     await page.goto('/documents');
     await expect(page.getByTestId('documents-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('new-document-button-sidebar')).toBeVisible();
   });
 
-  test('clicking New Document button opens modal', async ({ page }) => {
+  test('clicking Create Document button opens modal', async ({ page }) => {
     await page.goto('/documents');
     await expect(page.getByTestId('documents-page')).toBeVisible({ timeout: 10000 });
 
@@ -372,7 +372,7 @@ test.describe('TB27: Create Document', () => {
     await expect(page.getByTestId('document-detail-title')).toHaveText(title, { timeout: 10000 });
   });
 
-  test('New Document button in library view includes library by default', async ({ page }) => {
+  test('Create Document button in library view includes library by default', async ({ page }) => {
     const entity = await getFirstEntity(page);
     const library = await getFirstLibrary(page);
     if (!entity || !library) {
@@ -387,7 +387,7 @@ test.describe('TB27: Create Document', () => {
     await page.getByTestId(`library-tree-item-${library.id}`).click();
     await expect(page.getByTestId('library-view')).toBeVisible();
 
-    // Click New Document in library view
+    // Click Create Document in library view
     await page.getByTestId('new-document-button-library').click();
     await expect(page.getByTestId('create-document-modal')).toBeVisible();
 

@@ -42,6 +42,7 @@ export const DEFAULT_SHORTCUTS: Record<string, { keys: string; description: stri
   'action.createWorkflow': { keys: 'C W', description: 'Create Workflow', category: 'actions' },
   'action.createEntity': { keys: 'C E', description: 'Create Entity', category: 'actions' },
   'action.createTeam': { keys: 'C M', description: 'Create Team', category: 'actions' },
+  'action.createDocument': { keys: 'C D', description: 'Create Document', category: 'actions' },
   // Views
   'view.list': { keys: 'V L', description: 'List View', category: 'views' },
   'view.kanban': { keys: 'V K', description: 'Kanban View', category: 'views' },
