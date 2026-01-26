@@ -139,9 +139,39 @@ Passing tests verify:
 - Emojis stored as Unicode in Markdown
 - Common shortcuts (thumbsup, 100, tada) work
 
+### 4. Document Icon/Emoji (Added)
+
+Documents can have an icon/emoji stored in their metadata, displayed in the library tree and document list (similar to Notion).
+
+**Features:**
+- Click on the icon/emoji button in document detail panel to set an icon
+- Document icon stored in `metadata.icon` field
+- Icons displayed in document list items with fallback to default FileText icon
+- Remove icon button to clear the document icon
+- Icons persist across page reloads
+
+**Components:**
+- **documents.tsx**: Updated DocumentDetailPanel and DocumentListItem
+  - Added icon button in document header with emoji picker
+  - Added icon display in document list items
+  - Added useUpdateDocument mutation support for metadata field
+
+**Testing:**
+```bash
+cd apps/web
+npx playwright test tests/tb97-document-icon.spec.ts
+```
+
+Tests verify (11 passing):
+- Icon button visible in document detail panel
+- Emoji picker opens when clicking icon button
+- Document icon persists after selection
+- Document icon displays in document list
+- Remove icon button works
+- Document icon persists across page reload
+
 ## Future Enhancements
 
-- Document icon/emoji in library tree (stored in document metadata)
 - Skin tone variants for human emojis
 - Custom emoji upload
 - Emoji reactions on messages

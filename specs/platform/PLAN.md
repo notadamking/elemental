@@ -487,7 +487,7 @@ For mutations (create, update, delete):
 
 Completed implementation phases have been moved to specs/platform/COMPLETED_PHASES.md.
 
-- [] **TB97: Emoji Support (Markdown-Compatible)**
+- [x] **TB97: Emoji Support (Markdown-Compatible)**
 
   > **Markdown Format for Emojis:** Emojis are stored as Unicode characters directly in Markdown,
   > which AI agents can read/write natively. The `:shortcode:` syntax is converted to Unicode on input.
@@ -498,8 +498,8 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Store as Unicode in Markdown (not shortcodes) for universal compatibility
   - [x] Web: Common emojis suggested first (recently used via localStorage)
   - [x] Web: Add `/emoji` slash command - `apps/web/src/components/editor/SlashCommands.tsx`
-  - [ ] Web: Document icon/emoji in library tree (stored in document metadata) like Notion
-  - [x] **Verify:** 11/16 Playwright tests passing (`apps/web/tests/tb97-emoji-support.spec.ts`); type `:smile:` converts to 😊; emoji stored as Unicode
+  - [x] Web: Document icon/emoji in library tree (stored in document metadata) like Notion - `apps/web/src/routes/documents.tsx`
+  - [x] **Verify:** 11 Playwright tests passing (`apps/web/tests/tb97-document-icon.spec.ts`); document icons persist and display in list
 
 - [x] **TB98: Inline Comments (Stored Separately)**
 

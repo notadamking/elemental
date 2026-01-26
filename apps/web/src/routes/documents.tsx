@@ -48,7 +48,9 @@ import {
   Unlink,
   Loader2,
   MessageSquare,
+  Smile,
 } from 'lucide-react';
+import { EmojiPickerModal } from '../components/editor/EmojiPickerModal';
 import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
 import { CreateLibraryModal } from '../components/document/CreateLibraryModal';
@@ -359,6 +361,10 @@ interface DocumentType {
   updatedAt: string;
   createdBy: string;
   tags: string[];
+  metadata?: {
+    icon?: string; // Emoji or icon for the document (TB97)
+    [key: string]: unknown;
+  };
 }
 
 interface LibraryWithChildren extends LibraryType {
@@ -480,7 +486,7 @@ function useUpdateDocument() {
       updates,
     }: {
       id: string;
-      updates: Partial<Pick<DocumentType, 'title' | 'content' | 'contentType' | 'tags'>>;
+      updates: Partial<Pick<DocumentType, 'title' | 'content' | 'contentType' | 'tags' | 'metadata'>>;
     }) => {
       const response = await fetch(`/api/documents/${id}`, {
         method: 'PATCH',
@@ -904,6 +910,7 @@ function DocumentListItem({
 }) {
   const formattedDate = new Date(document.updatedAt).toLocaleDateString();
   const title = document.title || `Document ${document.id}`;
+  const documentIcon = document.metadata?.icon;
 
   return (
     <div
@@ -915,7 +922,17 @@ function DocumentListItem({
           : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
       }`}
     >
-      <FileText className={`w-8 h-8 flex-shrink-0 ${isSelected ? 'text-blue-500' : 'text-blue-400'}`} />
+      {/* Document Icon: Show emoji from metadata, or fall back to FileText icon */}
+      {documentIcon ? (
+        <span
+          className="w-8 h-8 flex items-center justify-center text-2xl flex-shrink-0"
+          data-testid={`document-icon-${document.id}`}
+        >
+          {documentIcon}
+        </span>
+      ) : (
+        <FileText className={`w-8 h-8 flex-shrink-0 ${isSelected ? 'text-blue-500' : 'text-blue-400'}`} />
+      )}
       <div className="flex-1 min-w-0">
         <p
           data-testid={`document-title-${document.id}`}
@@ -1811,6 +1828,9 @@ function DocumentDetailPanel({
   const { data: commentsData } = useDocumentComments(documentId);
   const commentCount = commentsData?.comments.filter((c: Comment) => !c.resolved).length || 0;
 
+  // Document icon/emoji state (TB97)
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
   // Fetch the previewing version content
   const { data: previewDocument } = useDocumentVersion(
     previewingVersion ? documentId : null,
@@ -1927,6 +1947,44 @@ function DocumentDetailPanel({
     }
   };
 
+  // Set document icon/emoji (TB97)
+  const handleSetIcon = async (emoji: string) => {
+    if (!document) return;
+
+    try {
+      await updateDocument.mutateAsync({
+        id: documentId,
+        updates: {
+          metadata: {
+            ...document.metadata,
+            icon: emoji,
+          },
+        },
+      });
+      setShowIconPicker(false);
+    } catch {
+      // Error handling is done by the mutation
+    }
+  };
+
+  // Remove document icon (TB97)
+  const handleRemoveIcon = async () => {
+    if (!document) return;
+
+    try {
+      const newMetadata = { ...document.metadata };
+      delete newMetadata.icon;
+      await updateDocument.mutateAsync({
+        id: documentId,
+        updates: {
+          metadata: newMetadata,
+        },
+      });
+    } catch {
+      // Error handling is done by the mutation
+    }
+  };
+
   if (isLoading) {
     return (
       <div
@@ -1991,24 +2049,55 @@ function DocumentDetailPanel({
             )}
           </div>
 
-          {/* Title */}
-          {isEditing ? (
-            <input
-              type="text"
-              value={editedTitle}
-              onChange={(e) => setEditedTitle(e.target.value)}
-              data-testid="document-title-input"
-              className="text-lg font-semibold text-gray-900 w-full border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Document title"
-            />
-          ) : (
-            <h2
-              data-testid="document-detail-title"
-              className="text-lg font-semibold text-gray-900 truncate"
+          {/* Title with Document Icon (TB97) */}
+          <div className="flex items-center gap-2">
+            {/* Document Icon/Emoji - clickable to open picker */}
+            <button
+              onClick={() => setShowIconPicker(true)}
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors group"
+              title={document.metadata?.icon ? 'Change icon' : 'Add icon'}
+              data-testid="document-icon-button"
             >
-              {title}
-            </h2>
-          )}
+              {document.metadata?.icon ? (
+                <span className="text-2xl" data-testid="document-detail-icon">
+                  {document.metadata.icon}
+                </span>
+              ) : (
+                <Smile className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+              )}
+            </button>
+
+            {/* Title */}
+            {isEditing ? (
+              <input
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                data-testid="document-title-input"
+                className="text-lg font-semibold text-gray-900 flex-1 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Document title"
+              />
+            ) : (
+              <h2
+                data-testid="document-detail-title"
+                className="text-lg font-semibold text-gray-900 truncate"
+              >
+                {title}
+              </h2>
+            )}
+
+            {/* Remove icon button - only shown when icon exists */}
+            {document.metadata?.icon && (
+              <button
+                onClick={handleRemoveIcon}
+                className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                title="Remove icon"
+                data-testid="document-remove-icon-button"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
           {/* ID */}
           <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 font-mono">
@@ -2284,6 +2373,13 @@ function DocumentDetailPanel({
         selectedText={pendingComment?.selectedText || ''}
         onSubmit={handleSubmitComment}
         isSubmitting={createComment.isPending}
+      />
+
+      {/* Document Icon Picker Modal (TB97) */}
+      <EmojiPickerModal
+        isOpen={showIconPicker}
+        onClose={() => setShowIconPicker(false)}
+        onSelect={handleSetIcon}
       />
     </div>
   );
