@@ -98,6 +98,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB74-card-table-styling.md](./platform/TB74-card-table-styling.md) | Card and table styling with TaskCard, EntityCard, TeamCard, EmptyState | card, table, list, empty state, design tokens, entity cards |
 | [platform/TB78-dashboard-charts.md](./platform/TB78-dashboard-charts.md) | Dashboard overview charts (Tasks by Status, Completed Over Time, Workload by Agent) | dashboard, charts, recharts, donut, line, bar, visualization |
 | [platform/TB79-view-more-ready-tasks.md](./platform/TB79-view-more-ready-tasks.md) | View More Ready Tasks fix with readyOnly URL filter | tasks, ready, filter, dashboard, navigation, filter chip |
+| [platform/TB82-task-search.md](./platform/TB82-task-search.md) | Task search with fuzzy matching and character highlighting | tasks, search, filter, fuzzy, highlight, debounce, keyboard |
 
 ---
 

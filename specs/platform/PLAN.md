@@ -1246,14 +1246,14 @@ For mutations (create, update, delete):
   - [ ] Web: Drag-and-drop manual ordering within groups (persists to task.metadata.manualOrder) - Deferred to future implementation
   - [x] **Verify:** Sort by priority, secondary sort works, preferences persist; Playwright tests passing (17 tests)
 
-- [ ] **TB82: Task Search**
-  - [ ] Web: Add search bar at top of Tasks page
-  - [ ] Web: Search filters tasks by title (fuzzy match with highlighting)
-  - [ ] Web: Search also searches task description content (if hydrated)
-  - [ ] Web: Debounced input (300ms) for performance
-  - [ ] Web: Clear search button and keyboard shortcut (Escape)
-  - [ ] Web: Search works with grouping and sorting (search first, then group, then sort)
-  - [ ] **Verify:** Search for "auth", matching tasks highlighted; Playwright tests passing
+- [x] **TB82: Task Search**
+  - [x] Web: Add search bar at top of Tasks page
+  - [x] Web: Search filters tasks by title (fuzzy match with highlighting)
+  - [ ] Web: Search also searches task description content (if hydrated) - Deferred to future implementation
+  - [x] Web: Debounced input (300ms) for performance
+  - [x] Web: Clear search button and keyboard shortcut (Escape)
+  - [x] Web: Search works with grouping and sorting (search first, then group, then sort)
+  - [x] **Verify:** Search for "auth", matching tasks highlighted; Playwright tests passing (17 tests)
 
 - [ ] **TB83: Rich Task Display**
   - [ ] Web: TaskCard shows inline description preview (first 2 lines, truncated)

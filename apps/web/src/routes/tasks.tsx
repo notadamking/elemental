@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, ChevronRight, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles, Layers } from 'lucide-react';
+import { Plus, List, LayoutGrid, CheckSquare, Square, X, ChevronDown, ChevronRight, Loader2, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Filter, XCircle, Sparkles, Layers, Search } from 'lucide-react';
+import { useDebounce } from '../hooks';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { KanbanBoard } from '../components/task/KanbanBoard';
@@ -14,6 +15,87 @@ import { useDeepLink } from '../hooks/useDeepLink';
 
 const VIEW_MODE_STORAGE_KEY = 'tasks.viewMode';
 const GROUP_BY_STORAGE_KEY = 'tasks.groupBy';
+const SEARCH_STORAGE_KEY = 'tasks.search';
+
+// Search debounce delay in milliseconds
+const SEARCH_DEBOUNCE_DELAY = 300;
+
+function getStoredSearch(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(SEARCH_STORAGE_KEY) || '';
+}
+
+function setStoredSearch(search: string) {
+  if (typeof window === 'undefined') return;
+  if (search) {
+    localStorage.setItem(SEARCH_STORAGE_KEY, search);
+  } else {
+    localStorage.removeItem(SEARCH_STORAGE_KEY);
+  }
+}
+
+/**
+ * Fuzzy search function that matches query characters in sequence within the title.
+ * Returns match info for highlighting if matched, null otherwise.
+ */
+function fuzzySearch(title: string, query: string): { matched: boolean; indices: number[] } | null {
+  if (!query) return { matched: true, indices: [] };
+
+  const lowerTitle = title.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const indices: number[] = [];
+  let queryIdx = 0;
+
+  for (let i = 0; i < lowerTitle.length && queryIdx < lowerQuery.length; i++) {
+    if (lowerTitle[i] === lowerQuery[queryIdx]) {
+      indices.push(i);
+      queryIdx++;
+    }
+  }
+
+  // All query characters must be found in sequence
+  if (queryIdx === lowerQuery.length) {
+    return { matched: true, indices };
+  }
+
+  return null;
+}
+
+/**
+ * Highlights matched characters in a title based on match indices.
+ */
+function highlightMatches(title: string, indices: number[]): React.ReactNode {
+  if (indices.length === 0) {
+    return <>{title}</>;
+  }
+
+  const result: React.ReactNode[] = [];
+  const indexSet = new Set(indices);
+  let lastIndex = 0;
+
+  for (let i = 0; i < title.length; i++) {
+    if (indexSet.has(i)) {
+      // Add text before this match
+      if (i > lastIndex) {
+        result.push(<span key={`text-${lastIndex}`}>{title.slice(lastIndex, i)}</span>);
+      }
+      // Add highlighted character
+      result.push(
+        <mark key={`match-${i}`} className="bg-yellow-200 text-gray-900 rounded-sm px-0.5">
+          {title[i]}
+        </mark>
+      );
+      lastIndex = i + 1;
+    }
+  }
+
+  // Add remaining text
+  if (lastIndex < title.length) {
+    result.push(<span key={`text-${lastIndex}`}>{title.slice(lastIndex)}</span>);
+  }
+
+  return <>{result}</>;
+}
 
 function getStoredViewMode(): ViewMode {
   if (typeof window === 'undefined') return 'list';
@@ -514,6 +596,69 @@ function ViewToggle({ view, onViewChange }: { view: ViewMode; onViewChange: (vie
         <LayoutGrid className="w-4 h-4" />
         <span className="sr-only">Kanban</span>
       </button>
+    </div>
+  );
+}
+
+// Task Search Bar component (TB82)
+function TaskSearchBar({
+  value,
+  onChange,
+  onClear,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Handle Escape key to clear search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Clear search on Escape when input is focused
+      if (e.key === 'Escape' && document.activeElement === inputRef.current) {
+        e.preventDefault();
+        onClear();
+        inputRef.current?.blur();
+      }
+      // Focus search on / when not in an input/textarea
+      if (
+        e.key === '/' &&
+        !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
+      ) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClear]);
+
+  return (
+    <div className="relative flex-1 max-w-md" data-testid="task-search-container">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Search className="w-4 h-4 text-gray-400" />
+      </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search tasks... (Press / to focus)"
+        className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+        data-testid="task-search-input"
+      />
+      {value && (
+        <button
+          onClick={onClear}
+          className="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-400 hover:text-gray-600"
+          data-testid="task-search-clear"
+          aria-label="Clear search (Escape)"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1164,6 +1309,7 @@ function ListView({
   sort,
   onSort,
   containerHeight,
+  searchQuery,
 }: {
   tasks: Task[];
   selectedTaskId: string | null;
@@ -1174,6 +1320,7 @@ function ListView({
   sort: SortConfig;
   onSort: (field: SortField) => void;
   containerHeight?: number;
+  searchQuery?: string;
 }) {
   const allSelected = tasks.length > 0 && tasks.every(t => selectedIds.has(t.id));
   const someSelected = selectedIds.size > 0;
@@ -1255,6 +1402,7 @@ function ListView({
               onCheck={(checked) => onTaskCheck(task.id, checked)}
               onClick={() => onTaskClick(task.id)}
               isOdd={index % 2 === 1}
+              searchQuery={searchQuery}
             />
           )}
         />
@@ -1276,6 +1424,7 @@ function ListView({
             onCheck={(checked) => onTaskCheck(task.id, checked)}
             onClick={() => onTaskClick(task.id)}
             isOdd={index % 2 === 1}
+            searchQuery={searchQuery}
           />
         ))}
       </div>
@@ -1292,6 +1441,7 @@ function GroupedListView({
   onTaskCheck,
   sort,
   onSort,
+  searchQuery,
 }: {
   groups: TaskGroup[];
   selectedTaskId: string | null;
@@ -1299,6 +1449,7 @@ function GroupedListView({
   onTaskClick: (taskId: string) => void;
   onTaskCheck: (taskId: string, checked: boolean) => void;
   sort: SortConfig;
+  searchQuery?: string;
   onSort: (field: SortField) => void;
 }) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -1401,6 +1552,7 @@ function GroupedListView({
                       onCheck={(checked) => onTaskCheck(task.id, checked)}
                       onClick={() => onTaskClick(task.id)}
                       isOdd={index % 2 === 1}
+                      searchQuery={searchQuery}
                     />
                   ))}
                 </div>
@@ -1455,6 +1607,7 @@ function VirtualTaskRow({
   onCheck,
   onClick,
   isOdd,
+  searchQuery,
 }: {
   task: Task;
   isSelected: boolean;
@@ -1462,9 +1615,20 @@ function VirtualTaskRow({
   onCheck: (checked: boolean) => void;
   onClick: () => void;
   isOdd: boolean;
+  searchQuery?: string;
 }) {
   const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
   const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
+
+  // Compute highlighted title based on search query (TB82)
+  const highlightedTitle = useMemo(() => {
+    if (!searchQuery) return task.title;
+    const searchResult = fuzzySearch(task.title, searchQuery);
+    if (searchResult && searchResult.indices.length > 0) {
+      return highlightMatches(task.title, searchResult.indices);
+    }
+    return task.title;
+  }, [task.title, searchQuery]);
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1494,7 +1658,7 @@ function VirtualTaskRow({
         </button>
       </div>
       <div className="flex-1 min-w-[200px] px-4 py-3">
-        <div className="font-medium text-gray-900 truncate">{task.title}</div>
+        <div className="font-medium text-gray-900 truncate" data-testid={`task-title-${task.id}`}>{highlightedTitle}</div>
         <div className="text-xs text-gray-500 font-mono truncate">{task.id}</div>
       </div>
       <div className="w-28 px-4 py-3">
@@ -1546,6 +1710,10 @@ export function TasksPage() {
   const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
   const [groupBy, setGroupBy] = useState<GroupByField>(getStoredGroupBy);
 
+  // Search state (TB82)
+  const [searchQuery, setSearchQuery] = useState<string>(getStoredSearch);
+  const debouncedSearch = useDebounce(searchQuery, SEARCH_DEBOUNCE_DELAY);
+
   // Use upfront-loaded data (TB67) instead of server-side pagination
   const { data: allTasks, isLoading: isTasksLoading } = useAllTasks();
   const bulkUpdate = useBulkUpdate();
@@ -1556,7 +1724,7 @@ export function TasksPage() {
   // Fetch ready task IDs when readyOnly filter is active (TB79)
   const { data: readyTaskIds, isLoading: isReadyTasksLoading } = useReadyTaskIds();
 
-  // Create filter function for client-side filtering
+  // Create filter function for client-side filtering (includes search - TB82)
   const filterFn = useMemo(() => {
     // Base filter from UI filters
     const baseFilter = createTaskFilter({
@@ -1565,19 +1733,24 @@ export function TasksPage() {
       assignee: filters.assignee,
     });
 
-    // If readyOnly is enabled, add ready task filter
-    if (readyOnly && readyTaskIds) {
-      return (task: Task) => {
-        // First check if task is in ready set
-        if (!readyTaskIds.has(task.id)) return false;
-        // Then apply base filter if exists
-        if (baseFilter) return baseFilter(task);
-        return true;
-      };
-    }
+    return (task: Task) => {
+      // Apply search filter first (TB82)
+      if (debouncedSearch) {
+        const searchResult = fuzzySearch(task.title, debouncedSearch);
+        if (!searchResult || !searchResult.matched) return false;
+      }
 
-    return baseFilter;
-  }, [filters.status, filters.priority, filters.assignee, readyOnly, readyTaskIds]);
+      // Apply readyOnly filter if enabled (TB79)
+      if (readyOnly && readyTaskIds) {
+        if (!readyTaskIds.has(task.id)) return false;
+      }
+
+      // Apply base filter if exists
+      if (baseFilter && !baseFilter(task)) return false;
+
+      return true;
+    };
+  }, [filters.status, filters.priority, filters.assignee, readyOnly, readyTaskIds, debouncedSearch]);
 
   // Create sort config using internal field names
   const sortConfig = useMemo((): PaginatedSortConfig<Task> => ({
@@ -1673,6 +1846,22 @@ export function TasksPage() {
     setSecondarySort(field);
     setStoredSecondarySort(field);
     // Reset to first page when sort changes
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+  }, [navigate, pageSize, readyOnly]);
+
+  // Handle search changes and persist to localStorage (TB82)
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setStoredSearch(query);
+    // Reset to first page when search changes
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+  }, [navigate, pageSize, readyOnly]);
+
+  // Handle clear search (TB82)
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    setStoredSearch('');
+    // Reset to first page when search is cleared
     navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
   }, [navigate, pageSize, readyOnly]);
 
@@ -1852,7 +2041,15 @@ export function TasksPage() {
       {/* Task List - shrinks when detail panel is open */}
       <div className={`flex flex-col ${selectedTaskId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
+          <div className="flex items-center gap-4 flex-1 mr-4">
+            <h2 className="text-lg font-medium text-gray-900 flex-shrink-0">Tasks</h2>
+            {/* Search Bar (TB82) */}
+            <TaskSearchBar
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onClear={handleClearSearch}
+            />
+          </div>
           <div className="flex items-center gap-3">
             {viewMode === 'list' && (
               <>
@@ -1937,6 +2134,7 @@ export function TasksPage() {
                   onSelectAll={handleSelectAll}
                   sort={{ field: sortField, direction: sortDirection }}
                   onSort={handleSort}
+                  searchQuery={debouncedSearch}
                 />
               ) : (
                 <GroupedListView
@@ -1947,6 +2145,7 @@ export function TasksPage() {
                   onTaskCheck={handleTaskCheck}
                   sort={{ field: sortField, direction: sortDirection }}
                   onSort={handleSort}
+                  searchQuery={debouncedSearch}
                 />
               )}
               <Pagination
