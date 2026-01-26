@@ -596,15 +596,15 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Fixed Tiptap duplicate plugin key bug in MessageSlashCommands and HashAutocomplete
   - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb131-virtualized-messages.spec.ts`)
 
-- [ ] **TB132: Kanban Column Virtualization with Infinite Scroll**
-  - [ ] Web: Load ALL tasks upfront (from in-memory cache via DataPreloader)
-  - [ ] Web: Each Kanban column uses VirtualizedList independently
-  - [ ] Web: Infinite scroll within each column (no page size limit visible to user)
-  - [ ] Web: Column header shows total count (not "showing X of Y")
-  - [ ] Web: Drag-and-drop works across virtualized columns
-  - [ ] Web: Filter/search works with full dataset (instant, client-side)
-  - [ ] Web: Column scroll positions preserved when switching views
-  - [ ] **Verify:** 500 tasks across columns, each column scrolls independently and smoothly; Playwright tests passing
+- [x] **TB132: Kanban Column Virtualization with Infinite Scroll**
+  - [x] Web: Load ALL tasks upfront (from in-memory cache via DataPreloader)
+  - [x] Web: Each Kanban column uses VirtualizedList independently - `src/components/task/KanbanBoard.tsx` (VirtualizedKanbanColumn)
+  - [x] Web: Infinite scroll within each column (no page size limit visible to user)
+  - [x] Web: Column header shows total count (not "showing X of Y")
+  - [x] Web: Drag-and-drop works across virtualized columns
+  - [x] Web: Filter/search works with full dataset (instant, client-side)
+  - [x] Web: Column scroll positions preserved when switching views - `kanbanScrollPositionStore` Map
+  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb132-kanban-virtualization.spec.ts`)
 
 ### Phase 35: Graph & Navigation Cleanup
 

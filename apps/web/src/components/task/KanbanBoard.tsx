@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -21,6 +21,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AlertTriangle, CheckCircle2, Clock, PlayCircle } from 'lucide-react';
+
+// Storage for scroll positions keyed by column ID
+const kanbanScrollPositionStore = new Map<string, number>();
 
 interface Task {
   id: string;
@@ -189,10 +192,12 @@ function SortableTaskCard({
 const TASK_CARD_HEIGHT = 100;
 
 /**
- * VirtualizedKanbanColumn - TB85
+ * VirtualizedKanbanColumn - TB85/TB132
  *
  * Uses @tanstack/react-virtual for virtualized rendering of tasks within each column.
  * This enables smooth scrolling even with 100+ tasks per column.
+ *
+ * TB132: Now always used for all columns (no threshold) with scroll position restoration.
  */
 function VirtualizedKanbanColumn({
   column,
@@ -200,15 +205,18 @@ function VirtualizedKanbanColumn({
   selectedTaskId,
   onTaskClick,
   isDragActive,
+  scrollRestoreId,
 }: {
   column: ColumnConfig;
   tasks: Task[];
   selectedTaskId: string | null;
   onTaskClick: (taskId: string) => void;
   isDragActive: boolean;
+  scrollRestoreId?: string;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const taskIds = tasks.map(t => t.id);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Make the column a droppable zone for @dnd-kit
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
@@ -231,6 +239,54 @@ function VirtualizedKanbanColumn({
     (parentRef as { current: HTMLDivElement | null }).current = node;
     setDroppableRef(node);
   }, [setDroppableRef]);
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    if (scrollRestoreId && parentRef.current) {
+      const savedPosition = kanbanScrollPositionStore.get(scrollRestoreId);
+      if (savedPosition !== undefined && savedPosition > 0) {
+        // Small delay to ensure virtualizer is ready
+        requestAnimationFrame(() => {
+          virtualizer.scrollToOffset(savedPosition);
+        });
+      }
+    }
+  }, [scrollRestoreId]);
+
+  // Save scroll position on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollRestoreId && parentRef.current) {
+        const currentOffset = virtualizer.scrollOffset;
+        if (currentOffset !== null && currentOffset > 0) {
+          kanbanScrollPositionStore.set(scrollRestoreId, currentOffset);
+        }
+      }
+    };
+  }, [scrollRestoreId, virtualizer]);
+
+  // Handle scroll events to save position
+  const handleScroll = useCallback(() => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    scrollTimeoutRef.current = setTimeout(() => {
+      const offset = virtualizer.scrollOffset;
+      if (scrollRestoreId && offset !== null && offset > 0) {
+        kanbanScrollPositionStore.set(scrollRestoreId, offset);
+      }
+    }, 100);
+  }, [virtualizer, scrollRestoreId]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div
@@ -259,6 +315,7 @@ function VirtualizedKanbanColumn({
           contain: 'strict',
         }}
         data-testid={`kanban-column-${column.id}-scroll`}
+        onScroll={handleScroll}
       >
         {tasks.length === 0 ? (
           <div className="p-4 text-center text-gray-400 dark:text-gray-500 text-sm h-32 flex items-center justify-center">
@@ -304,77 +361,7 @@ function VirtualizedKanbanColumn({
   );
 }
 
-/**
- * Non-virtualized fallback for columns with few tasks
- * Better for drag-and-drop UX when virtualization isn't needed
- */
-function KanbanColumn({
-  column,
-  tasks,
-  selectedTaskId,
-  onTaskClick,
-  isDragActive,
-}: {
-  column: ColumnConfig;
-  tasks: Task[];
-  selectedTaskId: string | null;
-  onTaskClick: (taskId: string) => void;
-  isDragActive: boolean;
-}) {
-  const taskIds = tasks.map(t => t.id);
-
-  // Make the column a droppable zone for @dnd-kit
-  const { setNodeRef, isOver } = useDroppable({
-    id: column.id,
-  });
-
-  return (
-    <div
-      className="flex flex-col min-w-64 max-w-80 bg-gray-50 dark:bg-neutral-800 rounded-lg"
-      data-testid={`kanban-column-${column.id}`}
-    >
-      {/* Column Header */}
-      <div className="flex items-center gap-2 p-3 border-b border-gray-200 dark:border-neutral-700">
-        <div className={`w-2 h-2 rounded-full ${column.color}`} />
-        <span className="font-medium text-gray-700 dark:text-gray-200 text-sm">{column.title}</span>
-        <span
-          className="ml-auto px-2 py-0.5 text-xs bg-gray-200 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 rounded-full"
-          data-testid={`kanban-column-${column.id}-count`}
-        >
-          {tasks.length}
-        </span>
-      </div>
-
-      {/* Cards */}
-      <div
-        ref={setNodeRef}
-        className={`flex-1 overflow-y-auto p-2 space-y-2 min-h-32 max-h-[calc(100vh-200px)] ${
-          isOver && isDragActive ? 'bg-blue-50 dark:bg-blue-950' : ''
-        }`}
-      >
-        <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-          {tasks.map((task) => (
-            <SortableTaskCard
-              key={task.id}
-              task={task}
-              isSelected={task.id === selectedTaskId}
-              onClick={() => onTaskClick(task.id)}
-            />
-          ))}
-        </SortableContext>
-
-        {tasks.length === 0 && (
-          <div className="p-4 text-center text-gray-400 dark:text-gray-500 text-sm">
-            No tasks
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Threshold for using virtualization - columns with more tasks benefit from virtual scrolling
-const VIRTUALIZATION_THRESHOLD = 20;
+// TB132: Removed VIRTUALIZATION_THRESHOLD - always use virtualized columns for consistent UX
 
 export function KanbanBoard({ tasks, selectedTaskId, onTaskClick }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -454,29 +441,16 @@ export function KanbanBoard({ tasks, selectedTaskId, onTaskClick }: KanbanBoardP
         {COLUMNS.map((column) => {
           const columnTasks = tasksByStatus[column.status] || [];
 
-          // Use virtualized column for columns with many tasks
-          if (columnTasks.length > VIRTUALIZATION_THRESHOLD) {
-            return (
-              <VirtualizedKanbanColumn
-                key={column.id}
-                column={column}
-                tasks={columnTasks}
-                selectedTaskId={selectedTaskId}
-                onTaskClick={onTaskClick}
-                isDragActive={isDragActive}
-              />
-            );
-          }
-
-          // Use regular column for columns with fewer tasks
+          // TB132: Always use virtualized columns for consistent UX and scroll position preservation
           return (
-            <KanbanColumn
+            <VirtualizedKanbanColumn
               key={column.id}
               column={column}
               tasks={columnTasks}
               selectedTaskId={selectedTaskId}
               onTaskClick={onTaskClick}
               isDragActive={isDragActive}
+              scrollRestoreId={`kanban-column-${column.id}`}
             />
           );
         })}
