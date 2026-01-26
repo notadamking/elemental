@@ -243,10 +243,10 @@ export function TasksByStatusChart() {
 
   if (isLoading) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="tasks-by-status-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Tasks by Status</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">Loading chart...</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-by-status-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Tasks by Status</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="animate-pulse text-muted-foreground text-sm">Loading chart...</div>
         </div>
       </div>
     );
@@ -254,10 +254,10 @@ export function TasksByStatusChart() {
 
   if (isError || !tasks) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="tasks-by-status-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Tasks by Status</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="text-error">Failed to load chart data</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-by-status-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Tasks by Status</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="text-error text-sm">Failed to load chart data</div>
         </div>
       </div>
     );
@@ -268,27 +268,27 @@ export function TasksByStatusChart() {
 
   if (totalTasks === 0) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="tasks-by-status-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Tasks by Status</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="text-muted-foreground">No tasks to display</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-by-status-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Tasks by Status</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="text-muted-foreground text-sm">No tasks to display</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="tasks-by-status-chart">
-      <h4 className="text-sm font-medium text-foreground mb-4">Tasks by Status</h4>
-      <div className="h-48">
+    <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-by-status-chart">
+      <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Tasks by Status</h4>
+      <div className="h-40 sm:h-48">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={40}
-              outerRadius={70}
+              innerRadius={35}
+              outerRadius={60}
               dataKey="value"
               labelLine={false}
               label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
@@ -305,20 +305,20 @@ export function TasksByStatusChart() {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-4 flex justify-center gap-4 flex-wrap" data-testid="chart-legend">
+      <div className="mt-3 sm:mt-4 flex justify-center gap-2 sm:gap-4 flex-wrap" data-testid="chart-legend">
         {chartData.map((entry) => (
           <Link
             key={entry.status}
             to="/tasks"
             search={{ page: 1, limit: 25 }}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground transition-colors"
             data-testid={`legend-${entry.status}`}
           >
             <span
-              className="w-2.5 h-2.5 rounded-full"
+              className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0"
               style={{ backgroundColor: STATUS_COLORS[entry.status] }}
             />
-            {entry.name}: {entry.value}
+            <span className="truncate">{entry.name}: {entry.value}</span>
           </Link>
         ))}
       </div>
@@ -331,10 +331,10 @@ export function TasksCompletedOverTimeChart() {
 
   if (isLoading) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="tasks-completed-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Tasks Completed (Last 7 Days)</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">Loading chart...</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-completed-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Tasks Completed (Last 7 Days)</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="animate-pulse text-muted-foreground text-sm">Loading chart...</div>
         </div>
       </div>
     );
@@ -342,10 +342,10 @@ export function TasksCompletedOverTimeChart() {
 
   if (isError || !tasks) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="tasks-completed-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Tasks Completed (Last 7 Days)</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="text-error">Failed to load chart data</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-completed-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Tasks Completed (Last 7 Days)</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="text-error text-sm">Failed to load chart data</div>
         </div>
       </div>
     );
@@ -355,30 +355,32 @@ export function TasksCompletedOverTimeChart() {
   const totalCompleted = chartData.reduce((sum, d) => sum + d.completed, 0);
 
   return (
-    <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="tasks-completed-chart">
-      <h4 className="text-sm font-medium text-foreground mb-4">
-        Tasks Completed (Last 7 Days)
+    <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="tasks-completed-chart">
+      <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">
+        <span className="hidden sm:inline">Tasks Completed (Last 7 Days)</span>
+        <span className="sm:hidden">Completed (7 Days)</span>
         {totalCompleted > 0 && (
-          <span className="ml-2 text-xs font-normal text-muted-foreground">
+          <span className="ml-1 sm:ml-2 text-[10px] sm:text-xs font-normal text-muted-foreground">
             Total: {totalCompleted}
           </span>
         )}
       </h4>
-      <div className="h-48">
+      <div className="h-40 sm:h-48">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" />
             <XAxis
               dataKey="dateLabel"
-              tick={{ fontSize: 11, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
             />
             <YAxis
               allowDecimals={false}
-              tick={{ fontSize: 11, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
+              width={30}
             />
             <Tooltip content={<LineChartTooltip />} />
             <Line
@@ -386,8 +388,8 @@ export function TasksCompletedOverTimeChart() {
               dataKey="completed"
               stroke="var(--color-success, #22c55e)"
               strokeWidth={2}
-              dot={{ fill: 'var(--color-success, #22c55e)', strokeWidth: 0, r: 4 }}
-              activeDot={{ r: 6, fill: 'var(--color-success, #22c55e)' }}
+              dot={{ fill: 'var(--color-success, #22c55e)', strokeWidth: 0, r: 3 }}
+              activeDot={{ r: 5, fill: 'var(--color-success, #22c55e)' }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -414,10 +416,10 @@ export function WorkloadByAgentChart() {
 
   if (isLoading) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="workload-by-agent-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Workload by Agent</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">Loading chart...</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="workload-by-agent-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Workload by Agent</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="animate-pulse text-muted-foreground text-sm">Loading chart...</div>
         </div>
       </div>
     );
@@ -425,10 +427,10 @@ export function WorkloadByAgentChart() {
 
   if (isError || !tasks || !entities) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="workload-by-agent-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Workload by Agent</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="text-error">Failed to load chart data</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="workload-by-agent-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Workload by Agent</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="text-error text-sm">Failed to load chart data</div>
         </div>
       </div>
     );
@@ -438,36 +440,36 @@ export function WorkloadByAgentChart() {
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="workload-by-agent-chart">
-        <h4 className="text-sm font-medium text-foreground mb-4">Workload by Agent</h4>
-        <div className="h-48 flex items-center justify-center">
-          <div className="text-muted-foreground">No assigned tasks</div>
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="workload-by-agent-chart">
+        <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Workload by Agent</h4>
+        <div className="h-40 sm:h-48 flex items-center justify-center">
+          <div className="text-muted-foreground text-sm">No assigned tasks</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-card rounded-lg shadow-sm p-6 border border-border" data-testid="workload-by-agent-chart">
-      <h4 className="text-sm font-medium text-foreground mb-4">Workload by Agent</h4>
-      <div className="h-48">
+    <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6 border border-border" data-testid="workload-by-agent-chart">
+      <h4 className="text-xs sm:text-sm font-medium text-foreground mb-3 sm:mb-4">Workload by Agent</h4>
+      <div className="h-40 sm:h-48">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e5e7eb)" />
             <XAxis
               type="number"
               allowDecimals={false}
-              tick={{ fontSize: 11, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
             />
             <YAxis
               type="category"
               dataKey="name"
-              tick={{ fontSize: 11, fill: 'var(--color-muted-foreground, #6b7280)' }}
+              tick={{ fontSize: 10, fill: 'var(--color-muted-foreground, #6b7280)' }}
               axisLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
               tickLine={{ stroke: 'var(--color-border, #e5e7eb)' }}
-              width={100}
+              width={70}
             />
             <Tooltip content={<BarChartTooltip />} />
             <Bar
@@ -487,9 +489,9 @@ export function WorkloadByAgentChart() {
 // Main charts grid component
 export function DashboardCharts() {
   return (
-    <div className="mt-8" data-testid="dashboard-charts">
-      <h3 className="text-md font-medium text-foreground mb-4">Charts</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="charts-grid">
+    <div className="mt-6 sm:mt-8" data-testid="dashboard-charts">
+      <h3 className="text-sm sm:text-md font-medium text-foreground mb-3 sm:mb-4">Charts</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6" data-testid="charts-grid">
         <TasksByStatusChart />
         <TasksCompletedOverTimeChart />
         <WorkloadByAgentChart />

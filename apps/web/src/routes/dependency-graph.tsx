@@ -782,21 +782,22 @@ function TaskSelector({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="flex lg:flex-col gap-2 lg:space-y-0 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0">
       {tasks.map((task) => (
         <button
           key={task.id}
           onClick={() => onSelect(task.id)}
           className={`
-            w-full text-left p-3 rounded-lg border transition-colors
+            text-left p-2 sm:p-3 rounded-lg border transition-colors shrink-0 lg:shrink lg:w-full
+            min-w-[140px] sm:min-w-[160px] lg:min-w-0
             ${selectedId === task.id
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-200 hover:border-gray-300 bg-white'
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400'
+              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
             }
           `}
         >
-          <div className="font-medium text-gray-900 text-sm truncate">{task.title}</div>
-          <div className="text-xs text-gray-600 font-mono mt-1">{task.id}</div>
+          <div className="font-medium text-gray-900 dark:text-gray-100 text-xs sm:text-sm truncate">{task.title}</div>
+          <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 font-mono mt-0.5 sm:mt-1 truncate">{task.id}</div>
         </button>
       ))}
     </div>
@@ -862,25 +863,25 @@ function GraphToolbar({
   };
 
   return (
-    <div className="flex items-center gap-3 mb-3" data-testid="graph-toolbar">
+    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2 sm:mb-3" data-testid="graph-toolbar">
       {/* Search Input */}
-      <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className="relative flex-1 min-w-[150px] max-w-md">
+        <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
         <input
           type="text"
-          placeholder="Search by title or ID..."
+          placeholder="Search..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full pl-7 sm:pl-9 pr-7 sm:pr-8 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 dark:text-gray-100"
           data-testid="graph-search-input"
         />
         {searchQuery && (
           <button
             onClick={() => onSearchChange('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+            className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
             data-testid="clear-search-button"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         )}
       </div>
@@ -890,25 +891,25 @@ function GraphToolbar({
         <button
           onClick={() => setShowStatusFilter(!showStatusFilter)}
           className={`
-            flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors
+            flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border rounded-lg transition-colors
             ${statusFilter.length > 0
-              ? 'bg-blue-50 border-blue-300 text-blue-700'
-              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-500 text-blue-700 dark:text-blue-300'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
             }
           `}
           data-testid="status-filter-button"
         >
-          <Filter className="w-4 h-4" />
-          <span>Status</span>
+          <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span className="hidden sm:inline">Status</span>
           {statusFilter.length > 0 && (
-            <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+            <span className="bg-blue-600 text-white text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded-full">
               {statusFilter.length}
             </span>
           )}
         </button>
         {showStatusFilter && (
           <div
-            className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+            className="absolute top-full left-0 mt-1 w-44 sm:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-50"
             data-testid="status-filter-dropdown"
           >
             <div className="p-2 space-y-1">
@@ -1422,29 +1423,29 @@ export function DependencyGraphPage() {
 
   return (
     <div className="h-full flex flex-col" data-testid="dependency-graph-page">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-gray-900">Dependency Graph</h2>
-        <p className="text-sm text-gray-500">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
+        <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">Dependency Graph</h2>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
           Visualize task dependencies
         </p>
       </div>
 
       {isLoading && (
-        <div className="text-gray-500">Loading tasks...</div>
+        <div className="text-gray-500 dark:text-gray-400 text-sm">Loading tasks...</div>
       )}
 
       {!isLoading && allTasks.length === 0 && (
-        <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 text-center text-gray-500 dark:text-gray-400 text-sm">
           No tasks available. Create some tasks to visualize their dependencies.
         </div>
       )}
 
       {!isLoading && allTasks.length > 0 && (
-        <div className="flex-1 flex gap-4 min-h-0">
-          {/* Task Selector */}
-          <div className="w-64 flex flex-col min-h-0">
-            <h3 className="font-medium text-gray-700 mb-2">Select a Task</h3>
-            <div className="flex-1 overflow-y-auto" data-testid="task-selector">
+        <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0">
+          {/* Task Selector - collapsed on mobile, sidebar on desktop */}
+          <div className="lg:w-56 xl:w-64 flex flex-col min-h-0 lg:shrink-0">
+            <h3 className="font-medium text-gray-700 dark:text-gray-300 mb-2 text-sm sm:text-base">Select a Task</h3>
+            <div className="flex-1 overflow-y-auto max-h-32 lg:max-h-none" data-testid="task-selector">
               <TaskSelector
                 tasks={allTasks}
                 selectedId={selectedTaskId}
@@ -1481,25 +1482,25 @@ export function DependencyGraphPage() {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="mt-4 space-y-2">
+      {/* Legend - scrollable on mobile */}
+      <div className="mt-3 sm:mt-4 space-y-2 overflow-x-auto pb-1 -mb-1">
         {/* Status Legend */}
-        <div className="flex items-center gap-6 text-sm text-gray-600">
-          <span className="font-medium">Status:</span>
+        <div className="flex items-center gap-3 sm:gap-6 text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+          <span className="font-medium shrink-0">Status:</span>
           {Object.entries(STATUS_COLORS).map(([status, colors]) => (
-            <div key={status} className="flex items-center gap-1">
-              <div className={`w-3 h-3 rounded border ${colors.bg} ${colors.border}`} />
+            <div key={status} className="flex items-center gap-1 shrink-0">
+              <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded border ${colors.bg} ${colors.border}`} />
               <span className="capitalize">{status.replace('_', ' ')}</span>
             </div>
           ))}
         </div>
-        {/* Edge Type Legend */}
-        <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap" data-testid="edge-type-legend">
-          <span className="font-medium">Edge Types:</span>
+        {/* Edge Type Legend - hidden on small screens */}
+        <div className="hidden sm:flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400 flex-wrap" data-testid="edge-type-legend">
+          <span className="font-medium shrink-0">Edge Types:</span>
           {Object.entries(EDGE_TYPE_COLORS).map(([type, colors]) => (
-            <div key={type} className="flex items-center gap-1.5" data-testid={`edge-legend-${type}`}>
+            <div key={type} className="flex items-center gap-1 sm:gap-1.5 shrink-0" data-testid={`edge-legend-${type}`}>
               <div
-                className="w-4 h-0.5"
+                className="w-3 sm:w-4 h-0.5"
                 style={{ backgroundColor: colors.stroke }}
               />
               <span className="capitalize">{type.replace('-', ' ')}</span>
