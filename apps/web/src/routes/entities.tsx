@@ -5,15 +5,17 @@
  * Includes detail panel with stats, activity timeline, and inbox.
  */
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
 import { usePaginatedData, createEntityFilter } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
+import { useKeyboardShortcut } from '../hooks/useKeyboardShortcuts';
 
 interface Entity {
   id: string;
@@ -926,7 +928,8 @@ function EventItem({ event }: { event: ElementalEvent }) {
   );
 }
 
-function InboxItemCard({
+// Legacy card component - kept for reference but replaced by InboxMessageListItem + InboxMessageContent split layout (TB91)
+function _InboxItemCard({
   item,
   onMarkRead,
   onMarkUnread,
@@ -1105,6 +1108,333 @@ function InboxItemCard({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+void _InboxItemCard; // Suppress unused warning - kept for reference
+
+/**
+ * TB91: Compact message list item for the left side of split layout
+ * Shows: avatar, sender name, preview (first line), time ago, unread indicator
+ */
+function InboxMessageListItem({
+  item,
+  isSelected,
+  onSelect,
+}: {
+  item: InboxItem;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const isUnread = item.status === 'unread';
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'now';
+    if (minutes < 60) return `${minutes}m`;
+    if (hours < 24) return `${hours}h`;
+    if (days < 7) return `${days}d`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const senderName = item.sender?.name ?? 'Unknown';
+  const senderType = item.sender?.entityType ?? 'agent';
+  const messagePreview = item.message?.contentPreview ?? '';
+  // Get first line only for compact preview
+  const firstLine = messagePreview.split('\n')[0]?.slice(0, 50) || '';
+
+  const getAvatarIcon = () => {
+    switch (senderType) {
+      case 'agent': return <Bot className="w-3 h-3" />;
+      case 'human': return <User className="w-3 h-3" />;
+      case 'system': return <Server className="w-3 h-3" />;
+      default: return <User className="w-3 h-3" />;
+    }
+  };
+
+  const getAvatarColors = () => {
+    switch (senderType) {
+      case 'agent': return 'bg-purple-100 text-purple-600';
+      case 'human': return 'bg-blue-100 text-blue-600';
+      case 'system': return 'bg-gray-100 text-gray-600';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full text-left px-3 py-2 flex items-start gap-2 transition-colors border-b border-gray-100 ${
+        isSelected
+          ? 'bg-blue-50 border-l-2 border-l-blue-500'
+          : isUnread
+          ? 'bg-white hover:bg-gray-50'
+          : 'bg-gray-50/50 hover:bg-gray-100/50'
+      }`}
+      data-testid={`inbox-list-item-${item.id}`}
+    >
+      {/* Avatar */}
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${getAvatarColors()}`}>
+        {getAvatarIcon()}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className={`text-sm truncate ${isUnread ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+            {senderName}
+          </span>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-xs text-gray-400">{formatTime(item.createdAt)}</span>
+            {isUnread && (
+              <span className="w-2 h-2 rounded-full bg-blue-500" data-testid={`inbox-list-item-unread-${item.id}`} />
+            )}
+          </div>
+        </div>
+        {firstLine && (
+          <p className={`text-xs truncate ${isUnread ? 'text-gray-600' : 'text-gray-500'}`}>
+            {firstLine}
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
+/**
+ * TB91: Full message content panel for the right side of split layout
+ * Shows: sender avatar/name (clickable), channel (clickable), full timestamp, full content, actions
+ */
+function InboxMessageContent({
+  item,
+  onMarkRead,
+  onMarkUnread,
+  onArchive,
+  onRestore,
+  isPending,
+  onNavigateToMessage,
+  onNavigateToEntity,
+}: {
+  item: InboxItem;
+  onMarkRead: () => void;
+  onMarkUnread: () => void;
+  onArchive: () => void;
+  onRestore: () => void;
+  isPending: boolean;
+  onNavigateToMessage: () => void;
+  onNavigateToEntity: (entityId: string) => void;
+}) {
+  const isUnread = item.status === 'unread';
+  const isArchived = item.status === 'archived';
+
+  const formatFullTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const formatRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+    return '';
+  };
+
+  const senderName = item.sender?.name ?? 'Unknown';
+  const senderType = item.sender?.entityType ?? 'agent';
+  const senderId = item.sender?.id ?? item.message?.sender;
+  const channelName = item.channel?.name ?? item.channelId;
+  const messageContent = item.message?.contentPreview ?? '';
+
+  const getAvatarIcon = () => {
+    switch (senderType) {
+      case 'agent': return <Bot className="w-5 h-5" />;
+      case 'human': return <User className="w-5 h-5" />;
+      case 'system': return <Server className="w-5 h-5" />;
+      default: return <User className="w-5 h-5" />;
+    }
+  };
+
+  const getAvatarColors = () => {
+    switch (senderType) {
+      case 'agent': return 'bg-purple-100 text-purple-600';
+      case 'human': return 'bg-blue-100 text-blue-600';
+      case 'system': return 'bg-gray-100 text-gray-600';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const relativeTime = formatRelativeTime(item.createdAt);
+
+  return (
+    <div className="h-full flex flex-col" data-testid={`inbox-message-content-${item.id}`}>
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            {/* Sender Avatar - clickable */}
+            <button
+              onClick={() => senderId && onNavigateToEntity(senderId)}
+              className={`w-10 h-10 rounded-full flex items-center justify-center ${getAvatarColors()} hover:ring-2 hover:ring-blue-300 transition-all`}
+              data-testid={`inbox-content-avatar-${item.id}`}
+            >
+              {getAvatarIcon()}
+            </button>
+            <div>
+              {/* Sender Name - clickable */}
+              <button
+                onClick={() => senderId && onNavigateToEntity(senderId)}
+                className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                data-testid={`inbox-content-sender-${item.id}`}
+              >
+                {senderName}
+              </button>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                {/* Channel - clickable */}
+                <button
+                  onClick={onNavigateToMessage}
+                  className="hover:text-blue-600 hover:underline"
+                  data-testid={`inbox-content-channel-${item.id}`}
+                >
+                  #{channelName}
+                </button>
+                <span>•</span>
+                {/* Source badge */}
+                <span
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded ${
+                    item.sourceType === 'mention'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}
+                >
+                  {item.sourceType === 'mention' ? (
+                    <>
+                      <AtSign className="w-3 h-3" />
+                      Mention
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="w-3 h-3" />
+                      Direct
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1">
+            {isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+            ) : (
+              <>
+                {isArchived ? (
+                  <button
+                    onClick={onRestore}
+                    className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                    title="Restore"
+                    data-testid={`inbox-content-restore-${item.id}`}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <>
+                    {isUnread ? (
+                      <button
+                        onClick={onMarkRead}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Mark as read"
+                        data-testid={`inbox-content-mark-read-${item.id}`}
+                      >
+                        <CheckCheck className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={onMarkUnread}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Mark as unread"
+                        data-testid={`inbox-content-mark-unread-${item.id}`}
+                      >
+                        <Mail className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={onArchive}
+                      className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                      title="Archive"
+                      data-testid={`inbox-content-archive-${item.id}`}
+                    >
+                      <Archive className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Timestamp */}
+        <div className="mt-2 text-xs text-gray-500" data-testid={`inbox-content-time-${item.id}`}>
+          {formatFullTime(item.createdAt)}
+          {relativeTime && <span className="ml-1">({relativeTime})</span>}
+        </div>
+      </div>
+
+      {/* Message Content */}
+      <div className="flex-1 overflow-auto p-4">
+        <div
+          className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap"
+          data-testid={`inbox-content-body-${item.id}`}
+        >
+          {messageContent || <span className="text-gray-400 italic">No content</span>}
+        </div>
+      </div>
+
+      {/* Footer - View in channel link */}
+      <div className="p-3 border-t border-gray-200 bg-gray-50">
+        <button
+          onClick={onNavigateToMessage}
+          className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+          data-testid={`inbox-content-view-in-channel-${item.id}`}
+        >
+          View in channel
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * TB91: Empty state for message content panel when no message is selected
+ */
+function InboxMessageEmptyState() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-gray-400" data-testid="inbox-content-empty">
+      <Inbox className="w-12 h-12 mb-3" />
+      <p className="text-sm font-medium">Select a message</p>
+      <p className="text-xs mt-1">Choose a message from the list to view its content</p>
+      <p className="text-xs mt-3 text-gray-300">Tip: Use J/K keys to navigate</p>
     </div>
   );
 }
@@ -1358,6 +1688,9 @@ function EntityDetailPanel({
   const [showManagerPicker, setShowManagerPicker] = useState(false);
   const [managerSearchQuery, setManagerSearchQuery] = useState('');
   const [showOrgChart, setShowOrgChart] = useState(false);
+  // TB91: Selected inbox message for split layout
+  const [selectedInboxItemId, setSelectedInboxItemId] = useState<string | null>(null);
+  const inboxListRef = useRef<HTMLDivElement>(null);
 
   // Handle inbox view change and persist to localStorage
   const handleInboxViewChange = (view: InboxViewType) => {
@@ -1428,6 +1761,72 @@ function EntityDetailPanel({
       search: { channel: channelId, message: messageId, page: 1, limit: 50 },
     });
   };
+
+  // TB91: Navigate to entity detail from inbox content
+  const handleNavigateToEntity = (targetEntityId: string) => {
+    // If it's a different entity, we could navigate or just select it
+    // For now, navigate to the entities page with the target selected
+    navigate({
+      to: '/entities',
+      search: { selected: targetEntityId, name: undefined, page: 1, limit: 25 },
+    });
+  };
+
+  // TB91: Get currently selected inbox item
+  const selectedInboxItem = useMemo(() => {
+    if (!selectedInboxItemId || !inboxData?.items) return null;
+    return inboxData.items.find((item) => item.id === selectedInboxItemId) ?? null;
+  }, [selectedInboxItemId, inboxData?.items]);
+
+  // TB91: Keyboard navigation for inbox (J = next, K = previous)
+  const handleInboxKeyNavigation = useCallback(
+    (direction: 'next' | 'prev') => {
+      if (!inboxData?.items || inboxData.items.length === 0) return;
+
+      const items = inboxData.items;
+      const currentIndex = selectedInboxItemId
+        ? items.findIndex((item) => item.id === selectedInboxItemId)
+        : -1;
+
+      let newIndex: number;
+      if (direction === 'next') {
+        newIndex = currentIndex < items.length - 1 ? currentIndex + 1 : currentIndex;
+      } else {
+        newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+      }
+
+      if (newIndex !== currentIndex && items[newIndex]) {
+        setSelectedInboxItemId(items[newIndex].id);
+      }
+    },
+    [inboxData?.items, selectedInboxItemId]
+  );
+
+  // TB91: Reset selection when inbox view changes or entity changes
+  useEffect(() => {
+    setSelectedInboxItemId(null);
+  }, [inboxView, entityId]);
+
+  // TB91: Keyboard shortcuts for inbox navigation (only when inbox tab is active)
+  useKeyboardShortcut(
+    'J',
+    useCallback(() => {
+      if (activeTab === 'inbox') {
+        handleInboxKeyNavigation('next');
+      }
+    }, [activeTab, handleInboxKeyNavigation]),
+    'Select next inbox message'
+  );
+
+  useKeyboardShortcut(
+    'K',
+    useCallback(() => {
+      if (activeTab === 'inbox') {
+        handleInboxKeyNavigation('prev');
+      }
+    }, [activeTab, handleInboxKeyNavigation]),
+    'Select previous inbox message'
+  );
 
   const handleSave = async () => {
     if (!entity) return;
@@ -1930,10 +2329,10 @@ function EntityDetailPanel({
         </div>
           </>
         ) : (
-          /* Inbox Tab Content */
-          <div data-testid="entity-inbox-tab">
+          /* Inbox Tab Content - TB91: Split Layout */
+          <div className="flex flex-col h-full -m-4" data-testid="entity-inbox-tab">
             {/* Inbox Header with View Tabs */}
-            <div className="flex flex-col gap-3 mb-4">
+            <div className="flex flex-col gap-2 p-3 border-b border-gray-200 bg-gray-50/50">
               {/* Title and Mark All Read */}
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
@@ -2006,62 +2405,89 @@ function EntityDetailPanel({
               </div>
             </div>
 
-            {/* Inbox Items */}
-            {inboxLoading ? (
-              <div className="text-sm text-gray-500">Loading inbox...</div>
-            ) : inboxError ? (
-              <div className="text-center py-8" data-testid="inbox-error">
-                <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-700">Failed to load inbox</p>
-                <p className="text-xs text-gray-500 mt-1 mb-3">
-                  There was an error loading your messages
-                </p>
-                <button
-                  onClick={() => refetchInbox()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
-                  data-testid="inbox-retry"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Retry
-                </button>
-              </div>
-            ) : !inboxData || inboxData.items.length === 0 ? (
-              <div className="text-center py-8" data-testid="inbox-empty">
-                <Inbox className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">
-                  {inboxView === 'unread'
-                    ? 'No unread messages'
-                    : inboxView === 'archived'
-                    ? 'No archived messages'
-                    : 'No messages in inbox'}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {inboxView === 'archived'
-                    ? 'Archived messages will appear here'
-                    : 'Direct messages and @mentions will appear here'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2" data-testid="inbox-items-list">
-                {inboxData.items.map((item) => (
-                  <InboxItemCard
-                    key={item.id}
-                    item={item}
-                    onMarkRead={() => handleMarkInboxRead(item.id)}
-                    onMarkUnread={() => handleMarkInboxUnread(item.id)}
-                    onArchive={() => handleArchiveInbox(item.id)}
-                    onRestore={() => handleRestoreInbox(item.id)}
-                    isPending={pendingItemId === item.id}
-                    onNavigateToMessage={() => handleNavigateToMessage(item.channelId, item.messageId)}
+            {/* TB91: Split Layout - Message List (left 40%) + Content (right 60%) */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left Panel - Message List (40%) */}
+              <div
+                ref={inboxListRef}
+                className="w-2/5 min-w-[200px] max-w-[300px] border-r border-gray-200 overflow-auto"
+                data-testid="inbox-message-list"
+              >
+                {inboxLoading ? (
+                  <div className="p-4 text-sm text-gray-500">Loading inbox...</div>
+                ) : inboxError ? (
+                  <div className="text-center py-8 px-4" data-testid="inbox-error">
+                    <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-700">Failed to load inbox</p>
+                    <p className="text-xs text-gray-500 mt-1 mb-3">
+                      There was an error loading your messages
+                    </p>
+                    <button
+                      onClick={() => refetchInbox()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                      data-testid="inbox-retry"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Retry
+                    </button>
+                  </div>
+                ) : !inboxData || inboxData.items.length === 0 ? (
+                  <div className="text-center py-8 px-4" data-testid="inbox-empty">
+                    <Inbox className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">
+                      {inboxView === 'unread'
+                        ? 'No unread messages'
+                        : inboxView === 'archived'
+                        ? 'No archived messages'
+                        : 'No messages in inbox'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {inboxView === 'archived'
+                        ? 'Archived messages will appear here'
+                        : 'Direct messages and @mentions will appear here'}
+                    </p>
+                  </div>
+                ) : (
+                  <VirtualizedList
+                    items={inboxData.items}
+                    getItemKey={(item) => item.id}
+                    estimateSize={56}
+                    height="100%"
+                    testId="inbox-items-list"
+                    renderItem={(item) => (
+                      <InboxMessageListItem
+                        item={item}
+                        isSelected={selectedInboxItemId === item.id}
+                        onSelect={() => setSelectedInboxItemId(item.id)}
+                      />
+                    )}
                   />
-                ))}
-                {inboxData.hasMore && (
-                  <div className="text-center text-xs text-gray-500 pt-2">
+                )}
+                {inboxData?.hasMore && (
+                  <div className="text-center text-xs text-gray-500 py-2 border-t border-gray-100">
                     Showing {inboxData.items.length} of {inboxData.total} items
                   </div>
                 )}
               </div>
-            )}
+
+              {/* Right Panel - Message Content (60%) */}
+              <div className="flex-1 overflow-hidden bg-white" data-testid="inbox-message-content-panel">
+                {selectedInboxItem ? (
+                  <InboxMessageContent
+                    item={selectedInboxItem}
+                    onMarkRead={() => handleMarkInboxRead(selectedInboxItem.id)}
+                    onMarkUnread={() => handleMarkInboxUnread(selectedInboxItem.id)}
+                    onArchive={() => handleArchiveInbox(selectedInboxItem.id)}
+                    onRestore={() => handleRestoreInbox(selectedInboxItem.id)}
+                    isPending={pendingItemId === selectedInboxItem.id}
+                    onNavigateToMessage={() => handleNavigateToMessage(selectedInboxItem.channelId, selectedInboxItem.messageId)}
+                    onNavigateToEntity={handleNavigateToEntity}
+                  />
+                ) : (
+                  <InboxMessageEmptyState />
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -1337,13 +1337,13 @@ For mutations (create, update, delete):
   - [x] Web: Remember selected view in localStorage - `inbox.view` key with getStoredInboxView/setStoredInboxView
   - [x] **Verify:** Switch between views, counts update correctly; Playwright tests passing (7 passed, 8 skipped due to no inbox data)
 
-- [ ] **TB91: Inbox Message Summary Sidebar**
-  - [ ] Web: Create split layout: message list (left 40%), message content (right 60%)
-  - [ ] Web: Message list shows: avatar, sender name, preview (first line), time ago, unread indicator
-  - [ ] Web: Selected message highlighted
-  - [ ] Web: Keyboard navigation: J/K to move between messages
-  - [ ] Web: Virtualized list for performance
-  - [ ] **Verify:** Click message in list, full content shows on right; Playwright tests passing
+- [x] **TB91: Inbox Message Summary Sidebar**
+  - [x] Web: Create split layout: message list (left 40%), message content (right 60%)
+  - [x] Web: Message list shows: avatar, sender name, preview (first line), time ago, unread indicator
+  - [x] Web: Selected message highlighted
+  - [x] Web: Keyboard navigation: J/K to move between messages
+  - [x] Web: Virtualized list for performance
+  - [x] **Verify:** Click message in list, full content shows on right; Playwright tests passing (2 passed, 12 skipped due to no inbox data)
 
 - [ ] **TB92: Inbox Full Message Content**
   - [ ] Web: Right panel shows full message with:
