@@ -4360,6 +4360,43 @@ app.post('/api/plans/:id/tasks', async (c) => {
   }
 });
 
+// Check if task can be deleted from plan (TB121 - Plans must have at least one task)
+app.get('/api/plans/:id/can-delete-task/:taskId', async (c) => {
+  try {
+    const planId = c.req.param('id') as ElementId;
+    const taskId = c.req.param('taskId') as ElementId;
+
+    // Verify plan exists
+    const plan = await api.get(planId);
+    if (!plan) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+    if (plan.type !== 'plan') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    // Get tasks in plan
+    const tasks = await api.getTasksInPlan(planId);
+
+    // Check if this task is in the plan
+    const taskInPlan = tasks.some(t => t.id === taskId);
+    if (!taskInPlan) {
+      return c.json({ canDelete: false, reason: 'Task is not in this plan' });
+    }
+
+    // Check if this is the last task
+    const isLastTask = tasks.length === 1;
+    if (isLastTask) {
+      return c.json({ canDelete: false, reason: 'Cannot remove the last task from a plan. Plans must have at least one task.' });
+    }
+
+    return c.json({ canDelete: true });
+  } catch (error) {
+    console.error('[elemental] Failed to check if task can be deleted:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to check if task can be deleted' } }, 500);
+  }
+});
+
 // Remove task from plan
 app.delete('/api/plans/:id/tasks/:taskId', async (c) => {
   try {
@@ -4373,6 +4410,18 @@ app.delete('/api/plans/:id/tasks/:taskId', async (c) => {
     }
     if (plan.type !== 'plan') {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+    }
+
+    // TB121: Check if this is the last task - plans must have at least one task
+    const tasks = await api.getTasksInPlan(planId);
+    const taskInPlan = tasks.some(t => t.id === taskId);
+    if (taskInPlan && tasks.length === 1) {
+      return c.json({
+        error: {
+          code: 'LAST_TASK',
+          message: 'Cannot remove the last task from a plan. Plans must have at least one task.'
+        }
+      }, 400);
     }
 
     // Remove the task from the plan
@@ -4407,6 +4456,40 @@ app.post('/api/plans', async (c) => {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title must be between 1 and 500 characters' } }, 400);
     }
 
+    // TB121: Plans must have at least one task
+    // Accept either:
+    // 1. initialTaskId - existing task to add to the plan
+    // 2. initialTask - object with task details to create and add
+    const hasInitialTaskId = body.initialTaskId && typeof body.initialTaskId === 'string';
+    const hasInitialTask = body.initialTask && typeof body.initialTask === 'object' && body.initialTask.title;
+
+    if (!hasInitialTaskId && !hasInitialTask) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Plans must have at least one task. Provide either initialTaskId (existing task ID) or initialTask (object with title to create new task).'
+        }
+      }, 400);
+    }
+
+    // Validate initialTaskId exists if provided
+    if (hasInitialTaskId) {
+      const existingTask = await api.get(body.initialTaskId as ElementId);
+      if (!existingTask) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Initial task not found' } }, 404);
+      }
+      if (existingTask.type !== 'task') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'initialTaskId must reference a task' } }, 400);
+      }
+    }
+
+    // Validate initialTask title if provided
+    if (hasInitialTask) {
+      if (typeof body.initialTask.title !== 'string' || body.initialTask.title.length < 1 || body.initialTask.title.length > 500) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'initialTask.title must be between 1 and 500 characters' } }, 400);
+      }
+    }
+
     // Create the plan using the factory function
     const planInput: CreatePlanInput = {
       title: body.title,
@@ -4418,10 +4501,42 @@ app.post('/api/plans', async (c) => {
 
     const plan = await createPlan(planInput);
     const created = await api.create(plan as unknown as Element & Record<string, unknown>);
-    return c.json(created, 201);
+
+    // Now add or create the initial task
+    let taskId: ElementId;
+    let createdTask = null;
+
+    if (hasInitialTaskId) {
+      taskId = body.initialTaskId as ElementId;
+    } else {
+      // Create a new task using the proper factory function
+      const taskInput = {
+        title: body.initialTask.title,
+        status: (body.initialTask.status || 'open') as 'open',
+        priority: body.initialTask.priority || 3,
+        complexity: body.initialTask.complexity || 3,
+        tags: body.initialTask.tags || [],
+        createdBy: body.createdBy as EntityId,
+      };
+      const task = await createTask(taskInput);
+      createdTask = await api.create(task as unknown as Element & Record<string, unknown>);
+      taskId = createdTask.id as ElementId;
+    }
+
+    // Add the task to the plan
+    await api.addTaskToPlan(taskId, created.id as ElementId, { actor: body.createdBy as EntityId });
+
+    // Return the plan along with the initial task info
+    return c.json({
+      ...created,
+      initialTask: createdTask || { id: taskId }
+    }, 201);
   } catch (error) {
     if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    if ((error as { code?: string }).code === 'ALREADY_EXISTS') {
+      return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in another plan' } }, 409);
     }
     console.error('[elemental] Failed to create plan:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create plan' } }, 500);

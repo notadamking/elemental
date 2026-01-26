@@ -779,16 +779,16 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Enforce that collections (Plans, Workflows, Teams) must have meaningful content—preventing empty shells that clutter the system.
 
-- [ ] **TB121: Plans Must Have Task Children**
-  - [ ] Server: Add validation in `POST /api/plans` - require at least one task ID in request body OR create with initial task
-  - [ ] Server: Add `POST /api/plans` variant that creates plan + first task atomically
-  - [ ] Server: Prevent deletion of last task in plan (return error with helpful message)
-  - [ ] Server: Add `GET /api/plans/:id/can-delete-task/:taskId` endpoint to check if deletion would orphan plan
-  - [ ] Web: Update CreatePlanModal to require initial task (title input + "Add First Task" section)
-  - [ ] Web: Show validation error if trying to submit plan without task
-  - [ ] Web: In PlanDetailPanel, show warning when removing task would leave plan empty
-  - [ ] Web: Disable "Remove" button on last task with tooltip explaining why
-  - [ ] **Verify:** Try creating empty plan via UI - blocked; try removing last task - blocked; Playwright tests passing
+- [x] **TB121: Plans Must Have Task Children** ([spec](./TB121-plans-must-have-tasks.md))
+  - [x] Server: Add validation in `POST /api/plans` - require at least one task ID in request body OR create with initial task
+  - [x] Server: Add `POST /api/plans` variant that creates plan + first task atomically
+  - [x] Server: Prevent deletion of last task in plan (return error with helpful message)
+  - [x] Server: Add `GET /api/plans/:id/can-delete-task/:taskId` endpoint to check if deletion would orphan plan
+  - [x] Web: Update CreatePlanModal to require initial task (title input + "Add First Task" section)
+  - [x] Web: Show validation error if trying to submit plan without task
+  - [x] Web: In PlanDetailPanel, show warning when removing task would leave plan empty
+  - [x] Web: Disable "Remove" button on last task with tooltip explaining why
+  - [x] **Verify:** 19 Playwright tests passing (`apps/web/tests/tb121-plans-must-have-tasks.spec.ts`); creating empty plan blocked; removing last task blocked
 
 - [ ] **TB122: Workflows Must Have Task Children**
   - [ ] Server: Add validation in `POST /api/workflows` - require playbook (which generates tasks) or initial task

@@ -1,5 +1,5 @@
 /**
- * Plans Page - Plan management with progress visualization (TB24, TB47, TB87, TB88)
+ * Plans Page - Plan management with progress visualization (TB24, TB47, TB87, TB88, TB121)
  *
  * Features:
  * - List all plans with status badges
@@ -11,6 +11,7 @@
  * - Status transition buttons (TB47)
  * - Search plans by title (TB87)
  * - Roadmap view showing plans as horizontal bars on timeline (TB88)
+ * - Plans must have at least one task (TB121)
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -21,6 +22,7 @@ import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { ProgressRing, ProgressRingWithBreakdown } from '../components/shared/ProgressRing';
 import { useAllPlans } from '../api/hooks/useAllElements';
 import { useDeepLink } from '../hooks/useDeepLink';
+import { toast } from 'sonner';
 import {
   BarChart,
   Bar,
@@ -51,6 +53,7 @@ import {
   Search,
   List,
   GanttChart,
+  Info,
 } from 'lucide-react';
 
 // ============================================================================
@@ -418,6 +421,50 @@ function useAvailableTasks(planId: string | null, searchQuery: string) {
       return available.slice(0, 50); // Limit results
     },
     enabled: !!planId,
+  });
+}
+
+// TB121: Hook for creating a plan with initial task
+function useCreatePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      title,
+      createdBy,
+      initialTask,
+      initialTaskId,
+      status,
+      tags,
+    }: {
+      title: string;
+      createdBy: string;
+      initialTask?: { title: string; priority?: number; status?: string };
+      initialTaskId?: string;
+      status?: string;
+      tags?: string[];
+    }) => {
+      const response = await fetch('/api/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          createdBy,
+          initialTask,
+          initialTaskId,
+          status,
+          tags,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to create plan');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
   });
 }
 
@@ -1054,7 +1101,7 @@ function TaskStatusSummary({ progress }: { progress: PlanProgress }) {
 }
 
 /**
- * Plan Task List with optional edit mode
+ * Plan Task List with optional edit mode (TB121: disable removing last task)
  */
 function PlanTaskList({
   tasks,
@@ -1080,6 +1127,9 @@ function PlanTaskList({
     );
   }
 
+  // TB121: Check if this is the last task
+  const isLastTask = tasks.length === 1;
+
   const priorityColors: Record<number, string> = {
     1: 'bg-gray-200',
     2: 'bg-blue-200',
@@ -1089,6 +1139,12 @@ function PlanTaskList({
   };
 
   const handleRemoveClick = (taskId: string) => {
+    // TB121: Prevent removing the last task
+    if (isLastTask) {
+      toast.error('Cannot remove the last task. Plans must have at least one task.');
+      return;
+    }
+
     if (confirmRemoveId === taskId) {
       // Second click - confirm removal
       onRemoveTask?.(taskId);
@@ -1101,6 +1157,16 @@ function PlanTaskList({
 
   return (
     <div data-testid="plan-tasks-list" className="space-y-2">
+      {/* TB121: Show warning when only one task */}
+      {isLastTask && isEditMode && (
+        <div
+          data-testid="last-task-warning"
+          className="flex items-center gap-2 p-2 mb-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700"
+        >
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>This is the only task. Plans must have at least one task.</span>
+        </div>
+      )}
       {tasks.map((task) => (
         <div
           key={task.id}
@@ -1137,13 +1203,21 @@ function PlanTaskList({
             <button
               data-testid={`remove-task-${task.id}`}
               onClick={() => handleRemoveClick(task.id)}
-              disabled={removingTaskId === task.id}
+              disabled={removingTaskId === task.id || isLastTask}
               className={`p-1 rounded transition-colors ${
-                confirmRemoveId === task.id
-                  ? 'bg-red-500 text-white hover:bg-red-600'
-                  : 'text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100'
+                isLastTask
+                  ? 'text-gray-300 cursor-not-allowed opacity-50'
+                  : confirmRemoveId === task.id
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100'
               } ${removingTaskId === task.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-              title={confirmRemoveId === task.id ? 'Click again to confirm removal' : 'Remove from plan'}
+              title={
+                isLastTask
+                  ? 'Cannot remove - plans must have at least one task'
+                  : confirmRemoveId === task.id
+                    ? 'Click again to confirm removal'
+                    : 'Remove from plan'
+              }
             >
               {removingTaskId === task.id ? (
                 <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
@@ -1275,6 +1349,297 @@ function TaskPickerModal({
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Create Plan Modal (TB121) - Plans must have at least one task
+ */
+function CreatePlanModal({
+  onClose,
+  onPlanCreated,
+}: {
+  onClose: () => void;
+  onPlanCreated: (planId: string) => void;
+}) {
+  const [planTitle, setPlanTitle] = useState('');
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskPriority, setTaskPriority] = useState(3);
+  const [existingTaskId, setExistingTaskId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'new' | 'existing'>('new');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  const createPlan = useCreatePlan();
+
+  // Debounce search for existing tasks
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery]);
+
+  // Query for existing tasks when in existing mode
+  const { data: existingTasks = [], isLoading: isLoadingTasks } = useQuery<TaskType[]>({
+    queryKey: ['tasks', 'for-plan-creation', debouncedQuery],
+    queryFn: async () => {
+      const response = await fetch('/api/tasks');
+      if (!response.ok) throw new Error('Failed to fetch tasks');
+      const allTasks = await response.json() as TaskType[];
+
+      // Filter by search query
+      if (debouncedQuery) {
+        const query = debouncedQuery.toLowerCase();
+        return allTasks
+          .filter((t) =>
+            t.title.toLowerCase().includes(query) ||
+            t.id.toLowerCase().includes(query)
+          )
+          .slice(0, 50);
+      }
+      return allTasks.slice(0, 50);
+    },
+    enabled: mode === 'existing',
+  });
+
+  const canSubmit =
+    planTitle.trim().length > 0 &&
+    ((mode === 'new' && taskTitle.trim().length > 0) ||
+      (mode === 'existing' && existingTaskId !== null));
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+
+    try {
+      const result = await createPlan.mutateAsync({
+        title: planTitle.trim(),
+        createdBy: 'system', // TODO: Use actual user ID
+        ...(mode === 'new'
+          ? { initialTask: { title: taskTitle.trim(), priority: taskPriority } }
+          : { initialTaskId: existingTaskId! }),
+      });
+      toast.success('Plan created successfully');
+      onPlanCreated(result.id);
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to create plan');
+    }
+  };
+
+  const priorityLabels: Record<number, string> = {
+    1: 'Lowest',
+    2: 'Low',
+    3: 'Medium',
+    4: 'High',
+    5: 'Critical',
+  };
+
+  return (
+    <div
+      data-testid="create-plan-modal"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Create Plan</h3>
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+            data-testid="create-plan-close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Plan Title */}
+          <div>
+            <label htmlFor="plan-title" className="block text-sm font-medium text-gray-700 mb-1">
+              Plan Title *
+            </label>
+            <input
+              id="plan-title"
+              type="text"
+              data-testid="plan-title-input"
+              placeholder="Enter plan title..."
+              value={planTitle}
+              onChange={(e) => setPlanTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+            />
+          </div>
+
+          {/* Initial Task Section - TB121 */}
+          <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-medium text-blue-700">
+                Initial Task Required
+              </span>
+            </div>
+            <p className="text-xs text-blue-600 mb-4">
+              Plans must have at least one task. Add a new task or select an existing one.
+            </p>
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 mb-4">
+              <button
+                data-testid="mode-new-task"
+                onClick={() => {
+                  setMode('new');
+                  setExistingTaskId(null);
+                }}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  mode === 'new'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Create New Task
+              </button>
+              <button
+                data-testid="mode-existing-task"
+                onClick={() => setMode('existing')}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  mode === 'existing'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Use Existing Task
+              </button>
+            </div>
+
+            {/* New Task Form */}
+            {mode === 'new' && (
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
+                    Task Title *
+                  </label>
+                  <input
+                    id="task-title"
+                    type="text"
+                    data-testid="task-title-input"
+                    placeholder="Enter task title..."
+                    value={taskTitle}
+                    onChange={(e) => setTaskTitle(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    id="task-priority"
+                    data-testid="task-priority-select"
+                    value={taskPriority}
+                    onChange={(e) => setTaskPriority(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    aria-label="Task priority"
+                  >
+                    {[1, 2, 3, 4, 5].map((p) => (
+                      <option key={p} value={p}>
+                        {p} - {priorityLabels[p]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Existing Task Picker */}
+            {mode === 'existing' && (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    data-testid="existing-task-search"
+                    placeholder="Search tasks by title or ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  />
+                </div>
+
+                {/* Task List */}
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white">
+                  {isLoadingTasks ? (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      Loading tasks...
+                    </div>
+                  ) : existingTasks.length === 0 ? (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      {searchQuery ? 'No matching tasks found' : 'No tasks available'}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {existingTasks.map((task) => (
+                        <button
+                          key={task.id}
+                          data-testid={`existing-task-${task.id}`}
+                          onClick={() => setExistingTaskId(task.id)}
+                          className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
+                            existingTaskId === task.id
+                              ? 'bg-blue-100 border-l-2 border-blue-500'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">
+                              {task.title}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">{task.id}</div>
+                          </div>
+                          {existingTaskId === task.id && (
+                            <Check className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {existingTaskId && (
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <Check className="w-4 h-4" />
+                    <span>Task selected</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 p-4 border-t border-gray-200">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            data-testid="create-plan-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit || createPlan.isPending}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            data-testid="create-plan-submit"
+          >
+            {createPlan.isPending ? 'Creating...' : 'Create Plan'}
+          </button>
         </div>
       </div>
     </div>
@@ -1670,6 +2035,7 @@ export function PlansPage() {
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(search.selected ?? null);
+  const [showCreateModal, setShowCreateModal] = useState(false); // TB121
 
   // View mode state (TB88)
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
@@ -1802,12 +2168,24 @@ export function PlansPage() {
             )}
           </div>
 
-          {/* Search Bar (TB87) */}
-          <PlanSearchBar
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onClear={handleSearchClear}
-          />
+          <div className="flex items-center gap-3">
+            {/* Create Plan Button (TB121) */}
+            <button
+              data-testid="create-plan-btn"
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create Plan
+            </button>
+
+            {/* Search Bar (TB87) */}
+            <PlanSearchBar
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onClear={handleSearchClear}
+            />
+          </div>
         </div>
 
         {/* Filter and View Controls */}
@@ -1924,6 +2302,16 @@ export function PlansPage() {
           </div>
         )}
       </div>
+
+      {/* Create Plan Modal (TB121) */}
+      {showCreateModal && (
+        <CreatePlanModal
+          onClose={() => setShowCreateModal(false)}
+          onPlanCreated={(planId) => {
+            handlePlanClick(planId);
+          }}
+        />
+      )}
     </div>
   );
 }
