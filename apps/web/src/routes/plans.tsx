@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useDebounce, useIsMobile } from '../hooks';
+import { useDebounce, useIsMobile, useGlobalQuickActions } from '../hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
@@ -41,7 +41,6 @@ import {
   XCircle,
   FileEdit,
   ChevronRight,
-  ChevronLeft,
   X,
   ListTodo,
   CircleDot,
@@ -56,8 +55,6 @@ import {
   Search,
   List,
   GanttChart,
-  Info,
-  Loader2,
 } from 'lucide-react';
 
 // ============================================================================
@@ -425,50 +422,6 @@ function useAvailableTasks(planId: string | null, searchQuery: string) {
       return available.slice(0, 50); // Limit results
     },
     enabled: !!planId,
-  });
-}
-
-// TB121: Hook for creating a plan with initial task
-function useCreatePlan() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      title,
-      createdBy,
-      initialTask,
-      initialTaskId,
-      status,
-      tags,
-    }: {
-      title: string;
-      createdBy: string;
-      initialTask?: { title: string; priority?: number; status?: string };
-      initialTaskId?: string;
-      status?: string;
-      tags?: string[];
-    }) => {
-      const response = await fetch('/api/plans', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          createdBy,
-          initialTask,
-          initialTaskId,
-          status,
-          tags,
-        }),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to create plan');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plans'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    },
   });
 }
 
@@ -1360,492 +1313,6 @@ function TaskPickerModal({
 }
 
 /**
- * Create Plan Modal (TB121, TB148) - Plans must have at least one task
- * Responsive: Full-screen on mobile, centered modal on desktop
- */
-function CreatePlanModal({
-  onClose,
-  onPlanCreated,
-  isMobile = false,
-}: {
-  onClose: () => void;
-  onPlanCreated: (planId: string) => void;
-  isMobile?: boolean;
-}) {
-  const [planTitle, setPlanTitle] = useState('');
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskPriority, setTaskPriority] = useState(3);
-  const [existingTaskId, setExistingTaskId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'new' | 'existing'>('new');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-
-  const createPlan = useCreatePlan();
-
-  // Debounce search for existing tasks
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => {
-    debounceRef.current = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery]);
-
-  // Query for existing tasks when in existing mode
-  const { data: existingTasks = [], isLoading: isLoadingTasks } = useQuery<TaskType[]>({
-    queryKey: ['tasks', 'for-plan-creation', debouncedQuery],
-    queryFn: async () => {
-      const response = await fetch('/api/tasks');
-      if (!response.ok) throw new Error('Failed to fetch tasks');
-      const allTasks = await response.json() as TaskType[];
-
-      // Filter by search query
-      if (debouncedQuery) {
-        const query = debouncedQuery.toLowerCase();
-        return allTasks
-          .filter((t) =>
-            t.title.toLowerCase().includes(query) ||
-            t.id.toLowerCase().includes(query)
-          )
-          .slice(0, 50);
-      }
-      return allTasks.slice(0, 50);
-    },
-    enabled: mode === 'existing',
-  });
-
-  const canSubmit =
-    planTitle.trim().length > 0 &&
-    ((mode === 'new' && taskTitle.trim().length > 0) ||
-      (mode === 'existing' && existingTaskId !== null));
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-
-    try {
-      const result = await createPlan.mutateAsync({
-        title: planTitle.trim(),
-        createdBy: 'system', // TODO: Use actual user ID
-        ...(mode === 'new'
-          ? { initialTask: { title: taskTitle.trim(), priority: taskPriority } }
-          : { initialTaskId: existingTaskId! }),
-      });
-      toast.success('Plan created successfully');
-      onPlanCreated(result.id);
-      onClose();
-    } catch (err) {
-      toast.error((err as Error).message || 'Failed to create plan');
-    }
-  };
-
-  const priorityLabels: Record<number, string> = {
-    1: 'Lowest',
-    2: 'Low',
-    3: 'Medium',
-    4: 'High',
-    5: 'Critical',
-  };
-
-  // Mobile: Full-screen modal (TB148)
-  if (isMobile) {
-    return (
-      <div className="fixed inset-0 z-50 bg-[var(--color-bg)]" data-testid="create-plan-modal">
-        {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
-          <button
-            onClick={onClose}
-            className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
-            aria-label="Cancel"
-            data-testid="create-plan-close"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="flex-1 text-lg font-semibold text-[var(--color-text)]">Create Plan</h2>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit || createPlan.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors touch-target"
-            data-testid="create-plan-submit"
-          >
-            {createPlan.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
-          </button>
-        </div>
-
-        {/* Content - scrollable */}
-        <div className="p-4 pb-20 overflow-y-auto h-[calc(100vh-60px)] space-y-4">
-          {/* Plan Title */}
-          <div>
-            <label htmlFor="plan-title-mobile" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-              Plan Title *
-            </label>
-            <input
-              id="plan-title-mobile"
-              type="text"
-              data-testid="plan-title-input"
-              placeholder="Enter plan title..."
-              value={planTitle}
-              onChange={(e) => setPlanTitle(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
-            />
-          </div>
-
-          {/* Initial Task Section */}
-          <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
-            <div className="flex items-center gap-2 mb-3">
-              <Info className="w-4 h-4 text-blue-500" />
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                Initial Task Required
-              </span>
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mb-4">
-              Plans must have at least one task. Add a new task or select an existing one.
-            </p>
-
-            {/* Mode Toggle */}
-            <div className="flex gap-2 mb-4">
-              <button
-                data-testid="mode-new-task"
-                onClick={() => {
-                  setMode('new');
-                  setExistingTaskId(null);
-                }}
-                className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors touch-target ${
-                  mode === 'new'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Create New Task
-              </button>
-              <button
-                data-testid="mode-existing-task"
-                onClick={() => setMode('existing')}
-                className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors touch-target ${
-                  mode === 'existing'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                Use Existing Task
-              </button>
-            </div>
-
-            {/* New Task Form */}
-            {mode === 'new' && (
-              <div className="space-y-3">
-                <div>
-                  <label htmlFor="task-title-mobile" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Task Title *
-                  </label>
-                  <input
-                    id="task-title-mobile"
-                    type="text"
-                    data-testid="task-title-input"
-                    placeholder="Enter task title..."
-                    value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="task-priority-mobile" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    id="task-priority-mobile"
-                    data-testid="task-priority-select"
-                    value={taskPriority}
-                    onChange={(e) => setTaskPriority(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 touch-target"
-                    aria-label="Task priority"
-                  >
-                    {[1, 2, 3, 4, 5].map((p) => (
-                      <option key={p} value={p}>
-                        {p} - {priorityLabels[p]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Existing Task Picker */}
-            {mode === 'existing' && (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    data-testid="existing-task-search"
-                    placeholder="Search tasks by title or ID..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800"
-                  />
-                </div>
-
-                {/* Task List */}
-                <div className="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-                  {isLoadingTasks ? (
-                    <div className="text-center py-4 text-gray-500 text-sm">
-                      Loading tasks...
-                    </div>
-                  ) : existingTasks.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500 text-sm">
-                      {searchQuery ? 'No matching tasks found' : 'No tasks available'}
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {existingTasks.map((task) => (
-                        <button
-                          key={task.id}
-                          data-testid={`existing-task-${task.id}`}
-                          onClick={() => setExistingTaskId(task.id)}
-                          className={`w-full flex items-center gap-3 p-3 text-left transition-colors touch-target ${
-                            existingTaskId === task.id
-                              ? 'bg-blue-100 dark:bg-blue-900/30 border-l-2 border-blue-500'
-                              : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {task.title}
-                            </div>
-                            <div className="text-xs text-gray-500 font-mono">{task.id}</div>
-                          </div>
-                          {existingTaskId === task.id && (
-                            <Check className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {existingTaskId && (
-                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                    <Check className="w-4 h-4" />
-                    <span>Task selected</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Desktop: Centered modal
-  return (
-    <div
-      data-testid="create-plan-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Create Plan</h3>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-            data-testid="create-plan-close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Plan Title */}
-          <div>
-            <label htmlFor="plan-title" className="block text-sm font-medium text-gray-700 mb-1">
-              Plan Title *
-            </label>
-            <input
-              id="plan-title"
-              type="text"
-              data-testid="plan-title-input"
-              placeholder="Enter plan title..."
-              value={planTitle}
-              onChange={(e) => setPlanTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
-            />
-          </div>
-
-          {/* Initial Task Section - TB121 */}
-          <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
-            <div className="flex items-center gap-2 mb-3">
-              <Info className="w-4 h-4 text-blue-500" />
-              <span className="text-sm font-medium text-blue-700">
-                Initial Task Required
-              </span>
-            </div>
-            <p className="text-xs text-blue-600 mb-4">
-              Plans must have at least one task. Add a new task or select an existing one.
-            </p>
-
-            {/* Mode Toggle */}
-            <div className="flex gap-2 mb-4">
-              <button
-                data-testid="mode-new-task"
-                onClick={() => {
-                  setMode('new');
-                  setExistingTaskId(null);
-                }}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  mode === 'new'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Create New Task
-              </button>
-              <button
-                data-testid="mode-existing-task"
-                onClick={() => setMode('existing')}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  mode === 'existing'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Use Existing Task
-              </button>
-            </div>
-
-            {/* New Task Form */}
-            {mode === 'new' && (
-              <div className="space-y-3">
-                <div>
-                  <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
-                    Task Title *
-                  </label>
-                  <input
-                    id="task-title"
-                    type="text"
-                    data-testid="task-title-input"
-                    placeholder="Enter task title..."
-                    value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    id="task-priority"
-                    data-testid="task-priority-select"
-                    value={taskPriority}
-                    onChange={(e) => setTaskPriority(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                    aria-label="Task priority"
-                  >
-                    {[1, 2, 3, 4, 5].map((p) => (
-                      <option key={p} value={p}>
-                        {p} - {priorityLabels[p]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Existing Task Picker */}
-            {mode === 'existing' && (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    data-testid="existing-task-search"
-                    placeholder="Search tasks by title or ID..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                  />
-                </div>
-
-                {/* Task List */}
-                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white">
-                  {isLoadingTasks ? (
-                    <div className="text-center py-4 text-gray-500 text-sm">
-                      Loading tasks...
-                    </div>
-                  ) : existingTasks.length === 0 ? (
-                    <div className="text-center py-4 text-gray-500 text-sm">
-                      {searchQuery ? 'No matching tasks found' : 'No tasks available'}
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-gray-100">
-                      {existingTasks.map((task) => (
-                        <button
-                          key={task.id}
-                          data-testid={`existing-task-${task.id}`}
-                          onClick={() => setExistingTaskId(task.id)}
-                          className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
-                            existingTaskId === task.id
-                              ? 'bg-blue-100 border-l-2 border-blue-500'
-                              : 'hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-900 truncate">
-                              {task.title}
-                            </div>
-                            <div className="text-xs text-gray-500 font-mono">{task.id}</div>
-                          </div>
-                          {existingTaskId === task.id && (
-                            <Check className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {existingTaskId && (
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <Check className="w-4 h-4" />
-                    <span>Task selected</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-3 p-4 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            data-testid="create-plan-cancel"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit || createPlan.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            data-testid="create-plan-submit"
-          >
-            {createPlan.isPending ? 'Creating...' : 'Create Plan'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
  * Plan Detail Panel with edit functionality (TB47)
  */
 function PlanDetailPanel({
@@ -2232,10 +1699,10 @@ export function PlansPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/plans' });
   const isMobile = useIsMobile();
+  const { openCreatePlanModal } = useGlobalQuickActions();
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(search.selected ?? null);
-  const [showCreateModal, setShowCreateModal] = useState(false); // TB121
 
   // View mode state (TB88) - Default to list on mobile, roadmap only on desktop
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -2398,11 +1865,12 @@ export function PlansPage() {
                 {/* Create Plan Button (TB121) */}
                 <button
                   data-testid="create-plan-btn"
-                  onClick={() => setShowCreateModal(true)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  onClick={openCreatePlanModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   Create Plan
+                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">C P</kbd>
                 </button>
 
                 {/* Search Bar (TB87) */}
@@ -2574,24 +2042,13 @@ export function PlansPage() {
       {/* Mobile Floating Action Button for Create Plan (TB148) */}
       {isMobile && !selectedPlanId && (
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={openCreatePlanModal}
           className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg z-40 touch-target"
           aria-label="Create new plan"
           data-testid="mobile-create-plan-fab"
         >
           <Plus className="w-6 h-6" />
         </button>
-      )}
-
-      {/* Create Plan Modal (TB121, TB148) */}
-      {showCreateModal && (
-        <CreatePlanModal
-          onClose={() => setShowCreateModal(false)}
-          onPlanCreated={(planId) => {
-            handlePlanClick(planId);
-          }}
-          isMobile={isMobile}
-        />
       )}
     </div>
   );
