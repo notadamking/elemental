@@ -610,16 +610,16 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Remove unused features and simplify navigation based on user feedback.
 
-- [ ] **TB133: Remove Edit Mode from Dependency Graph**
-  - [ ] Web: Remove "Edit Mode" toggle button from graph toolbar
-  - [ ] Web: Remove edge creation click-to-select flow
-  - [ ] Web: Remove right-click edge deletion context menu
-  - [ ] Web: Remove all edit mode state management
-  - [ ] Web: Keep graph as read-only visualization
-  - [ ] Web: Keep all view features: zoom, pan, search, filter, minimap
-  - [ ] Web: Update any documentation or tooltips referencing edit mode
-  - [ ] Server: Keep dependency endpoints (dependencies can still be managed via Task detail panel)
-  - [ ] **Verify:** Graph loads as read-only; no edit mode toggle visible; Playwright tests updated
+- [x] **TB133: Remove Edit Mode from Dependency Graph** ✅ DONE
+  - [x] Web: Remove "Edit Mode" toggle button from graph toolbar
+  - [x] Web: Remove edge creation click-to-select flow
+  - [x] Web: Remove right-click edge deletion context menu
+  - [x] Web: Remove all edit mode state management
+  - [x] Web: Keep graph as read-only visualization
+  - [x] Web: Keep all view features: zoom, pan, search, filter, minimap
+  - [x] Web: Update header text and documentation referencing edit mode
+  - [x] Server: Kept dependency API endpoints (dependencies managed via Task detail panel)
+  - [x] **Verify:** 6 Playwright tests passing in `apps/web/tests/dependency-graph.spec.ts` (TB133 section)
 
 - [ ] **TB134: Delete Agents Page**
   - [ ] Web: Remove `/dashboard/agents` route from router config

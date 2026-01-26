@@ -451,7 +451,7 @@ test.describe('TB43: Dependency Graph - Filter & Search', () => {
   });
 });
 
-test.describe('TB44: Dependency Graph - Edit Mode', () => {
+test.describe('TB44: Dependency Graph - API Endpoints', () => {
   test('POST /api/dependencies endpoint creates a dependency', async ({ page }) => {
     // First get two tasks to create dependency between
     const tasksResponse = await page.request.get('/api/tasks/ready');
@@ -599,10 +599,12 @@ test.describe('TB44: Dependency Graph - Edit Mode', () => {
     const error = await response.json();
     expect(error.error.code).toBe('NOT_FOUND');
   });
+});
 
+test.describe('TB133: Dependency Graph - Read-Only Mode', () => {
   // Helper function to wait for the dependency graph page to stabilize
   async function waitForGraphPageReady(page: import('@playwright/test').Page) {
-    await page.goto('/dashboard/dependencies');
+    await page.goto('/dependencies');
     await expect(page.getByTestId('dependency-graph-page')).toBeVisible({ timeout: 10000 });
     // Wait for toolbar to be visible (indicates loading is complete)
     await expect(page.getByTestId('graph-toolbar')).toBeVisible({ timeout: 10000 });
@@ -610,42 +612,15 @@ test.describe('TB44: Dependency Graph - Edit Mode', () => {
     await page.waitForTimeout(500);
   }
 
-  test('Edit Mode toggle button is displayed and functional', async ({ page }) => {
-    const readyResponse = await page.request.get('/api/tasks/ready');
-    const readyTasks = await readyResponse.json();
-    const blockedResponse = await page.request.get('/api/tasks/blocked');
-    const blockedTasks = await blockedResponse.json();
-    const allTasks = [...readyTasks, ...blockedTasks];
-
-    if (allTasks.length === 0) {
-      test.skip();
-      return;
-    }
-
+  test('page header shows read-only description', async ({ page }) => {
     await waitForGraphPageReady(page);
 
-    // Edit Mode toggle button should be visible
-    await expect(page.getByTestId('edit-mode-toggle')).toBeVisible();
-
-    // Initially should show "Edit Mode"
-    await expect(page.getByTestId('edit-mode-toggle')).toContainText('Edit Mode');
-
-    // Click to enable edit mode
-    await page.getByTestId('edit-mode-toggle').click();
-
-    // Should now show "Exit Edit Mode" and edit mode hint
-    await expect(page.getByTestId('edit-mode-toggle')).toContainText('Exit Edit Mode');
-    await expect(page.getByTestId('edit-mode-hint')).toBeVisible();
-
-    // Click again to exit edit mode
-    await page.getByTestId('edit-mode-toggle').click();
-
-    // Edit mode hint should not be visible
-    await expect(page.getByTestId('edit-mode-hint')).not.toBeVisible();
-    await expect(page.getByTestId('edit-mode-toggle')).toContainText('Edit Mode');
+    // Header should say "Visualize task dependencies" (not "Visualize and edit")
+    await expect(page.getByText('Visualize task dependencies')).toBeVisible();
+    await expect(page.getByText('Visualize and edit task dependencies')).not.toBeVisible();
   });
 
-  test('in Edit Mode, search and filter controls are hidden', async ({ page }) => {
+  test('edit mode toggle is NOT displayed', async ({ page }) => {
     const readyResponse = await page.request.get('/api/tasks/ready');
     const readyTasks = await readyResponse.json();
     const blockedResponse = await page.request.get('/api/tasks/blocked');
@@ -659,24 +634,35 @@ test.describe('TB44: Dependency Graph - Edit Mode', () => {
 
     await waitForGraphPageReady(page);
 
-    // Initially search should be visible
+    // Edit Mode toggle button should NOT be visible
+    await expect(page.getByTestId('edit-mode-toggle')).not.toBeVisible();
+  });
+
+  test('search and filter controls are always visible', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Search and filters should be visible
     await expect(page.getByTestId('graph-search-input')).toBeVisible();
     await expect(page.getByTestId('status-filter-button')).toBeVisible();
 
-    // Click Edit Mode toggle
-    await page.getByTestId('edit-mode-toggle').click();
-
-    // Search and filters should be hidden
-    await expect(page.getByTestId('graph-search-input')).not.toBeVisible();
-    await expect(page.getByTestId('status-filter-button')).not.toBeVisible();
-
-    // Zoom controls should still be visible
+    // Zoom controls should be visible
     await expect(page.getByTestId('zoom-in-button')).toBeVisible();
     await expect(page.getByTestId('zoom-out-button')).toBeVisible();
     await expect(page.getByTestId('fit-view-button')).toBeVisible();
   });
 
-  test('node selection workflow in Edit Mode', async ({ page }) => {
+  test('clicking nodes does NOT trigger edit mode selection', async ({ page }) => {
     const readyResponse = await page.request.get('/api/tasks/ready');
     const readyTasks = await readyResponse.json();
     const blockedResponse = await page.request.get('/api/tasks/blocked');
@@ -693,29 +679,64 @@ test.describe('TB44: Dependency Graph - Edit Mode', () => {
     // Wait for graph to render
     await page.waitForTimeout(500);
 
-    // Click Edit Mode toggle
-    await page.getByTestId('edit-mode-toggle').click();
-    await expect(page.getByTestId('edit-mode-hint')).toBeVisible();
-
     // Click on a node in the graph
     const node = page.getByTestId('graph-node').first();
     if (await node.isVisible({ timeout: 2000 })) {
       await node.click();
 
-      // Should show source selected hint
-      await expect(page.getByTestId('source-selected-hint')).toBeVisible({ timeout: 5000 });
-      await expect(page.getByTestId('cancel-selection-button')).toBeVisible();
-
-      // Click cancel selection
-      await page.getByTestId('cancel-selection-button').click();
-
-      // Should go back to initial edit mode hint
-      await expect(page.getByTestId('edit-mode-hint')).toBeVisible();
+      // No selection hint should appear (edit mode is gone)
       await expect(page.getByTestId('source-selected-hint')).not.toBeVisible();
+      await expect(page.getByTestId('edit-mode-hint')).not.toBeVisible();
     }
   });
 
-  test('dependency type picker workflow', async ({ page }) => {
+  test('right-clicking edges does NOT show context menu', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length < 2) {
+      test.skip();
+      return;
+    }
+
+    // Create a test dependency
+    const sourceTask = allTasks[0];
+    const targetTask = allTasks[1];
+
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+
+    await page.request.post('/api/dependencies', {
+      data: {
+        sourceId: sourceTask.id,
+        targetId: targetTask.id,
+        type: 'relates-to',
+      },
+    });
+
+    await waitForGraphPageReady(page);
+    await page.waitForTimeout(1000);
+
+    // Try to right-click on an edge
+    const edgeZone = page.locator('[data-testid="edge-interaction-zone"]').first();
+    if (await edgeZone.isVisible({ timeout: 2000 })) {
+      await edgeZone.click({ button: 'right' });
+
+      // Edge context menu should NOT appear
+      await expect(page.getByTestId('edge-context-menu')).not.toBeVisible();
+    }
+
+    // Clean up
+    await page.request.delete(
+      `/api/dependencies/${encodeURIComponent(sourceTask.id)}/${encodeURIComponent(targetTask.id)}/relates-to`
+    );
+  });
+
+  test('dependency type picker modal is NOT displayed', async ({ page }) => {
     const readyResponse = await page.request.get('/api/tasks/ready');
     const readyTasks = await readyResponse.json();
     const blockedResponse = await page.request.get('/api/tasks/blocked');
@@ -728,36 +749,19 @@ test.describe('TB44: Dependency Graph - Edit Mode', () => {
     }
 
     await waitForGraphPageReady(page);
-
-    // Wait for graph to render
     await page.waitForTimeout(500);
 
-    // Click Edit Mode toggle
-    await page.getByTestId('edit-mode-toggle').click();
-
-    // Get nodes
+    // Get nodes and click them
     const nodes = page.getByTestId('graph-node');
     const count = await nodes.count();
 
     if (count >= 2) {
       // Click first node
       await nodes.nth(0).click();
-      await expect(page.getByTestId('source-selected-hint')).toBeVisible({ timeout: 5000 });
-
       // Click second node
       await nodes.nth(1).click();
 
-      // Dependency type picker should appear with all options
-      await expect(page.getByTestId('dependency-type-picker')).toBeVisible({ timeout: 5000 });
-      await expect(page.getByTestId('dependency-type-blocks')).toBeVisible();
-      await expect(page.getByTestId('dependency-type-parent-child')).toBeVisible();
-      await expect(page.getByTestId('dependency-type-relates-to')).toBeVisible();
-      await expect(page.getByTestId('dependency-type-references')).toBeVisible();
-
-      // Click cancel
-      await page.getByTestId('cancel-dependency-button').click();
-
-      // Type picker should be hidden
+      // Dependency type picker should NOT appear
       await expect(page.getByTestId('dependency-type-picker')).not.toBeVisible();
     }
   });

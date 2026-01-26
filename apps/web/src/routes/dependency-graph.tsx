@@ -1,12 +1,12 @@
 /**
  * Dependency Graph Lens
  *
- * Interactive visualization of task dependencies using React Flow.
- * Supports Edit Mode for adding/removing dependencies.
+ * Read-only visualization of task dependencies using React Flow.
+ * Dependencies are managed via the Task detail panel.
  */
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
 import {
   ReactFlow,
@@ -24,14 +24,12 @@ import {
   Handle,
   Position,
   MarkerType,
-  type NodeMouseHandler,
   BaseEdge,
   getSmoothStepPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
-import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Edit3, Trash2, Link2, Loader2, Tag, LayoutGrid, ArrowDown, ArrowRight, ArrowUp, ArrowLeft, SlidersHorizontal, ChevronDown } from 'lucide-react';
-import { toast } from 'sonner';
+import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Loader2, Tag, LayoutGrid, ArrowDown, ArrowRight, ArrowUp, ArrowLeft, SlidersHorizontal, ChevronDown } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -151,64 +149,6 @@ function useDependencyList(taskId: string | null) {
   });
 }
 
-function useAddDependency() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: { sourceId: string; targetId: string; type: string }) => {
-      const response = await fetch('/api/dependencies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to create dependency');
-      }
-      return response.json();
-    },
-    onSuccess: (_data, variables) => {
-      // Invalidate dependency queries to refresh the graph
-      queryClient.invalidateQueries({ queryKey: ['dependencies'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success(`Dependency created`, {
-        description: `Added ${variables.type} relationship`,
-      });
-    },
-    onError: (error) => {
-      toast.error('Failed to create dependency', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    },
-  });
-}
-
-function useRemoveDependency() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: { sourceId: string; targetId: string; type: string }) => {
-      const response = await fetch(
-        `/api/dependencies/${encodeURIComponent(data.sourceId)}/${encodeURIComponent(data.targetId)}/${encodeURIComponent(data.type)}`,
-        { method: 'DELETE' }
-      );
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to remove dependency');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      // Invalidate dependency queries to refresh the graph
-      queryClient.invalidateQueries({ queryKey: ['dependencies'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Dependency removed');
-    },
-    onError: (error) => {
-      toast.error('Failed to remove dependency', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    },
-  });
-}
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }> = {
   open: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-800' },
@@ -231,12 +171,10 @@ interface TaskNodeData extends Record<string, unknown> {
   isRoot: boolean;
   isHighlighted: boolean;
   isSearchMatch: boolean;
-  isSelected: boolean;
-  editMode: boolean;
 }
 
 function TaskNode({ data }: { data: TaskNodeData }) {
-  const { task, isRoot, isHighlighted, isSearchMatch, isSelected, editMode } = data;
+  const { task, isRoot, isHighlighted, isSearchMatch } = data;
   // Handle cases where task properties may be undefined (e.g., non-task elements in dependency tree)
   const status = task.status || 'open';
   const title = task.title || task.id;
@@ -251,15 +189,12 @@ function TaskNode({ data }: { data: TaskNodeData }) {
         ${colors.bg} ${colors.border}
         ${isRoot ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
         ${isSearchMatch ? 'ring-2 ring-yellow-400 ring-offset-2 shadow-lg shadow-yellow-200' : ''}
-        ${isSelected && editMode ? 'ring-2 ring-purple-500 ring-offset-2 shadow-lg shadow-purple-200' : ''}
         ${isHighlighted && !isSearchMatch ? 'opacity-100' : ''}
         ${!isHighlighted && !isSearchMatch ? 'opacity-40' : ''}
-        ${editMode ? 'cursor-pointer hover:shadow-md' : ''}
         transition-all duration-200
       `}
       data-testid="graph-node"
       data-node-id={task.id}
-      data-selected={isSelected}
     >
       <Handle type="target" position={Position.Top} className="!bg-gray-400" />
       <div className="flex items-center justify-between gap-2 mb-1">
@@ -277,12 +212,10 @@ function TaskNode({ data }: { data: TaskNodeData }) {
   );
 }
 
-// Custom edge with right-click context menu support and labels
+// Custom edge with labels (read-only visualization)
 interface CustomEdgeData extends Record<string, unknown> {
   dependencyType: string;
-  editMode: boolean;
   showLabels: boolean;
-  onDelete: (sourceId: string, targetId: string, type: string) => void;
 }
 
 interface CustomEdgeProps {
@@ -310,10 +243,6 @@ function CustomEdge({
   markerEnd,
   data,
 }: CustomEdgeProps) {
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
-  const edgeRef = useRef<SVGGElement>(null);
-
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -330,46 +259,19 @@ function CustomEdge({
   // Get a short display label for the edge
   const displayLabel = dependencyType.replace('-', ' ');
 
-  const handleContextMenu = useCallback((event: React.MouseEvent) => {
-    if (!data?.editMode) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setContextMenuPos({ x: event.clientX, y: event.clientY });
-    setShowContextMenu(true);
-  }, [data?.editMode]);
-
-  const handleDelete = useCallback(() => {
-    // Extract source and target from edge id (format: "sourceId->targetId")
-    const [sourceId, targetId] = id.split('->');
-    if (sourceId && targetId && data?.onDelete && data?.dependencyType) {
-      data.onDelete(sourceId, targetId, data.dependencyType);
-    }
-    setShowContextMenu(false);
-  }, [id, data]);
-
-  // Close context menu when clicking outside
-  useEffect(() => {
-    if (!showContextMenu) return;
-    const handleClick = () => setShowContextMenu(false);
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  }, [showContextMenu]);
-
   return (
-    <g ref={edgeRef}>
+    <g>
       <BaseEdge
         path={edgePath}
         markerEnd={markerEnd}
         style={{ ...style, stroke: colors.stroke }}
       />
-      {/* Wider invisible path for easier interaction */}
+      {/* Wider invisible path for hover interactions */}
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
         strokeWidth={20}
-        onContextMenu={handleContextMenu}
-        style={{ cursor: data?.editMode ? 'context-menu' : 'default' }}
         data-testid="edge-interaction-zone"
         data-edge-id={id}
         data-edge-type={dependencyType}
@@ -398,35 +300,6 @@ function CustomEdge({
           </div>
         </foreignObject>
       )}
-      {showContextMenu && (
-        <foreignObject
-          x={contextMenuPos.x - 100}
-          y={contextMenuPos.y - 40}
-          width={200}
-          height={100}
-          style={{ overflow: 'visible' }}
-        >
-          <div
-            className="bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-40"
-            style={{
-              position: 'fixed',
-              left: contextMenuPos.x,
-              top: contextMenuPos.y,
-              zIndex: 9999,
-            }}
-            data-testid="edge-context-menu"
-          >
-            <button
-              onClick={handleDelete}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-              data-testid="delete-edge-button"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete Dependency
-            </button>
-          </div>
-        </foreignObject>
-      )}
     </g>
   );
 }
@@ -442,8 +315,6 @@ const edgeTypes: EdgeTypes = {
 interface GraphOptions {
   searchQuery: string;
   statusFilter: string[];
-  selectedNodeId: string | null;
-  editMode: boolean;
   showEdgeLabels: boolean;
 }
 
@@ -788,14 +659,13 @@ function buildDependencyTypeMap(depList: DependencyListResponse | undefined): Ma
 function buildGraphFromTree(
   tree: DependencyTree,
   options: GraphOptions,
-  onDeleteEdge: (sourceId: string, targetId: string, type: string) => void,
   dependencyTypeMap: Map<string, string>
 ): { nodes: Node<TaskNodeData>[]; edges: Edge[] } {
   const nodes: Node<TaskNodeData>[] = [];
   const edges: Edge<CustomEdgeData>[] = [];
   const visited = new Set<string>();
 
-  const { searchQuery, statusFilter, selectedNodeId, editMode, showEdgeLabels } = options;
+  const { searchQuery, statusFilter, showEdgeLabels } = options;
   const hasSearch = searchQuery.trim().length > 0;
   const hasStatusFilter = statusFilter.length > 0;
   const hasAnyFilter = hasSearch || hasStatusFilter;
@@ -837,7 +707,6 @@ function buildGraphFromTree(
 
     const isMatch = matchesFilters(node.element);
     const isSearchMatch = hasSearch && matchesSearch(node.element);
-    const isSelected = node.element.id === selectedNodeId;
 
     nodes.push({
       id: node.element.id,
@@ -848,8 +717,6 @@ function buildGraphFromTree(
         isRoot: direction === 'root',
         isHighlighted: !hasAnyFilter || isMatch,
         isSearchMatch: isSearchMatch,
-        isSelected: isSelected,
-        editMode: editMode,
       },
     });
 
@@ -871,9 +738,7 @@ function buildGraphFromTree(
         style: { stroke: edgeColors.stroke },
         data: {
           dependencyType: depType,
-          editMode: editMode,
           showLabels: showEdgeLabels,
-          onDelete: onDeleteEdge,
         },
       });
     });
@@ -896,9 +761,7 @@ function buildGraphFromTree(
         style: { stroke: edgeColors.stroke },
         data: {
           dependencyType: depType,
-          editMode: editMode,
           showLabels: showEdgeLabels,
-          onDelete: onDeleteEdge,
         },
       });
     });
@@ -949,80 +812,7 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-// Dependency type picker modal
-function DependencyTypePicker({
-  sourceNode: _sourceNode,
-  targetNode: _targetNode,
-  onSelect,
-  onCancel,
-  isLoading,
-  error,
-}: {
-  sourceNode: Task;
-  targetNode: Task;
-  onSelect: (type: string) => void;
-  onCancel: () => void;
-  isLoading: boolean;
-  error: string | null;
-}) {
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onCancel}
-      data-testid="dependency-type-picker-overlay"
-    >
-      <div
-        className="bg-white rounded-lg shadow-xl p-4 w-80"
-        onClick={(e) => e.stopPropagation()}
-        data-testid="dependency-type-picker"
-      >
-        <div className="flex items-center gap-2 mb-4">
-          {isLoading ? (
-            <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
-          ) : (
-            <Link2 className="w-5 h-5 text-purple-600" />
-          )}
-          <h3 className="font-medium text-gray-900">
-            {isLoading ? 'Creating dependency...' : 'Add Dependency'}
-          </h3>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700" data-testid="dependency-error">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-2">
-          {DEPENDENCY_TYPES.map(({ value, label, description }) => (
-            <button
-              key={value}
-              onClick={() => onSelect(value)}
-              disabled={isLoading}
-              className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors disabled:opacity-50"
-              data-testid={`dependency-type-${value}`}
-            >
-              <div className="font-medium text-gray-900 text-sm">{label}</div>
-              <div className="text-xs text-gray-500 mt-1">{description}</div>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={onCancel}
-            className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800"
-            data-testid="cancel-dependency-button"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Graph toolbar with search, filters, and edit mode toggle
+// Graph toolbar with search, filters, and view controls
 function GraphToolbar({
   searchQuery,
   onSearchChange,
@@ -1034,10 +824,6 @@ function GraphToolbar({
   onFitView,
   onZoomIn,
   onZoomOut,
-  editMode,
-  onEditModeToggle,
-  selectedSourceNode,
-  onCancelSelection,
   showEdgeLabels,
   onToggleEdgeLabels,
   layoutOptions,
@@ -1055,10 +841,6 @@ function GraphToolbar({
   onFitView: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  editMode: boolean;
-  onEditModeToggle: () => void;
-  selectedSourceNode: Task | null;
-  onCancelSelection: () => void;
   showEdgeLabels: boolean;
   onToggleEdgeLabels: () => void;
   layoutOptions: LayoutOptions;
@@ -1081,138 +863,97 @@ function GraphToolbar({
 
   return (
     <div className="flex items-center gap-3 mb-3" data-testid="graph-toolbar">
-      {/* Edit Mode Toggle */}
-      <button
-        onClick={onEditModeToggle}
-        className={`
-          flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors
-          ${editMode
-            ? 'bg-purple-100 border-purple-400 text-purple-700'
-            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-          }
-        `}
-        data-testid="edit-mode-toggle"
-      >
-        <Edit3 className="w-4 h-4" />
-        <span>{editMode ? 'Exit Edit Mode' : 'Edit Mode'}</span>
-      </button>
-
-      {/* Edit mode instructions */}
-      {editMode && !selectedSourceNode && (
-        <span className="text-sm text-purple-600" data-testid="edit-mode-hint">
-          Click a node to select source, then click another to add dependency
-        </span>
-      )}
-      {editMode && selectedSourceNode && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-purple-600" data-testid="source-selected-hint">
-            Source: <span className="font-medium">{selectedSourceNode.title.substring(0, 20)}...</span> — Click another node
-          </span>
+      {/* Search Input */}
+      <div className="relative flex-1 max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search by title or ID..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          data-testid="graph-search-input"
+        />
+        {searchQuery && (
           <button
-            onClick={onCancelSelection}
-            className="text-sm text-gray-500 hover:text-gray-700"
-            data-testid="cancel-selection-button"
+            onClick={() => onSearchChange('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+            data-testid="clear-search-button"
           >
-            (Cancel)
+            <X className="w-4 h-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Search Input - only show when not in edit mode or not selecting */}
-      {!editMode && (
-        <>
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by title or ID..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              data-testid="graph-search-input"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
-                data-testid="clear-search-button"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Status Filter Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowStatusFilter(!showStatusFilter)}
-              className={`
-                flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors
-                ${statusFilter.length > 0
-                  ? 'bg-blue-50 border-blue-300 text-blue-700'
-                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                }
-              `}
-              data-testid="status-filter-button"
-            >
-              <Filter className="w-4 h-4" />
-              <span>Status</span>
-              {statusFilter.length > 0 && (
-                <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  {statusFilter.length}
-                </span>
-              )}
-            </button>
-            {showStatusFilter && (
-              <div
-                className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
-                data-testid="status-filter-dropdown"
-              >
-                <div className="p-2 space-y-1">
-                  {STATUS_OPTIONS.map(({ value, label }) => (
-                    <button
-                      key={value}
-                      onClick={() => toggleStatus(value)}
-                      className={`
-                        w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors
-                        ${statusFilter.includes(value)
-                          ? 'bg-blue-50 text-blue-700'
-                          : 'hover:bg-gray-50 text-gray-700'
-                        }
-                      `}
-                      data-testid={`status-filter-option-${value}`}
-                    >
-                      <div className={`w-3 h-3 rounded border ${STATUS_COLORS[value].bg} ${STATUS_COLORS[value].border}`} />
-                      <span>{label}</span>
-                      {statusFilter.includes(value) && (
-                        <span className="ml-auto text-blue-600">✓</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Match Count */}
-          {hasFilters && (
-            <span className="text-sm text-gray-500" data-testid="match-count">
-              {matchCount} of {totalCount} nodes match
+      {/* Status Filter Dropdown */}
+      <div className="relative">
+        <button
+          onClick={() => setShowStatusFilter(!showStatusFilter)}
+          className={`
+            flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors
+            ${statusFilter.length > 0
+              ? 'bg-blue-50 border-blue-300 text-blue-700'
+              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            }
+          `}
+          data-testid="status-filter-button"
+        >
+          <Filter className="w-4 h-4" />
+          <span>Status</span>
+          {statusFilter.length > 0 && (
+            <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+              {statusFilter.length}
             </span>
           )}
+        </button>
+        {showStatusFilter && (
+          <div
+            className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+            data-testid="status-filter-dropdown"
+          >
+            <div className="p-2 space-y-1">
+              {STATUS_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => toggleStatus(value)}
+                  className={`
+                    w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors
+                    ${statusFilter.includes(value)
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'hover:bg-gray-50 text-gray-700'
+                    }
+                  `}
+                  data-testid={`status-filter-option-${value}`}
+                >
+                  <div className={`w-3 h-3 rounded border ${STATUS_COLORS[value].bg} ${STATUS_COLORS[value].border}`} />
+                  <span>{label}</span>
+                  {statusFilter.includes(value) && (
+                    <span className="ml-auto text-blue-600">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
-          {/* Clear Filters */}
-          {hasFilters && (
-            <button
-              onClick={onClearFilters}
-              className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              data-testid="clear-filters-button"
-            >
-              <X className="w-4 h-4" />
-              Clear filters
-            </button>
-          )}
-        </>
+      {/* Match Count */}
+      {hasFilters && (
+        <span className="text-sm text-gray-500" data-testid="match-count">
+          {matchCount} of {totalCount} nodes match
+        </span>
+      )}
+
+      {/* Clear Filters */}
+      {hasFilters && (
+        <button
+          onClick={onClearFilters}
+          className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+          data-testid="clear-filters-button"
+        >
+          <X className="w-4 h-4" />
+          Clear filters
+        </button>
       )}
 
       {/* Layout Controls and Zoom Controls */}
@@ -1450,11 +1191,6 @@ interface DependencyGraphInnerProps {
   isLoadingTree: boolean;
   isError: boolean;
   hasData: boolean;
-  editMode: boolean;
-  onEditModeToggle: () => void;
-  selectedSourceNode: Task | null;
-  onCancelSelection: () => void;
-  onNodeClick: NodeMouseHandler<Node<TaskNodeData>>;
   showEdgeLabels: boolean;
   onToggleEdgeLabels: () => void;
   layoutOptions: LayoutOptions;
@@ -1479,11 +1215,6 @@ function DependencyGraphInner({
   isLoadingTree,
   isError,
   hasData,
-  editMode,
-  onEditModeToggle,
-  selectedSourceNode,
-  onCancelSelection,
-  onNodeClick,
   showEdgeLabels,
   onToggleEdgeLabels,
   layoutOptions,
@@ -1518,10 +1249,6 @@ function DependencyGraphInner({
         onFitView={handleFitView}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
-        editMode={editMode}
-        onEditModeToggle={onEditModeToggle}
-        selectedSourceNode={selectedSourceNode}
-        onCancelSelection={onCancelSelection}
         showEdgeLabels={showEdgeLabels}
         onToggleEdgeLabels={onToggleEdgeLabels}
         layoutOptions={layoutOptions}
@@ -1551,7 +1278,6 @@ function DependencyGraphInner({
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onNodeClick={onNodeClick}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
@@ -1590,13 +1316,6 @@ export function DependencyGraphPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
-
-  // Edit mode state
-  const [editMode, setEditMode] = useState(false);
-  const [selectedSourceNode, setSelectedSourceNode] = useState<Task | null>(null);
-  const [targetNode, setTargetNode] = useState<Task | null>(null);
-  const [showTypePicker, setShowTypePicker] = useState(false);
-  const [dependencyError, setDependencyError] = useState<string | null>(null);
 
   // Edge label visibility state (default: true)
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
@@ -1639,8 +1358,6 @@ export function DependencyGraphPage() {
   const blockedTasks = useBlockedTasks();
   const dependencyTree = useDependencyTree(selectedTaskId);
   const dependencyList = useDependencyList(selectedTaskId);
-  const addDependency = useAddDependency();
-  const removeDependency = useRemoveDependency();
 
   // Build dependency type map for looking up actual types
   const dependencyTypeMap = useMemo(() => {
@@ -1668,31 +1385,12 @@ export function DependencyGraphPage() {
     }
   }, [selectedTaskId, blockedTasks.data, allTasks]);
 
-  // Handle edge deletion - stable reference using ref
-  const handleDeleteEdgeRef = useRef<(sourceId: string, targetId: string, type: string) => void>(null!);
-  handleDeleteEdgeRef.current = (sourceId: string, targetId: string, type: string) => {
-    removeDependency.mutate(
-      { sourceId, targetId, type },
-      {
-        onError: (error) => {
-          console.error('Failed to delete dependency:', error);
-          setDependencyError(error instanceof Error ? error.message : 'Failed to delete dependency');
-        },
-      }
-    );
-  };
-
-  const handleDeleteEdge = useCallback((sourceId: string, targetId: string, type: string) => {
-    handleDeleteEdgeRef.current?.(sourceId, targetId, type);
-  }, []);
-
   // Update graph when dependency tree or filters change
   useEffect(() => {
     if (dependencyTree.data) {
       const { nodes: newNodes, edges: newEdges } = buildGraphFromTree(
         dependencyTree.data,
-        { searchQuery, statusFilter, selectedNodeId: selectedSourceNode?.id || null, editMode, showEdgeLabels },
-        handleDeleteEdge,
+        { searchQuery, statusFilter, showEdgeLabels },
         dependencyTypeMap
       );
       setNodes(newNodes);
@@ -1701,7 +1399,7 @@ export function DependencyGraphPage() {
       setNodes([]);
       setEdges([]);
     }
-  }, [dependencyTree.data, dependencyTypeMap, searchQuery, statusFilter, editMode, showEdgeLabels, selectedSourceNode, setNodes, setEdges, handleDeleteEdge]);
+  }, [dependencyTree.data, dependencyTypeMap, searchQuery, statusFilter, showEdgeLabels, setNodes, setEdges]);
 
   // Calculate match count for the filter display
   const matchCount = useMemo(() => {
@@ -1720,75 +1418,6 @@ export function DependencyGraphPage() {
     setStatusFilter([]);
   }, []);
 
-  // Toggle edit mode
-  const handleEditModeToggle = useCallback(() => {
-    setEditMode(prev => !prev);
-    setSelectedSourceNode(null);
-    setTargetNode(null);
-    setShowTypePicker(false);
-    setDependencyError(null);
-  }, []);
-
-  // Cancel node selection
-  const handleCancelSelection = useCallback(() => {
-    setSelectedSourceNode(null);
-    setTargetNode(null);
-    setShowTypePicker(false);
-    setDependencyError(null);
-  }, []);
-
-  // Handle node click in edit mode
-  const handleNodeClick: NodeMouseHandler<Node<TaskNodeData>> = useCallback((_event, node) => {
-    if (!editMode) return;
-
-    const task = (node.data as TaskNodeData).task;
-
-    if (!selectedSourceNode) {
-      // First click - select source
-      setSelectedSourceNode(task);
-      setDependencyError(null);
-    } else if (selectedSourceNode.id === task.id) {
-      // Clicked same node - deselect
-      setSelectedSourceNode(null);
-    } else {
-      // Second click - select target and show type picker
-      setTargetNode(task);
-      setShowTypePicker(true);
-      setDependencyError(null);
-    }
-  }, [editMode, selectedSourceNode]);
-
-  // Handle dependency type selection
-  const handleDependencyTypeSelect = useCallback((type: string) => {
-    if (!selectedSourceNode || !targetNode) return;
-
-    addDependency.mutate(
-      {
-        sourceId: selectedSourceNode.id,
-        targetId: targetNode.id,
-        type,
-      },
-      {
-        onSuccess: () => {
-          setSelectedSourceNode(null);
-          setTargetNode(null);
-          setShowTypePicker(false);
-          setDependencyError(null);
-        },
-        onError: (error) => {
-          setDependencyError(error instanceof Error ? error.message : 'Failed to create dependency');
-        },
-      }
-    );
-  }, [selectedSourceNode, targetNode, addDependency]);
-
-  // Cancel type picker
-  const handleCancelTypePicker = useCallback(() => {
-    setTargetNode(null);
-    setShowTypePicker(false);
-    setDependencyError(null);
-  }, []);
-
   const isLoading = readyTasks.isLoading || blockedTasks.isLoading;
 
   return (
@@ -1796,7 +1425,7 @@ export function DependencyGraphPage() {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-gray-900">Dependency Graph</h2>
         <p className="text-sm text-gray-500">
-          Visualize and edit task dependencies
+          Visualize task dependencies
         </p>
       </div>
 
@@ -1841,11 +1470,6 @@ export function DependencyGraphPage() {
               isLoadingTree={dependencyTree.isLoading}
               isError={dependencyTree.isError}
               hasData={!!dependencyTree.data}
-              editMode={editMode}
-              onEditModeToggle={handleEditModeToggle}
-              selectedSourceNode={selectedSourceNode}
-              onCancelSelection={handleCancelSelection}
-              onNodeClick={handleNodeClick}
               showEdgeLabels={showEdgeLabels}
               onToggleEdgeLabels={() => setShowEdgeLabels(prev => !prev)}
               layoutOptions={layoutOptions}
@@ -1884,17 +1508,6 @@ export function DependencyGraphPage() {
         </div>
       </div>
 
-      {/* Dependency Type Picker Modal */}
-      {showTypePicker && selectedSourceNode && targetNode && (
-        <DependencyTypePicker
-          sourceNode={selectedSourceNode}
-          targetNode={targetNode}
-          onSelect={handleDependencyTypeSelect}
-          onCancel={handleCancelTypePicker}
-          isLoading={addDependency.isPending}
-          error={dependencyError}
-        />
-      )}
     </div>
   );
 }
