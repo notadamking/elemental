@@ -561,10 +561,15 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Server: Images uploaded to server, URL stored in message content (Markdown format)
   - [x] **Verify:** 15 Playwright tests passing (`apps/web/tests/tb102-image-input-messages.spec.ts`)
 
-- [ ] **TB103: Message Search**
-  - [ ] Web: Add search input to channel header
-  - [ ] Web: Search messages within current channel
-  - [ ] Web: Results show message preview with highlighted match
+- [x] **TB103: Message Search** ([spec](./TB103-message-search.md))
+  - [x] Web: Add search input to channel header
+  - [x] Web: Search messages within current channel (debounced 300ms)
+  - [x] Web: Results show message preview with highlighted match
+  - [x] Web: Click result → scroll to message with 2-second yellow highlight
+  - [x] Web: Keyboard navigation (arrows, Enter, Escape) and Cmd/Ctrl+F shortcut
+  - [x] Web: Global message search in command palette
+  - [x] Server: GET /api/messages/search endpoint with channelId filter
+  - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb103-message-search.spec.ts`)
   - [ ] Web: Click result → scroll to message and highlight
   - [ ] Web: Global message search in command palette (searches all channels)
   - [ ] **Verify:** Search for keyword, matching messages found and highlighted; Playwright tests passing

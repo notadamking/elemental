@@ -9,10 +9,11 @@
  * - Threading (TB19)
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar, Copy, Check, ImageIcon } from 'lucide-react';
+import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar, Copy, Check, ImageIcon, XCircle } from 'lucide-react';
+import { useDebounce } from '../hooks/useDebounce';
 import { toast } from 'sonner';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
@@ -181,6 +182,59 @@ function renderMessageContent(content: string): React.ReactNode {
 }
 
 // ============================================================================
+// Message Search Types (TB103)
+// ============================================================================
+
+interface MessageSearchResult {
+  id: string;
+  channelId: string;
+  sender: string;
+  content: string;
+  snippet: string;
+  createdAt: string;
+  threadId: string | null;
+}
+
+interface MessageSearchResponse {
+  results: MessageSearchResult[];
+  query: string;
+}
+
+// Debounce delay for message search
+const SEARCH_DEBOUNCE_DELAY = 300;
+
+/**
+ * Highlights matched substring in text (TB103)
+ */
+function highlightSearchMatch(text: string, query: string): React.ReactNode {
+  if (!query.trim()) {
+    return <>{text}</>;
+  }
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const matchIndex = lowerText.indexOf(lowerQuery);
+
+  if (matchIndex === -1) {
+    return <>{text}</>;
+  }
+
+  const before = text.slice(0, matchIndex);
+  const match = text.slice(matchIndex, matchIndex + query.length);
+  const after = text.slice(matchIndex + query.length);
+
+  return (
+    <>
+      {before}
+      <mark className="bg-yellow-200 text-gray-900 rounded-sm px-0.5" data-testid="search-highlight">
+        {match}
+      </mark>
+      {after}
+    </>
+  );
+}
+
+// ============================================================================
 // API Hooks
 // ============================================================================
 
@@ -193,6 +247,36 @@ interface PaginatedResult<T> {
 }
 
 const DEFAULT_CHANNEL_PAGE_SIZE = 50;
+
+/**
+ * Hook to search messages within a channel (TB103)
+ */
+function useMessageSearch(query: string, channelId: string | null) {
+  const debouncedQuery = useDebounce(query, SEARCH_DEBOUNCE_DELAY);
+
+  return useQuery<MessageSearchResponse>({
+    queryKey: ['messages', 'search', debouncedQuery, channelId],
+    queryFn: async () => {
+      if (!debouncedQuery.trim()) {
+        return { results: [], query: '' };
+      }
+      const params = new URLSearchParams({
+        q: debouncedQuery,
+        limit: '50',
+      });
+      if (channelId) {
+        params.set('channelId', channelId);
+      }
+      const response = await fetch(`/api/messages/search?${params}`);
+      if (!response.ok) {
+        throw new Error('Failed to search messages');
+      }
+      return response.json();
+    },
+    enabled: debouncedQuery.trim().length > 0,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+}
 
 // Reserved for future server-side pagination if needed
 function _useChannels(
@@ -593,11 +677,13 @@ function MessageBubble({
   onReply,
   replyCount = 0,
   isThreaded = false,
+  isHighlighted = false,
 }: {
   message: Message;
   onReply?: (message: Message) => void;
   replyCount?: number;
   isThreaded?: boolean;
+  isHighlighted?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const messageRef = useRef<HTMLDivElement>(null);
@@ -631,7 +717,11 @@ function MessageBubble({
     <div
       ref={messageRef}
       data-testid={`message-${message.id}`}
-      className="flex gap-3 p-3 hover:bg-gray-50 rounded-lg group relative focus:bg-blue-50 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+      className={`flex gap-3 p-3 rounded-lg group relative focus:bg-blue-50 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors duration-300 ${
+        isHighlighted
+          ? 'bg-yellow-100 ring-2 ring-yellow-300'
+          : 'hover:bg-gray-50'
+      }`}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
@@ -1347,6 +1437,146 @@ function MessageComposer({
   );
 }
 
+/**
+ * Message Search Dropdown Component (TB103)
+ * Shows search results in a dropdown with highlighted matches
+ */
+function MessageSearchDropdown({
+  searchQuery,
+  channelId,
+  onSelectResult,
+  onClose,
+}: {
+  searchQuery: string;
+  channelId: string;
+  onSelectResult: (messageId: string) => void;
+  onClose: () => void;
+}) {
+  const { data: searchResponse, isLoading } = useMessageSearch(searchQuery, channelId);
+  const results = searchResponse?.results || [];
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Reset selection when results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [results.length]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (results[selectedIndex]) {
+          onSelectResult(results[selectedIndex].id);
+          onClose();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [results, selectedIndex, onSelectResult, onClose]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (resultsRef.current) {
+      const selectedElement = resultsRef.current.children[selectedIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex]);
+
+  if (!searchQuery.trim()) {
+    return null;
+  }
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div
+      data-testid="message-search-dropdown"
+      className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-hidden"
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6" data-testid="message-search-loading">
+          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          <span className="ml-2 text-sm text-gray-500">Searching...</span>
+        </div>
+      ) : results.length === 0 ? (
+        <div className="py-6 text-center" data-testid="message-search-empty">
+          <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500">No messages found</p>
+          <p className="text-xs text-gray-400 mt-1">Try a different search term</p>
+        </div>
+      ) : (
+        <>
+          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+            {results.length} result{results.length !== 1 ? 's' : ''} found
+          </div>
+          <div ref={resultsRef} className="overflow-y-auto max-h-64" data-testid="message-search-results">
+            {results.map((result, index) => (
+              <button
+                key={result.id}
+                onClick={() => {
+                  onSelectResult(result.id);
+                  onClose();
+                }}
+                className={`w-full text-left px-3 py-2 flex items-start gap-3 transition-colors ${
+                  index === selectedIndex
+                    ? 'bg-blue-50'
+                    : 'hover:bg-gray-50'
+                }`}
+                data-testid={`message-search-result-${result.id}`}
+              >
+                {/* Avatar */}
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-blue-600 font-medium text-xs">
+                    {result.sender.slice(-2).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-medium text-gray-900 text-sm">{result.sender}</span>
+                    <span className="text-xs text-gray-400">{formatTime(result.createdAt)}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 truncate mt-0.5">
+                    {highlightSearchMatch(result.snippet, searchQuery)}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="px-3 py-2 text-xs text-gray-400 border-t border-gray-100">
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">↑</kbd>{' '}
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">↓</kbd> navigate{' '}
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">Enter</kbd> select{' '}
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">Esc</kbd> close
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ChannelView({ channelId }: { channelId: string }) {
   const { data: channel } = useChannel(channelId);
   const { data: messages = [], isLoading, error } = useChannelMessages(channelId);
@@ -1355,16 +1585,76 @@ function ChannelView({ channelId }: { channelId: string }) {
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const [showMembersPanel, setShowMembersPanel] = useState(false);
 
+  // TB103: Message search state
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Determine current operator (prefer human entity, fall back to first entity)
   const currentOperator =
     entities?.find((e) => e.entityType === 'human')?.id ||
     entities?.[0]?.id ||
     '';
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change (only if not searching)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!highlightedMessageId) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, highlightedMessageId]);
+
+  // TB103: Handle search result selection - scroll to and highlight message
+  const handleSearchResultSelect = useCallback((messageId: string) => {
+    setMessageSearchQuery('');
+    setIsSearchOpen(false);
+
+    // Find the message element and scroll to it
+    const messageElement = document.querySelector(`[data-testid="message-${messageId}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Highlight the message temporarily
+      setHighlightedMessageId(messageId);
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 2000);
+    }
+  }, []);
+
+  // TB103: Clear highlight when clicking elsewhere
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+
+    const handleClick = () => {
+      setHighlightedMessageId(null);
+    };
+
+    // Delay adding listener to avoid immediate clearing
+    const timeout = setTimeout(() => {
+      document.addEventListener('click', handleClick);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('click', handleClick);
+    };
+  }, [highlightedMessageId]);
+
+  // TB103: Handle search input focus with keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + F to focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setIsSearchOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Calculate reply counts for each message
   const replyCounts = messages.reduce((acc, msg) => {
@@ -1421,6 +1711,54 @@ function ChannelView({ channelId }: { channelId: string }) {
                   {channel.members.length} members
                 </button>
                 <div className="flex-1" />
+                {/* TB103: Message Search Input */}
+                <div className="relative" data-testid="message-search-container">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={messageSearchQuery}
+                      onChange={(e) => {
+                        setMessageSearchQuery(e.target.value);
+                        setIsSearchOpen(e.target.value.length > 0);
+                      }}
+                      onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setMessageSearchQuery('');
+                          setIsSearchOpen(false);
+                          searchInputRef.current?.blur();
+                        }
+                      }}
+                      placeholder="Search messages..."
+                      className="w-48 pl-8 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      data-testid="message-search-input"
+                    />
+                    {messageSearchQuery && (
+                      <button
+                        onClick={() => {
+                          setMessageSearchQuery('');
+                          setIsSearchOpen(false);
+                          searchInputRef.current?.focus();
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        data-testid="message-search-clear"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {/* Search Results Dropdown */}
+                  {isSearchOpen && (
+                    <MessageSearchDropdown
+                      searchQuery={messageSearchQuery}
+                      channelId={channelId}
+                      onSelectResult={handleSearchResultSelect}
+                      onClose={() => setIsSearchOpen(false)}
+                    />
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -1475,6 +1813,7 @@ function ChannelView({ channelId }: { channelId: string }) {
                     message={grouped.item}
                     onReply={handleReply}
                     replyCount={replyCounts[grouped.item.id] || 0}
+                    isHighlighted={highlightedMessageId === grouped.item.id}
                   />
                 </div>
               )}
@@ -1490,6 +1829,7 @@ function ChannelView({ channelId }: { channelId: string }) {
                     message={grouped.item}
                     onReply={handleReply}
                     replyCount={replyCounts[grouped.item.id] || 0}
+                    isHighlighted={highlightedMessageId === grouped.item.id}
                   />
                 </div>
               ))}

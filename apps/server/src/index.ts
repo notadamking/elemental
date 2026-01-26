@@ -2514,6 +2514,133 @@ app.post('/api/messages', async (c) => {
   }
 });
 
+/**
+ * GET /api/messages/search
+ * Search messages by content across all channels or within a specific channel (TB103)
+ *
+ * Query params:
+ * - q: Search query (required)
+ * - channelId: Optional channel ID to limit search to
+ * - limit: Max number of results (default: 20)
+ *
+ * NOTE: This route must come BEFORE /api/messages/:id/replies to avoid route matching issues
+ */
+app.get('/api/messages/search', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const query = url.searchParams.get('q');
+    const channelId = url.searchParams.get('channelId');
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 20;
+
+    if (!query || query.trim().length === 0) {
+      return c.json({ results: [], query: '' });
+    }
+
+    const searchQuery = query.trim().toLowerCase();
+
+    // Get all messages (with reasonable limit to avoid performance issues)
+    const filter: Record<string, unknown> = {
+      type: 'message',
+      limit: 1000,
+      orderBy: 'created_at',
+      orderDir: 'desc',
+    };
+
+    if (channelId) {
+      filter.channelId = channelId;
+    }
+
+    const allMessages = await api.list(filter as Parameters<typeof api.list>[0]);
+
+    // Filter messages with matching channelId if specified
+    let filteredMessages = allMessages;
+    if (channelId) {
+      filteredMessages = allMessages.filter((msg) => {
+        const message = msg as { channelId?: string };
+        return message.channelId === channelId;
+      });
+    }
+
+    // Hydrate content and search
+    interface MessageSearchResult {
+      id: string;
+      channelId: string;
+      sender: string;
+      content: string;
+      snippet: string;
+      createdAt: string;
+      threadId: string | null;
+    }
+
+    const results: MessageSearchResult[] = [];
+
+    for (const msg of filteredMessages) {
+      const message = msg as {
+        id: string;
+        channelId?: string;
+        sender?: string;
+        contentRef?: string;
+        createdAt: string;
+        threadId?: string;
+      };
+
+      // Hydrate content
+      let content = '';
+      if (message.contentRef) {
+        const contentDoc = await api.get(message.contentRef as ElementId);
+        if (contentDoc && contentDoc.type === 'document') {
+          content = (contentDoc as { content?: string }).content || '';
+        }
+      }
+
+      const contentLower = content.toLowerCase();
+
+      if (contentLower.includes(searchQuery)) {
+        // Generate snippet with surrounding context
+        const matchIndex = contentLower.indexOf(searchQuery);
+        const snippetStart = Math.max(0, matchIndex - 50);
+        const snippetEnd = Math.min(content.length, matchIndex + searchQuery.length + 50);
+        let snippetText = content.slice(snippetStart, snippetEnd);
+
+        // Add ellipsis if truncated
+        if (snippetStart > 0) snippetText = '...' + snippetText;
+        if (snippetEnd < content.length) snippetText = snippetText + '...';
+
+        // Clean up markdown/HTML for display
+        snippetText = snippetText
+          .replace(/#{1,6}\s*/g, '') // Remove heading markers
+          .replace(/\*\*/g, '') // Remove bold markers
+          .replace(/\*/g, '') // Remove italic markers
+          .replace(/`/g, '') // Remove code markers
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax
+          .replace(/<[^>]+>/g, '') // Remove HTML tags
+          .replace(/!\[([^\]]*)\]\([^)]+\)/g, '') // Remove image syntax
+          .replace(/\n+/g, ' ') // Replace newlines with spaces
+          .trim();
+
+        results.push({
+          id: message.id,
+          channelId: message.channelId || '',
+          sender: message.sender || '',
+          content,
+          snippet: snippetText,
+          createdAt: message.createdAt,
+          threadId: message.threadId || null,
+        });
+
+        // Stop when we have enough results
+        if (results.length >= limit) break;
+      }
+    }
+
+    return c.json({ results, query: query.trim() });
+  } catch (error) {
+    console.error('[elemental] Failed to search messages:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to search messages' } }, 500);
+  }
+});
+
 app.get('/api/messages/:id/replies', async (c) => {
   try {
     const id = c.req.param('id') as ElementId;
