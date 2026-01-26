@@ -12,16 +12,29 @@ import './index.css';
 // Initialize theme before React renders to prevent flash of wrong theme
 function initializeTheme() {
   const stored = localStorage.getItem('settings.theme');
-  const theme = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+  const theme = stored === 'light' || stored === 'dark' || stored === 'system' || stored === 'high-contrast' ? stored : 'system';
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const resolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+  const root = document.documentElement;
 
-  if (resolvedTheme === 'dark') {
-    document.documentElement.classList.add('dark', 'theme-dark');
-    document.documentElement.classList.remove('theme-light');
+  // Remove all theme classes first
+  root.classList.remove('dark', 'theme-dark', 'theme-light', 'high-contrast');
+
+  if (theme === 'high-contrast') {
+    // High contrast mode - use stored base (light or dark)
+    const base = localStorage.getItem('settings.highContrastBase');
+    root.classList.add('high-contrast');
+    if (base === 'dark') {
+      root.classList.add('dark', 'theme-dark');
+    } else {
+      root.classList.add('theme-light');
+    }
   } else {
-    document.documentElement.classList.add('theme-light');
-    document.documentElement.classList.remove('dark', 'theme-dark');
+    const resolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+    if (resolvedTheme === 'dark') {
+      root.classList.add('dark', 'theme-dark');
+    } else {
+      root.classList.add('theme-light');
+    }
   }
 }
 

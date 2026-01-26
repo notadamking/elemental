@@ -2,19 +2,20 @@
  * Theme management hook
  *
  * Provides global theme state management for dark/light mode switching.
- * Supports light, dark, and system preferences.
+ * Supports light, dark, high-contrast, and system preferences.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 
-export type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'system' | 'high-contrast';
 
 const THEME_STORAGE_KEY = 'settings.theme';
+const HIGH_CONTRAST_BASE_KEY = 'settings.highContrastBase';
 
 function getStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'system';
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark' || stored === 'system') {
+  if (stored === 'light' || stored === 'dark' || stored === 'system' || stored === 'high-contrast') {
     return stored;
   }
   return 'system';
@@ -25,24 +26,45 @@ function setStoredTheme(theme: Theme) {
   localStorage.setItem(THEME_STORAGE_KEY, theme);
 }
 
+function getHighContrastBase(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'light';
+  const stored = localStorage.getItem(HIGH_CONTRAST_BASE_KEY);
+  return stored === 'dark' ? 'dark' : 'light';
+}
+
+export function setHighContrastBase(base: 'light' | 'dark') {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(HIGH_CONTRAST_BASE_KEY, base);
+}
+
 function getSystemTheme(): 'light' | 'dark' {
   if (typeof window === 'undefined') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function applyTheme(theme: Theme) {
+export function applyTheme(theme: Theme) {
   if (typeof window === 'undefined') return;
-  const resolvedTheme = theme === 'system' ? getSystemTheme() : theme;
   const root = document.documentElement;
 
-  if (resolvedTheme === 'dark') {
-    root.classList.add('dark');
-    root.classList.remove('theme-light');
-    root.classList.add('theme-dark');
+  // Remove all theme classes first
+  root.classList.remove('dark', 'theme-dark', 'theme-light', 'high-contrast');
+
+  if (theme === 'high-contrast') {
+    // High contrast mode - use stored base (light or dark)
+    const base = getHighContrastBase();
+    root.classList.add('high-contrast');
+    if (base === 'dark') {
+      root.classList.add('dark', 'theme-dark');
+    } else {
+      root.classList.add('theme-light');
+    }
   } else {
-    root.classList.remove('dark');
-    root.classList.remove('theme-dark');
-    root.classList.add('theme-light');
+    const resolvedTheme = theme === 'system' ? getSystemTheme() : theme;
+    if (resolvedTheme === 'dark') {
+      root.classList.add('dark', 'theme-dark');
+    } else {
+      root.classList.add('theme-light');
+    }
   }
 }
 
@@ -52,14 +74,28 @@ function applyTheme(theme: Theme) {
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>('system');
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  const [highContrastBase, setHighContrastBaseState] = useState<'light' | 'dark'>('light');
+
+  // Resolve the actual theme being used (always returns 'light' or 'dark')
+  const resolveTheme = useCallback((t: Theme): 'light' | 'dark' => {
+    if (t === 'high-contrast') {
+      return getHighContrastBase();
+    }
+    if (t === 'system') {
+      return getSystemTheme();
+    }
+    // t is 'light' or 'dark' here
+    return t;
+  }, []);
 
   // Initialize theme from localStorage
   useEffect(() => {
     const stored = getStoredTheme();
     setThemeState(stored);
     applyTheme(stored);
-    setResolvedTheme(stored === 'system' ? getSystemTheme() : stored);
-  }, []);
+    setResolvedTheme(resolveTheme(stored));
+    setHighContrastBaseState(getHighContrastBase());
+  }, [resolveTheme]);
 
   // Listen for system theme changes when using 'system' mode
   useEffect(() => {
@@ -79,20 +115,30 @@ export function useTheme() {
     setThemeState(newTheme);
     setStoredTheme(newTheme);
     applyTheme(newTheme);
-    setResolvedTheme(newTheme === 'system' ? getSystemTheme() : newTheme);
-  }, []);
+    setResolvedTheme(resolveTheme(newTheme));
+  }, [resolveTheme]);
+
+  const setHighContrastThemeBase = useCallback((base: 'light' | 'dark') => {
+    setHighContrastBase(base);
+    setHighContrastBaseState(base);
+    if (theme === 'high-contrast') {
+      applyTheme('high-contrast');
+      setResolvedTheme(base);
+    }
+  }, [theme]);
 
   const toggleTheme = useCallback(() => {
-    // Cycle through: light -> dark -> system -> light
+    // Cycle through: light -> dark -> high-contrast -> system -> light
     const nextTheme: Theme =
       theme === 'light' ? 'dark' :
-      theme === 'dark' ? 'system' :
+      theme === 'dark' ? 'high-contrast' :
+      theme === 'high-contrast' ? 'system' :
       'light';
     setTheme(nextTheme);
   }, [theme, setTheme]);
 
   const toggleDarkMode = useCallback(() => {
-    // Simple toggle between light and dark (ignoring system)
+    // Simple toggle between light and dark (ignoring system and high-contrast)
     const newTheme: Theme = resolvedTheme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
   }, [resolvedTheme, setTheme]);
@@ -101,7 +147,10 @@ export function useTheme() {
     theme,
     resolvedTheme,
     isDark: resolvedTheme === 'dark',
+    isHighContrast: theme === 'high-contrast',
+    highContrastBase,
     setTheme,
+    setHighContrastThemeBase,
     toggleTheme,
     toggleDarkMode,
   };

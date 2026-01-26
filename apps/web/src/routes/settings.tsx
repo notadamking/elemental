@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Sun, Moon, Monitor, Palette, Keyboard, Settings2, Bell, RefreshCw, RotateCcw, X, AlertCircle, Check, List, LayoutGrid, Home, Workflow, Users, GitBranch, Clock, ArrowUp, Calendar, FileText, BellRing, MessageSquare, CheckCircle2, AlertTriangle, Download, Upload, Loader2, HardDrive } from 'lucide-react';
+import { Sun, Moon, Monitor, Palette, Keyboard, Settings2, Bell, RefreshCw, RotateCcw, X, AlertCircle, Check, List, LayoutGrid, Home, Workflow, Users, GitBranch, Clock, ArrowUp, Calendar, FileText, BellRing, MessageSquare, CheckCircle2, AlertTriangle, Download, Upload, Loader2, HardDrive, Contrast } from 'lucide-react';
 import {
   DEFAULT_SHORTCUTS,
   getCurrentBinding,
@@ -19,17 +19,30 @@ import {
 } from '../lib/keyboard';
 import { useDisableKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark' | 'system' | 'high-contrast';
 
 const THEME_STORAGE_KEY = 'settings.theme';
 
 function getStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'system';
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark' || stored === 'system') {
+  if (stored === 'light' || stored === 'dark' || stored === 'system' || stored === 'high-contrast') {
     return stored;
   }
   return 'system';
+}
+
+const HIGH_CONTRAST_BASE_KEY = 'settings.highContrastBase';
+
+function getHighContrastBase(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'light';
+  const stored = localStorage.getItem(HIGH_CONTRAST_BASE_KEY);
+  return stored === 'dark' ? 'dark' : 'light';
+}
+
+function setHighContrastBase(base: 'light' | 'dark') {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(HIGH_CONTRAST_BASE_KEY, base);
 }
 
 function setStoredTheme(theme: Theme) {
@@ -44,17 +57,27 @@ function getSystemTheme(): 'light' | 'dark' {
 
 function applyTheme(theme: Theme) {
   if (typeof window === 'undefined') return;
-  const resolvedTheme = theme === 'system' ? getSystemTheme() : theme;
   const root = document.documentElement;
 
-  if (resolvedTheme === 'dark') {
-    root.classList.add('dark');
-    root.classList.remove('theme-light');
-    root.classList.add('theme-dark');
+  // Remove all theme classes first
+  root.classList.remove('dark', 'theme-dark', 'theme-light', 'high-contrast');
+
+  if (theme === 'high-contrast') {
+    // High contrast mode - use stored base (light or dark)
+    const base = getHighContrastBase();
+    root.classList.add('high-contrast');
+    if (base === 'dark') {
+      root.classList.add('dark', 'theme-dark');
+    } else {
+      root.classList.add('theme-light');
+    }
   } else {
-    root.classList.remove('dark');
-    root.classList.remove('theme-dark');
-    root.classList.add('theme-light');
+    const resolvedTheme = theme === 'system' ? getSystemTheme() : theme;
+    if (resolvedTheme === 'dark') {
+      root.classList.add('dark', 'theme-dark');
+    } else {
+      root.classList.add('theme-light');
+    }
   }
 }
 
@@ -136,13 +159,34 @@ function ThemeSection({
   currentTheme: Theme;
   onThemeChange: (theme: Theme) => void;
 }) {
-  const resolvedTheme = currentTheme === 'system' ? getSystemTheme() : currentTheme;
+  const [highContrastBase, setHighContrastBaseState] = useState<'light' | 'dark'>('light');
+
+  // Initialize high contrast base on mount
+  useEffect(() => {
+    setHighContrastBaseState(getHighContrastBase());
+  }, []);
+
+  const handleHighContrastBaseChange = (base: 'light' | 'dark') => {
+    setHighContrastBase(base);
+    setHighContrastBaseState(base);
+    if (currentTheme === 'high-contrast') {
+      // Re-apply theme to update the styling
+      applyTheme('high-contrast');
+    }
+  };
+
+  // Resolve the displayed theme
+  const resolvedTheme = currentTheme === 'system'
+    ? getSystemTheme()
+    : currentTheme === 'high-contrast'
+    ? highContrastBase
+    : currentTheme;
 
   return (
     <div data-testid="settings-theme-section">
       <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Theme</h3>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Choose how the application looks. You can select light mode, dark mode, or follow your system settings.
+        Choose how the application looks. You can select light mode, dark mode, high contrast mode, or follow your system settings.
       </p>
 
       <div className="space-y-3">
@@ -163,6 +207,14 @@ function ThemeSection({
           onSelect={() => onThemeChange('dark')}
         />
         <ThemeOption
+          theme="high-contrast"
+          label="High Contrast"
+          description="Improved readability with enhanced color contrast (WCAG AAA)"
+          icon={Contrast}
+          isSelected={currentTheme === 'high-contrast'}
+          onSelect={() => onThemeChange('high-contrast')}
+        />
+        <ThemeOption
           theme="system"
           label="System"
           description={`Automatically match your system preference (currently ${resolvedTheme})`}
@@ -172,32 +224,92 @@ function ThemeSection({
         />
       </div>
 
+      {/* High Contrast Base Toggle */}
+      {currentTheme === 'high-contrast' && (
+        <div className="mt-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50" data-testid="high-contrast-base-section">
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">High Contrast Base</h4>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Choose whether high contrast mode uses a light or dark base.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleHighContrastBaseChange('light')}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
+                ${highContrastBase === 'light'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }
+              `}
+              data-testid="high-contrast-base-light"
+            >
+              <Sun className="w-4 h-4" />
+              Light Base
+            </button>
+            <button
+              onClick={() => handleHighContrastBaseChange('dark')}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
+                ${highContrastBase === 'dark'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }
+              `}
+              data-testid="high-contrast-base-dark"
+            >
+              <Moon className="w-4 h-4" />
+              Dark Base
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Theme Preview */}
       <div className="mt-8">
         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Preview</h4>
         <div className={`
           p-4 rounded-lg border
-          ${resolvedTheme === 'dark'
-            ? 'bg-gray-900 border-gray-700'
-            : 'bg-white border-gray-200'
+          ${currentTheme === 'high-contrast'
+            ? highContrastBase === 'dark'
+              ? 'bg-black border-white'
+              : 'bg-white border-black border-2'
+            : resolvedTheme === 'dark'
+              ? 'bg-gray-900 border-gray-700'
+              : 'bg-white border-gray-200'
           }
         `} data-testid="theme-preview">
           <div className="flex items-center gap-3 mb-3">
-            <div className={`w-8 h-8 rounded-full ${resolvedTheme === 'dark' ? 'bg-blue-500' : 'bg-blue-600'}`} />
+            <div className={`w-8 h-8 rounded-full ${
+              currentTheme === 'high-contrast'
+                ? highContrastBase === 'dark' ? 'bg-[#66b3ff]' : 'bg-[#0052cc]'
+                : resolvedTheme === 'dark' ? 'bg-blue-500' : 'bg-blue-600'
+            }`} />
             <div>
-              <div className={`text-sm font-medium ${resolvedTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              <div className={`text-sm font-medium ${
+                currentTheme === 'high-contrast'
+                  ? highContrastBase === 'dark' ? 'text-white' : 'text-black'
+                  : resolvedTheme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
                 Sample Task
               </div>
-              <div className={`text-xs ${resolvedTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className={`text-xs ${
+                currentTheme === 'high-contrast'
+                  ? highContrastBase === 'dark' ? 'text-[#e0e0e0]' : 'text-[#333333]'
+                  : resolvedTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
                 This is how content will appear
               </div>
             </div>
           </div>
           <div className={`
             text-xs px-2 py-1 rounded inline-block
-            ${resolvedTheme === 'dark'
-              ? 'bg-green-900/50 text-green-300'
-              : 'bg-green-100 text-green-700'
+            ${currentTheme === 'high-contrast'
+              ? highContrastBase === 'dark'
+                ? 'bg-[rgba(102,255,102,0.2)] text-[#66ff66]'
+                : 'bg-[#ccffcc] text-[#006600]'
+              : resolvedTheme === 'dark'
+                ? 'bg-green-900/50 text-green-300'
+                : 'bg-green-100 text-green-700'
             }
           `}>
             Status: Active
