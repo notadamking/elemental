@@ -654,12 +654,12 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: CSS styling for mention chips - `apps/web/src/index.css` `.mention-chip` class
   - [x] **Verify:** 7 Playwright tests passing (`apps/web/tests/tb111-mention-autocomplete.spec.ts`)
 
-- [ ] **TB112: @Mention in Tasks**
-  - [ ] Web: Task description editor supports @mentions (same as documents)
-  - [ ] Web: @mentions in task notes field
-  - [ ] Web: Show mentioned entities in task detail panel
-  - [ ] Server: Create `mentions` dependency from task to entity
-  - [ ] **Verify:** Mention entity in task description, entity linked; Playwright tests passing
+- [x] **TB112: @Mention in Tasks**
+  - [x] Web: Task description/design sections render @mentions as clickable chips - `apps/web/src/components/shared/MarkdownRenderer.tsx`
+  - [x] Web: Task notes field with BlockEditor supports @mentions autocomplete - `apps/web/src/components/task/TaskDetailPanel.tsx` TaskNotesSection
+  - [x] Web: Show mentioned entities in task detail panel - MentionedEntitiesSection component
+  - [x] Web: Mentioned entities section is collapsible and shows all entities from description/design/notes
+  - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb112-mention-in-tasks.spec.ts`)
 
 - [ ] **TB113: Entity Tags Display**
   - [ ] Web: EntityDetailPanel shows "Mentioned In" section
