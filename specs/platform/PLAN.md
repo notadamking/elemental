@@ -1297,12 +1297,13 @@ For mutations (create, update, delete):
   - [x] Server: `/api/plans?hydrate.progress=true` returns all plans with progress data (TB86)
   - [x] **Verify:** Plans show visual progress rings; Playwright tests passing (10 TB86 tests)
 
-- [ ] **TB87: Plan Search**
-  - [ ] Web: Add search bar to Plans page
-  - [ ] Web: Search by plan title and description
-  - [ ] Web: Highlight matching text in results
-  - [ ] Web: Filter combines with status filter tabs
-  - [ ] **Verify:** Search for "roadmap", matching plans shown; Playwright tests passing
+- [x] **TB87: Plan Search**
+  - [x] Web: Add search bar to Plans page with PlanSearchBar component (similar pattern to TaskSearchBar)
+  - [x] Web: Fuzzy search by plan title with debounced input (300ms)
+  - [x] Web: Highlight matching text in results using mark elements
+  - [x] Web: Filter combines with status filter tabs (server-side status filter + client-side search)
+  - [x] Web: Search persists in localStorage, / keyboard shortcut to focus, Escape to clear
+  - [x] **Verify:** Search for plans, matching plans shown with highlighting; 16 Playwright tests passing
 
 - [ ] **TB88: Plan Roadmap View**
   - [ ] Web: Add "Roadmap" view toggle (alongside List view)

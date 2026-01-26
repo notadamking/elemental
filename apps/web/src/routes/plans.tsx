@@ -1,5 +1,5 @@
 /**
- * Plans Page - Plan management with progress visualization (TB24, TB47)
+ * Plans Page - Plan management with progress visualization (TB24, TB47, TB87)
  *
  * Features:
  * - List all plans with status badges
@@ -9,9 +9,11 @@
  * - Edit plan title and status (TB47)
  * - Add/remove tasks from plan (TB47)
  * - Status transition buttons (TB47)
+ * - Search plans by title (TB87)
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useDebounce } from '../hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
@@ -81,6 +83,94 @@ interface TaskType {
   createdAt: string;
   updatedAt: string;
   tags: string[];
+}
+
+// ============================================================================
+// Status Configuration
+// ============================================================================
+
+// ============================================================================
+// Search Configuration (TB87)
+// ============================================================================
+
+const SEARCH_STORAGE_KEY = 'plans.search';
+const SEARCH_DEBOUNCE_DELAY = 300;
+
+function getStoredSearch(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(SEARCH_STORAGE_KEY) || '';
+}
+
+function setStoredSearch(search: string) {
+  if (typeof window === 'undefined') return;
+  if (search) {
+    localStorage.setItem(SEARCH_STORAGE_KEY, search);
+  } else {
+    localStorage.removeItem(SEARCH_STORAGE_KEY);
+  }
+}
+
+/**
+ * Fuzzy search function that matches query characters in sequence within the title.
+ * Returns match info for highlighting if matched, null otherwise.
+ */
+function fuzzySearch(title: string, query: string): { matched: boolean; indices: number[] } | null {
+  if (!query) return { matched: true, indices: [] };
+
+  const lowerTitle = title.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const indices: number[] = [];
+  let queryIdx = 0;
+
+  for (let i = 0; i < lowerTitle.length && queryIdx < lowerQuery.length; i++) {
+    if (lowerTitle[i] === lowerQuery[queryIdx]) {
+      indices.push(i);
+      queryIdx++;
+    }
+  }
+
+  // All query characters must be found in sequence
+  if (queryIdx === lowerQuery.length) {
+    return { matched: true, indices };
+  }
+
+  return null;
+}
+
+/**
+ * Highlights matched characters in a title based on match indices.
+ */
+function highlightMatches(title: string, indices: number[]): React.ReactNode {
+  if (indices.length === 0) {
+    return <>{title}</>;
+  }
+
+  const result: React.ReactNode[] = [];
+  const indexSet = new Set(indices);
+  let lastIndex = 0;
+
+  for (let i = 0; i < title.length; i++) {
+    if (indexSet.has(i)) {
+      // Add text before this match
+      if (i > lastIndex) {
+        result.push(<span key={`text-${lastIndex}`}>{title.slice(lastIndex, i)}</span>);
+      }
+      // Add highlighted character
+      result.push(
+        <mark key={`match-${i}`} className="bg-yellow-200 text-gray-900 rounded-sm px-0.5">
+          {title[i]}
+        </mark>
+      );
+      lastIndex = i + 1;
+    }
+  }
+
+  // Add remaining text
+  if (lastIndex < title.length) {
+    result.push(<span key={`text-${lastIndex}`}>{title.slice(lastIndex)}</span>);
+  }
+
+  return <>{result}</>;
 }
 
 // ============================================================================
@@ -342,19 +432,26 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /**
- * Plan List Item component with mini progress ring (TB86)
+ * Plan List Item component with mini progress ring (TB86) and search highlighting (TB87)
  */
 function PlanListItem({
   plan,
   isSelected,
   onClick,
+  searchMatchIndices,
 }: {
   plan: HydratedPlan;
   isSelected: boolean;
   onClick: (id: string) => void;
+  searchMatchIndices?: number[];
 }) {
   const progress = plan._progress;
   const hasProgress = progress && progress.totalTasks > 0;
+
+  // Render title with optional search highlighting (TB87)
+  const titleContent = searchMatchIndices && searchMatchIndices.length > 0
+    ? highlightMatches(plan.title, searchMatchIndices)
+    : plan.title;
 
   return (
     <div
@@ -374,7 +471,7 @@ function PlanListItem({
               data-testid="plan-item-title"
               className="font-medium text-gray-900 truncate flex-1"
             >
-              {plan.title}
+              {titleContent}
             </h3>
           </div>
 
@@ -422,6 +519,71 @@ function PlanListItem({
           <ChevronRight className="w-4 h-4 text-gray-400" />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Plan Search Bar component (TB87)
+ */
+function PlanSearchBar({
+  value,
+  onChange,
+  onClear,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Handle Escape key to clear search and / to focus
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Clear search on Escape when input is focused
+      if (e.key === 'Escape' && document.activeElement === inputRef.current) {
+        e.preventDefault();
+        onClear();
+        inputRef.current?.blur();
+      }
+      // Focus search on / when not in an input/textarea
+      if (
+        e.key === '/' &&
+        !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
+      ) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClear]);
+
+  return (
+    <div className="relative flex-1 max-w-md" data-testid="plan-search-container">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Search className="w-4 h-4 text-gray-400" />
+      </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search plans... (Press / to focus)"
+        className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+        data-testid="plan-search-input"
+      />
+      {value && (
+        <button
+          onClick={onClear}
+          className="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-400 hover:text-gray-600"
+          data-testid="plan-search-clear"
+          aria-label="Clear search (Escape)"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1118,7 +1280,7 @@ function PlanDetailPanel({
 }
 
 /**
- * Main Plans Page Component
+ * Main Plans Page Component with search (TB87)
  */
 export function PlansPage() {
   const navigate = useNavigate();
@@ -1126,6 +1288,10 @@ export function PlansPage() {
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(search.selected ?? null);
+
+  // Search state (TB87)
+  const [searchQuery, setSearchQuery] = useState<string>(getStoredSearch());
+  const debouncedSearchQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_DELAY);
 
   // Use upfront-loaded data (TB67) - but note it doesn't include progress
   const { data: allPlans } = useAllPlans();
@@ -1135,7 +1301,7 @@ export function PlansPage() {
   const { data: serverPlans = [], isLoading: isServerLoading, error } = usePlans(selectedStatus ?? undefined);
 
   // Prefer server data with progress (TB86), fall back to allPlans for deep-linking checks
-  const plans = useMemo(() => {
+  const basePlans = useMemo(() => {
     // Server query returns plans with progress hydration - always use if available
     if (serverPlans && serverPlans.length > 0) {
       return serverPlans;
@@ -1150,6 +1316,26 @@ export function PlansPage() {
     return [];
   }, [allPlans, serverPlans, selectedStatus]);
 
+  // Filter plans by search query (TB87) and compute match indices
+  const { filteredPlans, matchIndicesMap } = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) {
+      return { filteredPlans: basePlans, matchIndicesMap: new Map<string, number[]>() };
+    }
+
+    const matchMap = new Map<string, number[]>();
+    const filtered = basePlans.filter((plan) => {
+      const match = fuzzySearch(plan.title, debouncedSearchQuery);
+      if (match && match.matched) {
+        matchMap.set(plan.id, match.indices);
+        return true;
+      }
+      return false;
+    });
+
+    return { filteredPlans: filtered, matchIndicesMap: matchMap };
+  }, [basePlans, debouncedSearchQuery]);
+
+  const plans = filteredPlans;
   const isLoading = isServerLoading;
 
   // Deep-link navigation (TB70)
@@ -1175,6 +1361,11 @@ export function PlansPage() {
     }
   }, [search.selected, search.status]);
 
+  // Persist search query to localStorage (TB87)
+  useEffect(() => {
+    setStoredSearch(debouncedSearchQuery);
+  }, [debouncedSearchQuery]);
+
   const handlePlanClick = (planId: string) => {
     setSelectedPlanId(planId);
     navigate({ to: '/plans', search: { selected: planId, status: selectedStatus ?? undefined } });
@@ -1190,6 +1381,18 @@ export function PlansPage() {
     navigate({ to: '/plans', search: { selected: selectedPlanId ?? undefined, status: status ?? undefined } });
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+  };
+
+  const handleSearchClear = () => {
+    setSearchQuery('');
+  };
+
+  // Determine what to show in empty state (TB87)
+  const isSearchActive = debouncedSearchQuery.trim().length > 0;
+  const totalBeforeSearch = basePlans.length;
+
   return (
     <div data-testid="plans-page" className="h-full flex flex-col">
       {/* Header */}
@@ -1203,10 +1406,17 @@ export function PlansPage() {
                 data-testid="plans-count"
                 className="text-sm text-gray-500"
               >
-                ({plans.length})
+                ({plans.length}{isSearchActive && totalBeforeSearch !== plans.length ? ` of ${totalBeforeSearch}` : ''})
               </span>
             )}
           </div>
+
+          {/* Search Bar (TB87) */}
+          <PlanSearchBar
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onClear={handleSearchClear}
+          />
         </div>
 
         <StatusFilter
@@ -1243,12 +1453,29 @@ export function PlansPage() {
               className="text-center py-12"
             >
               <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No plans found</p>
-              <p className="text-sm text-gray-400 mt-1">
-                {selectedStatus
-                  ? `No ${selectedStatus} plans available`
-                  : 'Create your first plan to get started'}
-              </p>
+              {isSearchActive ? (
+                <>
+                  <p className="text-gray-500" data-testid="plans-no-search-results">
+                    No plans matching "{debouncedSearchQuery}"
+                  </p>
+                  <button
+                    onClick={handleSearchClear}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                    data-testid="plans-clear-search"
+                  >
+                    Clear search
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-500">No plans found</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {selectedStatus
+                      ? `No ${selectedStatus} plans available`
+                      : 'Create your first plan to get started'}
+                  </p>
+                </>
+              )}
             </div>
           )}
 
@@ -1260,6 +1487,7 @@ export function PlansPage() {
                   plan={plan}
                   isSelected={selectedPlanId === plan.id}
                   onClick={handlePlanClick}
+                  searchMatchIndices={matchIndicesMap.get(plan.id)}
                 />
               ))}
             </div>
