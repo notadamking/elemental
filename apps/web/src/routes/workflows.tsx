@@ -14,8 +14,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
+import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { MobileWorkflowCard } from '../components/workflow/MobileWorkflowCard';
 import { useAllWorkflows } from '../api/hooks/useAllElements';
 import { useDeepLink } from '../hooks/useDeepLink';
+import { useIsMobile } from '../hooks';
 import {
   GitBranch,
   Clock,
@@ -23,6 +26,7 @@ import {
   XCircle,
   AlertTriangle,
   ChevronRight,
+  ChevronLeft,
   X,
   ListTodo,
   CircleDot,
@@ -1282,14 +1286,16 @@ function VariableInputForm({
 }
 
 /**
- * Pour Workflow Modal
+ * Pour Workflow Modal (TB148 - responsive)
  */
 function PourWorkflowModal({
   isOpen,
   onClose,
+  isMobile = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  isMobile?: boolean;
 }) {
   const pourWorkflow = usePourWorkflow();
   const [title, setTitle] = useState('');
@@ -1365,6 +1371,174 @@ function PourWorkflowModal({
     }
   };
 
+  // Mobile: Full-screen modal (TB148)
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[var(--color-bg)]" data-testid="pour-workflow-modal">
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
+          <button
+            onClick={onClose}
+            className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
+            aria-label="Cancel"
+            data-testid="pour-modal-close"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="flex-1 text-lg font-semibold text-[var(--color-text)]">Pour Workflow</h2>
+          <button
+            onClick={handleSubmit as unknown as () => void}
+            disabled={pourWorkflow.isPending || (!useQuickMode && !selectedPlaybook)}
+            className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors touch-target"
+            data-testid="pour-submit-button"
+          >
+            {pourWorkflow.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pour'}
+          </button>
+        </div>
+
+        {/* Content - scrollable */}
+        <form onSubmit={handleSubmit} className="p-4 pb-20 overflow-y-auto h-[calc(100vh-60px)]">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Workflow Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              data-testid="pour-title-input"
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="My Workflow"
+            />
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="mb-4">
+            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setUseQuickMode(true)}
+                data-testid="mode-quick"
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors touch-target ${
+                  useQuickMode ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                Quick Create
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseQuickMode(false)}
+                data-testid="mode-playbook"
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors touch-target ${
+                  !useQuickMode ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                From Playbook
+              </button>
+            </div>
+          </div>
+
+          {useQuickMode ? (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                Playbook Name
+              </label>
+              <input
+                type="text"
+                value={quickPlaybookName}
+                onChange={(e) => setQuickPlaybookName(e.target.value)}
+                data-testid="pour-playbook-input"
+                className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Quick Setup"
+              />
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                A simple 3-step workflow will be created with this name
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                  Select Playbook
+                </label>
+                <PlaybookPicker
+                  selectedPlaybook={selectedPlaybookName}
+                  onSelect={setSelectedPlaybookName}
+                />
+              </div>
+
+              {selectedPlaybookName && isLoadingPlaybook && (
+                <div className="mb-4 flex items-center gap-2 text-[var(--color-text-secondary)] text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading playbook details...
+                </div>
+              )}
+
+              {selectedPlaybook && (
+                <>
+                  {/* Playbook Info */}
+                  <div
+                    data-testid="playbook-info"
+                    className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Book className="w-4 h-4 text-purple-500" />
+                      <span className="font-medium text-purple-900 dark:text-purple-200">{selectedPlaybook.title}</span>
+                    </div>
+                    <div className="text-xs text-purple-700 dark:text-purple-300">
+                      {selectedPlaybook.steps.length} steps • Version {selectedPlaybook.version}
+                    </div>
+                  </div>
+
+                  {/* Variable Inputs */}
+                  {selectedPlaybook.variables.length > 0 && (
+                    <div className="mb-4">
+                      <VariableInputForm
+                        variables={selectedPlaybook.variables}
+                        values={variables}
+                        onChange={handleVariableChange}
+                      />
+                    </div>
+                  )}
+
+                  {/* Steps Preview */}
+                  <div className="mb-4">
+                    <div className="text-sm font-medium text-[var(--color-text)] mb-2">
+                      Steps ({selectedPlaybook.steps.length})
+                    </div>
+                    <div
+                      data-testid="playbook-steps-preview"
+                      className="space-y-1 max-h-40 overflow-y-auto"
+                    >
+                      {selectedPlaybook.steps.map((step, index) => (
+                        <div
+                          key={step.id}
+                          className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] py-1"
+                        >
+                          <span className="w-5 h-5 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded text-xs font-medium">
+                            {index + 1}
+                          </span>
+                          <span>{step.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {pourWorkflow.isError && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm rounded-lg">
+              {pourWorkflow.error?.message || 'Failed to pour workflow'}
+            </div>
+          )}
+        </form>
+      </div>
+    );
+  }
+
+  // Desktop: Centered modal
   return (
     <div
       data-testid="pour-workflow-modal"
@@ -1556,11 +1730,12 @@ function PourWorkflowModal({
 }
 
 /**
- * Main Workflows Page Component
+ * Main Workflows Page Component (TB148 - responsive)
  */
 export function WorkflowsPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/workflows' });
+  const isMobile = useIsMobile();
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(search.selected ?? null);
@@ -1627,45 +1802,61 @@ export function WorkflowsPage() {
 
   return (
     <div data-testid="workflows-page" className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <GitBranch className="w-6 h-6 text-purple-500" />
-            <h1 className="text-xl font-semibold text-gray-900">Workflows</h1>
-            {workflows.length > 0 && (
-              <span
-                data-testid="workflows-count"
-                className="text-sm text-gray-500"
-              >
-                ({workflows.length})
-              </span>
-            )}
+      {/* Header - Responsive layout (TB148) */}
+      <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+        {/* Mobile header */}
+        {isMobile ? (
+          <div className="p-3 space-y-3">
+            {/* Status filter - scrollable on mobile */}
+            <div className="overflow-x-auto -mx-3 px-3 scrollbar-hide">
+              <StatusFilter
+                selectedStatus={selectedStatus}
+                onStatusChange={handleStatusFilterChange}
+              />
+            </div>
           </div>
-          <button
-            onClick={() => setIsPourModalOpen(true)}
-            data-testid="pour-workflow-button"
-            className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Pour Workflow
-          </button>
-        </div>
+        ) : (
+          /* Desktop header */
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <GitBranch className="w-6 h-6 text-purple-500" />
+                <h1 className="text-xl font-semibold text-[var(--color-text)]">Workflows</h1>
+                {workflows.length > 0 && (
+                  <span
+                    data-testid="workflows-count"
+                    className="text-sm text-[var(--color-text-secondary)]"
+                  >
+                    ({workflows.length})
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setIsPourModalOpen(true)}
+                data-testid="pour-workflow-button"
+                className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Pour Workflow
+              </button>
+            </div>
 
-        <StatusFilter
-          selectedStatus={selectedStatus}
-          onStatusChange={handleStatusFilterChange}
-        />
+            <StatusFilter
+              selectedStatus={selectedStatus}
+              onStatusChange={handleStatusFilterChange}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Content - Responsive layout (TB148) */}
+      <div className={`flex-1 flex overflow-hidden ${selectedWorkflowId && isMobile ? 'hidden' : ''}`}>
         {/* Workflow List */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50" tabIndex={0} role="region" aria-label="Workflow list">
+        <div className={`flex-1 overflow-y-auto bg-[var(--color-bg)] ${isMobile ? '' : 'p-4'}`} tabIndex={0} role="region" aria-label="Workflow list">
           {isLoading && (
             <div
               data-testid="workflows-loading"
-              className="text-center py-12 text-gray-500"
+              className="text-center py-12 text-[var(--color-text-secondary)]"
             >
               Loading workflows...
             </div>
@@ -1685,9 +1876,9 @@ export function WorkflowsPage() {
               data-testid="workflows-empty"
               className="text-center py-12"
             >
-              <GitBranch className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No workflows found</p>
-              <p className="text-sm text-gray-400 mt-1">
+              <GitBranch className="w-12 h-12 text-[var(--color-border)] mx-auto mb-3" />
+              <p className="text-[var(--color-text-secondary)]">No workflows found</p>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1">
                 {selectedStatus
                   ? `No ${selectedStatus} workflows available`
                   : 'Pour your first workflow from a playbook'}
@@ -1695,7 +1886,22 @@ export function WorkflowsPage() {
             </div>
           )}
 
-          {!isLoading && !error && workflows.length > 0 && (
+          {/* Mobile List View with Cards (TB148) */}
+          {!isLoading && !error && workflows.length > 0 && isMobile && (
+            <div data-testid="mobile-workflows-list">
+              {workflows.map((workflow) => (
+                <MobileWorkflowCard
+                  key={workflow.id}
+                  workflow={workflow}
+                  isSelected={selectedWorkflowId === workflow.id}
+                  onClick={() => handleWorkflowClick(workflow.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Desktop List View */}
+          {!isLoading && !error && workflows.length > 0 && !isMobile && (
             <div data-testid="workflows-list" className="space-y-3">
               {workflows.map((workflow) => (
                 <WorkflowListItem
@@ -1709,9 +1915,9 @@ export function WorkflowsPage() {
           )}
         </div>
 
-        {/* Workflow Detail Panel or Not Found (TB70) */}
-        {selectedWorkflowId && (
-          <div className="w-96 flex-shrink-0">
+        {/* Workflow Detail Panel - Desktop (side panel) */}
+        {selectedWorkflowId && !isMobile && (
+          <div className="w-96 flex-shrink-0 border-l border-[var(--color-border)]" data-testid="workflow-detail-container">
             {deepLink.notFound ? (
               <ElementNotFound
                 elementType="Workflow"
@@ -1730,10 +1936,48 @@ export function WorkflowsPage() {
         )}
       </div>
 
-      {/* Pour Workflow Modal */}
+      {/* Workflow Detail Panel - Mobile (full-screen sheet) (TB148) */}
+      {selectedWorkflowId && isMobile && (
+        <MobileDetailSheet
+          open={!!selectedWorkflowId}
+          onClose={handleCloseDetail}
+          title="Workflow Details"
+          data-testid="mobile-workflow-detail-sheet"
+        >
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Workflow"
+              elementId={selectedWorkflowId}
+              backRoute="/workflows"
+              backLabel="Back to Workflows"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <WorkflowDetailPanel
+              workflowId={selectedWorkflowId}
+              onClose={handleCloseDetail}
+            />
+          )}
+        </MobileDetailSheet>
+      )}
+
+      {/* Mobile Floating Action Button for Pour Workflow (TB148) */}
+      {isMobile && !selectedWorkflowId && (
+        <button
+          onClick={() => setIsPourModalOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-lg z-40 touch-target"
+          aria-label="Pour new workflow"
+          data-testid="mobile-pour-workflow-fab"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Pour Workflow Modal (TB148 - responsive) */}
       <PourWorkflowModal
         isOpen={isPourModalOpen}
         onClose={() => setIsPourModalOpen(false)}
+        isMobile={isMobile}
       />
     </div>
   );

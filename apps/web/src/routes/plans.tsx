@@ -15,11 +15,13 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useDebounce } from '../hooks';
+import { useDebounce, useIsMobile } from '../hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { ProgressRing, ProgressRingWithBreakdown } from '../components/shared/ProgressRing';
+import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { MobilePlanCard } from '../components/plan/MobilePlanCard';
 import { useAllPlans } from '../api/hooks/useAllElements';
 import { useDeepLink } from '../hooks/useDeepLink';
 import { toast } from 'sonner';
@@ -39,6 +41,7 @@ import {
   XCircle,
   FileEdit,
   ChevronRight,
+  ChevronLeft,
   X,
   ListTodo,
   CircleDot,
@@ -54,6 +57,7 @@ import {
   List,
   GanttChart,
   Info,
+  Loader2,
 } from 'lucide-react';
 
 // ============================================================================
@@ -1356,14 +1360,17 @@ function TaskPickerModal({
 }
 
 /**
- * Create Plan Modal (TB121) - Plans must have at least one task
+ * Create Plan Modal (TB121, TB148) - Plans must have at least one task
+ * Responsive: Full-screen on mobile, centered modal on desktop
  */
 function CreatePlanModal({
   onClose,
   onPlanCreated,
+  isMobile = false,
 }: {
   onClose: () => void;
   onPlanCreated: (planId: string) => void;
+  isMobile?: boolean;
 }) {
   const [planTitle, setPlanTitle] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -1441,6 +1448,198 @@ function CreatePlanModal({
     5: 'Critical',
   };
 
+  // Mobile: Full-screen modal (TB148)
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[var(--color-bg)]" data-testid="create-plan-modal">
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
+          <button
+            onClick={onClose}
+            className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
+            aria-label="Cancel"
+            data-testid="create-plan-close"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h2 className="flex-1 text-lg font-semibold text-[var(--color-text)]">Create Plan</h2>
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit || createPlan.isPending}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors touch-target"
+            data-testid="create-plan-submit"
+          >
+            {createPlan.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
+          </button>
+        </div>
+
+        {/* Content - scrollable */}
+        <div className="p-4 pb-20 overflow-y-auto h-[calc(100vh-60px)] space-y-4">
+          {/* Plan Title */}
+          <div>
+            <label htmlFor="plan-title-mobile" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+              Plan Title *
+            </label>
+            <input
+              id="plan-title-mobile"
+              type="text"
+              data-testid="plan-title-input"
+              placeholder="Enter plan title..."
+              value={planTitle}
+              onChange={(e) => setPlanTitle(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+            />
+          </div>
+
+          {/* Initial Task Section */}
+          <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                Initial Task Required
+              </span>
+            </div>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mb-4">
+              Plans must have at least one task. Add a new task or select an existing one.
+            </p>
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 mb-4">
+              <button
+                data-testid="mode-new-task"
+                onClick={() => {
+                  setMode('new');
+                  setExistingTaskId(null);
+                }}
+                className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors touch-target ${
+                  mode === 'new'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                Create New Task
+              </button>
+              <button
+                data-testid="mode-existing-task"
+                onClick={() => setMode('existing')}
+                className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors touch-target ${
+                  mode === 'existing'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                Use Existing Task
+              </button>
+            </div>
+
+            {/* New Task Form */}
+            {mode === 'new' && (
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="task-title-mobile" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Task Title *
+                  </label>
+                  <input
+                    id="task-title-mobile"
+                    type="text"
+                    data-testid="task-title-input"
+                    placeholder="Enter task title..."
+                    value={taskTitle}
+                    onChange={(e) => setTaskTitle(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="task-priority-mobile" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    id="task-priority-mobile"
+                    data-testid="task-priority-select"
+                    value={taskPriority}
+                    onChange={(e) => setTaskPriority(Number(e.target.value))}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 touch-target"
+                    aria-label="Task priority"
+                  >
+                    {[1, 2, 3, 4, 5].map((p) => (
+                      <option key={p} value={p}>
+                        {p} - {priorityLabels[p]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Existing Task Picker */}
+            {mode === 'existing' && (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    data-testid="existing-task-search"
+                    placeholder="Search tasks by title or ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800"
+                  />
+                </div>
+
+                {/* Task List */}
+                <div className="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
+                  {isLoadingTasks ? (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      Loading tasks...
+                    </div>
+                  ) : existingTasks.length === 0 ? (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      {searchQuery ? 'No matching tasks found' : 'No tasks available'}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {existingTasks.map((task) => (
+                        <button
+                          key={task.id}
+                          data-testid={`existing-task-${task.id}`}
+                          onClick={() => setExistingTaskId(task.id)}
+                          className={`w-full flex items-center gap-3 p-3 text-left transition-colors touch-target ${
+                            existingTaskId === task.id
+                              ? 'bg-blue-100 dark:bg-blue-900/30 border-l-2 border-blue-500'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {task.title}
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono">{task.id}</div>
+                          </div>
+                          {existingTaskId === task.id && (
+                            <Check className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {existingTaskId && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                    <Check className="w-4 h-4" />
+                    <span>Task selected</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop: Centered modal
   return (
     <div
       data-testid="create-plan-modal"
@@ -2027,18 +2226,25 @@ function PlanDetailPanel({
 }
 
 /**
- * Main Plans Page Component with search (TB87)
+ * Main Plans Page Component with search (TB87) and responsive design (TB148)
  */
 export function PlansPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/plans' });
+  const isMobile = useIsMobile();
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(search.status ?? null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(search.selected ?? null);
   const [showCreateModal, setShowCreateModal] = useState(false); // TB121
 
-  // View mode state (TB88)
-  const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
+  // View mode state (TB88) - Default to list on mobile, roadmap only on desktop
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Force list view on mobile since roadmap isn't mobile-optimized
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      return 'list';
+    }
+    return getStoredViewMode();
+  });
 
   // Search state (TB87)
   const [searchQuery, setSearchQuery] = useState<string>(getStoredSearch());
@@ -2152,65 +2358,87 @@ export function PlansPage() {
 
   return (
     <div data-testid="plans-page" className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <ClipboardList className="w-6 h-6 text-blue-500" />
-            <h1 className="text-xl font-semibold text-gray-900">Plans</h1>
-            {plans.length > 0 && (
-              <span
-                data-testid="plans-count"
-                className="text-sm text-gray-500"
-              >
-                ({plans.length}{isSearchActive && totalBeforeSearch !== plans.length ? ` of ${totalBeforeSearch}` : ''})
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Create Plan Button (TB121) */}
-            <button
-              data-testid="create-plan-btn"
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Create Plan
-            </button>
-
-            {/* Search Bar (TB87) */}
+      {/* Header - Responsive layout (TB148) */}
+      <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+        {/* Mobile header */}
+        {isMobile ? (
+          <div className="p-3 space-y-3">
+            {/* Search bar - full width on mobile */}
             <PlanSearchBar
               value={searchQuery}
               onChange={handleSearchChange}
               onClear={handleSearchClear}
             />
+            {/* Status filter - scrollable on mobile */}
+            <div className="overflow-x-auto -mx-3 px-3 scrollbar-hide">
+              <StatusFilter
+                selectedStatus={selectedStatus}
+                onStatusChange={handleStatusFilterChange}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Desktop header */
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <ClipboardList className="w-6 h-6 text-blue-500" />
+                <h1 className="text-xl font-semibold text-[var(--color-text)]">Plans</h1>
+                {plans.length > 0 && (
+                  <span
+                    data-testid="plans-count"
+                    className="text-sm text-[var(--color-text-secondary)]"
+                  >
+                    ({plans.length}{isSearchActive && totalBeforeSearch !== plans.length ? ` of ${totalBeforeSearch}` : ''})
+                  </span>
+                )}
+              </div>
 
-        {/* Filter and View Controls */}
-        <div className="flex items-center justify-between gap-4">
-          <StatusFilter
-            selectedStatus={selectedStatus}
-            onStatusChange={handleStatusFilterChange}
-          />
+              <div className="flex items-center gap-3">
+                {/* Create Plan Button (TB121) */}
+                <button
+                  data-testid="create-plan-btn"
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Plan
+                </button>
 
-          {/* View Toggle (TB88) */}
-          <ViewToggle
-            view={viewMode}
-            onViewChange={handleViewModeChange}
-          />
-        </div>
+                {/* Search Bar (TB87) */}
+                <PlanSearchBar
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onClear={handleSearchClear}
+                />
+              </div>
+            </div>
+
+            {/* Filter and View Controls */}
+            <div className="flex items-center justify-between gap-4">
+              <StatusFilter
+                selectedStatus={selectedStatus}
+                onStatusChange={handleStatusFilterChange}
+              />
+
+              {/* View Toggle (TB88) - Hide on mobile */}
+              <ViewToggle
+                view={viewMode}
+                onViewChange={handleViewModeChange}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Content - Responsive layout (TB148) */}
+      <div className={`flex-1 flex overflow-hidden ${selectedPlanId && isMobile ? 'hidden' : ''}`}>
         {/* Plan Content - List or Roadmap View (TB88) */}
-        <div className={`flex-1 overflow-y-auto p-4 bg-gray-50 ${viewMode === 'roadmap' ? 'overflow-x-auto' : ''}`} tabIndex={0} role="region" aria-label="Plan content">
+        <div className={`flex-1 overflow-y-auto bg-[var(--color-bg)] ${viewMode === 'roadmap' ? 'overflow-x-auto p-4' : isMobile ? '' : 'p-4'}`} tabIndex={0} role="region" aria-label="Plan content">
           {isLoading && (
             <div
               data-testid="plans-loading"
-              className="text-center py-12 text-gray-500"
+              className="text-center py-12 text-[var(--color-text-secondary)]"
             >
               Loading plans...
             </div>
@@ -2230,10 +2458,10 @@ export function PlansPage() {
               data-testid="plans-empty"
               className="text-center py-12"
             >
-              <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <ClipboardList className="w-12 h-12 text-[var(--color-border)] mx-auto mb-3" />
               {isSearchActive ? (
                 <>
-                  <p className="text-gray-500" data-testid="plans-no-search-results">
+                  <p className="text-[var(--color-text-secondary)]" data-testid="plans-no-search-results">
                     No plans matching "{debouncedSearchQuery}"
                   </p>
                   <button
@@ -2246,8 +2474,8 @@ export function PlansPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-gray-500">No plans found</p>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className="text-[var(--color-text-secondary)]">No plans found</p>
+                  <p className="text-sm text-[var(--color-text-muted)] mt-1">
                     {selectedStatus
                       ? `No ${selectedStatus} plans available`
                       : 'Create your first plan to get started'}
@@ -2257,8 +2485,23 @@ export function PlansPage() {
             </div>
           )}
 
-          {/* List View */}
-          {!isLoading && !error && plans.length > 0 && viewMode === 'list' && (
+          {/* Mobile List View with Cards (TB148) */}
+          {!isLoading && !error && plans.length > 0 && viewMode === 'list' && isMobile && (
+            <div data-testid="mobile-plans-list">
+              {plans.map((plan) => (
+                <MobilePlanCard
+                  key={plan.id}
+                  plan={plan}
+                  isSelected={selectedPlanId === plan.id}
+                  onClick={() => handlePlanClick(plan.id)}
+                  searchMatchIndices={matchIndicesMap.get(plan.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Desktop List View */}
+          {!isLoading && !error && plans.length > 0 && viewMode === 'list' && !isMobile && (
             <div data-testid="plans-list" className="space-y-3">
               {plans.map((plan) => (
                 <PlanListItem
@@ -2272,8 +2515,8 @@ export function PlansPage() {
             </div>
           )}
 
-          {/* Roadmap View (TB88) */}
-          {!isLoading && !error && plans.length > 0 && viewMode === 'roadmap' && (
+          {/* Roadmap View (TB88) - Desktop only */}
+          {!isLoading && !error && plans.length > 0 && viewMode === 'roadmap' && !isMobile && (
             <RoadmapView
               plans={plans}
               onPlanClick={handlePlanClick}
@@ -2282,9 +2525,9 @@ export function PlansPage() {
           )}
         </div>
 
-        {/* Plan Detail Panel or Not Found (TB70) */}
-        {selectedPlanId && (
-          <div className="w-96 flex-shrink-0">
+        {/* Plan Detail Panel - Desktop (side panel) */}
+        {selectedPlanId && !isMobile && (
+          <div className="w-96 flex-shrink-0 border-l border-[var(--color-border)]" data-testid="plan-detail-container">
             {deepLink.notFound ? (
               <ElementNotFound
                 elementType="Plan"
@@ -2303,13 +2546,51 @@ export function PlansPage() {
         )}
       </div>
 
-      {/* Create Plan Modal (TB121) */}
+      {/* Plan Detail Panel - Mobile (full-screen sheet) (TB148) */}
+      {selectedPlanId && isMobile && (
+        <MobileDetailSheet
+          open={!!selectedPlanId}
+          onClose={handleCloseDetail}
+          title="Plan Details"
+          data-testid="mobile-plan-detail-sheet"
+        >
+          {deepLink.notFound ? (
+            <ElementNotFound
+              elementType="Plan"
+              elementId={selectedPlanId}
+              backRoute="/plans"
+              backLabel="Back to Plans"
+              onDismiss={handleCloseDetail}
+            />
+          ) : (
+            <PlanDetailPanel
+              planId={selectedPlanId}
+              onClose={handleCloseDetail}
+            />
+          )}
+        </MobileDetailSheet>
+      )}
+
+      {/* Mobile Floating Action Button for Create Plan (TB148) */}
+      {isMobile && !selectedPlanId && (
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg z-40 touch-target"
+          aria-label="Create new plan"
+          data-testid="mobile-create-plan-fab"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Create Plan Modal (TB121, TB148) */}
       {showCreateModal && (
         <CreatePlanModal
           onClose={() => setShowCreateModal(false)}
           onPlanCreated={(planId) => {
             handlePlanClick(planId);
           }}
+          isMobile={isMobile}
         />
       )}
     </div>

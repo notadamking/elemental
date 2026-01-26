@@ -150,7 +150,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB145-responsive-appshell.md](./platform/TB145-responsive-appshell.md) | Responsive AppShell & Sidebar - Mobile drawer, tablet collapsed, desktop always visible | responsive, sidebar, drawer, hamburger, mobile navigation |
 | [platform/TB146-responsive-dashboard.md](./platform/TB146-responsive-dashboard.md) | Responsive Dashboard Page - Metrics, charts, timeline, dependency graph on all screen sizes | responsive, dashboard, charts, graphs, mobile, touch, timeline |
 | [platform/TB147-responsive-tasks.md](./platform/TB147-responsive-tasks.md) | Responsive Tasks Page - List, kanban, and detail panel on all screen sizes | responsive, tasks, kanban, detail panel, mobile, touch drag |
-| platform/PLAN.md#tb148 | Responsive Plans & Workflows Pages - List and detail views on all screens | responsive, plans, workflows, detail panel, mobile |
+| [platform/TB148-responsive-plans-workflows.md](./platform/TB148-responsive-plans-workflows.md) | Responsive Plans & Workflows Pages - List and detail views on all screens | responsive, plans, workflows, detail panel, mobile |
 | platform/PLAN.md#tb149 | Responsive Messages Page - Slack-style two-screen mobile navigation | responsive, messages, channels, mobile, two-screen |
 | platform/PLAN.md#tb150 | Responsive Documents Page - Notion-style editor and library on mobile | responsive, documents, editor, tiptap, mobile, touch |
 | platform/PLAN.md#tb151 | Responsive Entities & Teams Pages - Lists, details, and charts on mobile | responsive, entities, teams, contribution chart, mobile |

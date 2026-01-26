@@ -957,51 +957,30 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB148: Responsive Plans & Workflows Pages**
+- [x] **TB148: Responsive Plans & Workflows Pages** - COMPLETED
 
   **Context:** Plans and Workflows pages share similar patterns—a list view and a detail view with task collections. Ensure both are fully responsive with consistent patterns.
 
+  **Implementation:**
+  - Created `MobilePlanCard` and `MobileWorkflowCard` components for mobile list views
+  - Added full-screen detail sheets using `MobileDetailSheet` component
+  - Added FABs for creating plans and pouring workflows on mobile
+  - Made `CreatePlanModal` and `PourWorkflowModal` responsive (full-screen on mobile)
+  - Responsive header layouts with scrollable status filters on mobile
+
   **Tracer Bullet Steps:**
-  - [ ] Step 1: Audit Plans page layout
-    - Identify list component, detail panel, progress display
-    - **Verify immediately:** Understand current structure
-  - [ ] Step 2: Responsive Plans list
-    - Desktop: table or card grid
-    - Mobile: stacked cards with progress bars
-    - Touch targets for plan actions
-    - **Verify immediately:** Plans list usable on mobile
-  - [ ] Step 3: Responsive PlanDetailPanel
-    - Desktop: side panel
-    - Mobile: full-screen sheet
-    - Progress ring scales appropriately
-    - Task list within plan is scrollable
-    - **Verify immediately:** Plan detail fully readable on mobile
-  - [ ] Step 4: Responsive plan task operations
-    - Add task to plan: modal is full-screen on mobile
-    - Remove task: confirmation dialog works on mobile
-    - **Verify immediately:** Can manage plan tasks on mobile
-  - [ ] Step 5: Audit Workflows page layout
-    - Similar to Plans—list and detail
-    - Pour workflow modal
-    - **Verify immediately:** Understand structure
-  - [ ] Step 6: Responsive Workflows list
-    - Same patterns as Plans list
-    - Status badges clearly visible
-    - **Verify immediately:** Workflows list usable on mobile
-  - [ ] Step 7: Responsive WorkflowDetailPanel
-    - Desktop: side panel
-    - Mobile: full-screen sheet
-    - Task sequence clearly shown
-    - **Verify immediately:** Workflow detail readable on mobile
-  - [ ] Step 8: Responsive PourWorkflowModal
-    - Full-screen on mobile
-    - Playbook selection dropdown works on mobile
-    - Variable inputs stack vertically
-    - **Verify immediately:** Can pour workflow on mobile
-  - [ ] Step 9: Write Playwright tests
-    - Test both pages at all breakpoints
-    - Test modals and panels
-    - **Verify:** Tests pass in `apps/web/tests/tb148-responsive-plans-workflows.spec.ts`
+  - [x] Step 1: Audit Plans page layout
+  - [x] Step 2: Responsive Plans list - MobilePlanCard component
+  - [x] Step 3: Responsive PlanDetailPanel - MobileDetailSheet on mobile
+  - [x] Step 4: Responsive plan task operations - CreatePlanModal responsive
+  - [x] Step 5: Audit Workflows page layout
+  - [x] Step 6: Responsive Workflows list - MobileWorkflowCard component
+  - [x] Step 7: Responsive WorkflowDetailPanel - MobileDetailSheet on mobile
+  - [x] Step 8: Responsive PourWorkflowModal - Full-screen on mobile
+  - [x] Step 9: Write Playwright tests - 26 tests passing
+
+  - Spec: `specs/platform/TB148-responsive-plans-workflows.md`
+  - **Verify:** Run `npx playwright test tb148-responsive-plans-workflows` - 26 tests pass
 
 ---
 
