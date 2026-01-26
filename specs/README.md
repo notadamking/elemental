@@ -133,6 +133,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB119_ACCESSIBILITY_AUDIT.md](./platform/TB119_ACCESSIBILITY_AUDIT.md) | Accessibility Audit - axe-core integration, WCAG 2.1 AA compliance, color contrast fixes, ARIA labels, keyboard navigation | accessibility, a11y, wcag, contrast, aria, keyboard, screen reader |
 | [platform/TB120-performance-audit.md](./platform/TB120-performance-audit.md) | Performance Audit - Bundle optimization, code splitting, skeleton components, load time verification | performance, bundle, code splitting, skeleton, loading, memoization, virtualization |
 | [platform/TB121-plans-must-have-tasks.md](./platform/TB121-plans-must-have-tasks.md) | Plans Must Have Task Children - Collection integrity validation requiring plans to have at least one task | plans, tasks, validation, collection, integrity, create, remove |
+| [platform/TB122-workflows-must-have-tasks.md](./platform/TB122-workflows-must-have-tasks.md) | Workflows Must Have Task Children - Collection integrity validation requiring workflows to have at least one task | workflows, tasks, validation, collection, integrity, create, pour, burn |
 
 ---
 

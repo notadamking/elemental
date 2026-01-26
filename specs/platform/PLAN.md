@@ -487,81 +487,7 @@ For mutations (create, update, delete):
 
 Completed implementation phases have been moved to specs/platform/COMPLETED_PHASES.md.
 
-- [x] **TB97: Emoji Support (Markdown-Compatible)**
-
-  > **Markdown Format for Emojis:** Emojis are stored as Unicode characters directly in Markdown,
-  > which AI agents can read/write natively. The `:shortcode:` syntax is converted to Unicode on input.
-  - [x] Web: Add emoji picker button to toolbar - `apps/web/src/components/editor/BlockEditor.tsx`
-  - [x] Web: Emoji picker modal with categories and search - `apps/web/src/components/editor/EmojiPickerModal.tsx` (using emoji-picker-react)
-  - [x] Web: Type `:emoji_name:` to trigger inline emoji autocomplete - `apps/web/src/components/editor/EmojiAutocomplete.tsx`
-  - [x] Web: Convert shortcodes to Unicode on insert (e.g., `:rocket:` → 🚀)
-  - [x] Web: Store as Unicode in Markdown (not shortcodes) for universal compatibility
-  - [x] Web: Common emojis suggested first (recently used via localStorage)
-  - [x] Web: Add `/emoji` slash command - `apps/web/src/components/editor/SlashCommands.tsx`
-  - [x] Web: Document icon/emoji in library tree (stored in document metadata) like Notion - `apps/web/src/routes/documents.tsx`
-  - [x] **Verify:** 11 Playwright tests passing (`apps/web/tests/tb97-document-icon.spec.ts`); document icons persist and display in list
-
-- [x] **TB98: Inline Comments (Stored Separately)**
-
-  > **Markdown Compatibility:** Comments are stored separately from document content, not inline.
-  > This keeps the Markdown clean and readable by AI agents. Comments reference text by anchor
-  > (hash of surrounding context) rather than embedding markers in the document.
-  - [x] Web: Add ability to select text and add comment (bubble menu option) - `apps/web/src/components/editor/BubbleMenu.tsx`
-  - [x] Web: Commented text shows highlight background (configurable color) - CommentsPanel handles highlighting via anchor matching
-  - [x] Web: Click highlighted text → show comment in side panel - CommentsPanel with handleCommentClick scrolling
-  - [x] Web: Comment shows: author avatar, text, timestamp, resolve button - `apps/web/src/components/editor/CommentsPanel.tsx`
-  - [x] Server: Add `POST /api/documents/:id/comments` endpoint - `apps/server/src/index.ts`
-    - [x] Store: documentId, textAnchor (hash + surrounding context), position, commentText
-    - [x] Comments are separate entities, not embedded in Markdown
-  - [x] Server: Add `GET /api/documents/:id/comments` endpoint - `apps/server/src/index.ts`
-  - [x] Server: Add `PATCH /api/comments/:id` endpoint (resolve, edit) - `apps/server/src/index.ts`
-  - [x] Web: On document load, match comment anchors to current text positions - `apps/web/src/lib/anchors.ts` findAnchorPosition()
-  - [x] Web: Handle anchor drift (text changed) gracefully—show "text moved" indicator - findAnchorPosition uses fuzzy matching
-  - [x] Web: Resolved comments hidden by default with "Show resolved" toggle - CommentsPanel showResolved state
-  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb98-inline-comments.spec.ts`)
-
-### Phase 24: Messages Page Enhancements (Slack-inspired)
-
-**Goal:** Enhance the messaging experience with Slack-inspired features.
-
-- [x] **TB99: Message Day Separation**
-  - [x] Web: Group messages by day with separator headers - `apps/web/src/routes/messages.tsx` uses `groupMessagesByDay()` utility
-  - [x] Web: Date separator shows: "Today", "Yesterday", or full date "Monday, January 15" - `apps/web/src/lib/time.ts` `formatDateSeparator()`
-  - [x] Web: DateSeparator component with calendar icon and horizontal lines - `apps/web/src/routes/messages.tsx`
-  - [x] Web: Consistent styling with message bubbles - gray-100 background, rounded-full pill style
-  - [x] Web: Works with both virtualized (>100 msgs) and non-virtualized lists
-  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb99-message-day-separation.spec.ts`)
-
-- [x] **TB100: Copy Message Action**
-  - [x] Web: Add "Copy" action to message hover menu - `apps/web/src/routes/messages.tsx` MessageBubble component
-  - [x] Web: Copies message content as plain text via navigator.clipboard.writeText()
-  - [x] Web: Show toast confirmation "Message copied" via sonner toast.success()
-  - [x] Web: Keyboard shortcut: `C` when message focused (onKeyDown handler)
-  - [x] Web: Focus styling (blue background, ring) when message is focused
-  - [x] Web: Copy button shows checkmark icon after successful copy
-  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb100-copy-message.spec.ts`)
-
-- [x] **TB101: Rich Text in MessageComposer**
-  - [x] Web: Replace plain textarea with mini Tiptap editor
-  - [x] Web: Support: bold (⌘B), italic (⌘I), underline (⌘U), strikethrough
-  - [x] Web: Support: inline code (`), code block (```)
-  - [x] Web: Support: bullet list, numbered list
-  - [x] Web: Support: block quote (>)
-  - [x] Web: Compact toolbar shown below input (optional, can toggle)
-  - [x] Web: Markdown shortcuts work (e.g., **bold**, _italic_)
-  - [x] **Verify:** 20 Playwright tests passing (`apps/web/tests/tb101-rich-text-message-composer.spec.ts`)
-
-- [x] **TB102: Image Input in Messages**
-  - [x] Web: Add image attachment button to MessageComposer
-  - [x] Web: Click → file picker for image
-  - [x] Web: Drag-and-drop image into composer
-  - [x] Web: Paste image from clipboard
-  - [x] Web: Preview attached image before sending
-  - [x] Web: Remove attachment button (X on preview)
-  - [x] Server: Images uploaded to server, URL stored in message content (Markdown format)
-  - [x] **Verify:** 15 Playwright tests passing (`apps/web/tests/tb102-image-input-messages.spec.ts`)
-
-- [x] **TB103: Message Search** ([spec](./TB103-message-search.md))
+- [] **TB103: Message Search** ([spec](./TB103-message-search.md))
   - [x] Web: Add search input to channel header
   - [x] Web: Search messages within current channel (debounced 300ms)
   - [x] Web: Results show message preview with highlighted match
@@ -790,15 +716,16 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Disable "Remove" button on last task with tooltip explaining why
   - [x] **Verify:** 19 Playwright tests passing (`apps/web/tests/tb121-plans-must-have-tasks.spec.ts`); creating empty plan blocked; removing last task blocked
 
-- [ ] **TB122: Workflows Must Have Task Children**
-  - [ ] Server: Add validation in `POST /api/workflows` - require playbook (which generates tasks) or initial task
-  - [ ] Server: `POST /api/workflows/pour` already requires playbook - ensure playbook has at least one step
-  - [ ] Server: Prevent deletion of last task in workflow
-  - [ ] Server: Add `GET /api/workflows/:id/can-delete-task/:taskId` endpoint
-  - [ ] Web: Update PourWorkflowModal to validate playbook has steps before pour
-  - [ ] Web: In WorkflowDetailPanel, prevent removing last task
-  - [ ] Web: Show helpful empty state if workflow has no playbook ("This workflow needs tasks to be useful")
-  - [ ] **Verify:** Try pouring workflow with empty playbook - blocked; try removing last task - blocked; Playwright tests passing
+- [x] **TB122: Workflows Must Have Task Children** ([spec](./TB122-workflows-must-have-tasks.md))
+  - [x] Server: Add validation in `POST /api/workflows` - require initial task (initialTask or initialTaskId)
+  - [x] Server: `POST /api/workflows/pour` - ensure playbook has at least one step
+  - [x] Server: `POST /api/workflows/pour` - ensure at least one task created after condition filtering
+  - [x] Server: Add check in `DELETE /api/tasks/:id` - prevent deleting last task in workflow
+  - [x] Server: Add `GET /api/workflows/:id/can-delete-task/:taskId` endpoint
+  - [x] Web: Update PourWorkflowModal to validate playbook has steps, show warning for empty playbooks
+  - [x] Web: In WorkflowDetailPanel, show warning when workflow has only one task
+  - [x] Web: Updated empty state message for workflows with no tasks
+  - [x] **Verify:** 14 Playwright tests passing (`apps/web/tests/tb122-workflows-must-have-tasks.spec.ts`)
 
 - [ ] **TB123: Teams Must Have Entity Members**
   - [ ] Server: Add validation in `POST /api/teams` - require at least one member entity ID

@@ -611,9 +611,14 @@ function WorkflowTaskList({ tasks }: { tasks: TaskType[] }) {
     return (
       <div
         data-testid="workflow-tasks-empty"
-        className="text-center py-8 text-gray-500 text-sm"
+        className="text-center py-8 text-gray-500"
       >
-        No tasks in this workflow
+        <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+        <p className="text-sm font-medium">No tasks in this workflow</p>
+        <p className="text-xs text-gray-400 mt-1">
+          Workflows need tasks to be useful. This state should not occur
+          as workflows require at least one task to be created.
+        </p>
       </div>
     );
   }
@@ -993,6 +998,22 @@ function WorkflowDetailPanel({
           <div className="text-sm font-medium text-gray-700 mb-2">
             Tasks ({tasks.length})
           </div>
+          {/* TB122: Warning when workflow has only one task */}
+          {tasks.length === 1 && (
+            <div
+              data-testid="last-task-warning"
+              className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+            >
+              <div className="flex items-center gap-2 text-amber-700">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-sm font-medium">Only one task remaining</span>
+              </div>
+              <p className="mt-1 text-xs text-amber-600">
+                Workflows must have at least one task. This task cannot be deleted.
+                Use &apos;Burn&apos; to delete the entire workflow if needed.
+              </p>
+            </div>
+          )}
           <WorkflowTaskList tasks={tasks} />
         </div>
 

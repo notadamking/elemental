@@ -121,13 +121,18 @@ test.describe('TB25: Workflow List + Pour', () => {
     }
   });
 
-  test('POST /api/workflows creates a new workflow', async ({ page }) => {
+  test('POST /api/workflows creates a new workflow with initial task', async ({ page }) => {
+    // TB122: Workflows must have at least one task
     const newWorkflow = {
       title: `Test Workflow ${Date.now()}`,
       createdBy: 'test-user',
       status: 'pending',
       ephemeral: false,
       tags: ['test'],
+      initialTask: {
+        title: `Initial Task ${Date.now()}`,
+        priority: 3,
+      },
     };
 
     const response = await page.request.post('/api/workflows', {
@@ -142,6 +147,11 @@ test.describe('TB25: Workflow List + Pour', () => {
     expect(created.status).toBe('pending');
     expect(created.createdBy).toBe(newWorkflow.createdBy);
     expect(created.id).toBeDefined();
+    expect(created.initialTask).toBeDefined();
+    expect(created.initialTask.id).toBeDefined();
+
+    // Cleanup
+    await page.request.delete(`/api/workflows/${created.id}/burn?force=true`);
   });
 
   test('POST /api/workflows validates required fields', async ({ page }) => {
@@ -202,12 +212,13 @@ test.describe('TB25: Workflow List + Pour', () => {
   });
 
   test('PATCH /api/workflows/:id updates a workflow', async ({ page }) => {
-    // Create a workflow to update
+    // Create a workflow to update (TB122: must have initial task)
     const createResponse = await page.request.post('/api/workflows', {
       data: {
         title: `Update Test Workflow ${Date.now()}`,
         createdBy: 'test-user',
         status: 'pending',
+        initialTask: { title: `Task ${Date.now()}` },
       },
     });
     const workflow = await createResponse.json();
@@ -223,6 +234,9 @@ test.describe('TB25: Workflow List + Pour', () => {
 
     expect(updated.title).toBe(newTitle);
     expect(updated.status).toBe('running');
+
+    // Cleanup
+    await page.request.delete(`/api/workflows/${workflow.id}/burn?force=true`);
   });
 
   test('PATCH /api/workflows/:id validates status values', async ({ page }) => {
@@ -448,7 +462,8 @@ test.describe('TB25: Workflow List + Pour', () => {
 
     // Fill in the form
     const timestamp = Date.now();
-    await page.getByTestId('pour-title-input').fill(`E2E Test Workflow ${timestamp}`);
+    const workflowTitle = `E2E Test Workflow ${timestamp}`;
+    await page.getByTestId('pour-title-input').fill(workflowTitle);
     await page.getByTestId('pour-playbook-input').fill(`Test Playbook ${timestamp}`);
 
     // Submit
@@ -460,7 +475,16 @@ test.describe('TB25: Workflow List + Pour', () => {
     // Verify via API that workflow was created
     const afterResponse = await page.request.get('/api/workflows');
     const afterWorkflows = await afterResponse.json();
-    expect(afterWorkflows.length).toBeGreaterThan(beforeCount);
+    expect(afterWorkflows.length).toBeGreaterThanOrEqual(beforeCount);
+
+    // Find the created workflow and verify
+    const created = afterWorkflows.find((w: { title: string }) => w.title === workflowTitle);
+    expect(created).toBeDefined();
+
+    // Cleanup
+    if (created) {
+      await page.request.delete(`/api/workflows/${created.id}/burn?force=true`);
+    }
   });
 });
 
@@ -911,8 +935,9 @@ test.describe('TB48: Edit Workflow', () => {
     // Panel should close (workflow deleted)
     await expect(page.getByTestId('workflow-detail-panel')).not.toBeVisible({ timeout: 5000 });
 
-    // Verify workflow no longer exists in list
-    await expect(page.getByTestId(`workflow-item-${workflow.id}`)).not.toBeVisible({ timeout: 5000 });
+    // Verify workflow no longer exists via API
+    const getResponse = await page.request.get(`/api/workflows/${workflow.id}`);
+    expect(getResponse.status()).toBe(404);
   });
 
   test('durable workflow does not show Squash/Burn buttons', async ({ page }) => {

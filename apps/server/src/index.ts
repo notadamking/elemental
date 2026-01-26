@@ -661,6 +661,37 @@ app.delete('/api/tasks/:id', async (c) => {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
     }
 
+    // TB121/TB122: Check if task is in a plan or workflow and would be the last one
+    const parentDeps = await api.getDependencies(id, ['parent-child']);
+    for (const dep of parentDeps) {
+      const parent = await api.get(dep.targetId);
+      if (parent) {
+        if (parent.type === 'plan') {
+          // Check if this is the last task in the plan
+          const planTasks = await api.getTasksInPlan(dep.targetId);
+          if (planTasks.length === 1 && planTasks[0].id === id) {
+            return c.json({
+              error: {
+                code: 'LAST_TASK',
+                message: 'Cannot delete the last task in a plan. Plans must have at least one task.'
+              }
+            }, 400);
+          }
+        } else if (parent.type === 'workflow') {
+          // Check if this is the last task in the workflow
+          const workflowTasks = await api.getTasksInWorkflow(dep.targetId);
+          if (workflowTasks.length === 1 && workflowTasks[0].id === id) {
+            return c.json({
+              error: {
+                code: 'LAST_TASK',
+                message: "Cannot delete the last task in a workflow. Workflows must have at least one task. Use 'Burn' to delete the entire workflow."
+              }
+            }, 400);
+          }
+        }
+      }
+    }
+
     // Soft-delete the task
     await api.delete(id);
 
@@ -4723,6 +4754,47 @@ app.get('/api/workflows/:id/progress', async (c) => {
   }
 });
 
+// TB122: Check if a task can be deleted from a workflow
+app.get('/api/workflows/:id/can-delete-task/:taskId', async (c) => {
+  try {
+    const workflowId = c.req.param('id') as ElementId;
+    const taskId = c.req.param('taskId') as ElementId;
+
+    // Verify workflow exists
+    const workflow = await api.get(workflowId);
+    if (!workflow) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+    if (workflow.type !== 'workflow') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+    }
+
+    // Get tasks in workflow
+    const tasks = await api.getTasksInWorkflow(workflowId);
+
+    // Check if this task is in the workflow
+    const taskInWorkflow = tasks.some(t => t.id === taskId);
+    if (!taskInWorkflow) {
+      return c.json({ canDelete: false, reason: 'Task is not in this workflow' });
+    }
+
+    // Check if this is the last task
+    const isLastTask = tasks.length === 1;
+    if (isLastTask) {
+      return c.json({
+        canDelete: false,
+        reason: "Cannot delete the last task in a workflow. Workflows must have at least one task. Use 'Burn' to delete the entire workflow.",
+        isLastTask: true
+      });
+    }
+
+    return c.json({ canDelete: true });
+  } catch (error) {
+    console.error('[elemental] Failed to check if task can be deleted:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to check if task can be deleted' } }, 500);
+  }
+});
+
 app.post('/api/workflows', async (c) => {
   try {
     const body = await c.req.json();
@@ -4741,6 +4813,40 @@ app.post('/api/workflows', async (c) => {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'title must be between 1 and 500 characters' } }, 400);
     }
 
+    // TB122: Workflows must have at least one task
+    // Accept either:
+    // 1. initialTaskId - existing task to add to the workflow
+    // 2. initialTask - object with task details to create and add
+    const hasInitialTaskId = body.initialTaskId && typeof body.initialTaskId === 'string';
+    const hasInitialTask = body.initialTask && typeof body.initialTask === 'object' && body.initialTask.title;
+
+    if (!hasInitialTaskId && !hasInitialTask) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Workflows must have at least one task. Provide either initialTaskId (existing task ID) or initialTask (object with title to create new task).'
+        }
+      }, 400);
+    }
+
+    // Validate initialTaskId exists if provided
+    if (hasInitialTaskId) {
+      const existingTask = await api.get(body.initialTaskId as ElementId);
+      if (!existingTask) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Initial task not found' } }, 404);
+      }
+      if (existingTask.type !== 'task') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'initialTaskId must reference a task' } }, 400);
+      }
+    }
+
+    // Validate initialTask title if provided
+    if (hasInitialTask) {
+      if (typeof body.initialTask.title !== 'string' || body.initialTask.title.length < 1 || body.initialTask.title.length > 500) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'initialTask.title must be between 1 and 500 characters' } }, 400);
+      }
+    }
+
     // Create the workflow using the factory function
     const workflowInput: CreateWorkflowInput = {
       title: body.title,
@@ -4755,10 +4861,47 @@ app.post('/api/workflows', async (c) => {
 
     const workflow = await createWorkflow(workflowInput);
     const created = await api.create(workflow as unknown as Element & Record<string, unknown>);
-    return c.json(created, 201);
+
+    // Now add or create the initial task
+    let taskId: ElementId;
+    let createdTask = null;
+
+    if (hasInitialTaskId) {
+      taskId = body.initialTaskId as ElementId;
+    } else {
+      // Create a new task using the proper factory function
+      const taskInput = {
+        title: body.initialTask.title,
+        status: (body.initialTask.status || 'open') as 'open',
+        priority: body.initialTask.priority || 3,
+        complexity: body.initialTask.complexity || 3,
+        tags: body.initialTask.tags || [],
+        createdBy: body.createdBy as EntityId,
+      };
+      const task = await createTask(taskInput);
+      createdTask = await api.create(task as unknown as Element & Record<string, unknown>);
+      taskId = createdTask.id as ElementId;
+    }
+
+    // Add parent-child dependency from task to workflow
+    await api.addDependency({
+      sourceId: taskId,
+      targetId: created.id as ElementId,
+      type: 'parent-child',
+      actor: body.createdBy as EntityId,
+    });
+
+    // Return the workflow along with the initial task info
+    return c.json({
+      ...created,
+      initialTask: createdTask || { id: taskId }
+    }, 201);
   } catch (error) {
     if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+    }
+    if ((error as { code?: string }).code === 'ALREADY_EXISTS') {
+      return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in another collection' } }, 409);
     }
     console.error('[elemental] Failed to create workflow:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workflow' } }, 500);
@@ -4778,6 +4921,17 @@ app.post('/api/workflows/pour', async (c) => {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required and must be a string' } }, 400);
     }
 
+    // TB122: Validate playbook has at least one step
+    const playbook = body.playbook as Playbook;
+    if (!playbook.steps || !Array.isArray(playbook.steps) || playbook.steps.length === 0) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Cannot pour workflow: playbook has no steps defined. Workflows must have at least one task.'
+        }
+      }, 400);
+    }
+
     // Build pour input
     const pourInput: PourWorkflowInput = {
       playbook: body.playbook as Playbook,
@@ -4791,6 +4945,16 @@ app.post('/api/workflows/pour', async (c) => {
 
     // Pour the workflow
     const result = await pourWorkflow(pourInput);
+
+    // TB122: Verify at least one task was created (steps may have been filtered by conditions)
+    if (result.tasks.length === 0) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Cannot pour workflow: all playbook steps were filtered by conditions. At least one task must be created.'
+        }
+      }, 400);
+    }
 
     // Create the workflow and all tasks in the database
     const createdWorkflow = await api.create(result.workflow as unknown as Element & Record<string, unknown>);
