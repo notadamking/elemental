@@ -1106,44 +1106,61 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB153: Responsive Modals & Dialogs**
+- [x] **TB153: Responsive Modals & Dialogs** ✅ COMPLETE
 
   **Context:** The app has many modals (create task, create plan, pour workflow, pickers, confirmations). All must work well on mobile, typically as full-screen sheets.
 
+  **Implementation:**
+  - Created `ResponsiveModal` component at `src/components/shared/ResponsiveModal.tsx`
+    - Desktop: centered modal with backdrop blur and X close button
+    - Mobile: full-screen sheet with ChevronLeft back button, drag indicator, swipe-to-close
+    - Proper ARIA attributes (role="dialog", aria-modal="true", aria-labelledby)
+    - Focus trap, escape key handling, browser back button support on mobile
+  - Updated modals to use ResponsiveModal or consistent responsive patterns:
+    - `CreateLibraryModal` - uses ResponsiveModal wrapper
+    - `CreateChannelModal` - uses ResponsiveModal wrapper
+    - `TaskPickerModal` - uses ResponsiveModal wrapper
+    - `DocumentPickerModal` - uses ResponsiveModal wrapper
+    - `EmojiPickerModal` - uses ResponsiveModal wrapper
+    - `ImageUploadModal` - added mobile full-screen layout
+    - `PourWorkflowModal` - uses ResponsiveModal wrapper
+  - All forms have touch-friendly inputs (py-2.5, rounded-lg, touch-target class)
+  - All modals have proper dark mode support
+
   **Tracer Bullet Steps:**
-  - [ ] Step 1: Inventory all modals in the app
+  - [x] Step 1: Inventory all modals in the app
     - Create: Task, Plan, Workflow, Channel, Document, Entity, Team
     - Pickers: Document, Task, Entity, Emoji, Media
     - Confirmations: Delete, Remove, Discard
     - **Verify immediately:** Complete list of modals
-  - [ ] Step 2: Create responsive modal wrapper
+  - [x] Step 2: Create responsive modal wrapper
     - Desktop: centered modal with backdrop
     - Mobile: full-screen sheet (slides up from bottom)
     - Consistent close button position (top right)
     - **Verify immediately:** Base modal behavior correct
-  - [ ] Step 3: Update create modals
+  - [x] Step 3: Update create modals
     - Form fields stack vertically on mobile
     - Submit button full width at bottom
     - Keyboard doesn't obscure inputs
     - **Verify immediately:** Create Task modal works on mobile
-  - [ ] Step 4: Update picker modals
+  - [x] Step 4: Update picker modals
     - Full screen on mobile
     - Search input always visible
     - List items large enough for touch
     - **Verify immediately:** Document picker works on mobile
-  - [ ] Step 5: Update confirmation dialogs
+  - [x] Step 5: Update confirmation dialogs
     - Desktop: small centered dialog
     - Mobile: centered but full-width with padding
     - Buttons large enough for touch
     - **Verify immediately:** Delete confirmation works on mobile
-  - [ ] Step 6: Handle modal stacking
+  - [x] Step 6: Handle modal stacking
     - If modal opens another modal (e.g., picker from create form)
     - Proper z-index management
     - Back gesture closes top modal only
     - **Verify immediately:** Can open picker from create form on mobile
-  - [ ] Step 7: Write Playwright tests
+  - [x] Step 7: Write Playwright tests
     - Test representative modals at all breakpoints
-    - **Verify:** Tests pass in `apps/web/tests/tb153-responsive-modals.spec.ts`
+    - **Verify:** Tests pass in `apps/web/tests/tb153-responsive-modals.spec.ts` (7 tests passing)
 
 ---
 

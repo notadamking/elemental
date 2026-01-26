@@ -1,6 +1,8 @@
 /**
  * ImageUploadModal - Modal for uploading images to the document editor
  *
+ * TB153: Updated with responsive mobile support
+ *
  * Features:
  * - File picker for selecting images (Upload tab)
  * - Drag-and-drop support
@@ -11,6 +13,7 @@
  * - Search/filter in library
  * - Delete unused images
  * - Upload progress indication
+ * - Full-screen on mobile, centered on desktop
  */
 
 import { useCallback, useState, useRef, useEffect, useMemo } from 'react';
@@ -26,7 +29,9 @@ import {
   Trash2,
   Check,
   AlertCircle,
+  ChevronLeft,
 } from 'lucide-react';
+import { useIsMobile } from '../../hooks';
 
 interface ImageUploadModalProps {
   isOpen: boolean;
@@ -299,6 +304,344 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
     });
   };
 
+  const isMobile = useIsMobile();
+
+  // Mobile layout
+  if (isMobile) {
+    return (
+      <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
+          <Dialog.Content
+            className="fixed inset-0 bg-[var(--color-bg)] z-50 flex flex-col"
+            data-testid="image-upload-modal"
+          >
+            {/* Mobile Header */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-10">
+              <button
+                onClick={handleClose}
+                className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+                aria-label="Close"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <Dialog.Title className="flex-1 text-lg font-semibold text-[var(--color-text)]">
+                Insert Image
+              </Dialog.Title>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Mode tabs - horizontal scroll on mobile */}
+              <div className="flex gap-2 mb-4 overflow-x-auto pb-2 -mx-4 px-4">
+                <button
+                  onClick={() => {
+                    setMode('upload');
+                    setError(null);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap touch-target ${
+                    mode === 'upload'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                  }`}
+                  data-testid="image-upload-tab"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload
+                </button>
+                <button
+                  onClick={() => {
+                    setMode('url');
+                    setError(null);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap touch-target ${
+                    mode === 'url'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                  }`}
+                  data-testid="image-url-tab"
+                >
+                  <Link className="w-4 h-4" />
+                  URL
+                </button>
+                <button
+                  onClick={() => {
+                    setMode('library');
+                    setError(null);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap touch-target ${
+                    mode === 'library'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                  }`}
+                  data-testid="image-library-tab"
+                >
+                  <Grid className="w-4 h-4" />
+                  Library
+                </button>
+              </div>
+
+              {/* Upload mode */}
+              {mode === 'upload' && (
+                <div className="space-y-4">
+                  {preview ? (
+                    <div className="relative">
+                      <img
+                        src={preview.url}
+                        alt="Preview"
+                        className="w-full h-48 object-contain bg-gray-100 dark:bg-gray-800 rounded-lg"
+                        data-testid="image-preview"
+                      />
+                      <button
+                        onClick={() => setPreview(null)}
+                        className="absolute top-2 right-2 p-2 bg-white dark:bg-gray-700 rounded-full shadow hover:bg-gray-100 dark:hover:bg-gray-600 touch-target"
+                        title="Remove"
+                      >
+                        <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                        dragOver
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                      data-testid="image-drop-zone"
+                    >
+                      <ImageIcon className="w-12 h-12 text-gray-400 mb-3" />
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 text-center px-4">
+                        Tap to select an image
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center px-4">
+                        JPEG, PNG, GIF, WebP, SVG up to 10MB
+                      </p>
+                    </div>
+                  )}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                    data-testid="image-file-input"
+                  />
+                </div>
+              )}
+
+              {/* URL mode */}
+              {mode === 'url' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Image URL
+                    </label>
+                    <input
+                      type="url"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      onBlur={handleUrlPreview}
+                      placeholder="https://example.com/image.jpg"
+                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 touch-target"
+                      data-testid="image-url-input"
+                    />
+                  </div>
+
+                  {preview && (
+                    <div className="relative">
+                      <img
+                        src={preview.url}
+                        alt="Preview"
+                        className="w-full h-48 object-contain bg-gray-100 dark:bg-gray-800 rounded-lg"
+                        onError={() => setError('Failed to load image from URL')}
+                        data-testid="image-url-preview"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Library mode */}
+              {mode === 'library' && (
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={librarySearch}
+                      onChange={(e) => setLibrarySearch(e.target.value)}
+                      placeholder="Search images..."
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 touch-target"
+                      data-testid="library-search-input"
+                    />
+                  </div>
+
+                  {libraryLoading ? (
+                    <div className="flex items-center justify-center h-48">
+                      <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                    </div>
+                  ) : filteredLibraryImages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-48 text-gray-500 dark:text-gray-400">
+                      <ImageIcon className="w-12 h-12 mb-3 opacity-50" />
+                      {libraryImages.length === 0 ? (
+                        <>
+                          <p className="text-sm font-medium">No images uploaded yet</p>
+                          <p className="text-xs mt-1">Upload images to see them here</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium">No images match your search</p>
+                          <p className="text-xs mt-1">Try a different search term</p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3" data-testid="library-image-grid">
+                      {filteredLibraryImages.map((image) => (
+                        <div
+                          key={image.filename}
+                          className={`relative rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                            selectedLibraryImage?.filename === image.filename
+                              ? 'border-blue-500 ring-2 ring-blue-500/30'
+                              : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                          }`}
+                          onClick={() => setSelectedLibraryImage(image)}
+                          data-testid={`library-image-${image.filename}`}
+                        >
+                          <img
+                            src={`${API_BASE}${image.url}`}
+                            alt={image.filename}
+                            className="w-full h-24 object-cover bg-gray-100 dark:bg-gray-800"
+                          />
+
+                          {selectedLibraryImage?.filename === image.filename && (
+                            <div className="absolute top-2 left-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                              <Check className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+
+                          {/* Delete button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (deleteConfirm === image.filename) {
+                                handleDeleteImage(image.filename);
+                              } else {
+                                setDeleteConfirm(image.filename);
+                                setTimeout(() => setDeleteConfirm(null), 3000);
+                              }
+                            }}
+                            disabled={deleting}
+                            className={`absolute top-2 right-2 p-1.5 rounded transition-colors touch-target ${
+                              deleteConfirm === image.filename
+                                ? 'bg-red-500 text-white'
+                                : 'bg-black/50 text-white hover:bg-red-500'
+                            }`}
+                            title={deleteConfirm === image.filename ? 'Tap again to confirm' : 'Delete image'}
+                            data-testid={`delete-image-${image.filename}`}
+                          >
+                            {deleting && deleteConfirm === image.filename ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                            <p className="text-white text-xs truncate">{image.filename}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedLibraryImage && (
+                    <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm">
+                        {selectedLibraryImage.filename}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {formatFileSize(selectedLibraryImage.size)} • {formatDate(selectedLibraryImage.createdAt)}
+                      </p>
+                      {selectedLibraryImage.usageCount !== undefined && selectedLibraryImage.usageCount > 0 && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Used in {selectedLibraryImage.usageCount} document
+                          {selectedLibraryImage.usageCount !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Alt text input */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Alt Text <span className="text-gray-400 text-xs font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={altText}
+                  onChange={(e) => setAltText(e.target.value)}
+                  placeholder="Describe the image..."
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 touch-target"
+                  data-testid="image-alt-input"
+                />
+              </div>
+
+              {/* Error message */}
+              {error && (
+                <div
+                  className="mt-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400"
+                  data-testid="image-upload-error"
+                >
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Footer */}
+            <div className="sticky bottom-0 px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex gap-3">
+              <button
+                onClick={handleClose}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors touch-target"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleInsert}
+                disabled={
+                  uploading ||
+                  (mode === 'upload' && !preview) ||
+                  (mode === 'url' && !urlInput) ||
+                  (mode === 'library' && !selectedLibraryImage)
+                }
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target"
+                data-testid="image-insert-button"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Insert'
+                )}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    );
+  }
+
+  // Desktop layout
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <Dialog.Portal>

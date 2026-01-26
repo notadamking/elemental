@@ -1,17 +1,19 @@
 /**
  * TaskPickerModal - Modal for searching and selecting tasks to embed in documents
  *
+ * TB153: Updated with ResponsiveModal for mobile support
+ *
  * Features:
  * - Search tasks by title
  * - Display task status, priority, and title
  * - Keyboard navigation (arrows, Enter, Escape)
  * - Click to select
+ * - Full-screen on mobile, centered on desktop
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  X,
   Search,
   Loader2,
   CheckCircle,
@@ -21,6 +23,8 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
+import { ResponsiveModal } from '../shared/ResponsiveModal';
+import { useIsMobile } from '../../hooks';
 
 interface Task {
   id: string;
@@ -174,128 +178,114 @@ export function TaskPickerModal({
     [filteredTasks, selectedIndex, handleSelect, onClose]
   );
 
-  if (!isOpen) return null;
+  const isMobile = useIsMobile();
+
+  // Keyboard hints footer (hidden on mobile)
+  const footerContent = !isMobile ? (
+    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+      <div className="flex items-center gap-3">
+        <span className="flex items-center gap-1">
+          <ChevronUp className="w-3 h-3" />
+          <ChevronDown className="w-3 h-3" />
+          Navigate
+        </span>
+        <span>↵ Select</span>
+        <span>Esc Close</span>
+      </div>
+      {filteredTasks.length > 0 && (
+        <span>
+          {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+        </span>
+      )}
+    </div>
+  ) : filteredTasks.length > 0 ? (
+    <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
+      {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} found
+    </div>
+  ) : null;
 
   return (
-    <div
-      className="fixed inset-0 z-50"
+    <ResponsiveModal
+      open={isOpen}
+      onClose={onClose}
+      title="Select Task"
+      size="lg"
       data-testid="task-picker-modal"
-      onKeyDown={handleKeyDown}
+      footer={footerContent}
     >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-        data-testid="task-picker-modal-backdrop"
-      />
-
-      {/* Dialog */}
-      <div className="absolute left-1/2 top-1/4 -translate-x-1/2 w-full max-w-lg">
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Select Task</h2>
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-              aria-label="Close"
-              data-testid="task-picker-modal-close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="px-4 py-3 border-b border-gray-200">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Search tasks..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                data-testid="task-picker-search"
-              />
-            </div>
-          </div>
-
-          {/* Task List */}
-          <div
-            ref={listRef}
-            className="max-h-[300px] overflow-y-auto p-2"
-            data-testid="task-picker-list"
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                Loading tasks...
-              </div>
-            ) : filteredTasks.length === 0 ? (
-              <div className="py-8 text-center text-gray-500">
-                {searchQuery ? 'No tasks match your search' : 'No tasks available'}
-              </div>
-            ) : (
-              filteredTasks.map((task, index) => {
-                const isSelected = index === selectedIndex;
-                const statusIcon = statusIcons[task.status] || statusIcons.open;
-                const priority = task.priority || 3;
-                const priorityLabel = priorityLabels[priority] || 'Medium';
-                const priorityColor = priorityColors[priority] || priorityColors[3];
-
-                return (
-                  <button
-                    key={task.id}
-                    data-index={index}
-                    data-testid={`task-picker-item-${task.id}`}
-                    onClick={() => handleSelect(task.id)}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-left transition-colors ${
-                      isSelected
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    {/* Status icon */}
-                    <span className="flex-shrink-0">{statusIcon}</span>
-
-                    {/* Title */}
-                    <span className="flex-1 truncate font-medium">{task.title}</span>
-
-                    {/* Priority badge */}
-                    <span
-                      className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded ${priorityColor}`}
-                    >
-                      {priorityLabel}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          {/* Footer with keyboard hints */}
-          <div className="px-4 py-2 border-t border-gray-200 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1">
-                <ChevronUp className="w-3 h-3" />
-                <ChevronDown className="w-3 h-3" />
-                Navigate
-              </span>
-              <span>↵ Select</span>
-              <span>Esc Close</span>
-            </div>
-            {filteredTasks.length > 0 && (
-              <span>
-                {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
-              </span>
-            )}
+      <div onKeyDown={handleKeyDown}>
+        {/* Search */}
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search tasks..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
+              data-testid="task-picker-search"
+            />
           </div>
         </div>
+
+        {/* Task List */}
+        <div
+          ref={listRef}
+          className={`overflow-y-auto p-2 ${isMobile ? 'max-h-[calc(100vh-200px)]' : 'max-h-[300px]'}`}
+          data-testid="task-picker-list"
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              Loading tasks...
+            </div>
+          ) : filteredTasks.length === 0 ? (
+            <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+              {searchQuery ? 'No tasks match your search' : 'No tasks available'}
+            </div>
+          ) : (
+            filteredTasks.map((task, index) => {
+              const isSelected = index === selectedIndex;
+              const statusIcon = statusIcons[task.status] || statusIcons.open;
+              const priority = task.priority || 3;
+              const priorityLabel = priorityLabels[priority] || 'Medium';
+              const priorityColor = priorityColors[priority] || priorityColors[3];
+
+              return (
+                <button
+                  key={task.id}
+                  data-index={index}
+                  data-testid={`task-picker-item-${task.id}`}
+                  onClick={() => handleSelect(task.id)}
+                  onMouseEnter={() => !isMobile && setSelectedIndex(index)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors touch-target ${
+                    isSelected
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {/* Status icon */}
+                  <span className="flex-shrink-0">{statusIcon}</span>
+
+                  {/* Title */}
+                  <span className="flex-1 truncate font-medium">{task.title}</span>
+
+                  {/* Priority badge */}
+                  <span
+                    className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded ${priorityColor}`}
+                  >
+                    {priorityLabel}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
       </div>
-    </div>
+    </ResponsiveModal>
   );
 }
 

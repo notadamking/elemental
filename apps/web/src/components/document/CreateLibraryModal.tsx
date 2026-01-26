@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { X, Loader2, Plus, FolderPlus } from 'lucide-react';
+import { Loader2, Plus, FolderPlus } from 'lucide-react';
 import { TagInput } from '../ui/TagInput';
+import { ResponsiveModal } from '../shared/ResponsiveModal';
 
 interface Entity {
   id: string;
@@ -163,157 +164,137 @@ export function CreateLibraryModal({
     }
   };
 
-  if (!isOpen) return null;
+  const formActions = (
+    <div className="flex items-center justify-end gap-3">
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors touch-target"
+        data-testid="create-library-cancel-button"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={handleSubmit as unknown as () => void}
+        disabled={createLibrary.isPending || !name.trim() || !createdBy}
+        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target"
+        data-testid="create-library-submit-button"
+      >
+        {createLibrary.isPending ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Creating...
+          </>
+        ) : (
+          <>
+            <Plus className="w-4 h-4" />
+            Create
+          </>
+        )}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-8" data-testid="create-library-modal" onKeyDown={handleKeyDown}>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-        data-testid="create-library-modal-backdrop"
-      />
-
-      {/* Dialog */}
-      <div className="relative w-full max-w-md mx-4">
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <FolderPlus className="w-5 h-5 text-purple-500" />
-              <h2 className="text-lg font-semibold text-gray-900">Create Library</h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-              aria-label="Close"
-              data-testid="create-library-modal-close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-4">
-            {/* Name */}
-            <div className="mb-4">
-              <label htmlFor="library-name" className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                ref={nameInputRef}
-                id="library-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter library name..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                data-testid="create-library-name-input"
-                required
-                maxLength={100}
-              />
-              <p className="mt-1 text-xs text-gray-500">1-100 characters</p>
-            </div>
-
-            {/* Created By */}
-            <div className="mb-4">
-              <label htmlFor="library-created-by" className="block text-sm font-medium text-gray-700 mb-1">
-                Created By <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="library-created-by"
-                value={createdBy}
-                onChange={(e) => setCreatedBy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                data-testid="create-library-created-by-select"
-                required
-              >
-                <option value="">Select entity...</option>
-                {entities?.map((entity) => (
-                  <option key={entity.id} value={entity.id}>
-                    {entity.name} ({entity.entityType})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Parent Library */}
-            <div className="mb-4">
-              <label htmlFor="library-parent" className="block text-sm font-medium text-gray-700 mb-1">
-                Parent Library (optional)
-              </label>
-              <select
-                id="library-parent"
-                value={parentId}
-                onChange={(e) => setParentId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                data-testid="create-library-parent-select"
-              >
-                <option value="">No parent (root library)</option>
-                {libraries?.map((library) => (
-                  <option key={library.id} value={library.id}>
-                    {library.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">Nest this library under another library</p>
-            </div>
-
-            {/* Tags */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tags
-              </label>
-              <TagInput
-                tags={tags}
-                onChange={setTags}
-                placeholder="Type and press comma to add tags"
-                data-testid="create-library-tags-input"
-              />
-            </div>
-
-            {/* Error display */}
-            {createLibrary.isError && (
-              <div
-                className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700"
-                data-testid="create-library-error"
-              >
-                {(createLibrary.error as Error)?.message || 'Failed to create library'}
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                data-testid="create-library-cancel-button"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={createLibrary.isPending || !name.trim() || !createdBy}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="create-library-submit-button"
-              >
-                {createLibrary.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    Create Library
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+    <ResponsiveModal
+      open={isOpen}
+      onClose={onClose}
+      title="Create Library"
+      icon={<FolderPlus className="w-5 h-5 text-purple-500" />}
+      size="md"
+      data-testid="create-library-modal"
+      footer={formActions}
+    >
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="p-4" onKeyDown={handleKeyDown}>
+        {/* Name */}
+        <div className="mb-4">
+          <label htmlFor="library-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            ref={nameInputRef}
+            id="library-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Enter library name..."
+            className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent touch-target"
+            data-testid="create-library-name-input"
+            required
+            maxLength={100}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">1-100 characters</p>
         </div>
-      </div>
-    </div>
+
+        {/* Created By */}
+        <div className="mb-4">
+          <label htmlFor="library-created-by" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Created By <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="library-created-by"
+            value={createdBy}
+            onChange={(e) => setCreatedBy(e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent touch-target"
+            data-testid="create-library-created-by-select"
+            required
+          >
+            <option value="">Select entity...</option>
+            {entities?.map((entity) => (
+              <option key={entity.id} value={entity.id}>
+                {entity.name} ({entity.entityType})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Parent Library */}
+        <div className="mb-4">
+          <label htmlFor="library-parent" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Parent Library <span className="text-gray-400 dark:text-gray-500 text-xs font-normal">(optional)</span>
+          </label>
+          <select
+            id="library-parent"
+            value={parentId}
+            onChange={(e) => setParentId(e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent touch-target"
+            data-testid="create-library-parent-select"
+          >
+            <option value="">No parent (root library)</option>
+            {libraries?.map((library) => (
+              <option key={library.id} value={library.id}>
+                {library.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Nest this library under another library</p>
+        </div>
+
+        {/* Tags */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Tags <span className="text-gray-400 dark:text-gray-500 text-xs font-normal">(optional)</span>
+          </label>
+          <TagInput
+            tags={tags}
+            onChange={setTags}
+            placeholder="Type and press comma to add tags"
+            data-testid="create-library-tags-input"
+          />
+        </div>
+
+        {/* Error display */}
+        {createLibrary.isError && (
+          <div
+            className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400"
+            data-testid="create-library-error"
+          >
+            {(createLibrary.error as Error)?.message || 'Failed to create library'}
+          </div>
+        )}
+      </form>
+    </ResponsiveModal>
   );
 }
