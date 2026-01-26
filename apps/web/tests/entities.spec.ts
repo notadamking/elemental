@@ -553,72 +553,72 @@ test.describe('TB35: Create Entity', () => {
     expect(error.error?.message).toContain('already exists');
   });
 
-  test('register entity button is visible', async ({ page }) => {
+  test('create entity button is visible', async ({ page }) => {
     await page.goto('/entities');
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByTestId('register-entity-button')).toBeVisible();
+    await expect(page.getByTestId('create-entity-button')).toBeVisible();
   });
 
-  test('clicking register entity button opens modal', async ({ page }) => {
+  test('clicking create entity button opens modal', async ({ page }) => {
     await page.goto('/entities');
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('register-entity-button').click();
+    await page.getByTestId('create-entity-button').click();
 
-    await expect(page.getByTestId('register-entity-modal')).toBeVisible();
+    await expect(page.getByTestId('create-entity-modal')).toBeVisible();
   });
 
-  test('register entity modal has required fields', async ({ page }) => {
+  test('create entity modal has required fields', async ({ page }) => {
     await page.goto('/entities');
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('register-entity-button').click();
-    await expect(page.getByTestId('register-entity-modal')).toBeVisible();
+    await page.getByTestId('create-entity-button').click();
+    await expect(page.getByTestId('create-entity-modal')).toBeVisible();
 
     // Check for name input
-    await expect(page.getByTestId('register-entity-name-input')).toBeVisible();
+    await expect(page.getByTestId('create-entity-name-input')).toBeVisible();
 
     // Check for entity type options
-    await expect(page.getByTestId('register-entity-type-options')).toBeVisible();
-    await expect(page.getByTestId('register-entity-type-agent')).toBeVisible();
-    await expect(page.getByTestId('register-entity-type-human')).toBeVisible();
-    await expect(page.getByTestId('register-entity-type-system')).toBeVisible();
+    await expect(page.getByTestId('create-entity-type-options')).toBeVisible();
+    await expect(page.getByTestId('create-entity-type-agent')).toBeVisible();
+    await expect(page.getByTestId('create-entity-type-human')).toBeVisible();
+    await expect(page.getByTestId('create-entity-type-system')).toBeVisible();
 
     // Check for optional fields
-    await expect(page.getByTestId('register-entity-public-key-input')).toBeVisible();
-    await expect(page.getByTestId('register-entity-tags-input')).toBeVisible();
+    await expect(page.getByTestId('create-entity-public-key-input')).toBeVisible();
+    await expect(page.getByTestId('create-entity-tags-input')).toBeVisible();
 
     // Check for submit button
-    await expect(page.getByTestId('register-entity-submit')).toBeVisible();
+    await expect(page.getByTestId('create-entity-submit')).toBeVisible();
   });
 
-  test('register entity modal can be closed', async ({ page }) => {
+  test('create entity modal can be closed', async ({ page }) => {
     await page.goto('/entities');
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('register-entity-button').click();
-    await expect(page.getByTestId('register-entity-modal')).toBeVisible();
+    await page.getByTestId('create-entity-button').click();
+    await expect(page.getByTestId('create-entity-modal')).toBeVisible();
 
     // Click close button
-    await page.getByTestId('register-entity-modal-close').click();
+    await page.getByTestId('create-entity-modal-close').click();
 
-    await expect(page.getByTestId('register-entity-modal')).not.toBeVisible();
+    await expect(page.getByTestId('create-entity-modal')).not.toBeVisible();
   });
 
-  test('register entity modal can be closed with cancel button', async ({ page }) => {
+  test('create entity modal can be closed with cancel button', async ({ page }) => {
     await page.goto('/entities');
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('register-entity-button').click();
-    await expect(page.getByTestId('register-entity-modal')).toBeVisible();
+    await page.getByTestId('create-entity-button').click();
+    await expect(page.getByTestId('create-entity-modal')).toBeVisible();
 
     // Click cancel button - scroll into view first
-    const cancelButton = page.getByTestId('register-entity-cancel');
+    const cancelButton = page.getByTestId('create-entity-cancel');
     await cancelButton.scrollIntoViewIfNeeded();
     await cancelButton.click();
 
-    await expect(page.getByTestId('register-entity-modal')).not.toBeVisible();
+    await expect(page.getByTestId('create-entity-modal')).not.toBeVisible();
   });
 
   test('can create new entity via modal', async ({ page }) => {
@@ -629,22 +629,22 @@ test.describe('TB35: Create Entity', () => {
     await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
 
     // Open modal
-    await page.getByTestId('register-entity-button').click();
-    await expect(page.getByTestId('register-entity-modal')).toBeVisible();
+    await page.getByTestId('create-entity-button').click();
+    await expect(page.getByTestId('create-entity-modal')).toBeVisible();
 
     // Fill in name
-    await page.getByTestId('register-entity-name-input').fill(testName);
+    await page.getByTestId('create-entity-name-input').fill(testName);
 
     // Select agent type (should already be selected by default)
-    await page.getByTestId('register-entity-type-agent').click();
+    await page.getByTestId('create-entity-type-agent').click();
 
     // Submit - scroll into view first
-    const submitButton = page.getByTestId('register-entity-submit');
+    const submitButton = page.getByTestId('create-entity-submit');
     await submitButton.scrollIntoViewIfNeeded();
     await submitButton.click();
 
     // Modal should close
-    await expect(page.getByTestId('register-entity-modal')).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('create-entity-modal')).not.toBeVisible({ timeout: 10000 });
 
     // New entity should appear in the list
     await expect(page.getByTestId(`entity-card-${testName}`).or(page.getByText(testName).first())).toBeVisible({ timeout: 10000 });
@@ -655,19 +655,19 @@ test.describe('TB35: Create Entity', () => {
     await expect(page.getByTestId('entities-page')).toBeVisible({ timeout: 10000 });
 
     // Open modal
-    await page.getByTestId('register-entity-button').click();
-    await expect(page.getByTestId('register-entity-modal')).toBeVisible();
+    await page.getByTestId('create-entity-button').click();
+    await expect(page.getByTestId('create-entity-modal')).toBeVisible();
 
     // Fill in invalid name (starts with number)
-    await page.getByTestId('register-entity-name-input').fill('123invalid');
+    await page.getByTestId('create-entity-name-input').fill('123invalid');
 
     // Submit - scroll into view first
-    const submitButton = page.getByTestId('register-entity-submit');
+    const submitButton = page.getByTestId('create-entity-submit');
     await submitButton.scrollIntoViewIfNeeded();
     await submitButton.click();
 
     // Should show error (modal should still be visible with error)
-    await expect(page.getByTestId('register-entity-error')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('create-entity-error')).toBeVisible({ timeout: 5000 });
   });
 
   test('can create entity with all optional fields', async ({ page }) => {
@@ -678,25 +678,25 @@ test.describe('TB35: Create Entity', () => {
     await expect(page.getByTestId('entities-loading')).not.toBeVisible({ timeout: 10000 });
 
     // Open modal
-    await page.getByTestId('register-entity-button').click();
-    await expect(page.getByTestId('register-entity-modal')).toBeVisible();
+    await page.getByTestId('create-entity-button').click();
+    await expect(page.getByTestId('create-entity-modal')).toBeVisible();
 
     // Fill in name
-    await page.getByTestId('register-entity-name-input').fill(testName);
+    await page.getByTestId('create-entity-name-input').fill(testName);
 
     // Select human type
-    await page.getByTestId('register-entity-type-human').click();
+    await page.getByTestId('create-entity-type-human').click();
 
     // Add tags
-    await page.getByTestId('register-entity-tags-input').fill('test, automation, playwright');
+    await page.getByTestId('create-entity-tags-input').fill('test, automation, playwright');
 
     // Submit - scroll into view first
-    const submitButton = page.getByTestId('register-entity-submit');
+    const submitButton = page.getByTestId('create-entity-submit');
     await submitButton.scrollIntoViewIfNeeded();
     await submitButton.click();
 
     // Modal should close
-    await expect(page.getByTestId('register-entity-modal')).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('create-entity-modal')).not.toBeVisible({ timeout: 10000 });
 
     // Verify entity was created via API (now paginated)
     const response = await page.request.get('/api/entities');

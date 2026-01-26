@@ -27,12 +27,12 @@ test.describe('TB151: Responsive Entities Page', () => {
       await waitForResponsiveUpdate(page, 300);
     });
 
-    test('should show page header with compact register button on mobile', async ({ page }) => {
+    test('should show page header with compact create button on mobile', async ({ page }) => {
       // Page title should be visible (use heading role for specificity)
       await expect(page.getByRole('heading', { name: 'Entities' })).toBeVisible();
 
-      // Register button should show short text on mobile
-      const registerButton = page.getByTestId('register-entity-button');
+      // Create button should show short text on mobile
+      const registerButton = page.getByTestId('create-entity-button');
       await expect(registerButton).toBeVisible();
       await expect(registerButton).toContainText('Add');
     });
@@ -46,51 +46,51 @@ test.describe('TB151: Responsive Entities Page', () => {
       await expect(entitiesGrid).toBeVisible();
     });
 
-    test('should show full-screen register modal on mobile', async ({ page }) => {
-      // Click register button
-      const registerButton = page.getByTestId('register-entity-button');
+    test('should show full-screen create modal on mobile', async ({ page }) => {
+      // Click create button
+      const registerButton = page.getByTestId('create-entity-button');
       await registerButton.click();
 
       // Modal should be visible
-      const modal = page.getByTestId('register-entity-modal');
+      const modal = page.getByTestId('create-entity-modal');
       await expect(modal).toBeVisible();
 
       // Name input should be visible
-      await expect(page.getByTestId('register-entity-name-input')).toBeVisible();
+      await expect(page.getByTestId('create-entity-name-input')).toBeVisible();
 
       // Close button should be accessible
-      await expect(page.getByTestId('register-entity-modal-close')).toBeVisible();
+      await expect(page.getByTestId('create-entity-modal-close')).toBeVisible();
     });
 
-    test('should show stacked action buttons in register modal on mobile', async ({ page }) => {
-      // Click register button
-      const registerButton = page.getByTestId('register-entity-button');
+    test('should show stacked action buttons in create modal on mobile', async ({ page }) => {
+      // Click create button
+      const registerButton = page.getByTestId('create-entity-button');
       await registerButton.click();
 
       // Modal should be visible
-      const modal = page.getByTestId('register-entity-modal');
+      const modal = page.getByTestId('create-entity-modal');
       await expect(modal).toBeVisible();
 
       // Submit button should be visible
-      const submitButton = page.getByTestId('register-entity-submit');
+      const submitButton = page.getByTestId('create-entity-submit');
       await expect(submitButton).toBeVisible();
 
       // Cancel button should be visible
-      const cancelButton = page.getByTestId('register-entity-cancel');
+      const cancelButton = page.getByTestId('create-entity-cancel');
       await expect(cancelButton).toBeVisible();
     });
 
-    test('should close register modal when close button is clicked', async ({ page }) => {
-      // Click register button
-      const registerButton = page.getByTestId('register-entity-button');
+    test('should close create modal when close button is clicked', async ({ page }) => {
+      // Click create button
+      const registerButton = page.getByTestId('create-entity-button');
       await registerButton.click();
 
       // Modal should be visible
-      const modal = page.getByTestId('register-entity-modal');
+      const modal = page.getByTestId('create-entity-modal');
       await expect(modal).toBeVisible();
 
       // Click close button
-      const closeButton = page.getByTestId('register-entity-modal-close');
+      const closeButton = page.getByTestId('create-entity-modal-close');
       await closeButton.click();
 
       // Modal should be closed
@@ -105,14 +105,14 @@ test.describe('TB151: Responsive Entities Page', () => {
       await waitForResponsiveUpdate(page);
     });
 
-    test('should show page header with full register button on desktop', async ({ page }) => {
+    test('should show page header with full create button on desktop', async ({ page }) => {
       // Page title should be visible (use heading role for specificity)
       await expect(page.getByRole('heading', { name: 'Entities' })).toBeVisible();
 
-      // Register button should show full text on desktop
-      const registerButton = page.getByTestId('register-entity-button');
-      await expect(registerButton).toBeVisible();
-      await expect(registerButton).toContainText('Register Entity');
+      // Create button should show full text on desktop
+      const createButton = page.getByTestId('create-entity-button');
+      await expect(createButton).toBeVisible();
+      await expect(createButton).toContainText('Create Entity');
     });
 
     test('should show grid-based entity list on desktop', async ({ page }) => {
@@ -124,17 +124,17 @@ test.describe('TB151: Responsive Entities Page', () => {
       await expect(entitiesGrid).toBeVisible();
     });
 
-    test('should show centered register modal on desktop', async ({ page }) => {
-      // Click register button
-      const registerButton = page.getByTestId('register-entity-button');
-      await registerButton.click();
+    test('should show centered create modal on desktop', async ({ page }) => {
+      // Click create button
+      const createButton = page.getByTestId('create-entity-button');
+      await createButton.click();
 
       // Modal should be visible
-      const modal = page.getByTestId('register-entity-modal');
+      const modal = page.getByTestId('create-entity-modal');
       await expect(modal).toBeVisible();
 
       // Name input should be visible
-      await expect(page.getByTestId('register-entity-name-input')).toBeVisible();
+      await expect(page.getByTestId('create-entity-name-input')).toBeVisible();
     });
   });
 
@@ -146,15 +146,15 @@ test.describe('TB151: Responsive Entities Page', () => {
       await waitForResponsiveUpdate(page);
 
       // Verify desktop layout - full button text
-      const registerButton = page.getByTestId('register-entity-button');
-      await expect(registerButton).toContainText('Register Entity');
+      const createButton = page.getByTestId('create-entity-button');
+      await expect(createButton).toContainText('Create Entity');
 
       // Resize to mobile
       await setViewport(page, 'xs');
       await waitForResponsiveUpdate(page, 300);
 
       // Verify mobile layout - short button text
-      await expect(registerButton).toContainText('Add');
+      await expect(createButton).toContainText('Add');
     });
   });
 });

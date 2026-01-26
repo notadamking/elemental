@@ -1,9 +1,9 @@
 /**
  * Global Quick Actions Context
  *
- * Provides global keyboard shortcuts (C T, C W) for creating tasks and pouring workflows
- * from any page in the application. The shortcuts are registered at the app level and
- * work consistently across dashboard, tasks, workflows, and other pages.
+ * Provides global keyboard shortcuts (C T, C W, C E) for creating tasks, workflows,
+ * and entities from any page in the application. The shortcuts are registered at the
+ * app level and work consistently across dashboard, tasks, workflows, and other pages.
  */
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
@@ -12,16 +12,25 @@ import { toast } from 'sonner';
 import { keyboardManager } from '../lib/keyboard';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
+import { CreateEntityModal } from '../components/entity/CreateEntityModal';
 
 interface GlobalQuickActionsContextValue {
   /** Open the create task modal */
   openCreateTaskModal: () => void;
-  /** Open the pour workflow modal */
+  /** Open the create workflow modal */
+  openCreateWorkflowModal: () => void;
+  /** @deprecated Use openCreateWorkflowModal instead */
   openPourWorkflowModal: () => void;
+  /** Open the create entity modal */
+  openCreateEntityModal: () => void;
   /** Whether the create task modal is open */
   isCreateTaskModalOpen: boolean;
-  /** Whether the pour workflow modal is open */
+  /** Whether the create workflow modal is open */
+  isCreateWorkflowModalOpen: boolean;
+  /** @deprecated Use isCreateWorkflowModalOpen instead */
   isPourWorkflowModalOpen: boolean;
+  /** Whether the create entity modal is open */
+  isCreateEntityModalOpen: boolean;
 }
 
 const GlobalQuickActionsContext = createContext<GlobalQuickActionsContextValue | null>(null);
@@ -33,15 +42,23 @@ interface GlobalQuickActionsProviderProps {
 export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProviderProps) {
   const navigate = useNavigate();
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
-  const [isPourWorkflowModalOpen, setIsPourWorkflowModalOpen] = useState(false);
+  const [isCreateWorkflowModalOpen, setIsCreateWorkflowModalOpen] = useState(false);
+  const [isCreateEntityModalOpen, setIsCreateEntityModalOpen] = useState(false);
+
+  // Check if any modal is open
+  const isAnyModalOpen = isCreateTaskModalOpen || isCreateWorkflowModalOpen || isCreateEntityModalOpen;
 
   // Handlers for opening modals
   const openCreateTaskModal = useCallback(() => {
     setIsCreateTaskModalOpen(true);
   }, []);
 
-  const openPourWorkflowModal = useCallback(() => {
-    setIsPourWorkflowModalOpen(true);
+  const openCreateWorkflowModal = useCallback(() => {
+    setIsCreateWorkflowModalOpen(true);
+  }, []);
+
+  const openCreateEntityModal = useCallback(() => {
+    setIsCreateEntityModalOpen(true);
   }, []);
 
   // Handlers for modal success
@@ -55,7 +72,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     });
   }, [navigate]);
 
-  const handleWorkflowPoured = useCallback((workflow: { id: string; title: string }) => {
+  const handleWorkflowCreated = useCallback((workflow: { id: string; title: string }) => {
     toast.success('Workflow created successfully', {
       description: `"${workflow.title}" has been created.`,
       action: {
@@ -65,45 +82,68 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     });
   }, [navigate]);
 
-  // Register global keyboard shortcuts for C T and C W
+  const handleEntityCreated = useCallback((entity: { id: string; name: string }) => {
+    toast.success('Entity created successfully', {
+      description: `"${entity.name}" has been created.`,
+      action: {
+        label: 'View Entity',
+        onClick: () => navigate({ to: '/entities', search: { selected: entity.id, name: undefined, page: 1, limit: 25 } }),
+      },
+    });
+  }, [navigate]);
+
+  // Register global keyboard shortcuts for C T, C W, and C E
   useEffect(() => {
     const createTaskHandler = () => {
       // Don't open if another modal is already open
-      if (!isPourWorkflowModalOpen) {
+      if (!isAnyModalOpen) {
         setIsCreateTaskModalOpen(true);
       }
     };
 
-    const pourWorkflowHandler = () => {
+    const createWorkflowHandler = () => {
       // Don't open if another modal is already open
-      if (!isCreateTaskModalOpen) {
-        setIsPourWorkflowModalOpen(true);
+      if (!isAnyModalOpen) {
+        setIsCreateWorkflowModalOpen(true);
+      }
+    };
+
+    const createEntityHandler = () => {
+      // Don't open if another modal is already open
+      if (!isAnyModalOpen) {
+        setIsCreateEntityModalOpen(true);
       }
     };
 
     keyboardManager.register('C T', createTaskHandler, 'Create Task');
-    keyboardManager.register('C W', pourWorkflowHandler, 'Create Workflow');
+    keyboardManager.register('C W', createWorkflowHandler, 'Create Workflow');
+    keyboardManager.register('C E', createEntityHandler, 'Create Entity');
 
     return () => {
       keyboardManager.unregister('C T');
       keyboardManager.unregister('C W');
+      keyboardManager.unregister('C E');
     };
-  }, [isCreateTaskModalOpen, isPourWorkflowModalOpen]);
+  }, [isAnyModalOpen]);
 
   // Disable keyboard shortcuts when modals are open
   useEffect(() => {
-    if (isCreateTaskModalOpen || isPourWorkflowModalOpen) {
+    if (isAnyModalOpen) {
       keyboardManager.setEnabled(false);
     } else {
       keyboardManager.setEnabled(true);
     }
-  }, [isCreateTaskModalOpen, isPourWorkflowModalOpen]);
+  }, [isAnyModalOpen]);
 
   const contextValue: GlobalQuickActionsContextValue = {
     openCreateTaskModal,
-    openPourWorkflowModal,
+    openCreateWorkflowModal,
+    openPourWorkflowModal: openCreateWorkflowModal, // deprecated alias
+    openCreateEntityModal,
     isCreateTaskModalOpen,
-    isPourWorkflowModalOpen,
+    isCreateWorkflowModalOpen,
+    isPourWorkflowModalOpen: isCreateWorkflowModalOpen, // deprecated alias
+    isCreateEntityModalOpen,
   };
 
   return (
@@ -119,21 +159,28 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
 
       {/* Global Create Workflow Modal */}
       <PourWorkflowModal
-        isOpen={isPourWorkflowModalOpen}
-        onClose={() => setIsPourWorkflowModalOpen(false)}
-        onSuccess={handleWorkflowPoured}
+        isOpen={isCreateWorkflowModalOpen}
+        onClose={() => setIsCreateWorkflowModalOpen(false)}
+        onSuccess={handleWorkflowCreated}
+      />
+
+      {/* Global Create Entity Modal */}
+      <CreateEntityModal
+        isOpen={isCreateEntityModalOpen}
+        onClose={() => setIsCreateEntityModalOpen(false)}
+        onSuccess={handleEntityCreated}
       />
     </GlobalQuickActionsContext.Provider>
   );
 }
 
 /**
- * Hook to access global quick actions (create task, pour workflow)
+ * Hook to access global quick actions (create task, workflow, entity)
  *
  * @example
  * ```tsx
  * function MyComponent() {
- *   const { openCreateTaskModal, openPourWorkflowModal } = useGlobalQuickActions();
+ *   const { openCreateTaskModal, openCreateWorkflowModal, openCreateEntityModal } = useGlobalQuickActions();
  *
  *   return (
  *     <button onClick={openCreateTaskModal}>
