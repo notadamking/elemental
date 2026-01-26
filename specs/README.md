@@ -160,7 +160,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB155-responsive-tables.md](./platform/TB155-responsive-tables.md) | Responsive Data Tables - Pagination, sorting, and data list patterns | responsive, tables, pagination, sorting, mobile, data display |
 | platform/PLAN.md#tb156 | Responsive Charts & Visualizations - Touch interactions for all charts | responsive, charts, recharts, react flow, touch, mobile |
 | [platform/TB157-responsive-empty-loading-states.md](./platform/TB157-responsive-empty-loading-states.md) | Responsive Empty States & Loading States - Properly sized for all screens | responsive, empty state, skeleton, loading, mobile |
-| platform/PLAN.md#tb158 | Final Responsive Audit & Polish - Comprehensive testing and device verification | responsive, audit, testing, real devices, accessibility |
+| [platform/TB158-responsive-audit-polish.md](./platform/TB158-responsive-audit-polish.md) | Final Responsive Audit & Polish - Comprehensive testing and device verification | responsive, audit, testing, real devices, accessibility |
 | platform/PLAN.md#tb137 | Human Inbox Page - Dedicated full-page inbox for human operator | inbox, page, messages, mentions, sidebar badge, keyboard |
 | platform/PLAN.md#tb138 | Inbox Notification Dot - Sidebar badge/dot for unread count | inbox, badge, notification, dot, sidebar |
 | platform/PLAN.md#tb139 | Inbox Empty State & Onboarding - Helpful empty states for inbox | inbox, empty state, onboarding, tips |
