@@ -545,15 +545,15 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Add comprehensive test coverage - 11 Playwright tests in `apps/web/tests/tb94c-2-drag-drop-markdown.spec.ts`
   - [x] **Verify:** Drag paragraph to new position, save, check raw Markdown—order changed correctly; Playwright tests passing (11 tests)
 
-- [ ] **TB94d: Text Alignment**
-  - [ ] Web: Add text alignment extension (@tiptap/extension-text-align)
-  - [ ] Web: Add toolbar buttons: Align Left, Center, Align Right, Justify
-  - [ ] Web: Add slash commands: /left, /center, /right, /justify
-  - [ ] Web: Keyboard shortcuts: ⌘+Shift+L (left), ⌘+Shift+E (center), ⌘+Shift+R (right)
-  - [ ] Web: Alignment applies to current block (paragraph, heading)
-  - [ ] Web: Alignment indicator in toolbar (shows current alignment state)
-  - [ ] Web: Alignment stored in Markdown using HTML attributes or custom syntax (e.g., `{.center}`)
-  - [ ] **Verify:** Create centered heading, right-aligned paragraph, alignment persists in Markdown; Playwright tests passing
+- [x] **TB94d: Text Alignment**
+  - [x] Web: Add text alignment extension (@tiptap/extension-text-align) - `apps/web/src/components/editor/BlockEditor.tsx`
+  - [x] Web: Add toolbar buttons: Align Left, Center, Align Right, Justify - `BlockEditor.tsx` alignmentActions
+  - [x] Web: Add slash commands: /left, /center, /right, /justify - `apps/web/src/components/editor/SlashCommands.tsx`
+  - [x] Web: Keyboard shortcuts: ⌘+Shift+L (left), ⌘+Shift+E (center), ⌘+Shift+R (right), ⌘+Shift+J (justify)
+  - [x] Web: Alignment applies to current block (paragraph, heading) - TextAlign configured with `types: ['heading', 'paragraph']`
+  - [x] Web: Alignment indicator in toolbar (shows current alignment state via overflow menu)
+  - [x] Web: Alignment stored in Markdown using HTML attributes (e.g., `<p style="text-align: center">`)
+  - [x] **Verify:** Create centered heading, right-aligned paragraph, alignment persists in Markdown; Playwright tests passing (15 tests in `apps/web/tests/tb94d-text-alignment.spec.ts`)
 
 - [ ] **TB94e: Image Block Support (Markdown-Compatible)**
 

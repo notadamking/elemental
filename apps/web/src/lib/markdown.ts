@@ -75,6 +75,35 @@ turndownService.addRule('documentEmbed', {
   },
 });
 
+// Handle text alignment - preserve style="text-align: ..." on paragraphs and headings
+// For non-left alignment, wrap content in a div with align attribute
+turndownService.addRule('textAlign', {
+  filter: function (node) {
+    if (!['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName)) {
+      return false;
+    }
+    const style = (node as HTMLElement).getAttribute('style') || '';
+    return /text-align:\s*(center|right|justify)/i.test(style);
+  },
+  replacement: function (content, node) {
+    const style = (node as HTMLElement).getAttribute('style') || '';
+    const alignMatch = style.match(/text-align:\s*(center|right|justify)/i);
+    if (!alignMatch) return content;
+
+    const alignment = alignMatch[1].toLowerCase();
+    const nodeName = node.nodeName.toLowerCase();
+
+    // Generate the markdown content
+    if (nodeName.startsWith('h')) {
+      // Return as HTML to preserve alignment
+      return `<${nodeName} style="text-align: ${alignment}">${content}</${nodeName}>\n\n`;
+    }
+
+    // For paragraphs, wrap in a div with alignment
+    return `<p style="text-align: ${alignment}">${content}</p>\n\n`;
+  },
+});
+
 // Configure marked for Markdown → HTML conversion
 marked.setOptions({
   gfm: true, // GitHub Flavored Markdown

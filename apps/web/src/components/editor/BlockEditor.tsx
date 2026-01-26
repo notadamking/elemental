@@ -21,6 +21,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Highlight from '@tiptap/extension-highlight';
+import TextAlign from '@tiptap/extension-text-align';
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle';
 import { SlashCommands } from './SlashCommands';
 import { TaskEmbedBlock } from './blocks/TaskEmbedBlock';
@@ -51,6 +52,10 @@ import {
   Highlighter,
   Minus,
   MoreHorizontal,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -192,6 +197,11 @@ export function BlockEditor({
       }),
       Highlight.configure({
         multicolor: false,
+      }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right', 'justify'],
+        defaultAlignment: 'left',
       }),
       GlobalDragHandle.configure({
         dragHandleWidth: 20,
@@ -445,6 +455,41 @@ export function BlockEditor({
     },
   ];
 
+  const alignmentActions = [
+    {
+      id: 'align-left',
+      icon: <AlignLeft className="w-4 h-4" />,
+      label: 'Align Left',
+      shortcut: `${modKey}⇧L`,
+      action: () => editor.chain().focus().setTextAlign('left').run(),
+      isActive: editor.isActive({ textAlign: 'left' }),
+    },
+    {
+      id: 'align-center',
+      icon: <AlignCenter className="w-4 h-4" />,
+      label: 'Align Center',
+      shortcut: `${modKey}⇧E`,
+      action: () => editor.chain().focus().setTextAlign('center').run(),
+      isActive: editor.isActive({ textAlign: 'center' }),
+    },
+    {
+      id: 'align-right',
+      icon: <AlignRight className="w-4 h-4" />,
+      label: 'Align Right',
+      shortcut: `${modKey}⇧R`,
+      action: () => editor.chain().focus().setTextAlign('right').run(),
+      isActive: editor.isActive({ textAlign: 'right' }),
+    },
+    {
+      id: 'align-justify',
+      icon: <AlignJustify className="w-4 h-4" />,
+      label: 'Justify',
+      shortcut: `${modKey}⇧J`,
+      action: () => editor.chain().focus().setTextAlign('justify').run(),
+      isActive: editor.isActive({ textAlign: 'justify' }),
+    },
+  ];
+
   // Define action type with optional disabled
   type ToolbarAction = {
     id: string;
@@ -512,6 +557,8 @@ export function BlockEditor({
                     <ToolbarDivider />
                     {listActions.map(renderToolbarButton)}
                     <ToolbarDivider />
+                    {alignmentActions.map(renderToolbarButton)}
+                    <ToolbarDivider />
                   </>
                 )}
                 {/* Block elements */}
@@ -569,6 +616,14 @@ export function BlockEditor({
                             Lists
                           </DropdownMenu.Label>
                           {listActions.map(action => (
+                            <MenuItem key={action.id} {...action} onClick={action.action} />
+                          ))}
+                          <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />
+
+                          <DropdownMenu.Label className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Alignment
+                          </DropdownMenu.Label>
+                          {alignmentActions.map(action => (
                             <MenuItem key={action.id} {...action} onClick={action.action} />
                           ))}
                           <DropdownMenu.Separator className="h-px my-1 bg-gray-200" />

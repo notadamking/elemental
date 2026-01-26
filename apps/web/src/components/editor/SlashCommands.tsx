@@ -25,6 +25,10 @@ import {
   Minus,
   CheckSquare,
   FileText,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
 } from 'lucide-react';
 
 // Embed picker callbacks
@@ -39,7 +43,7 @@ export interface SlashCommandItem {
   title: string;
   description: string;
   icon: React.ReactNode;
-  category: 'headings' | 'lists' | 'blocks' | 'embeds';
+  category: 'headings' | 'lists' | 'blocks' | 'alignment' | 'embeds';
   action: (props: { editor: any; range: Range }) => void;
 }
 
@@ -128,6 +132,47 @@ const getSlashCommands = (embedCallbacks?: EmbedCallbacks): SlashCommandItem[] =
       editor.chain().focus().deleteRange(range).setHorizontalRule().run();
     },
   },
+  // Alignment
+  {
+    id: 'left',
+    title: 'Align Left',
+    description: 'Align text to the left',
+    icon: <AlignLeft className="w-4 h-4" />,
+    category: 'alignment',
+    action: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).setTextAlign('left').run();
+    },
+  },
+  {
+    id: 'center',
+    title: 'Align Center',
+    description: 'Center align text',
+    icon: <AlignCenter className="w-4 h-4" />,
+    category: 'alignment',
+    action: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).setTextAlign('center').run();
+    },
+  },
+  {
+    id: 'right',
+    title: 'Align Right',
+    description: 'Align text to the right',
+    icon: <AlignRight className="w-4 h-4" />,
+    category: 'alignment',
+    action: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).setTextAlign('right').run();
+    },
+  },
+  {
+    id: 'justify',
+    title: 'Justify',
+    description: 'Justify text (full width)',
+    icon: <AlignJustify className="w-4 h-4" />,
+    category: 'alignment',
+    action: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).setTextAlign('justify').run();
+    },
+  },
   // Embeds - trigger picker modals via callbacks
   {
     id: 'task',
@@ -192,6 +237,7 @@ function groupByCategory(items: SlashCommandItem[]) {
     headings: [],
     lists: [],
     blocks: [],
+    alignment: [],
     embeds: [],
   };
 
@@ -209,6 +255,7 @@ const categoryLabels: Record<string, string> = {
   headings: 'Headings',
   lists: 'Lists',
   blocks: 'Blocks',
+  alignment: 'Alignment',
   embeds: 'Embeds',
 };
 

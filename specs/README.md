@@ -106,6 +106,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB94-inbox-time-ago.md](./platform/TB94-inbox-time-ago.md) | Inbox time-ago display with periodic updates and time period grouping | inbox, time, relative, grouping, today, yesterday, sticky headers |
 | [platform/TB94b-core-formatting-fixes.md](./platform/TB94b-core-formatting-fixes.md) | Fix BlockEditor to preserve rich text formatting on save | editor, tiptap, formatting, bold, italic, headings, lists, code, blockquote, html |
 | [platform/TB94c-markdown-first-editor.md](./platform/TB94c-markdown-first-editor.md) | Markdown-first editor architecture with Markdown as storage format | editor, markdown, turndown, marked, storage, conversion, AI agents |
+| [platform/TB94d-text-alignment.md](./platform/TB94d-text-alignment.md) | Text alignment controls (left, center, right, justify) with toolbar, slash commands, keyboard shortcuts | editor, tiptap, alignment, text-align, toolbar, shortcuts, markdown |
 
 ---
 
