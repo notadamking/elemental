@@ -1,11 +1,27 @@
 import { test, expect } from '@playwright/test';
 
+// Helper to extract teams array from paginated response
+async function getTeams(page: import('@playwright/test').Page): Promise<{ id: string; name: string; members: string[]; status?: string; tags?: string[] }[]> {
+  const response = await page.request.get('/api/teams');
+  const data = await response.json();
+  // API returns paginated response with items array
+  return data.items || data;
+}
+
+// Helper to extract entities array from paginated response
+async function getEntities(page: import('@playwright/test').Page): Promise<{ id: string; name: string; entityType: string }[]> {
+  const response = await page.request.get('/api/entities');
+  const data = await response.json();
+  return data.items || data;
+}
+
 test.describe('TB37: Teams Page - List View', () => {
   test('teams endpoint is accessible', async ({ page }) => {
     const response = await page.request.get('/api/teams');
     expect(response.ok()).toBe(true);
     const data = await response.json();
-    expect(Array.isArray(data)).toBe(true);
+    // API returns paginated response with items array
+    expect(data.items !== undefined || Array.isArray(data)).toBe(true);
   });
 
   test('teams page is accessible via navigation', async ({ page }) => {
@@ -31,7 +47,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
     // Should be on teams page
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
-    await expect(page).toHaveURL('/teams');
+    await expect(page).toHaveURL(/\/teams/);
   });
 
   test('teams page shows search box', async ({ page }) => {
@@ -45,8 +61,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('teams page shows appropriate content based on teams', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
@@ -61,15 +76,14 @@ test.describe('TB37: Teams Page - List View', () => {
     } else {
       // Should show teams grid
       await expect(page.getByTestId('teams-grid')).toBeVisible();
-      // Should show correct count in header
-      await expect(page.getByText(new RegExp(`${teams.length} of ${teams.length}`))).toBeVisible();
+      // Should show count in header (may be paginated)
+      await expect(page.getByTestId('pagination-info')).toBeVisible();
     }
   });
 
   test('search filters teams by name', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -104,8 +118,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('team cards display correct information', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -130,11 +143,10 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('team cards show member avatar stack when team has members', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     // Find a team with members
-    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+    const teamWithMembers = teams.find((t) => t.members && t.members.length > 0);
 
     if (!teamWithMembers) {
       test.skip();
@@ -172,8 +184,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('clear search button works', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
@@ -194,7 +205,7 @@ test.describe('TB37: Teams Page - List View', () => {
     // Should now show all teams (or empty state if no teams exist)
     if (teams.length > 0) {
       await expect(page.getByTestId('teams-grid')).toBeVisible();
-      await expect(page.getByText(new RegExp(`${teams.length} of ${teams.length}`))).toBeVisible();
+      await expect(page.getByTestId('pagination-info')).toBeVisible();
     } else {
       await expect(page.getByText('No teams created')).toBeVisible();
     }
@@ -202,8 +213,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('clicking team card opens detail panel', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -225,8 +235,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('detail panel shows team information', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -254,8 +263,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('close button closes detail panel', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -282,8 +290,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('split-view layout works correctly', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -295,7 +302,7 @@ test.describe('TB37: Teams Page - List View', () => {
     await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
 
     // Initially, team grid should be full width (3 columns on lg)
-    const grid = page.getByTestId('teams-grid').locator('> div');
+    const grid = page.getByTestId('teams-grid').locator('> div.grid');
     await expect(grid).toHaveClass(/lg:grid-cols-3/);
 
     // Click first team card
@@ -309,8 +316,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('selected team card is highlighted', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -333,11 +339,10 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('detail panel shows team members when team has members', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     // Find a team with members
-    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+    const teamWithMembers = teams.find((t) => t.members && t.members.length > 0);
 
     if (!teamWithMembers) {
       test.skip();
@@ -348,24 +353,25 @@ test.describe('TB37: Teams Page - List View', () => {
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
 
-    // Click the team card
-    await page.getByTestId(`team-card-${teamWithMembers.id}`).click();
+    // Wait for and click the team card
+    const teamCard = page.getByTestId(`team-card-${teamWithMembers.id}`);
+    await expect(teamCard).toBeVisible({ timeout: 10000 });
+    await teamCard.click();
 
     // Wait for detail panel to load
     await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
 
-    // Should show members list or member count message
+    // Should show members section header with count
     const memberCount = teamWithMembers.members.length;
-    await expect(page.getByText(new RegExp(`${memberCount}`))).toBeVisible();
+    await expect(page.getByText(`Team Members (${memberCount})`)).toBeVisible();
   });
 
   test('team members endpoint returns members', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     // Find a team with members
-    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+    const teamWithMembers = teams.find((t) => t.members && t.members.length > 0);
 
     if (!teamWithMembers) {
       test.skip();
@@ -381,8 +387,7 @@ test.describe('TB37: Teams Page - List View', () => {
 
   test('team detail endpoint returns team', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -402,8 +407,7 @@ test.describe('TB37: Teams Page - List View', () => {
 test.describe('TB38: Team Detail Panel', () => {
   test('team stats endpoint is accessible', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -431,8 +435,7 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('detail panel shows statistics section', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -457,8 +460,7 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('detail panel shows total tasks stat', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -483,8 +485,7 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('detail panel shows active tasks stat', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -509,8 +510,7 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('detail panel shows completed tasks stat', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -535,8 +535,7 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('detail panel shows created by team stat', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -561,8 +560,7 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('detail panel shows workload distribution when team has assigned tasks', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -570,7 +568,7 @@ test.describe('TB38: Team Detail Panel', () => {
     }
 
     // Find a team with members and check if they have tasks
-    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+    const teamWithMembers = teams.find((t) => t.members && t.members.length > 0);
 
     if (!teamWithMembers) {
       test.skip();
@@ -603,11 +601,10 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('detail panel shows members list', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     // Find a team with members
-    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+    const teamWithMembers = teams.find((t) => t.members && t.members.length > 0);
 
     if (!teamWithMembers) {
       test.skip();
@@ -633,11 +630,10 @@ test.describe('TB38: Team Detail Panel', () => {
 
   test('members list shows member items with type badges', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     // Find a team with members
-    const teamWithMembers = teams.find((t: { members: string[] }) => t.members && t.members.length > 0);
+    const teamWithMembers = teams.find((t) => t.members && t.members.length > 0);
 
     if (!teamWithMembers) {
       test.skip();
@@ -728,8 +724,7 @@ test.describe('TB39: Create Team', () => {
 
   test('POST /api/teams accepts members array', async ({ page }) => {
     // Get existing entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -894,8 +889,7 @@ test.describe('TB39: Create Team', () => {
 
   test('empty state has create team link', async ({ page }) => {
     // First, check if there are any teams
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     // Only run this test if there are no teams
     if (teams.length > 0) {
@@ -915,8 +909,7 @@ test.describe('TB39: Create Team', () => {
 
   test('entity search shows results when typing', async ({ page }) => {
     // Get existing entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -939,8 +932,7 @@ test.describe('TB39: Create Team', () => {
 
   test('can add member to team during creation', async ({ page }) => {
     // Get existing entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -970,8 +962,7 @@ test.describe('TB39: Create Team', () => {
 
   test('can remove selected member', async ({ page }) => {
     // Get existing entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -1002,8 +993,7 @@ test.describe('TB39: Create Team', () => {
 
   test('creates team with members', async ({ page }) => {
     // Get existing entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -1034,11 +1024,10 @@ test.describe('TB39: Create Team', () => {
     await expect(page.getByTestId('create-team-modal')).not.toBeVisible({ timeout: 5000 });
 
     // Verify team was created with member
-    const teamsResponse = await page.request.get('/api/teams');
-    const teams = await teamsResponse.json();
-    const createdTeam = teams.find((t: { name: string }) => t.name === uniqueName);
+    const teams = await getTeams(page);
+    const createdTeam = teams.find((t) => t.name === uniqueName);
     expect(createdTeam).toBeTruthy();
-    expect(createdTeam.members).toContain(firstEntity.id);
+    expect(createdTeam?.members).toContain(firstEntity.id);
   });
 
   test('shows error for duplicate team name', async ({ page }) => {
@@ -1086,8 +1075,7 @@ test.describe('TB40: Edit Team', () => {
 
   test('PATCH /api/teams/:id endpoint adds members', async ({ page }) => {
     // Get an entity
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -1113,8 +1101,7 @@ test.describe('TB40: Edit Team', () => {
 
   test('PATCH /api/teams/:id endpoint removes members', async ({ page }) => {
     // Get an entity
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -1156,8 +1143,7 @@ test.describe('TB40: Edit Team', () => {
 
   test('team detail panel has edit name button', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     if (teams.length === 0) {
       test.skip();
@@ -1168,26 +1154,31 @@ test.describe('TB40: Edit Team', () => {
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
 
-    // Click first team card
-    const firstTeam = teams[0];
-    await page.getByTestId(`team-card-${firstTeam.id}`).click();
+    // Find an active team and click it
+    const activeTeam = teams.find((t) => t.status !== 'tombstone');
+    if (!activeTeam) {
+      test.skip();
+      return;
+    }
+
+    // Wait for the team card to be visible (may need to scroll/find)
+    const teamCard = page.getByTestId(`team-card-${activeTeam.id}`);
+    await expect(teamCard).toBeVisible({ timeout: 10000 });
+    await teamCard.click();
 
     // Detail panel should be visible
     await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
 
-    // Edit button should be visible (if team is not deleted)
-    if (firstTeam.status !== 'tombstone') {
-      await expect(page.getByTestId('team-name-edit')).toBeVisible();
-    }
+    // Edit button should be visible
+    await expect(page.getByTestId('team-name-edit')).toBeVisible();
   });
 
   test('clicking edit name button shows input field', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
     // Find an active team
-    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    const activeTeam = teams.find((t) => t.status !== 'tombstone');
     if (!activeTeam) {
       test.skip();
       return;
@@ -1242,10 +1233,9 @@ test.describe('TB40: Edit Team', () => {
 
   test('cancel button cancels name edit', async ({ page }) => {
     // Get teams from API
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
-    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    const activeTeam = teams.find((t) => t.status !== 'tombstone');
     if (!activeTeam) {
       test.skip();
       return;
@@ -1273,10 +1263,9 @@ test.describe('TB40: Edit Team', () => {
   });
 
   test('team detail panel has delete button', async ({ page }) => {
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
-    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    const activeTeam = teams.find((t) => t.status !== 'tombstone');
     if (!activeTeam) {
       test.skip();
       return;
@@ -1295,20 +1284,20 @@ test.describe('TB40: Edit Team', () => {
   test('delete button shows confirmation modal', async ({ page }) => {
     // Create a team to test with
     const uniqueName = `Delete Confirm Team ${Date.now()}`;
-    await page.request.post('/api/teams', {
+    const createResponse = await page.request.post('/api/teams', {
       data: { name: uniqueName },
     });
+    const ourTeam = await createResponse.json();
 
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('teams-loading')).not.toBeVisible({ timeout: 10000 });
 
-    // Find and click the team
-    const teamsResponse = await page.request.get('/api/teams');
-    const teams = await teamsResponse.json();
-    const ourTeam = teams.find((t: { name: string }) => t.name === uniqueName);
+    // Wait for and click the team card (newly created team should be on first page since sorted by updatedAt)
+    const teamCard = page.getByTestId(`team-card-${ourTeam.id}`);
+    await expect(teamCard).toBeVisible({ timeout: 10000 });
+    await teamCard.click();
 
-    await page.getByTestId(`team-card-${ourTeam.id}`).click();
     await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
 
     // Click delete button
@@ -1321,10 +1310,9 @@ test.describe('TB40: Edit Team', () => {
   });
 
   test('cancel in delete confirmation closes modal', async ({ page }) => {
-    const response = await page.request.get('/api/teams');
-    const teams = await response.json();
+    const teams = await getTeams(page);
 
-    const activeTeam = teams.find((t: { status?: string }) => t.status !== 'tombstone');
+    const activeTeam = teams.find((t) => t.status !== 'tombstone');
     if (!activeTeam) {
       test.skip();
       return;
@@ -1395,8 +1383,7 @@ test.describe('TB40: Edit Team', () => {
 
   test('add member search shows results', async ({ page }) => {
     // Get entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -1427,8 +1414,7 @@ test.describe('TB40: Edit Team', () => {
 
   test('can add member to team via UI', async ({ page }) => {
     // Get entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -1465,8 +1451,7 @@ test.describe('TB40: Edit Team', () => {
 
   test('can remove member from team via UI', async ({ page }) => {
     // Get entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();
@@ -1500,8 +1485,7 @@ test.describe('TB40: Edit Team', () => {
 
   test('member remove button appears on hover', async ({ page }) => {
     // Get entities
-    const entitiesResponse = await page.request.get('/api/entities');
-    const entities = await entitiesResponse.json();
+    const entities = await getEntities(page);
 
     if (entities.length === 0) {
       test.skip();

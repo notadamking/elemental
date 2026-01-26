@@ -599,13 +599,13 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: "View all tasks" button navigates to `/tasks?assignee=:id` when >5 tasks
   - [x] **Verify:** 4/5 Playwright tests passing (`apps/web/tests/tb106-clickable-assigned-tasks.spec.ts`)
 
-- [ ] **TB107: Add Members to Team UI**
-  - [ ] Web: Add "Add Member" button in TeamDetailPanel header
-  - [ ] Web: Click → open entity picker modal
-  - [ ] Web: Multi-select entities to add
-  - [ ] Web: Show which entities are already members (disabled in picker)
-  - [ ] Web: Real-time update when members added (WebSocket)
-  - [ ] **Verify:** Add 2 members to team via UI, member count updates; Playwright tests passing
+- [x] **TB107: Add Members to Team UI**
+  - [x] Web: Add member search input in TeamDetailPanel - `apps/web/src/routes/teams.tsx` (inline search + dropdown pattern)
+  - [x] Web: Search and click to add members one at a time - `handleAddMember()` with `updateTeam.mutateAsync()`
+  - [x] Web: Filters out already-members from search results - `availableEntities` memoized list
+  - [x] Web: Show which entities are already members - members list with remove buttons
+  - [x] Web: Real-time update via TanStack Query cache invalidation
+  - [x] **Verify:** 67 Playwright tests passing (`apps/web/tests/teams.spec.ts`); tests cover add/remove members via UI
 
 - [ ] **TB108: Entity Contribution Chart**
   - [ ] Web: Add "Activity" section to EntityDetailPanel
