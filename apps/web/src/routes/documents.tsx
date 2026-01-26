@@ -9,11 +9,12 @@
  * - Document detail display (TB21)
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useDeepLink } from '../hooks/useDeepLink';
+import { useDebounce } from '../hooks';
 import {
   Library,
   FileText,
@@ -45,6 +46,7 @@ import {
   ArrowLeft,
   Search,
   Unlink,
+  Loader2,
 } from 'lucide-react';
 import { BlockEditor } from '../components/editor/BlockEditor';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
@@ -52,6 +54,237 @@ import { CreateLibraryModal } from '../components/document/CreateLibraryModal';
 import { useAllDocuments as useAllDocumentsPreloaded } from '../api/hooks/useAllElements';
 import { sortData, createSimpleDocumentSearchFilter } from '../hooks/usePaginatedData';
 import { markdownToHtml, isHtmlContent } from '../lib/markdown';
+
+// ============================================================================
+// Search Constants and Hooks (TB95)
+// ============================================================================
+
+const SEARCH_DEBOUNCE_DELAY = 300;
+
+interface DocumentSearchResult {
+  id: string;
+  title: string;
+  contentType: string;
+  matchType: 'title' | 'content' | 'both';
+  snippet?: string;
+  updatedAt: string;
+}
+
+interface DocumentSearchResponse {
+  results: DocumentSearchResult[];
+  query: string;
+}
+
+/**
+ * Hook to search documents by title and content (TB95)
+ */
+function useDocumentSearch(query: string) {
+  const debouncedQuery = useDebounce(query, SEARCH_DEBOUNCE_DELAY);
+
+  return useQuery<DocumentSearchResponse>({
+    queryKey: ['documents', 'search', debouncedQuery],
+    queryFn: async () => {
+      if (!debouncedQuery.trim()) {
+        return { results: [], query: '' };
+      }
+      const response = await fetch(`/api/documents/search?q=${encodeURIComponent(debouncedQuery)}&limit=10`);
+      if (!response.ok) {
+        throw new Error('Failed to search documents');
+      }
+      return response.json();
+    },
+    enabled: debouncedQuery.trim().length > 0,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+}
+
+/**
+ * Highlights search query matches in text
+ */
+function highlightMatches(text: string, query: string): React.ReactNode {
+  if (!query || !text) return text;
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const matchIndex = lowerText.indexOf(lowerQuery);
+
+  if (matchIndex === -1) return text;
+
+  return (
+    <>
+      {text.slice(0, matchIndex)}
+      <mark className="bg-yellow-200 text-gray-900 rounded-sm px-0.5">
+        {text.slice(matchIndex, matchIndex + query.length)}
+      </mark>
+      {text.slice(matchIndex + query.length)}
+    </>
+  );
+}
+
+/**
+ * Document Search Bar Component (TB95)
+ * Provides full-text search across document titles and content
+ */
+function DocumentSearchBar({
+  onSelectDocument,
+}: {
+  onSelectDocument: (documentId: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: searchData, isLoading, isFetching } = useDocumentSearch(query);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Keyboard shortcuts: / to focus, Escape to clear/close
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      // / to focus search when not in an input
+      if (
+        event.key === '/' &&
+        !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+      ) {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+      // Escape to clear/close
+      if (event.key === 'Escape' && document.activeElement === inputRef.current) {
+        event.preventDefault();
+        if (query) {
+          setQuery('');
+        } else {
+          setIsOpen(false);
+          inputRef.current?.blur();
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [query]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value);
+    setIsOpen(true);
+  };
+
+  const handleClear = () => {
+    setQuery('');
+    setIsOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const handleSelectResult = (documentId: string) => {
+    onSelectDocument(documentId);
+    setQuery('');
+    setIsOpen(false);
+  };
+
+  const showDropdown = isOpen && query.trim().length > 0;
+  const results = searchData?.results || [];
+  const showLoading = (isLoading || isFetching) && query.trim().length > 0;
+
+  return (
+    <div ref={containerRef} className="relative" data-testid="document-search-container">
+      {/* Search Input */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleInputChange}
+          onFocus={() => query.trim() && setIsOpen(true)}
+          placeholder="Search docs... (/)"
+          className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          data-testid="document-search-input"
+          aria-label="Search documents"
+        />
+        {query && (
+          <button
+            onClick={handleClear}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded"
+            data-testid="document-search-clear"
+            aria-label="Clear search"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {/* Results Dropdown */}
+      {showDropdown && (
+        <div
+          className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto"
+          data-testid="document-search-results"
+        >
+          {showLoading && (
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Searching...
+            </div>
+          )}
+
+          {!showLoading && results.length === 0 && (
+            <div className="px-3 py-4 text-sm text-gray-500 text-center" data-testid="document-search-no-results">
+              No documents found for "{query}"
+            </div>
+          )}
+
+          {!showLoading && results.length > 0 && (
+            <div data-testid="document-search-results-list">
+              {results.map((result) => (
+                <button
+                  key={result.id}
+                  onClick={() => handleSelectResult(result.id)}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 focus:bg-gray-50 focus:outline-none"
+                  data-testid={`document-search-result-${result.id}`}
+                >
+                  {/* Title with highlight */}
+                  <div className="font-medium text-gray-900 text-sm truncate">
+                    <FileText className="inline w-4 h-4 text-blue-400 mr-1.5" />
+                    {highlightMatches(result.title, query)}
+                  </div>
+
+                  {/* Content snippet with highlight */}
+                  {result.snippet && (
+                    <div className="text-xs text-gray-500 mt-0.5 line-clamp-2" data-testid={`document-search-snippet-${result.id}`}>
+                      {highlightMatches(result.snippet, query)}
+                    </div>
+                  )}
+
+                  {/* Metadata */}
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                    <span className={`px-1.5 py-0.5 rounded ${
+                      result.matchType === 'content' ? 'bg-yellow-100 text-yellow-700' :
+                      result.matchType === 'both' ? 'bg-green-100 text-green-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {result.matchType === 'title' ? 'Title match' :
+                       result.matchType === 'content' ? 'Content match' : 'Title & content'}
+                    </span>
+                    <span>{result.contentType}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ============================================================================
 // Types
@@ -550,6 +783,7 @@ function LibraryTree({
   onToggleExpand,
   onNewDocument,
   onNewLibrary,
+  onSelectDocument,
 }: {
   libraries: LibraryType[];
   selectedLibraryId: string | null;
@@ -558,6 +792,7 @@ function LibraryTree({
   onToggleExpand: (id: string) => void;
   onNewDocument: () => void;
   onNewLibrary: () => void;
+  onSelectDocument: (documentId: string) => void;
 }) {
   // Build tree structure from flat list
   const treeNodes = buildLibraryTree(libraries);
@@ -568,7 +803,7 @@ function LibraryTree({
       className="w-64 border-r border-gray-200 bg-white flex flex-col h-full"
     >
       <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Library className="w-5 h-5 text-gray-500" />
             Libraries
@@ -592,6 +827,8 @@ function LibraryTree({
             </button>
           </div>
         </div>
+        {/* Document Search Bar (TB95) */}
+        <DocumentSearchBar onSelectDocument={onSelectDocument} />
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -2341,6 +2578,7 @@ export function DocumentsPage() {
                 onToggleExpand={handleToggleExpand}
                 onNewDocument={handleOpenCreateModal}
                 onNewLibrary={handleOpenCreateLibraryModal}
+                onSelectDocument={handleSelectDocument}
               />
             </div>
           )}

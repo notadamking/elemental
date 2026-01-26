@@ -2859,16 +2859,18 @@ app.get('/api/documents', async (c) => {
     const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
 
     // Apply client-side filtering for search (not supported in base filter)
+    // TB95: Search includes title, id, tags, and content (full-text)
     let filteredItems = result.items;
 
     if (searchParam) {
       const query = searchParam.toLowerCase();
       filteredItems = filteredItems.filter((d) => {
-        const doc = d as unknown as { title: string; id: string; tags?: string[] };
+        const doc = d as unknown as { title: string; id: string; tags?: string[]; content?: string };
         return (
           doc.title.toLowerCase().includes(query) ||
           doc.id.toLowerCase().includes(query) ||
-          (doc.tags || []).some((tag) => tag.toLowerCase().includes(query))
+          (doc.tags || []).some((tag) => tag.toLowerCase().includes(query)) ||
+          (doc.content || '').toLowerCase().includes(query)
         );
       });
     }
@@ -2884,6 +2886,105 @@ app.get('/api/documents', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get documents:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get documents' } }, 500);
+  }
+});
+
+/**
+ * GET /api/documents/search
+ * Search documents by title and content with highlighted snippets (TB95)
+ *
+ * Query params:
+ * - q: Search query (required)
+ * - limit: Max number of results (default: 20)
+ */
+app.get('/api/documents/search', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const query = url.searchParams.get('q');
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 20;
+
+    if (!query || query.trim().length === 0) {
+      return c.json({ results: [] });
+    }
+
+    const searchQuery = query.trim().toLowerCase();
+
+    // Get all documents (with reasonable limit to avoid performance issues)
+    const result = await api.listPaginated({
+      type: 'document',
+      limit: 1000,
+      orderBy: 'updated_at',
+      orderDir: 'desc',
+    } as Parameters<typeof api.listPaginated>[0]);
+
+    // Search through documents
+    interface SearchResult {
+      id: string;
+      title: string;
+      contentType: string;
+      matchType: 'title' | 'content' | 'both';
+      snippet?: string;
+      updatedAt: string;
+    }
+
+    const results: SearchResult[] = [];
+
+    for (const item of result.items) {
+      const doc = item as unknown as { id: string; title: string; content?: string; contentType: string; updatedAt: string };
+      const titleLower = (doc.title || '').toLowerCase();
+      const contentLower = (doc.content || '').toLowerCase();
+
+      const titleMatch = titleLower.includes(searchQuery);
+      const contentMatch = contentLower.includes(searchQuery);
+
+      if (titleMatch || contentMatch) {
+        let snippet: string | undefined;
+
+        // Generate content snippet if there's a content match
+        if (contentMatch && doc.content) {
+          const matchIndex = contentLower.indexOf(searchQuery);
+          // Get surrounding context (50 chars before and after)
+          const snippetStart = Math.max(0, matchIndex - 50);
+          const snippetEnd = Math.min(doc.content.length, matchIndex + searchQuery.length + 50);
+          let snippetText = doc.content.slice(snippetStart, snippetEnd);
+
+          // Add ellipsis if truncated
+          if (snippetStart > 0) snippetText = '...' + snippetText;
+          if (snippetEnd < doc.content.length) snippetText = snippetText + '...';
+
+          // Clean up markdown/HTML for display
+          snippetText = snippetText
+            .replace(/#{1,6}\s*/g, '') // Remove heading markers
+            .replace(/\*\*/g, '') // Remove bold markers
+            .replace(/\*/g, '') // Remove italic markers
+            .replace(/`/g, '') // Remove code markers
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax
+            .replace(/<[^>]+>/g, '') // Remove HTML tags
+            .replace(/\n+/g, ' ') // Replace newlines with spaces
+            .trim();
+
+          snippet = snippetText;
+        }
+
+        results.push({
+          id: doc.id,
+          title: doc.title || `Document ${doc.id}`,
+          contentType: doc.contentType,
+          matchType: titleMatch && contentMatch ? 'both' : (titleMatch ? 'title' : 'content'),
+          snippet,
+          updatedAt: doc.updatedAt,
+        });
+
+        // Stop when we have enough results
+        if (results.length >= limit) break;
+      }
+    }
+
+    return c.json({ results, query: query.trim() });
+  } catch (error) {
+    console.error('[elemental] Failed to search documents:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to search documents' } }, 500);
   }
 });
 

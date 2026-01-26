@@ -622,13 +622,14 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Enhance the document editor with Notion-inspired features.
 
-- [ ] **TB95: Document Search**
-  - [ ] Web: Add search bar to Documents page sidebar
-  - [ ] Web: Search by document title and content (full-text)
-  - [ ] Web: Results show title and content snippet with highlighted match
-  - [ ] Web: Click result → open document
-  - [ ] Web: Keyboard shortcut: `/` focuses search when in Documents
-  - [ ] **Verify:** Search for keyword, matching documents shown with preview; Playwright tests passing
+- [x] **TB95: Document Search**
+  - [x] Web: Add search bar to Documents page sidebar - `apps/web/src/routes/documents.tsx` (DocumentSearchBar component in LibraryTree header)
+  - [x] Web: Search by document title and content (full-text) - Server `/api/documents/search` endpoint searches both title and content
+  - [x] Web: Results show title and content snippet with highlighted match - Results dropdown with highlighted matches using `<mark>` tags
+  - [x] Web: Click result → open document - handleSelectResult calls onSelectDocument, clears search
+  - [x] Web: Keyboard shortcut: `/` focuses search when in Documents - Global keyboard listener focuses input on `/`
+  - [x] Server: Add `GET /api/documents/search` endpoint with snippet generation - `apps/server/src/index.ts`
+  - [x] **Verify:** Search for keyword, matching documents shown with preview; 18 Playwright tests passing (`apps/web/tests/tb95-document-search.spec.ts`)
 
 - [ ] **TB96: Media Library Browser**
 
