@@ -109,6 +109,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB94d-text-alignment.md](./platform/TB94d-text-alignment.md) | Text alignment controls (left, center, right, justify) with toolbar, slash commands, keyboard shortcuts | editor, tiptap, alignment, text-align, toolbar, shortcuts, markdown |
 | [platform/TB94e-image-support.md](./platform/TB94e-image-support.md) | Image block support with upload, URL insert, and standard Markdown syntax | editor, image, upload, markdown, drag-drop, alt text |
 | [platform/TB94f-task-document-embedding.md](./platform/TB94f-task-document-embedding.md) | Task and document embedding with ![[task:ID]] and ![[doc:ID]] syntax | editor, embed, task, document, obsidian, markdown, slash commands |
+| [platform/TB96-media-library-browser.md](./platform/TB96-media-library-browser.md) | Media library browser for reusing uploaded images with search, usage tracking, and delete | media, library, images, uploads, search, usage tracking, delete |
 
 ---
 

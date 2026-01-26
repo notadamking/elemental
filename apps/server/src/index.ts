@@ -4758,6 +4758,60 @@ app.post('/api/uploads', async (c) => {
 });
 
 /**
+ * GET /api/uploads/:filename/usage
+ * Track which documents reference a specific image.
+ * Scans all documents for image URLs containing the filename.
+ * NOTE: This route MUST be defined before /api/uploads/:filename to take precedence.
+ */
+app.get('/api/uploads/:filename/usage', async (c) => {
+  try {
+    const filename = c.req.param('filename');
+
+    // Security: prevent directory traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid filename' } }, 400);
+    }
+
+    // Check if file exists
+    const filepath = resolve(UPLOADS_DIR, filename);
+    const file = Bun.file(filepath);
+    const exists = await file.exists();
+
+    if (!exists) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'File not found' } }, 404);
+    }
+
+    // Search for documents that reference this image
+    // Look for the filename in document content (images are stored as Markdown ![alt](url))
+    const documents = await api.list({ type: 'document' });
+    const usedIn: Array<{ id: string; title: string }> = [];
+
+    for (const element of documents) {
+      // Check if document content contains the filename
+      // Images can be referenced as /api/uploads/filename or http://localhost:3456/api/uploads/filename
+      const doc = element as unknown as { id: string; title?: string; content?: string };
+      if (doc.content && typeof doc.content === 'string') {
+        if (doc.content.includes(`/api/uploads/${filename}`) || doc.content.includes(filename)) {
+          usedIn.push({
+            id: doc.id,
+            title: doc.title || 'Untitled',
+          });
+        }
+      }
+    }
+
+    return c.json({
+      filename,
+      count: usedIn.length,
+      documents: usedIn,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get upload usage:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get upload usage' } }, 500);
+  }
+});
+
+/**
  * GET /api/uploads/:filename
  * Serve an uploaded file.
  */

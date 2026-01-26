@@ -631,18 +631,18 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Server: Add `GET /api/documents/search` endpoint with snippet generation - `apps/server/src/index.ts`
   - [x] **Verify:** Search for keyword, matching documents shown with preview; 18 Playwright tests passing (`apps/web/tests/tb95-document-search.spec.ts`)
 
-- [ ] **TB96: Media Library Browser**
+- [x] **TB96: Media Library Browser**
 
   > Note: Core image support is in TB94e. This TB adds a media library for managing uploaded assets.
-  - [ ] Web: Add "Media Library" tab/modal accessible from image picker
-  - [ ] Web: Show grid of all uploaded images for current workspace
-  - [ ] Web: Search/filter uploaded images by filename
-  - [ ] Web: Click to insert existing image (reuse URL, don't re-upload)
-  - [ ] Web: Delete unused images from library
-  - [ ] Server: Add `GET /api/uploads` endpoint (list all uploads with metadata)
-  - [ ] Server: Add `DELETE /api/uploads/:filename` endpoint
-  - [ ] Server: Track image usage (which documents reference each image)
-  - [ ] **Verify:** Upload image, see it in media library, insert into different document; Playwright tests passing
+  - [x] Web: Add "Media Library" tab/modal accessible from image picker - `apps/web/src/components/editor/ImageUploadModal.tsx` (Library tab with Grid icon)
+  - [x] Web: Show grid of all uploaded images for current workspace - 3-column grid view with image thumbnails
+  - [x] Web: Search/filter uploaded images by filename - Search input with real-time filtering
+  - [x] Web: Click to insert existing image (reuse URL, don't re-upload) - Selection state with blue border and checkmark
+  - [x] Web: Delete unused images from library - Delete button with confirmation in hover overlay
+  - [x] Server: Add `GET /api/uploads` endpoint (list all uploads with metadata) - Already existed from TB94e
+  - [x] Server: Add `DELETE /api/uploads/:filename` endpoint - Already existed from TB94e
+  - [x] Server: Track image usage (which documents reference each image) - New `GET /api/uploads/:filename/usage` endpoint
+  - [x] **Verify:** Upload image, see it in media library, insert into different document; 13 Playwright tests passing (`apps/web/tests/tb96-media-library-browser.spec.ts`)
 
 - [ ] **TB97: Emoji Support (Markdown-Compatible)**
 
