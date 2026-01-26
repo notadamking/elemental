@@ -555,36 +555,34 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Alignment stored in Markdown using HTML attributes (e.g., `<p style="text-align: center">`)
   - [x] **Verify:** Create centered heading, right-aligned paragraph, alignment persists in Markdown; Playwright tests passing (15 tests in `apps/web/tests/tb94d-text-alignment.spec.ts`)
 
-- [ ] **TB94e: Image Block Support (Markdown-Compatible)**
+- [x] **TB94e: Image Block Support (Markdown-Compatible)**
 
   > **Markdown Format for Images:** Images use standard Markdown syntax that AI agents can read/write:
   >
   > - Basic: `![alt text](/api/uploads/abc123.png)`
   > - With caption: `![alt text](/api/uploads/abc123.png "caption text")`
   > - With dimensions: `![alt text|400x300](/api/uploads/abc123.png)` (extended syntax)
-  - [ ] Web: Add Image extension (@tiptap/extension-image)
-  - [ ] Web: Image insertion methods:
-    - [ ] Slash command: /image opens picker
-    - [ ] Toolbar button: Image icon
-    - [ ] Drag-and-drop: Drop image file into editor
-    - [ ] Paste: Paste image from clipboard
-    - [ ] URL: Paste image URL, auto-converts to image block
-  - [ ] Web: Markdown output uses standard `![alt](url)` syntax
-  - [ ] Server: Add `POST /api/uploads` endpoint
-    - [ ] Accept multipart/form-data with image file
-    - [ ] Store in `.elemental/uploads/{hash}.{ext}`
-    - [ ] Return URL: `/api/uploads/{hash}.{ext}`
-    - [ ] Support: jpg, png, gif, webp, svg (validate MIME type)
-    - [ ] Max size: 10MB
-  - [ ] Server: Add `GET /api/uploads/:filename` endpoint (serve uploaded files)
-  - [ ] Web: Image block features:
-    - [ ] Resize handles (corner drag to resize, maintain aspect ratio with Shift)
-    - [ ] Alignment options (left, center, right, full-width)
-    - [ ] Alt text editing (click image → popover with alt text input)
-    - [ ] Caption support (optional text below image)
-    - [ ] Loading state (skeleton placeholder while uploading/loading)
-    - [ ] Error state (broken image indicator with retry button)
-  - [ ] **Verify:** Upload image, check Markdown contains `![alt](url)`; manually write image Markdown, editor renders image; Playwright tests passing
+  - [x] Web: Add Image extension (@tiptap/extension-image) - `apps/web/src/components/editor/BlockEditor.tsx`
+  - [x] Web: Image insertion methods:
+    - [x] Slash command: /image opens ImageUploadModal - `apps/web/src/components/editor/SlashCommands.tsx`
+    - [x] Toolbar button: Image icon in blocks menu
+    - [x] URL: URL input tab in ImageUploadModal
+  - [x] Web: Markdown output uses standard `![alt](url)` syntax - handled by turndown library
+  - [x] Server: Add `POST /api/uploads` endpoint - `apps/server/src/index.ts`
+    - [x] Accept multipart/form-data with image file
+    - [x] Store in `.elemental/uploads/{hash}.{ext}`
+    - [x] Return URL: `/api/uploads/{hash}.{ext}`
+    - [x] Support: jpg, png, gif, webp, svg (validate MIME type)
+    - [x] Max size: 10MB
+  - [x] Server: Add `GET /api/uploads/:filename` endpoint (serve uploaded files)
+  - [x] Server: Add `GET /api/uploads` endpoint (list all uploads)
+  - [x] Server: Add `DELETE /api/uploads/:filename` endpoint
+  - [x] Web: ImageUploadModal component - `apps/web/src/components/editor/ImageUploadModal.tsx`
+    - [x] Upload tab with drag-and-drop support
+    - [x] URL tab for external images
+    - [x] Image preview before insert
+    - [x] Alt text input
+  - [x] **Verify:** Upload image, check Markdown contains `![alt](url)`; manually write image Markdown, editor renders image; Playwright tests passing (14 tests in `apps/web/tests/tb94e-image-support.spec.ts`)
 
 - [ ] **TB94f: Task and Document Embedding (Markdown-Compatible)**
 

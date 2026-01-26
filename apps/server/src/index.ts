@@ -5,7 +5,9 @@
  * Built with Hono for fast, minimal overhead.
  */
 
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, extname } from 'node:path';
+import { mkdir, readdir, unlink, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService, createInboxService, getDirectReports, getManagementChain, validateManager, detectReportingCycle } from '@elemental/cli';
@@ -27,6 +29,24 @@ const HOST = process.env.HOST || 'localhost';
 const PROJECT_ROOT = resolve(dirname(import.meta.path), '../../..');
 const DEFAULT_DB_PATH = resolve(PROJECT_ROOT, '.elemental/elemental.db');
 const DB_PATH = process.env.ELEMENTAL_DB_PATH || DEFAULT_DB_PATH;
+
+// Uploads directory - for storing image files (TB94e)
+const UPLOADS_DIR = resolve(PROJECT_ROOT, '.elemental/uploads');
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+];
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/svg+xml': '.svg',
+};
 
 // ============================================================================
 // Initialize API
@@ -4546,6 +4566,233 @@ app.post('/api/sync/import', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to import:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to import data' } }, 500);
+  }
+});
+
+// ============================================================================
+// Uploads Endpoints (TB94e - Image Support)
+// ============================================================================
+
+/**
+ * Ensure uploads directory exists
+ */
+async function ensureUploadsDir(): Promise<void> {
+  try {
+    await mkdir(UPLOADS_DIR, { recursive: true });
+  } catch {
+    // Directory may already exist, which is fine
+  }
+}
+
+/**
+ * POST /api/uploads
+ * Upload an image file. Returns the URL to access the uploaded file.
+ *
+ * Accepts multipart/form-data with:
+ * - file: The image file (required)
+ *
+ * Returns:
+ * - { url: string, filename: string, size: number, mimeType: string }
+ */
+app.post('/api/uploads', async (c) => {
+  try {
+    await ensureUploadsDir();
+
+    // Parse form data
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+
+    if (!file || !(file instanceof File)) {
+      return c.json({
+        error: { code: 'VALIDATION_ERROR', message: 'No file provided. Use multipart/form-data with a "file" field.' }
+      }, 400);
+    }
+
+    // Validate file type
+    const mimeType = file.type;
+    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `Invalid file type: ${mimeType}. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`
+        }
+      }, 400);
+    }
+
+    // Validate file size
+    if (file.size > MAX_UPLOAD_SIZE) {
+      return c.json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `File too large: ${(file.size / (1024 * 1024)).toFixed(2)}MB. Maximum size: 10MB`
+        }
+      }, 400);
+    }
+
+    // Read file content
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Generate hash-based filename for deduplication
+    const hash = createHash('sha256').update(buffer).digest('hex').slice(0, 16);
+    const ext = MIME_TO_EXT[mimeType] || extname(file.name) || '.bin';
+    const filename = `${hash}${ext}`;
+    const filepath = resolve(UPLOADS_DIR, filename);
+
+    // Write file to disk
+    await Bun.write(filepath, buffer);
+
+    console.log(`[elemental] Uploaded image: ${filename} (${file.size} bytes)`);
+
+    return c.json({
+      url: `/api/uploads/${filename}`,
+      filename,
+      size: file.size,
+      mimeType,
+    }, 201);
+  } catch (error) {
+    console.error('[elemental] Failed to upload file:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to upload file' } }, 500);
+  }
+});
+
+/**
+ * GET /api/uploads/:filename
+ * Serve an uploaded file.
+ */
+app.get('/api/uploads/:filename', async (c) => {
+  try {
+    const filename = c.req.param('filename');
+
+    // Security: prevent directory traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid filename' } }, 400);
+    }
+
+    const filepath = resolve(UPLOADS_DIR, filename);
+
+    // Check if file exists
+    const file = Bun.file(filepath);
+    const exists = await file.exists();
+
+    if (!exists) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'File not found' } }, 404);
+    }
+
+    // Determine content type from extension
+    const ext = extname(filename).toLowerCase();
+    const contentTypeMap: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+    };
+    const contentType = contentTypeMap[ext] || 'application/octet-stream';
+
+    // Read and return file
+    const arrayBuffer = await file.arrayBuffer();
+
+    return new Response(arrayBuffer, {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable', // Cache for 1 year (immutable since hash-named)
+      },
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to serve file:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to serve file' } }, 500);
+  }
+});
+
+/**
+ * GET /api/uploads
+ * List all uploaded files with metadata.
+ */
+app.get('/api/uploads', async (c) => {
+  try {
+    await ensureUploadsDir();
+
+    const files = await readdir(UPLOADS_DIR);
+
+    // Get file info for each file
+    const fileInfos = await Promise.all(
+      files.map(async (filename) => {
+        try {
+          const filepath = resolve(UPLOADS_DIR, filename);
+          const stats = await stat(filepath);
+          const ext = extname(filename).toLowerCase();
+          const contentTypeMap: Record<string, string> = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml',
+          };
+
+          return {
+            filename,
+            url: `/api/uploads/${filename}`,
+            size: stats.size,
+            mimeType: contentTypeMap[ext] || 'application/octet-stream',
+            createdAt: stats.birthtime.toISOString(),
+            modifiedAt: stats.mtime.toISOString(),
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    // Filter out any failed reads and sort by creation time (newest first)
+    const validFiles = fileInfos
+      .filter((f): f is NonNullable<typeof f> => f !== null)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return c.json({
+      files: validFiles,
+      total: validFiles.length,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to list uploads:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list uploads' } }, 500);
+  }
+});
+
+/**
+ * DELETE /api/uploads/:filename
+ * Delete an uploaded file.
+ */
+app.delete('/api/uploads/:filename', async (c) => {
+  try {
+    const filename = c.req.param('filename');
+
+    // Security: prevent directory traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid filename' } }, 400);
+    }
+
+    const filepath = resolve(UPLOADS_DIR, filename);
+
+    // Check if file exists
+    const file = Bun.file(filepath);
+    const exists = await file.exists();
+
+    if (!exists) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'File not found' } }, 404);
+    }
+
+    // Delete the file
+    await unlink(filepath);
+
+    console.log(`[elemental] Deleted upload: ${filename}`);
+
+    return c.json({ success: true, filename });
+  } catch (error) {
+    console.error('[elemental] Failed to delete upload:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete upload' } }, 500);
   }
 });
 

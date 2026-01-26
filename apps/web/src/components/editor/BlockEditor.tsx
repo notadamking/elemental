@@ -22,12 +22,14 @@ import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
+import Image from '@tiptap/extension-image';
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle';
 import { SlashCommands } from './SlashCommands';
 import { TaskEmbedBlock } from './blocks/TaskEmbedBlock';
 import { DocumentEmbedBlock } from './blocks/DocumentEmbedBlock';
 import { TaskPickerModal } from './TaskPickerModal';
 import { DocumentPickerModal } from './DocumentPickerModal';
+import { ImageUploadModal } from './ImageUploadModal';
 import { EditorBubbleMenu } from './BubbleMenu';
 import { common, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -56,6 +58,7 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
+  ImageIcon,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -161,12 +164,14 @@ export function BlockEditor({
   // Embed picker modal state
   const [taskPickerOpen, setTaskPickerOpen] = useState(false);
   const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
+  const [imageUploadOpen, setImageUploadOpen] = useState(false);
 
   // Memoize embed callbacks to prevent unnecessary re-renders
   const embedCallbacks = useMemo(
     () => ({
       onTaskEmbed: () => setTaskPickerOpen(true),
       onDocumentEmbed: () => setDocumentPickerOpen(true),
+      onImageInsert: () => setImageUploadOpen(true),
     }),
     []
   );
@@ -209,6 +214,12 @@ export function BlockEditor({
       }),
       SlashCommands.configure({
         embedCallbacks,
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'rounded-lg max-w-full h-auto',
+        },
+        allowBase64: true,
       }),
       TaskEmbedBlock,
       DocumentEmbedBlock,
@@ -303,6 +314,19 @@ export function BlockEditor({
           type: 'documentEmbed',
           attrs: { documentId },
         })
+        .run();
+    },
+    [editor]
+  );
+
+  // Handle image insertion from upload modal
+  const handleImageInsert = useCallback(
+    (url: string, alt?: string) => {
+      if (!editor) return;
+      editor
+        .chain()
+        .focus()
+        .setImage({ src: url, alt: alt || '' })
         .run();
     },
     [editor]
@@ -453,6 +477,13 @@ export function BlockEditor({
       action: () => editor.chain().focus().setHorizontalRule().run(),
       isActive: false,
     },
+    {
+      id: 'image',
+      icon: <ImageIcon className="w-4 h-4" />,
+      label: 'Insert Image',
+      action: () => { setImageUploadOpen(true); return true; },
+      isActive: false,
+    },
   ];
 
   const alignmentActions = [
@@ -530,6 +561,13 @@ export function BlockEditor({
         isOpen={documentPickerOpen}
         onClose={() => setDocumentPickerOpen(false)}
         onSelect={handleDocumentSelect}
+      />
+
+      {/* Image Upload Modal */}
+      <ImageUploadModal
+        isOpen={imageUploadOpen}
+        onClose={() => setImageUploadOpen(false)}
+        onInsert={handleImageInsert}
       />
 
       <div data-testid="block-editor" className="border border-gray-200 rounded-lg overflow-hidden bg-white">

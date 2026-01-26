@@ -29,12 +29,14 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
+  ImageIcon,
 } from 'lucide-react';
 
 // Embed picker callbacks
 export interface EmbedCallbacks {
   onTaskEmbed?: () => void;
   onDocumentEmbed?: () => void;
+  onImageInsert?: () => void;
 }
 
 // Command item type
@@ -43,7 +45,7 @@ export interface SlashCommandItem {
   title: string;
   description: string;
   icon: React.ReactNode;
-  category: 'headings' | 'lists' | 'blocks' | 'alignment' | 'embeds';
+  category: 'headings' | 'lists' | 'blocks' | 'alignment' | 'embeds' | 'media';
   action: (props: { editor: any; range: Range }) => void;
 }
 
@@ -173,6 +175,22 @@ const getSlashCommands = (embedCallbacks?: EmbedCallbacks): SlashCommandItem[] =
       editor.chain().focus().deleteRange(range).setTextAlign('justify').run();
     },
   },
+  // Media - images and other media content
+  {
+    id: 'image',
+    title: 'Image',
+    description: 'Upload or paste an image',
+    icon: <ImageIcon className="w-4 h-4" />,
+    category: 'media',
+    action: ({ editor, range }) => {
+      // Delete the slash command first
+      editor.chain().focus().deleteRange(range).run();
+      // Then trigger the image picker/uploader
+      if (embedCallbacks?.onImageInsert) {
+        embedCallbacks.onImageInsert();
+      }
+    },
+  },
   // Embeds - trigger picker modals via callbacks
   {
     id: 'task',
@@ -238,6 +256,7 @@ function groupByCategory(items: SlashCommandItem[]) {
     lists: [],
     blocks: [],
     alignment: [],
+    media: [],
     embeds: [],
   };
 
@@ -256,6 +275,7 @@ const categoryLabels: Record<string, string> = {
   lists: 'Lists',
   blocks: 'Blocks',
   alignment: 'Alignment',
+  media: 'Media',
   embeds: 'Embeds',
 };
 
