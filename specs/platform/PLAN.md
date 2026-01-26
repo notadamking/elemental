@@ -629,13 +629,17 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Timeline: Read actor filter from URL and apply - `apps/web/src/routes/timeline.tsx`
   - [x] **Verify:** 6 Playwright tests passing (4 skipped due to no events in test DB) (`apps/web/tests/tb109-entity-activity-overview.spec.ts`)
 
-- [ ] **TB110: Entity Event History (Commit History Style)**
-  - [ ] Web: Add "History" tab to EntityDetailPanel
-  - [ ] Web: List of all events by this entity (chronological)
-  - [ ] Web: Git commit log style: hash (event ID), message, timestamp
-  - [ ] Web: Click event → expand to show details (old/new values)
-  - [ ] Web: Filter by event type (created, updated, closed, etc.)
-  - [ ] **Verify:** Entity history shows all events in commit-log style; Playwright tests passing
+- [x] **TB110: Entity Event History (Commit History Style)** ([spec](./TB110-entity-event-history.md))
+  - [x] Server: Add `/api/entities/:id/history` endpoint with pagination and event type filter - `apps/server/src/index.ts`
+  - [x] Web: Add "History" tab to EntityDetailPanel - `apps/web/src/routes/entities.tsx`
+  - [x] Web: HistoryTabContent component with pagination state and filter management
+  - [x] Web: HistoryEventItem component - git commit log style with hash, message, timestamp
+  - [x] Web: Click event hash → expand to show details (old/new values in diff style)
+  - [x] Web: Event type filter buttons (All, Created, Updated, Closed, Deleted)
+  - [x] Web: Filter persistence in localStorage
+  - [x] Web: Expand all / collapse all buttons
+  - [x] Web: Pagination controls (Previous/Next)
+  - [x] **Verify:** 10 Playwright tests passing (1 skipped) (`apps/web/tests/tb110-entity-event-history.spec.ts`)
 
 ### Phase 26: Entity Tagging System
 

@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft, Filter, ArrowUpDown, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft, Filter, ArrowUpDown, ArrowUp, ArrowDown, Calendar, History, Hash, Eye, EyeOff } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
@@ -230,6 +230,91 @@ function useEntityActivity(id: string | null, days: number = 365) {
     queryFn: async () => {
       const response = await fetch(`/api/entities/${id}/activity?days=${days}`);
       if (!response.ok) throw new Error('Failed to fetch entity activity');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
+// TB110: Hook for entity history with pagination and event type filter
+interface EntityHistoryResult {
+  items: ElementalEvent[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+type HistoryEventTypeFilter = 'all' | 'created' | 'updated' | 'closed' | 'deleted';
+
+// LocalStorage keys for persisting history preferences
+const HISTORY_PAGE_SIZE_KEY = 'history.pageSize';
+const HISTORY_EVENT_TYPE_KEY = 'history.eventType';
+
+function getStoredHistoryPageSize(): number {
+  try {
+    const stored = localStorage.getItem(HISTORY_PAGE_SIZE_KEY);
+    if (stored) {
+      const num = parseInt(stored, 10);
+      if (!isNaN(num) && num > 0 && num <= 100) return num;
+    }
+  } catch {
+    // localStorage not available
+  }
+  return 25; // Default
+}
+
+function _setStoredHistoryPageSize(size: number): void {
+  try {
+    localStorage.setItem(HISTORY_PAGE_SIZE_KEY, size.toString());
+  } catch {
+    // localStorage not available
+  }
+}
+void _setStoredHistoryPageSize; // Reserved for future use when page size selector is added
+
+function getStoredHistoryEventType(): HistoryEventTypeFilter {
+  try {
+    const stored = localStorage.getItem(HISTORY_EVENT_TYPE_KEY);
+    if (stored === 'all' || stored === 'created' || stored === 'updated' || stored === 'closed' || stored === 'deleted') {
+      return stored;
+    }
+  } catch {
+    // localStorage not available
+  }
+  return 'all'; // Default
+}
+
+function setStoredHistoryEventType(type: HistoryEventTypeFilter): void {
+  try {
+    localStorage.setItem(HISTORY_EVENT_TYPE_KEY, type);
+  } catch {
+    // localStorage not available
+  }
+}
+
+function useEntityHistory(
+  id: string | null,
+  page: number = 1,
+  pageSize: number = 25,
+  eventType: HistoryEventTypeFilter = 'all'
+) {
+  const offset = (page - 1) * pageSize;
+
+  return useQuery<EntityHistoryResult>({
+    queryKey: ['entities', id, 'history', page, pageSize, eventType],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+      });
+
+      if (eventType !== 'all') {
+        params.set('eventType', eventType);
+      }
+
+      const response = await fetch(`/api/entities/${id}/history?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch entity history');
       return response.json();
     },
     enabled: !!id,
@@ -1128,6 +1213,240 @@ function ActivityFeedItem({ event }: { event: ElementalEvent }) {
   );
 }
 
+/**
+ * TB110: HistoryEventItem component - Git commit log style display
+ * Shows event ID (hash), description, timestamp, and expandable details
+ */
+function HistoryEventItem({
+  event,
+  isExpanded,
+  onToggle,
+}: {
+  event: ElementalEvent;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  // Generate a short hash from the event ID
+  const shortHash = `${event.id}`.padStart(7, '0').slice(0, 7);
+
+  // Get event color based on event type
+  const getEventColor = () => {
+    switch (event.eventType) {
+      case 'created':
+        return 'text-green-600';
+      case 'updated':
+        return 'text-blue-600';
+      case 'closed':
+        return 'text-purple-600';
+      case 'deleted':
+        return 'text-red-600';
+      case 'reopened':
+        return 'text-yellow-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  // Generate commit-style message
+  const getMessage = () => {
+    const elementType = event.elementType || 'element';
+    const eventType = event.eventType;
+
+    // Handle common event types with meaningful messages
+    switch (eventType) {
+      case 'created':
+        return `Create ${elementType}`;
+      case 'updated':
+        return `Update ${elementType}`;
+      case 'closed':
+        return elementType === 'task' ? 'Complete task' : `Close ${elementType}`;
+      case 'deleted':
+        return `Delete ${elementType}`;
+      case 'reopened':
+        return `Reopen ${elementType}`;
+      case 'added_dependency':
+        return `Add dependency`;
+      case 'removed_dependency':
+        return `Remove dependency`;
+      case 'auto_blocked':
+        return `Auto-blocked by dependency`;
+      case 'auto_unblocked':
+        return `Auto-unblocked (dependency resolved)`;
+      default:
+        return eventType.replace(/_/g, ' ');
+    }
+  };
+
+  // Format timestamp
+  const formatTimestamp = () => {
+    const date = new Date(event.createdAt);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / 86400000);
+
+    if (days === 0) {
+      return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    }
+    if (days < 7) {
+      return `${days} day${days === 1 ? '' : 's'} ago`;
+    }
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    });
+  };
+
+  // Format old/new values for display
+  const formatValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '(none)';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) return value.join(', ') || '(empty)';
+    if (typeof value === 'object') return JSON.stringify(value, null, 2);
+    return String(value);
+  };
+
+  // Get changed fields
+  const getChangedFields = () => {
+    const changes: { field: string; oldValue: string; newValue: string }[] = [];
+
+    const oldValue = event.oldValue as Record<string, unknown> | null;
+    const newValue = event.newValue as Record<string, unknown> | null;
+
+    if (!oldValue && newValue) {
+      // Created - show new values
+      Object.entries(newValue).forEach(([key, value]) => {
+        if (key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+          changes.push({ field: key, oldValue: '(none)', newValue: formatValue(value) });
+        }
+      });
+    } else if (oldValue && newValue) {
+      // Updated - show differences
+      const allKeys = new Set([...Object.keys(oldValue), ...Object.keys(newValue)]);
+      allKeys.forEach((key) => {
+        if (key !== 'updatedAt') {
+          const oldVal = oldValue[key];
+          const newVal = newValue[key];
+          if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+            changes.push({
+              field: key,
+              oldValue: formatValue(oldVal),
+              newValue: formatValue(newVal),
+            });
+          }
+        }
+      });
+    } else if (oldValue && !newValue) {
+      // Deleted - show old values
+      Object.entries(oldValue).forEach(([key, value]) => {
+        if (key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+          changes.push({ field: key, oldValue: formatValue(value), newValue: '(deleted)' });
+        }
+      });
+    }
+
+    return changes;
+  };
+
+  const changes = isExpanded ? getChangedFields() : [];
+
+  return (
+    <div
+      className="border-l-2 border-gray-200 pl-4 py-3 hover:bg-gray-50 transition-colors"
+      data-testid={`history-item-${event.id}`}
+    >
+      {/* Main row - commit log style */}
+      <div className="flex items-start gap-3">
+        {/* Hash (event ID) */}
+        <button
+          onClick={onToggle}
+          className="flex-shrink-0 font-mono text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 hover:bg-gray-200 transition-colors"
+          title={`Event ID: ${event.id}`}
+          data-testid={`history-hash-${event.id}`}
+        >
+          <Hash className="w-3 h-3 inline mr-1" />
+          {shortHash}
+        </button>
+
+        {/* Message */}
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-medium ${getEventColor()}`}>
+            {getMessage()}
+          </p>
+          <p className="text-xs text-gray-500 font-mono truncate" title={event.elementId}>
+            {event.elementId}
+          </p>
+        </div>
+
+        {/* Timestamp */}
+        <span className="flex-shrink-0 text-xs text-gray-400" title={new Date(event.createdAt).toLocaleString()}>
+          {formatTimestamp()}
+        </span>
+
+        {/* Expand/collapse button */}
+        <button
+          onClick={onToggle}
+          className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+          title={isExpanded ? 'Hide details' : 'Show details'}
+          data-testid={`history-toggle-${event.id}`}
+        >
+          {isExpanded ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+
+      {/* Expanded details - git diff style */}
+      {isExpanded && changes.length > 0 && (
+        <div className="mt-3 bg-gray-50 rounded border border-gray-200 overflow-hidden" data-testid={`history-details-${event.id}`}>
+          <div className="px-3 py-1.5 bg-gray-100 border-b border-gray-200 text-xs text-gray-600 font-medium">
+            Changes ({changes.length})
+          </div>
+          <div className="divide-y divide-gray-200">
+            {changes.slice(0, 10).map((change, index) => (
+              <div key={index} className="px-3 py-2 text-xs">
+                <div className="font-medium text-gray-700 mb-1">{change.field}</div>
+                {change.oldValue !== '(none)' && change.oldValue !== '(deleted)' && (
+                  <div className="flex items-start gap-2 text-red-600 bg-red-50 px-2 py-1 rounded mb-1">
+                    <span className="font-mono">-</span>
+                    <span className="break-all font-mono">{change.oldValue}</span>
+                  </div>
+                )}
+                {change.newValue !== '(none)' && change.newValue !== '(deleted)' && (
+                  <div className="flex items-start gap-2 text-green-600 bg-green-50 px-2 py-1 rounded">
+                    <span className="font-mono">+</span>
+                    <span className="break-all font-mono">{change.newValue}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+            {changes.length > 10 && (
+              <div className="px-3 py-2 text-xs text-gray-500 italic">
+                +{changes.length - 10} more fields
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Message if no details */}
+      {isExpanded && changes.length === 0 && (
+        <div className="mt-2 text-xs text-gray-400 italic pl-10">
+          No detailed changes recorded
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Event type filter options for history
+const HISTORY_EVENT_TYPE_OPTIONS: { value: HistoryEventTypeFilter; label: string }[] = [
+  { value: 'all', label: 'All Events' },
+  { value: 'created', label: 'Created' },
+  { value: 'updated', label: 'Updated' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'deleted', label: 'Deleted' },
+];
+
 // Legacy card component - kept for reference but replaced by InboxMessageListItem + InboxMessageContent split layout (TB91)
 function _InboxItemCard({
   item,
@@ -1993,7 +2312,7 @@ function OrgChartView({
   );
 }
 
-type EntityDetailTab = 'overview' | 'inbox';
+type EntityDetailTab = 'overview' | 'inbox' | 'history';
 
 // Inbox view tabs configuration
 const INBOX_VIEW_TABS: { value: InboxViewType; label: string }[] = [
@@ -2435,6 +2754,18 @@ function EntityDetailPanel({
             </span>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'history'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          data-testid="entity-tab-history"
+        >
+          <History className="w-4 h-4" />
+          History
+        </button>
       </div>
 
       {/* Content */}
@@ -2790,7 +3121,7 @@ function EntityDetailPanel({
           <div>Updated: {new Date(entity.updatedAt).toLocaleString()}</div>
         </div>
           </>
-        ) : (
+        ) : activeTab === 'inbox' ? (
           /* Inbox Tab Content - TB91: Split Layout */
           <div className="flex flex-col h-full -m-4" data-testid="entity-inbox-tab">
             {/* Inbox Header with View Tabs */}
@@ -3189,8 +3520,178 @@ function EntityDetailPanel({
               </div>
             </div>
           </div>
+        ) : (
+          /* History Tab Content - TB110 */
+          <HistoryTabContent entityId={entityId} />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * TB110: History Tab Content Component
+ * Shows entity's full event history in git commit log style
+ */
+function HistoryTabContent({ entityId }: { entityId: string }) {
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(() => getStoredHistoryPageSize());
+  const [eventTypeFilter, setEventTypeFilter] = useState<HistoryEventTypeFilter>(() => getStoredHistoryEventType());
+  const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
+
+  const { data, isLoading, isError } = useEntityHistory(entityId, page, pageSize, eventTypeFilter);
+
+  // Handle event type filter change
+  const handleEventTypeChange = (type: HistoryEventTypeFilter) => {
+    setEventTypeFilter(type);
+    setStoredHistoryEventType(type);
+    setPage(1); // Reset to first page when filter changes
+    setExpandedEvents(new Set()); // Collapse all
+  };
+
+  // Toggle event expansion
+  const toggleEventExpansion = (eventId: number) => {
+    setExpandedEvents((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
+  // Expand/collapse all
+  const expandAll = () => {
+    if (data?.items) {
+      setExpandedEvents(new Set(data.items.map((e) => e.id)));
+    }
+  };
+
+  const collapseAll = () => {
+    setExpandedEvents(new Set());
+  };
+
+  const totalPages = data ? Math.ceil(data.total / pageSize) : 1;
+
+  return (
+    <div className="flex flex-col h-full -m-4" data-testid="entity-history-tab">
+      {/* Header */}
+      <div className="flex flex-col gap-2 p-3 border-b border-gray-200 bg-gray-50/50">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+            <History className="w-4 h-4" />
+            Event History
+            {data && (
+              <span className="text-gray-500 font-normal">
+                ({data.total} total)
+              </span>
+            )}
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={expandAll}
+              className="text-xs text-gray-600 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+              title="Expand all"
+              data-testid="history-expand-all"
+            >
+              <Eye className="w-3 h-3" />
+            </button>
+            <button
+              onClick={collapseAll}
+              className="text-xs text-gray-600 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+              title="Collapse all"
+              data-testid="history-collapse-all"
+            >
+              <EyeOff className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Event Type Filter */}
+        <div className="flex gap-1 flex-wrap" data-testid="history-event-type-filter">
+          {HISTORY_EVENT_TYPE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleEventTypeChange(option.value)}
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                eventTypeFilter === option.value
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              data-testid={`history-filter-${option.value}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            <span className="ml-2 text-sm text-gray-500">Loading history...</span>
+          </div>
+        ) : isError ? (
+          <div className="text-center py-8">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+            <p className="text-sm text-red-600">Failed to load history</p>
+          </div>
+        ) : !data?.items.length ? (
+          <div className="text-center py-8">
+            <History className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">
+              {eventTypeFilter !== 'all'
+                ? `No ${eventTypeFilter} events found`
+                : 'No events recorded yet'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-0" data-testid="history-events-list">
+            {data.items.map((event) => (
+              <HistoryEventItem
+                key={event.id}
+                event={event}
+                isExpanded={expandedEvents.has(event.id)}
+                onToggle={() => toggleEventExpansion(event.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {data && data.total > pageSize && (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <span className="text-xs text-gray-500">
+            Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, data.total)} of {data.total}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="history-prev-page"
+            >
+              Previous
+            </button>
+            <span className="px-2 text-xs text-gray-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="px-2 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="history-next-page"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

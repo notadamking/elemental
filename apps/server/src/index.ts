@@ -12,7 +12,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService, createInboxService, getDirectReports, getManagementChain, validateManager, detectReportingCycle } from '@elemental/cli';
 import type { SyncService, InboxService } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreatePlaybookInput, CreateLibraryInput, Library, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow, InboxFilter, InboxStatus, Entity } from '@elemental/cli';
+import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreateLibraryInput, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow, InboxFilter, InboxStatus, Entity, EventType } from '@elemental/cli';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, broadcastInboxEvent, type ClientData } from './ws/handler.js';
@@ -1236,6 +1236,8 @@ app.get('/api/entities/:id/events', async (c) => {
     const id = c.req.param('id') as ElementId;
     const url = new URL(c.req.url);
     const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const eventTypeParam = url.searchParams.get('eventType');
 
     // Verify entity exists
     const entity = await api.get(id);
@@ -1243,16 +1245,80 @@ app.get('/api/entities/:id/events', async (c) => {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
     }
 
+    // Parse event type filter if provided
+    let eventTypeFilter: EventType | EventType[] | undefined;
+    if (eventTypeParam) {
+      const types = eventTypeParam.split(',').map(t => t.trim()).filter(Boolean) as EventType[];
+      eventTypeFilter = types.length === 1 ? types[0] : types;
+    }
+
     // Get events by this actor
     const events = await api.listEvents({
       actor: id as unknown as EntityId,
       limit: limitParam ? parseInt(limitParam, 10) : 20,
+      offset: offsetParam ? parseInt(offsetParam, 10) : undefined,
+      eventType: eventTypeFilter,
     });
 
     return c.json(events);
   } catch (error) {
     console.error('[elemental] Failed to get entity events:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity events' } }, 500);
+  }
+});
+
+// GET /api/entities/:id/history - Get entity's full event history with pagination
+// TB110: Entity Event History (Commit History Style)
+app.get('/api/entities/:id/history', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const eventTypeParam = url.searchParams.get('eventType');
+
+    // Verify entity exists
+    const entity = await api.get(id);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+
+    const limit = limitParam ? parseInt(limitParam, 10) : 50;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
+    // Parse event type filter if provided
+    let eventTypeFilter: EventType | EventType[] | undefined;
+    if (eventTypeParam) {
+      const types = eventTypeParam.split(',').map(t => t.trim()).filter(Boolean) as EventType[];
+      eventTypeFilter = types.length === 1 ? types[0] : types;
+    }
+
+    // Get total count (events without pagination)
+    const allEvents = await api.listEvents({
+      actor: id as unknown as EntityId,
+      limit: 100000, // High limit to get total count
+      eventType: eventTypeFilter,
+    });
+    const total = allEvents.length;
+
+    // Get paginated events
+    const events = await api.listEvents({
+      actor: id as unknown as EntityId,
+      limit,
+      offset,
+      eventType: eventTypeFilter,
+    });
+
+    return c.json({
+      items: events,
+      total,
+      offset,
+      limit,
+      hasMore: offset + events.length < total,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get entity history:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity history' } }, 500);
   }
 });
 

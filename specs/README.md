@@ -122,6 +122,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB107-add-members-team-ui.md](./platform/TB107-add-members-team-ui.md) | Add members to team with inline search and dropdown in TeamDetailPanel | team, members, search, add, entity, inline |
 | [platform/TB108-entity-contribution-chart.md](./platform/TB108-entity-contribution-chart.md) | GitHub-style contribution activity chart in EntityDetailPanel | entity, activity, contribution, chart, github, grid |
 | [platform/TB109-entity-activity-overview.md](./platform/TB109-entity-activity-overview.md) | Recent activity feed in EntityDetailPanel with icons, descriptions, and View all activity link | entity, activity, events, timeline, feed, navigation |
+| [platform/TB110-entity-event-history.md](./platform/TB110-entity-event-history.md) | Full event history tab in EntityDetailPanel with git commit log style display | entity, history, events, commit log, diff, pagination, filter |
 
 ---
 
