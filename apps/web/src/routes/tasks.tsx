@@ -1702,12 +1702,17 @@ export function TasksPage() {
   const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
   const selectedFromUrl = search.selected ?? null;
   const readyOnly = search.readyOnly ?? false;
+  const assigneeFromUrl = search.assignee ?? '';
 
   // Sort configuration - use internal field names and localStorage
   const [sortField, setSortField] = useState<SortField>(getStoredSortField);
   const [sortDirection, setSortDirection] = useState<SortDirection>(getStoredSortDirection);
   const [secondarySort, setSecondarySort] = useState<SortField | null>(getStoredSecondarySort);
-  const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
+  // Initialize filters from URL if assignee is provided
+  const [filters, setFilters] = useState<FilterConfig>(() => ({
+    ...EMPTY_FILTER,
+    assignee: assigneeFromUrl,
+  }));
   const [groupBy, setGroupBy] = useState<GroupByField>(getStoredGroupBy);
 
   // Search state (TB82)
@@ -1807,6 +1812,13 @@ export function TasksPage() {
       setSelectedTaskId(selectedFromUrl);
     }
   }, [selectedFromUrl]);
+
+  // Sync assignee filter with URL parameter (TB105)
+  useEffect(() => {
+    if (assigneeFromUrl !== filters.assignee) {
+      setFilters(prev => ({ ...prev, assignee: assigneeFromUrl }));
+    }
+  }, [assigneeFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1985,13 +1997,21 @@ export function TasksPage() {
 
   const handleFilterChange = (newFilters: FilterConfig) => {
     setFilters(newFilters);
-    // Reset to first page when filters change, preserve readyOnly
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+    // Reset to first page when filters change, preserve readyOnly and assignee (TB105)
+    navigate({
+      to: '/tasks',
+      search: {
+        page: 1,
+        limit: pageSize,
+        readyOnly: readyOnly ? true : undefined,
+        assignee: newFilters.assignee || undefined,
+      },
+    });
   };
 
   const handleClearFilters = () => {
     setFilters(EMPTY_FILTER);
-    // Keep readyOnly when clearing other filters
+    // Clear all filters including assignee from URL (TB105)
     navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
   };
 

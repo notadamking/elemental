@@ -117,6 +117,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB102-image-input-messages.md](./platform/TB102-image-input-messages.md) | Image input in messages with upload, library, paste, drag-drop | messages, image, upload, attachment, paste, drag-drop, media |
 | [platform/TB103-message-search.md](./platform/TB103-message-search.md) | Message search within channels and global search in command palette | messages, search, channel, highlight, scroll, command palette |
 | [platform/TB104-clickable-member-names.md](./platform/TB104-clickable-member-names.md) | Clickable entity references with hover preview cards | entity, link, hover, preview, teams, tasks, messages, navigation |
+| [platform/TB105-clickable-workload.md](./platform/TB105-clickable-workload.md) | Clickable workload chart bars with navigation to filtered tasks | workload, chart, navigation, assignee, filter, click |
 
 ---
 

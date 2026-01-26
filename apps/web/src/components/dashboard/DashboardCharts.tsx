@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   PieChart,
   Pie,
@@ -33,6 +33,7 @@ interface WorkloadByAgentData {
   name: string;
   entityId: string;
   tasks: number;
+  percentage: number;
 }
 
 // Status colors matching the app's design tokens
@@ -176,6 +177,9 @@ function calculateWorkloadByAgent(
     }
   });
 
+  // Calculate total for percentage
+  const totalTasks = Object.values(assigneeCounts).reduce((sum, count) => sum + count, 0);
+
   // Map to entity names
   const entityMap = new Map(entities.map((e) => [e.id, e]));
 
@@ -186,6 +190,7 @@ function calculateWorkloadByAgent(
         name: entity?.name || entityId.slice(0, 8),
         entityId,
         tasks: count,
+        percentage: totalTasks > 0 ? Math.round((count / totalTasks) * 100) : 0,
       };
     })
     .sort((a, b) => b.tasks - a.tasks)
@@ -225,7 +230,10 @@ function BarChartTooltip({ active, payload }: { active?: boolean; payload?: Arra
   return (
     <div className="bg-card p-2 rounded-lg shadow-lg border border-border">
       <p className="text-sm font-medium text-foreground">{data.name}</p>
-      <p className="text-sm text-muted-foreground">{data.tasks} active tasks</p>
+      <p className="text-sm text-muted-foreground">
+        {data.tasks} active task{data.tasks !== 1 ? 's' : ''} ({data.percentage}%)
+      </p>
+      <p className="text-xs text-muted-foreground mt-1">Click to view tasks</p>
     </div>
   );
 }
@@ -391,9 +399,18 @@ export function TasksCompletedOverTimeChart() {
 export function WorkloadByAgentChart() {
   const { data: tasks, isLoading: tasksLoading, isError: tasksError } = useAllTasks();
   const { data: entities, isLoading: entitiesLoading, isError: entitiesError } = useAllEntities();
+  const navigate = useNavigate();
 
   const isLoading = tasksLoading || entitiesLoading;
   const isError = tasksError || entitiesError;
+
+  // Handle bar click - navigate to tasks filtered by assignee
+  const handleBarClick = (data: WorkloadByAgentData) => {
+    navigate({
+      to: '/tasks',
+      search: { assignee: data.entityId, page: 1, limit: 25 },
+    });
+  };
 
   if (isLoading) {
     return (
@@ -457,6 +474,8 @@ export function WorkloadByAgentChart() {
               dataKey="tasks"
               fill="var(--color-primary, #3b82f6)"
               radius={[0, 4, 4, 0]}
+              className="cursor-pointer"
+              onClick={(data) => handleBarClick(data as unknown as WorkloadByAgentData)}
             />
           </BarChart>
         </ResponsiveContainer>

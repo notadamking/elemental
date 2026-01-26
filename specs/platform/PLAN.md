@@ -585,11 +585,11 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Hover shows entity preview card (name, type, avatar, stats)
   - [x] **Verify:** 6/7 Playwright tests passing (`apps/web/tests/tb104-clickable-member-names.spec.ts`)
 
-- [ ] **TB105: Clickable Workload Distribution**
-  - [ ] Web: Workload chart bars in EntityDetailPanel and TeamDetailPanel are clickable
-  - [ ] Web: Click bar → filter to that entity's tasks (navigate to `/tasks?assignee=:id`)
-  - [ ] Web: Hover shows exact count and percentage
-  - [ ] **Verify:** Click workload bar, tasks filtered to that entity; Playwright tests passing
+- [x] **TB105: Clickable Workload Distribution** ([spec](./TB105-clickable-workload.md))
+  - [x] Web: Workload chart bars in Dashboard, Agent Activity, and TeamDetailPanel are clickable
+  - [x] Web: Click bar → filter to that entity's tasks (navigate to `/tasks?assignee=:id`)
+  - [x] Web: Hover shows exact count and percentage
+  - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb105-clickable-workload.spec.ts`)
 
 - [ ] **TB106: Clickable Assigned Tasks**
   - [ ] Web: Task list items in EntityDetailPanel are clickable

@@ -278,7 +278,15 @@ function AgentCard({ entity, onClick }: { entity: Entity; onClick: () => void })
   );
 }
 
-function WorkloadChart({ entities, tasksByEntity }: { entities: Entity[]; tasksByEntity: Map<string, number> }) {
+function WorkloadChart({
+  entities,
+  tasksByEntity,
+  onBarClick,
+}: {
+  entities: Entity[];
+  tasksByEntity: Map<string, number>;
+  onBarClick?: (entityId: string) => void;
+}) {
   const maxTasks = Math.max(...Array.from(tasksByEntity.values()), 1);
   const totalTasks = Array.from(tasksByEntity.values()).reduce((sum, count) => sum + count, 0);
 
@@ -293,9 +301,15 @@ function WorkloadChart({ entities, tasksByEntity }: { entities: Entity[]; tasksB
           const colors = ENTITY_TYPE_COLORS[entity.entityType] || ENTITY_TYPE_COLORS.system;
 
           return (
-            <div key={entity.id} data-testid={`workload-bar-${entity.id}`}>
+            <button
+              key={entity.id}
+              data-testid={`workload-bar-${entity.id}`}
+              onClick={() => onBarClick?.(entity.id)}
+              className="w-full text-left hover:bg-gray-50 rounded p-1 -mx-1 transition-colors cursor-pointer group"
+              title={`Click to view ${entity.name}'s tasks`}
+            >
               <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-gray-700 truncate">{entity.name}</span>
+                <span className="text-gray-700 truncate group-hover:text-blue-600">{entity.name}</span>
                 <span className="text-gray-500 flex-shrink-0 ml-2">
                   {taskCount} task{taskCount !== 1 ? 's' : ''} ({sharePercentage}%)
                 </span>
@@ -306,7 +320,7 @@ function WorkloadChart({ entities, tasksByEntity }: { entities: Entity[]; tasksB
                   style={{ width: `${percentage}%` }}
                 />
               </div>
-            </div>
+            </button>
           );
         })}
         {entities.length === 0 && (
@@ -390,7 +404,14 @@ export function AgentActivityPage() {
 
           {/* Workload Chart */}
           <div className="space-y-4">
-            <WorkloadChart entities={agents} tasksByEntity={tasksByEntity} />
+            <WorkloadChart
+              entities={agents}
+              tasksByEntity={tasksByEntity}
+              onBarClick={(entityId) => navigate({
+                to: '/tasks',
+                search: { assignee: entityId, page: 1, limit: 25 },
+              })}
+            />
 
             {/* Quick Stats */}
             <div className="bg-white rounded-lg border border-gray-200 p-4">
