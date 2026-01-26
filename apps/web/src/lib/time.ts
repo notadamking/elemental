@@ -188,3 +188,86 @@ export function getSmartUpdateInterval(dates: (Date | string)[]): number {
 
   return getUpdateInterval(mostRecent);
 }
+
+// ============================================================================
+// TB99: Message Day Separation
+// ============================================================================
+
+/**
+ * Gets a unique date key for grouping messages by day (YYYY-MM-DD format)
+ */
+export function getDateKey(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Formats a date for message day separators
+ * - Today: "Today"
+ * - Yesterday: "Yesterday"
+ * - Older: "Monday, January 15" (full weekday and date)
+ */
+export function formatDateSeparator(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const now = new Date();
+
+  // Reset times to start of day for comparison
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const inputDayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  if (inputDayStart.getTime() === todayStart.getTime()) {
+    return 'Today';
+  }
+  if (inputDayStart.getTime() === yesterdayStart.getTime()) {
+    return 'Yesterday';
+  }
+
+  // For older dates, show full weekday and date: "Monday, January 15"
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Message with day grouping information
+ */
+export interface MessageWithDayGroup<T> {
+  item: T;
+  dateKey: string;
+  formattedDate: string;
+  isFirstInDay: boolean;
+}
+
+/**
+ * Groups messages by day for date separators
+ * Returns items in the same order but with day grouping information
+ */
+export function groupMessagesByDay<T>(
+  items: T[],
+  getDate: (item: T) => string | Date
+): MessageWithDayGroup<T>[] {
+  const result: MessageWithDayGroup<T>[] = [];
+  let lastDateKey: string | null = null;
+
+  for (const item of items) {
+    const date = getDate(item);
+    const dateKey = getDateKey(date);
+    const isFirstInDay = dateKey !== lastDateKey;
+    const formattedDate = isFirstInDay ? formatDateSeparator(date) : '';
+
+    result.push({
+      item,
+      dateKey,
+      formattedDate,
+      isFirstInDay,
+    });
+
+    lastDateKey = dateKey;
+  }
+
+  return result;
+}

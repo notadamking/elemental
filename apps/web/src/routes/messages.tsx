@@ -12,13 +12,14 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search } from 'lucide-react';
+import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog, Paperclip, FileText, Loader2, Search, Calendar } from 'lucide-react';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useAllChannels } from '../api/hooks/useAllElements';
 import { usePaginatedData, createChannelFilter } from '../hooks/usePaginatedData';
+import { groupMessagesByDay } from '../lib';
 
 // Estimated message height for virtualization
 const MESSAGE_ROW_HEIGHT = 100;
@@ -507,6 +508,31 @@ function ChannelPlaceholder() {
           Choose a channel from the sidebar to view messages
         </p>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TB99: Date Separator Component
+// ============================================================================
+
+function DateSeparator({ date, isSticky = false }: { date: string; isSticky?: boolean }) {
+  return (
+    <div
+      data-testid={`date-separator-${date.replace(/\s/g, '-').toLowerCase()}`}
+      className={`flex items-center gap-3 py-3 ${isSticky ? 'sticky top-0 bg-white z-10 -mx-4 px-4 shadow-sm' : ''}`}
+    >
+      <div className="flex-1 h-px bg-gray-200" />
+      <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
+        <Calendar className="w-3 h-3 text-gray-500" />
+        <span
+          data-testid="date-separator-label"
+          className="text-xs font-medium text-gray-600"
+        >
+          {date}
+        </span>
+      </div>
+      <div className="flex-1 h-px bg-gray-200" />
     </div>
   );
 }
@@ -1068,6 +1094,12 @@ function ChannelView({ channelId }: { channelId: string }) {
   // Filter out threaded messages from main view (show only root messages)
   const rootMessages = messages.filter((msg) => !msg.threadId);
 
+  // Group messages by day for date separators (TB99)
+  const groupedMessages = useMemo(
+    () => groupMessagesByDay(rootMessages, (msg) => msg.createdAt),
+    [rootMessages]
+  );
+
   const handleReply = (message: Message) => {
     setSelectedThread(message);
   };
@@ -1142,32 +1174,41 @@ function ChannelView({ channelId }: { channelId: string }) {
               </p>
             </div>
           ) : rootMessages.length > 100 ? (
-            // Use virtualization for large message lists
+            // Use virtualization for large message lists with day separators (TB99)
             <VirtualizedList
-              items={rootMessages}
-              getItemKey={(msg) => msg.id}
-              estimateSize={MESSAGE_ROW_HEIGHT}
+              items={groupedMessages}
+              getItemKey={(grouped) => grouped.item.id}
+              estimateSize={(index) => groupedMessages[index]?.isFirstInDay ? MESSAGE_ROW_HEIGHT + 48 : MESSAGE_ROW_HEIGHT}
               scrollRestoreId={`messages-${channelId}`}
               className="h-full"
               testId="virtualized-messages-list"
               gap={8}
-              renderItem={(message) => (
-                <MessageBubble
-                  message={message}
-                  onReply={handleReply}
-                  replyCount={replyCounts[message.id] || 0}
-                />
+              renderItem={(grouped) => (
+                <div>
+                  {grouped.isFirstInDay && (
+                    <DateSeparator date={grouped.formattedDate} />
+                  )}
+                  <MessageBubble
+                    message={grouped.item}
+                    onReply={handleReply}
+                    replyCount={replyCounts[grouped.item.id] || 0}
+                  />
+                </div>
               )}
             />
           ) : (
-            <div data-testid="messages-list" className="space-y-2">
-              {rootMessages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  onReply={handleReply}
-                  replyCount={replyCounts[message.id] || 0}
-                />
+            <div data-testid="messages-list" className="space-y-0">
+              {groupedMessages.map((grouped) => (
+                <div key={grouped.item.id}>
+                  {grouped.isFirstInDay && (
+                    <DateSeparator date={grouped.formattedDate} />
+                  )}
+                  <MessageBubble
+                    message={grouped.item}
+                    onReply={handleReply}
+                    replyCount={replyCounts[grouped.item.id] || 0}
+                  />
+                </div>
               ))}
               <div ref={messagesEndRef} />
             </div>

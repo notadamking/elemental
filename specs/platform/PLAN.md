@@ -487,164 +487,7 @@ For mutations (create, update, delete):
 
 Completed implementation phases have been moved to specs/platform/COMPLETED_PHASES.md.
 
-### Phase 22B: Document Editor Core Fixes
-
-**Goal:** Fix fundamental document editor issues with a **Markdown-first architecture**.
-
-> **Key Principle:** All document content is stored as Markdown, not proprietary JSON formats.
-> This ensures AI agents can read and write documents naturally, maximizes token efficiency,
-> and maintains universal interoperability with external tools. The editor provides rich UX
-> for humans while persisting standard Markdown that any system can understand.
-
-- [x] **TB94a: Editor Expand in Edit Mode**
-  - [x] Web: Debug why editor cannot be expanded/resized while in editing mode - Fixed: expand button was only visible in view mode, moved outside conditional
-  - [x] Web: Ensure editor panel supports resize handle or expand button in edit mode - `apps/web/src/routes/documents.tsx` lines 1773-1788
-  - [x] Web: Add fullscreen/focus mode toggle (Escape to exit) - Added `isFullscreen` state with Escape key handler; fullscreen button in panel header
-  - [x] Web: Persist editor size preference in localStorage - `document.expanded` key in localStorage, restored on mount
-  - [x] **Verify:** Enter edit mode, expand editor to fullscreen, content persists; Playwright tests passing (12 tests in `apps/web/tests/tb94a-editor-expand.spec.ts`)
-
-- [x] **TB94b: Core Formatting Fixes**
-  - [x] Web: Fixed BlockEditor to emit HTML instead of converting to plain text - formatting now persists
-  - [x] Web: Fixed headings (H1, H2, H3) - toolbar buttons, slash commands, and keyboard shortcuts all work
-  - [x] Web: Fixed highlighting - toolbar button and keyboard shortcut (Cmd+Shift+H) apply highlight
-  - [x] Web: Fixed bullet lists - slash command `/bullet` creates list, Enter continues list
-  - [x] Web: Fixed numbered lists - slash command `/numbered` creates list, Enter continues list
-  - [x] Web: Fixed code blocks - slash command `/code` creates block, syntax highlighting works
-  - [x] Web: Fixed block quotes - keyboard shortcut (Cmd+Shift+B) and slash command work
-  - [x] Web: All formatting persists on save and displays correctly in view mode
-  - [x] Web: Added comprehensive test coverage - 14 Playwright tests in `apps/web/tests/tb94b-core-formatting.spec.ts`
-  - [x] **Verify:** Create document with all formatting types, save, refresh, all formatting preserved; Playwright tests passing (14 tests)
-
-- [x] **TB94c: Markdown-First Editor Architecture**
-
-  > **Design Decision:** We intentionally use **Markdown as the canonical storage format** rather than
-  > a proprietary JSON format (like BlockNote). This ensures:
-  >
-  > - **AI Agent Compatibility:** Agents can read/write documents naturally without schema knowledge
-  > - **Token Efficiency:** Markdown is 3-5x more compact than structured JSON for the same content
-  > - **Universal Interoperability:** Works with GitHub, external tools, and other AI systems
-  > - **Simplicity:** No format migration, no schema versioning, no complex nested structures
-  - [x] Web: Refactor BlockEditor to use Markdown as source of truth (not HTML or plain text) - `apps/web/src/components/editor/BlockEditor.tsx`
-  - [x] Web: Install and configure `turndown`/`marked` for conversion - `bun add turndown marked @types/turndown`
-  - [x] Web: Create markdown utility functions - `apps/web/src/lib/markdown.ts` (htmlToMarkdown, markdownToHtml, etc.)
-  - [x] Web: Update `onChange` to emit Markdown string via `prepareContentForStorage()` - BlockEditor.tsx
-  - [x] Web: Update content loading to parse Markdown → HTML via `prepareContentForEditor()` - BlockEditor.tsx
-  - [x] Web: Ensure round-trip fidelity: Markdown → Editor → Markdown preserves formatting - tested with headings, bold, italic, lists, code blocks, blockquotes, highlight, strikethrough
-  - [x] Web: Update DocumentRenderer to handle both Markdown and legacy HTML content - `apps/web/src/routes/documents.tsx`
-  - [x] Web: Add custom Turndown rules for highlight (`==text==`) and strikethrough (`~~text~~`)
-  - [x] Web: Add comprehensive test coverage - 11 Playwright tests in `apps/web/tests/tb94c-markdown-first.spec.ts`
-  - [x] **Verify:** Create document with mixed formatting, save, reload—Markdown content stored in API; AI agents can read/write documents naturally; Playwright tests passing (11 tests)
-
-- [x] **TB94c-2: Block Drag-and-Drop with Markdown Persistence**
-  - [x] Web: Debug `tiptap-extension-global-drag-handle` integration - extension working correctly
-  - [x] Web: Ensure drag handles appear on hover for paragraphs, headings, lists, code blocks
-  - [x] Web: Fix any CSS conflicts (z-index, positioning) preventing drag handle visibility
-  - [x] Web: Implement block reordering via drag-and-drop - working via GlobalDragHandle extension
-  - [x] Web: Visual drop indicator (blue line) between blocks while dragging - configured dropcursor with `class: 'drop-cursor'` and matching CSS
-  - [x] Web: After drop, Markdown output reflects new block order
-  - [x] Web: Add comprehensive test coverage - 11 Playwright tests in `apps/web/tests/tb94c-2-drag-drop-markdown.spec.ts`
-  - [x] **Verify:** Drag paragraph to new position, save, check raw Markdown—order changed correctly; Playwright tests passing (11 tests)
-
-- [x] **TB94d: Text Alignment**
-  - [x] Web: Add text alignment extension (@tiptap/extension-text-align) - `apps/web/src/components/editor/BlockEditor.tsx`
-  - [x] Web: Add toolbar buttons: Align Left, Center, Align Right, Justify - `BlockEditor.tsx` alignmentActions
-  - [x] Web: Add slash commands: /left, /center, /right, /justify - `apps/web/src/components/editor/SlashCommands.tsx`
-  - [x] Web: Keyboard shortcuts: ⌘+Shift+L (left), ⌘+Shift+E (center), ⌘+Shift+R (right), ⌘+Shift+J (justify)
-  - [x] Web: Alignment applies to current block (paragraph, heading) - TextAlign configured with `types: ['heading', 'paragraph']`
-  - [x] Web: Alignment indicator in toolbar (shows current alignment state via overflow menu)
-  - [x] Web: Alignment stored in Markdown using HTML attributes (e.g., `<p style="text-align: center">`)
-  - [x] **Verify:** Create centered heading, right-aligned paragraph, alignment persists in Markdown; Playwright tests passing (15 tests in `apps/web/tests/tb94d-text-alignment.spec.ts`)
-
-- [x] **TB94e: Image Block Support (Markdown-Compatible)**
-
-  > **Markdown Format for Images:** Images use standard Markdown syntax that AI agents can read/write:
-  >
-  > - Basic: `![alt text](/api/uploads/abc123.png)`
-  > - With caption: `![alt text](/api/uploads/abc123.png "caption text")`
-  > - With dimensions: `![alt text|400x300](/api/uploads/abc123.png)` (extended syntax)
-  - [x] Web: Add Image extension (@tiptap/extension-image) - `apps/web/src/components/editor/BlockEditor.tsx`
-  - [x] Web: Image insertion methods:
-    - [x] Slash command: /image opens ImageUploadModal - `apps/web/src/components/editor/SlashCommands.tsx`
-    - [x] Toolbar button: Image icon in blocks menu
-    - [x] URL: URL input tab in ImageUploadModal
-  - [x] Web: Markdown output uses standard `![alt](url)` syntax - handled by turndown library
-  - [x] Server: Add `POST /api/uploads` endpoint - `apps/server/src/index.ts`
-    - [x] Accept multipart/form-data with image file
-    - [x] Store in `.elemental/uploads/{hash}.{ext}`
-    - [x] Return URL: `/api/uploads/{hash}.{ext}`
-    - [x] Support: jpg, png, gif, webp, svg (validate MIME type)
-    - [x] Max size: 10MB
-  - [x] Server: Add `GET /api/uploads/:filename` endpoint (serve uploaded files)
-  - [x] Server: Add `GET /api/uploads` endpoint (list all uploads)
-  - [x] Server: Add `DELETE /api/uploads/:filename` endpoint
-  - [x] Web: ImageUploadModal component - `apps/web/src/components/editor/ImageUploadModal.tsx`
-    - [x] Upload tab with drag-and-drop support
-    - [x] URL tab for external images
-    - [x] Image preview before insert
-    - [x] Alt text input
-  - [x] **Verify:** Upload image, check Markdown contains `![alt](url)`; manually write image Markdown, editor renders image; Playwright tests passing (14 tests in `apps/web/tests/tb94e-image-support.spec.ts`)
-
-- [x] **TB94f: Task and Document Embedding (Markdown-Compatible)**
-
-  > **Markdown Format for Embeds:** Embeds are stored as custom Markdown syntax that AI agents can
-  > easily read and write:
-  >
-  > - Task embed: `![[task:el-abc123]]`
-  > - Document embed: `![[doc:el-xyz789]]`
-  > - Inline link (existing): `[Task Title](/tasks/el-abc123)`
-  >
-  > This allows agents to create embeds by simply writing the syntax, without needing editor UI.
-  - [x] Web: Define embed syntax convention - using `![[task:ID]]` and `![[doc:ID]]` (Obsidian-inspired)
-  - [x] Web: Distinguish between "link" (inline text link) and "embed" (rich preview block) - embeds render as inline badges
-  - [x] Web: Create Tiptap nodes that parse embed syntax from Markdown - `apps/web/src/components/editor/blocks/TaskEmbedBlock.tsx`, `DocumentEmbedBlock.tsx`
-  - [x] Web: Task embed block:
-    - [x] Slash command: `/task` opens task picker - `apps/web/src/components/editor/SlashCommands.tsx`
-    - [x] Markdown output: `![[task:el-abc123]]` - `apps/web/src/lib/markdown.ts` turndown rule
-    - [x] Renders as inline badge showing: title, status icon with color - TaskEmbedBlock component
-    - [x] Real-time updates: uses TanStack Query with task ID key for automatic updates
-    - [x] Click → navigates to `/tasks/:id` via href attribute
-    - [x] Error state shown for non-existent tasks
-  - [x] Web: Document embed block:
-    - [x] Slash command: `/doc` opens document picker - SlashCommands.tsx
-    - [x] Markdown output: `![[doc:el-xyz789]]` - markdown.ts turndown rule
-    - [x] Renders as inline badge showing: title, content type icon - DocumentEmbedBlock component
-    - [x] Click → navigates to `/documents/:id` via href attribute
-    - [x] Error state shown for non-existent documents
-  - [x] Web: Embed blocks are distinct from existing inline links - embeds are atomic Tiptap nodes, not standard links
-  - [x] Web: TaskPickerModal and DocumentPickerModal - `apps/web/src/components/editor/TaskPickerModal.tsx`, `DocumentPickerModal.tsx`
-    - [x] Search functionality
-    - [x] Keyboard navigation
-    - [x] Close button functionality
-  - [x] Web: BlockEditor integration - embeds registered as extensions, picker modals trigger via slash commands
-  - [x] **Verify:** Embed task via UI, check Markdown contains `![[task:ID]]`; manually write embed syntax, editor renders card; Playwright tests passing (18 tests in `apps/web/tests/tb94f-task-document-embedding.spec.ts`)
-
-### Phase 23: Documents Page Enhancements (Notion-inspired)
-
-**Goal:** Enhance the document editor with Notion-inspired features.
-
-- [x] **TB95: Document Search**
-  - [x] Web: Add search bar to Documents page sidebar - `apps/web/src/routes/documents.tsx` (DocumentSearchBar component in LibraryTree header)
-  - [x] Web: Search by document title and content (full-text) - Server `/api/documents/search` endpoint searches both title and content
-  - [x] Web: Results show title and content snippet with highlighted match - Results dropdown with highlighted matches using `<mark>` tags
-  - [x] Web: Click result → open document - handleSelectResult calls onSelectDocument, clears search
-  - [x] Web: Keyboard shortcut: `/` focuses search when in Documents - Global keyboard listener focuses input on `/`
-  - [x] Server: Add `GET /api/documents/search` endpoint with snippet generation - `apps/server/src/index.ts`
-  - [x] **Verify:** Search for keyword, matching documents shown with preview; 18 Playwright tests passing (`apps/web/tests/tb95-document-search.spec.ts`)
-
-- [x] **TB96: Media Library Browser**
-
-  > Note: Core image support is in TB94e. This TB adds a media library for managing uploaded assets.
-  - [x] Web: Add "Media Library" tab/modal accessible from image picker - `apps/web/src/components/editor/ImageUploadModal.tsx` (Library tab with Grid icon)
-  - [x] Web: Show grid of all uploaded images for current workspace - 3-column grid view with image thumbnails
-  - [x] Web: Search/filter uploaded images by filename - Search input with real-time filtering
-  - [x] Web: Click to insert existing image (reuse URL, don't re-upload) - Selection state with blue border and checkmark
-  - [x] Web: Delete unused images from library - Delete button with confirmation in hover overlay
-  - [x] Server: Add `GET /api/uploads` endpoint (list all uploads with metadata) - Already existed from TB94e
-  - [x] Server: Add `DELETE /api/uploads/:filename` endpoint - Already existed from TB94e
-  - [x] Server: Track image usage (which documents reference each image) - New `GET /api/uploads/:filename/usage` endpoint
-  - [x] **Verify:** Upload image, see it in media library, insert into different document; 13 Playwright tests passing (`apps/web/tests/tb96-media-library-browser.spec.ts`)
-
-- [x] **TB97: Emoji Support (Markdown-Compatible)**
+- [] **TB97: Emoji Support (Markdown-Compatible)**
 
   > **Markdown Format for Emojis:** Emojis are stored as Unicode characters directly in Markdown,
   > which AI agents can read/write natively. The `:shortcode:` syntax is converted to Unicode on input.
@@ -655,7 +498,7 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Store as Unicode in Markdown (not shortcodes) for universal compatibility
   - [x] Web: Common emojis suggested first (recently used via localStorage)
   - [x] Web: Add `/emoji` slash command - `apps/web/src/components/editor/SlashCommands.tsx`
-  - [ ] Web: Document icon/emoji in library tree (stored in document metadata) - deferred to future enhancement
+  - [ ] Web: Document icon/emoji in library tree (stored in document metadata) like Notion
   - [x] **Verify:** 11/16 Playwright tests passing (`apps/web/tests/tb97-emoji-support.spec.ts`); type `:smile:` converts to 😊; emoji stored as Unicode
 
 - [x] **TB98: Inline Comments (Stored Separately)**
@@ -681,12 +524,13 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Enhance the messaging experience with Slack-inspired features.
 
-- [ ] **TB99: Message Day Separation**
-  - [ ] Web: Group messages by day with separator headers
-  - [ ] Web: Date separator shows: "Today", "Yesterday", or full date "Monday, January 15"
-  - [ ] Web: Sticky date header while scrolling
-  - [ ] Web: Consistent styling with message bubbles
-  - [ ] **Verify:** Messages grouped by day with clear separators; Claude in Chrome visual inspection
+- [x] **TB99: Message Day Separation**
+  - [x] Web: Group messages by day with separator headers - `apps/web/src/routes/messages.tsx` uses `groupMessagesByDay()` utility
+  - [x] Web: Date separator shows: "Today", "Yesterday", or full date "Monday, January 15" - `apps/web/src/lib/time.ts` `formatDateSeparator()`
+  - [x] Web: DateSeparator component with calendar icon and horizontal lines - `apps/web/src/routes/messages.tsx`
+  - [x] Web: Consistent styling with message bubbles - gray-100 background, rounded-full pill style
+  - [x] Web: Works with both virtualized (>100 msgs) and non-virtualized lists
+  - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb99-message-day-separation.spec.ts`)
 
 - [ ] **TB100: Copy Message Action**
   - [ ] Web: Add "Copy" action to message hover menu (or right-click context menu)

@@ -19,4 +19,9 @@ export {
   getUpdateInterval,
   getSmartUpdateInterval,
   type GroupedItem,
+  // TB99: Message Day Separation
+  getDateKey,
+  formatDateSeparator,
+  groupMessagesByDay,
+  type MessageWithDayGroup,
 } from './time';
