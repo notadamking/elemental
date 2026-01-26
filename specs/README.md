@@ -99,6 +99,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB78-dashboard-charts.md](./platform/TB78-dashboard-charts.md) | Dashboard overview charts (Tasks by Status, Completed Over Time, Workload by Agent) | dashboard, charts, recharts, donut, line, bar, visualization |
 | [platform/TB79-view-more-ready-tasks.md](./platform/TB79-view-more-ready-tasks.md) | View More Ready Tasks fix with readyOnly URL filter | tasks, ready, filter, dashboard, navigation, filter chip |
 | [platform/TB82-task-search.md](./platform/TB82-task-search.md) | Task search with fuzzy matching and character highlighting | tasks, search, filter, fuzzy, highlight, debounce, keyboard |
+| [platform/TB83-rich-task-display.md](./platform/TB83-rich-task-display.md) | Rich task display with description preview, attachment count, dependency counts | tasks, TaskCard, description, attachments, dependencies, tooltip, counts |
 
 ---
 

@@ -1255,12 +1255,16 @@ For mutations (create, update, delete):
   - [x] Web: Search works with grouping and sorting (search first, then group, then sort)
   - [x] **Verify:** Search for "auth", matching tasks highlighted; Playwright tests passing (17 tests)
 
-- [ ] **TB83: Rich Task Display**
-  - [ ] Web: TaskCard shows inline description preview (first 2 lines, truncated)
-  - [ ] Web: TaskCard shows attachment count badge if task has attachments
-  - [ ] Web: TaskCard shows dependency count ("Blocks 3" or "Blocked by 2")
-  - [ ] Web: Hover preview: show full description in tooltip (larger tasks)
-  - [ ] **Verify:** Task cards show rich information at a glance; Claude in Chrome visual inspection
+- [x] **TB83: Rich Task Display**
+  - [x] Server: `/api/elements/all?includeTaskCounts=true` returns tasks with `_attachmentCount`, `_blocksCount`, `_blockedByCount`
+  - [x] Server: `/api/tasks/ready` and `/api/tasks/blocked` include task counts for rich display
+  - [x] Web: TaskCard shows inline description preview (first 2 lines, truncated) with `showDescription` prop
+  - [x] Web: TaskCard shows attachment count badge with Paperclip icon when `_attachmentCount > 0`
+  - [x] Web: TaskCard shows dependency counts: "Blocks N" (warning color) and "Blocked by N" (error color)
+  - [x] Web: Hover preview: Radix Tooltip shows full description (up to 500 chars) when truncated
+  - [x] Web: `showCounts` and `showDescription` props allow disabling rich features per-use
+  - [x] Web: Task type definitions updated with count fields: `_attachmentCount`, `_blocksCount`, `_blockedByCount`, `description`
+  - [x] **Verify:** Playwright tests passing (13 TB83 tests) - API, Dashboard TaskCard, and count calculations verified
 
 - [ ] **TB84: Dependencies as Sub-Issues Display**
   - [ ] Web: TaskDetailPanel shows "Blocked By" section as expandable sub-task list

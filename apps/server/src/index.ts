@@ -106,6 +106,54 @@ app.get('/api/stats', async (c) => {
 });
 
 // ============================================================================
+// Task Enrichment Helper (TB83)
+// ============================================================================
+
+/**
+ * Enriches tasks with dependency and attachment counts.
+ * Used by multiple endpoints for TB83 rich task display.
+ */
+function enrichTasksWithCounts(tasks: Record<string, unknown>[]): Record<string, unknown>[] {
+  if (tasks.length === 0) return tasks;
+
+  // Get all dependencies efficiently using a single query
+  const allDependencies = storageBackend.query<{
+    source_id: string;
+    target_id: string;
+    type: string;
+  }>('SELECT source_id, target_id, type FROM dependencies');
+
+  // Build maps for quick lookup
+  const blocksCountMap = new Map<string, number>();
+  const blockedByCountMap = new Map<string, number>();
+  const attachmentCountMap = new Map<string, number>();
+
+  for (const dep of allDependencies) {
+    const depType = dep.type;
+    const sourceId = dep.source_id;
+    const targetId = dep.target_id;
+
+    if (depType === 'blocks' || depType === 'awaits') {
+      blocksCountMap.set(sourceId, (blocksCountMap.get(sourceId) || 0) + 1);
+      blockedByCountMap.set(targetId, (blockedByCountMap.get(targetId) || 0) + 1);
+    } else if (depType === 'references') {
+      attachmentCountMap.set(sourceId, (attachmentCountMap.get(sourceId) || 0) + 1);
+    }
+  }
+
+  // Enrich tasks with counts
+  return tasks.map((task) => {
+    const taskId = task.id as string;
+    return {
+      ...task,
+      _attachmentCount: attachmentCountMap.get(taskId) || 0,
+      _blocksCount: blocksCountMap.get(taskId) || 0,
+      _blockedByCount: blockedByCountMap.get(taskId) || 0,
+    };
+  });
+}
+
+// ============================================================================
 // Elements Endpoint - Bulk Data Loading (TB67)
 // ============================================================================
 
@@ -117,12 +165,14 @@ app.get('/api/stats', async (c) => {
  * Query params:
  * - types: Comma-separated list of types to include (default: all types)
  * - includeDeleted: Include soft-deleted elements (default: false)
+ * - includeTaskCounts: Include attachment, blocksCount, blockedByCount for tasks (TB83)
  */
 app.get('/api/elements/all', async (c) => {
   try {
     const url = new URL(c.req.url);
     const typesParam = url.searchParams.get('types');
     const includeDeleted = url.searchParams.get('includeDeleted') === 'true';
+    const includeTaskCounts = url.searchParams.get('includeTaskCounts') === 'true';
 
     // Define all element types we want to load
     const allTypes = ['task', 'plan', 'workflow', 'entity', 'document', 'channel', 'message', 'team', 'library'] as const;
@@ -160,6 +210,11 @@ app.get('/api/elements/all', async (c) => {
     for (const result of results) {
       data[result.type] = { items: result.items, total: result.total };
       totalElements += result.total;
+    }
+
+    // TB83: Enrich tasks with dependency and attachment counts
+    if (includeTaskCounts && data.task && data.task.items.length > 0) {
+      data.task.items = enrichTasksWithCounts(data.task.items as Record<string, unknown>[]);
     }
 
     return c.json({
@@ -241,7 +296,9 @@ app.get('/api/tasks', async (c) => {
 app.get('/api/tasks/ready', async (c) => {
   try {
     const tasks = await api.ready();
-    return c.json(tasks);
+    // TB83: Enrich ready tasks with counts for rich display
+    const enrichedTasks = enrichTasksWithCounts(tasks as unknown as Record<string, unknown>[]);
+    return c.json(enrichedTasks);
   } catch (error) {
     console.error('[elemental] Failed to get ready tasks:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get ready tasks' } }, 500);
@@ -251,7 +308,9 @@ app.get('/api/tasks/ready', async (c) => {
 app.get('/api/tasks/blocked', async (c) => {
   try {
     const tasks = await api.blocked();
-    return c.json(tasks);
+    // TB83: Enrich blocked tasks with counts for rich display
+    const enrichedTasks = enrichTasksWithCounts(tasks as unknown as Record<string, unknown>[]);
+    return c.json(enrichedTasks);
   } catch (error) {
     console.error('[elemental] Failed to get blocked tasks:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get blocked tasks' } }, 500);

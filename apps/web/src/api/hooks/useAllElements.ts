@@ -32,6 +32,12 @@ export interface Task extends Element {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  // TB83: Rich task display counts
+  _attachmentCount?: number;
+  _blocksCount?: number;
+  _blockedByCount?: number;
+  // Optional description preview (from hydration)
+  description?: string;
 }
 
 export interface Plan extends Element {
@@ -162,7 +168,8 @@ export const ELEMENT_KEYS = {
 // ============================================================================
 
 async function fetchAllElements(): Promise<AllElementsResponse> {
-  const response = await fetch('/api/elements/all');
+  // Include task counts for TB83 Rich Task Display
+  const response = await fetch('/api/elements/all?includeTaskCounts=true');
   if (!response.ok) {
     throw new Error(`Failed to fetch all elements: ${response.statusText}`);
   }

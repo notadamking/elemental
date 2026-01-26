@@ -16,6 +16,12 @@ export interface Task {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  // TB83: Rich task display counts
+  _attachmentCount?: number;
+  _blocksCount?: number;
+  _blockedByCount?: number;
+  // Optional description preview (from hydration)
+  description?: string;
 }
 
 export interface Entity {
