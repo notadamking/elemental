@@ -311,7 +311,7 @@
 - [x] **TB39: Create Team**
   - [x] Server: Add `POST /api/teams` endpoint (name, members array, optional description)
   - [x] Web: Create CreateTeamModal (name input, multi-select member picker)
-  - [x] Web: Add "New Team" button to Teams page
+  - [x] Web: Add "Create Team" button to Teams page
   - [x] **Verify:** Create team with 3 members from UI, appears in list (Playwright tests passing - 21 tests)
 
 - [x] **TB40: Edit Team**

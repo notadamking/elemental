@@ -74,7 +74,7 @@ Make the Entities and Teams pages fully responsive with mobile-optimized layouts
 - Full-width stacked card list
 - MobileDetailSheet for item details (full-screen overlay)
 - Full-screen modals
-- Shortened button text ("Add" instead of "Register Entity"/"New Team")
+- Shortened button text ("Add" instead of "Create Entity"/"Create Team")
 - Horizontally scrollable filter tabs
 - Touch targets minimum 44px
 
@@ -82,7 +82,7 @@ Make the Entities and Teams pages fully responsive with mobile-optimized layouts
 - Grid-based card layout (1-3 columns based on viewport)
 - Side panel for item details
 - Centered dialog modals
-- Full button text ("Register Entity", "New Team")
+- Full button text ("Create Entity", "Create Team")
 - Inline filter tabs
 - Entity/team count visible in header
 

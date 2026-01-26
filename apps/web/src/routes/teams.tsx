@@ -1313,7 +1313,7 @@ export function TeamsPage() {
               data-testid="new-team-button"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New Team</span>
+              <span className="hidden sm:inline">Create Team</span>
               <span className="sm:hidden">Add</span>
             </button>
           </div>

@@ -261,14 +261,14 @@ test.describe('TB151: Responsive Teams Page', () => {
       await waitForResponsiveUpdate(page);
     });
 
-    test('should show page header with full new team button on desktop', async ({ page }) => {
+    test('should show page header with full create team button on desktop', async ({ page }) => {
       // Page title should be visible (use heading role for specificity)
       await expect(page.getByRole('heading', { name: 'Teams' })).toBeVisible();
 
-      // New team button should show full text on desktop
+      // Create team button should show full text on desktop
       const newTeamButton = page.getByTestId('new-team-button');
       await expect(newTeamButton).toBeVisible();
-      await expect(newTeamButton).toContainText('New Team');
+      await expect(newTeamButton).toContainText('Create Team');
     });
 
     test('should show grid-based team list on desktop', async ({ page }) => {
@@ -303,7 +303,7 @@ test.describe('TB151: Responsive Teams Page', () => {
 
       // Verify desktop layout - full button text
       const newTeamButton = page.getByTestId('new-team-button');
-      await expect(newTeamButton).toContainText('New Team');
+      await expect(newTeamButton).toContainText('Create Team');
 
       // Resize to mobile
       await setViewport(page, 'xs');

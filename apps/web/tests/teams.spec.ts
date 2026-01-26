@@ -773,15 +773,15 @@ test.describe('TB39: Create Team', () => {
     expect(team.members).toEqual(memberIds);
   });
 
-  test('teams page has New Team button', async ({ page }) => {
+  test('teams page has Create Team button', async ({ page }) => {
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
 
     await expect(page.getByTestId('new-team-button')).toBeVisible();
-    await expect(page.getByTestId('new-team-button')).toHaveText(/New Team/);
+    await expect(page.getByTestId('new-team-button')).toHaveText(/Create Team/);
   });
 
-  test('New Team button opens modal', async ({ page }) => {
+  test('Create Team button opens modal', async ({ page }) => {
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
 
