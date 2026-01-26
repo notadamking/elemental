@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useAllEntities as useAllEntitiesPreloaded } from '../api/hooks/useAllElements';
@@ -1270,7 +1270,7 @@ function EntityDetailPanel({
   const { data: tasks, isLoading: tasksLoading } = useEntityTasks(entityId);
   const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
   const { data: inboxCount } = useEntityInboxCount(entityId);
-  const { data: inboxData, isLoading: inboxLoading } = useEntityInbox(entityId);
+  const { data: inboxData, isLoading: inboxLoading, isError: inboxError, refetch: refetchInbox } = useEntityInbox(entityId);
   const { data: directReports, isLoading: reportsLoading } = useEntityDirectReports(entityId);
   const { data: managementChain, isLoading: chainLoading } = useEntityManagementChain(entityId);
   const updateEntity = useUpdateEntity(entityId);
@@ -1876,6 +1876,22 @@ function EntityDetailPanel({
             {/* Inbox Items */}
             {inboxLoading ? (
               <div className="text-sm text-gray-500">Loading inbox...</div>
+            ) : inboxError ? (
+              <div className="text-center py-8" data-testid="inbox-error">
+                <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-700">Failed to load inbox</p>
+                <p className="text-xs text-gray-500 mt-1 mb-3">
+                  There was an error loading your messages
+                </p>
+                <button
+                  onClick={() => refetchInbox()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                  data-testid="inbox-retry"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Retry
+                </button>
+              </div>
             ) : !inboxData || inboxData.items.length === 0 ? (
               <div className="text-center py-8" data-testid="inbox-empty">
                 <Inbox className="w-8 h-8 text-gray-300 mx-auto mb-2" />

@@ -1441,6 +1441,158 @@ app.patch('/api/inbox/:itemId', async (c) => {
   }
 });
 
+// GET /api/inbox/all - Global inbox view across all entities (TB89)
+// NOTE: This route MUST be defined before /api/inbox/:itemId to prevent "all" being matched as itemId
+app.get('/api/inbox/all', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+
+    // Parse query parameters
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const statusParam = url.searchParams.get('status');
+    const hydrateParam = url.searchParams.get('hydrate');
+
+    const limit = limitParam ? parseInt(limitParam, 10) : 50;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
+    // Build filter for status
+    const filter: InboxFilter = {
+      limit,
+      offset,
+    };
+    if (statusParam) {
+      filter.status = statusParam as InboxStatus;
+    }
+
+    // Get all inbox items across all entities by querying the database directly
+    // This requires a raw query since InboxService only supports per-entity queries
+    const statusCondition = statusParam ? `AND status = '${statusParam}'` : '';
+    const countResult = storageBackend.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM inbox_items WHERE 1=1 ${statusCondition}`,
+      []
+    );
+    const total = countResult?.count ?? 0;
+
+    type InboxItemRow = {
+      id: string;
+      recipient_id: string;
+      message_id: string;
+      channel_id: string;
+      source_type: string;
+      status: string;
+      read_at: string | null;
+      created_at: string;
+    };
+
+    const rows = storageBackend.query<InboxItemRow>(
+      `SELECT id, recipient_id, message_id, channel_id, source_type, status, read_at, created_at
+       FROM inbox_items
+       WHERE 1=1 ${statusCondition}
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset]
+    );
+
+    // Map rows to inbox items
+    let items: Record<string, unknown>[] = rows.map(row => ({
+      id: row.id,
+      recipientId: row.recipient_id as EntityId,
+      messageId: row.message_id,
+      channelId: row.channel_id,
+      sourceType: row.source_type as 'direct' | 'mention',
+      status: row.status as InboxStatus,
+      readAt: row.read_at,
+      createdAt: row.created_at,
+    }));
+
+    // Hydrate items if requested
+    if (hydrateParam === 'true') {
+      items = await Promise.all(items.map(async (item) => {
+        const hydratedItem: Record<string, unknown> = { ...item };
+
+        // Hydrate message
+        try {
+          const message = await api.get(item.messageId as unknown as ElementId);
+          if (message && message.type === 'message') {
+            const typedMessage = message as Message;
+            // Get content preview
+            let contentPreview = '';
+            if (typedMessage.contentRef) {
+              const contentDoc = await api.get(typedMessage.contentRef as unknown as ElementId);
+              if (contentDoc && contentDoc.type === 'document') {
+                const typedDoc = contentDoc as Document;
+                contentPreview = typeof typedDoc.content === 'string'
+                  ? typedDoc.content.substring(0, 100)
+                  : '';
+              }
+            }
+            hydratedItem.message = {
+              id: message.id,
+              sender: typedMessage.sender,
+              contentRef: typedMessage.contentRef,
+              contentPreview,
+              createdAt: message.createdAt,
+            };
+          }
+        } catch {
+          // Message might be deleted
+        }
+
+        // Hydrate channel
+        try {
+          const channel = await api.get(item.channelId as unknown as ElementId);
+          if (channel && channel.type === 'channel') {
+            const typedChannel = channel as Channel;
+            hydratedItem.channel = {
+              id: channel.id,
+              name: typedChannel.name,
+              channelType: typedChannel.channelType,
+            };
+          }
+        } catch {
+          // Channel might be deleted
+        }
+
+        // Hydrate recipient entity
+        try {
+          const recipient = await api.get(item.recipientId as unknown as ElementId);
+          if (recipient && recipient.type === 'entity') {
+            hydratedItem.recipient = recipient;
+          }
+        } catch {
+          // Recipient might be deleted
+        }
+
+        // Hydrate sender entity (from message)
+        if (hydratedItem.message && (hydratedItem.message as { sender?: string }).sender) {
+          try {
+            const sender = await api.get((hydratedItem.message as { sender: string }).sender as unknown as ElementId);
+            if (sender && sender.type === 'entity') {
+              hydratedItem.sender = sender;
+            }
+          } catch {
+            // Sender might be deleted
+          }
+        }
+
+        return hydratedItem;
+      }));
+    }
+
+    return c.json({
+      items,
+      total,
+      offset,
+      limit,
+      hasMore: offset + items.length < total,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get global inbox:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get global inbox' } }, 500);
+  }
+});
+
 // GET /api/inbox/:itemId - Get single inbox item
 app.get('/api/inbox/:itemId', async (c) => {
   try {
@@ -2158,6 +2310,95 @@ app.post('/api/messages', async (c) => {
           actor: body.sender as EntityId,
         });
         attachments.push(doc);
+      }
+    }
+
+    // TB89: Add inbox items for channel members (except sender)
+    // For direct channels, all members get a 'direct' notification
+    // For group channels, only @mentioned users get notifications
+    const typedChannel = channel as Channel;
+    const senderId = body.sender as EntityId;
+    const messageId = createdMessage.id as string;
+    const channelIdStr = body.channelId as string;
+
+    // Track entities that have already received inbox items (to avoid duplicates)
+    const notifiedEntities = new Set<string>();
+
+    // For direct channels: notify all members except sender
+    if (typedChannel.channelType === 'direct') {
+      for (const memberId of typedChannel.members) {
+        if (memberId !== senderId && !notifiedEntities.has(memberId)) {
+          try {
+            inboxService.addToInbox({
+              recipientId: memberId,
+              messageId: messageId as any,
+              channelId: channelIdStr as any,
+              sourceType: 'direct',
+              createdBy: senderId,
+            });
+            notifiedEntities.add(memberId);
+
+            // Broadcast inbox event for real-time updates
+            broadcastInboxEvent(
+              `inbox-${memberId}-${messageId}`,
+              memberId,
+              'created',
+              null,
+              { recipientId: memberId, messageId, channelId: channelIdStr, sourceType: 'direct' },
+              senderId
+            );
+          } catch (error) {
+            // Ignore duplicate inbox errors (e.g., if item already exists)
+            if ((error as { code?: string }).code !== 'ALREADY_EXISTS') {
+              console.error(`[elemental] Failed to create inbox item for ${memberId}:`, error);
+            }
+          }
+        }
+      }
+    }
+
+    // Parse @mentions from message content and add inbox items
+    // Match patterns like @el-abc123 or @entity-name (entity names in the system)
+    const mentionPattern = /@(el-[a-z0-9]+)/gi;
+    const mentions = body.content.match(mentionPattern) || [];
+
+    for (const mention of mentions) {
+      // Extract the entity ID from the mention (remove the @ prefix)
+      const mentionedId = mention.substring(1) as EntityId;
+
+      // Skip if it's the sender mentioning themselves or already notified
+      if (mentionedId === senderId || notifiedEntities.has(mentionedId)) {
+        continue;
+      }
+
+      // Verify the mentioned entity exists
+      try {
+        const mentionedEntity = await api.get(mentionedId as unknown as ElementId);
+        if (mentionedEntity && mentionedEntity.type === 'entity') {
+          inboxService.addToInbox({
+            recipientId: mentionedId,
+            messageId: messageId as any,
+            channelId: channelIdStr as any,
+            sourceType: 'mention',
+            createdBy: senderId,
+          });
+          notifiedEntities.add(mentionedId);
+
+          // Broadcast inbox event for real-time updates
+          broadcastInboxEvent(
+            `inbox-${mentionedId}-${messageId}`,
+            mentionedId,
+            'created',
+            null,
+            { recipientId: mentionedId, messageId, channelId: channelIdStr, sourceType: 'mention' },
+            senderId
+          );
+        }
+      } catch (error) {
+        // Ignore errors for mentions (entity might not exist or duplicate inbox)
+        if ((error as { code?: string }).code !== 'ALREADY_EXISTS') {
+          console.error(`[elemental] Failed to process mention ${mentionedId}:`, error);
+        }
       }
     }
 

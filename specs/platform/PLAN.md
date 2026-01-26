@@ -1319,13 +1319,13 @@ For mutations (create, update, delete):
 
 **Goal:** Fix inbox loading and create a Linear-quality inbox experience with filtering and sorting.
 
-- [ ] **TB89: Fix Inbox Loading**
-  - [ ] Server: Debug and fix `GET /api/entities/:id/inbox` endpoint to return messages
-  - [ ] Server: Ensure inbox items include direct messages and @mentions
-  - [ ] Server: Add `GET /api/inbox/all` endpoint for global inbox view
-  - [ ] Web: Debug InboxTab component data fetching
-  - [ ] Web: Add error state with retry button
-  - [ ] **Verify:** Navigate to entity inbox, messages load correctly; Playwright tests passing
+- [x] **TB89: Fix Inbox Loading**
+  - [x] Server: Debug and fix `GET /api/entities/:id/inbox` endpoint to return messages
+  - [x] Server: Ensure inbox items include direct messages and @mentions
+  - [x] Server: Add `GET /api/inbox/all` endpoint for global inbox view
+  - [x] Web: Debug InboxTab component data fetching
+  - [x] Web: Add error state with retry button
+  - [x] **Verify:** Navigate to entity inbox, messages load correctly; Playwright tests passing
 
 - [ ] **TB90: Inbox Views (Unread/All/Archived)**
   - [ ] Web: Add view toggle tabs: "Unread", "All", "Archived"
