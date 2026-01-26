@@ -15,7 +15,9 @@ import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { useDeepLink } from '../hooks/useDeepLink';
 import { useDebounce } from '../hooks';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
+import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
 import {
   Library,
   FileText,
@@ -828,6 +830,7 @@ function LibraryTree({
   onNewDocument,
   onNewLibrary,
   onSelectDocument,
+  isMobile = false,
 }: {
   libraries: LibraryType[];
   selectedLibraryId: string | null;
@@ -837,6 +840,7 @@ function LibraryTree({
   onNewDocument: () => void;
   onNewLibrary: () => void;
   onSelectDocument: (documentId: string) => void;
+  isMobile?: boolean;
 }) {
   // Build tree structure from flat list
   const treeNodes = useMemo(() => buildLibraryTree(libraries), [libraries]);
@@ -866,32 +870,35 @@ function LibraryTree({
   return (
     <div
       data-testid="library-tree"
-      className="w-64 border-r border-gray-200 bg-white flex flex-col h-full"
+      className={`${isMobile ? 'w-full' : 'w-64 border-r border-gray-200'} bg-white dark:bg-[var(--color-bg)] flex flex-col h-full`}
     >
-      <div className="p-4 border-b border-gray-200">
+      <div className={`${isMobile ? 'p-3' : 'p-4'} border-b border-gray-200 dark:border-[var(--color-border)]`}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Library className="w-5 h-5 text-gray-500" />
+          <h2 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-gray-900 dark:text-[var(--color-text)] flex items-center gap-2`}>
+            <Library className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-gray-500 dark:text-gray-400`} />
             Libraries
           </h2>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={onNewLibrary}
-              className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
-              title="New Library"
-              data-testid="new-library-button-sidebar"
-            >
-              <FolderPlus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={onNewDocument}
-              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              title="New Document"
-              data-testid="new-document-button-sidebar"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Hide action buttons on mobile - we have FABs instead */}
+          {!isMobile && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onNewLibrary}
+                className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-md transition-colors"
+                title="New Library"
+                data-testid="new-library-button-sidebar"
+              >
+                <FolderPlus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onNewDocument}
+                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+                title="New Document"
+                data-testid="new-document-button-sidebar"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
         {/* Document Search Bar (TB95) */}
         <DocumentSearchBar onSelectDocument={onSelectDocument} />
@@ -899,14 +906,14 @@ function LibraryTree({
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* All Documents option - always visible outside virtualized list */}
-        <div className="p-2 pb-0">
+        <div className={`${isMobile ? 'p-2 pb-0' : 'p-2 pb-0'}`}>
           <button
             onClick={() => onSelectLibrary(null)}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm mb-2 ${
+            className={`w-full flex items-center gap-2 ${isMobile ? 'px-3 py-3' : 'px-3 py-2'} rounded-md text-left text-sm mb-2 ${
               selectedLibraryId === null
-                ? 'bg-blue-50 text-blue-700 font-medium'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
+                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+            } ${isMobile ? 'touch-target' : ''}`}
             data-testid="all-documents-button"
           >
             <FileText className="w-4 h-4" />
@@ -917,13 +924,13 @@ function LibraryTree({
         {libraries.length === 0 ? (
           <div
             data-testid="library-empty-state"
-            className="text-center py-8 text-gray-500"
+            className="text-center py-8 text-gray-500 dark:text-gray-400"
           >
-            <Folder className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <Folder className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
             <p className="text-sm">No libraries yet</p>
             <button
               onClick={onNewLibrary}
-              className="mt-2 text-sm text-purple-600 hover:underline"
+              className="mt-2 text-sm text-purple-600 dark:text-purple-400 hover:underline"
               data-testid="new-library-button-empty"
             >
               Create one
@@ -934,14 +941,14 @@ function LibraryTree({
             <VirtualizedList
               items={flatItems}
               getItemKey={(item) => item.node.id}
-              estimateSize={ITEM_HEIGHT}
+              estimateSize={isMobile ? 44 : ITEM_HEIGHT}
               renderItem={renderLibraryItem}
               overscan={5}
               className="h-full"
               scrollRestoreId="library-tree-scroll"
               testId="virtualized-library-list"
               renderEmpty={() => (
-                <div className="text-center py-4 text-gray-500 text-sm">
+                <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
                   No libraries to display
                 </div>
               )}
@@ -950,13 +957,15 @@ function LibraryTree({
         )}
       </div>
 
-      {/* Library count */}
-      <div
-        data-testid="library-count"
-        className="p-3 border-t border-gray-200 text-xs text-gray-500"
-      >
-        {libraries.length} {libraries.length === 1 ? 'library' : 'libraries'}
-      </div>
+      {/* Library count - hidden on mobile */}
+      {!isMobile && (
+        <div
+          data-testid="library-count"
+          className="p-3 border-t border-gray-200 dark:border-[var(--color-border)] text-xs text-gray-500 dark:text-gray-400"
+        >
+          {libraries.length} {libraries.length === 1 ? 'library' : 'libraries'}
+        </div>
+      )}
     </div>
   );
 }
@@ -1025,12 +1034,14 @@ function LibraryView({
   onSelectDocument,
   onSelectLibrary,
   onNewDocument,
+  isMobile = false,
 }: {
   libraryId: string;
   selectedDocumentId: string | null;
   onSelectDocument: (id: string) => void;
   onSelectLibrary: (id: string) => void;
   onNewDocument: () => void;
+  isMobile?: boolean;
 }) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
@@ -1059,50 +1070,53 @@ function LibraryView({
   return (
     <div
       data-testid="library-view"
-      className="h-full flex flex-col bg-white"
+      className="h-full flex flex-col bg-white dark:bg-[var(--color-bg)]"
     >
       {/* Library Header */}
       <div
         data-testid="library-header"
-        className="flex-shrink-0 p-4 border-b border-gray-200"
+        className={`flex-shrink-0 ${isMobile ? 'p-3' : 'p-4'} border-b border-gray-200 dark:border-[var(--color-border)]`}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FolderOpen className="w-6 h-6 text-yellow-500" />
+          <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} min-w-0`}>
+            <FolderOpen className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-500 flex-shrink-0`} />
             {library ? (
               <>
                 <h3
                   data-testid="library-name"
-                  className="font-semibold text-gray-900 text-lg"
+                  className={`font-semibold text-gray-900 dark:text-[var(--color-text)] ${isMobile ? 'text-base' : 'text-lg'} truncate`}
                 >
                   {library.name}
                 </h3>
                 <span
                   data-testid="library-doc-count"
-                  className="text-sm text-gray-400"
+                  className={`text-gray-400 dark:text-gray-500 flex-shrink-0 ${isMobile ? 'text-xs' : 'text-sm'}`}
                 >
-                  {allDocuments.length} {allDocuments.length === 1 ? 'document' : 'documents'}
+                  {allDocuments.length} {allDocuments.length === 1 ? 'doc' : 'docs'}
                 </span>
               </>
             ) : (
-              <div className="animate-pulse h-6 w-32 bg-gray-200 rounded" />
+              <div className="animate-pulse h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
             )}
           </div>
-          <button
-            onClick={onNewDocument}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-            data-testid="new-document-button-library"
-          >
-            <Plus className="w-4 h-4" />
-            New Document
-          </button>
+          {/* Hide button on mobile - use FAB instead */}
+          {!isMobile && (
+            <button
+              onClick={onNewDocument}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+              data-testid="new-document-button-library"
+            >
+              <Plus className="w-4 h-4" />
+              New Document
+            </button>
+          )}
         </div>
 
         {/* Library description */}
         {library?.description && (
           <p
             data-testid="library-description"
-            className="mt-2 text-sm text-gray-600"
+            className={`mt-2 text-sm text-gray-600 dark:text-gray-400 ${isMobile ? 'line-clamp-2' : ''}`}
           >
             {library.description}
           </p>
@@ -1111,8 +1125,8 @@ function LibraryView({
 
       {/* Sub-libraries section */}
       {library?._subLibraries && library._subLibraries.length > 0 && (
-        <div data-testid="sub-libraries" className="flex-shrink-0 p-4 border-b border-gray-100">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        <div data-testid="sub-libraries" className={`flex-shrink-0 ${isMobile ? 'p-3' : 'p-4'} border-b border-gray-100 dark:border-gray-800`}>
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
             Sub-libraries
           </h4>
           <div className="flex flex-wrap gap-2">
@@ -1121,7 +1135,7 @@ function LibraryView({
                 key={subLib.id}
                 data-testid={`sub-library-${subLib.id}`}
                 onClick={() => onSelectLibrary(subLib.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 text-yellow-700 rounded-md text-sm hover:bg-yellow-100 transition-colors cursor-pointer"
+                className={`flex items-center gap-1.5 ${isMobile ? 'px-2.5 py-2' : 'px-3 py-1.5'} bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-md text-sm hover:bg-yellow-100 dark:hover:bg-yellow-900/50 transition-colors cursor-pointer ${isMobile ? 'touch-target' : ''}`}
               >
                 <Folder className="w-4 h-4" />
                 {subLib.name}
@@ -1139,25 +1153,25 @@ function LibraryView({
         {isLoading ? (
           <div
             data-testid="documents-loading"
-            className="flex items-center justify-center h-full text-gray-500"
+            className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400"
           >
             Loading documents...
           </div>
         ) : error ? (
           <div
             data-testid="documents-error"
-            className="flex items-center justify-center h-full text-red-500"
+            className="flex items-center justify-center h-full text-red-500 dark:text-red-400"
           >
             Failed to load documents
           </div>
         ) : allDocuments.length === 0 ? (
           <div
             data-testid="documents-empty"
-            className="flex flex-col items-center justify-center h-full text-gray-500"
+            className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 px-4"
           >
-            <FileText className="w-12 h-12 mb-3 text-gray-300" />
+            <FileText className="w-12 h-12 mb-3 text-gray-300 dark:text-gray-600" />
             <p className="text-sm">No documents in this library</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               Add documents to organize your knowledge
             </p>
           </div>
@@ -1165,13 +1179,13 @@ function LibraryView({
           <VirtualizedList
             items={allDocuments}
             getItemKey={(doc) => doc.id}
-            estimateSize={DOCUMENT_ITEM_HEIGHT}
+            estimateSize={isMobile ? 72 : DOCUMENT_ITEM_HEIGHT}
             renderItem={renderDocumentItem}
             overscan={5}
             className="h-full pt-2"
             scrollRestoreId={`library-documents-${libraryId}`}
             testId="virtualized-documents-list"
-            gap={8}
+            gap={isMobile ? 4 : 8}
           />
         )}
       </div>
@@ -1844,6 +1858,7 @@ function DocumentDetailPanel({
   onDocumentCloned,
   libraryId,
   onNavigateToDocument,
+  isMobile = false,
 }: {
   documentId: string;
   onClose: () => void;
@@ -1855,6 +1870,7 @@ function DocumentDetailPanel({
   onDocumentCloned?: (document: { id: string }) => void;
   libraryId?: string | null;
   onNavigateToDocument?: (id: string) => void;
+  isMobile?: boolean;
 }) {
   const { data: document, isLoading, isError, error } = useDocument(documentId);
   const updateDocument = useUpdateDocument();
@@ -2049,9 +2065,9 @@ function DocumentDetailPanel({
     return (
       <div
         data-testid="document-detail-loading"
-        className="h-full flex items-center justify-center bg-white"
+        className="h-full flex items-center justify-center bg-white dark:bg-[var(--color-bg)]"
       >
-        <div className="text-gray-500">Loading document...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading document...</div>
       </div>
     );
   }
@@ -2060,10 +2076,10 @@ function DocumentDetailPanel({
     return (
       <div
         data-testid="document-detail-error"
-        className="h-full flex flex-col items-center justify-center bg-white"
+        className="h-full flex flex-col items-center justify-center bg-white dark:bg-[var(--color-bg)] px-4"
       >
-        <div className="text-red-600 mb-2">Failed to load document</div>
-        <div className="text-sm text-gray-500">{(error as Error)?.message}</div>
+        <div className="text-red-600 dark:text-red-400 mb-2">Failed to load document</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">{(error as Error)?.message}</div>
       </div>
     );
   }
@@ -2072,9 +2088,9 @@ function DocumentDetailPanel({
     return (
       <div
         data-testid="document-detail-not-found"
-        className="h-full flex items-center justify-center bg-white"
+        className="h-full flex items-center justify-center bg-white dark:bg-[var(--color-bg)]"
       >
-        <div className="text-gray-500">Document not found</div>
+        <div className="text-gray-500 dark:text-gray-400">Document not found</div>
       </div>
     );
   }
@@ -2085,10 +2101,10 @@ function DocumentDetailPanel({
   return (
     <div
       data-testid="document-detail-panel"
-      className="h-full flex flex-col bg-white border-l border-gray-200"
+      className={`h-full flex flex-col bg-white dark:bg-[var(--color-bg)] ${isMobile ? '' : 'border-l border-gray-200 dark:border-[var(--color-border)]'}`}
     >
       {/* Header */}
-      <div className="flex items-start justify-between p-4 border-b border-gray-200">
+      <div className={`flex items-start justify-between ${isMobile ? 'p-3' : 'p-4'} border-b border-gray-200 dark:border-[var(--color-border)]`}>
         <div className="flex-1 min-w-0">
           {/* Content type badge */}
           <div className="flex items-center gap-2 mb-2">
@@ -2181,15 +2197,15 @@ function DocumentDetailPanel({
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1 ml-2">
+        {/* Action buttons - simplified on mobile */}
+        <div className={`flex items-center ${isMobile ? 'gap-0.5' : 'gap-1'} ml-2`}>
           {isEditing ? (
             <>
               <button
                 onClick={handleSave}
                 disabled={updateDocument.isPending}
                 data-testid="document-save-button"
-                className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded disabled:opacity-50"
+                className={`${isMobile ? 'p-2 touch-target' : 'p-1.5'} text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-50`}
                 aria-label="Save changes"
                 title="Save (Cmd+S)"
               >
@@ -2199,7 +2215,7 @@ function DocumentDetailPanel({
                 onClick={handleCancelEdit}
                 disabled={updateDocument.isPending}
                 data-testid="document-cancel-button"
-                className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded disabled:opacity-50"
+                className={`${isMobile ? 'p-2 touch-target' : 'p-1.5'} text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded disabled:opacity-50`}
                 aria-label="Cancel editing"
               >
                 <XCircle className="w-5 h-5" />
@@ -2211,43 +2227,48 @@ function DocumentDetailPanel({
                 onClick={handleStartEdit}
                 disabled={previewingVersion !== null}
                 data-testid="document-edit-button"
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`${isMobile ? 'p-2 touch-target' : 'p-1.5'} text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed`}
                 aria-label="Edit document"
                 title={previewingVersion !== null ? 'Exit preview to edit' : 'Edit document'}
               >
                 <Edit3 className="w-5 h-5" />
               </button>
-              <button
-                onClick={handleClone}
-                disabled={cloneDocument.isPending || previewingVersion !== null}
-                data-testid="document-clone-button"
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Clone document"
-                title={previewingVersion !== null ? 'Exit preview to clone' : 'Clone document'}
-              >
-                <Copy className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setShowVersionHistory(!showVersionHistory)}
-                data-testid="document-history-button"
-                className={`p-1.5 rounded ${
-                  showVersionHistory
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-                aria-label={showVersionHistory ? 'Hide version history' : 'Show version history'}
-                title="Version history"
-              >
-                <History className="w-5 h-5" />
-              </button>
-              {/* Comments button (TB98) */}
+              {/* Hide clone and history buttons on mobile for cleaner UI */}
+              {!isMobile && (
+                <>
+                  <button
+                    onClick={handleClone}
+                    disabled={cloneDocument.isPending || previewingVersion !== null}
+                    data-testid="document-clone-button"
+                    className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Clone document"
+                    title={previewingVersion !== null ? 'Exit preview to clone' : 'Clone document'}
+                  >
+                    <Copy className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setShowVersionHistory(!showVersionHistory)}
+                    data-testid="document-history-button"
+                    className={`p-1.5 rounded ${
+                      showVersionHistory
+                        ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                    aria-label={showVersionHistory ? 'Hide version history' : 'Show version history'}
+                    title="Version history"
+                  >
+                    <History className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+              {/* Comments button (TB98) - show on mobile too */}
               <button
                 onClick={() => setShowCommentsPanel(!showCommentsPanel)}
                 data-testid="document-comments-button"
-                className={`p-1.5 rounded relative ${
+                className={`${isMobile ? 'p-2 touch-target' : 'p-1.5'} rounded relative ${
                   showCommentsPanel
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
                 aria-label={showCommentsPanel ? 'Hide comments' : 'Show comments'}
                 title="Comments"
@@ -2261,15 +2282,15 @@ function DocumentDetailPanel({
               </button>
             </>
           )}
-          {/* Expand button - always visible regardless of edit mode */}
-          {onToggleExpand && !isFullscreen && (
+          {/* Expand button - hide on mobile */}
+          {!isMobile && onToggleExpand && !isFullscreen && (
             <button
               onClick={onToggleExpand}
               data-testid="document-expand-button"
               className={`p-1.5 rounded ${
                 isExpanded
-                  ? 'text-blue-600 bg-blue-50'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
               aria-label={isExpanded ? 'Collapse document' : 'Expand document'}
               title={isExpanded ? 'Show document list' : 'Hide document list'}
@@ -2277,23 +2298,23 @@ function DocumentDetailPanel({
               {isExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
             </button>
           )}
-          {/* Fullscreen/Focus mode button (TB94a) */}
-          {isFullscreen ? (
+          {/* Fullscreen/Focus mode button (TB94a) - hide on mobile */}
+          {!isMobile && isFullscreen ? (
             <button
               onClick={onExitFullscreen}
               data-testid="document-fullscreen-button"
-              className="p-1.5 rounded text-blue-600 bg-blue-50"
+              className="p-1.5 rounded text-blue-600 bg-blue-50 dark:bg-blue-900/30"
               aria-label="Exit fullscreen"
               title="Exit fullscreen (Escape)"
             >
               <Minimize2 className="w-5 h-5" />
             </button>
           ) : (
-            onEnterFullscreen && (
+            !isMobile && onEnterFullscreen && (
               <button
                 onClick={onEnterFullscreen}
                 data-testid="document-fullscreen-button"
-                className="p-1.5 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                className="p-1.5 rounded text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                 aria-label="Enter fullscreen"
                 title="Focus mode (fullscreen)"
               >
@@ -2301,14 +2322,17 @@ function DocumentDetailPanel({
               </button>
             )
           )}
-          <button
-            onClick={isFullscreen ? onExitFullscreen : onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Close panel'}
-            data-testid="document-detail-close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* Close button - hide on mobile since MobileDetailSheet has its own */}
+          {!isMobile && (
+            <button
+              onClick={isFullscreen ? onExitFullscreen : onClose}
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Close panel'}
+              data-testid="document-detail-close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -2316,7 +2340,7 @@ function DocumentDetailPanel({
       {updateDocument.isError && (
         <div
           data-testid="document-update-error"
-          className="mx-4 mt-2 p-2 bg-red-50 text-red-700 text-sm rounded"
+          className={`${isMobile ? 'mx-3' : 'mx-4'} mt-2 p-2 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm rounded`}
         >
           {updateDocument.error?.message || 'Failed to save document'}
         </div>
@@ -2325,7 +2349,7 @@ function DocumentDetailPanel({
       {/* Main content area with optional version history sidebar */}
       <div className="flex-1 flex overflow-hidden">
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-3' : 'p-4'}`}>
           {/* Preview banner */}
           {previewingVersion !== null && previewDocument && (
             <div
@@ -2450,10 +2474,12 @@ function AllDocumentsView({
   selectedDocumentId,
   onSelectDocument,
   onNewDocument,
+  isMobile = false,
 }: {
   selectedDocumentId: string | null;
   onSelectDocument: (id: string) => void;
   onNewDocument: () => void;
+  isMobile?: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -2478,43 +2504,46 @@ function AllDocumentsView({
 
   // TB130: Render function for virtualized document list item
   const renderDocumentItem = useCallback((doc: DocumentType) => (
-    <div className="px-4">
+    <div className={`${isMobile ? 'px-3' : 'px-4'}`}>
       <DocumentListItem
         document={doc}
         isSelected={selectedDocumentId === doc.id}
         onClick={onSelectDocument}
       />
     </div>
-  ), [selectedDocumentId, onSelectDocument]);
+  ), [selectedDocumentId, onSelectDocument, isMobile]);
 
   return (
     <div
       data-testid="all-documents-view"
-      className="h-full flex flex-col bg-white"
+      className="h-full flex flex-col bg-white dark:bg-[var(--color-bg)]"
     >
       {/* Header */}
       <div
         data-testid="all-documents-header"
-        className="flex-shrink-0 p-4 border-b border-gray-200"
+        className={`flex-shrink-0 ${isMobile ? 'p-3' : 'p-4'} border-b border-gray-200 dark:border-[var(--color-border)]`}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6 text-blue-400" />
-            <h3 className="font-semibold text-gray-900 text-lg">
+          <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'} min-w-0`}>
+            <FileText className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-blue-400 flex-shrink-0`} />
+            <h3 className={`font-semibold text-gray-900 dark:text-[var(--color-text)] ${isMobile ? 'text-base' : 'text-lg'}`}>
               All Documents
             </h3>
-            <span className="text-sm text-gray-500 dark:text-gray-400" data-testid="all-documents-count">
-              {totalItems} {totalItems === 1 ? 'document' : 'documents'}
+            <span className={`text-gray-500 dark:text-gray-400 ${isMobile ? 'text-xs' : 'text-sm'}`} data-testid="all-documents-count">
+              {totalItems} {totalItems === 1 ? 'doc' : 'docs'}
             </span>
           </div>
-          <button
-            onClick={onNewDocument}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-            data-testid="new-document-button-all"
-          >
-            <Plus className="w-4 h-4" />
-            New Document
-          </button>
+          {/* Hide button on mobile - use FAB instead */}
+          {!isMobile && (
+            <button
+              onClick={onNewDocument}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+              data-testid="new-document-button-all"
+            >
+              <Plus className="w-4 h-4" />
+              New Document
+            </button>
+          )}
         </div>
         {/* Search box */}
         <div className="mt-3 relative">
@@ -2524,7 +2553,7 @@ function AllDocumentsView({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search documents..."
-            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full pl-9 pr-4 ${isMobile ? 'py-3' : 'py-2'} text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
             data-testid="documents-search-input"
           />
         </div>
@@ -2538,18 +2567,18 @@ function AllDocumentsView({
         {isLoading ? (
           <div
             data-testid="all-documents-loading"
-            className="flex items-center justify-center h-full text-gray-500"
+            className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400"
           >
             Loading documents...
           </div>
         ) : filteredDocuments.length === 0 ? (
           <div
             data-testid="all-documents-empty"
-            className="flex flex-col items-center justify-center h-full text-gray-500"
+            className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 px-4"
           >
-            <FileText className="w-12 h-12 mb-3 text-gray-300" />
-            <p className="text-sm">{searchQuery ? 'No documents match your search' : 'No documents yet'}</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <FileText className="w-12 h-12 mb-3 text-gray-300 dark:text-gray-600" />
+            <p className="text-sm text-center">{searchQuery ? 'No documents match your search' : 'No documents yet'}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-center">
               {searchQuery ? 'Try a different search term' : 'Create documents to build your knowledge base'}
             </p>
           </div>
@@ -2557,13 +2586,13 @@ function AllDocumentsView({
           <VirtualizedList
             items={filteredDocuments}
             getItemKey={(doc) => doc.id}
-            estimateSize={DOCUMENT_ITEM_HEIGHT}
+            estimateSize={isMobile ? 72 : DOCUMENT_ITEM_HEIGHT}
             renderItem={renderDocumentItem}
             overscan={5}
             className="h-full pt-2"
             scrollRestoreId="all-documents-scroll"
             testId="virtualized-all-documents-list"
-            gap={8}
+            gap={isMobile ? 4 : 8}
           />
         )}
       </div>
@@ -2578,6 +2607,7 @@ function AllDocumentsView({
 export function DocumentsPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/documents' });
+  const isMobile = useIsMobile();
 
   const { data: libraries = [], isLoading, error } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
@@ -2743,22 +2773,28 @@ export function DocumentsPage() {
     setSelectedDocumentId(document.id);
   };
 
+  // Handle mobile back navigation
+  const handleMobileBack = () => {
+    setSelectedDocumentId(null);
+    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined, page: 1, limit: DEFAULT_PAGE_SIZE } });
+  };
+
   if (error) {
     return (
       <div
         data-testid="documents-page-error"
-        className="flex items-center justify-center h-full"
+        className="flex items-center justify-center h-full px-4"
       >
         <div className="text-center">
           <p className="text-red-500 mb-2">Failed to load libraries</p>
-          <p className="text-sm text-gray-500">{(error as Error).message}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{(error as Error).message}</p>
         </div>
       </div>
     );
   }
 
   // Determine the main content view
-  const renderMainContent = () => {
+  const renderMainContent = (mobile = false) => {
     if (selectedLibraryId) {
       return (
         <LibraryView
@@ -2767,6 +2803,7 @@ export function DocumentsPage() {
           onSelectDocument={handleSelectDocument}
           onSelectLibrary={handleSelectLibrary}
           onNewDocument={handleOpenCreateModal}
+          isMobile={mobile}
         />
       );
     }
@@ -2777,10 +2814,100 @@ export function DocumentsPage() {
         selectedDocumentId={selectedDocumentId}
         onSelectDocument={handleSelectDocument}
         onNewDocument={handleOpenCreateModal}
+        isMobile={mobile}
       />
     );
   };
 
+  // Mobile: Two-screen navigation pattern
+  // - When no document selected: show document list (simplified, no sidebar library tree)
+  // - When document selected: show full-screen document editor
+  if (isMobile) {
+    return (
+      <div data-testid="documents-page" className="flex flex-col h-full relative">
+        {/* Mobile: Show document list when no document selected */}
+        {!selectedDocumentId && (
+          <>
+            {isLoading ? (
+              <div
+                data-testid="libraries-loading"
+                className="flex-1 flex items-center justify-center"
+              >
+                <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {/* Mobile shows simplified document list - no library tree on mobile */}
+                {renderMainContent(true)}
+              </div>
+            )}
+
+            {/* Mobile FAB for creating new document */}
+            <button
+              onClick={handleOpenCreateModal}
+              className="fixed bottom-20 right-4 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-30 touch-target"
+              data-testid="mobile-create-document-fab"
+              aria-label="Create new document"
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          </>
+        )}
+
+        {/* Mobile: Show full-screen document editor when document selected */}
+        {selectedDocumentId && (
+          <MobileDetailSheet
+            open={true}
+            onClose={handleMobileBack}
+            title="Document"
+            data-testid="mobile-document-sheet"
+          >
+            {deepLink.notFound ? (
+              <ElementNotFound
+                elementType="Document"
+                elementId={selectedDocumentId}
+                backRoute="/documents"
+                backLabel="Back to Documents"
+                onDismiss={handleMobileBack}
+              />
+            ) : (
+              <div className="h-full">
+                <DocumentDetailPanel
+                  documentId={selectedDocumentId}
+                  onClose={handleMobileBack}
+                  isExpanded={true}
+                  isFullscreen={false}
+                  onDocumentCloned={handleDocumentCreated}
+                  libraryId={selectedLibraryId}
+                  onNavigateToDocument={handleSelectDocument}
+                  isMobile={true}
+                />
+              </div>
+            )}
+          </MobileDetailSheet>
+        )}
+
+        {/* Create Document Modal */}
+        <CreateDocumentModal
+          isOpen={showCreateModal}
+          onClose={handleCloseCreateModal}
+          onSuccess={handleDocumentCreated}
+          defaultLibraryId={selectedLibraryId || undefined}
+          isMobile={true}
+        />
+
+        {/* Create Library Modal */}
+        <CreateLibraryModal
+          isOpen={showCreateLibraryModal}
+          onClose={handleCloseCreateLibraryModal}
+          onSuccess={handleLibraryCreated}
+          defaultParentId={selectedLibraryId || undefined}
+        />
+      </div>
+    );
+  }
+
+  // Desktop: Side-by-side layout
   return (
     <div data-testid="documents-page" className="flex h-full">
       {/* Fullscreen Panel - overlays everything when in fullscreen mode (TB94a) */}
@@ -2809,9 +2936,9 @@ export function DocumentsPage() {
           {isLoading ? (
             <div
               data-testid="libraries-loading"
-              className="w-64 border-r border-gray-200 flex items-center justify-center"
+              className="w-64 border-r border-gray-200 dark:border-[var(--color-border)] flex items-center justify-center"
             >
-              <div className="text-gray-500">Loading libraries...</div>
+              <div className="text-gray-500 dark:text-gray-400">Loading libraries...</div>
             </div>
           ) : (
             <div data-testid="library-tree-sidebar">
@@ -2835,7 +2962,7 @@ export function DocumentsPage() {
         <div className="flex-1 flex overflow-hidden">
           {/* Document List / Library View - hide when document is expanded */}
           {(!selectedDocumentId || !isDocumentExpanded) && (
-            <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200' : 'flex-1'} h-full overflow-hidden`}>
+            <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200 dark:border-[var(--color-border)]' : 'flex-1'} h-full overflow-hidden`}>
               {renderMainContent()}
             </div>
           )}

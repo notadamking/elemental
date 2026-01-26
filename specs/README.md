@@ -152,7 +152,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB147-responsive-tasks.md](./platform/TB147-responsive-tasks.md) | Responsive Tasks Page - List, kanban, and detail panel on all screen sizes | responsive, tasks, kanban, detail panel, mobile, touch drag |
 | [platform/TB148-responsive-plans-workflows.md](./platform/TB148-responsive-plans-workflows.md) | Responsive Plans & Workflows Pages - List and detail views on all screens | responsive, plans, workflows, detail panel, mobile |
 | [platform/TB149_RESPONSIVE_MESSAGES.md](./platform/TB149_RESPONSIVE_MESSAGES.md) | Responsive Messages Page - Slack-style two-screen mobile navigation | responsive, messages, channels, mobile, two-screen |
-| platform/PLAN.md#tb150 | Responsive Documents Page - Notion-style editor and library on mobile | responsive, documents, editor, tiptap, mobile, touch |
+| [platform/TB150_RESPONSIVE_DOCUMENTS.md](./platform/TB150_RESPONSIVE_DOCUMENTS.md) | Responsive Documents Page - Notion-style mobile layout with MobileDetailSheet, FAB | responsive, documents, mobile, notion, touch, FAB |
 | platform/PLAN.md#tb151 | Responsive Entities & Teams Pages - Lists, details, and charts on mobile | responsive, entities, teams, contribution chart, mobile |
 | platform/PLAN.md#tb152 | Responsive Settings Page - All settings sections accessible on mobile | responsive, settings, mobile, touch |
 | platform/PLAN.md#tb153 | Responsive Modals & Dialogs - Full-screen sheets on mobile | responsive, modals, dialogs, sheets, mobile |
