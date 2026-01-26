@@ -194,13 +194,46 @@ function useEntityEvents(id: string | null) {
   });
 }
 
-function useEntityInbox(id: string | null, status?: 'unread' | 'read' | 'archived' | 'all') {
+type InboxViewType = 'unread' | 'all' | 'archived';
+
+// LocalStorage key for persisting inbox view preference
+const INBOX_VIEW_STORAGE_KEY = 'inbox.view';
+
+function getStoredInboxView(): InboxViewType {
+  try {
+    const stored = localStorage.getItem(INBOX_VIEW_STORAGE_KEY);
+    if (stored === 'unread' || stored === 'all' || stored === 'archived') {
+      return stored;
+    }
+  } catch {
+    // localStorage not available
+  }
+  return 'all'; // Default to all
+}
+
+function setStoredInboxView(view: InboxViewType): void {
+  try {
+    localStorage.setItem(INBOX_VIEW_STORAGE_KEY, view);
+  } catch {
+    // localStorage not available
+  }
+}
+
+function useEntityInbox(id: string | null, view: InboxViewType = 'all') {
   return useQuery<PaginatedResult<InboxItem>>({
-    queryKey: ['entities', id, 'inbox', status],
+    queryKey: ['entities', id, 'inbox', view],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '50', hydrate: 'true' });
-      if (status && status !== 'all') {
-        params.set('status', status);
+      // For 'all' view, we fetch both unread and read (but not archived)
+      // For 'unread' view, we fetch only unread
+      // For 'archived' view, we fetch only archived
+      if (view === 'unread') {
+        params.set('status', 'unread');
+      } else if (view === 'archived') {
+        params.set('status', 'archived');
+      } else {
+        // For 'all', fetch unread and read (exclude archived)
+        params.set('status', 'unread,read');
       }
       const response = await fetch(`/api/entities/${id}/inbox?${params}`);
       if (!response.ok) throw new Error('Failed to fetch inbox');
@@ -219,6 +252,22 @@ function useEntityInboxCount(id: string | null) {
       return response.json();
     },
     enabled: !!id,
+  });
+}
+
+// Get count for a specific view (for archived count display)
+function useEntityInboxViewCount(id: string | null, status: 'archived') {
+  return useQuery<PaginatedResult<InboxItem>>({
+    queryKey: ['entities', id, 'inbox', status, 'count'],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '1', status });
+      const response = await fetch(`/api/entities/${id}/inbox?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch inbox count');
+      return response.json();
+    },
+    enabled: !!id,
+    // Only need total count, not full data
+    select: (data) => data,
   });
 }
 
@@ -882,6 +931,7 @@ function InboxItemCard({
   onMarkRead,
   onMarkUnread,
   onArchive,
+  onRestore,
   isPending,
   onNavigateToMessage,
 }: {
@@ -889,6 +939,7 @@ function InboxItemCard({
   onMarkRead: () => void;
   onMarkUnread: () => void;
   onArchive: () => void;
+  onRestore: () => void;
   isPending: boolean;
   onNavigateToMessage: () => void;
 }) {
@@ -1010,34 +1061,45 @@ function InboxItemCard({
             <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
           ) : (
             <>
-              {isUnread ? (
+              {isArchived ? (
                 <button
-                  onClick={onMarkRead}
-                  className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                  title="Mark as read"
-                  data-testid={`inbox-mark-read-${item.id}`}
+                  onClick={onRestore}
+                  className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                  title="Restore"
+                  data-testid={`inbox-restore-${item.id}`}
                 >
-                  <CheckCheck className="w-4 h-4" />
+                  <RefreshCw className="w-4 h-4" />
                 </button>
               ) : (
-                <button
-                  onClick={onMarkUnread}
-                  className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                  title="Mark as unread"
-                  data-testid={`inbox-mark-unread-${item.id}`}
-                >
-                  <Mail className="w-4 h-4" />
-                </button>
-              )}
-              {!isArchived && (
-                <button
-                  onClick={onArchive}
-                  className="p-1 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
-                  title="Archive"
-                  data-testid={`inbox-archive-${item.id}`}
-                >
-                  <Archive className="w-4 h-4" />
-                </button>
+                <>
+                  {isUnread ? (
+                    <button
+                      onClick={onMarkRead}
+                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="Mark as read"
+                      data-testid={`inbox-mark-read-${item.id}`}
+                    >
+                      <CheckCheck className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onMarkUnread}
+                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="Mark as unread"
+                      data-testid={`inbox-mark-unread-${item.id}`}
+                    >
+                      <Mail className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={onArchive}
+                    className="p-1 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                    title="Archive"
+                    data-testid={`inbox-archive-${item.id}`}
+                  >
+                    <Archive className="w-4 h-4" />
+                  </button>
+                </>
               )}
             </>
           )}
@@ -1257,6 +1319,13 @@ function OrgChartView({
 
 type EntityDetailTab = 'overview' | 'inbox';
 
+// Inbox view tabs configuration
+const INBOX_VIEW_TABS: { value: InboxViewType; label: string }[] = [
+  { value: 'unread', label: 'Unread' },
+  { value: 'all', label: 'All' },
+  { value: 'archived', label: 'Archived' },
+];
+
 function EntityDetailPanel({
   entityId,
   onClose,
@@ -1270,7 +1339,9 @@ function EntityDetailPanel({
   const { data: tasks, isLoading: tasksLoading } = useEntityTasks(entityId);
   const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
   const { data: inboxCount } = useEntityInboxCount(entityId);
-  const { data: inboxData, isLoading: inboxLoading, isError: inboxError, refetch: refetchInbox } = useEntityInbox(entityId);
+  const { data: archivedData } = useEntityInboxViewCount(entityId, 'archived');
+  const [inboxView, setInboxView] = useState<InboxViewType>(() => getStoredInboxView());
+  const { data: inboxData, isLoading: inboxLoading, isError: inboxError, refetch: refetchInbox } = useEntityInbox(entityId, inboxView);
   const { data: directReports, isLoading: reportsLoading } = useEntityDirectReports(entityId);
   const { data: managementChain, isLoading: chainLoading } = useEntityManagementChain(entityId);
   const updateEntity = useUpdateEntity(entityId);
@@ -1287,6 +1358,12 @@ function EntityDetailPanel({
   const [showManagerPicker, setShowManagerPicker] = useState(false);
   const [managerSearchQuery, setManagerSearchQuery] = useState('');
   const [showOrgChart, setShowOrgChart] = useState(false);
+
+  // Handle inbox view change and persist to localStorage
+  const handleInboxViewChange = (view: InboxViewType) => {
+    setInboxView(view);
+    setStoredInboxView(view);
+  };
 
   // Initialize edit values when entity loads or editing starts
   useEffect(() => {
@@ -1325,6 +1402,16 @@ function EntityDetailPanel({
     setPendingItemId(itemId);
     try {
       await markInboxRead.mutateAsync({ itemId, status: 'archived' });
+    } finally {
+      setPendingItemId(null);
+    }
+  };
+
+  const handleRestoreInbox = async (itemId: string) => {
+    setPendingItemId(itemId);
+    try {
+      // Restore to 'read' status (previously archived items become read)
+      await markInboxRead.mutateAsync({ itemId, status: 'read' });
     } finally {
       setPendingItemId(null);
     }
@@ -1845,32 +1932,78 @@ function EntityDetailPanel({
         ) : (
           /* Inbox Tab Content */
           <div data-testid="entity-inbox-tab">
-            {/* Inbox Header */}
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                <Inbox className="w-4 h-4" />
-                Inbox
-                {inboxCount && inboxCount.count > 0 && (
-                  <span className="text-xs text-gray-500">
-                    ({inboxCount.count} unread)
-                  </span>
+            {/* Inbox Header with View Tabs */}
+            <div className="flex flex-col gap-3 mb-4">
+              {/* Title and Mark All Read */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                  <Inbox className="w-4 h-4" />
+                  Inbox
+                </h3>
+                {inboxView !== 'archived' && inboxCount && inboxCount.count > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    disabled={markAllRead.isPending}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+                    data-testid="inbox-mark-all-read"
+                  >
+                    {markAllRead.isPending ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <CheckCheck className="w-3 h-3" />
+                    )}
+                    Mark all read
+                  </button>
                 )}
-              </h3>
-              {inboxCount && inboxCount.count > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  disabled={markAllRead.isPending}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
-                  data-testid="inbox-mark-all-read"
-                >
-                  {markAllRead.isPending ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <CheckCheck className="w-3 h-3" />
-                  )}
-                  Mark all read
-                </button>
-              )}
+              </div>
+
+              {/* View Tabs (TB90) */}
+              <div className="flex gap-1 p-1 bg-gray-100 rounded-lg" data-testid="inbox-view-tabs">
+                {INBOX_VIEW_TABS.map((tab) => {
+                  const isSelected = inboxView === tab.value;
+                  // Show count badge for unread and archived
+                  let countBadge = null;
+                  if (tab.value === 'unread' && inboxCount && inboxCount.count > 0) {
+                    countBadge = (
+                      <span
+                        className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                          isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
+                        }`}
+                        data-testid="inbox-unread-count-badge"
+                      >
+                        {inboxCount.count}
+                      </span>
+                    );
+                  } else if (tab.value === 'archived' && archivedData && archivedData.total > 0) {
+                    countBadge = (
+                      <span
+                        className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                          isSelected ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'
+                        }`}
+                        data-testid="inbox-archived-count-badge"
+                      >
+                        {archivedData.total}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={tab.value}
+                      onClick={() => handleInboxViewChange(tab.value)}
+                      className={`flex items-center px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                        isSelected
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      }`}
+                      data-testid={`inbox-view-${tab.value}`}
+                    >
+                      {tab.label}
+                      {countBadge}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Inbox Items */}
@@ -1895,9 +2028,17 @@ function EntityDetailPanel({
             ) : !inboxData || inboxData.items.length === 0 ? (
               <div className="text-center py-8" data-testid="inbox-empty">
                 <Inbox className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No messages in inbox</p>
+                <p className="text-sm text-gray-500">
+                  {inboxView === 'unread'
+                    ? 'No unread messages'
+                    : inboxView === 'archived'
+                    ? 'No archived messages'
+                    : 'No messages in inbox'}
+                </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Direct messages and @mentions will appear here
+                  {inboxView === 'archived'
+                    ? 'Archived messages will appear here'
+                    : 'Direct messages and @mentions will appear here'}
                 </p>
               </div>
             ) : (
@@ -1909,6 +2050,7 @@ function EntityDetailPanel({
                     onMarkRead={() => handleMarkInboxRead(item.id)}
                     onMarkUnread={() => handleMarkInboxUnread(item.id)}
                     onArchive={() => handleArchiveInbox(item.id)}
+                    onRestore={() => handleRestoreInbox(item.id)}
                     isPending={pendingItemId === item.id}
                     onNavigateToMessage={() => handleNavigateToMessage(item.channelId, item.messageId)}
                   />

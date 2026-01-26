@@ -1327,14 +1327,15 @@ For mutations (create, update, delete):
   - [x] Web: Add error state with retry button
   - [x] **Verify:** Navigate to entity inbox, messages load correctly; Playwright tests passing
 
-- [ ] **TB90: Inbox Views (Unread/All/Archived)**
-  - [ ] Web: Add view toggle tabs: "Unread", "All", "Archived"
-  - [ ] Web: Unread shows only items with `status === 'unread'`
-  - [ ] Web: All shows unread + read items
-  - [ ] Web: Archived shows archived items with "Restore" action
-  - [ ] Web: Unread count badge on "Unread" tab
-  - [ ] Web: Remember selected view in localStorage
-  - [ ] **Verify:** Switch between views, counts update correctly; Playwright tests passing
+- [x] **TB90: Inbox Views (Unread/All/Archived)**
+  - [x] Web: Add view toggle tabs: "Unread", "All", "Archived" - `apps/web/src/routes/entities.tsx` InboxViewTabs
+  - [x] Web: Unread shows only items with `status === 'unread'` - useEntityInbox hook with status filter
+  - [x] Web: All shows unread + read items - API filters with `status=unread,read`
+  - [x] Web: Archived shows archived items with "Restore" action - Restore button changes status to 'read'
+  - [x] Web: Unread count badge on "Unread" tab - Badge shows count from inbox/count API
+  - [x] Web: Archived count badge on "Archived" tab - Badge shows total from archived query
+  - [x] Web: Remember selected view in localStorage - `inbox.view` key with getStoredInboxView/setStoredInboxView
+  - [x] **Verify:** Switch between views, counts update correctly; Playwright tests passing (7 passed, 8 skipped due to no inbox data)
 
 - [ ] **TB91: Inbox Message Summary Sidebar**
   - [ ] Web: Create split layout: message list (left 40%), message content (right 60%)
