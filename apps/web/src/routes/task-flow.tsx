@@ -1170,6 +1170,47 @@ function ComplexityDropdown({
   );
 }
 
+/**
+ * Description Preview Component (TB124)
+ *
+ * Shows the first 3 lines of a description with "Show more" expansion.
+ * This provides a compact preview while allowing users to expand for full content.
+ */
+function DescriptionPreview({ description }: { description: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Split description into lines and determine if truncation is needed
+  const lines = description.split('\n');
+  const MAX_LINES = 3;
+  const needsTruncation = lines.length > MAX_LINES;
+
+  // Get preview text (first 3 lines)
+  const previewText = needsTruncation && !isExpanded
+    ? lines.slice(0, MAX_LINES).join('\n')
+    : description;
+
+  return (
+    <div className="mb-6" data-testid="task-slide-over-description-section">
+      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Description</div>
+      <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 rounded-lg p-3" data-testid="task-slide-over-description">
+        <pre className="whitespace-pre-wrap font-sans text-sm">
+          {previewText}
+          {needsTruncation && !isExpanded && '...'}
+        </pre>
+      </div>
+      {needsTruncation && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 text-sm text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+          data-testid="description-show-more-button"
+        >
+          {isExpanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function DeleteConfirmDialog({
   isOpen,
   taskTitle,
@@ -1462,14 +1503,9 @@ function TaskSlideOver({ taskId, onClose }: TaskSlideOverProps) {
                 </div>
               )}
 
-              {/* Description */}
+              {/* Description with Show more/less (TB124) */}
               {task.description && (
-                <div className="mb-6">
-                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Description</div>
-                  <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 rounded-lg p-3" data-testid="task-slide-over-description">
-                    <pre className="whitespace-pre-wrap font-sans text-sm">{task.description}</pre>
-                  </div>
-                </div>
+                <DescriptionPreview description={task.description} />
               )}
 
               {/* Design */}

@@ -503,7 +503,7 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Description auto-saves on blur with debounce (like document editing) - Manual save with Save button
   - [x] Web: Show character count and "Saved" indicator - Save/Cancel buttons with loading state
   - [x] Web: CreateTaskModal: add optional "Description" textarea with markdown preview toggle
-  - [ ] Web: TaskSlideOver: show description preview (first 3 lines) with "Show more" expansion
+  - [x] Web: TaskSlideOver: show description preview (first 3 lines) with "Show more" expansion
   - [x] **Verify:** Create task with description, edit with rich editor, formatting persists; Playwright tests passing in `apps/web/tests/tb124-task-description-editor.spec.ts`
 
 ### Phase 32: Document Embed Search Fix

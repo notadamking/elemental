@@ -777,3 +777,201 @@ test.describe('TB32: Task Flow - Load Completed Tasks', () => {
     }
   });
 });
+
+test.describe('TB124: TaskSlideOver Description Preview', () => {
+  // Helper to create a task with a specific description
+  async function createTaskWithDescription(
+    page: import('@playwright/test').Page,
+    entityId: string,
+    description: string
+  ): Promise<{ id: string; title: string }> {
+    const title = `Description Test Task ${Date.now()}`;
+
+    const response = await page.request.post('/api/tasks', {
+      data: {
+        title,
+        createdBy: entityId,
+        description,
+        priority: 3,
+        taskType: 'task',
+        status: 'open',
+      },
+    });
+    const task = await response.json();
+    return { id: task.id, title };
+  }
+
+  // Helper to get first entity for testing
+  async function getFirstEntity(page: import('@playwright/test').Page): Promise<{ id: string; name: string } | null> {
+    const response = await page.request.get('/api/entities');
+    const data = await response.json();
+    const entities = data.items || data;
+    return entities.length > 0 ? entities[0] : null;
+  }
+
+  test('short description (3 or fewer lines) shows fully without Show more button', async ({ page }) => {
+    const entity = await getFirstEntity(page);
+    if (!entity) {
+      test.skip();
+      return;
+    }
+
+    // Create a task with a short description (3 lines or less)
+    const shortDescription = 'Line 1\nLine 2\nLine 3';
+    const task = await createTaskWithDescription(page, entity.id, shortDescription);
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-ready').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the task card to open slide-over
+    await page.getByTestId(`task-card-${task.id}`).click();
+    await expect(page.getByTestId('task-slide-over')).toBeVisible({ timeout: 5000 });
+
+    // Description section should be visible
+    await expect(page.getByTestId('task-slide-over-description-section')).toBeVisible();
+
+    // Full description should be shown
+    const descriptionContent = page.getByTestId('task-slide-over-description');
+    await expect(descriptionContent).toContainText('Line 1');
+    await expect(descriptionContent).toContainText('Line 2');
+    await expect(descriptionContent).toContainText('Line 3');
+
+    // Show more button should NOT be visible for short descriptions
+    await expect(page.getByTestId('description-show-more-button')).not.toBeVisible();
+  });
+
+  test('long description (more than 3 lines) shows preview with Show more button', async ({ page }) => {
+    const entity = await getFirstEntity(page);
+    if (!entity) {
+      test.skip();
+      return;
+    }
+
+    // Create a task with a long description (more than 3 lines)
+    const longDescription = 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6';
+    const task = await createTaskWithDescription(page, entity.id, longDescription);
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-ready').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the task card to open slide-over
+    await page.getByTestId(`task-card-${task.id}`).click();
+    await expect(page.getByTestId('task-slide-over')).toBeVisible({ timeout: 5000 });
+
+    // Description section should be visible
+    await expect(page.getByTestId('task-slide-over-description-section')).toBeVisible();
+
+    // First 3 lines should be shown
+    const descriptionContent = page.getByTestId('task-slide-over-description');
+    await expect(descriptionContent).toContainText('Line 1');
+    await expect(descriptionContent).toContainText('Line 2');
+    await expect(descriptionContent).toContainText('Line 3');
+
+    // Initially, Line 4+ should NOT be visible (truncated)
+    await expect(descriptionContent).not.toContainText('Line 4');
+
+    // Show more button should be visible
+    await expect(page.getByTestId('description-show-more-button')).toBeVisible();
+    await expect(page.getByTestId('description-show-more-button')).toHaveText('Show more');
+  });
+
+  test('clicking Show more expands to show full description', async ({ page }) => {
+    const entity = await getFirstEntity(page);
+    if (!entity) {
+      test.skip();
+      return;
+    }
+
+    // Create a task with a long description
+    const longDescription = 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6';
+    const task = await createTaskWithDescription(page, entity.id, longDescription);
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-ready').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the task card to open slide-over
+    await page.getByTestId(`task-card-${task.id}`).click();
+    await expect(page.getByTestId('task-slide-over')).toBeVisible({ timeout: 5000 });
+
+    // Click Show more button
+    await page.getByTestId('description-show-more-button').click();
+
+    // Now all lines should be visible
+    const descriptionContent = page.getByTestId('task-slide-over-description');
+    await expect(descriptionContent).toContainText('Line 4');
+    await expect(descriptionContent).toContainText('Line 5');
+    await expect(descriptionContent).toContainText('Line 6');
+
+    // Button should now say "Show less"
+    await expect(page.getByTestId('description-show-more-button')).toHaveText('Show less');
+  });
+
+  test('clicking Show less collapses description back to preview', async ({ page }) => {
+    const entity = await getFirstEntity(page);
+    if (!entity) {
+      test.skip();
+      return;
+    }
+
+    // Create a task with a long description
+    const longDescription = 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6';
+    const task = await createTaskWithDescription(page, entity.id, longDescription);
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-ready').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the task card to open slide-over
+    await page.getByTestId(`task-card-${task.id}`).click();
+    await expect(page.getByTestId('task-slide-over')).toBeVisible({ timeout: 5000 });
+
+    // Click Show more to expand
+    await page.getByTestId('description-show-more-button').click();
+    await expect(page.getByTestId('description-show-more-button')).toHaveText('Show less');
+
+    // Click Show less to collapse
+    await page.getByTestId('description-show-more-button').click();
+
+    // Line 4+ should no longer be visible
+    const descriptionContent = page.getByTestId('task-slide-over-description');
+    await expect(descriptionContent).not.toContainText('Line 4');
+
+    // Button should say "Show more" again
+    await expect(page.getByTestId('description-show-more-button')).toHaveText('Show more');
+  });
+
+  test('task without description does not show description section', async ({ page }) => {
+    const entity = await getFirstEntity(page);
+    if (!entity) {
+      test.skip();
+      return;
+    }
+
+    // Create a task without description
+    const title = `No Description Task ${Date.now()}`;
+    const response = await page.request.post('/api/tasks', {
+      data: {
+        title,
+        createdBy: entity.id,
+        priority: 3,
+        taskType: 'task',
+        status: 'open',
+      },
+    });
+    const task = await response.json();
+
+    await page.goto('/dashboard/task-flow');
+    await expect(page.getByTestId('task-flow-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('column-ready').getByText('Loading...')).not.toBeVisible({ timeout: 10000 });
+
+    // Click the task card to open slide-over
+    await page.getByTestId(`task-card-${task.id}`).click();
+    await expect(page.getByTestId('task-slide-over')).toBeVisible({ timeout: 5000 });
+
+    // Description section should NOT be visible (no description)
+    await expect(page.getByTestId('task-slide-over-description-section')).not.toBeVisible();
+  });
+});
