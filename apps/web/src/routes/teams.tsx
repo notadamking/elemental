@@ -294,6 +294,9 @@ function CreateTeamModal({
 
     if (!name.trim()) return;
 
+    // TB123: Teams must have at least one member
+    if (selectedMembers.length === 0) return;
+
     const input: CreateTeamInput = {
       name: name.trim(),
       members: selectedMembers,
@@ -365,11 +368,16 @@ function CreateTeamModal({
               />
             </div>
 
-            {/* Members */}
+            {/* Members - TB123: Required */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Members <span className="text-gray-400">(optional)</span>
+                Members <span className="text-red-500">*</span>
               </label>
+              {selectedMembers.length === 0 && (
+                <p className="text-xs text-amber-600 mb-2">
+                  Teams must have at least one member. Search and select an entity below.
+                </p>
+              )}
 
               {/* Selected Members */}
               {selectedEntities.length > 0 && (
@@ -479,9 +487,10 @@ function CreateTeamModal({
               </button>
               <button
                 type="submit"
-                disabled={!name.trim() || createTeam.isPending}
+                disabled={!name.trim() || selectedMembers.length === 0 || createTeam.isPending}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="create-team-submit"
+                title={selectedMembers.length === 0 ? 'Select at least one member to create a team' : undefined}
               >
                 {createTeam.isPending ? (
                   <>
@@ -1093,6 +1102,13 @@ function TeamDetailPanel({
             </div>
           )}
 
+          {/* TB123: Show warning when only one member remains */}
+          {members && members.length === 1 && isActive && (
+            <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-700" data-testid="last-member-warning">
+              This is the last member. Teams must have at least one member.
+            </div>
+          )}
+
           {membersLoading ? (
             <div className="text-sm text-gray-500">Loading members...</div>
           ) : members && members.length > 0 ? (
@@ -1100,6 +1116,8 @@ function TeamDetailPanel({
               {members.map((member) => {
                 const styles = ENTITY_TYPE_STYLES[member.entityType] || ENTITY_TYPE_STYLES.system;
                 const Icon = styles.icon;
+                // TB123: Check if this is the last member
+                const isLastMember = members.length === 1;
                 return (
                   <div
                     key={member.id}
@@ -1122,9 +1140,13 @@ function TeamDetailPanel({
                     {isActive && (
                       <button
                         onClick={() => handleRemoveMember(member.id)}
-                        disabled={updateTeam.isPending}
-                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                        title="Remove from team"
+                        disabled={updateTeam.isPending || isLastMember}
+                        className={`p-1 rounded transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isLastMember
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100'
+                        }`}
+                        title={isLastMember ? 'Cannot remove the last member from a team' : 'Remove from team'}
                         data-testid={`remove-member-${member.id}`}
                       >
                         <UserMinus className="w-4 h-4" />

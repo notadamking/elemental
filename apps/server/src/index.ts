@@ -5256,22 +5256,20 @@ app.post('/api/teams', async (c) => {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name is required' } }, 400);
     }
 
-    // Validate members array
-    if (members !== undefined) {
-      if (!Array.isArray(members)) {
-        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Members must be an array' } }, 400);
+    // Validate members array - TB123: Teams must have at least one member
+    if (!members || !Array.isArray(members) || members.length === 0) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Teams must have at least one member' } }, 400);
+    }
+    // Check each member is a valid string
+    for (const member of members) {
+      if (typeof member !== 'string' || member.length === 0) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Each member must be a valid entity ID' } }, 400);
       }
-      // Check each member is a valid string
-      for (const member of members) {
-        if (typeof member !== 'string' || member.length === 0) {
-          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Each member must be a valid entity ID' } }, 400);
-        }
-      }
-      // Check for duplicate members
-      const uniqueMembers = new Set(members);
-      if (uniqueMembers.size !== members.length) {
-        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Duplicate members are not allowed' } }, 400);
-      }
+    }
+    // Check for duplicate members
+    const uniqueMembers = new Set(members);
+    if (uniqueMembers.size !== members.length) {
+      return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Duplicate members are not allowed' } }, 400);
     }
 
     // Check for duplicate team name
@@ -5392,7 +5390,16 @@ app.patch('/api/teams/:id', async (c) => {
       }
     }
 
+    // TB123: Prevent removing the last member - teams must have at least one member
     if (addMembers !== undefined || removeMembers !== undefined) {
+      if (currentMembers.length === 0) {
+        return c.json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Cannot remove the last member from a team. Teams must have at least one member.'
+          }
+        }, 400);
+      }
       updates.members = currentMembers;
     }
 
@@ -5555,6 +5562,46 @@ app.get('/api/teams/:id/stats', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get team stats:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get team stats' } }, 500);
+  }
+});
+
+// TB123: Check if a member can be removed from a team
+app.get('/api/teams/:id/can-remove-member/:entityId', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const entityId = c.req.param('entityId') as EntityId;
+    const team = await api.get(id);
+
+    if (!team || team.type !== 'team') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Team not found' } }, 404);
+    }
+
+    const teamData = team as unknown as { members: EntityId[] };
+    const memberIds = teamData.members || [];
+
+    // Check if entity is a member
+    if (!memberIds.includes(entityId)) {
+      return c.json({
+        canRemove: false,
+        reason: 'Entity is not a member of this team',
+      });
+    }
+
+    // Check if this is the last member
+    if (memberIds.length <= 1) {
+      return c.json({
+        canRemove: false,
+        reason: 'Cannot remove the last member from a team. Teams must have at least one member.',
+      });
+    }
+
+    return c.json({
+      canRemove: true,
+      reason: null,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to check can-remove-member:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to check member removal' } }, 500);
   }
 });
 

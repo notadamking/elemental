@@ -668,12 +668,19 @@ test.describe('TB38: Team Detail Panel', () => {
 
 test.describe('TB39: Create Team', () => {
   test('POST /api/teams endpoint creates a team', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     const uniqueName = `Test Team ${Date.now()}`;
 
     const response = await page.request.post('/api/teams', {
       data: {
         name: uniqueName,
-        members: [],
+        members: [entities[0].id], // TB123: Must have at least one member
         tags: ['test-tag'],
       },
     });
@@ -684,16 +691,25 @@ test.describe('TB39: Create Team', () => {
     const team = await response.json();
     expect(team.name).toBe(uniqueName);
     expect(team.type).toBe('team');
-    expect(team.members).toEqual([]);
+    expect(team.members).toContain(entities[0].id);
     expect(team.tags).toContain('test-tag');
     expect(team.id).toMatch(/^el-/);
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team.id}`);
   });
 
   test('POST /api/teams rejects empty name', async ({ page }) => {
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     const response = await page.request.post('/api/teams', {
       data: {
         name: '',
-        members: [],
+        members: [entities[0].id], // TB123: Must have at least one member
       },
     });
 
@@ -704,22 +720,33 @@ test.describe('TB39: Create Team', () => {
   });
 
   test('POST /api/teams rejects duplicate team names', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     const uniqueName = `Dup Team ${Date.now()}`;
 
     // Create first team
     const response1 = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     expect(response1.ok()).toBe(true);
+    const team1 = await response1.json();
 
     // Try to create duplicate
     const response2 = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     expect(response2.ok()).toBe(false);
     expect(response2.status()).toBe(400);
     const error = await response2.json();
     expect(error.error.message).toContain('already exists');
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team1.id}`);
   });
 
   test('POST /api/teams accepts members array', async ({ page }) => {
@@ -853,19 +880,43 @@ test.describe('TB39: Create Team', () => {
     await expect(page.getByTestId('create-team-submit')).toBeDisabled();
   });
 
-  test('submit button is enabled when name is filled', async ({ page }) => {
+  test('submit button is enabled when name AND member are filled (TB123)', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
 
     await page.getByTestId('new-team-button').click();
     await expect(page.getByTestId('create-team-modal')).toBeVisible();
 
+    // Just filling name should NOT enable button (TB123)
     await page.getByTestId('create-team-name-input').fill('Test Team');
+    await expect(page.getByTestId('create-team-submit')).toBeDisabled();
 
-    await expect(page.getByTestId('create-team-submit')).not.toBeDisabled();
+    // Search and add a member
+    await page.getByTestId('member-search-input').fill(entities[0].name.substring(0, 3));
+    await page.waitForTimeout(300);
+    const addButton = page.getByTestId(`add-member-${entities[0].id}`);
+    if (await addButton.isVisible()) {
+      await addButton.click();
+      // Now button should be enabled
+      await expect(page.getByTestId('create-team-submit')).toBeEnabled();
+    }
   });
 
   test('can create team via modal', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
 
@@ -877,6 +928,14 @@ test.describe('TB39: Create Team', () => {
     await page.getByTestId('create-team-name-input').fill(uniqueName);
     await page.getByTestId('create-team-tags-input').fill('modal-test');
 
+    // TB123: Add a member before submitting
+    await page.getByTestId('member-search-input').fill(entities[0].name.substring(0, 3));
+    await page.waitForTimeout(300);
+    const addButton = page.getByTestId(`add-member-${entities[0].id}`);
+    if (await addButton.isVisible()) {
+      await addButton.click();
+    }
+
     await page.getByTestId('create-team-submit').click();
 
     // Modal should close
@@ -885,6 +944,13 @@ test.describe('TB39: Create Team', () => {
     // Team should appear in list (the grid will have the team card)
     await page.waitForTimeout(500);
     await expect(page.getByTestId('teams-grid').getByText(uniqueName)).toBeVisible({ timeout: 5000 });
+
+    // Clean up created team
+    const teams = await getTeams(page);
+    const createdTeam = teams.find(t => t.name === uniqueName);
+    if (createdTeam) {
+      await page.request.delete(`/api/teams/${createdTeam.id}`);
+    }
   });
 
   test('empty state has create team link', async ({ page }) => {
@@ -1031,11 +1097,19 @@ test.describe('TB39: Create Team', () => {
   });
 
   test('shows error for duplicate team name', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     // Create a team first
     const uniqueName = `Dup Test Team ${Date.now()}`;
-    await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+    const createResponse = await page.request.post('/api/teams', {
+      data: { name: uniqueName, members: [entities[0].id] },
     });
+    const existingTeam = await createResponse.json();
 
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
@@ -1043,22 +1117,38 @@ test.describe('TB39: Create Team', () => {
     await page.getByTestId('new-team-button').click();
     await expect(page.getByTestId('create-team-modal')).toBeVisible();
 
-    // Try to create with same name
+    // Try to create with same name - need to add a member first (TB123)
     await page.getByTestId('create-team-name-input').fill(uniqueName);
+    await page.getByTestId('member-search-input').fill(entities[0].name.substring(0, 3));
+    await page.waitForTimeout(300);
+    const addButton = page.getByTestId(`add-member-${entities[0].id}`);
+    if (await addButton.isVisible()) {
+      await addButton.click();
+    }
     await page.getByTestId('create-team-submit').click();
 
     // Should show error
     await expect(page.getByTestId('create-team-error')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText(/already exists/)).toBeVisible();
+
+    // Clean up
+    await page.request.delete(`/api/teams/${existingTeam.id}`);
   });
 });
 
 test.describe('TB40: Edit Team', () => {
   test('PATCH /api/teams/:id endpoint updates team name', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     // Create a team first
     const uniqueName = `Edit Test Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
@@ -1071,52 +1161,60 @@ test.describe('TB40: Edit Team', () => {
     expect(updateResponse.ok()).toBe(true);
     const updated = await updateResponse.json();
     expect(updated.name).toBe(newName);
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team.id}`);
   });
 
   test('PATCH /api/teams/:id endpoint adds members', async ({ page }) => {
     // Get an entity
     const entities = await getEntities(page);
 
-    if (entities.length === 0) {
+    if (entities.length < 2) {
       test.skip();
       return;
     }
 
-    // Create a team
+    // Create a team - TB123: Must have at least one member
     const uniqueName = `Add Member Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
-    // Add a member
+    // Add another member
     const updateResponse = await page.request.patch(`/api/teams/${team.id}`, {
-      data: { addMembers: [entities[0].id] },
+      data: { addMembers: [entities[1].id] },
     });
 
     expect(updateResponse.ok()).toBe(true);
     const updated = await updateResponse.json();
     expect(updated.members).toContain(entities[0].id);
+    expect(updated.members).toContain(entities[1].id);
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team.id}`);
   });
 
-  test('PATCH /api/teams/:id endpoint removes members', async ({ page }) => {
-    // Get an entity
+  test('PATCH /api/teams/:id endpoint removes members (when multiple exist)', async ({ page }) => {
+    // Get entities - TB123: Need at least 2 to test removal
     const entities = await getEntities(page);
 
-    if (entities.length === 0) {
+    if (entities.length < 2) {
       test.skip();
       return;
     }
 
-    // Create a team with a member
+    // Create a team with two members (TB123: need 2 to test removal)
     const uniqueName = `Remove Member Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName, members: [entities[0].id] },
+      data: { name: uniqueName, members: [entities[0].id, entities[1].id] },
     });
     const team = await createResponse.json();
     expect(team.members).toContain(entities[0].id);
+    expect(team.members).toContain(entities[1].id);
 
-    // Remove the member
+    // Remove one member (leaving one remaining)
     const updateResponse = await page.request.patch(`/api/teams/${team.id}`, {
       data: { removeMembers: [entities[0].id] },
     });
@@ -1124,13 +1222,24 @@ test.describe('TB40: Edit Team', () => {
     expect(updateResponse.ok()).toBe(true);
     const updated = await updateResponse.json();
     expect(updated.members).not.toContain(entities[0].id);
+    expect(updated.members).toContain(entities[1].id);
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team.id}`);
   });
 
   test('DELETE /api/teams/:id endpoint deletes team', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     // Create a team
     const uniqueName = `Delete Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
@@ -1201,10 +1310,17 @@ test.describe('TB40: Edit Team', () => {
   });
 
   test('can edit team name via UI', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     // Create a team to edit
     const uniqueName = `Edit UI Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
@@ -1282,10 +1398,17 @@ test.describe('TB40: Edit Team', () => {
   });
 
   test('delete button shows confirmation modal', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     // Create a team to test with
     const uniqueName = `Delete Confirm Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const ourTeam = await createResponse.json();
 
@@ -1339,10 +1462,17 @@ test.describe('TB40: Edit Team', () => {
   });
 
   test('can delete team via UI', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     // Create a team to delete
     const uniqueName = `Delete Via UI Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
@@ -1364,10 +1494,17 @@ test.describe('TB40: Edit Team', () => {
   });
 
   test('team detail panel has add member search', async ({ page }) => {
+    // TB123: Teams must have at least one member
+    const entities = await getEntities(page);
+    if (entities.length === 0) {
+      test.skip();
+      return;
+    }
+
     // Create a fresh team
     const uniqueName = `Add Search Test Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
@@ -1382,18 +1519,18 @@ test.describe('TB40: Edit Team', () => {
   });
 
   test('add member search shows results', async ({ page }) => {
-    // Get entities
+    // Get entities - TB123: Need at least 2 entities (one for team, one to search for)
     const entities = await getEntities(page);
 
-    if (entities.length === 0) {
+    if (entities.length < 2) {
       test.skip();
       return;
     }
 
-    // Create a fresh team for this test
+    // Create a fresh team for this test - TB123: Must have at least one member
     const uniqueName = `Search Results Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName, members: [] },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
@@ -1405,31 +1542,34 @@ test.describe('TB40: Edit Team', () => {
     await expect(page.getByTestId('team-detail-panel')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('add-member-search')).toBeVisible({ timeout: 5000 });
 
-    // Type in search
-    await page.getByTestId('add-member-search').fill(entities[0].name.substring(0, 3));
+    // Type in search (search for an entity NOT in the team)
+    await page.getByTestId('add-member-search').fill(entities[1].name.substring(0, 3));
 
     // Results should appear
     await expect(page.getByTestId('add-member-results')).toBeVisible();
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team.id}`);
   });
 
   test('can add member to team via UI', async ({ page }) => {
-    // Get entities
+    // Get entities - TB123: Need at least 2 entities
     const entities = await getEntities(page);
 
-    if (entities.length === 0) {
+    if (entities.length < 2) {
       test.skip();
       return;
     }
 
-    // Create a team without any members
+    // Create a team with one member - TB123: Must have at least one member
     const uniqueName = `Add Member UI Team ${Date.now()}`;
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName, members: [] },
+      data: { name: uniqueName, members: [entities[0].id] },
     });
     const team = await createResponse.json();
 
-    // Find an entity not in the team
-    const entityToAdd = entities[0];
+    // Find a different entity not in the team
+    const entityToAdd = entities[1];
 
     await page.goto('/teams');
     await expect(page.getByTestId('teams-page')).toBeVisible({ timeout: 10000 });
@@ -1447,22 +1587,25 @@ test.describe('TB40: Edit Team', () => {
 
     // Member should appear in list
     await expect(page.getByTestId(`member-item-${entityToAdd.id}`)).toBeVisible({ timeout: 5000 });
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team.id}`);
   });
 
-  test('can remove member from team via UI', async ({ page }) => {
-    // Get entities
+  test('can remove member from team via UI (when multiple members)', async ({ page }) => {
+    // Get entities - TB123: Need at least 2 to test removal
     const entities = await getEntities(page);
 
-    if (entities.length === 0) {
+    if (entities.length < 2) {
       test.skip();
       return;
     }
 
-    // Create a team with a member
+    // Create a team with TWO members (TB123: Can only remove when >1 member)
     const uniqueName = `Remove Member UI Team ${Date.now()}`;
     const memberEntity = entities[0];
     const createResponse = await page.request.post('/api/teams', {
-      data: { name: uniqueName, members: [memberEntity.id] },
+      data: { name: uniqueName, members: [memberEntity.id, entities[1].id] },
     });
     const team = await createResponse.json();
 
@@ -1476,11 +1619,19 @@ test.describe('TB40: Edit Team', () => {
     // Wait for members to load
     await expect(page.getByTestId(`member-item-${memberEntity.id}`)).toBeVisible({ timeout: 5000 });
 
+    // Hover over member item to reveal remove button
+    await page.getByTestId(`member-item-${memberEntity.id}`).hover();
+
     // Click remove button
     await page.getByTestId(`remove-member-${memberEntity.id}`).click();
 
     // Member should be removed from list
     await expect(page.getByTestId(`member-item-${memberEntity.id}`)).not.toBeVisible({ timeout: 5000 });
+    // Other member should still be there
+    await expect(page.getByTestId(`member-item-${entities[1].id}`)).toBeVisible();
+
+    // Clean up
+    await page.request.delete(`/api/teams/${team.id}`);
   });
 
   test('member remove button appears on hover', async ({ page }) => {

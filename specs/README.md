@@ -134,6 +134,26 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB120-performance-audit.md](./platform/TB120-performance-audit.md) | Performance Audit - Bundle optimization, code splitting, skeleton components, load time verification | performance, bundle, code splitting, skeleton, loading, memoization, virtualization |
 | [platform/TB121-plans-must-have-tasks.md](./platform/TB121-plans-must-have-tasks.md) | Plans Must Have Task Children - Collection integrity validation requiring plans to have at least one task | plans, tasks, validation, collection, integrity, create, remove |
 | [platform/TB122-workflows-must-have-tasks.md](./platform/TB122-workflows-must-have-tasks.md) | Workflows Must Have Task Children - Collection integrity validation requiring workflows to have at least one task | workflows, tasks, validation, collection, integrity, create, pour, burn |
+| [platform/TB123-teams-must-have-members.md](./platform/TB123-teams-must-have-members.md) | Teams Must Have Entity Members - Collection integrity validation requiring teams to have at least one member | teams, members, validation, collection, integrity, create, remove |
+| platform/PLAN.md#tb140 | Render Task Attachments as Markdown - Use MarkdownRenderer for document attachments in TaskDetailPanel | task, attachments, markdown, render, document, TaskDetailPanel |
+| platform/PLAN.md#tb141 | Sidebar Expand Button When Collapsed - Visual button to expand sidebar without keyboard shortcut | sidebar, collapse, expand, button, accessibility, navigation |
+| platform/PLAN.md#tb142 | Move Dependencies to Work Section - Reorganize sidebar navigation for better information architecture | sidebar, navigation, dependencies, work, information architecture |
+| platform/PLAN.md#tb143 | Timeline Eager Event Loading - Load all events upfront with client-side pagination for instant totals | timeline, events, pagination, eager loading, performance |
+| platform/PLAN.md#tb144 | Responsive Foundation & CSS Infrastructure - Breakpoints, spacing, typography, testing utilities | responsive, breakpoints, css, tokens, mobile, tablet, desktop |
+| platform/PLAN.md#tb145 | Responsive AppShell & Sidebar - Mobile drawer, tablet collapsed, desktop always visible | responsive, sidebar, drawer, hamburger, mobile navigation |
+| platform/PLAN.md#tb146 | Responsive Dashboard Page - All lenses adapted for mobile with touch interactions | responsive, dashboard, charts, graphs, mobile, touch |
+| platform/PLAN.md#tb147 | Responsive Tasks Page - List, kanban, and detail panel on all screen sizes | responsive, tasks, kanban, detail panel, mobile, touch drag |
+| platform/PLAN.md#tb148 | Responsive Plans & Workflows Pages - List and detail views on all screens | responsive, plans, workflows, detail panel, mobile |
+| platform/PLAN.md#tb149 | Responsive Messages Page - Slack-style two-screen mobile navigation | responsive, messages, channels, mobile, two-screen |
+| platform/PLAN.md#tb150 | Responsive Documents Page - Notion-style editor and library on mobile | responsive, documents, editor, tiptap, mobile, touch |
+| platform/PLAN.md#tb151 | Responsive Entities & Teams Pages - Lists, details, and charts on mobile | responsive, entities, teams, contribution chart, mobile |
+| platform/PLAN.md#tb152 | Responsive Settings Page - All settings sections accessible on mobile | responsive, settings, mobile, touch |
+| platform/PLAN.md#tb153 | Responsive Modals & Dialogs - Full-screen sheets on mobile | responsive, modals, dialogs, sheets, mobile |
+| platform/PLAN.md#tb154 | Responsive Command Palette - Touch-friendly power-user navigation | responsive, command palette, cmdk, mobile, touch |
+| platform/PLAN.md#tb155 | Responsive Data Tables - Card view on mobile, horizontal scroll on tablet | responsive, tables, cards, mobile, data display |
+| platform/PLAN.md#tb156 | Responsive Charts & Visualizations - Touch interactions for all charts | responsive, charts, recharts, react flow, touch, mobile |
+| platform/PLAN.md#tb157 | Responsive Empty States & Loading States - Properly sized for all screens | responsive, empty state, skeleton, loading, mobile |
+| platform/PLAN.md#tb158 | Final Responsive Audit & Polish - Comprehensive testing and device verification | responsive, audit, testing, real devices, accessibility |
 
 ---
 
