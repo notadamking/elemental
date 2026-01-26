@@ -1073,6 +1073,14 @@ export interface ElementalAPI {
   listEvents(filter?: EventFilter): Promise<Event[]>;
 
   /**
+   * Count events matching a filter.
+   *
+   * @param filter - Optional event filter (including elementId filter, event types, actor, time range)
+   * @returns Total count of matching events
+   */
+  countEvents(filter?: EventFilter): Promise<number>;
+
+  /**
    * Get a specific version of a document.
    *
    * @param id - Document ID

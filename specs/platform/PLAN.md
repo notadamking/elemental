@@ -791,54 +791,21 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
     - Tests: Work section placement, not in Dashboard, route works, keyboard shortcut, command palette, page loads, correct order
     - **Verify:** All tests pass
 
-- [ ] **TB143: Timeline Eager Event Loading with UI Pagination**
+- [x] **TB143: Timeline Eager Event Loading with UI Pagination** ✅ DONE
 
   **Context:** The timeline page uses lazy loading—users must click "Next page" repeatedly to see all events, with no way to know the total count upfront. Change to eager loading (fetch all events on mount) while keeping page-based UI pagination for performance.
 
-  **Tracer Bullet Steps:**
-  - [ ] Step 1: Analyze current event loading in `timeline.tsx`
-    - Find `useEvents()` hook usage (lines 210-244)
-    - Understand current pagination params (limit, offset)
-    - Note: Server already returns `total` in response
-    - **Verify immediately:** Understand current data flow
-  - [ ] Step 2: Create new hook `useAllEvents()` or modify `useEvents()` with `fetchAll` option
-    - Fetches events with large limit (e.g., 10000) or multiple batched requests
-    - Returns all events at once plus total count
-    - **Verify immediately:** Hook compiles, can log full event count
-  - [ ] Step 3: Update timeline page to use eager loading
-    - Fetch all events on mount (may need loading state for large datasets)
-    - Store full event array in state
-    - Display total count immediately: "X total events"
-    - **Verify immediately:** Timeline shows "Loading events..." then total count
-  - [ ] Step 4: Implement client-side pagination
-    - Slice events array based on current page and page size
-    - Update URL params (page, limit) on navigation
-    - **Verify immediately:** Page 1 shows first N events, page 2 shows next N
-  - [ ] Step 5: Update pagination controls to show accurate totals
-    - "Showing 1-100 of 5,432 events"
-    - "Page 1 of 55"
-    - **Verify immediately:** Pagination shows correct numbers
-  - [ ] Step 6: Add loading state for initial fetch
-    - Show skeleton or spinner while fetching all events
-    - Show helpful message if many events: "Loading 5,000+ events..."
-    - **Verify immediately:** Loading state appears, then results
-  - [ ] Step 7: Optimize for large datasets
-    - If >10,000 events, consider chunked loading with progress
-    - Cache events in TanStack Query with long stale time
-    - **Verify immediately:** Performance acceptable with 1000+ events
-  - [ ] Step 8: Ensure filters still work
-    - Client-side filtering on full dataset (fast, instant feedback)
-    - Server-side filtering as optimization (optional)
-    - **Verify immediately:** Type in search, results filter instantly
-  - [ ] Step 9: Test horizontal timeline view
-    - All events available for pan/zoom/brush selection
-    - No "Load more" needed when zooming out
-    - **Verify immediately:** Horizontal view shows all events
-  - [ ] Step 10: Write Playwright test
-    - Load timeline, verify total count shown immediately
-    - Navigate pages, verify correct events shown
-    - Search/filter, verify instant results
-    - **Verify:** Test passes in `apps/web/tests/tb143-timeline-eager-loading.spec.ts`
+  **Implementation Summary:**
+  - Added `/api/events/count` endpoint to server for accurate total count
+  - Added `countEvents()` method to ElementalAPI (`src/api/elemental-api.ts`)
+  - Created `useAllEvents()` hook that fetches count first, then all events
+  - Replaced lazy loading with eager loading (up to 20,000 events)
+  - Client-side pagination for instant page navigation
+  - Client-side filtering (search, element types, date) for instant results
+  - Loading state shows count while fetching: "Loading 12,144 events..."
+  - Background refresh every 30 seconds with "refreshing" indicator
+  - 10 Playwright tests passing in `apps/web/tests/tb143-timeline-eager-loading.spec.ts`
+  - **Verify:** Run `npx playwright test tb143` - all tests pass
 
 ### Phase 39: Comprehensive Responsive Design
 

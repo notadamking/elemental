@@ -3049,13 +3049,17 @@ app.get('/api/events', async (c) => {
 
     const events = await api.listEvents(filter as Parameters<typeof api.listEvents>[0]);
 
-    // If paginated=true, return paginated response format
+    // If paginated=true, return paginated response format with accurate total count
     if (paginatedParam === 'true') {
-      // Get total count (estimate based on returned data)
-      const hasMore = events.length === limit;
+      // Get accurate total count (excluding limit/offset for count query)
+      const countFilter = { ...filter };
+      delete countFilter.limit;
+      delete countFilter.offset;
+      const total = await api.countEvents(countFilter as Parameters<typeof api.countEvents>[0]);
+      const hasMore = offset + events.length < total;
       return c.json({
         items: events,
-        total: offset + events.length + (hasMore ? 1 : 0), // Estimate - actual total may be higher
+        total: total,
         offset: offset,
         limit: limit,
         hasMore: hasMore,
@@ -3066,6 +3070,42 @@ app.get('/api/events', async (c) => {
   } catch (error) {
     console.error('[elemental] Failed to get events:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get events' } }, 500);
+  }
+});
+
+// Get count of events matching filter (for eager loading pagination)
+app.get('/api/events/count', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const eventType = url.searchParams.get('eventType');
+    const actor = url.searchParams.get('actor');
+    const elementId = url.searchParams.get('elementId');
+    const after = url.searchParams.get('after');
+    const before = url.searchParams.get('before');
+
+    const filter: Record<string, unknown> = {};
+
+    if (eventType) {
+      filter.eventType = eventType.includes(',') ? eventType.split(',') : eventType;
+    }
+    if (actor) {
+      filter.actor = actor;
+    }
+    if (elementId) {
+      filter.elementId = elementId;
+    }
+    if (after) {
+      filter.after = after;
+    }
+    if (before) {
+      filter.before = before;
+    }
+
+    const count = await api.countEvents(filter as Parameters<typeof api.countEvents>[0]);
+    return c.json({ count });
+  } catch (error) {
+    console.error('[elemental] Failed to count events:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to count events' } }, 500);
   }
 });
 

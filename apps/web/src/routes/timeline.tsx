@@ -92,14 +92,6 @@ interface EventFilterState {
   jumpToDate: string | null;
 }
 
-interface PaginatedResult<T> {
-  items: T[];
-  total: number;
-  offset: number;
-  limit: number;
-  hasMore: boolean;
-}
-
 const DEFAULT_EVENT_PAGE_SIZE = 100;
 
 // TB116: View modes
@@ -207,40 +199,78 @@ const EVENT_TYPE_DISPLAY: Record<EventType, string> = {
   auto_unblocked: 'Auto Unblocked',
 };
 
-function useEvents(
-  filter: EventFilterState,
-  page: number = 1,
-  pageSize: number = DEFAULT_EVENT_PAGE_SIZE
-) {
-  const offset = (page - 1) * pageSize;
-  const queryParams = new URLSearchParams();
+// TB143: Maximum events to fetch in eager loading mode
+const MAX_EAGER_LOAD_EVENTS = 20000;
 
-  // Add event type filter
-  if (filter.eventTypes.length > 0 && filter.eventTypes.length < ALL_EVENT_TYPES.length) {
-    queryParams.set('eventType', filter.eventTypes.join(','));
-  }
+/**
+ * TB143: Hook for eager loading all events.
+ * Fetches total count first, then all events in one request for client-side pagination.
+ */
+function useAllEvents(filter: EventFilterState) {
+  // Build query params for filtering (no pagination)
+  const buildQueryParams = () => {
+    const queryParams = new URLSearchParams();
 
-  // Add actor filter (first selected actor for server-side filtering)
-  if (filter.actors.length === 1) {
-    queryParams.set('actor', filter.actors[0]);
-  }
+    // Add event type filter
+    if (filter.eventTypes.length > 0 && filter.eventTypes.length < ALL_EVENT_TYPES.length) {
+      queryParams.set('eventType', filter.eventTypes.join(','));
+    }
 
-  // Add pagination params
-  queryParams.set('limit', pageSize.toString());
-  queryParams.set('offset', offset.toString());
-  queryParams.set('paginated', 'true');
+    // Add actor filter (first selected actor for server-side filtering)
+    if (filter.actors.length === 1) {
+      queryParams.set('actor', filter.actors[0]);
+    }
 
-  const url = `/api/events?${queryParams.toString()}`;
+    return queryParams.toString();
+  };
 
-  return useQuery<PaginatedResult<Event>>({
-    queryKey: ['events', 'paginated', page, pageSize, filter.eventTypes, filter.actors],
+  // First, get the total count
+  const countQuery = useQuery<{ count: number }>({
+    queryKey: ['events', 'count', filter.eventTypes, filter.actors],
     queryFn: async () => {
+      const queryString = buildQueryParams();
+      const url = queryString ? `/api/events/count?${queryString}` : '/api/events/count';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch event count');
+      return response.json();
+    },
+    staleTime: 30000, // Cache count for 30 seconds
+  });
+
+  // Then fetch all events (up to MAX_EAGER_LOAD_EVENTS)
+  const eventsQuery = useQuery<Event[]>({
+    queryKey: ['events', 'all', filter.eventTypes, filter.actors],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+
+      if (filter.eventTypes.length > 0 && filter.eventTypes.length < ALL_EVENT_TYPES.length) {
+        queryParams.set('eventType', filter.eventTypes.join(','));
+      }
+      if (filter.actors.length === 1) {
+        queryParams.set('actor', filter.actors[0]);
+      }
+
+      // Fetch all events (up to limit)
+      queryParams.set('limit', MAX_EAGER_LOAD_EVENTS.toString());
+
+      const url = `/api/events?${queryParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch events');
       return response.json();
     },
-    refetchInterval: 5000, // Poll every 5 seconds for live updates
+    enabled: countQuery.isSuccess, // Only fetch after we have the count
+    staleTime: 30000, // Cache events for 30 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds for live updates
   });
+
+  return {
+    events: eventsQuery.data ?? [],
+    totalCount: countQuery.data?.count ?? 0,
+    isLoading: countQuery.isLoading || eventsQuery.isLoading,
+    isFetching: eventsQuery.isFetching,
+    isError: countQuery.isError || eventsQuery.isError,
+    error: countQuery.error || eventsQuery.error,
+  };
 }
 
 function getTimePeriod(dateString: string): TimePeriod {
@@ -1453,13 +1483,8 @@ export function TimelinePage() {
     }
   }, [actorFromUrl]);
 
-  const { data: eventsData, isLoading, isError } = useEvents(filter, currentPage, pageSize);
-
-  // Extract items from paginated response
-  const events = eventsData?.items ?? [];
-  const totalItems = eventsData?.total ?? 0;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const hasMore = eventsData?.hasMore ?? false;
+  // TB143: Use eager loading - fetch all events upfront
+  const { events: allEvents, totalCount, isLoading, isFetching, isError } = useAllEvents(filter);
 
   const handlePageChange = (page: number) => {
     navigate({
@@ -1487,31 +1512,32 @@ export function TimelinePage() {
     });
   };
 
-  // Get unique actors from events for filtering
+  // TB143: Get unique actors from ALL events (not just paginated)
   const uniqueActors = useMemo(() => {
-    if (!events || events.length === 0) return [];
-    const actorSet = new Set(events.map((e: Event) => e.actor));
+    if (!allEvents || allEvents.length === 0) return [];
+    const actorSet = new Set(allEvents.map((e: Event) => e.actor));
     return Array.from(actorSet).sort() as string[];
-  }, [events]);
+  }, [allEvents]);
 
-  // Get unique element types from events
+  // TB143: Get unique element types from ALL events
   const uniqueElementTypes = useMemo(() => {
-    if (!events || events.length === 0) return [];
-    const typeSet = new Set(events.map((e: Event) => e.elementType || inferElementType(e.elementId)));
+    if (!allEvents || allEvents.length === 0) return [];
+    const typeSet = new Set(allEvents.map((e: Event) => e.elementType || inferElementType(e.elementId)));
     return Array.from(typeSet).sort() as string[];
-  }, [events]);
+  }, [allEvents]);
 
-  // Apply client-side filters
+  // TB143: Apply client-side filters to ALL events
   const filteredEvents = useMemo(() => {
-    if (!events || events.length === 0) return [];
+    if (!allEvents || allEvents.length === 0) return [];
 
-    return events.filter((event: Event) => {
-      // Actor filter (multi-select)
-      if (filter.actors.length > 0 && !filter.actors.includes(event.actor)) {
+    return allEvents.filter((event: Event) => {
+      // Actor filter (multi-select) - Note: actor filter is applied server-side too,
+      // but we keep this for multi-actor scenarios not yet supported server-side
+      if (filter.actors.length > 1 && !filter.actors.includes(event.actor)) {
         return false;
       }
 
-      // Element type filter
+      // Element type filter (client-side only)
       if (filter.elementTypes.length > 0) {
         const elementType = event.elementType || inferElementType(event.elementId);
         if (!filter.elementTypes.includes(elementType)) {
@@ -1519,7 +1545,7 @@ export function TimelinePage() {
         }
       }
 
-      // Search filter
+      // Search filter (client-side only)
       if (filter.search) {
         const searchLower = filter.search.toLowerCase();
         const matchesId = event.elementId.toLowerCase().includes(searchLower);
@@ -1530,7 +1556,7 @@ export function TimelinePage() {
         }
       }
 
-      // Jump to date filter
+      // Jump to date filter (client-side only)
       if (filter.jumpToDate) {
         const eventDate = new Date(event.createdAt);
         const targetDate = new Date(filter.jumpToDate);
@@ -1544,9 +1570,20 @@ export function TimelinePage() {
 
       return true;
     });
-  }, [events, filter]);
+  }, [allEvents, filter]);
 
-  // Group events by time period
+  // TB143: Calculate filtered total and pagination values
+  const filteredTotal = filteredEvents.length;
+  const filteredTotalPages = Math.ceil(filteredTotal / pageSize);
+
+  // TB143: Paginate the filtered events for list view (client-side pagination)
+  const paginatedFilteredEvents = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredEvents.slice(startIndex, endIndex);
+  }, [filteredEvents, currentPage, pageSize]);
+
+  // Group paginated events by time period (for list view)
   const groupedEvents = useMemo(() => {
     const groups: Record<TimePeriod, Event[]> = {
       today: [],
@@ -1555,13 +1592,13 @@ export function TimelinePage() {
       earlier: [],
     };
 
-    for (const event of filteredEvents) {
+    for (const event of paginatedFilteredEvents) {
       const period = getTimePeriod(event.createdAt);
       groups[period].push(event);
     }
 
     return groups;
-  }, [filteredEvents]);
+  }, [paginatedFilteredEvents]);
 
   const toggleEventType = (eventType: EventType) => {
     setFilter((prev) => ({
@@ -1686,20 +1723,30 @@ export function TimelinePage() {
           />
         </div>
       ) : (
-        /* List View */
+        /* List View - TB143: Using client-side pagination with eager loaded data */
         <>
-          {/* Event count */}
+          {/* TB143: Event count - now shows accurate total immediately */}
           <div className="mb-3 text-sm text-gray-500 flex items-center gap-2" data-testid="event-count">
             {isLoading ? (
-              'Loading events...'
+              <span className="flex items-center gap-2">
+                <span className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full" />
+                Loading {totalCount > 0 ? `${totalCount.toLocaleString()} events...` : 'events...'}
+              </span>
             ) : (
               <>
-                <span>{filteredEvents.length} of {totalItems} events</span>
-                {hasActiveFilters && (
+                <span data-testid="total-count">
+                  {hasActiveFilters || filter.search || filter.elementTypes.length > 0 || filter.jumpToDate
+                    ? `${filteredTotal.toLocaleString()} of ${totalCount.toLocaleString()} events`
+                    : `${totalCount.toLocaleString()} total events`}
+                </span>
+                {(hasActiveFilters || filter.search || filter.elementTypes.length > 0 || filter.jumpToDate) && (
                   <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">(filtered)</span>
                 )}
-                {hasMore && (
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">more available</span>
+                {isFetching && !isLoading && (
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full flex items-center gap-1">
+                    <span className="animate-spin w-3 h-3 border border-gray-400 border-t-gray-600 rounded-full" />
+                    refreshing
+                  </span>
                 )}
               </>
             )}
@@ -1709,7 +1756,13 @@ export function TimelinePage() {
           <div className="flex-1 overflow-y-auto min-h-0 px-3 -mx-3" data-testid="events-list">
             {isLoading && (
               <div className="text-center py-8 text-gray-500">
-                <div className="animate-pulse">Loading events...</div>
+                <div className="flex flex-col items-center gap-2">
+                  <span className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full" />
+                  <span>Loading {totalCount > 0 ? `${totalCount.toLocaleString()} events...` : 'events...'}</span>
+                  {totalCount > 5000 && (
+                    <span className="text-xs text-gray-400">This may take a moment for large datasets</span>
+                  )}
+                </div>
               </div>
             )}
             {isError && (
@@ -1717,12 +1770,14 @@ export function TimelinePage() {
             )}
             {!isLoading && !isError && filteredEvents.length === 0 && (
               <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-                {hasActiveFilters ? 'No events match the current filters' : 'No events recorded yet'}
+                {hasActiveFilters || filter.search || filter.elementTypes.length > 0 || filter.jumpToDate
+                  ? 'No events match the current filters'
+                  : 'No events recorded yet'}
               </div>
             )}
             {!isLoading &&
               !isError &&
-              filteredEvents.length > 0 &&
+              paginatedFilteredEvents.length > 0 &&
               timePeriodOrder.map((period, index) => (
                 <TimePeriodGroup
                   key={period}
@@ -1732,13 +1787,13 @@ export function TimelinePage() {
                 />
               ))}
 
-            {/* Pagination */}
-            {!isLoading && !isError && totalPages > 1 && (
+            {/* TB143: Pagination - now shows accurate totals */}
+            {!isLoading && !isError && filteredTotalPages > 1 && (
               <div className="mt-4 mb-2">
                 <Pagination
                   currentPage={currentPage}
-                  totalPages={totalPages}
-                  totalItems={totalItems}
+                  totalPages={filteredTotalPages}
+                  totalItems={filteredTotal}
                   pageSize={pageSize}
                   onPageChange={handlePageChange}
                   onPageSizeChange={handlePageSizeChange}

@@ -2898,6 +2898,41 @@ export class ElementalAPIImpl implements ElementalAPI {
     }));
   }
 
+  async countEvents(filter?: EventFilter): Promise<number> {
+    let sql = 'SELECT COUNT(*) as count FROM events WHERE 1=1';
+    const params: unknown[] = [];
+
+    if (filter?.elementId) {
+      sql += ' AND element_id = ?';
+      params.push(filter.elementId);
+    }
+
+    if (filter?.eventType) {
+      const types = Array.isArray(filter.eventType) ? filter.eventType : [filter.eventType];
+      const placeholders = types.map(() => '?').join(', ');
+      sql += ` AND event_type IN (${placeholders})`;
+      params.push(...types);
+    }
+
+    if (filter?.actor) {
+      sql += ' AND actor = ?';
+      params.push(filter.actor);
+    }
+
+    if (filter?.after) {
+      sql += ' AND created_at > ?';
+      params.push(filter.after);
+    }
+
+    if (filter?.before) {
+      sql += ' AND created_at < ?';
+      params.push(filter.before);
+    }
+
+    const row = this.backend.queryOne<{ count: number }>(sql, params);
+    return row?.count ?? 0;
+  }
+
   async getDocumentVersion(id: DocumentId, version: number): Promise<Document | null> {
     // First check if it's the current version
     const current = await this.get<Document>(id as unknown as ElementId);
