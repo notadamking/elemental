@@ -266,6 +266,7 @@ app.get('/api/tasks', async (c) => {
     const offsetParam = url.searchParams.get('offset');
     const orderByParam = url.searchParams.get('orderBy');
     const orderDirParam = url.searchParams.get('orderDir');
+    const searchParam = url.searchParams.get('search');
 
     // Build filter
     const filter: Record<string, unknown> = {
@@ -303,6 +304,20 @@ app.get('/api/tasks', async (c) => {
       filter.orderDir = orderDirParam;
     } else {
       filter.orderDir = 'desc';
+    }
+
+    // If search param is provided, use the search API
+    if (searchParam && searchParam.trim()) {
+      const searchResults = await api.search(searchParam.trim(), filter as Parameters<typeof api.search>[1]);
+      const limit = filter.limit as number || 50;
+      const offset = (filter.offset as number) || 0;
+      const slicedResults = searchResults.slice(offset, offset + limit);
+      return c.json({
+        data: slicedResults,
+        total: searchResults.length,
+        limit,
+        offset,
+      });
     }
 
     const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
@@ -3260,14 +3275,9 @@ app.get('/api/documents', async (c) => {
       type: 'document',
     };
 
-    if (limitParam) {
-      filter.limit = parseInt(limitParam, 10);
-    } else {
-      filter.limit = 50; // Default page size
-    }
-    if (offsetParam) {
-      filter.offset = parseInt(offsetParam, 10);
-    }
+    const requestedLimit = limitParam ? parseInt(limitParam, 10) : 50;
+    const requestedOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
     if (orderByParam) {
       filter.orderBy = orderByParam;
     } else {
@@ -3279,29 +3289,28 @@ app.get('/api/documents', async (c) => {
       filter.orderDir = 'desc';
     }
 
-    // Get paginated results
-    const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
-
-    // Apply client-side filtering for search (not supported in base filter)
-    // TB95: Search includes title, id, tags, and content (full-text)
-    let filteredItems = result.items;
-
-    if (searchParam) {
-      const query = searchParam.toLowerCase();
-      filteredItems = filteredItems.filter((d) => {
-        const doc = d as unknown as { title: string; id: string; tags?: string[]; content?: string };
-        return (
-          doc.title.toLowerCase().includes(query) ||
-          doc.id.toLowerCase().includes(query) ||
-          (doc.tags || []).some((tag) => tag.toLowerCase().includes(query)) ||
-          (doc.content || '').toLowerCase().includes(query)
-        );
+    // If search param is provided, use the search API for better results
+    if (searchParam && searchParam.trim()) {
+      const searchResults = await api.search(searchParam.trim(), filter as Parameters<typeof api.search>[1]);
+      const slicedResults = searchResults.slice(requestedOffset, requestedOffset + requestedLimit);
+      return c.json({
+        items: slicedResults,
+        total: searchResults.length,
+        offset: requestedOffset,
+        limit: requestedLimit,
+        hasMore: requestedOffset + requestedLimit < searchResults.length,
       });
     }
 
+    // Standard paginated query when no search
+    filter.limit = requestedLimit;
+    filter.offset = requestedOffset;
+
+    const result = await api.listPaginated(filter as Parameters<typeof api.listPaginated>[0]);
+
     // Return paginated response format
     return c.json({
-      items: filteredItems,
+      items: result.items,
       total: result.total,
       offset: result.offset,
       limit: result.limit,

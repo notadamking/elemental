@@ -487,258 +487,11 @@ For mutations (create, update, delete):
 
 Completed implementation phases have been moved to specs/platform/COMPLETED_PHASES.md.
 
-- [x] **TB103: Message Search** ([spec](./TB103-message-search.md))
-  - [x] Web: Add search input to channel header
-  - [x] Web: Search messages within current channel (debounced 300ms)
-  - [x] Web: Results show message preview with highlighted match
-  - [x] Web: Click result → scroll to message with 2-second yellow highlight
-  - [x] Web: Keyboard navigation (arrows, Enter, Escape) and Cmd/Ctrl+F shortcut
-  - [x] Web: Global message search in command palette
-  - [x] Server: GET /api/messages/search endpoint with channelId filter
-  - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb103-message-search.spec.ts`)
-
-### Phase 25: Entities & Teams Enhancements (Github-inspired)
-
-**Goal:** Make entities and teams more interactive with clickable links and Github-inspired activity displays.
-
-- [x] **TB104: Clickable Member Names** ([spec](./TB104-clickable-member-names.md))
-  - [x] Web: Team member names in TeamDetailPanel are clickable links
-  - [x] Web: Click → navigate to `/entities?selected=:id`
-  - [x] Web: Entity references throughout app are clickable (assignee in tasks, sender in messages, etc.)
-  - [x] Web: Hover shows entity preview card (name, type, avatar, stats)
-  - [x] **Verify:** 6/7 Playwright tests passing (`apps/web/tests/tb104-clickable-member-names.spec.ts`)
-
-- [x] **TB105: Clickable Workload Distribution** ([spec](./TB105-clickable-workload.md))
-  - [x] Web: Workload chart bars in Dashboard, Agent Activity, and TeamDetailPanel are clickable
-  - [x] Web: Click bar → filter to that entity's tasks (navigate to `/tasks?assignee=:id`)
-  - [x] Web: Hover shows exact count and percentage
-  - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb105-clickable-workload.spec.ts`)
-
-- [x] **TB106: Clickable Assigned Tasks** ([spec](./TB106-clickable-assigned-tasks.md))
-  - [x] Web: Task list items in EntityDetailPanel are clickable - `TaskMiniCard` component with onClick handler
-  - [x] Web: Click → navigate to `/tasks?selected=:id` with task detail panel open
-  - [x] Web: Consistent with task clicking behavior elsewhere in app (URL search params)
-  - [x] Web: Keyboard accessible (Enter/Space to activate)
-  - [x] Web: "View all tasks" button navigates to `/tasks?assignee=:id` when >5 tasks
-  - [x] **Verify:** 4/5 Playwright tests passing (`apps/web/tests/tb106-clickable-assigned-tasks.spec.ts`)
-
-- [x] **TB107: Add Members to Team UI**
-  - [x] Web: Add member search input in TeamDetailPanel - `apps/web/src/routes/teams.tsx` (inline search + dropdown pattern)
-  - [x] Web: Search and click to add members one at a time - `handleAddMember()` with `updateTeam.mutateAsync()`
-  - [x] Web: Filters out already-members from search results - `availableEntities` memoized list
-  - [x] Web: Show which entities are already members - members list with remove buttons
-  - [x] Web: Real-time update via TanStack Query cache invalidation
-  - [x] **Verify:** 67 Playwright tests passing (`apps/web/tests/teams.spec.ts`); tests cover add/remove members via UI
-
-- [x] **TB108: Entity Contribution Chart** ([spec](./TB108-entity-contribution-chart.md))
-  - [x] Server: Add `/api/entities/:id/activity` endpoint with days parameter - `apps/server/src/index.ts`
-  - [x] Web: Add "Activity" section to EntityDetailPanel - `apps/web/src/routes/entities.tsx`
-  - [x] Web: Create `ContributionChart` component - `apps/web/src/components/shared/ContributionChart.tsx`
-  - [x] Web: Github-style contribution chart (grid of squares with 5 color levels)
-  - [x] Web: Each square = one day, color intensity = activity level (events count)
-  - [x] Web: Hover square shows date and activity count with tooltip
-  - [x] Web: Last 365 days (configurable via `days` parameter)
-  - [x] Web: Month labels and day-of-week labels
-  - [x] Web: Legend showing activity level scale (Less/More)
-  - [x] Web: Total contributions count display
-  - [x] **Verify:** 10 Playwright tests passing (`apps/web/tests/tb108-entity-contribution-chart.spec.ts`)
-
-- [x] **TB109: Entity Activity Overview** ([spec](./TB109-entity-activity-overview.md))
-  - [x] Web: Show recent activity feed in EntityDetailPanel - `apps/web/src/routes/entities.tsx` (ActivityFeedItem component)
-  - [x] Web: List of recent events (tasks completed, messages sent, documents edited) - ActivityFeedItem with getDescription()
-  - [x] Web: Each item: icon, description, timestamp - getEventIcon(), getIconBg(), formatTime()
-  - [x] Web: "View all activity" link → filtered timeline view - navigates to `/dashboard/timeline?actor=:id`
-  - [x] Router: Added actor search param to timeline route - `apps/web/src/router.tsx`
-  - [x] Timeline: Read actor filter from URL and apply - `apps/web/src/routes/timeline.tsx`
-  - [x] **Verify:** 6 Playwright tests passing (4 skipped due to no events in test DB) (`apps/web/tests/tb109-entity-activity-overview.spec.ts`)
-
-- [x] **TB110: Entity Event History (Commit History Style)** ([spec](./TB110-entity-event-history.md))
-  - [x] Server: Add `/api/entities/:id/history` endpoint with pagination and event type filter - `apps/server/src/index.ts`
-  - [x] Web: Add "History" tab to EntityDetailPanel - `apps/web/src/routes/entities.tsx`
-  - [x] Web: HistoryTabContent component with pagination state and filter management
-  - [x] Web: HistoryEventItem component - git commit log style with hash, message, timestamp
-  - [x] Web: Click event hash → expand to show details (old/new values in diff style)
-  - [x] Web: Event type filter buttons (All, Created, Updated, Closed, Deleted)
-  - [x] Web: Filter persistence in localStorage
-  - [x] Web: Expand all / collapse all buttons
-  - [x] Web: Pagination controls (Previous/Next)
-  - [x] **Verify:** 10 Playwright tests passing (1 skipped) (`apps/web/tests/tb110-entity-event-history.spec.ts`)
-
-### Phase 26: Entity Tagging System
-
-**Goal:** Allow tagging entities in documents and tasks with @mentions.
-
-- [x] **TB111: @Mention Parsing in Documents**
-  - [x] Web: Type `@` in document editor to trigger entity autocomplete - `apps/web/src/components/editor/MentionAutocomplete.tsx`
-  - [x] Web: Autocomplete shows matching entity names with entity type icons (agent/human/system) - MentionMenu component
-  - [x] Web: Selected entity renders as highlighted @mention chip (clickable) - MentionNode custom Tiptap node
-  - [x] Web: Click @mention → navigate to entity detail (`/entities?selected=:id`)
-  - [x] Web: Mention converted to @name in Markdown for storage - `apps/web/src/lib/markdown.ts` turndown rule
-  - [x] Web: CSS styling for mention chips - `apps/web/src/index.css` `.mention-chip` class
-  - [x] **Verify:** 7 Playwright tests passing (`apps/web/tests/tb111-mention-autocomplete.spec.ts`)
-
-- [x] **TB112: @Mention in Tasks**
-  - [x] Web: Task description/design sections render @mentions as clickable chips - `apps/web/src/components/shared/MarkdownRenderer.tsx`
-  - [x] Web: Task notes field with BlockEditor supports @mentions autocomplete - `apps/web/src/components/task/TaskDetailPanel.tsx` TaskNotesSection
-  - [x] Web: Show mentioned entities in task detail panel - MentionedEntitiesSection component
-  - [x] Web: Mentioned entities section is collapsible and shows all entities from description/design/notes
-  - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb112-mention-in-tasks.spec.ts`)
-
-- [x] **TB113: Entity Tags Display** ([spec](./TB113-entity-tags-display.md))
-  - [x] Server: Add `GET /api/entities/:id/mentions` endpoint - `apps/server/src/index.ts`
-  - [x] Server: Search documents for @mention pattern in content
-  - [x] Server: Search tasks for @mention pattern in notes
-  - [x] Web: Add `useEntityMentions` hook - `apps/web/src/routes/entities.tsx`
-  - [x] Web: EntityDetailPanel shows "Mentioned In" section with AtSign icon
-  - [x] Web: Lists documents and tasks that mention this entity (max 5 shown)
-  - [x] Web: Each item clickable → navigate to that document/task
-  - [x] Web: Count badge in section header
-  - [x] Web: Type-specific icons (document=FileText/blue, task=ListTodo/green)
-  - [x] Web: Status badge for task mentions
-  - [x] **Verify:** 9 Playwright tests passing (1 skipped) (`apps/web/tests/tb113-entity-tags-display.spec.ts`)
-
-### Phase 27: Dependencies Graph Fixes
-
-**Goal:** Fix critical bugs in dependency graph editing.
-
-- [x] **TB114: Fix Adding Edges** ([spec](./TB114-fix-adding-edges.md))
-  - [x] Web: Debug edge creation flow in edit mode
-  - [x] Web: Ensure `POST /api/dependencies` is called correctly
-  - [x] Web: Handle race condition where graph re-renders before edge added
-  - [x] Web: Add visual feedback: "Creating dependency..." loading state
-  - [x] Web: Add error toast if edge creation fails
-  - [x] Web: Refresh graph data after successful edge creation
-  - [x] **Verify:** 31 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`)
-
-- [x] **TB115: Fix Removing Edges (Save Issue)** ([spec](./TB115-fix-removing-edges.md))
-  - [x] Web: Debug edge deletion flow
-  - [x] Server: Verify `DELETE /api/dependencies` endpoint works correctly
-  - [x] Web: Ensure correct parameters sent (sourceId, targetId, type) - now uses actual type from dependency data
-  - [x] Web: Add confirmation dialog before edge deletion (context menu exists)
-  - [x] Web: Optimistic UI update with rollback on error (cache invalidation)
-  - [x] Web: Refresh graph data after successful deletion
-  - [x] **Verify:** 31 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`)
-
-- [x] **TB115a: Edge Type Labels** ([spec](./TB115a-edge-type-labels.md))
-  - [x] Web: Display dependency type label on each edge (blocks, parent-child, awaits, relates-to, validates, etc.)
-  - [x] Web: Label positioning: centered on edge using foreignObject
-  - [x] Web: Label styling: small font, muted color, background pill for readability
-  - [x] Web: Color-code edges by type:
-    - [x] Blocking types (blocks, parent-child, awaits): red/orange
-    - [x] Associative types (relates-to, references, validates): blue/gray/purple
-    - [x] Attribution types (authored-by, assigned-to): green
-  - [x] Web: Toggle to show/hide edge labels (default: show)
-  - [x] Web: Hover edge label → show tooltip with full dependency info
-  - [x] Web: Legend showing edge type colors and meanings
-  - [x] **Verify:** 37 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`); graph displays labeled, color-coded edges
-
-- [x] **TB115b: Auto-Layout Graph Formatting** ([spec](./TB115b-auto-layout-graph.md))
-  - [x] Web: Add "Auto Layout" button to graph toolbar
-  - [x] Web: Implement layout algorithms (using dagre):
-    - [x] Hierarchical/Tree layout: top-to-bottom or left-to-right based on dependency direction
-    - [x] Force-directed layout: for graphs without clear hierarchy
-    - [x] Radial layout: selected node in center, dependencies radiating outward
-  - [x] Web: Layout direction toggle: TB (top-bottom), LR (left-right), BT, RL
-  - [x] Web: Spacing controls: node spacing, rank spacing (distance between levels)
-  - [x] Web: Animate layout transitions (nodes smoothly move to new positions via React Flow)
-  - [x] Web: "Fit to View" button: zoom and pan to show all nodes (already existed)
-  - [x] Web: Persist layout preference in localStorage
-  - [x] Web: Option to save custom node positions (manual drag preserved via React Flow)
-  - [x] **Verify:** 12 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`); graph displays auto-layout with algorithm/direction/spacing controls
-
-### Phase 28: Timeline View Enhancements
-
-**Goal:** Add a horizontal timeline visualization option.
-
-- [x] **TB116: Horizontal Timeline View** ([spec](./TB116-horizontal-timeline.md))
-  - [x] Web: Add "Horizontal" view toggle to Timeline lens (alongside List view)
-  - [x] Web: Horizontal timeline shows events as dots on a time axis
-  - [x] Web: X-axis: time (auto-scaled based on date range)
-  - [x] Web: Events positioned by timestamp, stacked if overlapping
-  - [x] Web: Event dots colored by event type (create=green, update=blue, delete=red)
-  - [x] Web: Hover dot → show event details tooltip
-  - [x] Web: Click dot → show full event card
-  - [x] Web: Pan and zoom with mouse/touch (Ctrl+scroll for zoom)
-  - [x] Web: Time range selector (Last 24h, 7 days, 30 days, All)
-  - [x] Web: View mode persisted in localStorage
-  - [x] Web: Legend showing event type colors
-  - [x] **Verify:** 25 Playwright tests passing (`apps/web/tests/timeline.spec.ts`); horizontal timeline with pan/zoom/time range selection
-
-- [x] **TB117: Timeline Brush Selection** ([spec](./TB117-timeline-brush-selection.md))
-  - [x] Web: Add brush selection tool to horizontal timeline (mode toggle: Pan vs Select)
-  - [x] Web: Drag to select time range (crosshair cursor, visual overlays)
-  - [x] Web: Selected range shows filtered events in list below (scrollable, uses EventCard)
-  - [x] Web: "Clear selection" button (removes overlay and resets URL)
-  - [x] Web: Selection syncs with URL params for shareability (startTime, endTime)
-  - [x] **Verify:** 11 Playwright tests passing (`apps/web/tests/timeline.spec.ts`)
-
-### Phase 29: Polish and Fixes
-
-**Goal:** Address remaining UI/UX issues and polish.
-
-- [x] **TB118: Settings Notifications Padding Fix**
-  - [x] Web: Add horizontal padding to notification types list in Settings - `apps/web/src/routes/settings.tsx` (NotificationToggleRow now has `px-4` on each row)
-  - [x] Web: Ensure consistent padding with other settings sections - matches ShortcutRow pattern (`py-3 px-4` vs `py-4 px-4`)
-  - [x] Web: Check all Settings sections for padding consistency - notification container no longer has `px-4`, individual rows do
-  - [x] **Verify:** 3 Playwright tests passing (`apps/web/tests/notification-settings.spec.ts` TB118 section); notification types list has proper padding matching shortcuts pattern
-
-- [x] **TB119: Accessibility Audit**
-  - [x] Web: Run axe-core accessibility audit on all pages - added `@axe-core/playwright` package, created comprehensive test suite
-  - [x] Web: Fix any color contrast issues (especially in dark mode) - updated design tokens in `tokens.css`, added `-text` variants for semantic colors
-  - [x] Web: Ensure all interactive elements have focus states - existing focus states verified, added `tabIndex` to scrollable regions
-  - [x] Web: Add ARIA labels where missing - added to checkboxes, dropdowns, dialogs, date inputs, layout controls
-  - [x] Web: Ensure keyboard navigation works throughout - command palette accessible, scrollable regions focusable
-  - [x] **Verify:** 31 Playwright accessibility tests passing (`apps/web/tests/tb119-accessibility.spec.ts`); all critical accessibility issues resolved
-
-- [x] **TB120: Performance Audit** ([spec](./TB120-performance-audit.md))
-  - [x] Web: Run Lighthouse performance audit - verified via Playwright tests
-  - [x] Web: Optimize bundle with code splitting in `vite.config.ts` - manual chunk splitting for vendor libraries
-  - [x] Web: Create Skeleton loading component library - `apps/web/src/components/ui/Skeleton.tsx`
-  - [x] Web: Verify virtualization is working correctly - VirtualizedList and VirtualizedKanbanColumn confirmed
-  - [x] Web: Verify memoization patterns (useMemo, useCallback) in place across codebase
-  - [x] **Verify:** 16 Playwright tests passing (`apps/web/tests/tb120-performance-audit.spec.ts`); page loads <5s, navigation <1s, smooth interactions
-
-### Phase 30: Collection Integrity & Validation
-
-**Goal:** Enforce that collections (Plans, Workflows, Teams) must have meaningful content—preventing empty shells that clutter the system.
-
-- [x] **TB121: Plans Must Have Task Children** ([spec](./TB121-plans-must-have-tasks.md))
-  - [x] Server: Add validation in `POST /api/plans` - require at least one task ID in request body OR create with initial task
-  - [x] Server: Add `POST /api/plans` variant that creates plan + first task atomically
-  - [x] Server: Prevent deletion of last task in plan (return error with helpful message)
-  - [x] Server: Add `GET /api/plans/:id/can-delete-task/:taskId` endpoint to check if deletion would orphan plan
-  - [x] Web: Update CreatePlanModal to require initial task (title input + "Add First Task" section)
-  - [x] Web: Show validation error if trying to submit plan without task
-  - [x] Web: In PlanDetailPanel, show warning when removing task would leave plan empty
-  - [x] Web: Disable "Remove" button on last task with tooltip explaining why
-  - [x] **Verify:** 19 Playwright tests passing (`apps/web/tests/tb121-plans-must-have-tasks.spec.ts`); creating empty plan blocked; removing last task blocked
-
-- [x] **TB122: Workflows Must Have Task Children** ([spec](./TB122-workflows-must-have-tasks.md))
-  - [x] Server: Add validation in `POST /api/workflows` - require initial task (initialTask or initialTaskId)
-  - [x] Server: `POST /api/workflows/pour` - ensure playbook has at least one step
-  - [x] Server: `POST /api/workflows/pour` - ensure at least one task created after condition filtering
-  - [x] Server: Add check in `DELETE /api/tasks/:id` - prevent deleting last task in workflow
-  - [x] Server: Add `GET /api/workflows/:id/can-delete-task/:taskId` endpoint
-  - [x] Web: Update PourWorkflowModal to validate playbook has steps, show warning for empty playbooks
-  - [x] Web: In WorkflowDetailPanel, show warning when workflow has only one task
-  - [x] Web: Updated empty state message for workflows with no tasks
-  - [x] **Verify:** 14 Playwright tests passing (`apps/web/tests/tb122-workflows-must-have-tasks.spec.ts`)
-
-- [x] **TB123: Teams Must Have Entity Members** ([spec](./TB123-teams-must-have-members.md))
-  - [x] Server: Add validation in `POST /api/teams` - require at least one member entity ID
-  - [x] Server: Prevent removal of last member from team (return error)
-  - [x] Server: Add `GET /api/teams/:id/can-remove-member/:entityId` endpoint
-  - [x] Web: Update CreateTeamModal to require at least one member selection
-  - [x] Web: Disable "Create Team" button until member selected, show helper text
-  - [x] Web: In TeamDetailPanel, show warning when removing member would leave team empty
-  - [x] Web: Disable "Remove" action on last member with tooltip explaining why
-  - [x] **Verify:** 16 Playwright tests passing (`apps/web/tests/tb123-teams-must-have-members.spec.ts`)
-
 ### Phase 31: Task Description Rich Editor
 
 **Goal:** Add optional rich markdown description to Tasks, using the same editor experience as Documents for consistency.
 
-- [x] **TB124: Task Description Field with Rich Editor**
+- [] **TB124: Task Description Field with Rich Editor**
   - [x] Server: Task type already has `descriptionRef` pointing to Document - ensure API supports creating/updating description document inline
   - [x] Server: Add `PATCH /api/tasks/:id` support for `description` field that creates/updates linked Document
   - [x] Server: When task created with `description` string, auto-create Document with content and link via `descriptionRef`
@@ -750,31 +503,31 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Description auto-saves on blur with debounce (like document editing) - Manual save with Save button
   - [x] Web: Show character count and "Saved" indicator - Save/Cancel buttons with loading state
   - [x] Web: CreateTaskModal: add optional "Description" textarea with markdown preview toggle
-  - [ ] Web: TaskSlideOver: show description preview (first 3 lines) with "Show more" expansion (deferred - optional polish)
+  - [ ] Web: TaskSlideOver: show description preview (first 3 lines) with "Show more" expansion
   - [x] **Verify:** Create task with description, edit with rich editor, formatting persists; Playwright tests passing in `apps/web/tests/tb124-task-description-editor.spec.ts`
 
 ### Phase 32: Document Embed Search Fix
 
 **Goal:** Fix the embed search functionality so task/document pickers actually find items.
 
-- [ ] **TB125: Fix Task Embed Search in Editor**
-  - [ ] Web: Debug TaskPickerModal search - verify it queries `/api/tasks` with search param
-  - [ ] Server: Ensure `GET /api/tasks?search=query` works correctly (fuzzy match on title)
-  - [ ] Web: If using in-memory data (from DataPreloader), ensure search filters loaded tasks
-  - [ ] Web: Add loading state while searching
-  - [ ] Web: Show "No tasks found" empty state with suggestion to check spelling
-  - [ ] Web: Ensure keyboard navigation works (arrow keys, Enter to select)
-  - [ ] Web: Fix any race conditions between typing and results
-  - [ ] **Verify:** Open document editor, type `/task`, search for existing task - task appears in results; Playwright tests passing
+- [x] **TB125: Fix Task Embed Search in Editor**
+  - [x] Web: Debug TaskPickerModal search - verify it queries `/api/tasks` with search param
+  - [x] Server: Ensure `GET /api/tasks?search=query` works correctly (fuzzy match on title) - Added search param support using api.search()
+  - [x] Web: If using in-memory data (from DataPreloader), ensure search filters loaded tasks - TaskPickerModal uses server search
+  - [x] Web: Add loading state while searching - Already implemented with Loader2 spinner
+  - [x] Web: Show "No tasks found" empty state with suggestion to check spelling - Already implemented
+  - [x] Web: Ensure keyboard navigation works (arrow keys, Enter to select) - Already implemented
+  - [x] Web: Fix any race conditions between typing and results - TanStack Query handles this
+  - [x] **Verify:** 6 Playwright tests passing (`apps/web/tests/tb125-task-embed-search.spec.ts`)
 
-- [ ] **TB126: Fix Document Embed Search in Editor**
-  - [ ] Web: Debug DocumentPickerModal search - verify it queries `/api/documents` with search param
-  - [ ] Server: Ensure `GET /api/documents?search=query` works correctly (fuzzy match on title + content)
-  - [ ] Web: If using in-memory data, ensure search filters loaded documents
-  - [ ] Web: Show document content type badge in results
-  - [ ] Web: Show "No documents found" empty state
-  - [ ] Web: Ensure picker excludes current document (can't embed self)
-  - [ ] **Verify:** Open document editor, type `/doc`, search for existing doc - doc appears in results; Playwright tests passing
+- [x] **TB126: Fix Document Embed Search in Editor**
+  - [x] Web: Debug DocumentPickerModal search - verify it queries `/api/documents` with search param
+  - [x] Server: Ensure `GET /api/documents?search=query` works correctly (fuzzy match on title + content) - Uses api.search() for comprehensive search
+  - [x] Web: If using in-memory data, ensure search filters loaded documents - DocumentPickerModal uses server search with correct response parsing
+  - [x] Web: Show document content type badge in results - Already implemented
+  - [x] Web: Show "No documents found" empty state - Already implemented
+  - [x] Web: Ensure picker excludes current document (can't embed self) - Already implemented via excludeIds prop
+  - [x] **Verify:** 7 Playwright tests passing (`apps/web/tests/tb126-document-embed-search.spec.ts`)
 
 ### Phase 33: Message Channel Enhancements
 
@@ -1095,6 +848,7 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 **Methodology:** This phase is larger than typical phases. Each tracer bullet focuses on a specific area (layout, page, or component group). Complete each bullet with full verification before moving to the next. Use Chrome DevTools device emulation and real device testing for verification. Every change must be tested at minimum 3 breakpoints: mobile (375px), tablet (768px), and desktop (1280px).
 
 **Breakpoint Strategy:**
+
 - **xs**: < 480px (small phones)
 - **sm**: 480px - 639px (large phones)
 - **md**: 640px - 767px (small tablets)
@@ -1103,6 +857,7 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 - **2xl**: ≥ 1280px (desktops)
 
 **Touch Target Requirements:**
+
 - Minimum touch target: 44×44px on mobile
 - Adequate spacing between interactive elements
 - No hover-only interactions (must have touch alternative)

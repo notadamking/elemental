@@ -60,7 +60,7 @@ function useDocuments(searchQuery: string) {
     queryKey: ['documents', 'search', searchQuery],
     queryFn: async () => {
       const params = new URLSearchParams({
-        limit: '50',
+        limit: '100',
       });
       if (searchQuery) {
         params.set('search', searchQuery);
@@ -68,8 +68,8 @@ function useDocuments(searchQuery: string) {
       const response = await fetch(`/api/documents?${params}`);
       if (!response.ok) throw new Error('Failed to fetch documents');
       const data = await response.json();
-      // API returns array or { data: Document[], total: number } for paginated results
-      return Array.isArray(data) ? data : data.data || [];
+      // API returns { items: Document[], total: number } for paginated results
+      return Array.isArray(data) ? data : data.items || data.data || [];
     },
   });
 }
