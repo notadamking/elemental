@@ -1046,7 +1046,7 @@ function NotificationToggleRow({
 }: NotificationToggleRowProps) {
   return (
     <div
-      className={`flex items-center justify-between py-4 ${disabled ? 'opacity-50' : ''}`}
+      className={`flex items-center justify-between py-4 px-4 ${disabled ? 'opacity-50' : ''}`}
       data-testid={testId}
     >
       <div className="flex items-center gap-3">
@@ -1204,7 +1204,7 @@ function NotificationsSection() {
           Choose which events you want to be notified about.
         </p>
 
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700 px-4">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
           <NotificationToggleRow
             icon={Users}
             label="Task assigned to me"

@@ -283,3 +283,76 @@ test.describe('TB62: Settings Page - Notifications', () => {
     await expect(page.getByRole('heading', { name: 'Browser Notifications' })).toBeVisible();
   });
 });
+
+// TB118: Settings Notifications Padding Fix
+test.describe('TB118: Notification Types Padding Consistency', () => {
+  test('notification toggle rows have horizontal padding', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-notifications').click();
+
+    // Check that notification toggle rows have horizontal padding (px-4 = 16px)
+    const taskAssignedRow = page.getByTestId('notification-task-assigned');
+    await expect(taskAssignedRow).toBeVisible();
+
+    // Get computed styles
+    const paddingLeft = await taskAssignedRow.evaluate((el) => {
+      return window.getComputedStyle(el).paddingLeft;
+    });
+    const paddingRight = await taskAssignedRow.evaluate((el) => {
+      return window.getComputedStyle(el).paddingRight;
+    });
+
+    // px-4 in Tailwind = 1rem = 16px
+    expect(paddingLeft).toBe('16px');
+    expect(paddingRight).toBe('16px');
+  });
+
+  test('all notification toggle rows have consistent padding', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-notifications').click();
+
+    // Get all notification toggle rows
+    const rows = [
+      'notification-task-assigned',
+      'notification-task-completed',
+      'notification-new-message',
+      'notification-workflow-completed',
+    ];
+
+    for (const rowId of rows) {
+      const row = page.getByTestId(rowId);
+      await expect(row).toBeVisible();
+
+      const paddingLeft = await row.evaluate((el) => {
+        return window.getComputedStyle(el).paddingLeft;
+      });
+      const paddingRight = await row.evaluate((el) => {
+        return window.getComputedStyle(el).paddingRight;
+      });
+
+      expect(paddingLeft).toBe('16px');
+      expect(paddingRight).toBe('16px');
+    }
+  });
+
+  test('notification types container does not have extra padding', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByTestId('settings-nav-notifications').click();
+
+    // The container wrapping notification rows should NOT have its own horizontal padding
+    // (padding is on individual rows to match shortcuts pattern)
+    const taskAssignedRow = page.getByTestId('notification-task-assigned');
+    const container = await taskAssignedRow.evaluateHandle((el) => el.parentElement);
+
+    const containerPaddingLeft = await container.evaluate((el) => {
+      return window.getComputedStyle(el as Element).paddingLeft;
+    });
+    const containerPaddingRight = await container.evaluate((el) => {
+      return window.getComputedStyle(el as Element).paddingRight;
+    });
+
+    // Container should have 0px padding (padding is on rows now)
+    expect(containerPaddingLeft).toBe('0px');
+    expect(containerPaddingRight).toBe('0px');
+  });
+});

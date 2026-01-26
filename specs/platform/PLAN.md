@@ -753,11 +753,11 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 **Goal:** Address remaining UI/UX issues and polish.
 
-- [ ] **TB118: Settings Notifications Padding Fix**
-  - [ ] Web: Add horizontal padding to notification types list in Settings
-  - [ ] Web: Ensure consistent padding with other settings sections
-  - [ ] Web: Check all Settings sections for padding consistency
-  - [ ] **Verify:** Notification types list has proper padding; Claude in Chrome visual inspection
+- [x] **TB118: Settings Notifications Padding Fix**
+  - [x] Web: Add horizontal padding to notification types list in Settings - `apps/web/src/routes/settings.tsx` (NotificationToggleRow now has `px-4` on each row)
+  - [x] Web: Ensure consistent padding with other settings sections - matches ShortcutRow pattern (`py-3 px-4` vs `py-4 px-4`)
+  - [x] Web: Check all Settings sections for padding consistency - notification container no longer has `px-4`, individual rows do
+  - [x] **Verify:** 3 Playwright tests passing (`apps/web/tests/notification-settings.spec.ts` TB118 section); notification types list has proper padding matching shortcuts pattern
 
 - [ ] **TB119: Accessibility Audit**
   - [ ] Web: Run axe-core accessibility audit on all pages
