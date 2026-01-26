@@ -661,12 +661,18 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Mentioned entities section is collapsible and shows all entities from description/design/notes
   - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb112-mention-in-tasks.spec.ts`)
 
-- [ ] **TB113: Entity Tags Display**
-  - [ ] Web: EntityDetailPanel shows "Mentioned In" section
-  - [ ] Web: Lists documents and tasks that mention this entity
-  - [ ] Web: Each item clickable → navigate to that document/task
-  - [ ] Web: Count badge in section header
-  - [ ] **Verify:** Entity shows list of documents/tasks that mention it; Playwright tests passing
+- [x] **TB113: Entity Tags Display** ([spec](./TB113-entity-tags-display.md))
+  - [x] Server: Add `GET /api/entities/:id/mentions` endpoint - `apps/server/src/index.ts`
+  - [x] Server: Search documents for @mention pattern in content
+  - [x] Server: Search tasks for @mention pattern in notes
+  - [x] Web: Add `useEntityMentions` hook - `apps/web/src/routes/entities.tsx`
+  - [x] Web: EntityDetailPanel shows "Mentioned In" section with AtSign icon
+  - [x] Web: Lists documents and tasks that mention this entity (max 5 shown)
+  - [x] Web: Each item clickable → navigate to that document/task
+  - [x] Web: Count badge in section header
+  - [x] Web: Type-specific icons (document=FileText/blue, task=ListTodo/green)
+  - [x] Web: Status badge for task mentions
+  - [x] **Verify:** 9 Playwright tests passing (1 skipped) (`apps/web/tests/tb113-entity-tags-display.spec.ts`)
 
 ### Phase 27: Dependencies Graph Fixes
 

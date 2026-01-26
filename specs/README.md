@@ -123,6 +123,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB108-entity-contribution-chart.md](./platform/TB108-entity-contribution-chart.md) | GitHub-style contribution activity chart in EntityDetailPanel | entity, activity, contribution, chart, github, grid |
 | [platform/TB109-entity-activity-overview.md](./platform/TB109-entity-activity-overview.md) | Recent activity feed in EntityDetailPanel with icons, descriptions, and View all activity link | entity, activity, events, timeline, feed, navigation |
 | [platform/TB110-entity-event-history.md](./platform/TB110-entity-event-history.md) | Full event history tab in EntityDetailPanel with git commit log style display | entity, history, events, commit log, diff, pagination, filter |
+| [platform/TB113-entity-tags-display.md](./platform/TB113-entity-tags-display.md) | Entity Tags Display - Mentioned In section showing documents/tasks that @mention the entity | entity, mentions, tags, @mention, documents, tasks, navigation |
 
 ---
 

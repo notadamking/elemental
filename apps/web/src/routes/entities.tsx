@@ -236,6 +236,37 @@ function useEntityActivity(id: string | null, days: number = 365) {
   });
 }
 
+// TB113: Hook for entity mentions (documents/tasks that @mention this entity)
+interface MentionItem {
+  id: string;
+  title: string;
+  updatedAt: string;
+  type: 'document' | 'task';
+  contentType?: string;
+  status?: string;
+}
+
+interface EntityMentions {
+  entityId: string;
+  entityName: string;
+  mentions: MentionItem[];
+  documentCount: number;
+  taskCount: number;
+  totalCount: number;
+}
+
+function useEntityMentions(id: string | null) {
+  return useQuery<EntityMentions>({
+    queryKey: ['entities', id, 'mentions'],
+    queryFn: async () => {
+      const response = await fetch(`/api/entities/${id}/mentions`);
+      if (!response.ok) throw new Error('Failed to fetch entity mentions');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+}
+
 // TB110: Hook for entity history with pagination and event type filter
 interface EntityHistoryResult {
   items: ElementalEvent[];
@@ -2335,6 +2366,8 @@ function EntityDetailPanel({
   const { data: events, isLoading: eventsLoading } = useEntityEvents(entityId);
   // TB108: Entity Contribution Chart - activity data for GitHub-style grid
   const { data: activityData, isLoading: activityLoading } = useEntityActivity(entityId);
+  // TB113: Entity Tags Display - documents/tasks that @mention this entity
+  const { data: mentionsData, isLoading: mentionsLoading } = useEntityMentions(entityId);
   const { data: inboxCount } = useEntityInboxCount(entityId);
   const { data: archivedData } = useEntityInboxViewCount(entityId, 'archived');
   const [inboxView, setInboxView] = useState<InboxViewType>(() => getStoredInboxView());
@@ -3112,6 +3145,77 @@ function EntityDetailPanel({
                 </button>
               )}
             </>
+          )}
+        </div>
+
+        {/* TB113: Mentioned In Section - documents/tasks that @mention this entity */}
+        <div className="border-t border-gray-100 pt-4">
+          <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <AtSign className="w-4 h-4" />
+            Mentioned In
+            {mentionsData && mentionsData.totalCount > 0 && (
+              <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full" data-testid="mentions-count-badge">
+                {mentionsData.totalCount}
+              </span>
+            )}
+          </h3>
+          {mentionsLoading ? (
+            <div className="text-sm text-gray-500">Loading mentions...</div>
+          ) : !mentionsData || mentionsData.totalCount === 0 ? (
+            <div className="text-sm text-gray-500" data-testid="no-mentions">
+              No documents or tasks mention this entity
+            </div>
+          ) : (
+            <div className="space-y-2" data-testid="entity-mentions">
+              {mentionsData.mentions.slice(0, 5).map((mention) => (
+                <button
+                  key={mention.id}
+                  onClick={() => {
+                    if (mention.type === 'document') {
+                      navigate({ to: '/documents', search: { selected: mention.id, library: undefined, page: 1, limit: 25 } });
+                    } else {
+                      navigate({ to: '/tasks', search: { selected: mention.id, page: 1, limit: 25 } });
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors text-left group"
+                  data-testid={`mention-item-${mention.id}`}
+                >
+                  <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${
+                    mention.type === 'document' ? 'bg-blue-100' : 'bg-green-100'
+                  }`}>
+                    {mention.type === 'document' ? (
+                      <FileText className="w-4 h-4 text-blue-600" />
+                    ) : (
+                      <ListTodo className="w-4 h-4 text-green-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">
+                      {mention.title}
+                    </div>
+                    <div className="text-xs text-gray-500 flex items-center gap-2">
+                      <span className="capitalize">{mention.type}</span>
+                      {mention.status && (
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${
+                          mention.status === 'closed' ? 'bg-green-100 text-green-700' :
+                          mention.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          mention.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {mention.status.replace('_', ' ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              ))}
+              {mentionsData.totalCount > 5 && (
+                <div className="text-xs text-gray-500 text-center py-1">
+                  +{mentionsData.totalCount - 5} more mentions
+                </div>
+              )}
+            </div>
           )}
         </div>
 

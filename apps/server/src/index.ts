@@ -1379,6 +1379,107 @@ app.get('/api/entities/:id/activity', async (c) => {
   }
 });
 
+// GET /api/entities/:id/mentions - Get documents and tasks that mention this entity
+// TB113: Entity Tags Display - Shows where this entity is @mentioned
+app.get('/api/entities/:id/mentions', async (c) => {
+  try {
+    const id = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 50;
+
+    // Verify entity exists and get their name
+    const entity = await api.get(id);
+    if (!entity || entity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Entity not found' } }, 404);
+    }
+    const entityTyped = entity as unknown as { name: string };
+    const entityName = entityTyped.name;
+
+    // Create search pattern for @mentions (stored as @name in Markdown)
+    const mentionPattern = `@${entityName}`;
+
+    // Search for documents containing the mention
+    const allDocuments = await api.list({
+      type: 'document',
+    } as Parameters<typeof api.list>[0]);
+
+    const mentioningDocuments: Array<{
+      id: string;
+      title: string;
+      contentType: string;
+      updatedAt: string;
+      type: 'document';
+    }> = [];
+
+    for (const doc of allDocuments) {
+      const docTyped = doc as unknown as { id: string; title?: string; content?: string; contentType: string; updatedAt: string };
+      const content = docTyped.content || '';
+
+      // Check if content contains the @mention
+      if (content.includes(mentionPattern)) {
+        mentioningDocuments.push({
+          id: docTyped.id,
+          title: docTyped.title || `Document ${docTyped.id}`,
+          contentType: docTyped.contentType,
+          updatedAt: docTyped.updatedAt,
+          type: 'document',
+        });
+
+        if (mentioningDocuments.length >= limit) break;
+      }
+    }
+
+    // Search for tasks containing the mention (in notes field)
+    const allTasks = await api.list({
+      type: 'task',
+    } as Parameters<typeof api.list>[0]);
+
+    const mentioningTasks: Array<{
+      id: string;
+      title: string;
+      status: string;
+      updatedAt: string;
+      type: 'task';
+    }> = [];
+
+    for (const task of allTasks) {
+      const taskTyped = task as unknown as { id: string; title?: string; notes?: string; status: string; updatedAt: string };
+      const notes = taskTyped.notes || '';
+
+      // Check if notes contain the @mention
+      if (notes.includes(mentionPattern)) {
+        mentioningTasks.push({
+          id: taskTyped.id,
+          title: taskTyped.title || `Task ${taskTyped.id}`,
+          status: taskTyped.status,
+          updatedAt: taskTyped.updatedAt,
+          type: 'task',
+        });
+
+        if (mentioningTasks.length >= limit) break;
+      }
+    }
+
+    // Combine and sort by updatedAt (most recent first)
+    const allMentions = [...mentioningDocuments, ...mentioningTasks]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, limit);
+
+    return c.json({
+      entityId: id,
+      entityName,
+      mentions: allMentions,
+      documentCount: mentioningDocuments.length,
+      taskCount: mentioningTasks.length,
+      totalCount: mentioningDocuments.length + mentioningTasks.length,
+    });
+  } catch (error) {
+    console.error('[elemental] Failed to get entity mentions:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get entity mentions' } }, 500);
+  }
+});
+
 // ============================================================================
 // Inbox Endpoints
 // ============================================================================
