@@ -14,6 +14,7 @@ import { MobileTaskCard } from '../components/task/MobileTaskCard';
 import { useAllTasks } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortConfig } from '../hooks/usePaginatedData';
 import { useDeepLink } from '../hooks/useDeepLink';
+import { formatRelativeTime } from '../lib/time';
 
 const VIEW_MODE_STORAGE_KEY = 'tasks.viewMode';
 const GROUP_BY_STORAGE_KEY = 'tasks.groupBy';
@@ -310,12 +311,12 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
 ];
 
 function getStoredSortField(): SortField {
-  if (typeof window === 'undefined') return 'updated_at';
+  if (typeof window === 'undefined') return 'created_at';
   const stored = localStorage.getItem(SORT_BY_STORAGE_KEY);
   if (stored && SORT_OPTIONS.some(opt => opt.value === stored)) {
     return stored as SortField;
   }
-  return 'updated_at';
+  return 'created_at';
 }
 
 function setStoredSortField(field: SortField) {
@@ -1381,6 +1382,9 @@ function ListView({
         <div className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
           Tags
         </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Created" field="created_at" currentSort={sort} onSort={onSort} />
+        </div>
       </div>
     </div>
   );
@@ -1530,6 +1534,9 @@ function GroupedListView({
         </div>
         <div className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
           Tags
+        </div>
+        <div className="w-28">
+          <SortableHeaderCell label="Created" field="created_at" currentSort={sort} onSort={onSort} />
         </div>
       </div>
     </div>
@@ -1711,6 +1718,9 @@ function VirtualTaskRow({
             <span className="text-xs text-gray-500 dark:text-gray-400">+{task.tags.length - 2}</span>
           )}
         </div>
+      </div>
+      <div className="w-28 px-4 py-3 text-sm text-gray-500 dark:text-gray-400 truncate" title={new Date(task.createdAt).toLocaleString()}>
+        {formatRelativeTime(task.createdAt)}
       </div>
     </div>
   );
