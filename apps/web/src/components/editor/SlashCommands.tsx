@@ -30,6 +30,7 @@ import {
   AlignRight,
   AlignJustify,
   ImageIcon,
+  Smile,
 } from 'lucide-react';
 
 // Embed picker callbacks
@@ -37,6 +38,7 @@ export interface EmbedCallbacks {
   onTaskEmbed?: () => void;
   onDocumentEmbed?: () => void;
   onImageInsert?: () => void;
+  onEmojiInsert?: () => void;
 }
 
 // Command item type
@@ -188,6 +190,21 @@ const getSlashCommands = (embedCallbacks?: EmbedCallbacks): SlashCommandItem[] =
       // Then trigger the image picker/uploader
       if (embedCallbacks?.onImageInsert) {
         embedCallbacks.onImageInsert();
+      }
+    },
+  },
+  {
+    id: 'emoji',
+    title: 'Emoji',
+    description: 'Insert an emoji',
+    icon: <Smile className="w-4 h-4" />,
+    category: 'media',
+    action: ({ editor, range }) => {
+      // Delete the slash command first
+      editor.chain().focus().deleteRange(range).run();
+      // Then trigger the emoji picker modal
+      if (embedCallbacks?.onEmojiInsert) {
+        embedCallbacks.onEmojiInsert();
       }
     },
   },

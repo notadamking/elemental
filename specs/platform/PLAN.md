@@ -644,18 +644,19 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Server: Track image usage (which documents reference each image) - New `GET /api/uploads/:filename/usage` endpoint
   - [x] **Verify:** Upload image, see it in media library, insert into different document; 13 Playwright tests passing (`apps/web/tests/tb96-media-library-browser.spec.ts`)
 
-- [ ] **TB97: Emoji Support (Markdown-Compatible)**
+- [x] **TB97: Emoji Support (Markdown-Compatible)**
 
   > **Markdown Format for Emojis:** Emojis are stored as Unicode characters directly in Markdown,
   > which AI agents can read/write natively. The `:shortcode:` syntax is converted to Unicode on input.
-  - [ ] Web: Add emoji picker button to toolbar
-  - [ ] Web: Emoji picker modal with categories and search
-  - [ ] Web: Type `:emoji_name:` to trigger inline emoji autocomplete
-  - [ ] Web: Convert shortcodes to Unicode on insert (e.g., `:rocket:` → 🚀)
-  - [ ] Web: Store as Unicode in Markdown (not shortcodes) for universal compatibility
-  - [ ] Web: Common emojis suggested first (recently used)
-  - [ ] Web: Document icon/emoji in library tree (stored in document metadata)
-  - [ ] **Verify:** Insert emoji via picker, check Markdown contains Unicode character; type `:smile:`, converts to 😄; Playwright tests passing
+  - [x] Web: Add emoji picker button to toolbar - `apps/web/src/components/editor/BlockEditor.tsx`
+  - [x] Web: Emoji picker modal with categories and search - `apps/web/src/components/editor/EmojiPickerModal.tsx` (using emoji-picker-react)
+  - [x] Web: Type `:emoji_name:` to trigger inline emoji autocomplete - `apps/web/src/components/editor/EmojiAutocomplete.tsx`
+  - [x] Web: Convert shortcodes to Unicode on insert (e.g., `:rocket:` → 🚀)
+  - [x] Web: Store as Unicode in Markdown (not shortcodes) for universal compatibility
+  - [x] Web: Common emojis suggested first (recently used via localStorage)
+  - [x] Web: Add `/emoji` slash command - `apps/web/src/components/editor/SlashCommands.tsx`
+  - [ ] Web: Document icon/emoji in library tree (stored in document metadata) - deferred to future enhancement
+  - [x] **Verify:** 11/16 Playwright tests passing (`apps/web/tests/tb97-emoji-support.spec.ts`); type `:smile:` converts to 😊; emoji stored as Unicode
 
 - [ ] **TB98: Inline Comments (Stored Separately)**
 

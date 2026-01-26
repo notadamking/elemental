@@ -30,6 +30,8 @@ import { DocumentEmbedBlock } from './blocks/DocumentEmbedBlock';
 import { TaskPickerModal } from './TaskPickerModal';
 import { DocumentPickerModal } from './DocumentPickerModal';
 import { ImageUploadModal } from './ImageUploadModal';
+import { EmojiPickerModal } from './EmojiPickerModal';
+import { EmojiAutocomplete } from './EmojiAutocomplete';
 import { EditorBubbleMenu } from './BubbleMenu';
 import { common, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -59,6 +61,7 @@ import {
   AlignRight,
   AlignJustify,
   ImageIcon,
+  Smile,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -165,6 +168,7 @@ export function BlockEditor({
   const [taskPickerOpen, setTaskPickerOpen] = useState(false);
   const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
   const [imageUploadOpen, setImageUploadOpen] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   // Memoize embed callbacks to prevent unnecessary re-renders
   const embedCallbacks = useMemo(
@@ -172,6 +176,7 @@ export function BlockEditor({
       onTaskEmbed: () => setTaskPickerOpen(true),
       onDocumentEmbed: () => setDocumentPickerOpen(true),
       onImageInsert: () => setImageUploadOpen(true),
+      onEmojiInsert: () => setEmojiPickerOpen(true),
     }),
     []
   );
@@ -223,6 +228,7 @@ export function BlockEditor({
       }),
       TaskEmbedBlock,
       DocumentEmbedBlock,
+      EmojiAutocomplete,
     ],
     content: getInitialContent(),
     editable: !readOnly,
@@ -328,6 +334,15 @@ export function BlockEditor({
         .focus()
         .setImage({ src: url, alt: alt || '' })
         .run();
+    },
+    [editor]
+  );
+
+  // Handle emoji insertion from picker modal
+  const handleEmojiInsert = useCallback(
+    (emoji: string) => {
+      if (!editor) return;
+      editor.chain().focus().insertContent(emoji).run();
     },
     [editor]
   );
@@ -484,6 +499,13 @@ export function BlockEditor({
       action: () => { setImageUploadOpen(true); return true; },
       isActive: false,
     },
+    {
+      id: 'emoji',
+      icon: <Smile className="w-4 h-4" />,
+      label: 'Insert Emoji',
+      action: () => { setEmojiPickerOpen(true); return true; },
+      isActive: false,
+    },
   ];
 
   const alignmentActions = [
@@ -568,6 +590,13 @@ export function BlockEditor({
         isOpen={imageUploadOpen}
         onClose={() => setImageUploadOpen(false)}
         onInsert={handleImageInsert}
+      />
+
+      {/* Emoji Picker Modal */}
+      <EmojiPickerModal
+        isOpen={emojiPickerOpen}
+        onClose={() => setEmojiPickerOpen(false)}
+        onSelect={handleEmojiInsert}
       />
 
       <div data-testid="block-editor" className="border border-gray-200 rounded-lg overflow-hidden bg-white">
