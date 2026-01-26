@@ -1380,12 +1380,12 @@ For mutations (create, update, delete):
 > and maintains universal interoperability with external tools. The editor provides rich UX
 > for humans while persisting standard Markdown that any system can understand.
 
-- [ ] **TB94a: Editor Expand in Edit Mode**
-  - [ ] Web: Debug why editor cannot be expanded/resized while in editing mode
-  - [ ] Web: Ensure editor panel supports resize handle or expand button in edit mode
-  - [ ] Web: Add fullscreen/focus mode toggle (Escape to exit)
-  - [ ] Web: Persist editor size preference in localStorage
-  - [ ] **Verify:** Enter edit mode, expand editor to fullscreen, content persists; Claude in Chrome confirms
+- [x] **TB94a: Editor Expand in Edit Mode**
+  - [x] Web: Debug why editor cannot be expanded/resized while in editing mode - Fixed: expand button was only visible in view mode, moved outside conditional
+  - [x] Web: Ensure editor panel supports resize handle or expand button in edit mode - `apps/web/src/routes/documents.tsx` lines 1773-1788
+  - [x] Web: Add fullscreen/focus mode toggle (Escape to exit) - Added `isFullscreen` state with Escape key handler; fullscreen button in panel header
+  - [x] Web: Persist editor size preference in localStorage - `document.expanded` key in localStorage, restored on mount
+  - [x] **Verify:** Enter edit mode, expand editor to fullscreen, content persists; Playwright tests passing (12 tests in `apps/web/tests/tb94a-editor-expand.spec.ts`)
 
 - [ ] **TB94b: Core Formatting Fixes**
   - [ ] Web: Debug and fix headings (H1, H2, H3) - ensure toolbar buttons and slash commands work
@@ -1780,6 +1780,247 @@ For mutations (create, update, delete):
   - [ ] Web: Verify virtualization is working correctly for all long lists
   - [ ] Web: Add loading skeletons where missing
   - [ ] **Verify:** Lighthouse performance score >90; Claude in Chrome confirms smooth interactions
+
+### Phase 30: Collection Integrity & Validation
+
+**Goal:** Enforce that collections (Plans, Workflows, Teams) must have meaningful content—preventing empty shells that clutter the system.
+
+- [ ] **TB121: Plans Must Have Task Children**
+  - [ ] Server: Add validation in `POST /api/plans` - require at least one task ID in request body OR create with initial task
+  - [ ] Server: Add `POST /api/plans` variant that creates plan + first task atomically
+  - [ ] Server: Prevent deletion of last task in plan (return error with helpful message)
+  - [ ] Server: Add `GET /api/plans/:id/can-delete-task/:taskId` endpoint to check if deletion would orphan plan
+  - [ ] Web: Update CreatePlanModal to require initial task (title input + "Add First Task" section)
+  - [ ] Web: Show validation error if trying to submit plan without task
+  - [ ] Web: In PlanDetailPanel, show warning when removing task would leave plan empty
+  - [ ] Web: Disable "Remove" button on last task with tooltip explaining why
+  - [ ] **Verify:** Try creating empty plan via UI - blocked; try removing last task - blocked; Playwright tests passing
+
+- [ ] **TB122: Workflows Must Have Task Children**
+  - [ ] Server: Add validation in `POST /api/workflows` - require playbook (which generates tasks) or initial task
+  - [ ] Server: `POST /api/workflows/pour` already requires playbook - ensure playbook has at least one step
+  - [ ] Server: Prevent deletion of last task in workflow
+  - [ ] Server: Add `GET /api/workflows/:id/can-delete-task/:taskId` endpoint
+  - [ ] Web: Update PourWorkflowModal to validate playbook has steps before pour
+  - [ ] Web: In WorkflowDetailPanel, prevent removing last task
+  - [ ] Web: Show helpful empty state if workflow has no playbook ("This workflow needs tasks to be useful")
+  - [ ] **Verify:** Try pouring workflow with empty playbook - blocked; try removing last task - blocked; Playwright tests passing
+
+- [ ] **TB123: Teams Must Have Entity Members**
+  - [ ] Server: Add validation in `POST /api/teams` - require at least one member entity ID
+  - [ ] Server: Prevent removal of last member from team (return error)
+  - [ ] Server: Add `GET /api/teams/:id/can-remove-member/:entityId` endpoint
+  - [ ] Web: Update CreateTeamModal to require at least one member selection
+  - [ ] Web: Disable "Create Team" button until member selected, show helper text
+  - [ ] Web: In TeamDetailPanel, show warning when removing member would leave team empty
+  - [ ] Web: Disable "Remove" action on last member with tooltip explaining why
+  - [ ] **Verify:** Try creating team without members - blocked; try removing last member - blocked; Playwright tests passing
+
+### Phase 31: Task Description Rich Editor
+
+**Goal:** Add optional rich markdown description to Tasks, using the same editor experience as Documents for consistency.
+
+- [ ] **TB124: Task Description Field with Rich Editor**
+  - [ ] Server: Task type already has `descriptionRef` pointing to Document - ensure API supports creating/updating description document inline
+  - [ ] Server: Add `PATCH /api/tasks/:id` support for `description` field that creates/updates linked Document
+  - [ ] Server: When task created with `description` string, auto-create Document with content and link via `descriptionRef`
+  - [ ] Server: Add `GET /api/tasks/:id?hydrate.description=true` returns task with description content inline
+  - [ ] Web: Add collapsible "Description" section to TaskDetailPanel below title
+  - [ ] Web: View mode: render description as markdown (same as DocumentRenderer)
+  - [ ] Web: Edit mode: show same BlockEditor used for Documents
+  - [ ] Web: "Add description" button when description is empty
+  - [ ] Web: Description auto-saves on blur with debounce (like document editing)
+  - [ ] Web: Show character count and "Saved" indicator
+  - [ ] Web: CreateTaskModal: add optional "Description" textarea with markdown preview toggle
+  - [ ] Web: TaskSlideOver: show description preview (first 3 lines) with "Show more" expansion
+  - [ ] **Verify:** Create task with description, edit with rich editor, formatting persists; Playwright tests passing
+
+### Phase 32: Document Embed Search Fix
+
+**Goal:** Fix the embed search functionality so task/document pickers actually find items.
+
+- [ ] **TB125: Fix Task Embed Search in Editor**
+  - [ ] Web: Debug TaskPickerModal search - verify it queries `/api/tasks` with search param
+  - [ ] Server: Ensure `GET /api/tasks?search=query` works correctly (fuzzy match on title)
+  - [ ] Web: If using in-memory data (from DataPreloader), ensure search filters loaded tasks
+  - [ ] Web: Add loading state while searching
+  - [ ] Web: Show "No tasks found" empty state with suggestion to check spelling
+  - [ ] Web: Ensure keyboard navigation works (arrow keys, Enter to select)
+  - [ ] Web: Fix any race conditions between typing and results
+  - [ ] **Verify:** Open document editor, type `/task`, search for existing task - task appears in results; Playwright tests passing
+
+- [ ] **TB126: Fix Document Embed Search in Editor**
+  - [ ] Web: Debug DocumentPickerModal search - verify it queries `/api/documents` with search param
+  - [ ] Server: Ensure `GET /api/documents?search=query` works correctly (fuzzy match on title + content)
+  - [ ] Web: If using in-memory data, ensure search filters loaded documents
+  - [ ] Web: Show document content type badge in results
+  - [ ] Web: Show "No documents found" empty state
+  - [ ] Web: Ensure picker excludes current document (can't embed self)
+  - [ ] **Verify:** Open document editor, type `/doc`, search for existing doc - doc appears in results; Playwright tests passing
+
+### Phase 33: Message Channel Enhancements
+
+**Goal:** Add slash commands and element embedding to message composer for power-user workflows.
+
+- [ ] **TB127: Slash Commands in Message Composer**
+  - [ ] Web: Add slash command support to MessageComposer (similar to document editor)
+  - [ ] Web: Implement SlashCommandMenu component for messages
+  - [ ] Web: Commands:
+    - [ ] `/task` - Insert task reference (opens picker)
+    - [ ] `/doc` - Insert document reference (opens picker)
+    - [ ] `/code` - Insert code block
+    - [ ] `/quote` - Insert block quote
+    - [ ] `/bold`, `/italic` - Apply formatting
+    - [ ] `/emoji` - Open emoji picker
+  - [ ] Web: Fuzzy search filtering as user types after `/`
+  - [ ] Web: Keyboard navigation (up/down, Enter, Escape)
+  - [ ] Web: Trigger on `/` at start of line or after space
+  - [ ] Web: Command list positioned above composer (like Slack)
+  - [ ] **Verify:** Type `/task` in message composer, picker opens; select task, reference inserted; Playwright tests passing
+
+- [ ] **TB128: Element Embedding in Messages with #{id}**
+  - [ ] Web: Detect `#{element_id}` pattern in message content
+  - [ ] Web: Parse and validate element ID format (e.g., `#el-abc123`, `#task:el-abc123`, `#doc:el-abc123`)
+  - [ ] Web: Inline autocomplete: typing `#` shows recent tasks/docs, typing more filters
+  - [ ] Web: On send, `#{id}` renders as embedded card in message (similar to Slack unfurls)
+  - [ ] Web: Task embed shows: title, status badge, priority, assignee
+  - [ ] Web: Document embed shows: title, content type, first line preview
+  - [ ] Web: Embeds are clickable → navigate to element
+  - [ ] Server: Parse `#{id}` references when creating message, store as `references` dependencies
+  - [ ] Server: Hydrate referenced elements when fetching messages
+  - [ ] **Verify:** Type `#el-abc123` in message, autocomplete suggests matching elements; send, embed renders; Playwright tests passing
+
+### Phase 34: Virtualization & Infinite Scroll
+
+**Goal:** Replace pagination and "Load more" buttons with smooth infinite scroll using virtualization for all list views.
+
+- [ ] **TB129: Virtualize Libraries List with Infinite Scroll**
+  - [ ] Web: Replace current libraries list in sidebar with VirtualizedList component
+  - [ ] Web: Remove "Load more" button, implement infinite scroll trigger at bottom
+  - [ ] Web: Load libraries in batches as user scrolls (if server paginated) or render from in-memory
+  - [ ] Web: Smooth scroll experience with no jank
+  - [ ] Web: Preserve expand/collapse state of library tree nodes during scroll
+  - [ ] Web: Scroll position restoration when navigating back
+  - [ ] **Verify:** Create 100+ libraries, scroll through list smoothly; Playwright tests confirm render count matches visible items
+
+- [ ] **TB130: Virtualize Documents List with Infinite Scroll**
+  - [ ] Web: Replace documents grid/list with VirtualizedList (or VirtualizedGrid for grid view)
+  - [ ] Web: Remove any "Load more" buttons
+  - [ ] Web: Infinite scroll loads more documents as needed
+  - [ ] Web: Works in both list and grid view modes
+  - [ ] Web: Selection state preserved during scroll
+  - [ ] Web: Search/filter works with virtualized list
+  - [ ] **Verify:** Create 500+ documents, scroll through smoothly; filter works instantly; Playwright tests passing
+
+- [ ] **TB131: Virtualize Channel Messages with Infinite Scroll**
+  - [ ] Web: Replace current MessageList with virtualized version
+  - [ ] Web: New messages load at bottom (reverse infinite scroll pattern)
+  - [ ] Web: Older messages load when scrolling up
+  - [ ] Web: Scroll to bottom on new message arrival
+  - [ ] Web: "Jump to latest" button when scrolled up
+  - [ ] Web: Day separators work correctly with virtualization
+  - [ ] Web: Thread view also virtualized
+  - [ ] **Verify:** Channel with 1000+ messages scrolls smoothly; new message appears, auto-scrolls; Playwright tests passing
+
+- [ ] **TB132: Kanban Column Virtualization with Infinite Scroll**
+  - [ ] Web: Load ALL tasks upfront (from in-memory cache via DataPreloader)
+  - [ ] Web: Each Kanban column uses VirtualizedList independently
+  - [ ] Web: Infinite scroll within each column (no page size limit visible to user)
+  - [ ] Web: Column header shows total count (not "showing X of Y")
+  - [ ] Web: Drag-and-drop works across virtualized columns
+  - [ ] Web: Filter/search works with full dataset (instant, client-side)
+  - [ ] Web: Column scroll positions preserved when switching views
+  - [ ] **Verify:** 500 tasks across columns, each column scrolls independently and smoothly; Playwright tests passing
+
+### Phase 35: Graph & Navigation Cleanup
+
+**Goal:** Remove unused features and simplify navigation based on user feedback.
+
+- [ ] **TB133: Remove Edit Mode from Dependency Graph**
+  - [ ] Web: Remove "Edit Mode" toggle button from graph toolbar
+  - [ ] Web: Remove edge creation click-to-select flow
+  - [ ] Web: Remove right-click edge deletion context menu
+  - [ ] Web: Remove all edit mode state management
+  - [ ] Web: Keep graph as read-only visualization
+  - [ ] Web: Keep all view features: zoom, pan, search, filter, minimap
+  - [ ] Web: Update any documentation or tooltips referencing edit mode
+  - [ ] Server: Keep dependency endpoints (dependencies can still be managed via Task detail panel)
+  - [ ] **Verify:** Graph loads as read-only; no edit mode toggle visible; Playwright tests updated
+
+- [ ] **TB134: Delete Agents Page**
+  - [ ] Web: Remove `/dashboard/agents` route from router config
+  - [ ] Web: Remove "Agents" navigation item from sidebar
+  - [ ] Web: Delete `AgentActivityLens` component and related files
+  - [ ] Web: Remove `useAgentActivity` hook if dedicated
+  - [ ] Web: Update command palette to remove "Go to Agents" action
+  - [ ] Web: Update keyboard shortcuts to remove `G A` binding
+  - [ ] Web: Remove any "Agents" references from dashboard overview
+  - [ ] Web: Keep entity listing at `/entities` (Agents are just entities with type "agent")
+  - [ ] Web: Agent workload info moved to entity detail page
+  - [ ] **Verify:** Agents link gone from sidebar; URL `/dashboard/agents` returns 404 or redirects; Playwright tests updated
+
+### Phase 36: Accessibility & Contrast Fixes
+
+**Goal:** Fix all text contrast issues where light text appears on light backgrounds or dark text on dark backgrounds.
+
+- [ ] **TB135: Audit and Fix Text Contrast Issues**
+  - [ ] Web: Run automated contrast checker across all pages (axe-core or similar)
+  - [ ] Web: Identify all failing contrast ratios (WCAG AA requires 4.5:1 for text)
+  - [ ] Web: Fix light mode issues:
+    - [ ] Muted/secondary text should use `text-gray-600` minimum (not `text-gray-400`)
+    - [ ] Disabled states should still be readable (use `text-gray-500`)
+    - [ ] Placeholder text needs sufficient contrast
+  - [ ] Web: Fix dark mode issues:
+    - [ ] Text on dark backgrounds should use `text-gray-200` minimum (not `text-gray-500`)
+    - [ ] Status badges need readable text in both modes
+    - [ ] Chart labels and legends need adequate contrast
+  - [ ] Web: Update design tokens in `tokens.css` with accessible color values
+  - [ ] Web: Add `--text-primary`, `--text-secondary`, `--text-muted` semantic tokens
+  - [ ] Web: Replace hardcoded color classes with semantic tokens throughout
+  - [ ] Web: Test with Chrome DevTools "Emulate vision deficiencies"
+  - [ ] **Verify:** axe-core audit passes; all text readable in both light and dark modes; Claude in Chrome visual inspection
+
+- [ ] **TB136: High Contrast Mode Support**
+  - [ ] Web: Add "High Contrast" theme option in Settings (alongside Light/Dark/System)
+  - [ ] Web: High contrast mode: pure white on black, increased border weights
+  - [ ] Web: Ensure all interactive elements visible in high contrast
+  - [ ] Web: Test with Windows High Contrast Mode
+  - [ ] **Verify:** Toggle high contrast mode, all UI elements clearly visible; Playwright tests passing
+
+### Phase 37: Human Inbox Page
+
+**Goal:** Create a dedicated full-page inbox for the human operator, separate from entity-specific inboxes.
+
+- [ ] **TB137: Human Inbox Page**
+  - [ ] Web: Add new route `/inbox` to router
+  - [ ] Web: Add "Inbox" navigation item to sidebar (top-level, with badge for unread count)
+  - [ ] Server: Determine "current user" entity (human operator) - may need config or auth context
+  - [ ] Server: Add `GET /api/inbox` endpoint (global inbox, uses current user context)
+  - [ ] Server: Add `GET /api/inbox/count` endpoint for unread count
+  - [ ] Web: Create InboxPage component with full-page layout (not embedded in entity detail)
+  - [ ] Web: Reuse inbox components: InboxViewTabs, InboxItemCard, InboxSourceFilter, etc.
+  - [ ] Web: Split layout: message list (left), message content (right)
+  - [ ] Web: Show all direct messages and @mentions for current user
+  - [ ] Web: Keyboard shortcuts: `G I` to go to inbox, `J/K` to navigate messages
+  - [ ] Web: Add command palette action "Go to Inbox"
+  - [ ] Web: Unread badge in sidebar updates in real-time via WebSocket
+  - [ ] **Verify:** Navigate to /inbox, see all messages; mark as read, badge updates; Playwright tests passing
+
+- [ ] **TB138: Inbox Notification Dot**
+  - [ ] Web: Add small notification dot to Inbox sidebar item when unread count > 0
+  - [ ] Web: Dot pulses/animates briefly on new message arrival
+  - [ ] Web: Dot disappears when all messages read
+  - [ ] Web: Dot is visible even when sidebar collapsed (icon-only mode)
+  - [ ] Web: Optional: browser tab title shows unread count "(3) Elemental"
+  - [ ] **Verify:** Receive new message, dot appears; read all messages, dot gone; Claude in Chrome visual inspection
+
+- [ ] **TB139: Inbox Empty State & Onboarding**
+  - [ ] Web: Create helpful empty state for new users with no inbox messages
+  - [ ] Web: Empty state shows: icon, "Your inbox is empty", helpful tips
+  - [ ] Web: Tips: "Messages sent to you appear here", "You'll also see @mentions"
+  - [ ] Web: Link to Messages page to start conversations
+  - [ ] Web: Empty state for filtered views: "No unread messages" with link to view all
+  - [ ] **Verify:** New user sees helpful empty state; Playwright tests passing
 
 ---
 

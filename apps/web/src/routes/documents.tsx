@@ -1509,6 +1509,9 @@ function DocumentDetailPanel({
   onClose,
   isExpanded = false,
   onToggleExpand,
+  isFullscreen = false,
+  onEnterFullscreen,
+  onExitFullscreen,
   onDocumentCloned,
   libraryId,
   onNavigateToDocument,
@@ -1517,6 +1520,9 @@ function DocumentDetailPanel({
   onClose: () => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  isFullscreen?: boolean;
+  onEnterFullscreen?: () => void;
+  onExitFullscreen?: () => void;
   onDocumentCloned?: (document: { id: string }) => void;
   libraryId?: string | null;
   onNavigateToDocument?: (id: string) => void;
@@ -1762,27 +1768,52 @@ function DocumentDetailPanel({
               >
                 <History className="w-5 h-5" />
               </button>
-              {onToggleExpand && (
-                <button
-                  onClick={onToggleExpand}
-                  data-testid="document-expand-button"
-                  className={`p-1.5 rounded ${
-                    isExpanded
-                      ? 'text-blue-600 bg-blue-50'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                  }`}
-                  aria-label={isExpanded ? 'Collapse document' : 'Expand document'}
-                  title={isExpanded ? 'Show document list' : 'Hide document list'}
-                >
-                  {isExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-                </button>
-              )}
             </>
           )}
+          {/* Expand button - always visible regardless of edit mode */}
+          {onToggleExpand && !isFullscreen && (
+            <button
+              onClick={onToggleExpand}
+              data-testid="document-expand-button"
+              className={`p-1.5 rounded ${
+                isExpanded
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+              aria-label={isExpanded ? 'Collapse document' : 'Expand document'}
+              title={isExpanded ? 'Show document list' : 'Hide document list'}
+            >
+              {isExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            </button>
+          )}
+          {/* Fullscreen/Focus mode button (TB94a) */}
+          {isFullscreen ? (
+            <button
+              onClick={onExitFullscreen}
+              data-testid="document-fullscreen-button"
+              className="p-1.5 rounded text-blue-600 bg-blue-50"
+              aria-label="Exit fullscreen"
+              title="Exit fullscreen (Escape)"
+            >
+              <Minimize2 className="w-5 h-5" />
+            </button>
+          ) : (
+            onEnterFullscreen && (
+              <button
+                onClick={onEnterFullscreen}
+                data-testid="document-fullscreen-button"
+                className="p-1.5 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                aria-label="Enter fullscreen"
+                title="Focus mode (fullscreen)"
+              >
+                <Maximize2 className="w-5 h-5" />
+              </button>
+            )
+          )}
           <button
-            onClick={onClose}
+            onClick={isFullscreen ? onExitFullscreen : onClose}
             className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-            aria-label="Close panel"
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Close panel'}
             data-testid="document-detail-close"
           >
             <X className="w-5 h-5" />
@@ -2054,8 +2085,42 @@ export function DocumentsPage() {
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
-  const [isDocumentExpanded, setIsDocumentExpanded] = useState(false);
+  // Expand state - initialized from localStorage (TB94a)
+  const [isDocumentExpanded, setIsDocumentExpandedState] = useState(false);
+  const [expandedInitialized, setExpandedInitialized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Initialize expand state from localStorage on mount (TB94a)
+  useEffect(() => {
+    if (!expandedInitialized) {
+      const stored = localStorage.getItem('document.expanded');
+      if (stored === 'true') {
+        setIsDocumentExpandedState(true);
+      }
+      setExpandedInitialized(true);
+    }
+  }, [expandedInitialized]);
+
+  // Wrapper for setIsDocumentExpanded that also persists to localStorage (TB94a)
+  const setIsDocumentExpanded = (value: boolean | ((prev: boolean) => boolean)) => {
+    setIsDocumentExpandedState((prev) => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      localStorage.setItem('document.expanded', newValue.toString());
+      return newValue;
+    });
+  };
+
+  // Handle Escape key to exit fullscreen (TB94a)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   // Use upfront-loaded data for deep-link navigation (TB70)
   const { data: allDocuments } = useAllDocumentsPreloaded();
@@ -2215,60 +2280,90 @@ export function DocumentsPage() {
 
   return (
     <div data-testid="documents-page" className="flex h-full">
-      {/* Library Tree Sidebar */}
-      {isLoading ? (
+      {/* Fullscreen Panel - overlays everything when in fullscreen mode (TB94a) */}
+      {isFullscreen && selectedDocumentId && (
         <div
-          data-testid="libraries-loading"
-          className="w-64 border-r border-gray-200 flex items-center justify-center"
+          data-testid="document-fullscreen-panel"
+          className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col"
         >
-          <div className="text-gray-500">Loading libraries...</div>
+          <DocumentDetailPanel
+            documentId={selectedDocumentId}
+            onClose={() => setIsFullscreen(false)}
+            isExpanded={true}
+            onToggleExpand={() => setIsFullscreen(false)}
+            isFullscreen={true}
+            onExitFullscreen={() => setIsFullscreen(false)}
+            onDocumentCloned={handleDocumentCreated}
+            libraryId={selectedLibraryId}
+            onNavigateToDocument={handleSelectDocument}
+          />
         </div>
-      ) : (
-        <LibraryTree
-          libraries={libraries}
-          selectedLibraryId={selectedLibraryId}
-          expandedIds={expandedIds}
-          onSelectLibrary={handleSelectLibrary}
-          onToggleExpand={handleToggleExpand}
-          onNewDocument={handleOpenCreateModal}
-          onNewLibrary={handleOpenCreateLibraryModal}
-        />
       )}
 
-      {/* Main Content Area - with or without document detail panel */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Document List / Library View - hide when document is expanded */}
-        {(!selectedDocumentId || !isDocumentExpanded) && (
-          <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200' : 'flex-1'} h-full overflow-hidden`}>
-            {renderMainContent()}
-          </div>
-        )}
+      {/* Library Tree Sidebar - hide in fullscreen mode */}
+      {!isFullscreen && (
+        <>
+          {isLoading ? (
+            <div
+              data-testid="libraries-loading"
+              className="w-64 border-r border-gray-200 flex items-center justify-center"
+            >
+              <div className="text-gray-500">Loading libraries...</div>
+            </div>
+          ) : (
+            <div data-testid="library-tree-sidebar">
+              <LibraryTree
+                libraries={libraries}
+                selectedLibraryId={selectedLibraryId}
+                expandedIds={expandedIds}
+                onSelectLibrary={handleSelectLibrary}
+                onToggleExpand={handleToggleExpand}
+                onNewDocument={handleOpenCreateModal}
+                onNewLibrary={handleOpenCreateLibraryModal}
+              />
+            </div>
+          )}
+        </>
+      )}
 
-        {/* Document Detail Panel or Not Found (TB70) */}
-        {selectedDocumentId && (
-          <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} flex-shrink-0 overflow-hidden`}>
-            {deepLink.notFound ? (
-              <ElementNotFound
-                elementType="Document"
-                elementId={selectedDocumentId}
-                backRoute="/documents"
-                backLabel="Back to Documents"
-                onDismiss={handleCloseDocument}
-              />
-            ) : (
-              <DocumentDetailPanel
-                documentId={selectedDocumentId}
-                onClose={handleCloseDocument}
-                isExpanded={isDocumentExpanded}
-                onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
-                onDocumentCloned={handleDocumentCreated}
-                libraryId={selectedLibraryId}
-                onNavigateToDocument={handleSelectDocument}
-              />
-            )}
-          </div>
-        )}
-      </div>
+      {/* Main Content Area - with or without document detail panel (hidden in fullscreen) */}
+      {!isFullscreen && (
+        <div className="flex-1 flex overflow-hidden">
+          {/* Document List / Library View - hide when document is expanded */}
+          {(!selectedDocumentId || !isDocumentExpanded) && (
+            <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200' : 'flex-1'} h-full overflow-hidden`}>
+              {renderMainContent()}
+            </div>
+          )}
+
+          {/* Document Detail Panel or Not Found (TB70) */}
+          {selectedDocumentId && (
+            <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} flex-shrink-0 overflow-hidden`}>
+              {deepLink.notFound ? (
+                <ElementNotFound
+                  elementType="Document"
+                  elementId={selectedDocumentId}
+                  backRoute="/documents"
+                  backLabel="Back to Documents"
+                  onDismiss={handleCloseDocument}
+                />
+              ) : (
+                <DocumentDetailPanel
+                  documentId={selectedDocumentId}
+                  onClose={handleCloseDocument}
+                  isExpanded={isDocumentExpanded}
+                  onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
+                  isFullscreen={false}
+                  onEnterFullscreen={() => setIsFullscreen(true)}
+                  onDocumentCloned={handleDocumentCreated}
+                  libraryId={selectedLibraryId}
+                  onNavigateToDocument={handleSelectDocument}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create Document Modal */}
       <CreateDocumentModal
