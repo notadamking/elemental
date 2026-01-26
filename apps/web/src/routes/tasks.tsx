@@ -204,11 +204,68 @@ function useReadyTaskIds() {
 
 type ViewMode = 'list' | 'kanban';
 type SortDirection = 'asc' | 'desc';
-type SortField = 'title' | 'status' | 'priority' | 'taskType' | 'assignee' | 'created_at' | 'updated_at';
+type SortField = 'title' | 'status' | 'priority' | 'taskType' | 'assignee' | 'created_at' | 'updated_at' | 'deadline' | 'complexity';
 
 interface SortConfig {
   field: SortField;
   direction: SortDirection;
+}
+
+const SORT_BY_STORAGE_KEY = 'tasks.sortBy';
+const SORT_DIR_STORAGE_KEY = 'tasks.sortDir';
+const SECONDARY_SORT_STORAGE_KEY = 'tasks.secondarySort';
+
+// Sort options for the dropdown
+const SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: 'priority', label: 'Priority' },
+  { value: 'created_at', label: 'Created' },
+  { value: 'updated_at', label: 'Updated' },
+  { value: 'deadline', label: 'Deadline' },
+  { value: 'title', label: 'Title' },
+  { value: 'complexity', label: 'Complexity' },
+];
+
+function getStoredSortField(): SortField {
+  if (typeof window === 'undefined') return 'updated_at';
+  const stored = localStorage.getItem(SORT_BY_STORAGE_KEY);
+  if (stored && SORT_OPTIONS.some(opt => opt.value === stored)) {
+    return stored as SortField;
+  }
+  return 'updated_at';
+}
+
+function setStoredSortField(field: SortField) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SORT_BY_STORAGE_KEY, field);
+}
+
+function getStoredSortDirection(): SortDirection {
+  if (typeof window === 'undefined') return 'desc';
+  const stored = localStorage.getItem(SORT_DIR_STORAGE_KEY);
+  return stored === 'asc' ? 'asc' : 'desc';
+}
+
+function setStoredSortDirection(dir: SortDirection) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SORT_DIR_STORAGE_KEY, dir);
+}
+
+function getStoredSecondarySort(): SortField | null {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem(SECONDARY_SORT_STORAGE_KEY);
+  if (stored && SORT_OPTIONS.some(opt => opt.value === stored)) {
+    return stored as SortField;
+  }
+  return null;
+}
+
+function setStoredSecondarySort(field: SortField | null) {
+  if (typeof window === 'undefined') return;
+  if (field) {
+    localStorage.setItem(SECONDARY_SORT_STORAGE_KEY, field);
+  } else {
+    localStorage.removeItem(SECONDARY_SORT_STORAGE_KEY);
+  }
 }
 
 interface FilterConfig {
@@ -252,12 +309,17 @@ interface Task {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  deadline?: string;
+  metadata?: {
+    manualOrder?: number;
+    [key: string]: unknown;
+  };
 }
 
 const DEFAULT_PAGE_SIZE = 25;
 
 // Map sort field names to task property names (handle snake_case from legacy URLs)
-type TaskSortField = keyof Task | 'created_at' | 'updated_at';
+type TaskSortField = keyof Task | 'created_at' | 'updated_at' | 'deadline' | 'complexity';
 
 function getTaskSortField(field: TaskSortField): keyof Task {
   if (field === 'created_at') return 'createdAt';
@@ -280,9 +342,26 @@ function taskSortCompareFn(
     return direction === 'asc' ? cmp : -cmp;
   }
 
+  // Handle deadline (null deadlines sort last)
+  if (field === 'deadline') {
+    const aDeadline = a.deadline;
+    const bDeadline = b.deadline;
+    if (!aDeadline && !bDeadline) return 0;
+    if (!aDeadline) return direction === 'asc' ? 1 : -1;
+    if (!bDeadline) return direction === 'asc' ? -1 : 1;
+    const cmp = new Date(aDeadline).getTime() - new Date(bDeadline).getTime();
+    return direction === 'asc' ? cmp : -cmp;
+  }
+
   // Handle priority (numeric, lower is higher priority)
   if (field === 'priority') {
     const cmp = (a.priority ?? 5) - (b.priority ?? 5);
+    return direction === 'asc' ? cmp : -cmp;
+  }
+
+  // Handle complexity (numeric, lower is simpler)
+  if (field === 'complexity') {
+    const cmp = (a.complexity ?? 3) - (b.complexity ?? 3);
     return direction === 'asc' ? cmp : -cmp;
   }
 
@@ -491,6 +570,174 @@ function GroupByDropdown({
             >
               <span>{option.label}</span>
               {groupBy === option.value && (
+                <span className="text-blue-600">✓</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sort by dropdown component with ascending/descending toggle
+function SortByDropdown({
+  sortField,
+  sortDirection,
+  secondarySort,
+  onSortFieldChange,
+  onSortDirectionChange,
+  onSecondarySortChange,
+}: {
+  sortField: SortField;
+  sortDirection: SortDirection;
+  secondarySort: SortField | null;
+  onSortFieldChange: (field: SortField) => void;
+  onSortDirectionChange: (direction: SortDirection) => void;
+  onSecondarySortChange: (field: SortField | null) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [showSecondary, setShowSecondary] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setShowSecondary(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = SORT_OPTIONS.find(opt => opt.value === sortField) || SORT_OPTIONS[0];
+  const secondaryOption = secondarySort ? SORT_OPTIONS.find(opt => opt.value === secondarySort) : null;
+
+  // Filter out the primary sort from secondary options
+  const secondarySortOptions = SORT_OPTIONS.filter(opt => opt.value !== sortField);
+
+  return (
+    <div className="relative flex items-center gap-1" ref={dropdownRef}>
+      {/* Main sort dropdown */}
+      <button
+        onClick={() => { setIsOpen(!isOpen); setShowSecondary(false); }}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+        data-testid="sort-by-dropdown"
+      >
+        <ArrowUpDown className="w-4 h-4" />
+        <span>Sort: {selectedOption.label}</span>
+        {secondaryOption && (
+          <span className="text-gray-400">+ {secondaryOption.label}</span>
+        )}
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Ascending/descending toggle */}
+      <button
+        onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')}
+        className={`inline-flex items-center justify-center w-8 h-8 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors ${
+          sortDirection === 'asc' ? 'text-blue-600' : ''
+        }`}
+        data-testid="sort-direction-toggle"
+        aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'}
+        title={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'}
+      >
+        {sortDirection === 'asc' ? (
+          <ArrowUp className="w-4 h-4" />
+        ) : (
+          <ArrowDown className="w-4 h-4" />
+        )}
+      </button>
+
+      {/* Dropdown menu */}
+      {isOpen && !showSecondary && (
+        <div
+          className="absolute z-20 mt-1 top-full left-0 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-48"
+          data-testid="sort-by-options"
+        >
+          <div className="px-3 py-1.5 text-xs font-medium text-gray-500 uppercase">Primary Sort</div>
+          {SORT_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                onSortFieldChange(option.value);
+                // If secondary sort is same as new primary, clear it
+                if (secondarySort === option.value) {
+                  onSecondarySortChange(null);
+                }
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                sortField === option.value ? 'text-blue-600 font-medium' : 'text-gray-700'
+              }`}
+              data-testid={`sort-by-option-${option.value}`}
+            >
+              <span>{option.label}</span>
+              {sortField === option.value && (
+                <span className="text-blue-600">✓</span>
+              )}
+            </button>
+          ))}
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            <button
+              onClick={() => setShowSecondary(true)}
+              className="w-full text-left px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between"
+              data-testid="sort-secondary-button"
+            >
+              <span>Secondary sort...</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Secondary sort submenu */}
+      {isOpen && showSecondary && (
+        <div
+          className="absolute z-20 mt-1 top-full left-0 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-48"
+          data-testid="sort-secondary-options"
+        >
+          <button
+            onClick={() => setShowSecondary(false)}
+            className="w-full text-left px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 flex items-center gap-1"
+          >
+            <ChevronRight className="w-4 h-4 rotate-180" />
+            <span>Back</span>
+          </button>
+          <div className="border-t border-gray-100 my-1" />
+          <div className="px-3 py-1.5 text-xs font-medium text-gray-500 uppercase">Secondary Sort</div>
+          <button
+            onClick={() => {
+              onSecondarySortChange(null);
+              setIsOpen(false);
+              setShowSecondary(false);
+            }}
+            className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between ${
+              secondarySort === null ? 'text-blue-600 font-medium' : 'text-gray-700'
+            }`}
+            data-testid="sort-secondary-option-none"
+          >
+            <span>None</span>
+            {secondarySort === null && (
+              <span className="text-blue-600">✓</span>
+            )}
+          </button>
+          {secondarySortOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                onSecondarySortChange(option.value);
+                setIsOpen(false);
+                setShowSecondary(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                secondarySort === option.value ? 'text-blue-600 font-medium' : 'text-gray-700'
+              }`}
+              data-testid={`sort-secondary-option-${option.value}`}
+            >
+              <span>{option.label}</span>
+              {secondarySort === option.value && (
                 <span className="text-blue-600">✓</span>
               )}
             </button>
@@ -1292,9 +1539,10 @@ export function TasksPage() {
   const selectedFromUrl = search.selected ?? null;
   const readyOnly = search.readyOnly ?? false;
 
-  // Sort configuration - use internal field names
-  const [sortField, setSortField] = useState<SortField>('updated_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  // Sort configuration - use internal field names and localStorage
+  const [sortField, setSortField] = useState<SortField>(getStoredSortField);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(getStoredSortDirection);
+  const [secondarySort, setSecondarySort] = useState<SortField | null>(getStoredSecondarySort);
   const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
   const [groupBy, setGroupBy] = useState<GroupByField>(getStoredGroupBy);
 
@@ -1337,6 +1585,26 @@ export function TasksPage() {
     direction: sortDirection,
   }), [sortField, sortDirection]);
 
+  // Create a combined sort function that handles secondary sorting
+  const combinedSortCompareFn = useCallback((
+    a: Task,
+    b: Task,
+    field: keyof Task | string,
+    direction: 'asc' | 'desc'
+  ): number => {
+    // First, compare using primary sort
+    const primaryResult = taskSortCompareFn(a, b, field, direction);
+
+    // If equal and secondary sort is set, use secondary sort
+    if (primaryResult === 0 && secondarySort) {
+      const secondaryField = getTaskSortField(secondarySort);
+      // Secondary sort always uses the same direction as primary
+      return taskSortCompareFn(a, b, secondaryField, direction);
+    }
+
+    return primaryResult;
+  }, [secondarySort]);
+
   // Client-side pagination with filtering and sorting (TB69)
   const paginatedData = usePaginatedData<Task>({
     data: allTasks as Task[] | undefined,
@@ -1344,7 +1612,7 @@ export function TasksPage() {
     pageSize,
     filterFn,
     sort: sortConfig,
-    sortCompareFn: taskSortCompareFn,
+    sortCompareFn: combinedSortCompareFn,
   });
 
   // Deep-link navigation (TB70)
@@ -1381,6 +1649,30 @@ export function TasksPage() {
     setGroupBy(newGroupBy);
     setStoredGroupBy(newGroupBy);
     // Reset to first page when grouping changes
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+  }, [navigate, pageSize, readyOnly]);
+
+  // Handle sort field changes and persist to localStorage
+  const handleSortFieldChange = useCallback((field: SortField) => {
+    setSortField(field);
+    setStoredSortField(field);
+    // Reset to first page when sort changes
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+  }, [navigate, pageSize, readyOnly]);
+
+  // Handle sort direction changes and persist to localStorage
+  const handleSortDirectionChange = useCallback((direction: SortDirection) => {
+    setSortDirection(direction);
+    setStoredSortDirection(direction);
+    // Reset to first page when sort changes
+    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+  }, [navigate, pageSize, readyOnly]);
+
+  // Handle secondary sort changes and persist to localStorage
+  const handleSecondarySortChange = useCallback((field: SortField | null) => {
+    setSecondarySort(field);
+    setStoredSecondarySort(field);
+    // Reset to first page when sort changes
     navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
   }, [navigate, pageSize, readyOnly]);
 
@@ -1489,10 +1781,14 @@ export function TasksPage() {
   const handleSort = (field: SortField) => {
     // Toggle direction if same field, otherwise default to desc
     if (sortField === field) {
-      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+      const newDirection = sortDirection === 'desc' ? 'asc' : 'desc';
+      setSortDirection(newDirection);
+      setStoredSortDirection(newDirection);
     } else {
       setSortField(field);
+      setStoredSortField(field);
       setSortDirection('desc');
+      setStoredSortDirection('desc');
     }
     // Reset to first page when sort changes
     navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
@@ -1559,7 +1855,17 @@ export function TasksPage() {
           <h2 className="text-lg font-medium text-gray-900">Tasks</h2>
           <div className="flex items-center gap-3">
             {viewMode === 'list' && (
-              <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
+              <>
+                <SortByDropdown
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  secondarySort={secondarySort}
+                  onSortFieldChange={handleSortFieldChange}
+                  onSortDirectionChange={handleSortDirectionChange}
+                  onSecondarySortChange={handleSecondarySortChange}
+                />
+                <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
+              </>
             )}
             <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
             <button

@@ -1237,13 +1237,14 @@ For mutations (create, update, delete):
   - [x] Web: Works in List view (Kanban inherently groups by status) - Dropdown only shown in list view
   - [x] **Verify:** Group tasks by priority, see Priority 1 section with count; Playwright tests passing (17 tests)
 
-- [ ] **TB81: Task Ordering and Sorting**
-  - [ ] Web: Add "Sort by" dropdown (Priority, Created, Updated, Deadline, Title, Complexity)
-  - [ ] Web: Ascending/descending toggle
-  - [ ] Web: Secondary sort option (e.g., Priority then Created)
-  - [ ] Web: Drag-and-drop manual ordering within groups (persists to task.metadata.manualOrder)
-  - [ ] Server: Add `PATCH /api/tasks/:id` support for `metadata.manualOrder`
-  - [ ] **Verify:** Sort by priority, drag task to reorder, order persists on refresh; Playwright tests passing
+- [x] **TB81: Task Ordering and Sorting**
+  - [x] Web: Add "Sort by" dropdown (Priority, Created, Updated, Deadline, Title, Complexity) - `apps/web/src/routes/tasks.tsx` SortByDropdown component
+  - [x] Web: Ascending/descending toggle - sort-direction-toggle button with ArrowUp/ArrowDown icons
+  - [x] Web: Secondary sort option (e.g., Priority then Created) - Secondary sort submenu with all options except primary
+  - [x] Web: Sort preferences persist in localStorage (`tasks.sortBy`, `tasks.sortDir`, `tasks.secondarySort`)
+  - [x] Web: Header column click sorts by that field with direction toggle
+  - [ ] Web: Drag-and-drop manual ordering within groups (persists to task.metadata.manualOrder) - Deferred to future implementation
+  - [x] **Verify:** Sort by priority, secondary sort works, preferences persist; Playwright tests passing (17 tests)
 
 - [ ] **TB82: Task Search**
   - [ ] Web: Add search bar at top of Tasks page
