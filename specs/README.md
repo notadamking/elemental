@@ -104,6 +104,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB86-plan-progress-ring.md](./platform/TB86-plan-progress-ring.md) | Visual circular progress rings for plans with color-coded status | plans, progress, ring, circular, percentage, status, color-coded |
 | [platform/TB93-inbox-filtering-sorting.md](./platform/TB93-inbox-filtering-sorting.md) | Inbox filtering by source type and sorting by date/sender | inbox, filter, sort, direct messages, mentions, localStorage |
 | [platform/TB94-inbox-time-ago.md](./platform/TB94-inbox-time-ago.md) | Inbox time-ago display with periodic updates and time period grouping | inbox, time, relative, grouping, today, yesterday, sticky headers |
+| [platform/TB94b-core-formatting-fixes.md](./platform/TB94b-core-formatting-fixes.md) | Fix BlockEditor to preserve rich text formatting on save | editor, tiptap, formatting, bold, italic, headings, lists, code, blockquote, html |
 
 ---
 

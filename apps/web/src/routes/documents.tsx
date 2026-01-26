@@ -1065,6 +1065,13 @@ function VersionHistorySidebar({
 /**
  * Renders document content based on its contentType
  */
+// Check if content looks like HTML (has HTML tags from the BlockEditor)
+function isHtmlContent(content: string): boolean {
+  if (!content) return false;
+  // Check for common HTML elements used by Tiptap
+  return /<(p|h[1-6]|ul|ol|li|blockquote|pre|code|strong|em|mark|s|br|hr)\b/i.test(content);
+}
+
 function DocumentRenderer({
   content,
   contentType,
@@ -1106,21 +1113,26 @@ function DocumentRenderer({
       }
 
     case 'markdown':
-      // For now, render markdown as plain text with better formatting
-      // A full markdown renderer would require a library like react-markdown
-      return (
-        <div
-          data-testid="document-content-markdown"
-          className="prose prose-sm max-w-none text-gray-700"
-        >
-          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-            {content}
-          </pre>
-        </div>
-      );
-
     case 'text':
     default:
+      // Check if content is HTML (from BlockEditor) and render it properly
+      if (isHtmlContent(content)) {
+        return (
+          <div
+            data-testid="document-content-html"
+            className="prose prose-sm max-w-none text-gray-700
+                       prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold
+                       prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
+                       prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5
+                       prose-blockquote:border-l-4 prose-blockquote:border-gray-300 prose-blockquote:pl-4 prose-blockquote:italic
+                       prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:rounded-lg prose-pre:p-4
+                       prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm
+                       [&_mark]:bg-yellow-200 [&_mark]:px-0.5"
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+        );
+      }
+      // Plain text without HTML - render as-is with preserved whitespace
       return (
         <div
           data-testid="document-content-text"
