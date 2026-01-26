@@ -1315,6 +1315,7 @@ export function TeamsPage() {
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Create Team</span>
               <span className="sm:hidden">Add</span>
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">C M</kbd>
             </button>
           </div>
         </div>

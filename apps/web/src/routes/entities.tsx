@@ -3698,6 +3698,7 @@ export function EntitiesPage() {
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Create Entity</span>
               <span className="sm:hidden">Add</span>
+              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">C E</kbd>
             </button>
           </div>
         </div>
