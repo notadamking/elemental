@@ -998,18 +998,103 @@ function TaskMiniCard({ task, onClick }: { task: Task; onClick?: (taskId: string
   );
 }
 
-function EventItem({ event }: { event: ElementalEvent }) {
+/**
+ * TB109: Enhanced ActivityFeedItem component for entity activity overview
+ * Shows recent events with icons, descriptions, and timestamps
+ */
+function ActivityFeedItem({ event }: { event: ElementalEvent }) {
+  // Get appropriate icon based on event type and element type
   const getEventIcon = () => {
+    // First check element type for specific icons
+    const elementType = event.elementType || '';
+
+    // Event-specific icons take precedence for certain actions
     switch (event.eventType) {
+      case 'closed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'created':
-        return <div className="w-2 h-2 bg-green-500 rounded-full" />;
-      case 'updated':
-        return <div className="w-2 h-2 bg-blue-500 rounded-full" />;
+        return <Plus className="w-4 h-4 text-green-500" />;
       case 'deleted':
-        return <div className="w-2 h-2 bg-red-500 rounded-full" />;
+        return <X className="w-4 h-4 text-red-500" />;
+      case 'updated':
+        // Use element type icon for updates
+        break;
       default:
-        return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
+        break;
     }
+
+    // Element type specific icons
+    switch (elementType) {
+      case 'task':
+        return <ListTodo className="w-4 h-4 text-blue-500" />;
+      case 'message':
+        return <MessageSquare className="w-4 h-4 text-purple-500" />;
+      case 'document':
+        return <FileText className="w-4 h-4 text-yellow-600" />;
+      case 'entity':
+        return <User className="w-4 h-4 text-gray-500" />;
+      case 'team':
+        return <Users className="w-4 h-4 text-indigo-500" />;
+      default:
+        return <Activity className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  // Get icon background color
+  const getIconBg = () => {
+    switch (event.eventType) {
+      case 'closed':
+        return 'bg-green-100';
+      case 'created':
+        return 'bg-green-100';
+      case 'deleted':
+        return 'bg-red-100';
+      default:
+        break;
+    }
+
+    const elementType = event.elementType || '';
+    switch (elementType) {
+      case 'task':
+        return 'bg-blue-100';
+      case 'message':
+        return 'bg-purple-100';
+      case 'document':
+        return 'bg-yellow-100';
+      case 'entity':
+        return 'bg-gray-100';
+      case 'team':
+        return 'bg-indigo-100';
+      default:
+        return 'bg-gray-100';
+    }
+  };
+
+  // Generate human-readable description
+  const getDescription = () => {
+    const elementType = event.elementType || 'item';
+    const eventType = event.eventType;
+
+    // Special case handling for common patterns
+    if (eventType === 'closed' && elementType === 'task') {
+      return 'Completed task';
+    }
+    if (eventType === 'created' && elementType === 'message') {
+      return 'Sent message';
+    }
+    if (eventType === 'updated' && elementType === 'document') {
+      return 'Edited document';
+    }
+    if (eventType === 'created' && elementType === 'task') {
+      return 'Created task';
+    }
+    if (eventType === 'created' && elementType === 'document') {
+      return 'Created document';
+    }
+
+    // Default pattern: "Event type + element type"
+    const action = eventType.replace(/_/g, ' ');
+    return `${action.charAt(0).toUpperCase() + action.slice(1)} ${elementType}`;
   };
 
   const formatTime = (dateStr: string) => {
@@ -1028,16 +1113,17 @@ function EventItem({ event }: { event: ElementalEvent }) {
   };
 
   return (
-    <div className="flex items-start gap-2 py-2">
-      <div className="mt-1.5">{getEventIcon()}</div>
+    <div className="flex items-start gap-3 py-2.5" data-testid={`activity-item-${event.id}`}>
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getIconBg()}`}>
+        {getEventIcon()}
+      </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900 capitalize">{event.eventType}</span>
-          <span className="text-xs text-gray-500">{event.elementType}</span>
-        </div>
+        <p className="text-sm text-gray-900">
+          {getDescription()}
+        </p>
         <p className="text-xs text-gray-500 font-mono truncate">{event.elementId}</p>
       </div>
-      <span className="text-xs text-gray-400">{formatTime(event.createdAt)}</span>
+      <span className="text-xs text-gray-400 whitespace-nowrap">{formatTime(event.createdAt)}</span>
     </div>
   );
 }
@@ -2666,7 +2752,7 @@ function EntityDetailPanel({
           )}
         </div>
 
-        {/* Activity Timeline */}
+        {/* TB109: Activity Timeline with enhanced ActivityFeedItem */}
         <div>
           <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
             <Activity className="w-4 h-4" />
@@ -2677,11 +2763,24 @@ function EntityDetailPanel({
           ) : !events || events.length === 0 ? (
             <div className="text-sm text-gray-500">No recent activity</div>
           ) : (
-            <div className="divide-y divide-gray-100" data-testid="entity-events">
-              {events.slice(0, 10).map((event) => (
-                <EventItem key={event.id} event={event} />
-              ))}
-            </div>
+            <>
+              <div className="divide-y divide-gray-100" data-testid="entity-events">
+                {events.slice(0, 10).map((event) => (
+                  <ActivityFeedItem key={event.id} event={event} />
+                ))}
+              </div>
+              {/* TB109: View all activity link - navigates to filtered timeline */}
+              {events.length > 0 && (
+                <button
+                  onClick={() => navigate({ to: '/dashboard/timeline', search: { page: 1, limit: 100, actor: entity.id } })}
+                  className="w-full mt-3 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded py-2 transition-colors flex items-center justify-center gap-1"
+                  data-testid="view-all-activity"
+                >
+                  View all activity
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
+            </>
           )}
         </div>
 

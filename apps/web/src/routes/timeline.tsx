@@ -717,14 +717,26 @@ export function TimelinePage() {
   // Pagination state from URL
   const currentPage = search.page ?? 1;
   const pageSize = search.limit ?? DEFAULT_EVENT_PAGE_SIZE;
+  // TB109: Actor filter from URL for "View all activity" link from EntityDetailPanel
+  const actorFromUrl = search.actor;
 
-  const [filter, setFilter] = useState<EventFilterState>({
+  const [filter, setFilter] = useState<EventFilterState>(() => ({
     eventTypes: [],
-    actors: [],
+    actors: actorFromUrl ? [actorFromUrl] : [],
     elementTypes: [],
     search: '',
     jumpToDate: null,
-  });
+  }));
+
+  // TB109: Sync filter.actors when URL actor param changes
+  useEffect(() => {
+    if (actorFromUrl) {
+      setFilter((prev) => ({
+        ...prev,
+        actors: [actorFromUrl],
+      }));
+    }
+  }, [actorFromUrl]);
 
   const { data: eventsData, isLoading, isError } = useEvents(filter, currentPage, pageSize);
 
@@ -735,11 +747,11 @@ export function TimelinePage() {
   const hasMore = eventsData?.hasMore ?? false;
 
   const handlePageChange = (page: number) => {
-    navigate({ to: '/dashboard/timeline', search: { page, limit: pageSize } });
+    navigate({ to: '/dashboard/timeline', search: { page, limit: pageSize, actor: actorFromUrl } });
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
-    navigate({ to: '/dashboard/timeline', search: { page: 1, limit: newPageSize } });
+    navigate({ to: '/dashboard/timeline', search: { page: 1, limit: newPageSize, actor: actorFromUrl } });
   };
 
   // Get unique actors from events for filtering

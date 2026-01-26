@@ -620,12 +620,14 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Total contributions count display
   - [x] **Verify:** 10 Playwright tests passing (`apps/web/tests/tb108-entity-contribution-chart.spec.ts`)
 
-- [ ] **TB109: Entity Activity Overview**
-  - [ ] Web: Show recent activity feed in EntityDetailPanel
-  - [ ] Web: List of recent events (tasks completed, messages sent, documents edited)
-  - [ ] Web: Each item: icon, description, timestamp
-  - [ ] Web: "View all activity" link → filtered timeline view
-  - [ ] **Verify:** Activity feed shows recent actions; Playwright tests passing
+- [x] **TB109: Entity Activity Overview** ([spec](./TB109-entity-activity-overview.md))
+  - [x] Web: Show recent activity feed in EntityDetailPanel - `apps/web/src/routes/entities.tsx` (ActivityFeedItem component)
+  - [x] Web: List of recent events (tasks completed, messages sent, documents edited) - ActivityFeedItem with getDescription()
+  - [x] Web: Each item: icon, description, timestamp - getEventIcon(), getIconBg(), formatTime()
+  - [x] Web: "View all activity" link → filtered timeline view - navigates to `/dashboard/timeline?actor=:id`
+  - [x] Router: Added actor search param to timeline route - `apps/web/src/router.tsx`
+  - [x] Timeline: Read actor filter from URL and apply - `apps/web/src/routes/timeline.tsx`
+  - [x] **Verify:** 6 Playwright tests passing (4 skipped due to no events in test DB) (`apps/web/tests/tb109-entity-activity-overview.spec.ts`)
 
 - [ ] **TB110: Entity Event History (Commit History Style)**
   - [ ] Web: Add "History" tab to EntityDetailPanel

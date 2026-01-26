@@ -224,7 +224,7 @@ function RecentActivityFeed() {
     <div className="mt-8" data-testid="recent-activity">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-md font-medium text-gray-900">Recent Activity</h3>
-        <Link to="/dashboard/timeline" search={{ page: 1, limit: 100 }} className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+        <Link to="/dashboard/timeline" search={{ page: 1, limit: 100, actor: undefined }} className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
           View all <ArrowRight className="w-4 h-4" />
         </Link>
       </div>

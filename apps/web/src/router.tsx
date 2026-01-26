@@ -107,6 +107,8 @@ const timelineRoute = createRoute({
             typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
       limit: typeof search.limit === 'number' ? search.limit :
              typeof search.limit === 'string' ? parseInt(search.limit, 10) || 100 : 100,
+      // TB109: Support actor filter for "View all activity" from EntityDetailPanel
+      actor: typeof search.actor === 'string' ? search.actor : undefined,
     };
   },
 });
