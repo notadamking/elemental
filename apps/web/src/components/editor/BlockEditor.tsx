@@ -177,6 +177,11 @@ export function BlockEditor({
     extensions: [
       StarterKit.configure({
         codeBlock: false,
+        dropcursor: {
+          color: '#3b82f6', // Blue color for drop indicator
+          width: 2,
+          class: 'drop-cursor',
+        },
       }),
       Placeholder.configure({
         placeholder,

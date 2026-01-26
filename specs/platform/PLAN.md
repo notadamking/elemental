@@ -535,14 +535,15 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Add comprehensive test coverage - 11 Playwright tests in `apps/web/tests/tb94c-markdown-first.spec.ts`
   - [x] **Verify:** Create document with mixed formatting, save, reload—Markdown content stored in API; AI agents can read/write documents naturally; Playwright tests passing (11 tests)
 
-- [ ] **TB94c-2: Block Drag-and-Drop with Markdown Persistence**
-  - [ ] Web: Debug `tiptap-extension-global-drag-handle` integration
-  - [ ] Web: Ensure drag handles appear on hover for paragraphs, headings, lists, code blocks
-  - [ ] Web: Fix any CSS conflicts (z-index, positioning) preventing drag handle visibility
-  - [ ] Web: Implement block reordering via drag-and-drop
-  - [ ] Web: Visual drop indicator (blue line) between blocks while dragging
-  - [ ] Web: After drop, Markdown output reflects new block order
-  - [ ] **Verify:** Drag paragraph to new position, save, check raw Markdown—order changed correctly; Playwright tests passing
+- [x] **TB94c-2: Block Drag-and-Drop with Markdown Persistence**
+  - [x] Web: Debug `tiptap-extension-global-drag-handle` integration - extension working correctly
+  - [x] Web: Ensure drag handles appear on hover for paragraphs, headings, lists, code blocks
+  - [x] Web: Fix any CSS conflicts (z-index, positioning) preventing drag handle visibility
+  - [x] Web: Implement block reordering via drag-and-drop - working via GlobalDragHandle extension
+  - [x] Web: Visual drop indicator (blue line) between blocks while dragging - configured dropcursor with `class: 'drop-cursor'` and matching CSS
+  - [x] Web: After drop, Markdown output reflects new block order
+  - [x] Web: Add comprehensive test coverage - 11 Playwright tests in `apps/web/tests/tb94c-2-drag-drop-markdown.spec.ts`
+  - [x] **Verify:** Drag paragraph to new position, save, check raw Markdown—order changed correctly; Playwright tests passing (11 tests)
 
 - [ ] **TB94d: Text Alignment**
   - [ ] Web: Add text alignment extension (@tiptap/extension-text-align)

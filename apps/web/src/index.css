@@ -109,10 +109,22 @@ nav,
   opacity: 0.5;
 }
 
-/* Drop placeholder indicator */
-.ProseMirror .drop-cursor {
-  border-top: 2px solid #3b82f6 !important;
-  border-radius: 1px;
+/* Drop placeholder indicator - styled via dropcursor extension config */
+.drop-cursor {
+  background-color: #3b82f6 !important;
+  z-index: 100 !important;
+}
+
+/* Block-level drop cursor (horizontal line between blocks) */
+.prosemirror-dropcursor-block {
+  height: 2px !important;
+  background-color: #3b82f6 !important;
+}
+
+/* Inline drop cursor (vertical line within text) */
+.prosemirror-dropcursor-inline {
+  width: 2px !important;
+  background-color: #3b82f6 !important;
 }
 
 /* Inline code styling - improved with monospace font and subtle background */
