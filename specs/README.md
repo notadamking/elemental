@@ -147,7 +147,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB130-virtualized-documents.md](./platform/TB130-virtualized-documents.md) | Virtualize Documents List - VirtualizedList for All Documents and Library views with instant filtering | virtualization, documents, scroll, performance, filtering |
 | platform/PLAN.md#tb135 | Audit and Fix Text Contrast Issues - WCAG AA compliance for text contrast in light and dark modes | accessibility, contrast, wcag, text, gray, dark mode, light mode |
 | [platform/TB144-responsive-foundation.md](./platform/TB144-responsive-foundation.md) | Responsive Foundation & CSS Infrastructure - Breakpoints, spacing, typography, testing utilities | responsive, breakpoints, css, tokens, mobile, tablet, desktop |
-| platform/PLAN.md#tb145 | Responsive AppShell & Sidebar - Mobile drawer, tablet collapsed, desktop always visible | responsive, sidebar, drawer, hamburger, mobile navigation |
+| [platform/TB145-responsive-appshell.md](./platform/TB145-responsive-appshell.md) | Responsive AppShell & Sidebar - Mobile drawer, tablet collapsed, desktop always visible | responsive, sidebar, drawer, hamburger, mobile navigation |
 | platform/PLAN.md#tb146 | Responsive Dashboard Page - All lenses adapted for mobile with touch interactions | responsive, dashboard, charts, graphs, mobile, touch |
 | platform/PLAN.md#tb147 | Responsive Tasks Page - List, kanban, and detail panel on all screen sizes | responsive, tasks, kanban, detail panel, mobile, touch drag |
 | platform/PLAN.md#tb148 | Responsive Plans & Workflows Pages - List and detail views on all screens | responsive, plans, workflows, detail panel, mobile |

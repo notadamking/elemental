@@ -105,9 +105,11 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
 interface SidebarProps {
   collapsed?: boolean;
   onToggle?: () => void;
+  /** When true, sidebar is displayed inside a mobile drawer */
+  isMobileDrawer?: boolean;
 }
 
-export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed = false, onToggle, isMobileDrawer = false }: SidebarProps) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
@@ -252,18 +254,23 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
     );
   };
 
+  // When in mobile drawer, always show expanded and hide collapse controls
+  const showCollapsedState = collapsed && !isMobileDrawer;
+  const showExpandedState = !collapsed || isMobileDrawer;
+
   return (
     <aside
       className={`
-        flex flex-col bg-[var(--color-sidebar-bg)] border-r border-[var(--color-sidebar-border)]
+        flex flex-col bg-[var(--color-sidebar-bg)]
         transition-all duration-200 ease-out
-        ${collapsed ? 'w-16' : 'w-60'}
+        ${isMobileDrawer ? 'w-full h-full border-none' : 'border-r border-[var(--color-sidebar-border)]'}
+        ${!isMobileDrawer && collapsed ? 'w-16' : !isMobileDrawer ? 'w-60' : ''}
       `}
       data-testid="sidebar"
     >
       {/* Logo / Header */}
-      <div className="flex items-center justify-between h-14 px-4 border-b border-[var(--color-sidebar-border)]">
-        {!collapsed && (
+      <div className={`flex items-center justify-between h-14 px-4 border-b border-[var(--color-sidebar-border)] ${isMobileDrawer ? 'pr-12' : ''}`}>
+        {showExpandedState && (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent-500)] flex items-center justify-center shadow-sm">
               <span className="text-white text-sm font-bold">E</span>
@@ -271,13 +278,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             <span className="text-base font-semibold text-[var(--color-text)]">Elemental</span>
           </div>
         )}
-        {collapsed && (
+        {showCollapsedState && (
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent-500)] flex items-center justify-center mx-auto shadow-sm">
             <span className="text-white text-sm font-bold">E</span>
           </div>
         )}
-        {/* Collapse button in header - visible when expanded */}
-        {!collapsed && (
+        {/* Collapse button in header - visible when expanded on desktop/tablet, hidden on mobile drawer */}
+        {showExpandedState && !isMobileDrawer && (
           <button
             onClick={onToggle}
             className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-sidebar-item-hover)] transition-colors duration-150"
@@ -300,8 +307,8 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         {BOTTOM_NAV_ITEMS.map((item) => renderNavItem(item, false))}
       </div>
 
-      {/* Expand button - visible when collapsed */}
-      {collapsed && (
+      {/* Expand button - visible when collapsed on desktop/tablet, hidden on mobile */}
+      {showCollapsedState && !isMobileDrawer && (
         <div className="px-2 py-3 border-t border-[var(--color-sidebar-border)]">
           <Tooltip content="Expand sidebar" shortcut="⌘B" side="right">
             <button
@@ -317,8 +324,8 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         </div>
       )}
 
-      {/* Keyboard hint */}
-      {!collapsed && (
+      {/* Keyboard hint - hide on mobile drawer (no keyboard shortcuts on mobile) */}
+      {showExpandedState && !isMobileDrawer && (
         <div className="px-4 py-2 text-[10px] text-[var(--color-text-muted)] border-t border-[var(--color-sidebar-border)]">
           <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] font-mono">⌘K</kbd>
           {' '}for commands

@@ -1,11 +1,12 @@
-import { useState, useCallback, useMemo } from 'react';
-import { Outlet, useRouterState, Link } from '@tanstack/react-router';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Outlet, useRouterState, Link, useRouter } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
+import { MobileDrawer } from './MobileDrawer';
 import { CommandPalette } from '../navigation';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
 import { useQuery } from '@tanstack/react-query';
-import { useGlobalKeyboardShortcuts, useKeyboardShortcut } from '../../hooks';
+import { useGlobalKeyboardShortcuts, useKeyboardShortcut, useIsMobile, useIsTablet } from '../../hooks';
 import type { ConnectionState } from '../../api/websocket';
 import {
   ChevronRight,
@@ -20,6 +21,7 @@ import {
   Settings,
   GitBranch,
   History,
+  Menu,
 } from 'lucide-react';
 
 interface HealthResponse {
@@ -98,6 +100,7 @@ interface RouteConfig {
 
 const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/dashboard': { label: 'Dashboard', icon: LayoutDashboard },
+  '/dashboard/overview': { label: 'Overview', icon: LayoutDashboard, parent: '/dashboard' },
   '/dashboard/task-flow': { label: 'Task Flow', icon: GitBranch, parent: '/dashboard' },
   '/dashboard/timeline': { label: 'Timeline', icon: History, parent: '/dashboard' },
   '/tasks': { label: 'Tasks', icon: CheckSquare },
@@ -203,44 +206,192 @@ function Breadcrumbs() {
   );
 }
 
+/**
+ * BreadcrumbsMobile - Simplified breadcrumbs for mobile header
+ * Shows only the current page title
+ */
+function BreadcrumbsMobile() {
+  const breadcrumbs = useBreadcrumbs();
+  const lastCrumb = breadcrumbs[breadcrumbs.length - 1];
+
+  if (!lastCrumb) {
+    return null;
+  }
+
+  const Icon = lastCrumb.icon;
+
+  return (
+    <div
+      className="flex items-center justify-center gap-1.5 text-sm font-semibold text-[var(--color-text)]"
+      data-testid="breadcrumbs-mobile"
+    >
+      {Icon && <Icon className="w-4 h-4" />}
+      <span className="truncate max-w-[150px]">{lastCrumb.label}</span>
+    </div>
+  );
+}
+
+// Local storage key for sidebar collapse state (desktop only)
+const SIDEBAR_COLLAPSED_KEY = 'elemental-sidebar-collapsed';
+
+function useSidebarState() {
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+
+  // Load initial desktop collapsed state from localStorage
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  });
+
+  // Mobile drawer state
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  // Persist desktop collapsed state
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(desktopCollapsed));
+  }, [desktopCollapsed]);
+
+  // Close mobile drawer when switching to larger viewport
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileDrawerOpen(false);
+    }
+  }, [isMobile]);
+
+  return {
+    isMobile,
+    isTablet,
+    desktopCollapsed,
+    setDesktopCollapsed,
+    mobileDrawerOpen,
+    setMobileDrawerOpen,
+  };
+}
+
 export function AppShell() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const {
+    isMobile,
+    isTablet,
+    desktopCollapsed,
+    setDesktopCollapsed,
+    mobileDrawerOpen,
+    setMobileDrawerOpen,
+  } = useSidebarState();
+
   const health = useHealth();
   const { connectionState } = useRealtimeEvents({ channels: ['*'] });
+  const router = useRouter();
 
   // Initialize global keyboard shortcuts (G T, G P, etc.)
   useGlobalKeyboardShortcuts();
 
   // Toggle sidebar with Cmd+B
   const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed(prev => !prev);
-  }, []);
+    if (isMobile) {
+      setMobileDrawerOpen(prev => !prev);
+    } else {
+      setDesktopCollapsed(prev => !prev);
+    }
+  }, [isMobile, setMobileDrawerOpen, setDesktopCollapsed]);
   useKeyboardShortcut('Cmd+B', toggleSidebar, 'Toggle sidebar');
+
+  // Open mobile drawer
+  const openMobileDrawer = useCallback(() => {
+    setMobileDrawerOpen(true);
+  }, [setMobileDrawerOpen]);
+
+  // Close mobile drawer
+  const closeMobileDrawer = useCallback(() => {
+    setMobileDrawerOpen(false);
+  }, [setMobileDrawerOpen]);
+
+  // Close mobile drawer on navigation
+  useEffect(() => {
+    const unsubscribe = router.subscribe('onResolved', () => {
+      if (isMobile && mobileDrawerOpen) {
+        setMobileDrawerOpen(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router, isMobile, mobileDrawerOpen, setMobileDrawerOpen]);
+
+  // Calculate sidebar collapsed state based on device type
+  // - Mobile: sidebar is hidden (shown as drawer)
+  // - Tablet: sidebar starts collapsed
+  // - Desktop: sidebar follows user preference
+  const sidebarCollapsed = isMobile ? true : isTablet ? true : desktopCollapsed;
 
   return (
     <div className="flex h-screen bg-[var(--color-bg)]" data-testid="app-shell">
       <CommandPalette />
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
+
+      {/* Mobile: Sidebar as drawer */}
+      {isMobile && (
+        <MobileDrawer
+          open={mobileDrawerOpen}
+          onClose={closeMobileDrawer}
+          data-testid="mobile-drawer"
+        >
+          <Sidebar
+            collapsed={false}
+            onToggle={closeMobileDrawer}
+            isMobileDrawer
+          />
+        </MobileDrawer>
+      )}
+
+      {/* Tablet & Desktop: Static sidebar */}
+      {!isMobile && (
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={() => setDesktopCollapsed(!desktopCollapsed)}
+        />
+      )}
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header
-          className="flex items-center justify-between h-14 px-6 bg-[var(--color-header-bg)] border-b border-[var(--color-header-border)]"
+          className="flex items-center justify-between h-14 px-4 md:px-6 bg-[var(--color-header-bg)] border-b border-[var(--color-header-border)]"
           data-testid="header"
         >
-          <Breadcrumbs />
-          <div className="flex items-center gap-4">
+          {/* Mobile: Hamburger menu + centered title */}
+          {isMobile && (
+            <div className="flex items-center gap-3 flex-1">
+              <button
+                onClick={openMobileDrawer}
+                className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
+                aria-label="Open navigation menu"
+                aria-expanded={mobileDrawerOpen}
+                data-testid="mobile-menu-button"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <div className="flex-1 text-center">
+                <BreadcrumbsMobile />
+              </div>
+              {/* Spacer for symmetry */}
+              <div className="w-9" />
+            </div>
+          )}
+
+          {/* Tablet & Desktop: Full breadcrumbs */}
+          {!isMobile && <Breadcrumbs />}
+
+          <div className="flex items-center gap-2 md:gap-4">
             <ThemeToggle />
-            <div className="h-5 w-px bg-[var(--color-border)]" />
-            <ConnectionStatus wsState={connectionState} health={health} />
+            {/* Only show divider and connection status on tablet+ */}
+            {!isMobile && (
+              <>
+                <div className="h-5 w-px bg-[var(--color-border)]" />
+                <ConnectionStatus wsState={connectionState} health={health} />
+              </>
+            )}
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6 bg-[var(--color-bg)]">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--color-bg)]">
           <Outlet />
         </main>
       </div>

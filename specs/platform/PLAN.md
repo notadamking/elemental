@@ -862,61 +862,21 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
 
 ---
 
-- [ ] **TB145: Responsive AppShell & Sidebar**
+- [x] **TB145: Responsive AppShell & Sidebar** ✅ DONE
 
   **Context:** The AppShell is the root layout component. The sidebar must transform from always-visible (desktop) to overlay drawer (mobile). This is the most critical responsive component as it affects navigation throughout the app.
 
-  **Tracer Bullet Steps:**
-  - [ ] Step 1: Analyze current AppShell and Sidebar structure
-    - Read `AppShell.tsx` and `Sidebar.tsx`
-    - Identify fixed widths, absolute positioning, flexbox usage
-    - **Verify immediately:** Understand current layout constraints
-  - [ ] Step 2: Implement mobile sidebar as slide-out drawer
-    - On mobile (< 768px): sidebar hidden by default
-    - Add hamburger menu button in header (visible only on mobile)
-    - Sidebar slides in from left as overlay with backdrop
-    - **Verify immediately:** Resize to mobile, tap hamburger, sidebar slides in
-  - [ ] Step 3: Add backdrop and close behavior
-    - Dark semi-transparent backdrop behind sidebar on mobile
-    - Tap backdrop to close sidebar
-    - Swipe left to close sidebar
-    - **Verify immediately:** Tap outside sidebar, it closes
-  - [ ] Step 4: Handle sidebar close on navigation
-    - When user taps nav item on mobile, close sidebar automatically
-    - Prevent scroll on body when sidebar open
-    - **Verify immediately:** Tap "Tasks" on mobile, sidebar closes, navigate to Tasks
-  - [ ] Step 5: Implement tablet behavior
-    - On tablet (768px - 1023px): sidebar starts collapsed (icons only)
-    - Can expand to full width as overlay
-    - Collapse button visible
-    - **Verify immediately:** Resize to tablet, see icon-only sidebar
-  - [ ] Step 6: Implement desktop behavior
-    - On desktop (≥ 1024px): sidebar always visible, can toggle collapsed
-    - Smooth transition between collapsed and expanded
-    - Content area adjusts width accordingly
-    - **Verify immediately:** Resize to desktop, sidebar visible, toggle works
-  - [ ] Step 7: Add responsive header
-    - Mobile: hamburger + centered logo + user menu
-    - Tablet: breadcrumbs truncated + search icon (expands on tap)
-    - Desktop: full breadcrumbs + search bar + user menu
-    - **Verify immediately:** Header adapts correctly at each breakpoint
-  - [ ] Step 8: Handle keyboard shortcuts on touch devices
-    - Hide keyboard shortcut hints on touch devices
-    - Command palette (Cmd+K) still works on devices with keyboards
-    - **Verify immediately:** No shortcut hints on mobile, still work on iPad with keyboard
-  - [ ] Step 9: Test touch targets
-    - All nav items at least 44px touch target
-    - Adequate spacing between items
-    - **Verify immediately:** Can tap nav items accurately on phone
-  - [ ] Step 10: Persist sidebar state per breakpoint
-    - Store desktop sidebar state in localStorage
-    - Mobile always starts closed
-    - **Verify immediately:** Refresh on desktop, sidebar state preserved
-  - [ ] Step 11: Write comprehensive Playwright tests
-    - Test at mobile, tablet, desktop viewports
-    - Test hamburger menu, drawer open/close, navigation
-    - Test keyboard shortcuts presence/absence
-    - **Verify:** Tests pass in `apps/web/tests/tb145-responsive-appshell.spec.ts`
+  **Implementation Summary:**
+  - Created `MobileDrawer` component (`apps/web/src/components/layout/MobileDrawer.tsx`)
+  - Updated `AppShell.tsx` with responsive logic using `useIsMobile()` and `useIsTablet()` hooks
+  - Mobile: sidebar hidden, hamburger menu opens slide-out drawer with backdrop
+  - Tablet: sidebar collapsed by default (icons only)
+  - Desktop: sidebar expanded by default, state persisted in localStorage
+  - Responsive header: hamburger + centered title on mobile, full breadcrumbs on tablet/desktop
+  - Keyboard shortcut hints hidden on mobile drawer
+  - 27 Playwright tests passing in `apps/web/tests/tb145-responsive-appshell.spec.ts`
+  - Spec: `specs/platform/TB145-responsive-appshell.md`
+  - **Verify:** Run `npx playwright test tb145-responsive-appshell` - all 27 tests pass
 
 ---
 

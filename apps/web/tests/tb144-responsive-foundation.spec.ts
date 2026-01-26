@@ -263,8 +263,8 @@ test.describe('TB144: Responsive Foundation & CSS Infrastructure', () => {
       expect(hasOverflow).toBe(false);
     });
 
-    // Track mobile overflow - will be fixed when we implement TB145 (Responsive AppShell & Sidebar)
-    test.skip('should not have horizontal overflow at mobile viewport (to be fixed in TB145)', async ({ page }) => {
+    // TB145 implemented - mobile overflow should now be fixed
+    test('should not have horizontal overflow at mobile viewport', async ({ page }) => {
       await page.goto('/');
       await setViewport(page, 'xs');
       await waitForResponsiveUpdate(page);
