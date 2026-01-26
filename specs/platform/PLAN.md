@@ -591,11 +591,13 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Hover shows exact count and percentage
   - [x] **Verify:** 9 Playwright tests passing (`apps/web/tests/tb105-clickable-workload.spec.ts`)
 
-- [ ] **TB106: Clickable Assigned Tasks**
-  - [ ] Web: Task list items in EntityDetailPanel are clickable
-  - [ ] Web: Click → navigate to `/tasks/:id` or open slide-over panel
-  - [ ] Web: Consistent with task clicking behavior elsewhere in app
-  - [ ] **Verify:** Click task in entity detail, task opens; Playwright tests passing
+- [x] **TB106: Clickable Assigned Tasks** ([spec](./TB106-clickable-assigned-tasks.md))
+  - [x] Web: Task list items in EntityDetailPanel are clickable - `TaskMiniCard` component with onClick handler
+  - [x] Web: Click → navigate to `/tasks?selected=:id` with task detail panel open
+  - [x] Web: Consistent with task clicking behavior elsewhere in app (URL search params)
+  - [x] Web: Keyboard accessible (Enter/Space to activate)
+  - [x] Web: "View all tasks" button navigates to `/tasks?assignee=:id` when >5 tasks
+  - [x] **Verify:** 4/5 Playwright tests passing (`apps/web/tests/tb106-clickable-assigned-tasks.spec.ts`)
 
 - [ ] **TB107: Add Members to Team UI**
   - [ ] Web: Add "Add Member" button in TeamDetailPanel header

@@ -935,12 +935,36 @@ function StatCard({
   );
 }
 
-function TaskMiniCard({ task }: { task: Task }) {
+function TaskMiniCard({ task, onClick }: { task: Task; onClick?: (taskId: string) => void }) {
   const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
   const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS[3];
 
+  const handleClick = () => {
+    if (onClick) {
+      onClick(task.id);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === 'Enter' || e.key === ' ') && onClick) {
+      e.preventDefault();
+      onClick(task.id);
+    }
+  };
+
   return (
-    <div className="bg-white border border-gray-100 rounded p-2 hover:border-gray-200">
+    <div
+      className={`bg-white border border-gray-100 rounded p-2 ${
+        onClick
+          ? 'cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors'
+          : 'hover:border-gray-200'
+      }`}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      data-testid={`task-mini-card-${task.id}`}
+    >
       <div className="flex items-center gap-2 mb-1">
         <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${statusColor}`}>
           {task.status.replace('_', ' ')}
@@ -2003,6 +2027,14 @@ function EntityDetailPanel({
     });
   };
 
+  // TB106: Navigate to task detail page when clicking assigned tasks
+  const handleNavigateToTask = (taskId: string) => {
+    navigate({
+      to: '/tasks',
+      search: { selected: taskId, page: 1, limit: 25 },
+    });
+  };
+
   // TB93: Client-side filtering and sorting of inbox items
   const filteredAndSortedInboxItems = useMemo(() => {
     if (!inboxData?.items) return [];
@@ -2580,12 +2612,16 @@ function EntityDetailPanel({
           ) : (
             <div className="space-y-2" data-testid="entity-tasks">
               {activeTasks.slice(0, 5).map((task) => (
-                <TaskMiniCard key={task.id} task={task} />
+                <TaskMiniCard key={task.id} task={task} onClick={handleNavigateToTask} />
               ))}
               {activeTasks.length > 5 && (
-                <div className="text-xs text-gray-500 text-center">
+                <button
+                  onClick={() => navigate({ to: '/tasks', search: { assignee: entityId, page: 1, limit: 25 } })}
+                  className="w-full text-xs text-blue-600 hover:text-blue-700 text-center py-1 hover:bg-blue-50 rounded transition-colors"
+                  data-testid="view-all-tasks"
+                >
                   +{activeTasks.length - 5} more tasks
-                </div>
+                </button>
               )}
             </div>
           )}

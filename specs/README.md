@@ -118,6 +118,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB103-message-search.md](./platform/TB103-message-search.md) | Message search within channels and global search in command palette | messages, search, channel, highlight, scroll, command palette |
 | [platform/TB104-clickable-member-names.md](./platform/TB104-clickable-member-names.md) | Clickable entity references with hover preview cards | entity, link, hover, preview, teams, tasks, messages, navigation |
 | [platform/TB105-clickable-workload.md](./platform/TB105-clickable-workload.md) | Clickable workload chart bars with navigation to filtered tasks | workload, chart, navigation, assignee, filter, click |
+| [platform/TB106-clickable-assigned-tasks.md](./platform/TB106-clickable-assigned-tasks.md) | Clickable task items in EntityDetailPanel with navigation to task detail | entity, tasks, navigation, click, keyboard, assigned |
 
 ---
 
