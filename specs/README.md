@@ -127,6 +127,7 @@ Detailed specifications for web platform features (tracer bullets).
 | [platform/TB114-fix-adding-edges.md](./platform/TB114-fix-adding-edges.md) | Fix Adding Edges - Loading states and toast notifications for edge creation | dependency, graph, edge, loading, toast, edit mode |
 | [platform/TB115-fix-removing-edges.md](./platform/TB115-fix-removing-edges.md) | Fix Removing Edges - Correct dependency type lookup for edge deletion | dependency, graph, edge, delete, type, fix |
 | [platform/TB115a-edge-type-labels.md](./platform/TB115a-edge-type-labels.md) | Edge Type Labels - Dependency type labels on graph edges with color coding | dependency, graph, edge, labels, colors, legend, toggle |
+| [platform/TB115b-auto-layout-graph.md](./platform/TB115b-auto-layout-graph.md) | Auto-Layout Graph Formatting - Hierarchical, force-directed, and radial layout algorithms | dependency, graph, layout, dagre, hierarchical, force, radial |
 
 ---
 

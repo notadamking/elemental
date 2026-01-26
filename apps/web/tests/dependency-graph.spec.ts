@@ -947,3 +947,294 @@ test.describe('TB115a: Edge Type Labels', () => {
     );
   });
 });
+
+test.describe('TB115b: Auto-Layout Graph Formatting', () => {
+  // Helper function to wait for the dependency graph page to stabilize
+  async function waitForGraphPageReady(page: import('@playwright/test').Page) {
+    await page.goto('/dashboard/dependencies');
+    await expect(page.getByTestId('dependency-graph-page')).toBeVisible({ timeout: 10000 });
+    // Wait for toolbar to be visible (indicates loading is complete)
+    await expect(page.getByTestId('graph-toolbar')).toBeVisible({ timeout: 10000 });
+    // Wait for UI to stabilize
+    await page.waitForTimeout(500);
+  }
+
+  test('auto layout button is displayed in toolbar', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Auto Layout button should be visible
+    await expect(page.getByTestId('auto-layout-button')).toBeVisible();
+  });
+
+  test('auto layout dropdown toggle is displayed', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Layout options dropdown toggle should be visible
+    await expect(page.getByTestId('layout-options-dropdown-toggle')).toBeVisible();
+  });
+
+  test('clicking dropdown toggle opens layout options', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Click dropdown toggle
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Dropdown should be visible
+    await expect(page.getByTestId('layout-options-dropdown')).toBeVisible();
+  });
+
+  test('layout options dropdown shows all algorithm options', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Check all algorithm options are present
+    await expect(page.getByTestId('layout-algorithm-hierarchical')).toBeVisible();
+    await expect(page.getByTestId('layout-algorithm-force')).toBeVisible();
+    await expect(page.getByTestId('layout-algorithm-radial')).toBeVisible();
+  });
+
+  test('selecting an algorithm updates the UI', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Select force algorithm
+    await page.getByTestId('layout-algorithm-force').click();
+
+    // Force option should now have selected styling
+    await expect(page.getByTestId('layout-algorithm-force')).toHaveClass(/bg-blue-50/);
+  });
+
+  test('direction options are displayed for hierarchical layout', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Ensure hierarchical is selected (default)
+    await page.getByTestId('layout-algorithm-hierarchical').click();
+
+    // Direction buttons should be visible
+    await expect(page.getByTestId('layout-direction-TB')).toBeVisible();
+    await expect(page.getByTestId('layout-direction-LR')).toBeVisible();
+    await expect(page.getByTestId('layout-direction-BT')).toBeVisible();
+    await expect(page.getByTestId('layout-direction-RL')).toBeVisible();
+  });
+
+  test('clicking direction changes the layout direction', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Click left-to-right direction
+    await page.getByTestId('layout-direction-LR').click();
+
+    // LR should now have selected styling
+    await expect(page.getByTestId('layout-direction-LR')).toHaveClass(/bg-blue-50/);
+  });
+
+  test('spacing controls toggle is displayed', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Spacing controls toggle should be visible
+    await expect(page.getByTestId('toggle-spacing-controls')).toBeVisible();
+  });
+
+  test('clicking spacing toggle shows sliders', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Click spacing toggle
+    await page.getByTestId('toggle-spacing-controls').click();
+
+    // Sliders should be visible
+    await expect(page.getByTestId('node-spacing-slider')).toBeVisible();
+    await expect(page.getByTestId('rank-spacing-slider')).toBeVisible();
+  });
+
+  test('apply layout button is displayed in dropdown', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Apply button should be visible
+    await expect(page.getByTestId('apply-layout-button')).toBeVisible();
+  });
+
+  test('clicking auto layout button applies layout', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+    await page.waitForTimeout(500); // Wait for graph to stabilize
+
+    // Click auto layout button
+    await page.getByTestId('auto-layout-button').click();
+
+    // Wait for layout to complete (no spinner after applying)
+    await page.waitForTimeout(500);
+
+    // The button should not show loading state after completion
+    await expect(page.getByTestId('auto-layout-button').locator('.animate-spin')).not.toBeVisible({ timeout: 2000 });
+  });
+
+  test('layout preferences persist across page reloads', async ({ page }) => {
+    const readyResponse = await page.request.get('/api/tasks/ready');
+    const readyTasks = await readyResponse.json();
+    const blockedResponse = await page.request.get('/api/tasks/blocked');
+    const blockedTasks = await blockedResponse.json();
+    const allTasks = [...readyTasks, ...blockedTasks];
+
+    if (allTasks.length === 0) {
+      test.skip();
+      return;
+    }
+
+    await waitForGraphPageReady(page);
+
+    // Open dropdown and change algorithm
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+    await page.getByTestId('layout-algorithm-force').click();
+
+    // Close dropdown
+    await page.keyboard.press('Escape');
+
+    // Reload page
+    await page.reload();
+    await waitForGraphPageReady(page);
+
+    // Open dropdown again
+    await page.getByTestId('layout-options-dropdown-toggle').click();
+
+    // Force algorithm should still be selected
+    await expect(page.getByTestId('layout-algorithm-force')).toHaveClass(/bg-blue-50/);
+  });
+});

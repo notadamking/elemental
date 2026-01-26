@@ -709,19 +709,19 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Legend showing edge type colors and meanings
   - [x] **Verify:** 37 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`); graph displays labeled, color-coded edges
 
-- [ ] **TB115b: Auto-Layout Graph Formatting**
-  - [ ] Web: Add "Auto Layout" button to graph toolbar
-  - [ ] Web: Implement layout algorithms (using dagre, elkjs, or React Flow's built-in):
-    - [ ] Hierarchical/Tree layout: top-to-bottom or left-to-right based on dependency direction
-    - [ ] Force-directed layout: for graphs without clear hierarchy
-    - [ ] Radial layout: selected node in center, dependencies radiating outward
-  - [ ] Web: Layout direction toggle: TB (top-bottom), LR (left-right), BT, RL
-  - [ ] Web: Spacing controls: node spacing, rank spacing (distance between levels)
-  - [ ] Web: Animate layout transitions (nodes smoothly move to new positions)
-  - [ ] Web: "Fit to View" button: zoom and pan to show all nodes
-  - [ ] Web: Persist layout preference in localStorage
-  - [ ] Web: Option to save custom node positions (manual override of auto-layout)
-  - [ ] **Verify:** Click Auto Layout, graph reorganizes with animation; try different layout algorithms; Playwright tests passing
+- [x] **TB115b: Auto-Layout Graph Formatting** ([spec](./TB115b-auto-layout-graph.md))
+  - [x] Web: Add "Auto Layout" button to graph toolbar
+  - [x] Web: Implement layout algorithms (using dagre):
+    - [x] Hierarchical/Tree layout: top-to-bottom or left-to-right based on dependency direction
+    - [x] Force-directed layout: for graphs without clear hierarchy
+    - [x] Radial layout: selected node in center, dependencies radiating outward
+  - [x] Web: Layout direction toggle: TB (top-bottom), LR (left-right), BT, RL
+  - [x] Web: Spacing controls: node spacing, rank spacing (distance between levels)
+  - [x] Web: Animate layout transitions (nodes smoothly move to new positions via React Flow)
+  - [x] Web: "Fit to View" button: zoom and pan to show all nodes (already existed)
+  - [x] Web: Persist layout preference in localStorage
+  - [x] Web: Option to save custom node positions (manual drag preserved via React Flow)
+  - [x] **Verify:** 12 Playwright tests passing (`apps/web/tests/dependency-graph.spec.ts`); graph displays auto-layout with algorithm/direction/spacing controls
 
 ### Phase 28: Timeline View Enhancements
 

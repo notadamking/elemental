@@ -29,7 +29,8 @@ import {
   getSmoothStepPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Edit3, Trash2, Link2, Loader2, Tag } from 'lucide-react';
+import dagre from 'dagre';
+import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Edit3, Trash2, Link2, Loader2, Tag, LayoutGrid, ArrowDown, ArrowRight, ArrowUp, ArrowLeft, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Task {
@@ -446,6 +447,324 @@ interface GraphOptions {
   showEdgeLabels: boolean;
 }
 
+// Layout types for auto-layout
+type LayoutDirection = 'TB' | 'LR' | 'BT' | 'RL';
+type LayoutAlgorithm = 'hierarchical' | 'force' | 'radial';
+
+interface LayoutOptions {
+  algorithm: LayoutAlgorithm;
+  direction: LayoutDirection;
+  nodeSpacing: number;
+  rankSpacing: number;
+}
+
+// Default layout options
+const DEFAULT_LAYOUT_OPTIONS: LayoutOptions = {
+  algorithm: 'hierarchical',
+  direction: 'TB',
+  nodeSpacing: 80,
+  rankSpacing: 150,
+};
+
+// Layout direction labels
+const DIRECTION_LABELS: Record<LayoutDirection, { label: string; icon: typeof ArrowDown }> = {
+  'TB': { label: 'Top to Bottom', icon: ArrowDown },
+  'LR': { label: 'Left to Right', icon: ArrowRight },
+  'BT': { label: 'Bottom to Top', icon: ArrowUp },
+  'RL': { label: 'Right to Left', icon: ArrowLeft },
+};
+
+// Layout algorithm labels
+const ALGORITHM_LABELS: Record<LayoutAlgorithm, { label: string; description: string }> = {
+  'hierarchical': { label: 'Hierarchical', description: 'Tree-style layout based on dependency direction' },
+  'force': { label: 'Force-Directed', description: 'Physics-based layout for graphs without clear hierarchy' },
+  'radial': { label: 'Radial', description: 'Root node in center, dependencies radiating outward' },
+};
+
+// Load layout options from localStorage
+function loadLayoutOptions(): LayoutOptions {
+  try {
+    const saved = localStorage.getItem('dependency-graph-layout');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...DEFAULT_LAYOUT_OPTIONS, ...parsed };
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return DEFAULT_LAYOUT_OPTIONS;
+}
+
+// Save layout options to localStorage
+function saveLayoutOptions(options: LayoutOptions): void {
+  try {
+    localStorage.setItem('dependency-graph-layout', JSON.stringify(options));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// Apply auto-layout to nodes using dagre
+function applyDagreLayout(
+  nodes: Node<TaskNodeData>[],
+  edges: Edge[],
+  options: LayoutOptions
+): Node<TaskNodeData>[] {
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+
+  // Configure the graph direction
+  g.setGraph({
+    rankdir: options.direction,
+    nodesep: options.nodeSpacing,
+    ranksep: options.rankSpacing,
+    marginx: 50,
+    marginy: 50,
+  });
+
+  // Add nodes to dagre
+  const nodeWidth = 200;
+  const nodeHeight = 100;
+  nodes.forEach((node) => {
+    g.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+  });
+
+  // Add edges to dagre
+  edges.forEach((edge) => {
+    g.setEdge(edge.source, edge.target);
+  });
+
+  // Compute the layout
+  dagre.layout(g);
+
+  // Apply computed positions to nodes
+  return nodes.map((node) => {
+    const nodeWithPosition = g.node(node.id);
+    if (nodeWithPosition) {
+      return {
+        ...node,
+        position: {
+          x: nodeWithPosition.x - nodeWidth / 2,
+          y: nodeWithPosition.y - nodeHeight / 2,
+        },
+      };
+    }
+    return node;
+  });
+}
+
+// Apply force-directed layout (simulation-based positioning)
+function applyForceLayout(
+  nodes: Node<TaskNodeData>[],
+  edges: Edge[],
+  options: LayoutOptions
+): Node<TaskNodeData>[] {
+  // For force-directed layout, we use a simple spring-force simulation
+  // This is a basic implementation; for more sophisticated layouts, use a library like d3-force
+  const positions = new Map<string, { x: number; y: number; vx: number; vy: number }>();
+
+  // Initialize positions in a grid
+  const gridSize = Math.ceil(Math.sqrt(nodes.length));
+  nodes.forEach((node, i) => {
+    const row = Math.floor(i / gridSize);
+    const col = i % gridSize;
+    positions.set(node.id, {
+      x: col * options.nodeSpacing * 2 + Math.random() * 50,
+      y: row * options.rankSpacing + Math.random() * 50,
+      vx: 0,
+      vy: 0,
+    });
+  });
+
+  // Build adjacency for repulsion calculation
+  const edgeMap = new Map<string, Set<string>>();
+  edges.forEach((edge) => {
+    if (!edgeMap.has(edge.source)) edgeMap.set(edge.source, new Set());
+    if (!edgeMap.has(edge.target)) edgeMap.set(edge.target, new Set());
+    edgeMap.get(edge.source)!.add(edge.target);
+    edgeMap.get(edge.target)!.add(edge.source);
+  });
+
+  // Run simulation for a fixed number of iterations
+  const iterations = 50;
+  const springStrength = 0.1;
+  const repulsionStrength = 5000;
+  const dampening = 0.9;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    // Calculate forces
+    const nodeList = Array.from(positions.entries());
+
+    // Repulsion between all nodes
+    for (let i = 0; i < nodeList.length; i++) {
+      const [id1, pos1] = nodeList[i];
+      for (let j = i + 1; j < nodeList.length; j++) {
+        const [id2, pos2] = nodeList[j];
+        const dx = pos1.x - pos2.x;
+        const dy = pos1.y - pos2.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = repulsionStrength / (dist * dist);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        pos1.vx += fx;
+        pos1.vy += fy;
+        pos2.vx -= fx;
+        pos2.vy -= fy;
+        positions.set(id1, pos1);
+        positions.set(id2, pos2);
+      }
+    }
+
+    // Spring attraction along edges
+    edges.forEach((edge) => {
+      const pos1 = positions.get(edge.source);
+      const pos2 = positions.get(edge.target);
+      if (pos1 && pos2) {
+        const dx = pos2.x - pos1.x;
+        const dy = pos2.y - pos1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = (dist - options.rankSpacing) * springStrength;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        pos1.vx += fx;
+        pos1.vy += fy;
+        pos2.vx -= fx;
+        pos2.vy -= fy;
+        positions.set(edge.source, pos1);
+        positions.set(edge.target, pos2);
+      }
+    });
+
+    // Apply velocities and dampen
+    positions.forEach((pos, id) => {
+      pos.x += pos.vx;
+      pos.y += pos.vy;
+      pos.vx *= dampening;
+      pos.vy *= dampening;
+      positions.set(id, pos);
+    });
+  }
+
+  // Apply computed positions to nodes
+  return nodes.map((node) => {
+    const pos = positions.get(node.id);
+    if (pos) {
+      return {
+        ...node,
+        position: { x: pos.x, y: pos.y },
+      };
+    }
+    return node;
+  });
+}
+
+// Apply radial layout (root in center, dependencies radiating outward)
+function applyRadialLayout(
+  nodes: Node<TaskNodeData>[],
+  edges: Edge[],
+  options: LayoutOptions
+): Node<TaskNodeData>[] {
+  // Find the root node (marked in data)
+  const rootNode = nodes.find((n) => (n.data as TaskNodeData).isRoot);
+  if (!rootNode || nodes.length <= 1) {
+    // Fallback to dagre if no root or single node
+    return applyDagreLayout(nodes, edges, options);
+  }
+
+  // Build adjacency list for BFS
+  const adjacency = new Map<string, string[]>();
+  nodes.forEach((n) => adjacency.set(n.id, []));
+  edges.forEach((edge) => {
+    if (adjacency.has(edge.source)) {
+      adjacency.get(edge.source)!.push(edge.target);
+    }
+    if (adjacency.has(edge.target)) {
+      adjacency.get(edge.target)!.push(edge.source);
+    }
+  });
+
+  // BFS from root to assign levels
+  const levels = new Map<string, number>();
+  const queue: string[] = [rootNode.id];
+  levels.set(rootNode.id, 0);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const currentLevel = levels.get(current)!;
+    const neighbors = adjacency.get(current) || [];
+
+    for (const neighbor of neighbors) {
+      if (!levels.has(neighbor)) {
+        levels.set(neighbor, currentLevel + 1);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  // Group nodes by level
+  const nodesByLevel = new Map<number, string[]>();
+  let maxLevel = 0;
+  levels.forEach((level, id) => {
+    if (!nodesByLevel.has(level)) nodesByLevel.set(level, []);
+    nodesByLevel.get(level)!.push(id);
+    maxLevel = Math.max(maxLevel, level);
+  });
+
+  // Position nodes in concentric circles
+  const positions = new Map<string, { x: number; y: number }>();
+  const centerX = 0;
+  const centerY = 0;
+
+  // Root at center
+  positions.set(rootNode.id, { x: centerX, y: centerY });
+
+  // Other levels in concentric circles
+  for (let level = 1; level <= maxLevel; level++) {
+    const nodesAtLevel = nodesByLevel.get(level) || [];
+    const radius = level * options.rankSpacing;
+    const angleStep = (2 * Math.PI) / nodesAtLevel.length;
+
+    nodesAtLevel.forEach((id, index) => {
+      const angle = index * angleStep - Math.PI / 2; // Start from top
+      positions.set(id, {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      });
+    });
+  }
+
+  // Apply positions to nodes
+  return nodes.map((node) => {
+    const pos = positions.get(node.id);
+    if (pos) {
+      return {
+        ...node,
+        position: { x: pos.x - 100, y: pos.y - 50 }, // Offset by half node size
+      };
+    }
+    return node;
+  });
+}
+
+// Main layout function that dispatches to the appropriate algorithm
+function applyAutoLayout(
+  nodes: Node<TaskNodeData>[],
+  edges: Edge[],
+  options: LayoutOptions
+): Node<TaskNodeData>[] {
+  if (nodes.length === 0) return nodes;
+
+  switch (options.algorithm) {
+    case 'force':
+      return applyForceLayout(nodes, edges, options);
+    case 'radial':
+      return applyRadialLayout(nodes, edges, options);
+    case 'hierarchical':
+    default:
+      return applyDagreLayout(nodes, edges, options);
+  }
+}
+
 // Build a map of dependency types for quick lookup
 function buildDependencyTypeMap(depList: DependencyListResponse | undefined): Map<string, string> {
   const typeMap = new Map<string, string>();
@@ -721,6 +1040,10 @@ function GraphToolbar({
   onCancelSelection,
   showEdgeLabels,
   onToggleEdgeLabels,
+  layoutOptions,
+  onLayoutChange,
+  onApplyLayout,
+  isLayouting,
 }: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -738,8 +1061,14 @@ function GraphToolbar({
   onCancelSelection: () => void;
   showEdgeLabels: boolean;
   onToggleEdgeLabels: () => void;
+  layoutOptions: LayoutOptions;
+  onLayoutChange: (options: Partial<LayoutOptions>) => void;
+  onApplyLayout: () => void;
+  isLayouting: boolean;
 }) {
   const [showStatusFilter, setShowStatusFilter] = useState(false);
+  const [showLayoutDropdown, setShowLayoutDropdown] = useState(false);
+  const [showSpacingControls, setShowSpacingControls] = useState(false);
   const hasFilters = searchQuery.trim().length > 0 || statusFilter.length > 0;
 
   const toggleStatus = (status: string) => {
@@ -886,8 +1215,177 @@ function GraphToolbar({
         </>
       )}
 
-      {/* Edge Labels Toggle and Zoom Controls */}
+      {/* Layout Controls and Zoom Controls */}
       <div className="flex items-center gap-1 ml-auto">
+        {/* Auto Layout Button with Dropdown */}
+        <div className="relative">
+          <div className="flex items-center">
+            <button
+              onClick={onApplyLayout}
+              disabled={isLayouting}
+              className={`
+                flex items-center gap-1.5 px-3 py-2 text-sm border border-r-0 rounded-l-lg transition-colors
+                ${isLayouting
+                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }
+              `}
+              title="Apply auto layout"
+              data-testid="auto-layout-button"
+            >
+              {isLayouting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <LayoutGrid className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Auto Layout</span>
+            </button>
+            <button
+              onClick={() => setShowLayoutDropdown(!showLayoutDropdown)}
+              className="px-2 py-2 border border-gray-300 rounded-r-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+              data-testid="layout-options-dropdown-toggle"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+          {showLayoutDropdown && (
+            <div
+              className="absolute top-full right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+              data-testid="layout-options-dropdown"
+            >
+              <div className="p-3 space-y-4">
+                {/* Algorithm Selection */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                    Layout Algorithm
+                  </label>
+                  <div className="space-y-1">
+                    {(Object.entries(ALGORITHM_LABELS) as [LayoutAlgorithm, typeof ALGORITHM_LABELS[LayoutAlgorithm]][]).map(([algo, { label, description }]) => (
+                      <button
+                        key={algo}
+                        onClick={() => onLayoutChange({ algorithm: algo })}
+                        className={`
+                          w-full text-left px-3 py-2 rounded-md text-sm transition-colors
+                          ${layoutOptions.algorithm === algo
+                            ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                            : 'hover:bg-gray-50 text-gray-700'
+                          }
+                        `}
+                        data-testid={`layout-algorithm-${algo}`}
+                      >
+                        <div className="font-medium">{label}</div>
+                        <div className="text-xs text-gray-500">{description}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Direction Selection (only for hierarchical) */}
+                {layoutOptions.algorithm === 'hierarchical' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                      Direction
+                    </label>
+                    <div className="flex gap-1">
+                      {(Object.entries(DIRECTION_LABELS) as [LayoutDirection, typeof DIRECTION_LABELS[LayoutDirection]][]).map(([dir, { label, icon: Icon }]) => (
+                        <button
+                          key={dir}
+                          onClick={() => onLayoutChange({ direction: dir })}
+                          className={`
+                            flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded-md text-sm transition-colors
+                            ${layoutOptions.direction === dir
+                              ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                              : 'hover:bg-gray-50 text-gray-700 border border-gray-200'
+                            }
+                          `}
+                          title={label}
+                          data-testid={`layout-direction-${dir}`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Spacing Controls */}
+                <div>
+                  <button
+                    onClick={() => setShowSpacingControls(!showSpacingControls)}
+                    className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide hover:text-gray-700"
+                    data-testid="toggle-spacing-controls"
+                  >
+                    <SlidersHorizontal className="w-3 h-3" />
+                    Spacing
+                    <ChevronDown className={`w-3 h-3 transition-transform ${showSpacingControls ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showSpacingControls && (
+                    <div className="mt-2 space-y-3">
+                      <div>
+                        <label className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                          <span>Node Spacing</span>
+                          <span className="font-mono">{layoutOptions.nodeSpacing}px</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="40"
+                          max="200"
+                          step="10"
+                          value={layoutOptions.nodeSpacing}
+                          onChange={(e) => onLayoutChange({ nodeSpacing: parseInt(e.target.value) })}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                          data-testid="node-spacing-slider"
+                        />
+                      </div>
+                      <div>
+                        <label className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                          <span>Rank Spacing</span>
+                          <span className="font-mono">{layoutOptions.rankSpacing}px</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="80"
+                          max="300"
+                          step="10"
+                          value={layoutOptions.rankSpacing}
+                          onChange={(e) => onLayoutChange({ rankSpacing: parseInt(e.target.value) })}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                          data-testid="rank-spacing-slider"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Apply Button */}
+                <button
+                  onClick={() => {
+                    onApplyLayout();
+                    setShowLayoutDropdown(false);
+                  }}
+                  disabled={isLayouting}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="apply-layout-button"
+                >
+                  {isLayouting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Applying...
+                    </>
+                  ) : (
+                    <>
+                      <LayoutGrid className="w-4 h-4" />
+                      Apply Layout
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-4 bg-gray-300 mx-1" />
+
         {/* Edge Labels Toggle */}
         <button
           onClick={onToggleEdgeLabels}
@@ -957,6 +1455,10 @@ interface DependencyGraphInnerProps {
   onNodeClick: NodeMouseHandler<Node<TaskNodeData>>;
   showEdgeLabels: boolean;
   onToggleEdgeLabels: () => void;
+  layoutOptions: LayoutOptions;
+  onLayoutChange: (options: Partial<LayoutOptions>) => void;
+  onApplyLayout: () => void;
+  isLayouting: boolean;
 }
 
 // Inner component that uses useReactFlow (must be inside ReactFlowProvider)
@@ -982,6 +1484,10 @@ function DependencyGraphInner({
   onNodeClick,
   showEdgeLabels,
   onToggleEdgeLabels,
+  layoutOptions,
+  onLayoutChange,
+  onApplyLayout,
+  isLayouting,
 }: DependencyGraphInnerProps) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
@@ -1016,6 +1522,10 @@ function DependencyGraphInner({
         onCancelSelection={onCancelSelection}
         showEdgeLabels={showEdgeLabels}
         onToggleEdgeLabels={onToggleEdgeLabels}
+        layoutOptions={layoutOptions}
+        onLayoutChange={onLayoutChange}
+        onApplyLayout={onApplyLayout}
+        isLayouting={isLayouting}
       />
       <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden" data-testid="graph-canvas">
         {isLoadingTree && (
@@ -1088,6 +1598,40 @@ export function DependencyGraphPage() {
 
   // Edge label visibility state (default: true)
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
+
+  // Layout state (persisted in localStorage)
+  const [layoutOptions, setLayoutOptions] = useState<LayoutOptions>(loadLayoutOptions);
+  const [isLayouting, setIsLayouting] = useState(false);
+
+  // Handle layout option changes
+  const handleLayoutChange = useCallback((newOptions: Partial<LayoutOptions>) => {
+    setLayoutOptions(prev => {
+      const updated = { ...prev, ...newOptions };
+      saveLayoutOptions(updated);
+      return updated;
+    });
+  }, []);
+
+  // Apply auto-layout to nodes
+  const handleApplyLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+
+    setIsLayouting(true);
+
+    // Use requestAnimationFrame to allow the loading state to render
+    requestAnimationFrame(() => {
+      const layoutedNodes = applyAutoLayout(nodes, edges, layoutOptions);
+
+      // Animate to new positions by setting nodes with transitions
+      // React Flow will handle the smooth transition if we use setNodes
+      setNodes(layoutedNodes);
+
+      // Fit view after layout with a small delay for animation
+      setTimeout(() => {
+        setIsLayouting(false);
+      }, 300);
+    });
+  }, [nodes, edges, layoutOptions, setNodes]);
 
   const readyTasks = useReadyTasks();
   const blockedTasks = useBlockedTasks();
@@ -1302,6 +1846,10 @@ export function DependencyGraphPage() {
               onNodeClick={handleNodeClick}
               showEdgeLabels={showEdgeLabels}
               onToggleEdgeLabels={() => setShowEdgeLabels(prev => !prev)}
+              layoutOptions={layoutOptions}
+              onLayoutChange={handleLayoutChange}
+              onApplyLayout={handleApplyLayout}
+              isLayouting={isLayouting}
             />
           </ReactFlowProvider>
         </div>
