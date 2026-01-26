@@ -97,7 +97,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('h1')).toHaveText('This is a heading');
     });
 
@@ -130,7 +131,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('h2')).toHaveText('H2 via slash command');
     });
 
@@ -159,7 +161,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('h3')).toHaveText('H3 heading');
     });
   });
@@ -191,7 +194,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('strong')).toHaveText('This is bold text');
     });
 
@@ -219,7 +223,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('em')).toHaveText('This is italic text');
     });
 
@@ -247,7 +252,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('code')).toHaveText('const x = 1');
     });
 
@@ -282,7 +288,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('s')).toHaveText('This is strikethrough');
     });
 
@@ -311,7 +318,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('mark')).toHaveText('This is highlighted');
     });
   });
@@ -349,7 +357,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       const listItems = contentHtml.locator('ul li');
       await expect(listItems).toHaveCount(3);
       await expect(listItems.nth(0)).toContainText('Item 1');
@@ -389,7 +398,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       const listItems = contentHtml.locator('ol li');
       await expect(listItems).toHaveCount(3);
       await expect(listItems.nth(0)).toContainText('Step 1');
@@ -424,7 +434,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('blockquote')).toContainText('This is a quote');
     });
 
@@ -455,7 +466,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       const codeBlock = contentHtml.locator('pre');
       await expect(codeBlock).toContainText('function hello()');
     });
@@ -490,7 +502,8 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.reload();
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
-      const contentHtml = page.getByTestId('document-content-html');
+      // Note: After TB94c, content is stored as Markdown, so we look for document-content-markdown
+      const contentHtml = page.getByTestId('document-content-markdown');
       await expect(contentHtml.locator('h1')).toHaveText('Document Title');
       // Use a more specific locator for the paragraph
       await expect(contentHtml.locator('p:not(:empty)')).toContainText('This is a paragraph');
@@ -520,6 +533,7 @@ test.describe('TB94b: Core Formatting Fixes', () => {
       await page.waitForSelector('[data-testid="document-detail-panel"]', { timeout: 10000 });
 
       // Verify content displays correctly
+      // This test uses pre-existing HTML content, so it renders with document-content-html
       const contentHtml = page.getByTestId('document-content-html');
       await expect(contentHtml.locator('h1')).toHaveText('Existing Heading');
       await expect(contentHtml.locator('strong')).toHaveText('bold');

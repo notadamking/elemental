@@ -8,6 +8,12 @@
  * - Keyboard shortcuts with tooltip hints
  * - Responsive toolbar with overflow menu
  * - Task and document embeds via slash commands
+ *
+ * Architecture:
+ * - Content is stored as Markdown (source of truth)
+ * - Tiptap internally works with HTML
+ * - Conversions happen at load (MD→HTML) and save (HTML→MD)
+ * - This ensures AI agents can read/write documents naturally
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -24,6 +30,10 @@ import { DocumentPickerModal } from './DocumentPickerModal';
 import { EditorBubbleMenu } from './BubbleMenu';
 import { common, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import {
+  prepareContentForEditor,
+  prepareContentForStorage,
+} from '../../lib/markdown';
 import {
   Bold,
   Italic,
@@ -156,44 +166,12 @@ export function BlockEditor({
     []
   );
 
-  // Check if content looks like HTML (has HTML tags)
-  const isHtmlContent = useCallback((content: string) => {
-    if (!content) return false;
-    // Check for common HTML elements used by Tiptap
-    return /<(p|h[1-6]|ul|ol|li|blockquote|pre|code|strong|em|mark|s|br|hr)\b/i.test(content);
-  }, []);
-
-  // Convert plain text to HTML for Tiptap (for backwards compatibility with existing plain text content)
-  const textToHtml = useCallback((text: string) => {
-    if (!text) return '<p></p>';
-    // If it already looks like HTML, return as-is
-    if (isHtmlContent(text)) {
-      return text;
-    }
-    // Otherwise convert plain text to HTML
-    const escaped = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    const withBreaks = escaped.replace(/\n/g, '</p><p>');
-    return `<p>${withBreaks}</p>`;
-  }, [isHtmlContent]);
-
-  // Determine initial content format
+  // Convert content (Markdown or legacy HTML) to HTML for Tiptap editor
+  // Uses the markdown utilities for proper conversion
   const getInitialContent = useCallback(() => {
-    if (!content) return '';
-
-    if (contentType === 'json') {
-      try {
-        const formatted = JSON.stringify(JSON.parse(content), null, 2);
-        return `<pre><code>${formatted}</code></pre>`;
-      } catch {
-        return textToHtml(content);
-      }
-    }
-
-    return textToHtml(content);
-  }, [content, contentType, textToHtml]);
+    if (!content) return '<p></p>';
+    return prepareContentForEditor(content, contentType);
+  }, [content, contentType]);
 
   const editor = useEditor({
     extensions: [
@@ -223,9 +201,11 @@ export function BlockEditor({
     content: getInitialContent(),
     editable: !readOnly,
     onUpdate: ({ editor }) => {
-      // Emit HTML directly to preserve formatting
+      // Convert HTML to Markdown for storage
+      // This ensures content is stored in a format that AI agents can read/write
       const html = editor.getHTML();
-      onChange(html);
+      const markdown = prepareContentForStorage(html, contentType);
+      onChange(markdown);
     },
     editorProps: {
       attributes: {
@@ -243,15 +223,15 @@ export function BlockEditor({
     },
   });
 
-  // Update editor content when prop changes
+  // Update editor content when prop changes (external updates)
   useEffect(() => {
     if (editor && !editor.isFocused) {
-      // Compare the actual content, not just text - compare HTML since that's what we're storing now
+      // Convert the incoming content (Markdown) to HTML for comparison
+      const newHtmlContent = getInitialContent();
       const currentHtml = editor.getHTML();
-      const newContent = getInitialContent();
       // Only update if content actually changed (avoid re-setting identical content)
-      if (currentHtml !== newContent && content !== currentHtml) {
-        editor.commands.setContent(newContent);
+      if (currentHtml !== newHtmlContent) {
+        editor.commands.setContent(newHtmlContent);
       }
     }
   }, [editor, content, getInitialContent]);
