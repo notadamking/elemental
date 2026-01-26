@@ -93,19 +93,6 @@ test.describe('Keyboard Shortcuts', () => {
       await expect(page.getByTestId('task-flow-page')).toBeVisible();
     });
 
-    test('G A navigates to Agents page', async ({ page }) => {
-      await page.goto('/dashboard');
-      await expect(page.getByTestId('dashboard-page')).toBeVisible();
-
-      // Press G then A in sequence
-      await page.keyboard.press('g');
-      await page.keyboard.press('a');
-
-      // Should navigate to agents page
-      await expect(page).toHaveURL(/\/dashboard\/agents/);
-      await expect(page.getByTestId('agent-activity-page')).toBeVisible();
-    });
-
     test('G L navigates to Timeline page', async ({ page }) => {
       await page.goto('/dashboard');
       await expect(page.getByTestId('dashboard-page')).toBeVisible();
@@ -128,7 +115,7 @@ test.describe('Keyboard Shortcuts', () => {
       await page.keyboard.press('g');
 
       // Should navigate to dependencies page
-      await expect(page).toHaveURL(/\/dashboard\/dependencies/);
+      await expect(page).toHaveURL(/\/dependencies/);
       await expect(page.getByTestId('dependency-graph-page')).toBeVisible();
     });
   });

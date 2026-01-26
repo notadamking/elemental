@@ -14,8 +14,6 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
     // All dashboard lenses should be visible in sidebar
     await expect(page.getByTestId('nav-dashboard')).toBeVisible(); // Overview
     await expect(page.getByTestId('nav-task-flow')).toBeVisible();
-    await expect(page.getByTestId('nav-agents')).toBeVisible();
-    await expect(page.getByTestId('nav-dependencies')).toBeVisible();
     await expect(page.getByTestId('nav-timeline')).toBeVisible();
   });
 
@@ -61,14 +59,6 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
     await page.goto('/dashboard/task-flow');
     await expect(page.getByTestId('task-flow-page')).toBeVisible();
 
-    // Test Agents
-    await page.goto('/dashboard/agents');
-    await expect(page.getByTestId('agent-activity-page')).toBeVisible();
-
-    // Test Dependencies
-    await page.goto('/dashboard/dependencies');
-    await expect(page.getByTestId('dependency-graph-page')).toBeVisible();
-
     // Test Timeline
     await page.goto('/dashboard/timeline');
     await expect(page.getByTestId('timeline-page')).toBeVisible();
@@ -103,7 +93,8 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
   test('last visited dashboard section is persisted in localStorage', async ({ page }) => {
     // Visit task-flow
     await page.goto('/dashboard/task-flow');
-    await page.waitForTimeout(200);
+    await expect(page.getByTestId('task-flow-page')).toBeVisible();
+    await page.waitForTimeout(500);
 
     // Check localStorage
     const lastVisited = await page.evaluate(() => {
@@ -111,15 +102,16 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
     });
     expect(lastVisited).toBe('task-flow');
 
-    // Visit agents
-    await page.goto('/dashboard/agents');
-    await page.waitForTimeout(200);
+    // Visit timeline
+    await page.goto('/dashboard/timeline?page=1&limit=100');
+    await expect(page.getByTestId('timeline-page')).toBeVisible();
+    await page.waitForTimeout(500);
 
     // Check localStorage updated
     const newLastVisited = await page.evaluate(() => {
       return localStorage.getItem('dashboard.lastVisited');
     });
-    expect(newLastVisited).toBe('agents');
+    expect(newLastVisited).toBe('timeline');
   });
 
   test('navigating between dashboard sections via sidebar works', async ({ page }) => {
@@ -133,16 +125,6 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
     // Active indicator should be on Task Flow
     const taskFlowLink = page.getByTestId('nav-task-flow');
     await expect(taskFlowLink).toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
-
-    // Click Agents
-    await page.getByTestId('nav-agents').click();
-    await expect(page).toHaveURL(/\/dashboard\/agents/);
-    await expect(page.getByTestId('agent-activity-page')).toBeVisible();
-
-    // Click Dependencies
-    await page.getByTestId('nav-dependencies').click();
-    await expect(page).toHaveURL(/\/dashboard\/dependencies/);
-    await expect(page.getByTestId('dependency-graph-page')).toBeVisible();
 
     // Click Timeline
     await page.getByTestId('nav-timeline').click();
@@ -177,14 +159,6 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
     await expect(page.getByTestId('nav-task-flow')).toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
     await expect(page.getByTestId('nav-dashboard')).not.toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
 
-    // Test Agents active
-    await page.goto('/dashboard/agents');
-    await expect(page.getByTestId('nav-agents')).toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
-
-    // Test Dependencies active
-    await page.goto('/dashboard/dependencies');
-    await expect(page.getByTestId('nav-dependencies')).toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
-
     // Test Timeline active
     await page.goto('/dashboard/timeline');
     await expect(page.getByTestId('nav-timeline')).toHaveClass(/bg-\[var\(--color-sidebar-item-active\)\]/);
@@ -197,9 +171,9 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
     await page.getByTestId('nav-task-flow').click();
     await expect(page).toHaveURL(/\/dashboard\/task-flow/);
 
-    // Navigate to agents
-    await page.getByTestId('nav-agents').click();
-    await expect(page).toHaveURL(/\/dashboard\/agents/);
+    // Navigate to timeline
+    await page.getByTestId('nav-timeline').click();
+    await expect(page).toHaveURL(/\/dashboard\/timeline/);
 
     // Go back to task-flow
     await page.goBack();
@@ -218,27 +192,27 @@ test.describe('TB76: Dashboard Sub-Section Navigation', () => {
   });
 
   test('settings default dashboard lens is respected', async ({ page }) => {
-    // Set default dashboard lens to 'agents' in localStorage
+    // Set default dashboard lens to 'timeline' in localStorage
     await page.addInitScript(() => {
       localStorage.setItem('settings.defaults', JSON.stringify({
         tasksView: 'list',
-        dashboardLens: 'agents',
+        dashboardLens: 'timeline',
         sortOrder: 'created_at'
       }));
     });
 
-    // Navigate to root - should go to agents (the default)
+    // Navigate to root - should go to timeline (the default)
     await page.goto('/');
-    await expect(page).toHaveURL(/\/dashboard\/agents/);
-    await expect(page.getByTestId('agent-activity-page')).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/timeline/);
+    await expect(page.getByTestId('timeline-page')).toBeVisible();
   });
 
   test('last visited section takes precedence over default lens', async ({ page }) => {
-    // Set default dashboard lens to 'agents' and last visited to 'timeline'
+    // Set default dashboard lens to 'overview' and last visited to 'timeline'
     await page.addInitScript(() => {
       localStorage.setItem('settings.defaults', JSON.stringify({
         tasksView: 'list',
-        dashboardLens: 'agents',
+        dashboardLens: 'overview',
         sortOrder: 'created_at'
       }));
       localStorage.setItem('dashboard.lastVisited', 'timeline');

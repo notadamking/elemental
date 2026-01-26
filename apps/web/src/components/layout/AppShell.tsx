@@ -19,8 +19,6 @@ import {
   UsersRound,
   Settings,
   GitBranch,
-  Bot,
-  Network,
   History,
 } from 'lucide-react';
 
@@ -101,8 +99,6 @@ interface RouteConfig {
 const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/dashboard': { label: 'Dashboard', icon: LayoutDashboard },
   '/dashboard/task-flow': { label: 'Task Flow', icon: GitBranch, parent: '/dashboard' },
-  '/dashboard/agents': { label: 'Agents', icon: Bot, parent: '/dashboard' },
-  '/dashboard/dependencies': { label: 'Dependencies', icon: Network, parent: '/dashboard' },
   '/dashboard/timeline': { label: 'Timeline', icon: History, parent: '/dashboard' },
   '/tasks': { label: 'Tasks', icon: CheckSquare },
   '/plans': { label: 'Plans', icon: Folder },

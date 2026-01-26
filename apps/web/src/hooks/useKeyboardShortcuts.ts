@@ -9,7 +9,6 @@ import { keyboardManager, type ShortcutHandler } from '../lib/keyboard';
 const NAVIGATION_SHORTCUTS: Record<string, string> = {
   'G H': '/dashboard/overview',
   'G F': '/dashboard/task-flow',
-  'G A': '/dashboard/agents',
   'G L': '/dashboard/timeline',
   'G T': '/tasks',
   'G P': '/plans',

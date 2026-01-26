@@ -13,7 +13,6 @@ import {
   UsersRound,
   Settings,
   GitBranch,
-  Bot,
   Network,
   History,
   Search,
@@ -151,15 +150,6 @@ export function CommandPalette() {
       shortcut: 'G F',
       group: 'Dashboard',
       keywords: ['ready', 'blocked', 'progress'],
-    },
-    {
-      id: 'nav-agents',
-      label: 'Go to Agent Activity',
-      icon: Bot,
-      action: () => navigate({ to: '/dashboard/agents' }),
-      shortcut: 'G A',
-      group: 'Dashboard',
-      keywords: ['entities', 'ai', 'workload'],
     },
     {
       id: 'nav-timeline',

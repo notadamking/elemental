@@ -7,7 +7,7 @@
 import { useEffect } from 'react';
 import { setLastVisitedDashboardSection } from '../routes/settings';
 
-type DashboardSection = 'overview' | 'task-flow' | 'agents' | 'dependencies' | 'timeline';
+type DashboardSection = 'overview' | 'task-flow' | 'dependencies' | 'timeline';
 
 /**
  * Tracks when a dashboard section is visited and persists it to localStorage.

@@ -62,7 +62,6 @@ test.describe('TB10: Command Palette', () => {
     await expect(page.getByTestId('command-item-nav-tasks')).toBeVisible();
     await expect(page.getByTestId('command-item-nav-plans')).toBeVisible();
     await expect(page.getByTestId('command-item-nav-timeline')).toBeVisible();
-    await expect(page.getByTestId('command-item-nav-agents')).toBeVisible();
   });
 
   test('command palette navigates to tasks page', async ({ page }) => {

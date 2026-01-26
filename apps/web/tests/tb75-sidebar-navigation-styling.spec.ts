@@ -238,10 +238,10 @@ test.describe('TB75: Sidebar and Navigation Styling', () => {
     });
 
     test('breadcrumb separator is visible between items', async ({ page }) => {
-      await page.goto('/dashboard/agents');
-      await expect(page.getByTestId('agent-activity-page')).toBeVisible();
+      await page.goto('/dashboard/timeline?page=1&limit=100');
+      await expect(page.getByTestId('timeline-page')).toBeVisible();
 
-      // There should be a ChevronRight separator between Dashboard and Agents
+      // There should be a ChevronRight separator between Dashboard and Timeline
       const breadcrumbs = page.getByTestId('breadcrumbs');
       const separators = breadcrumbs.locator('svg');
 

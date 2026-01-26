@@ -96,7 +96,7 @@ export function useDeepLink<T>(options: UseDeepLinkOptions<T>): UseDeepLinkResul
     if (autoNavigate && result.page !== currentPage) {
       setIsNavigating(true);
       navigate({
-        to: routePath as '/' | '/tasks' | '/plans' | '/workflows' | '/dependencies' | '/messages' | '/documents' | '/entities' | '/teams' | '/settings' | '/dashboard' | '/dashboard/task-flow' | '/dashboard/agents' | '/dashboard/timeline',
+        to: routePath as '/' | '/tasks' | '/plans' | '/workflows' | '/dependencies' | '/messages' | '/documents' | '/entities' | '/teams' | '/settings' | '/dashboard' | '/dashboard/task-flow' | '/dashboard/timeline',
         search: (prev) => ({
           ...prev,
           page: result.page,
@@ -158,7 +158,7 @@ export function useDeepLink<T>(options: UseDeepLinkOptions<T>): UseDeepLinkResul
     if (position.found) {
       setIsNavigating(true);
       navigate({
-        to: routePath as '/' | '/tasks' | '/plans' | '/workflows' | '/dependencies' | '/messages' | '/documents' | '/entities' | '/teams' | '/settings' | '/dashboard' | '/dashboard/task-flow' | '/dashboard/agents' | '/dashboard/timeline',
+        to: routePath as '/' | '/tasks' | '/plans' | '/workflows' | '/dependencies' | '/messages' | '/documents' | '/entities' | '/teams' | '/settings' | '/dashboard' | '/dashboard/task-flow' | '/dashboard/timeline',
         search: (prev) => ({
           ...prev,
           page: position.page,

@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   ChevronDown,
   GitBranch,
-  Bot,
   Network,
   History,
   PanelLeftOpen,
@@ -47,7 +46,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/dashboard/overview', icon: LayoutDashboard, label: 'Overview', shortcut: 'G H', testId: 'nav-dashboard' },
       { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', shortcut: 'G F', testId: 'nav-task-flow' },
-      { to: '/dashboard/agents', icon: Bot, label: 'Agents', shortcut: 'G A', testId: 'nav-agents' },
       { to: '/dashboard/timeline', icon: History, label: 'Timeline', shortcut: 'G L', testId: 'nav-timeline', search: { page: 1, limit: 100, actor: undefined } },
     ],
   },

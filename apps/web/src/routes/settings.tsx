@@ -607,7 +607,7 @@ function ShortcutsSection() {
 const DEFAULTS_STORAGE_KEY = 'settings.defaults';
 
 type TasksViewMode = 'list' | 'kanban';
-type DashboardLens = 'overview' | 'task-flow' | 'agents' | 'dependencies' | 'timeline';
+type DashboardLens = 'overview' | 'task-flow' | 'dependencies' | 'timeline';
 type DefaultSortOrder = 'updated_at' | 'created_at' | 'priority' | 'title';
 
 interface DefaultsSettings {
@@ -671,7 +671,7 @@ export function getLastVisitedDashboardSection(): DashboardLens {
     return getDefaultDashboardLens();
   }
   const stored = localStorage.getItem(LAST_VISITED_DASHBOARD_KEY);
-  if (stored && ['overview', 'task-flow', 'agents', 'dependencies', 'timeline'].includes(stored)) {
+  if (stored && ['overview', 'task-flow', 'dependencies', 'timeline'].includes(stored)) {
     return stored as DashboardLens;
   }
   return getDefaultDashboardLens();
@@ -817,15 +817,6 @@ function DefaultsSection() {
             isSelected={defaults.dashboardLens === 'task-flow'}
             onSelect={() => updateSetting('dashboardLens', 'task-flow')}
             testId="default-dashboard-lens-task-flow"
-          />
-          <OptionCard
-            value="agents"
-            label="Agents"
-            description="Agent workload and activity"
-            icon={Users}
-            isSelected={defaults.dashboardLens === 'agents'}
-            onSelect={() => updateSetting('dashboardLens', 'agents')}
-            testId="default-dashboard-lens-agents"
           />
           <OptionCard
             value="dependencies"

@@ -621,17 +621,18 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Server: Kept dependency API endpoints (dependencies managed via Task detail panel)
   - [x] **Verify:** 6 Playwright tests passing in `apps/web/tests/dependency-graph.spec.ts` (TB133 section)
 
-- [ ] **TB134: Delete Agents Page**
-  - [ ] Web: Remove `/dashboard/agents` route from router config
-  - [ ] Web: Remove "Agents" navigation item from sidebar
-  - [ ] Web: Delete `AgentActivityLens` component and related files
-  - [ ] Web: Remove `useAgentActivity` hook if dedicated
-  - [ ] Web: Update command palette to remove "Go to Agents" action
-  - [ ] Web: Update keyboard shortcuts to remove `G A` binding
-  - [ ] Web: Remove any "Agents" references from dashboard overview
-  - [ ] Web: Keep entity listing at `/entities` (Agents are just entities with type "agent")
-  - [ ] Web: Agent workload info moved to entity detail page
-  - [ ] **Verify:** Agents link gone from sidebar; URL `/dashboard/agents` returns 404 or redirects; Playwright tests updated
+- [x] **TB134: Delete Agents Page** ✅ DONE
+  - [x] Web: Remove `/dashboard/agents` route from router config
+  - [x] Web: Remove "Agents" navigation item from sidebar
+  - [x] Web: Delete `AgentActivityLens` component and related files
+  - [x] Web: Removed `G A` navigation shortcut from `useKeyboardShortcuts.ts` and `keyboard.ts`
+  - [x] Web: Update command palette to remove "Go to Agents" action
+  - [x] Web: Update keyboard shortcuts to remove `G A` binding
+  - [x] Web: Remove any "Agents" references from AppShell breadcrumbs/route config
+  - [x] Web: Keep entity listing at `/entities` (Agents are just entities with type "agent")
+  - [x] Web: Agent workload info available via entity detail page at `/entities`
+  - [x] Web: Updated Playwright tests (removed agents-related tests, updated navigation tests)
+  - [x] **Verify:** Agents link gone from sidebar; URL `/dashboard/agents` no longer routed; Playwright tests passing
 
 ### Phase 36: Accessibility & Contrast Fixes
 

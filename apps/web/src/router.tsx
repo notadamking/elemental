@@ -3,7 +3,6 @@ import { AppShell } from './components/layout';
 import { DashboardPage } from './routes/dashboard';
 import { TasksPage } from './routes/tasks';
 import { TaskFlowPage } from './routes/task-flow';
-import { AgentActivityPage } from './routes/agent-activity';
 import { DependencyGraphPage } from './routes/dependency-graph';
 import { TimelinePage } from './routes/timeline';
 import { MessagesPage } from './routes/messages';
@@ -18,7 +17,6 @@ import { SettingsPage, getDefaultDashboardLens, getLastVisitedDashboardSection }
 const DASHBOARD_LENS_ROUTES: Record<ReturnType<typeof getDefaultDashboardLens>, string> = {
   'overview': '/dashboard/overview',
   'task-flow': '/dashboard/task-flow',
-  'agents': '/dashboard/agents',
   'dependencies': '/dependencies',
   'timeline': '/dashboard/timeline',
 };
@@ -80,13 +78,6 @@ const taskFlowRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard/task-flow',
   component: TaskFlowPage,
-});
-
-// Agent Activity Lens route (Dashboard sub-view)
-const agentActivityRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/dashboard/agents',
-  component: AgentActivityPage,
 });
 
 // Dependency Graph route (Work section)
@@ -217,7 +208,6 @@ const routeTree = rootRoute.addChildren([
   dashboardIndexRoute,
   dashboardOverviewRoute,
   taskFlowRoute,
-  agentActivityRoute,
   dependencyGraphRoute,
   timelineRoute,
   tasksRoute,

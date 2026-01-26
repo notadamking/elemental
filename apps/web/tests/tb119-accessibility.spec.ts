@@ -55,16 +55,6 @@ test.describe('TB119: Accessibility Audit', () => {
       expect(criticalViolations).toHaveLength(0);
     });
 
-    test('agent activity page is accessible', async ({ page }) => {
-      await page.goto('/dashboard/agents');
-      await page.waitForLoadState('networkidle');
-
-      const results = await runAccessibilityAudit(page);
-      const criticalViolations = filterCriticalViolations(results.violations);
-
-      expect(criticalViolations).toHaveLength(0);
-    });
-
     test('dependency graph page is accessible', async ({ page }) => {
       await page.goto('/dashboard/dependencies');
       await page.waitForLoadState('networkidle');
