@@ -541,15 +541,15 @@ Completed implementation phases have been moved to specs/platform/COMPLETED_PHAS
   - [x] Web: Copy button shows checkmark icon after successful copy
   - [x] **Verify:** 8 Playwright tests passing (`apps/web/tests/tb100-copy-message.spec.ts`)
 
-- [ ] **TB101: Rich Text in MessageComposer**
-  - [ ] Web: Replace plain textarea with mini Tiptap editor
-  - [ ] Web: Support: bold (⌘B), italic (⌘I), underline (⌘U), strikethrough
-  - [ ] Web: Support: inline code (`), code block (```)
-  - [ ] Web: Support: bullet list, numbered list
-  - [ ] Web: Support: block quote (>)
-  - [ ] Web: Compact toolbar shown below input (optional, can toggle)
-  - [ ] Web: Markdown shortcuts work (e.g., **bold**, _italic_)
-  - [ ] **Verify:** Compose message with bold and code block, renders correctly; Playwright tests passing
+- [x] **TB101: Rich Text in MessageComposer**
+  - [x] Web: Replace plain textarea with mini Tiptap editor
+  - [x] Web: Support: bold (⌘B), italic (⌘I), underline (⌘U), strikethrough
+  - [x] Web: Support: inline code (`), code block (```)
+  - [x] Web: Support: bullet list, numbered list
+  - [x] Web: Support: block quote (>)
+  - [x] Web: Compact toolbar shown below input (optional, can toggle)
+  - [x] Web: Markdown shortcuts work (e.g., **bold**, _italic_)
+  - [x] **Verify:** 20 Playwright tests passing (`apps/web/tests/tb101-rich-text-message-composer.spec.ts`)
 
 - [ ] **TB102: Image Input in Messages**
   - [ ] Web: Add image attachment button to MessageComposer

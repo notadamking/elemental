@@ -16,6 +16,7 @@ import { Hash, Lock, Users, MessageSquare, Send, MessageCircle, X, Plus, UserCog
 import { toast } from 'sonner';
 import { CreateChannelModal } from '../components/message/CreateChannelModal';
 import { ChannelMembersPanel } from '../components/message/ChannelMembersPanel';
+import { MessageRichComposer, type MessageRichComposerRef } from '../components/message/MessageRichComposer';
 import { Pagination } from '../components/shared/Pagination';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useAllChannels } from '../api/hooks/useAllElements';
@@ -803,10 +804,9 @@ function ThreadComposer({
 }) {
   const [content, setContent] = useState('');
   const sendMessage = useSendMessage();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<MessageRichComposerRef>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!content.trim() || !channel) return;
 
     // Use first member as sender for now (would be current user in real app)
@@ -821,41 +821,41 @@ function ThreadComposer({
         threadId: parentMessage.id,
       });
       setContent('');
+      editorRef.current?.clear();
     } catch (error) {
       console.error('Failed to send reply:', error);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSubmit();
   };
 
   return (
     <form
       data-testid="thread-composer"
-      onSubmit={handleSubmit}
+      onSubmit={handleFormSubmit}
       className="p-3 border-t border-gray-200 bg-white"
     >
       <div className="flex gap-2 items-end">
-        <textarea
-          ref={inputRef}
-          data-testid="thread-input"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Reply in thread..."
-          className="flex-1 min-h-[36px] max-h-[100px] px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          rows={1}
-          disabled={sendMessage.isPending}
-        />
+        <div className="flex-1">
+          <MessageRichComposer
+            ref={editorRef}
+            content={content}
+            onChange={setContent}
+            onSubmit={handleSubmit}
+            placeholder="Reply in thread..."
+            disabled={sendMessage.isPending}
+            maxHeight={120}
+            minHeight={48}
+          />
+        </div>
         <button
           type="submit"
           data-testid="thread-send-button"
           disabled={!content.trim() || sendMessage.isPending}
-          className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors self-end mb-1"
         >
           <Send className="w-4 h-4" />
         </button>
@@ -988,20 +988,12 @@ function MessageComposer({
   const [attachments, setAttachments] = useState<AttachedDocument[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const sendMessage = useSendMessage();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<MessageRichComposerRef>(null);
 
-  // Focus input when channel changes
+  // Focus editor when channel changes
   useEffect(() => {
-    inputRef.current?.focus();
+    editorRef.current?.focus();
   }, [channelId]);
-
-  // Auto-resize textarea
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
-    }
-  }, [content]);
 
   const handleAddAttachment = (doc: AttachedDocument) => {
     setAttachments(prev => [...prev, doc]);
@@ -1012,8 +1004,7 @@ function MessageComposer({
     setAttachments(prev => prev.filter(a => a.id !== docId));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!content.trim() || !channel) return;
 
     // Use first member as sender for now (would be current user in real app)
@@ -1029,23 +1020,22 @@ function MessageComposer({
       });
       setContent('');
       setAttachments([]);
+      editorRef.current?.clear();
     } catch (error) {
       console.error('Failed to send message:', error);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSubmit();
   };
 
   return (
     <>
       <form
         data-testid="message-composer"
-        onSubmit={handleSubmit}
+        onSubmit={handleFormSubmit}
         className="p-4 border-t border-gray-200 bg-white"
       >
         {/* Attached documents preview */}
@@ -1076,28 +1066,29 @@ function MessageComposer({
           <button
             type="button"
             onClick={() => setShowPicker(true)}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors self-end mb-1"
             data-testid="message-attach-button"
             title="Attach document"
           >
             <Paperclip className="w-5 h-5" />
           </button>
-          <textarea
-            ref={inputRef}
-            data-testid="message-input"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message ${channel?.name || 'channel'}...`}
-            className="flex-1 min-h-[40px] max-h-[120px] px-3 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            rows={1}
-            disabled={sendMessage.isPending}
-          />
+          <div className="flex-1">
+            <MessageRichComposer
+              ref={editorRef}
+              content={content}
+              onChange={setContent}
+              onSubmit={handleSubmit}
+              channelName={channel?.name}
+              disabled={sendMessage.isPending}
+              maxHeight={180}
+              minHeight={60}
+            />
+          </div>
           <button
             type="submit"
             data-testid="message-send-button"
             disabled={!content.trim() || sendMessage.isPending}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end mb-1"
           >
             <Send className="w-4 h-4" />
             <span className="sr-only">Send</span>
