@@ -1282,7 +1282,7 @@ app.get('/api/entities/:id/inbox', async (c) => {
     // Hydrate items if requested
     let items = result.items;
     if (hydrateParam === 'true') {
-      // Hydrate each inbox item with message, channel, and sender
+      // Hydrate each inbox item with message, channel, sender, and TB92 enhancements
       items = await Promise.all(result.items.map(async (item) => {
         try {
           // Get message
@@ -1297,11 +1297,15 @@ app.get('/api/entities/:id/inbox', async (c) => {
             sender = await api.get(message.sender as unknown as ElementId);
           }
 
-          // Get message content preview
+          // Get message content - both preview and full content (TB92)
           let messagePreview = '';
+          let fullContent = '';
+          let contentType = 'text';
           if (message?.contentRef) {
             const contentDoc = await api.get(message.contentRef as unknown as ElementId) as Document | null;
             if (contentDoc?.content) {
+              fullContent = contentDoc.content;
+              contentType = contentDoc.contentType ?? 'text';
               // Truncate content for preview
               messagePreview = contentDoc.content.substring(0, 150);
               if (contentDoc.content.length > 150) {
@@ -1310,11 +1314,78 @@ app.get('/api/entities/:id/inbox', async (c) => {
             }
           }
 
+          // TB92: Hydrate attachments (document embeds)
+          let hydratedAttachments: { id: string; title: string; content?: string; contentType?: string }[] = [];
+          if (message?.attachments && message.attachments.length > 0) {
+            hydratedAttachments = await Promise.all(
+              message.attachments.map(async (attachmentId) => {
+                try {
+                  const attachmentDoc = await api.get(attachmentId as unknown as ElementId) as Document | null;
+                  if (attachmentDoc) {
+                    // Derive title from first line of content or use ID
+                    const firstLine = attachmentDoc.content?.split('\n')[0]?.substring(0, 50) ?? '';
+                    const title = firstLine.replace(/^#+\s*/, '') || `Document ${attachmentDoc.id}`;
+                    return {
+                      id: attachmentDoc.id,
+                      title: title,
+                      content: attachmentDoc.content,
+                      contentType: attachmentDoc.contentType ?? 'text',
+                    };
+                  }
+                  return { id: attachmentId, title: 'Unknown Document' };
+                } catch {
+                  return { id: attachmentId, title: 'Unknown Document' };
+                }
+              })
+            );
+          }
+
+          // TB92: Get thread parent message if this is a reply
+          let threadParent = null;
+          if (message?.threadId) {
+            try {
+              const parentMessage = await api.get(message.threadId as unknown as ElementId) as Message | null;
+              if (parentMessage) {
+                // Get parent sender
+                let parentSender = null;
+                if (parentMessage.sender) {
+                  parentSender = await api.get(parentMessage.sender as unknown as ElementId);
+                }
+                // Get parent content preview
+                let parentPreview = '';
+                if (parentMessage.contentRef) {
+                  const parentContentDoc = await api.get(parentMessage.contentRef as unknown as ElementId) as Document | null;
+                  if (parentContentDoc?.content) {
+                    parentPreview = parentContentDoc.content.substring(0, 100);
+                    if (parentContentDoc.content.length > 100) {
+                      parentPreview += '...';
+                    }
+                  }
+                }
+                threadParent = {
+                  id: parentMessage.id,
+                  sender: parentSender,
+                  contentPreview: parentPreview,
+                  createdAt: parentMessage.createdAt,
+                };
+              }
+            } catch {
+              // Thread parent fetch failed, continue without it
+            }
+          }
+
           return {
             ...item,
-            message: message ? { ...message, contentPreview: messagePreview } : null,
+            message: message ? {
+              ...message,
+              contentPreview: messagePreview,
+              fullContent: fullContent,
+              contentType: contentType,
+            } : null,
             channel: channel,
             sender: sender,
+            attachments: hydratedAttachments,
+            threadParent: threadParent,
           };
         } catch (err) {
           // If hydration fails for an item, return it without hydration

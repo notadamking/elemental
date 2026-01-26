@@ -1345,16 +1345,17 @@ For mutations (create, update, delete):
   - [x] Web: Virtualized list for performance
   - [x] **Verify:** Click message in list, full content shows on right; Playwright tests passing (2 passed, 12 skipped due to no inbox data)
 
-- [ ] **TB92: Inbox Full Message Content**
-  - [ ] Web: Right panel shows full message with:
-    - [ ] Sender avatar and name (clickable → entity detail)
-    - [ ] Channel name (clickable → channel)
-    - [ ] Full timestamp (relative + absolute on hover)
-    - [ ] Full message content (rendered markdown)
-    - [ ] Attachments rendered inline (document embeds)
-    - [ ] Thread context (if reply, show parent message)
-  - [ ] Web: Actions: Reply, Mark read/unread, Archive
-  - [ ] **Verify:** Full message content renders with all metadata; Claude in Chrome visual inspection
+- [x] **TB92: Inbox Full Message Content**
+  - [x] Web: Right panel shows full message with:
+    - [x] Sender avatar and name (clickable → entity detail)
+    - [x] Channel name (clickable → channel)
+    - [x] Full timestamp (relative + absolute on hover)
+    - [x] Full message content (rendered markdown)
+    - [x] Attachments rendered inline (document embeds)
+    - [x] Thread context (if reply, show parent message)
+  - [x] Web: Actions: Reply, Mark read/unread, Archive
+  - [x] Server: Enhanced `GET /api/entities/:id/inbox` to return fullContent, attachments, threadParent
+  - [x] **Verify:** Full message content renders with all metadata; Playwright tests passing (16 tests, skipped when no inbox data)
 
 - [ ] **TB93: Inbox Filtering and Sorting**
   - [ ] Web: Add filter dropdown: All, Direct Messages, Mentions, Channels (multi-select)

@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft } from 'lucide-react';
 import { Pagination } from '../components/shared/Pagination';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
@@ -74,6 +74,9 @@ interface InboxItem {
     sender: string;
     contentRef: string;
     contentPreview?: string;
+    fullContent?: string; // TB92: Full message content for rendering
+    contentType?: string; // TB92: Content type (text, markdown, etc.)
+    threadId?: string | null; // TB92: Parent message ID for threading
     createdAt: string;
   } | null;
   channel?: {
@@ -82,6 +85,20 @@ interface InboxItem {
     channelType: 'group' | 'direct';
   } | null;
   sender?: Entity | null;
+  // TB92: Hydrated attachments
+  attachments?: {
+    id: string;
+    title: string;
+    content?: string;
+    contentType?: string;
+  }[];
+  // TB92: Thread parent message info
+  threadParent?: {
+    id: string;
+    sender?: Entity | null;
+    contentPreview: string;
+    createdAt: string;
+  } | null;
 }
 
 interface PaginatedResult<T> {
@@ -1208,8 +1225,9 @@ function InboxMessageListItem({
 }
 
 /**
- * TB91: Full message content panel for the right side of split layout
- * Shows: sender avatar/name (clickable), channel (clickable), full timestamp, full content, actions
+ * TB91/TB92: Full message content panel for the right side of split layout
+ * Shows: sender avatar/name (clickable), channel (clickable), full timestamp, full content,
+ * attachments (document embeds), thread context (parent message), actions (Reply, Mark read/unread, Archive)
  */
 function InboxMessageContent({
   item,
@@ -1220,6 +1238,7 @@ function InboxMessageContent({
   isPending,
   onNavigateToMessage,
   onNavigateToEntity,
+  onReply,
 }: {
   item: InboxItem;
   onMarkRead: () => void;
@@ -1229,6 +1248,7 @@ function InboxMessageContent({
   isPending: boolean;
   onNavigateToMessage: () => void;
   onNavigateToEntity: (entityId: string) => void;
+  onReply?: () => void; // TB92: Reply action
 }) {
   const isUnread = item.status === 'unread';
   const isArchived = item.status === 'archived';
@@ -1239,8 +1259,22 @@ function InboxMessageContent({
       weekday: 'short',
       month: 'short',
       day: 'numeric',
+      year: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
+    });
+  };
+
+  const formatAbsoluteTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
     });
   };
 
@@ -1263,10 +1297,12 @@ function InboxMessageContent({
   const senderType = item.sender?.entityType ?? 'agent';
   const senderId = item.sender?.id ?? item.message?.sender;
   const channelName = item.channel?.name ?? item.channelId;
-  const messageContent = item.message?.contentPreview ?? '';
+  // TB92: Use full content if available, fallback to preview
+  const messageContent = item.message?.fullContent ?? item.message?.contentPreview ?? '';
+  const contentType = item.message?.contentType ?? 'text';
 
-  const getAvatarIcon = () => {
-    switch (senderType) {
+  const getAvatarIcon = (entityType?: string) => {
+    switch (entityType ?? senderType) {
       case 'agent': return <Bot className="w-5 h-5" />;
       case 'human': return <User className="w-5 h-5" />;
       case 'system': return <Server className="w-5 h-5" />;
@@ -1274,8 +1310,8 @@ function InboxMessageContent({
     }
   };
 
-  const getAvatarColors = () => {
-    switch (senderType) {
+  const getAvatarColors = (entityType?: string) => {
+    switch (entityType ?? senderType) {
       case 'agent': return 'bg-purple-100 text-purple-600';
       case 'human': return 'bg-blue-100 text-blue-600';
       case 'system': return 'bg-gray-100 text-gray-600';
@@ -1284,6 +1320,12 @@ function InboxMessageContent({
   };
 
   const relativeTime = formatRelativeTime(item.createdAt);
+
+  // TB92: Check if message has attachments
+  const hasAttachments = item.attachments && item.attachments.length > 0;
+
+  // TB92: Check if message is a reply (has thread parent)
+  const hasThreadParent = item.threadParent !== null && item.threadParent !== undefined;
 
   return (
     <div className="h-full flex flex-col" data-testid={`inbox-message-content-${item.id}`}>
@@ -1348,6 +1390,17 @@ function InboxMessageContent({
               <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
             ) : (
               <>
+                {/* TB92: Reply action button */}
+                {!isArchived && onReply && (
+                  <button
+                    onClick={onReply}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    title="Reply"
+                    data-testid={`inbox-content-reply-${item.id}`}
+                  >
+                    <Reply className="w-4 h-4" />
+                  </button>
+                )}
                 {isArchived ? (
                   <button
                     onClick={onRestore}
@@ -1393,21 +1446,122 @@ function InboxMessageContent({
           </div>
         </div>
 
-        {/* Timestamp */}
-        <div className="mt-2 text-xs text-gray-500" data-testid={`inbox-content-time-${item.id}`}>
+        {/* Timestamp - TB92: with absolute time on hover */}
+        <div
+          className="mt-2 text-xs text-gray-500 cursor-help"
+          title={formatAbsoluteTime(item.createdAt)}
+          data-testid={`inbox-content-time-${item.id}`}
+        >
           {formatFullTime(item.createdAt)}
           {relativeTime && <span className="ml-1">({relativeTime})</span>}
         </div>
       </div>
 
-      {/* Message Content */}
-      <div className="flex-1 overflow-auto p-4">
-        <div
-          className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap"
-          data-testid={`inbox-content-body-${item.id}`}
-        >
-          {messageContent || <span className="text-gray-400 italic">No content</span>}
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-auto">
+        {/* TB92: Thread context - show parent message if this is a reply */}
+        {hasThreadParent && item.threadParent && (
+          <div
+            className="mx-4 mt-4 p-3 bg-gray-50 border-l-4 border-gray-300 rounded-r"
+            data-testid={`inbox-content-thread-context-${item.id}`}
+          >
+            <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+              <CornerUpLeft className="w-3 h-3" />
+              <span>Reply to</span>
+            </div>
+            <div className="flex items-start gap-2">
+              {/* Parent sender avatar */}
+              <button
+                onClick={() => item.threadParent?.sender?.id && onNavigateToEntity(item.threadParent.sender.id)}
+                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${getAvatarColors(item.threadParent.sender?.entityType)} hover:ring-2 hover:ring-blue-300 transition-all`}
+                data-testid={`inbox-content-thread-parent-avatar-${item.id}`}
+              >
+                {getAvatarIcon(item.threadParent.sender?.entityType)}
+              </button>
+              <div className="min-w-0 flex-1">
+                {/* Parent sender name */}
+                <button
+                  onClick={() => item.threadParent?.sender?.id && onNavigateToEntity(item.threadParent.sender.id)}
+                  className="text-xs font-medium text-gray-700 hover:text-blue-600 hover:underline"
+                  data-testid={`inbox-content-thread-parent-sender-${item.id}`}
+                >
+                  {item.threadParent.sender?.name ?? 'Unknown'}
+                </button>
+                {/* Parent message preview */}
+                <p
+                  className="text-xs text-gray-500 truncate mt-0.5"
+                  data-testid={`inbox-content-thread-parent-preview-${item.id}`}
+                >
+                  {item.threadParent.contentPreview || 'No content'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Message Content - TB92: Full content with markdown rendering */}
+        <div className="p-4">
+          <div
+            className={`prose prose-sm max-w-none text-gray-700 ${
+              contentType === 'markdown' ? 'whitespace-pre-wrap' : 'whitespace-pre-wrap'
+            }`}
+            data-testid={`inbox-content-body-${item.id}`}
+          >
+            {messageContent || <span className="text-gray-400 italic">No content</span>}
+          </div>
         </div>
+
+        {/* TB92: Attachments section - document embeds */}
+        {hasAttachments && (
+          <div
+            className="px-4 pb-4"
+            data-testid={`inbox-content-attachments-${item.id}`}
+          >
+            <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+              <Paperclip className="w-3 h-3" />
+              <span>{item.attachments!.length} attachment{item.attachments!.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="space-y-2">
+              {item.attachments!.map((attachment) => (
+                <div
+                  key={attachment.id}
+                  className="border border-gray-200 rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  data-testid={`inbox-content-attachment-${attachment.id}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p
+                          className="text-sm font-medium text-gray-700 truncate"
+                          data-testid={`inbox-content-attachment-title-${attachment.id}`}
+                        >
+                          {attachment.title}
+                        </p>
+                        <span
+                          className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-gray-200 text-gray-600 rounded"
+                          data-testid={`inbox-content-attachment-type-${attachment.id}`}
+                        >
+                          {attachment.contentType ?? 'text'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Attachment content preview */}
+                  {attachment.content && (
+                    <div
+                      className="mt-2 text-xs text-gray-500 line-clamp-3 whitespace-pre-wrap"
+                      data-testid={`inbox-content-attachment-preview-${attachment.id}`}
+                    >
+                      {attachment.content.substring(0, 200)}
+                      {attachment.content.length > 200 && '...'}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Footer - View in channel link */}
@@ -2482,6 +2636,8 @@ function EntityDetailPanel({
                     isPending={pendingItemId === selectedInboxItem.id}
                     onNavigateToMessage={() => handleNavigateToMessage(selectedInboxItem.channelId, selectedInboxItem.messageId)}
                     onNavigateToEntity={handleNavigateToEntity}
+                    // TB92: Reply action navigates to channel with message for replying
+                    onReply={() => handleNavigateToMessage(selectedInboxItem.channelId, selectedInboxItem.messageId)}
                   />
                 ) : (
                   <InboxMessageEmptyState />
