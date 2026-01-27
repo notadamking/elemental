@@ -4,23 +4,25 @@
 
 | I want to... | Read | Key Files |
 |-------------|------|-----------|
-| Work with tasks | [core/types.md#task](core/types.md#task) | `src/types/task.ts` |
-| Work with entities | [core/types.md#entity](core/types.md#entity) | `src/types/entity.ts` |
-| Work with messages | [core/types.md#message](core/types.md#message) | `src/types/message.ts` |
-| Work with documents | [core/types.md#document](core/types.md#document) | `src/types/document.ts` |
-| Work with collections | [core/collections.md](core/collections.md) | `src/types/plan.ts`, etc. |
-| Add dependencies | [core/dependencies.md](core/dependencies.md) | `src/services/dependency.ts` |
-| Understand storage | [core/storage.md](core/storage.md) | `src/storage/bun-backend.ts` |
-| Export/import data | [core/storage.md#sync-system](core/storage.md#sync-system) | `src/sync/service.ts` |
+| Work with tasks | [core/types.md#task](core/types.md#task) | `apps/legacy/src/types/task.ts` |
+| Work with entities | [core/types.md#entity](core/types.md#entity) | `apps/legacy/src/types/entity.ts` |
+| Work with messages | [core/types.md#message](core/types.md#message) | `apps/legacy/src/types/message.ts` |
+| Work with documents | [core/types.md#document](core/types.md#document) | `apps/legacy/src/types/document.ts` |
+| Work with collections | [core/collections.md](core/collections.md) | `apps/legacy/src/types/plan.ts`, etc. |
+| Add dependencies | [core/dependencies.md](core/dependencies.md) | `apps/legacy/src/services/dependency.ts` |
+| Understand storage | [core/storage.md](core/storage.md) | `apps/legacy/src/storage/bun-backend.ts` |
+| Export/import data | [core/storage.md#sync-system](core/storage.md#sync-system) | `apps/legacy/src/sync/service.ts` |
 | Add API endpoint | [platform/server.md](platform/server.md) | `apps/server/src/index.ts` |
 | Add React component | [platform/web.md](platform/web.md) | `apps/web/src/components/` |
 | Add React hook | [platform/web.md](platform/web.md) | `apps/web/src/api/hooks/` |
 | Use WebSocket | [platform/websocket.md](platform/websocket.md) | `apps/server/src/ws/` |
-| Use the TypeScript API | [api/elemental-api.md](api/elemental-api.md) | `src/api/elemental-api.ts` |
-| Use the CLI | [api/cli.md](api/cli.md) | `src/cli/commands/` |
+| Use the TypeScript API | [api/elemental-api.md](api/elemental-api.md) | `apps/legacy/src/api/elemental-api.ts` |
+| Use the CLI | [api/cli.md](api/cli.md) | `apps/legacy/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
 ## Architecture at a Glance
+
+> **Note**: The project is now a TurboRepo monorepo. The core CLI library is temporarily at `apps/legacy/` during the migration to separate packages.
 
 ```
 ┌─────────────────┐     ┌─────────────────┐
@@ -29,8 +31,8 @@
 └─────────────────┘     └────────┬────────┘
                                  │
                         ┌────────▼────────┐
-                        │  @elemental/core │
-                        │  (src/)          │
+                        │ @elemental/cli  │
+                        │ (apps/legacy/)  │
                         └────────┬────────┘
                                  │
                         ┌────────▼────────┐
@@ -39,72 +41,74 @@
                         └─────────────────┘
 ```
 
-## File Map (Core Library)
+## File Map (Core Library - apps/legacy/src/)
+
+> **Note**: All paths below are relative to `apps/legacy/src/`. The core library will be extracted to separate packages (`@elemental/core`, `@elemental/storage`, `@elemental/sdk`) in future tracer bullets.
 
 | Concept | Source | Tests |
 |---------|--------|-------|
-| Library entry point | `src/index.ts` | - |
-| CLI entry point | `src/bin/el.ts` | - |
-| Type exports | `src/types/index.ts` | - |
-| Task type | `src/types/task.ts` | `src/types/task.test.ts` |
-| Entity type | `src/types/entity.ts` | `src/types/entity.test.ts` |
-| Message type | `src/types/message.ts` | `src/types/message.test.ts` |
-| Document type | `src/types/document.ts` | `src/types/document.test.ts` |
-| Plan type | `src/types/plan.ts` | `src/types/plan.test.ts` |
-| Workflow type | `src/types/workflow.ts` | `src/types/workflow.test.ts` |
-| Channel type | `src/types/channel.ts` | `src/types/channel.test.ts` |
-| Library type | `src/types/library.ts` | `src/types/library.test.ts` |
-| Team type | `src/types/team.ts` | `src/types/team.test.ts` |
-| Dependency type | `src/types/dependency.ts` | `src/types/dependency.test.ts` |
-| Element base | `src/types/element.ts` | `src/types/element.test.ts` |
-| Inbox type | `src/types/inbox.ts` | `src/types/inbox.test.ts` |
-| Event type | `src/types/event.ts` | `src/types/event.test.ts` |
-| Playbook type | `src/types/playbook.ts` | `src/types/playbook.test.ts` |
-| Playbook YAML | `src/types/playbook-yaml.ts` | `src/types/playbook-yaml.test.ts` |
-| Workflow ops | `src/types/workflow-ops.ts` | `src/types/workflow-ops.test.ts` |
-| Workflow pour | `src/types/workflow-pour.ts` | `src/types/workflow-pour.test.ts` |
-| Dependency service | `src/services/dependency.ts` | `src/services/dependency.test.ts` |
-| Blocked cache | `src/services/blocked-cache.ts` | `src/services/blocked-cache.test.ts` |
-| Inbox service | `src/services/inbox.ts` | `src/services/inbox.test.ts` |
-| Priority service | `src/services/priority-service.ts` | `src/services/priority-service.test.ts` |
-| ID length cache | `src/services/id-length-cache.ts` | `src/services/id-length-cache.test.ts` |
-| Storage exports | `src/storage/index.ts` | - |
-| Storage backend interface | `src/storage/backend.ts` | `src/storage/backend.test.ts` |
-| Storage factory | `src/storage/create-backend.ts` | - |
-| Storage errors | `src/storage/errors.ts` | `src/storage/errors.test.ts` |
-| Storage types | `src/storage/types.ts` | `src/storage/types.test.ts` |
-| Schema & migrations | `src/storage/schema.ts` | `src/storage/schema.test.ts` |
-| Bun backend | `src/storage/bun-backend.ts` | `src/storage/bun-backend.test.ts` |
-| Node backend | `src/storage/node-backend.ts` | - |
-| Browser backend | `src/storage/browser-backend.ts` | `src/storage/browser-backend.test.ts` |
-| ElementalAPI | `src/api/elemental-api.ts` | `src/api/*.integration.test.ts` |
-| API types | `src/api/types.ts` | `src/api/types.test.ts` |
-| CLI runner | `src/cli/runner.ts` | `src/cli/runner.test.ts` |
-| CLI parser | `src/cli/parser.ts` | `src/cli/parser.test.ts` |
-| CLI formatter | `src/cli/formatter.ts` | `src/cli/formatter.test.ts` |
-| CLI types | `src/cli/types.ts` | `src/cli/types.test.ts` |
-| CLI commands | `src/cli/commands/*.ts` | `src/cli/commands/*.test.ts` |
-| GC commands | `src/cli/commands/gc.ts` | - |
-| ID generator | `src/id/generator.ts` | `src/id/generator.test.ts` |
-| Sync service | `src/sync/service.ts` | `src/sync/service.test.ts` |
-| Sync types | `src/sync/types.ts` | - |
-| Sync serialization | `src/sync/serialization.ts` | - |
-| Sync merge | `src/sync/merge.ts` | - |
-| Sync hashing | `src/sync/hash.ts` | - |
-| Identity system | `src/systems/identity.ts` | `src/systems/identity.test.ts` |
-| Error codes | `src/errors/codes.ts` | `src/errors/codes.test.ts` |
-| Error base class | `src/errors/error.ts` | `src/errors/error.test.ts` |
-| Error factories | `src/errors/factories.ts` | `src/errors/factories.test.ts` |
-| Config loader | `src/config/config.ts` | `src/config/config.test.ts` |
-| Config types | `src/config/types.ts` | - |
-| Config defaults | `src/config/defaults.ts` | - |
-| Config validation | `src/config/validation.ts` | - |
-| Config merge | `src/config/merge.ts` | - |
-| Config file I/O | `src/config/file.ts` | - |
-| Config env vars | `src/config/env.ts` | - |
-| Duration parsing | `src/config/duration.ts` | - |
-| HTTP sync handlers | `src/http/sync-handlers.ts` | - |
-| Mention parsing | `src/utils/mentions.ts` | - |
+| Library entry point | `index.ts` | - |
+| CLI entry point | `bin/el.ts` | - |
+| Type exports | `types/index.ts` | - |
+| Task type | `types/task.ts` | `types/task.test.ts` |
+| Entity type | `types/entity.ts` | `types/entity.test.ts` |
+| Message type | `types/message.ts` | `types/message.test.ts` |
+| Document type | `types/document.ts` | `types/document.test.ts` |
+| Plan type | `types/plan.ts` | `types/plan.test.ts` |
+| Workflow type | `types/workflow.ts` | `types/workflow.test.ts` |
+| Channel type | `types/channel.ts` | `types/channel.test.ts` |
+| Library type | `types/library.ts` | `types/library.test.ts` |
+| Team type | `types/team.ts` | `types/team.test.ts` |
+| Dependency type | `types/dependency.ts` | `types/dependency.test.ts` |
+| Element base | `types/element.ts` | `types/element.test.ts` |
+| Inbox type | `types/inbox.ts` | `types/inbox.test.ts` |
+| Event type | `types/event.ts` | `types/event.test.ts` |
+| Playbook type | `types/playbook.ts` | `types/playbook.test.ts` |
+| Playbook YAML | `types/playbook-yaml.ts` | `types/playbook-yaml.test.ts` |
+| Workflow ops | `types/workflow-ops.ts` | `types/workflow-ops.test.ts` |
+| Workflow pour | `types/workflow-pour.ts` | `types/workflow-pour.test.ts` |
+| Dependency service | `services/dependency.ts` | `services/dependency.test.ts` |
+| Blocked cache | `services/blocked-cache.ts` | `services/blocked-cache.test.ts` |
+| Inbox service | `services/inbox.ts` | `services/inbox.test.ts` |
+| Priority service | `services/priority-service.ts` | `services/priority-service.test.ts` |
+| ID length cache | `services/id-length-cache.ts` | `services/id-length-cache.test.ts` |
+| Storage exports | `storage/index.ts` | - |
+| Storage backend interface | `storage/backend.ts` | `storage/backend.test.ts` |
+| Storage factory | `storage/create-backend.ts` | - |
+| Storage errors | `storage/errors.ts` | `storage/errors.test.ts` |
+| Storage types | `storage/types.ts` | `storage/types.test.ts` |
+| Schema & migrations | `storage/schema.ts` | `storage/schema.test.ts` |
+| Bun backend | `storage/bun-backend.ts` | `storage/bun-backend.test.ts` |
+| Node backend | `storage/node-backend.ts` | - |
+| Browser backend | `storage/browser-backend.ts` | `storage/browser-backend.test.ts` |
+| ElementalAPI | `api/elemental-api.ts` | `api/*.integration.test.ts` |
+| API types | `api/types.ts` | `api/types.test.ts` |
+| CLI runner | `cli/runner.ts` | `cli/runner.test.ts` |
+| CLI parser | `cli/parser.ts` | `cli/parser.test.ts` |
+| CLI formatter | `cli/formatter.ts` | `cli/formatter.test.ts` |
+| CLI types | `cli/types.ts` | `cli/types.test.ts` |
+| CLI commands | `cli/commands/*.ts` | `cli/commands/*.test.ts` |
+| GC commands | `cli/commands/gc.ts` | - |
+| ID generator | `id/generator.ts` | `id/generator.test.ts` |
+| Sync service | `sync/service.ts` | `sync/service.test.ts` |
+| Sync types | `sync/types.ts` | - |
+| Sync serialization | `sync/serialization.ts` | - |
+| Sync merge | `sync/merge.ts` | - |
+| Sync hashing | `sync/hash.ts` | - |
+| Identity system | `systems/identity.ts` | `systems/identity.test.ts` |
+| Error codes | `errors/codes.ts` | `errors/codes.test.ts` |
+| Error base class | `errors/error.ts` | `errors/error.test.ts` |
+| Error factories | `errors/factories.ts` | `errors/factories.test.ts` |
+| Config loader | `config/config.ts` | `config/config.test.ts` |
+| Config types | `config/types.ts` | - |
+| Config defaults | `config/defaults.ts` | - |
+| Config validation | `config/validation.ts` | - |
+| Config merge | `config/merge.ts` | - |
+| Config file I/O | `config/file.ts` | - |
+| Config env vars | `config/env.ts` | - |
+| Duration parsing | `config/duration.ts` | - |
+| HTTP sync handlers | `http/sync-handlers.ts` | - |
+| Mention parsing | `utils/mentions.ts` | - |
 
 ## File Map (Platform)
 

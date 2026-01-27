@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Turbo
+.turbo/
+
 # Bun
 bun.lockb
 

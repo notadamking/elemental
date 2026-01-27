@@ -1,16 +1,10 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "types": ["bun-types"],
     "paths": {
-      "@elemental/cli": ["../../src/index.ts"],
-      "@elemental/cli/*": ["../../src/*"]
+      "@elemental/cli": ["../legacy/src/index.ts"],
+      "@elemental/cli/*": ["../legacy/src/*"]
     }
   },
   "include": ["src/**/*"],

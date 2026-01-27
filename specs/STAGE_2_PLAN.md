@@ -309,17 +309,17 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ### Phase 1: Monorepo Foundation
 
-#### - [ ] TB-O1: TurboRepo Scaffold
+#### - [x] TB-O1: TurboRepo Scaffold
 
 **Goal**: Working monorepo with build pipeline
 
 **Changes**:
 
-- [ ] Create `turbo.json` with build/dev/test/lint tasks
-- [ ] Create root `package.json` with pnpm workspaces
-- [ ] Create `packages/` and `apps/` directories
-- [ ] Move existing code to `apps/legacy/` temporarily
-- [ ] Add shared `tsconfig.json` base configs
+- [x] Create `turbo.json` with build/dev/test/lint tasks
+- [x] Create root `package.json` with pnpm workspaces
+- [x] Create `packages/` and `apps/` directories
+- [x] Move existing code to `apps/legacy/` temporarily
+- [x] Add shared `tsconfig.json` base configs
 
 **Verification**: `pnpm install && pnpm build` succeeds
 
