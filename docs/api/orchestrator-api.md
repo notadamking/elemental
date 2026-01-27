@@ -63,6 +63,72 @@ const steward = await api.registerSteward({
 });
 ```
 
+## Agent Channels
+
+Each agent automatically gets a dedicated messaging channel when registered. This enables inter-agent communication and notifications.
+
+### Channel Creation
+
+Channels are created atomically during registration:
+- Channel name format: `agent-{agentId}`
+- Members: agent entity + creator entity
+- Visibility: private
+- Join policy: invite-only
+
+### Accessing Agent Channels
+
+Using the AgentRegistry service:
+
+```typescript
+import { createAgentRegistry } from '@elemental/orchestrator-sdk';
+
+const registry = createAgentRegistry(api);
+
+// Get the full channel object
+const channel = await registry.getAgentChannel(agentId);
+if (channel) {
+  console.log(`Channel: ${channel.name}, Members: ${channel.members.length}`);
+}
+
+// Get just the channel ID (faster)
+const channelId = await registry.getAgentChannelId(agentId);
+```
+
+### Channel Name Utilities
+
+```typescript
+import {
+  generateAgentChannelName,
+  parseAgentChannelName,
+} from '@elemental/orchestrator-sdk';
+
+// Generate channel name for an agent
+const channelName = generateAgentChannelName(agentId);
+// Returns: 'agent-el-abc123'
+
+// Parse agent ID from channel name
+const parsedAgentId = parseAgentChannelName('agent-el-abc123');
+// Returns: 'el-abc123' (or null if not an agent channel)
+```
+
+### Sending Messages to Agents
+
+```typescript
+// Send a message to an agent's channel
+const channelId = await registry.getAgentChannelId(agentId);
+if (channelId) {
+  await api.create({
+    type: 'message',
+    channelId,
+    sender: senderEntityId,
+    contentRef: messageDocumentId,
+    metadata: {
+      type: 'task-assignment', // or 'status-update', 'help-request', etc.
+    },
+  });
+}
+```
+
 ## Agent Capabilities
 
 Capabilities enable intelligent task routing based on agent skills and languages.
@@ -210,6 +276,7 @@ Key files:
 - `packages/orchestrator-sdk/src/types/agent.ts` - Agent and capability types
 - `packages/orchestrator-sdk/src/types/task-meta.ts` - Task orchestrator metadata
 - `packages/orchestrator-sdk/src/services/capability-service.ts` - Capability matching
+- `packages/orchestrator-sdk/src/services/agent-registry.ts` - Agent registration and channel management
 
 ## See Also
 

@@ -3,13 +3,13 @@
  *
  * This module exports orchestration services:
  * - CapabilityService (TB-O6a) - Capability-based agent matching and task routing
- * - AgentRegistry (TB-O7) - Agent registration and management
+ * - AgentRegistry (TB-O7, TB-O7a) - Agent registration, management, and channel setup
  * - TaskAssignmentService (TB-O8) - TODO
  * - DispatchService (TB-O8a) - TODO
  * - StewardScheduler (TB-O23) - TODO
  */
 
-// Agent registry (TB-O7)
+// Agent registry (TB-O7, TB-O7a)
 // Note: AgentEntity, isAgentEntity, and getAgentMetadata are exported from api/index.js
 // to avoid duplicate export conflicts
 export {
@@ -20,6 +20,9 @@ export {
   AgentRegistryImpl,
   // Factory
   createAgentRegistry,
+  // Agent channel utilities (TB-O7a)
+  generateAgentChannelName,
+  parseAgentChannelName,
 } from './agent-registry.js';
 
 // Capability service (TB-O6a)

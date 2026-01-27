@@ -10,12 +10,13 @@
  * - Query agents by role, status, and other filters
  * - Track agent session status
  * - Manage agent metadata
+ * - Create dedicated channels for agent messaging (TB-O7a)
  *
  * @module
  */
 
-import type { Entity, EntityId, ElementId } from '@elemental/core';
-import { EntityTypeValue, createEntity, createTimestamp } from '@elemental/core';
+import type { Entity, EntityId, ElementId, Channel, ChannelId } from '@elemental/core';
+import { EntityTypeValue, createEntity, createTimestamp, createGroupChannel } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
 import type {
   AgentRole,
@@ -50,6 +51,34 @@ export { isAgentEntity, getAgentMetadata };
  * Key used to store agent metadata in Entity.metadata
  */
 const AGENT_META_KEY = 'agent';
+
+/**
+ * Prefix for agent channel names
+ */
+const AGENT_CHANNEL_PREFIX = 'agent-';
+
+/**
+ * Generates the channel name for an agent
+ */
+export function generateAgentChannelName(agentId: EntityId): string {
+  return `${AGENT_CHANNEL_PREFIX}${agentId}`;
+}
+
+/**
+ * Parses an agent ID from a channel name
+ * Returns null if the name doesn't match the agent channel pattern
+ */
+export function parseAgentChannelName(channelName: string): EntityId | null {
+  if (!channelName.startsWith(AGENT_CHANNEL_PREFIX)) {
+    return null;
+  }
+  const agentId = channelName.slice(AGENT_CHANNEL_PREFIX.length);
+  // Basic validation - agent IDs should match the element ID pattern
+  if (!/^el-[0-9a-z]{3,8}$/.test(agentId)) {
+    return null;
+  }
+  return agentId as EntityId;
+}
 
 // ============================================================================
 // Registration Input Types (Extended)
@@ -164,6 +193,28 @@ export interface AgentRegistry {
     entityId: EntityId,
     updates: Partial<AgentMetadata>
   ): Promise<AgentEntity>;
+
+  // ----------------------------------------
+  // Agent Channel Operations (TB-O7a)
+  // ----------------------------------------
+
+  /**
+   * Gets the dedicated channel for an agent.
+   * Each agent has a channel named `agent-{agentId}` for receiving messages.
+   *
+   * @param agentId - The entity ID of the agent
+   * @returns The agent's channel, or undefined if not found
+   */
+  getAgentChannel(agentId: EntityId): Promise<Channel | undefined>;
+
+  /**
+   * Gets the channel ID for an agent from its metadata.
+   * This is faster than getAgentChannel() when you only need the ID.
+   *
+   * @param agentId - The entity ID of the agent
+   * @returns The channel ID, or undefined if the agent has no channel
+   */
+  getAgentChannelId(agentId: EntityId): Promise<ChannelId | undefined>;
 }
 
 // ============================================================================
@@ -219,7 +270,19 @@ export class AgentRegistryImpl implements AgentRegistry {
     const saved = await this.api.create(
       entity as unknown as Record<string, unknown> & { createdBy: EntityId }
     );
-    return saved as AgentEntity;
+    const agentEntity = saved as AgentEntity;
+    // Cast to EntityId (Element.id is ElementId but AgentEntity is an Entity)
+    const agentEntityId = agentEntity.id as unknown as EntityId;
+
+    // Create dedicated channel for the agent (TB-O7a)
+    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+
+    // Update agent metadata with channel ID
+    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
+      channelId: channel.id,
+    } as Partial<AgentMetadata>);
+
+    return updatedAgent;
   }
 
   async registerWorker(input: RegisterWorkerInput): Promise<AgentEntity> {
@@ -243,7 +306,19 @@ export class AgentRegistryImpl implements AgentRegistry {
     const saved = await this.api.create(
       entity as unknown as Record<string, unknown> & { createdBy: EntityId }
     );
-    return saved as AgentEntity;
+    const agentEntity = saved as AgentEntity;
+    // Cast to EntityId (Element.id is ElementId but AgentEntity is an Entity)
+    const agentEntityId = agentEntity.id as unknown as EntityId;
+
+    // Create dedicated channel for the agent (TB-O7a)
+    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+
+    // Update agent metadata with channel ID
+    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
+      channelId: channel.id,
+    } as Partial<AgentMetadata>);
+
+    return updatedAgent;
   }
 
   async registerSteward(input: RegisterStewardInput): Promise<AgentEntity> {
@@ -268,7 +343,19 @@ export class AgentRegistryImpl implements AgentRegistry {
     const saved = await this.api.create(
       entity as unknown as Record<string, unknown> & { createdBy: EntityId }
     );
-    return saved as AgentEntity;
+    const agentEntity = saved as AgentEntity;
+    // Cast to EntityId (Element.id is ElementId but AgentEntity is an Entity)
+    const agentEntityId = agentEntity.id as unknown as EntityId;
+
+    // Create dedicated channel for the agent (TB-O7a)
+    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+
+    // Update agent metadata with channel ID
+    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
+      channelId: channel.id,
+    } as Partial<AgentMetadata>);
+
+    return updatedAgent;
   }
 
   // ----------------------------------------
@@ -394,8 +481,76 @@ export class AgentRegistryImpl implements AgentRegistry {
   }
 
   // ----------------------------------------
+  // Agent Channel Operations (TB-O7a)
+  // ----------------------------------------
+
+  async getAgentChannel(agentId: EntityId): Promise<Channel | undefined> {
+    // First try to get the channel ID from the agent's metadata (fast path)
+    const channelId = await this.getAgentChannelId(agentId);
+    if (channelId) {
+      const channel = await this.api.get(channelId as unknown as ElementId);
+      if (channel && channel.type === 'channel') {
+        return channel as Channel;
+      }
+    }
+
+    // Fallback: search for the channel by name
+    const channelName = generateAgentChannelName(agentId);
+    const channels = await this.api.searchChannels(channelName, {
+      channelType: 'group',
+    });
+
+    // Find exact match (searchChannels does pattern matching)
+    const agentChannel = channels.find((c) => c.name === channelName);
+    return agentChannel;
+  }
+
+  async getAgentChannelId(agentId: EntityId): Promise<ChannelId | undefined> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) {
+      return undefined;
+    }
+
+    const meta = getAgentMetadata(agent);
+    return meta?.channelId;
+  }
+
+  // ----------------------------------------
   // Private Helpers
   // ----------------------------------------
+
+  /**
+   * Creates a dedicated channel for an agent and updates the agent's metadata
+   * with the channel ID.
+   *
+   * @param agentId - The ID of the agent entity
+   * @param createdBy - The entity that created the agent (will be a channel member)
+   * @returns The created channel
+   */
+  private async createAgentChannel(agentId: EntityId, createdBy: EntityId): Promise<Channel> {
+    const channelName = generateAgentChannelName(agentId);
+
+    // Create a group channel with the agent and creator as members
+    const channel = await createGroupChannel({
+      name: channelName,
+      createdBy: createdBy,
+      members: [agentId], // Creator is automatically added
+      visibility: 'private',
+      joinPolicy: 'invite-only',
+      tags: ['agent-channel'],
+      metadata: {
+        agentId,
+        purpose: 'Agent direct messaging channel',
+      },
+    });
+
+    // Save the channel
+    const savedChannel = await this.api.create<Channel>(
+      channel as unknown as Record<string, unknown> & { createdBy: EntityId }
+    );
+
+    return savedChannel;
+  }
 
   private applyFilters(agents: AgentEntity[], filter: AgentFilter): AgentEntity[] {
     let result = agents;

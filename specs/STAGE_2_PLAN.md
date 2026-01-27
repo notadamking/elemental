@@ -505,17 +505,25 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O7a: Agent Channel Setup
+#### - [x] TB-O7a: Agent Channel Setup
 
 **Goal**: Create direct channel per agent for messaging
 
 **Changes**:
 
-- [ ] On agent registration, create dedicated channel: `agent-{agentId}`
-- [ ] Add method: `getAgentChannel(agentId)` to AgentRegistry
-- [ ] Ensure channel created atomically with agent registration
+- [x] On agent registration, create dedicated channel: `agent-{agentId}`
+- [x] Add method: `getAgentChannel(agentId)` to AgentRegistry
+- [x] Ensure channel created atomically with agent registration
 
 **Verification**: Register agent, verify channel exists, send message to channel
+
+**Implementation Notes**:
+- Channel created as group channel with agent and creator as members
+- Added `getAgentChannel(agentId)` and `getAgentChannelId(agentId)` methods to AgentRegistry
+- Added utility functions: `generateAgentChannelName()`, `parseAgentChannelName()`
+- Channel has metadata: `agentId`, `purpose`, tags: `['agent-channel']`
+- Channel permissions: private visibility, invite-only join policy
+- 15 new tests added covering channel creation, retrieval, and utility functions
 
 ---
 

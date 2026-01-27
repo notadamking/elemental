@@ -12,6 +12,8 @@ import { createEntity, EntityTypeValue, type EntityId } from '@elemental/core';
 import {
   createAgentRegistry,
   type AgentRegistry,
+  generateAgentChannelName,
+  parseAgentChannelName,
 } from './agent-registry.js';
 import {
   type AgentEntity,
@@ -19,6 +21,37 @@ import {
   getAgentMetadata,
 } from '../api/orchestrator-api.js';
 import type { WorkerMetadata, StewardMetadata } from '../types/agent.js';
+
+describe('Agent Channel Name Utilities (TB-O7a)', () => {
+  test('generateAgentChannelName creates correct format', () => {
+    const channelName = generateAgentChannelName('el-abc123' as EntityId);
+    expect(channelName).toBe('agent-el-abc123');
+  });
+
+  test('parseAgentChannelName extracts agent ID from valid channel name', () => {
+    const agentId = parseAgentChannelName('agent-el-abc123');
+    expect(agentId).toBe('el-abc123');
+  });
+
+  test('parseAgentChannelName returns null for non-agent channel names', () => {
+    expect(parseAgentChannelName('general-chat')).toBeNull();
+    expect(parseAgentChannelName('team-engineering')).toBeNull();
+    expect(parseAgentChannelName('el-abc123')).toBeNull();
+  });
+
+  test('parseAgentChannelName returns null for invalid agent ID format', () => {
+    expect(parseAgentChannelName('agent-invalid')).toBeNull();
+    expect(parseAgentChannelName('agent-')).toBeNull();
+    expect(parseAgentChannelName('agent-el-toolonghash123')).toBeNull();
+  });
+
+  test('generateAgentChannelName and parseAgentChannelName are inverse operations', () => {
+    const originalId = 'el-xyz789' as EntityId;
+    const channelName = generateAgentChannelName(originalId);
+    const parsedId = parseAgentChannelName(channelName);
+    expect(parsedId).toBe(originalId);
+  });
+});
 
 describe('AgentRegistry', () => {
   let registry: AgentRegistry;
@@ -551,6 +584,108 @@ describe('AgentRegistry', () => {
 
       expect(withNames).toContain('WithSession');
       expect(withoutNames).toContain('WithoutSession');
+    });
+  });
+
+  describe('Agent Channel Setup (TB-O7a)', () => {
+    test('registerDirector creates dedicated channel for the agent', async () => {
+      const director = await registry.registerDirector({
+        name: 'DirectorWithChannel',
+        createdBy: systemEntity,
+      });
+
+      const meta = getAgentMetadata(director);
+      expect(meta?.channelId).toBeDefined();
+
+      // Verify channel can be retrieved
+      const channel = await registry.getAgentChannel(director.id as unknown as EntityId);
+      expect(channel).toBeDefined();
+      expect(channel?.name).toBe(`agent-${director.id}`);
+      expect(channel?.channelType).toBe('group');
+      expect(channel?.members).toContain(director.id);
+      expect(channel?.members).toContain(systemEntity);
+    });
+
+    test('registerWorker creates dedicated channel for the agent', async () => {
+      const worker = await registry.registerWorker({
+        name: 'WorkerWithChannel',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+      });
+
+      const meta = getAgentMetadata(worker);
+      expect(meta?.channelId).toBeDefined();
+
+      const channel = await registry.getAgentChannel(worker.id as unknown as EntityId);
+      expect(channel).toBeDefined();
+      expect(channel?.name).toBe(`agent-${worker.id}`);
+      expect(channel?.members).toContain(worker.id);
+    });
+
+    test('registerSteward creates dedicated channel for the agent', async () => {
+      const steward = await registry.registerSteward({
+        name: 'StewardWithChannel',
+        stewardFocus: 'merge',
+        createdBy: systemEntity,
+      });
+
+      const meta = getAgentMetadata(steward);
+      expect(meta?.channelId).toBeDefined();
+
+      const channel = await registry.getAgentChannel(steward.id as unknown as EntityId);
+      expect(channel).toBeDefined();
+      expect(channel?.name).toBe(`agent-${steward.id}`);
+    });
+
+    test('getAgentChannelId returns channel ID from metadata', async () => {
+      const worker = await registry.registerWorker({
+        name: 'WorkerForChannelId',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+      });
+
+      const channelId = await registry.getAgentChannelId(worker.id as unknown as EntityId);
+      const meta = getAgentMetadata(worker);
+
+      expect(channelId).toBeDefined();
+      expect(channelId).toBe(meta?.channelId);
+    });
+
+    test('getAgentChannel returns undefined for non-existent agent', async () => {
+      const channel = await registry.getAgentChannel('non-existent-id' as EntityId);
+      expect(channel).toBeUndefined();
+    });
+
+    test('getAgentChannelId returns undefined for non-existent agent', async () => {
+      const channelId = await registry.getAgentChannelId('non-existent-id' as EntityId);
+      expect(channelId).toBeUndefined();
+    });
+
+    test('agent channel has correct metadata', async () => {
+      const worker = await registry.registerWorker({
+        name: 'WorkerChannelMeta',
+        workerMode: 'persistent',
+        createdBy: systemEntity,
+      });
+
+      const channel = await registry.getAgentChannel(worker.id as unknown as EntityId);
+      expect(channel).toBeDefined();
+      expect(channel?.tags).toContain('agent-channel');
+      expect((channel?.metadata as Record<string, unknown>).agentId).toBe(worker.id);
+      expect((channel?.metadata as Record<string, unknown>).purpose).toBe('Agent direct messaging channel');
+    });
+
+    test('agent channel has correct permissions', async () => {
+      const worker = await registry.registerWorker({
+        name: 'WorkerChannelPerms',
+        workerMode: 'persistent',
+        createdBy: systemEntity,
+      });
+
+      const channel = await registry.getAgentChannel(worker.id as unknown as EntityId);
+      expect(channel).toBeDefined();
+      expect(channel?.permissions.visibility).toBe('private');
+      expect(channel?.permissions.joinPolicy).toBe('invite-only');
     });
   });
 });

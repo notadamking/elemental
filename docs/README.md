@@ -19,6 +19,7 @@
 | Use the TypeScript API | [api/elemental-api.md](api/elemental-api.md) | `packages/sdk/src/api/elemental-api.ts` |
 | Use the Orchestrator API | [api/orchestrator-api.md](api/orchestrator-api.md) | `packages/orchestrator-sdk/src/api/orchestrator-api.ts` |
 | Work with agent capabilities | [api/orchestrator-api.md#agent-capabilities](api/orchestrator-api.md#agent-capabilities) | `packages/orchestrator-sdk/src/services/capability-service.ts` |
+| Work with agent channels | [api/orchestrator-api.md#agent-channels](api/orchestrator-api.md#agent-channels) | `packages/orchestrator-sdk/src/services/agent-registry.ts` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
