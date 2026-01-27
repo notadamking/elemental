@@ -1,0 +1,673 @@
+/**
+ * Merge Steward Service Tests
+ *
+ * Tests for the MergeStewardService which handles auto-merging of completed
+ * task branches, test execution, and fix task creation.
+ *
+ * TB-O21: Merge Steward Auto-Merge
+ *
+ * @module
+ */
+
+import { describe, it, expect, beforeEach, vi, afterEach, type MockInstance } from 'vitest';
+import { createTimestamp, Priority, Complexity, TaskStatus } from '@elemental/core';
+import type { Task, ElementId, EntityId, Channel, Message } from '@elemental/core';
+import type { ElementalAPI } from '@elemental/sdk';
+
+import type { TaskAssignmentService, TaskAssignment } from './task-assignment-service.js';
+import type { DispatchService } from './dispatch-service.js';
+import type { WorktreeManager, WorktreeInfo } from '../git/worktree-manager.js';
+import type { AgentRegistry } from './agent-registry.js';
+
+import {
+  MergeStewardServiceImpl,
+  createMergeStewardService,
+  type MergeStewardService,
+  type MergeStewardConfig,
+} from './merge-steward-service.js';
+
+// ============================================================================
+// Test Fixtures
+// ============================================================================
+
+function createMockTask(overrides: Partial<Task> = {}): Task {
+  return {
+    id: 'task-001' as ElementId,
+    type: 'task',
+    title: 'Implement feature X',
+    status: TaskStatus.CLOSED,
+    priority: Priority.MEDIUM,
+    complexity: Complexity.MEDIUM,
+    tags: ['feature'],
+    assignee: 'agent-worker-001' as EntityId,
+    createdBy: 'user-001' as EntityId,
+    createdAt: createTimestamp(),
+    updatedAt: createTimestamp(),
+    version: 1,
+    ephemeral: false,
+    metadata: {
+      description: 'A test task',
+      orchestrator: {
+        branch: 'agent/worker-alice/task-001-implement-feature-x',
+        worktree: '.worktrees/worker-alice-implement-feature-x',
+        assignedAgent: 'agent-worker-001' as EntityId,
+        mergeStatus: 'pending',
+        completedAt: createTimestamp(),
+      },
+    },
+    ...overrides,
+  } as Task;
+}
+
+function createMockTaskAssignment(task: Task): TaskAssignment {
+  return {
+    taskId: task.id,
+    task,
+    orchestratorMeta: (task.metadata as Record<string, unknown>)?.orchestrator as TaskAssignment['orchestratorMeta'],
+  };
+}
+
+function createMockChannel(): Channel {
+  return {
+    id: 'channel-agent-001' as ElementId,
+    type: 'channel',
+    name: 'agent-agent-worker-001',
+    channelType: 'group',
+    members: ['agent-worker-001'] as EntityId[],
+    tags: ['agent-channel'],
+    createdBy: 'system' as EntityId,
+    createdAt: createTimestamp(),
+    updatedAt: createTimestamp(),
+    version: 1,
+    metadata: {},
+  } as unknown as Channel;
+}
+
+// ============================================================================
+// Mock Setup
+// ============================================================================
+
+function createMockApi(): ElementalAPI {
+  return {
+    get: vi.fn(),
+    list: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  } as unknown as ElementalAPI;
+}
+
+function createMockTaskAssignmentService(): TaskAssignmentService {
+  return {
+    getTasksAwaitingMerge: vi.fn(),
+    assignToAgent: vi.fn(),
+    unassignTask: vi.fn(),
+    startTask: vi.fn(),
+    completeTask: vi.fn(),
+    updateSessionId: vi.fn(),
+    getAgentTasks: vi.fn(),
+    getAgentWorkload: vi.fn(),
+    agentHasCapacity: vi.fn(),
+    getUnassignedTasks: vi.fn(),
+    getTasksByAssignmentStatus: vi.fn(),
+    listAssignments: vi.fn(),
+  } as unknown as TaskAssignmentService;
+}
+
+function createMockDispatchService(): DispatchService {
+  return {
+    dispatch: vi.fn(),
+    dispatchBatch: vi.fn(),
+    smartDispatch: vi.fn(),
+    getCandidates: vi.fn(),
+    getBestAgent: vi.fn(),
+    notifyAgent: vi.fn(),
+  } as unknown as DispatchService;
+}
+
+function createMockAgentRegistry(): AgentRegistry {
+  return {
+    registerDirector: vi.fn(),
+    registerWorker: vi.fn(),
+    registerSteward: vi.fn(),
+    getAgent: vi.fn(),
+    getAgentsByRole: vi.fn(),
+    getAgentChannel: vi.fn(),
+    getAgentChannelId: vi.fn(),
+    updateAgent: vi.fn(),
+    deleteAgent: vi.fn(),
+    listAgents: vi.fn(),
+    getAgentsByFilter: vi.fn(),
+    updateSessionStatus: vi.fn(),
+  } as unknown as AgentRegistry;
+}
+
+function createMockWorktreeManager(): WorktreeManager {
+  return {
+    initWorkspace: vi.fn(),
+    isInitialized: vi.fn().mockReturnValue(true),
+    getWorkspaceRoot: vi.fn().mockReturnValue('/project'),
+    createWorktree: vi.fn(),
+    removeWorktree: vi.fn(),
+    suspendWorktree: vi.fn(),
+    resumeWorktree: vi.fn(),
+    listWorktrees: vi.fn(),
+    getWorktree: vi.fn(),
+    getWorktreePath: vi.fn(),
+    getWorktreesForAgent: vi.fn(),
+    worktreeExists: vi.fn(),
+    getCurrentBranch: vi.fn(),
+    getDefaultBranch: vi.fn().mockResolvedValue('main'),
+    branchExists: vi.fn(),
+  } as unknown as WorktreeManager;
+}
+
+function createDefaultConfig(): MergeStewardConfig {
+  return {
+    workspaceRoot: '/project',
+    testCommand: 'npm test',
+    testTimeoutMs: 60000,
+    autoMerge: true,
+    autoCleanup: true,
+    deleteBranchAfterMerge: true,
+    stewardEntityId: 'steward-merge-001' as EntityId,
+  };
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+describe('MergeStewardService', () => {
+  let api: ElementalAPI;
+  let taskAssignment: TaskAssignmentService;
+  let dispatchService: DispatchService;
+  let agentRegistry: AgentRegistry;
+  let worktreeManager: WorktreeManager;
+  let config: MergeStewardConfig;
+  let service: MergeStewardService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    api = createMockApi();
+    taskAssignment = createMockTaskAssignmentService();
+    dispatchService = createMockDispatchService();
+    agentRegistry = createMockAgentRegistry();
+    worktreeManager = createMockWorktreeManager();
+    config = createDefaultConfig();
+
+    service = createMergeStewardService(
+      api,
+      taskAssignment,
+      dispatchService,
+      agentRegistry,
+      config,
+      worktreeManager
+    );
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  // ----------------------------------------
+  // Constructor and Factory
+  // ----------------------------------------
+
+  describe('createMergeStewardService', () => {
+    it('should create a service instance', () => {
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        config,
+        worktreeManager
+      );
+      expect(svc).toBeDefined();
+      expect(svc).toBeInstanceOf(MergeStewardServiceImpl);
+    });
+
+    it('should create a service without worktree manager', () => {
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        config
+      );
+      expect(svc).toBeDefined();
+    });
+
+    it('should use default config values when not specified', () => {
+      const minimalConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        minimalConfig
+      );
+      expect(svc).toBeDefined();
+    });
+  });
+
+  // ----------------------------------------
+  // Task Discovery
+  // ----------------------------------------
+
+  describe('getTasksAwaitingMerge', () => {
+    it('should delegate to TaskAssignmentService', async () => {
+      const mockTask = createMockTask();
+      const mockAssignments = [createMockTaskAssignment(mockTask)];
+      (taskAssignment.getTasksAwaitingMerge as MockInstance).mockResolvedValue(mockAssignments);
+
+      const result = await service.getTasksAwaitingMerge();
+
+      expect(taskAssignment.getTasksAwaitingMerge).toHaveBeenCalledOnce();
+      expect(result).toEqual(mockAssignments);
+    });
+
+    it('should return empty array when no tasks pending', async () => {
+      (taskAssignment.getTasksAwaitingMerge as MockInstance).mockResolvedValue([]);
+
+      const result = await service.getTasksAwaitingMerge();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ----------------------------------------
+  // Update Merge Status
+  // ----------------------------------------
+
+  describe('updateMergeStatus', () => {
+    it('should update merge status to testing', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.update as MockInstance).mockResolvedValue({ ...mockTask, metadata: { orchestrator: { mergeStatus: 'testing' } } });
+
+      await service.updateMergeStatus(mockTask.id, 'testing');
+
+      expect(api.update).toHaveBeenCalledWith(
+        mockTask.id,
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            orchestrator: expect.objectContaining({
+              mergeStatus: 'testing',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should add mergedAt timestamp when status is merged', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.update as MockInstance).mockImplementation((_id, updates) => Promise.resolve({ ...mockTask, ...updates } as Task));
+
+      await service.updateMergeStatus(mockTask.id, 'merged');
+
+      expect(api.update).toHaveBeenCalledWith(
+        mockTask.id,
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            orchestrator: expect.objectContaining({
+              mergeStatus: 'merged',
+              mergedAt: expect.any(String),
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should add failure reason when provided', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.update as MockInstance).mockImplementation((_id, updates) => Promise.resolve({ ...mockTask, ...updates } as Task));
+
+      await service.updateMergeStatus(mockTask.id, 'failed', {
+        failureReason: 'Something went wrong',
+      });
+
+      expect(api.update).toHaveBeenCalledWith(
+        mockTask.id,
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            orchestrator: expect.objectContaining({
+              mergeStatus: 'failed',
+              mergeFailureReason: 'Something went wrong',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should increment testRunCount when test result provided', async () => {
+      const baseTask = createMockTask();
+      const mockTask: Task = {
+        ...baseTask,
+        metadata: {
+          ...(baseTask.metadata ?? {}),
+          orchestrator: {
+            ...(baseTask.metadata as Record<string, unknown>)?.orchestrator,
+            testRunCount: 2,
+          },
+        },
+      } as Task;
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.update as MockInstance).mockImplementation((_id, updates) => Promise.resolve({ ...mockTask, ...updates } as Task));
+
+      const testResult = {
+        passed: true,
+        completedAt: createTimestamp(),
+        totalTests: 10,
+        passedTests: 10,
+      };
+
+      await service.updateMergeStatus(mockTask.id, 'merged', { testResult });
+
+      expect(api.update).toHaveBeenCalledWith(
+        mockTask.id,
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            orchestrator: expect.objectContaining({
+              testRunCount: 3,
+              lastTestResult: testResult,
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should throw when task not found', async () => {
+      (api.get as MockInstance).mockResolvedValue(null);
+
+      await expect(
+        service.updateMergeStatus('task-notfound' as ElementId, 'testing')
+      ).rejects.toThrow('Task not found');
+    });
+  });
+
+  // ----------------------------------------
+  // Cleanup After Merge
+  // ----------------------------------------
+
+  describe('cleanupAfterMerge', () => {
+    it('should cleanup worktree after merge', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (worktreeManager.removeWorktree as MockInstance).mockResolvedValue(undefined);
+
+      const result = await service.cleanupAfterMerge(mockTask.id);
+
+      expect(result).toBe(true);
+      expect(worktreeManager.removeWorktree).toHaveBeenCalledWith(
+        '.worktrees/worker-alice-implement-feature-x',
+        { deleteBranch: true, force: false }
+      );
+    });
+
+    it('should not delete branch when deleteBranch is false', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (worktreeManager.removeWorktree as MockInstance).mockResolvedValue(undefined);
+
+      await service.cleanupAfterMerge(mockTask.id, false);
+
+      expect(worktreeManager.removeWorktree).toHaveBeenCalledWith(
+        expect.any(String),
+        { deleteBranch: false, force: false }
+      );
+    });
+
+    it('should return false when task not found', async () => {
+      (api.get as MockInstance).mockResolvedValue(null);
+
+      const result = await service.cleanupAfterMerge('task-notfound' as ElementId);
+
+      expect(result).toBe(false);
+    });
+
+    it('should return true when no worktree to cleanup', async () => {
+      const taskNoWorktree = createMockTask({
+        metadata: { orchestrator: { branch: 'some-branch' } },
+      });
+      (api.get as MockInstance).mockResolvedValue(taskNoWorktree);
+
+      const result = await service.cleanupAfterMerge(taskNoWorktree.id);
+
+      expect(result).toBe(true);
+      expect(worktreeManager.removeWorktree).not.toHaveBeenCalled();
+    });
+
+    it('should return true when no worktree manager', async () => {
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        config
+        // No worktree manager
+      );
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+
+      const result = await svc.cleanupAfterMerge(mockTask.id);
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when worktree removal fails', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (worktreeManager.removeWorktree as MockInstance).mockRejectedValue(new Error('Removal failed'));
+
+      const result = await service.cleanupAfterMerge(mockTask.id);
+
+      expect(result).toBe(false);
+    });
+  });
+
+  // ----------------------------------------
+  // Create Fix Task
+  // ----------------------------------------
+
+  describe('createFixTask', () => {
+    it('should create fix task for test failure', async () => {
+      const mockTask = createMockTask();
+      const mockChannel = createMockChannel();
+      const createdFixTask = { ...mockTask, id: 'task-fix-001' as ElementId, title: 'Fix failing tests' };
+
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.create as MockInstance).mockResolvedValue(createdFixTask);
+      (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(mockChannel);
+      (dispatchService.notifyAgent as MockInstance).mockResolvedValue({} as Message);
+
+      const result = await service.createFixTask(mockTask.id, {
+        type: 'test_failure',
+        errorDetails: 'Test suite failed with 3 errors',
+      });
+
+      expect(result).toBe('task-fix-001');
+      expect(api.create).toHaveBeenCalled();
+      expect(dispatchService.notifyAgent).toHaveBeenCalled();
+    });
+
+    it('should create fix task for merge conflict', async () => {
+      const mockTask = createMockTask();
+      const mockChannel = createMockChannel();
+      const createdFixTask = { ...mockTask, id: 'task-fix-002' as ElementId, title: 'Resolve merge conflict' };
+
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.create as MockInstance).mockResolvedValue(createdFixTask);
+      (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(mockChannel);
+      (dispatchService.notifyAgent as MockInstance).mockResolvedValue({} as Message);
+
+      const result = await service.createFixTask(mockTask.id, {
+        type: 'merge_conflict',
+        errorDetails: 'Conflict in src/file.ts',
+        affectedFiles: ['src/file.ts', 'src/other.ts'],
+      });
+
+      expect(result).toBe('task-fix-002');
+      expect(api.create).toHaveBeenCalled();
+    });
+
+    it('should throw when original task not found', async () => {
+      (api.get as MockInstance).mockResolvedValue(null);
+
+      await expect(
+        service.createFixTask('task-notfound' as ElementId, {
+          type: 'test_failure',
+          errorDetails: 'Error',
+        })
+      ).rejects.toThrow('Original task not found');
+    });
+
+    it('should not notify if no agent channel found', async () => {
+      const mockTask = createMockTask();
+      const createdFixTask = { ...mockTask, id: 'task-fix-003' as ElementId };
+
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.create as MockInstance).mockResolvedValue(createdFixTask);
+      (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(undefined);
+
+      const result = await service.createFixTask(mockTask.id, {
+        type: 'general',
+        errorDetails: 'Something went wrong',
+      });
+
+      expect(result).toBe('task-fix-003');
+      expect(dispatchService.notifyAgent).not.toHaveBeenCalled();
+    });
+
+    it('should create task with correct metadata', async () => {
+      const mockTask = createMockTask();
+      const mockChannel = createMockChannel();
+      const createdFixTask = { ...mockTask, id: 'task-fix-004' as ElementId };
+
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.create as MockInstance).mockResolvedValue(createdFixTask);
+      (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(mockChannel);
+      (dispatchService.notifyAgent as MockInstance).mockResolvedValue({} as Message);
+
+      await service.createFixTask(mockTask.id, {
+        type: 'test_failure',
+        errorDetails: 'Tests failed',
+      });
+
+      // Verify api.create was called with proper task structure
+      expect(api.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'task',
+          title: expect.stringContaining('Fix failing tests'),
+          status: TaskStatus.OPEN,
+          tags: expect.arrayContaining(['fix', 'test_failure', 'auto-created']),
+        })
+      );
+    });
+  });
+
+  // ----------------------------------------
+  // Process Task - Edge Cases
+  // ----------------------------------------
+
+  describe('processTask', () => {
+    it('should return error when task not found', async () => {
+      (api.get as MockInstance).mockResolvedValue(null);
+
+      const result = await service.processTask('task-notfound' as ElementId);
+
+      expect(result.merged).toBe(false);
+      expect(result.status).toBe('failed');
+      expect(result.error).toContain('Task not found');
+    });
+
+    it('should return error when task has no branch', async () => {
+      const taskNoBranch = createMockTask({
+        metadata: { orchestrator: {} },
+      });
+      (api.get as MockInstance).mockResolvedValue(taskNoBranch);
+
+      const result = await service.processTask(taskNoBranch.id);
+
+      expect(result.merged).toBe(false);
+      expect(result.status).toBe('failed');
+      expect(result.error).toContain('no branch');
+    });
+  });
+
+  // ----------------------------------------
+  // Run Tests - Edge Cases
+  // ----------------------------------------
+
+  describe('runTests', () => {
+    it('should handle task not found', async () => {
+      (api.get as MockInstance).mockResolvedValue(null);
+
+      const result = await service.runTests('task-notfound' as ElementId);
+
+      expect(result.passed).toBe(false);
+      expect(result.testResult.errorMessage).toContain('Task not found');
+    });
+  });
+
+  // ----------------------------------------
+  // Attempt Merge - Edge Cases
+  // ----------------------------------------
+
+  describe('attemptMerge', () => {
+    it('should handle task not found', async () => {
+      (api.get as MockInstance).mockResolvedValue(null);
+
+      const result = await service.attemptMerge('task-notfound' as ElementId);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Task not found');
+    });
+
+    it('should handle task with no branch', async () => {
+      const taskNoBranch = createMockTask({ metadata: { orchestrator: {} } });
+      (api.get as MockInstance).mockResolvedValue(taskNoBranch);
+
+      const result = await service.attemptMerge(taskNoBranch.id);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('no branch');
+    });
+  });
+
+  // ----------------------------------------
+  // Process All Pending - Edge Cases
+  // ----------------------------------------
+
+  describe('processAllPending', () => {
+    it('should return empty result when no pending tasks', async () => {
+      (taskAssignment.getTasksAwaitingMerge as MockInstance).mockResolvedValue([]);
+
+      const result = await service.processAllPending();
+
+      expect(result.totalProcessed).toBe(0);
+      expect(result.mergedCount).toBe(0);
+      expect(result.results).toHaveLength(0);
+    });
+
+    it('should count task not found as error', async () => {
+      const task1 = createMockTask({ id: 'task-001' as ElementId });
+      const assignments = [createMockTaskAssignment(task1)];
+
+      (taskAssignment.getTasksAwaitingMerge as MockInstance).mockResolvedValue(assignments);
+      (api.get as MockInstance).mockResolvedValue(null); // Task not found
+
+      const result = await service.processAllPending();
+
+      expect(result.totalProcessed).toBe(1);
+      expect(result.errorCount).toBe(1);
+      expect(result.mergedCount).toBe(0);
+    });
+  });
+});

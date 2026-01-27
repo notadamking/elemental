@@ -1291,19 +1291,25 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O21: Merge Steward Auto-Merge
+#### - [x] TB-O21: Merge Steward Auto-Merge
 
 **Goal**: Merge Steward detects completed tasks and merges branches
 
 **Changes**:
 
-- [ ] Merge Steward triggers on `task_completed` event
-- [ ] Runs tests on worker's branch
-- [ ] If tests pass → auto-merge to main, cleanup worktree
-- [ ] If tests fail → Create new "fix tests" task, assign to worker, message worker
-- [ ] If merge conflict → attempt auto-resolve, else create task
+- [x] Merge Steward triggers on `task_completed` event
+- [x] Runs tests on worker's branch
+- [x] If tests pass → auto-merge to main, cleanup worktree
+- [x] If tests fail → Create new "fix tests" task, assign to worker, message worker
+- [x] If merge conflict → attempt auto-resolve, else create task
 
 **Verification**: Complete task, see Steward run tests, auto-merge, worktree cleaned up
+
+**Implementation** (commit efa65eb+):
+- Created `MergeStewardService` in `packages/orchestrator-sdk/src/services/merge-steward-service.ts`
+- Service provides: `processTask()`, `runTests()`, `attemptMerge()`, `createFixTask()`, `cleanupAfterMerge()`
+- Unit tests in `merge-steward-service.test.ts`
+- Exports added to `services/index.ts`
 
 ---
 

@@ -115,3 +115,20 @@ export {
   // Factory
   createWorkerTaskService,
 } from './worker-task-service.js';
+
+// Merge steward service (TB-O21)
+export {
+  // Types
+  type MergeStewardConfig,
+  type ProcessTaskOptions,
+  type MergeProcessResult,
+  type TestRunResult,
+  type MergeAttemptResult,
+  type CreateFixTaskOptions,
+  type BatchProcessResult,
+  type MergeStewardService,
+  // Implementation
+  MergeStewardServiceImpl,
+  // Factory
+  createMergeStewardService,
+} from './merge-steward-service.js';
