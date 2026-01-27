@@ -169,6 +169,8 @@ function useUserInbox(view: InboxViewType = 'all', entityId: string | null) {
       return response.json();
     },
     enabled: !!entityId, // Only fetch when we have an entity
+    staleTime: 0, // Always consider data stale for real-time updates
+    refetchOnWindowFocus: 'always', // Always refetch when tab becomes active (handles missed WebSocket events)
   });
 }
 
@@ -185,6 +187,8 @@ function useUserInboxCount(entityId: string | null) {
       return response.json();
     },
     enabled: !!entityId, // Only fetch when we have an entity
+    staleTime: 0, // Always consider data stale for real-time updates
+    refetchOnWindowFocus: 'always', // Always refetch when tab becomes active
   });
 }
 
@@ -235,10 +239,58 @@ function useSendReply() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['inbox'] });
+      // Also invalidate the thread replies for this thread (uses same key pattern as useThreadReplies)
+      if (variables.threadId) {
+        queryClient.invalidateQueries({ queryKey: ['messages', variables.threadId, 'replies'] });
+      }
     },
+  });
+}
+
+// Thread reply type
+interface ThreadReply {
+  id: string;
+  sender: string;
+  contentRef: string;
+  threadId: string;
+  createdAt: string;
+  _content?: string;
+  _senderEntity?: Entity;
+}
+
+// Hook to fetch thread replies for a message
+// Uses query key pattern ['messages', messageId, 'replies'] to match automatic WebSocket invalidation
+function useThreadReplies(messageId: string | null) {
+  return useQuery<ThreadReply[]>({
+    queryKey: ['messages', messageId, 'replies'],
+    queryFn: async () => {
+      if (!messageId) return [];
+      const response = await fetch(`/api/messages/${messageId}/replies?hydrate.content=true`);
+      if (!response.ok) throw new Error('Failed to fetch thread replies');
+      const replies = await response.json();
+
+      // Hydrate sender entities for each reply
+      const hydratedReplies = await Promise.all(
+        replies.map(async (reply: ThreadReply) => {
+          try {
+            const senderResponse = await fetch(`/api/entities/${reply.sender}`);
+            if (senderResponse.ok) {
+              const senderEntity = await senderResponse.json();
+              return { ...reply, _senderEntity: senderEntity };
+            }
+          } catch {
+            // Ignore hydration errors
+          }
+          return reply;
+        })
+      );
+      return hydratedReplies;
+    },
+    enabled: !!messageId,
+    staleTime: 10000, // Consider data fresh for 10 seconds
   });
 }
 
@@ -357,6 +409,9 @@ function InboxMessageContent({
   onNavigateToMessage,
   onNavigateToEntity,
   onReply,
+  threadReplies,
+  threadRepliesLoading,
+  currentUserId,
 }: {
   item: InboxItem;
   onMarkRead: () => void;
@@ -367,6 +422,9 @@ function InboxMessageContent({
   onNavigateToMessage: () => void;
   onNavigateToEntity: (entityId: string) => void;
   onReply?: () => void;
+  threadReplies?: ThreadReply[];
+  threadRepliesLoading?: boolean;
+  currentUserId?: string;
 }) {
   const isUnread = item.status === 'unread';
   const isArchived = item.status === 'archived';
@@ -652,6 +710,117 @@ function InboxMessageContent({
             </div>
           </div>
         )}
+
+        {/* Thread Replies Section */}
+        {(threadReplies && threadReplies.length > 0) && (
+          <div
+            className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700 mt-4 pt-4"
+            data-testid={`inbox-page-content-thread-${item.id}`}
+          >
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-3">
+              <MessageSquare className="w-3 h-3" />
+              <span className="font-medium">{threadReplies.length} {threadReplies.length === 1 ? 'reply' : 'replies'} in thread</span>
+            </div>
+            <div className="space-y-3">
+              {threadReplies.map((reply) => {
+                const isOwnReply = reply.sender === currentUserId;
+                const replySender = reply._senderEntity;
+                const replySenderName = replySender?.name ?? 'Unknown';
+                const replySenderType = replySender?.entityType ?? 'agent';
+
+                const getReplyAvatarIcon = () => {
+                  switch (replySenderType) {
+                    case 'agent': return <Bot className="w-3 h-3" />;
+                    case 'human': return <User className="w-3 h-3" />;
+                    case 'system': return <Server className="w-3 h-3" />;
+                    default: return <User className="w-3 h-3" />;
+                  }
+                };
+
+                const getReplyAvatarColors = () => {
+                  if (isOwnReply) {
+                    return 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400';
+                  }
+                  switch (replySenderType) {
+                    case 'agent': return 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-400';
+                    case 'human': return 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400';
+                    case 'system': return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+                    default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+                  }
+                };
+
+                const formatReplyTime = (dateStr: string) => {
+                  const date = new Date(dateStr);
+                  const now = new Date();
+                  const diff = now.getTime() - date.getTime();
+                  const minutes = Math.floor(diff / 60000);
+                  const hours = Math.floor(diff / 3600000);
+
+                  if (minutes < 1) return 'just now';
+                  if (minutes < 60) return `${minutes}m ago`;
+                  if (hours < 24) return `${hours}h ago`;
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                };
+
+                return (
+                  <div
+                    key={reply.id}
+                    className={`flex gap-2 p-3 rounded-lg ${
+                      isOwnReply
+                        ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                        : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                    }`}
+                    data-testid={`inbox-page-thread-reply-${reply.id}`}
+                  >
+                    <button
+                      onClick={() => reply.sender && onNavigateToEntity(reply.sender)}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${getReplyAvatarColors()} hover:ring-2 hover:ring-blue-300 transition-all`}
+                    >
+                      {getReplyAvatarIcon()}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => reply.sender && onNavigateToEntity(reply.sender)}
+                            className={`text-xs font-medium hover:text-blue-600 hover:underline ${
+                              isOwnReply
+                                ? 'text-green-700 dark:text-green-300'
+                                : 'text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {replySenderName}
+                          </button>
+                          {isOwnReply && (
+                            <span className="text-xs px-1.5 py-0.5 bg-green-200 dark:bg-green-800 text-green-700 dark:text-green-300 rounded font-medium">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          {formatReplyTime(reply.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                        {reply._content ?? ''}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Loading state for thread replies */}
+        {threadRepliesLoading && (
+          <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700 mt-4 pt-4">
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Loading thread...</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -699,23 +868,23 @@ export function InboxPage() {
   const [showReplyComposer, setShowReplyComposer] = useState(false);
 
   // Real-time updates with toast notifications
+  // Note: Query cache invalidation is handled automatically by useRealtimeEvents with autoInvalidate=true
   const handleInboxEvent = useCallback((event: WebSocketEvent) => {
-    // Only handle inbox-item events for the current user
+    // Handle inbox-item events for the current user - show toast notification
     if (event.elementType === 'inbox-item' && event.eventType === 'created') {
       const recipientId = event.newValue?.recipientId as string | undefined;
       if (recipientId === currentUser?.id) {
         // Show toast notification for new inbox item
-        const senderName = 'Someone'; // We'd need to fetch sender info for a better message
         const sourceType = event.newValue?.sourceType as string;
         const message = sourceType === 'mention'
-          ? `${senderName} mentioned you in a message`
-          : `You have a new direct message`;
+          ? 'You were mentioned in a message'
+          : 'You have a new direct message';
         toast.info(message, {
           description: 'Click to view in inbox',
           action: {
             label: 'View',
             onClick: () => {
-              // Scroll to top or select the new item
+              // Clear selection to show the new item at top
               setSelectedInboxItemId(null);
             },
           },
@@ -724,9 +893,9 @@ export function InboxPage() {
     }
   }, [currentUser?.id]);
 
-  // Subscribe to real-time events
+  // Subscribe to real-time events - include messages channel for thread updates
   useRealtimeEvents({
-    channels: currentUser?.id ? [`inbox:${currentUser.id}`, 'inbox'] : ['inbox'],
+    channels: currentUser?.id ? [`inbox:${currentUser.id}`, 'inbox', 'messages'] : ['inbox', 'messages'],
     onEvent: handleInboxEvent,
   });
 
@@ -756,6 +925,16 @@ export function InboxPage() {
   const { data: inboxCount } = useUserInboxCount(currentUser?.id ?? null);
   const markInboxMutation = useMarkInboxRead();
   const sendReplyMutation = useSendReply();
+
+  // Get the message ID for the selected inbox item to fetch thread replies
+  const selectedMessageId = useMemo(() => {
+    if (!selectedInboxItemId || !inboxData?.items) return null;
+    const item = inboxData.items.find(i => i.id === selectedInboxItemId);
+    return item?.messageId ?? null;
+  }, [selectedInboxItemId, inboxData?.items]);
+
+  // Fetch thread replies for the selected message
+  const { data: threadReplies, isLoading: threadRepliesLoading } = useThreadReplies(selectedMessageId);
 
   // Filter and sort items
   const filteredAndSortedInboxItems = useMemo(() => {
@@ -1145,6 +1324,9 @@ export function InboxPage() {
                   onNavigateToMessage={() => handleNavigateToMessage(selectedInboxItem.channelId, selectedInboxItem.messageId)}
                   onNavigateToEntity={handleNavigateToEntity}
                   onReply={() => setShowReplyComposer(!showReplyComposer)}
+                  threadReplies={threadReplies}
+                  threadRepliesLoading={threadRepliesLoading}
+                  currentUserId={currentUser?.id}
                 />
               </div>
               {/* Reply Composer */}

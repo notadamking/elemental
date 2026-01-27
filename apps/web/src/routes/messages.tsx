@@ -921,7 +921,8 @@ function MessageBubble({
 
           {/* Thread indicators and reply button */}
           <div className={`flex items-center gap-2 ${isMobile ? 'mt-1.5' : 'mt-2'}`}>
-            {message.threadId && (
+            {/* Only show "Reply in thread" indicator when NOT already viewing inside a thread panel */}
+            {message.threadId && !isThreaded && (
               <div
                 data-testid={`message-thread-indicator-${message.id}`}
                 className={`text-blue-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}

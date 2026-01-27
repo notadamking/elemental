@@ -22,18 +22,23 @@ import {
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { getCurrentBinding, useShortcutVersion } from '../../lib/keyboard';
+import { useCurrentUser } from '../../contexts';
 
-// Hook to fetch global inbox unread count
-function useGlobalInboxCount() {
+// Hook to fetch inbox unread count for the current user
+function useUserInboxCount(entityId: string | null) {
   return useQuery<{ count: number }>({
-    queryKey: ['inbox', 'global', 'count'],
+    queryKey: ['inbox', entityId, 'count'],
     queryFn: async () => {
-      const response = await fetch('/api/inbox/count');
+      if (!entityId) return { count: 0 };
+      const params = new URLSearchParams({ entityId });
+      const response = await fetch(`/api/inbox/count?${params}`);
       if (!response.ok) return { count: 0 };
       return response.json();
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
-    staleTime: 10000,
+    enabled: !!entityId,
+    staleTime: 0, // Always consider data stale for real-time updates
+    refetchOnWindowFocus: 'always', // Always refetch when tab becomes active (handles missed WebSocket events)
+    refetchInterval: 30000, // Also poll every 30 seconds as a fallback
   });
 }
 
@@ -114,9 +119,10 @@ interface SidebarProps {
 export function Sidebar({ collapsed = false, onToggle, isMobileDrawer = false }: SidebarProps) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+  const { currentUser } = useCurrentUser();
 
-  // Fetch inbox unread count for badge (TB137)
-  const { data: inboxCount } = useGlobalInboxCount();
+  // Fetch inbox unread count for the current user (TB137)
+  const { data: inboxCount } = useUserInboxCount(currentUser?.id ?? null);
 
   // Track shortcut changes to re-render with updated hints
   useShortcutVersion();
