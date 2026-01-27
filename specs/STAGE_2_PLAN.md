@@ -939,56 +939,75 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ### Phase 4: Real-time Agent Communication
 
-#### - [ ] TB-O13: Agent SSE Stream (Headless Agents)
+#### - [x] TB-O13: Agent SSE Stream (Headless Agents)
 
 **Goal**: Stream headless agent output to browser via Server-Sent Events
 
 **Changes**:
 
-- [ ] Add SSE endpoint `GET /api/agents/:id/stream`
-- [ ] Pipe stream-json events from spawner to SSE stream
-- [ ] Event types: `agent_message`, `agent_tool_use`, `agent_tool_result`, `agent_status`
-- [ ] Support `Last-Event-ID` header for reconnection
+- [x] Add SSE endpoint `GET /api/agents/:id/stream`
+- [x] Pipe stream-json events from spawner to SSE stream
+- [x] Event types: `agent_{type}` (assistant, tool_use, tool_result, error, system)
+- [x] Support `Last-Event-ID` header for reconnection
 
 **Verification**: Connect to SSE endpoint, start headless agent, see events stream
 
+**Implementation Notes**:
+- Implemented in `apps/orchestrator-server/src/index.ts` as part of TB-O12
+- Uses Hono's `streamSSE()` for proper SSE formatting
+- Event types prefixed with `agent_` (e.g., `agent_assistant`, `agent_tool_use`)
+- Includes `connected`, `heartbeat`, `agent_error`, `agent_exit` events
+- 30-second heartbeat keeps connection alive
+
 ---
 
-#### - [ ] TB-O14: Agent Input via HTTP POST (Headless Agents)
+#### - [x] TB-O14: Agent Input via HTTP POST (Headless Agents)
 
 **Goal**: Send user messages to running headless agent
 
 **Changes**:
 
-- [ ] Add endpoint `POST /api/agents/:id/input`
-- [ ] Write to agent process stdin in stream-json format
-- [ ] Return 202 Accepted (response comes via SSE stream)
+- [x] Add endpoint `POST /api/agents/:id/input`
+- [x] Write to agent process stdin in stream-json format
+- [x] Return 202 Accepted (response comes via SSE stream)
 
 **Verification**: Start headless agent, POST message, see response in SSE stream
 
+**Implementation Notes**:
+- Implemented in `apps/orchestrator-server/src/index.ts` as part of TB-O12
+- Uses `spawnerService.sendInput()` to write to stdin
+- Supports `isUserMessage` flag for proper stream-json formatting
+
 ---
 
-#### - [ ] TB-O14a: Message Event Types
+#### - [x] TB-O14a: Message Event Types
 
 **Goal**: Define typed message conventions
 
 **Changes**:
 
-- [ ] Define message type schemas in orchestrator-sdk
-- [ ] Types: `task-assignment`, `status-update`, `help-request`, `handoff`, `health-check`
-- [ ] Validation functions for each type
+- [x] Define message type schemas in orchestrator-sdk
+- [x] Types: `task-assignment`, `status-update`, `help-request`, `handoff`, `health-check`, `generic`
+- [x] Validation functions for each type
 
-**Verification**: Create typed messages, validate schemas
+**Verification**: 50+ unit tests in `message-types.test.ts`
+
+**Implementation Notes**:
+- Types defined in `packages/orchestrator-sdk/src/types/message-types.ts`
+- Type guards: `isTaskAssignmentMessage()`, `isStatusUpdateMessage()`, `isHelpRequestMessage()`, `isHandoffMessage()`, `isHealthCheckMessage()`, `isGenericMessage()`
+- Factory functions: `createTaskAssignmentMessage()`, `createStatusUpdateMessage()`, etc.
+- Utilities: `parseMessageMetadata()`, `getMessageType()`, `isOrchestratorMessage()`
+- Constants: `MessageTypeValue`, `AllMessageTypes`, `StatusUpdateSeverity`, `HelpRequestUrgency`, `HealthCheckStatus`
 
 ---
 
-#### - [ ] TB-O14b: Handoff Message Type
+#### - [x] TB-O14b: Handoff Message Type
 
 **Goal**: Define handoff message schema
 
 **Changes**:
 
-- [ ] Define schema:
+- [x] Define schema:
   ```typescript
   interface HandoffMessage {
     type: "handoff";
@@ -997,11 +1016,21 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
     taskIds: TaskId[];
     contextSummary: string;
     nextSteps?: string;
+    isSelfHandoff: boolean;
+    claudeSessionId?: string;
+    handoffDocumentId?: string;
   }
   ```
-- [ ] Validation and parsing utilities
+- [x] Validation and parsing utilities
 
 **Verification**: Create handoff message, validate schema
+
+**Implementation Notes**:
+- `HandoffMessage` in `packages/orchestrator-sdk/src/types/message-types.ts`
+- Additional implementation in `packages/orchestrator-sdk/src/runtime/handoff.ts` (TB-O10e, TB-O10f)
+- `isHandoffMessage()` type guard
+- `createHandoffMessage()` factory function
+- 35 tests in `handoff.test.ts`, additional tests in `message-types.test.ts`
 
 ---
 

@@ -1726,6 +1726,257 @@ await handoffService.selfHandoff(agentId, sessionId, {
 - Claude session ID is preserved for predecessor queries
 - The source session is suspended (not terminated) to allow predecessor queries
 
+## Message Types (TB-O14a)
+
+The orchestrator-sdk defines typed message conventions for inter-agent communication. These types extend the base Elemental messaging system with orchestrator-specific semantics.
+
+### Message Type Constants
+
+```typescript
+import {
+  MessageTypeValue,
+  AllMessageTypes,
+} from '@elemental/orchestrator-sdk';
+
+// Access message type constants
+MessageTypeValue.TASK_ASSIGNMENT;  // 'task-assignment'
+MessageTypeValue.STATUS_UPDATE;    // 'status-update'
+MessageTypeValue.HELP_REQUEST;     // 'help-request'
+MessageTypeValue.HANDOFF;          // 'handoff'
+MessageTypeValue.HEALTH_CHECK;     // 'health-check'
+MessageTypeValue.GENERIC;          // 'generic'
+
+// Iterate over all types
+AllMessageTypes.forEach(type => console.log(type));
+```
+
+### Task Assignment Message
+
+Sent when a task is assigned to an agent:
+
+```typescript
+import {
+  createTaskAssignmentMessage,
+  isTaskAssignmentMessage,
+  type TaskAssignmentMessage,
+} from '@elemental/orchestrator-sdk';
+
+// Create a task assignment message
+const message = createTaskAssignmentMessage({
+  taskId: 'el-task001',
+  taskTitle: 'Implement feature X',
+  priority: 1,
+  assignedBy: directorId,
+  branch: 'agent/alice/task-001-feature',
+  worktree: '.worktrees/alice-feature',
+  isReassignment: false,
+});
+
+// Validate a message
+if (isTaskAssignmentMessage(rawMessage)) {
+  console.log(`Task: ${rawMessage.taskTitle}`);
+}
+```
+
+### Status Update Message
+
+Sent for progress updates:
+
+```typescript
+import {
+  createStatusUpdateMessage,
+  isStatusUpdateMessage,
+  StatusUpdateSeverity,
+} from '@elemental/orchestrator-sdk';
+
+const message = createStatusUpdateMessage({
+  agentId: workerId,
+  message: 'Completed step 3 of 5',
+  severity: StatusUpdateSeverity.INFO,
+  taskId: 'el-task001',
+  progress: 60,
+  phase: 'implementation',
+});
+```
+
+### Help Request Message
+
+Sent when an agent needs assistance:
+
+```typescript
+import {
+  createHelpRequestMessage,
+  isHelpRequestMessage,
+  HelpRequestUrgency,
+} from '@elemental/orchestrator-sdk';
+
+const message = createHelpRequestMessage({
+  agentId: workerId,
+  problem: 'Cannot resolve merge conflict in auth module',
+  attemptedSolutions: ['Tried rebasing', 'Checked docs'],
+  taskId: 'el-task001',
+  urgency: HelpRequestUrgency.HIGH,
+  errorMessage: 'CONFLICT (content): Merge conflict in auth.ts',
+  suggestedActions: ['Review conflicting changes', 'Consult team lead'],
+});
+```
+
+### Handoff Message
+
+Sent for session handoff between agents (extends the HandoffService types):
+
+```typescript
+import {
+  createHandoffMessage,
+  isHandoffMessage,
+  type HandoffMessage,
+} from '@elemental/orchestrator-sdk';
+
+const message = createHandoffMessage({
+  fromAgent: currentAgentId,
+  toAgent: targetAgentId,  // undefined for self-handoff
+  taskIds: ['task-001', 'task-002'],
+  contextSummary: 'Completed steps 1-3, step 4 in progress',
+  nextSteps: 'Continue with step 4',
+  reason: 'Context overflow',
+  claudeSessionId: 'session-123',
+  handoffDocumentId: 'doc-456',
+});
+
+// Self-handoff (toAgent is undefined)
+const selfHandoff = createHandoffMessage({
+  fromAgent: agentId,
+  taskIds: [],
+  contextSummary: 'Need fresh context',
+});
+console.log(selfHandoff.isSelfHandoff);  // true
+```
+
+### Health Check Message
+
+Sent for health monitoring:
+
+```typescript
+import {
+  createHealthCheckRequest,
+  createHealthCheckResponse,
+  isHealthCheckMessage,
+  HealthCheckStatus,
+} from '@elemental/orchestrator-sdk';
+
+// Create a health check request
+const request = createHealthCheckRequest({
+  targetAgentId: workerId,
+  sourceAgentId: stewardId,
+});
+
+// Create a health check response
+const response = createHealthCheckResponse({
+  targetAgentId: workerId,
+  sourceAgentId: stewardId,
+  status: HealthCheckStatus.HEALTHY,
+  lastActivityAt: Date.now(),
+  currentTaskId: 'el-task001',
+  metrics: {
+    memoryUsage: 50,
+    cpuUsage: 25,
+    timeSinceLastOutput: 5000,
+    errorCount: 0,
+  },
+  correlationId: request.correlationId,
+});
+```
+
+### Generic Message
+
+For backwards compatibility or custom types:
+
+```typescript
+import {
+  createGenericMessage,
+  isGenericMessage,
+} from '@elemental/orchestrator-sdk';
+
+const message = createGenericMessage({
+  content: 'Hello world',
+  data: { custom: 'payload' },
+});
+```
+
+### Validation Utilities
+
+```typescript
+import {
+  isOrchestratorMessage,
+  parseMessageMetadata,
+  getMessageType,
+  isMessageType,
+} from '@elemental/orchestrator-sdk';
+
+// Validate any orchestrator message
+if (isOrchestratorMessage(rawData)) {
+  switch (rawData.type) {
+    case 'task-assignment':
+      // Handle task assignment
+      break;
+    case 'handoff':
+      // Handle handoff
+      break;
+  }
+}
+
+// Parse message from raw metadata
+const parsed = parseMessageMetadata(rawMetadata);
+if (parsed) {
+  console.log(`Message type: ${parsed.type}`);
+}
+
+// Extract type from metadata
+const type = getMessageType(metadata);
+if (type) {
+  console.log(`Type: ${type}`);
+}
+
+// Validate type value
+if (isMessageType('task-assignment')) {
+  // Valid type
+}
+```
+
+### Severity and Urgency Constants
+
+```typescript
+import {
+  StatusUpdateSeverity,
+  HelpRequestUrgency,
+  HealthCheckStatus,
+} from '@elemental/orchestrator-sdk';
+
+// Status update severity
+StatusUpdateSeverity.INFO;      // 'info'
+StatusUpdateSeverity.WARNING;   // 'warning'
+StatusUpdateSeverity.ERROR;     // 'error'
+
+// Help request urgency
+HelpRequestUrgency.LOW;         // 'low'
+HelpRequestUrgency.NORMAL;      // 'normal'
+HelpRequestUrgency.HIGH;        // 'high'
+HelpRequestUrgency.CRITICAL;    // 'critical'
+
+// Health check status
+HealthCheckStatus.HEALTHY;      // 'healthy'
+HealthCheckStatus.DEGRADED;     // 'degraded'
+HealthCheckStatus.UNHEALTHY;    // 'unhealthy'
+HealthCheckStatus.UNKNOWN;      // 'unknown'
+```
+
+### Notes
+
+- All messages include a `timestamp` (auto-generated if not provided)
+- All messages support optional `correlationId` for tracking related messages
+- Message types are designed to work with the InboxPollingService handlers
+- The HandoffMessage type extends the HandoffContent from handoff.ts
+
 ## WorktreeManager (TB-O11)
 
 The WorktreeManager provides git worktree operations for the orchestration system. Each worker agent gets a dedicated git worktree for true parallel development.
@@ -1981,6 +2232,7 @@ try {
 Key files:
 - `packages/orchestrator-sdk/src/types/agent.ts` - Agent and capability types
 - `packages/orchestrator-sdk/src/types/task-meta.ts` - Task orchestrator metadata
+- `packages/orchestrator-sdk/src/types/message-types.ts` - Inter-agent message types (TB-O14a)
 - `packages/orchestrator-sdk/src/services/capability-service.ts` - Capability matching
 - `packages/orchestrator-sdk/src/services/agent-registry.ts` - Agent registration and channel management
 - `packages/orchestrator-sdk/src/services/task-assignment-service.ts` - Task assignment and workload management

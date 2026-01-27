@@ -26,6 +26,7 @@
 | Spawn agent processes | [api/orchestrator-api.md#spawnerservice-tb-o9](api/orchestrator-api.md#spawnerservice-tb-o9) | `packages/orchestrator-sdk/src/runtime/spawner.ts` |
 | Manage agent sessions | [api/orchestrator-api.md#sessionmanager-tb-o10](api/orchestrator-api.md#sessionmanager-tb-o10) | `packages/orchestrator-sdk/src/runtime/session-manager.ts` |
 | Manage git worktrees | [api/orchestrator-api.md#worktreemanager-tb-o11](api/orchestrator-api.md#worktreemanager-tb-o11) | `packages/orchestrator-sdk/src/git/worktree-manager.ts` |
+| Work with agent messages | [api/orchestrator-api.md#message-types-tb-o14a](api/orchestrator-api.md#message-types-tb-o14a) | `packages/orchestrator-sdk/src/types/message-types.ts` |
 | Use the Orchestrator Server | [platform/orchestrator-server.md](platform/orchestrator-server.md) | `apps/orchestrator-server/src/index.ts` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
@@ -148,6 +149,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Agent types | `types/agent.ts` | `types/agent.test.ts` |
 | Task metadata | `types/task-meta.ts` | `types/task-meta.test.ts` |
 | Role definition types | `types/role-definition.ts` | `types/role-definition.test.ts` |
+| Message types | `types/message-types.ts` | `types/message-types.test.ts` |
 | OrchestratorAPI | `api/orchestrator-api.ts` | `api/orchestrator-api.integration.test.ts` |
 | Agent registry | `services/agent-registry.ts` | `services/agent-registry.test.ts` |
 | Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
@@ -156,6 +158,10 @@ The project is a TurboRepo monorepo with the following structure:
 | Dispatch service | `services/dispatch-service.ts` | `services/dispatch-service.test.ts` |
 | Spawner service | `runtime/spawner.ts` | `runtime/spawner.test.ts`, `runtime/spawner.integration.test.ts` |
 | Session manager | `runtime/session-manager.ts` | `runtime/session-manager.test.ts` |
+| Inbox polling | `runtime/inbox-polling.ts` | `runtime/inbox-polling.test.ts` |
+| Predecessor query | `runtime/predecessor-query.ts` | `runtime/predecessor-query.test.ts` |
+| Handoff service | `runtime/handoff.ts` | `runtime/handoff.test.ts` |
+| Worktree manager | `git/worktree-manager.ts` | `git/worktree-manager.test.ts` |
 
 ## File Map (@elemental/orchestrator-server - apps/orchestrator-server/src/)
 

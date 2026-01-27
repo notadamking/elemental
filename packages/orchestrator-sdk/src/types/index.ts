@@ -100,3 +100,42 @@ export {
   ROLE_DEFINITION_TAGS,
   generateRoleDefinitionTags,
 } from './role-definition.js';
+
+// Message types (TB-O14a)
+export {
+  // Constants
+  MessageTypeValue,
+  AllMessageTypes,
+  StatusUpdateSeverity,
+  HelpRequestUrgency,
+  HealthCheckStatus,
+  // Message interfaces
+  type BaseMessageMeta,
+  type TaskAssignmentMessage,
+  type StatusUpdateMessage,
+  type HelpRequestMessage,
+  type HandoffMessage,
+  type HealthCheckMessage,
+  type GenericMessage,
+  type OrchestratorMessage,
+  // Type guards (validation functions)
+  isTaskAssignmentMessage,
+  isStatusUpdateMessage,
+  isHelpRequestMessage,
+  isHandoffMessage,
+  isHealthCheckMessage,
+  isGenericMessage,
+  isOrchestratorMessage,
+  isMessageType,
+  // Factory functions
+  createTaskAssignmentMessage,
+  createStatusUpdateMessage,
+  createHelpRequestMessage,
+  createHandoffMessage,
+  createHealthCheckRequest,
+  createHealthCheckResponse,
+  createGenericMessage,
+  // Utilities
+  parseMessageMetadata,
+  getMessageType,
+} from './message-types.js';
