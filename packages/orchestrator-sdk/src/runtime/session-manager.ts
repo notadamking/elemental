@@ -48,6 +48,8 @@ export interface SessionRecord {
   readonly agentRole: AgentRole;
   /** Worker mode (for workers) */
   readonly workerMode?: WorkerMode;
+  /** Spawn mode: headless or interactive */
+  readonly mode: 'headless' | 'interactive';
   /** Process ID (if running) */
   readonly pid?: number;
   /** Current status */
@@ -473,12 +475,19 @@ export class SessionManagerImpl implements SessionManager {
       }
     }
 
+    // Determine interactive mode based on agent role if not explicitly specified
+    // Directors and persistent workers use interactive mode (PTY)
+    // Ephemeral workers and stewards use headless mode (stream-json)
+    const isInteractiveByRole = meta.agentRole === 'director' ||
+      (meta.agentRole === 'worker' && (meta as { workerMode?: WorkerMode }).workerMode === 'persistent');
+    const useInteractive = options?.interactive ?? isInteractiveByRole;
+
     // Build spawn options
     const spawnOptions: SpawnOptions = {
       workingDirectory: options?.workingDirectory,
       initialPrompt: options?.initialPrompt,
       environmentVariables: options?.environmentVariables,
-      mode: options?.interactive ? 'interactive' : 'headless',
+      mode: useInteractive ? 'interactive' : 'headless',
     };
 
     // Spawn the session
@@ -953,12 +962,17 @@ export class SessionManagerImpl implements SessionManager {
       );
 
       if (suspendedSession) {
+        // Determine mode based on agent role - directors and persistent workers use interactive
+        const isInteractive = meta.agentRole === 'director' ||
+          (meta.agentRole === 'worker' && (meta as { workerMode?: WorkerMode }).workerMode === 'persistent');
+
         const sessionState: InternalSessionState = {
           id: suspendedSession.id,
           claudeSessionId: suspendedSession.claudeSessionId,
           agentId,
           agentRole: meta.agentRole,
           workerMode: meta.agentRole === 'worker' ? (meta as { workerMode?: WorkerMode }).workerMode : undefined,
+          mode: isInteractive ? 'interactive' : 'headless',
           status: 'suspended',
           workingDirectory: suspendedSession.workingDirectory,
           worktree: suspendedSession.worktree,
@@ -1058,6 +1072,7 @@ export class SessionManagerImpl implements SessionManager {
       agentId,
       agentRole: meta.agentRole,
       workerMode: meta.agentRole === 'worker' ? (meta as { workerMode?: WorkerMode }).workerMode : undefined,
+      mode: result.session.mode,
       pid: result.session.pid,
       status: result.session.status,
       workingDirectory: result.session.workingDirectory,
@@ -1077,6 +1092,7 @@ export class SessionManagerImpl implements SessionManager {
       agentId: session.agentId,
       agentRole: session.agentRole,
       workerMode: session.workerMode,
+      mode: session.mode,
       pid: session.pid,
       status: session.status,
       workingDirectory: session.workingDirectory,
