@@ -17,7 +17,7 @@ import { VirtualizedList } from '../../../components/shared/VirtualizedList';
 import { DocumentSearchBar } from './DocumentSearchBar';
 import { buildLibraryTree, flattenLibraryTree } from '../utils';
 import { LIBRARY_ITEM_HEIGHT } from '../constants';
-import type { LibraryType, LibraryTreeNode, FlatLibraryItem } from '../types';
+import type { LibraryType, FlatLibraryItem } from '../types';
 
 /**
  * Flat library item for virtualized rendering

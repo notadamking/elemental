@@ -44,3 +44,6 @@ export {
 } from './useBreakpoint';
 
 export type { Breakpoint, DeviceType } from './useBreakpoint';
+
+// Deep link navigation
+export { useDeepLink } from './useDeepLink';

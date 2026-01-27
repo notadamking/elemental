@@ -91,7 +91,7 @@ export function DocumentsPage() {
     selectedId: search.selected,
     currentPage: 1,
     pageSize: 1000,
-    getId: (doc) => doc.id,
+    getId: (doc: DocumentType) => doc.id,
     routePath: '/documents',
     rowTestIdPrefix: 'document-item-',
     autoNavigate: false,
