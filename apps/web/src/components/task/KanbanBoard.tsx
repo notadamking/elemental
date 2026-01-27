@@ -131,7 +131,7 @@ function TaskCard({
       className={`
         p-3 bg-white dark:bg-neutral-700 rounded-lg shadow-sm border-l-4 ${priorityBorder}
         cursor-pointer transition-all hover:shadow-md h-full
-        ${isSelected ? 'ring-2 ring-blue-500' : 'border border-gray-200 dark:border-neutral-600'}
+        ${isSelected ? 'ring-2 ring-blue-500' : 'border-t border-r border-b border-gray-200 dark:border-neutral-600'}
         ${isDragging ? 'opacity-50' : ''}
       `}
       onClick={onClick}
