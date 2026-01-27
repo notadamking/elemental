@@ -1413,17 +1413,29 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O24: Health Steward Implementation
+#### - [x] TB-O24: Health Steward Implementation
 
 **Goal**: Health Steward detects and helps stuck agents
 
 **Changes**:
 
-- [ ] Triggers on: no output for X minutes, repeated errors, process crash
-- [ ] Actions: Attempt to unstick, notify Director, stop and reassign
-- [ ] Configurable thresholds
+- [x] Triggers on: no output for X minutes, repeated errors, process crash
+- [x] Actions: Attempt to unstick, notify Director, stop and reassign
+- [x] Configurable thresholds
 
 **Verification**: Start worker, simulate stuck, see Health Steward detect and intervene
+
+**Implementation Notes**:
+
+- HealthStewardService in `packages/orchestrator-sdk/src/services/health-steward-service.ts`
+- Supports health issue types: `no_output`, `repeated_errors`, `process_crashed`, `high_error_rate`, `session_stale`, `unresponsive`
+- Configurable thresholds for all detection parameters
+- Automatic actions: `monitor`, `send_ping`, `restart`, `notify_director`, `reassign_task`, `escalate`
+- Event-driven with `issue:detected`, `issue:resolved`, `action:taken`, `check:completed` events
+- Activity tracking via `recordOutput()`, `recordError()`, `recordCrash()` methods
+- Integrates with SessionManager, AgentRegistry, DispatchService, TaskAssignmentService
+- 45 unit tests passing covering all functionality
+- Documentation added to docs/api/orchestrator-api.md
 
 ---
 

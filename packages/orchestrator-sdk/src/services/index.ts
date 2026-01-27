@@ -189,3 +189,32 @@ export {
   // Factory
   createPluginExecutor,
 } from './plugin-executor.js';
+
+// Health steward service (TB-O24)
+export {
+  // Types
+  type HealthIssueType,
+  type HealthIssueSeverity,
+  type HealthAction,
+  type HealthIssue,
+  type HealthActionResult,
+  type AgentHealthStatus,
+  type HealthStewardConfig,
+  type HealthCheckResult,
+  type HealthStewardStats,
+  type AgentActivityTracker,
+  type HealthStewardService,
+  type HealthSessionStatus,
+  // Constants
+  HealthIssueTypes,
+  HealthIssueSeverities,
+  HealthActions,
+  // Type guards
+  isHealthIssueType,
+  isHealthIssueSeverity,
+  isHealthAction,
+  // Implementation
+  HealthStewardServiceImpl,
+  // Factory
+  createHealthStewardService,
+} from './health-steward-service.js';

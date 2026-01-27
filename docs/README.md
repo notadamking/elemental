@@ -29,6 +29,7 @@
 | Work with agent messages | [api/orchestrator-api.md#message-types-tb-o14a](api/orchestrator-api.md#message-types-tb-o14a) | `packages/orchestrator-sdk/src/types/message-types.ts` |
 | Schedule steward execution | [api/orchestrator-api.md#stewardscheduler-tb-o23](api/orchestrator-api.md#stewardscheduler-tb-o23) | `packages/orchestrator-sdk/src/services/steward-scheduler.ts` |
 | Execute steward plugins | [api/orchestrator-api.md#pluginexecutor-tb-o23a](api/orchestrator-api.md#pluginexecutor-tb-o23a) | `packages/orchestrator-sdk/src/services/plugin-executor.ts` |
+| Monitor agent health | [api/orchestrator-api.md#healthstewardservice-tb-o24](api/orchestrator-api.md#healthstewardservice-tb-o24) | `packages/orchestrator-sdk/src/services/health-steward-service.ts` |
 | Use the Orchestrator Server | [platform/orchestrator-server.md](platform/orchestrator-server.md) | `apps/orchestrator-server/src/index.ts` |
 | Use the Orchestrator Web UI | [apps/orchestrator-web.md](apps/orchestrator-web.md) | `apps/orchestrator-web/src/` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
@@ -162,6 +163,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Worker task service | `services/worker-task-service.ts` | `services/worker-task-service.test.ts` |
 | Steward scheduler service | `services/steward-scheduler.ts` | `services/steward-scheduler.test.ts` |
 | Plugin executor service | `services/plugin-executor.ts` | `services/plugin-executor.test.ts` |
+| Health steward service | `services/health-steward-service.ts` | `services/health-steward-service.test.ts` |
 | Spawner service | `runtime/spawner.ts` | `runtime/spawner.test.ts`, `runtime/spawner.integration.test.ts` |
 | Session manager | `runtime/session-manager.ts` | `runtime/session-manager.test.ts` |
 | Inbox polling | `runtime/inbox-polling.ts` | `runtime/inbox-polling.test.ts` |

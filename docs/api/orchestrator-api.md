@@ -2889,6 +2889,286 @@ const result = await executor.executeBatch(maintenancePlugins);
 console.log(`Maintenance complete: ${result.succeeded}/${result.total} succeeded`);
 ```
 
+## HealthStewardService (TB-O24)
+
+The HealthStewardService monitors agent health and detects stuck or problematic agents. It runs periodic health checks and takes corrective actions when issues are detected.
+
+### Creating the Service
+
+```typescript
+import {
+  createHealthStewardService,
+  type HealthStewardService,
+  type HealthStewardConfig,
+} from '@elemental/orchestrator-sdk';
+
+const config: HealthStewardConfig = {
+  noOutputThresholdMs: 5 * 60 * 1000,      // 5 minutes without output
+  errorCountThreshold: 5,                   // 5 errors triggers alert
+  errorWindowMs: 10 * 60 * 1000,           // Within 10 minute window
+  staleSessionThresholdMs: 15 * 60 * 1000, // 15 minutes stale session
+  healthCheckIntervalMs: 60 * 1000,        // Check every minute
+  maxPingAttempts: 3,                       // Try 3 pings before escalating
+  autoRestart: true,                        // Auto-restart stuck agents
+  autoReassign: true,                       // Auto-reassign tasks from crashed agents
+  notifyDirector: true,                     // Notify Director of issues
+};
+
+const healthSteward = createHealthStewardService(
+  api,
+  agentRegistry,
+  sessionManager,
+  taskAssignment,
+  dispatchService,
+  config
+);
+```
+
+### Health Issue Types
+
+The service detects these types of issues:
+
+| Issue Type | Description | Default Threshold |
+|------------|-------------|-------------------|
+| `no_output` | Agent hasn't produced output | 5 minutes |
+| `repeated_errors` | Too many errors in window | 5 errors in 10 min |
+| `process_crashed` | Agent process exited unexpectedly | Immediate |
+| `high_error_rate` | Error rate exceeds 50% | 50% of outputs |
+| `session_stale` | Session inactive too long | 15 minutes |
+| `unresponsive` | Agent not responding to pings | 3 failed pings |
+
+### Issue Severity
+
+Issues are classified by severity:
+
+| Severity | Description |
+|----------|-------------|
+| `warning` | Minor issue, monitor |
+| `error` | Significant issue, action needed |
+| `critical` | Agent is unusable, immediate action |
+
+### Running Health Checks
+
+```typescript
+// Start automatic health checks (runs at configured interval)
+healthSteward.start();
+
+// Stop automatic health checks
+healthSteward.stop();
+
+// Check if running
+const running = healthSteward.isRunning();
+
+// Run a single health check manually
+const result = await healthSteward.runHealthCheck();
+console.log(`Checked ${result.agentsChecked} agents`);
+console.log(`Found ${result.newIssues.length} new issues`);
+console.log(`Resolved ${result.resolvedIssues.length} issues`);
+
+// Check a specific agent
+const status = await healthSteward.checkAgent(agentId);
+if (!status.isHealthy) {
+  console.log(`Agent has ${status.issues.length} issues`);
+  for (const issue of status.issues) {
+    console.log(`- ${issue.issueType}: ${issue.description}`);
+  }
+}
+
+// Get all agent health statuses
+const allStatuses = await healthSteward.getAllAgentHealth();
+```
+
+### Activity Tracking
+
+The service must be notified of agent activity to track health:
+
+```typescript
+// Call when agent produces output
+healthSteward.recordOutput(agentId);
+
+// Call when agent encounters an error
+healthSteward.recordError(agentId, 'Error message');
+
+// Call when agent process crashes
+healthSteward.recordCrash(agentId, exitCode);
+```
+
+### Issue Management
+
+```typescript
+// Get all active issues
+const issues = healthSteward.getActiveIssues();
+
+// Get issues for a specific agent
+const agentIssues = healthSteward.getIssuesForAgent(agentId);
+
+// Resolve an issue manually
+healthSteward.resolveIssue(issueId);
+
+// Clear resolved issue history
+healthSteward.clearResolvedIssues();
+```
+
+### Taking Actions
+
+```typescript
+// Actions the service can take
+type HealthAction =
+  | 'monitor'           // Continue monitoring
+  | 'send_ping'         // Send ping to check responsiveness
+  | 'restart'           // Restart the agent session
+  | 'notify_director'   // Notify the Director agent
+  | 'reassign_task'     // Stop agent and reassign task
+  | 'escalate';         // Escalate to human
+
+// Take action on an issue (auto-determines action if not specified)
+const result = await healthSteward.takeAction(issueId);
+
+// Take specific action
+const result = await healthSteward.takeAction(issueId, 'restart');
+
+// Individual actions
+await healthSteward.pingAgent(agentId);
+await healthSteward.restartAgent(agentId);
+await healthSteward.notifyDirector(issue);
+await healthSteward.reassignTask(agentId, taskId);
+```
+
+### Action Results
+
+```typescript
+interface HealthActionResult {
+  success: boolean;
+  action: HealthAction;
+  issueId: string;
+  message: string;
+  actionTakenAt: Timestamp;
+  newTaskId?: ElementId;     // If task reassigned
+  newAgentId?: EntityId;     // If task reassigned
+  error?: string;            // If action failed
+}
+```
+
+### Events
+
+```typescript
+// Subscribe to events
+healthSteward.on('issue:detected', (issue) => {
+  console.log(`New issue: ${issue.description}`);
+});
+
+healthSteward.on('issue:resolved', (issueId) => {
+  console.log(`Resolved: ${issueId}`);
+});
+
+healthSteward.on('action:taken', (result) => {
+  console.log(`Action ${result.action}: ${result.success ? 'success' : 'failed'}`);
+});
+
+healthSteward.on('check:completed', (result) => {
+  console.log(`Health check completed in ${result.durationMs}ms`);
+});
+
+// Unsubscribe
+healthSteward.off('issue:detected', listener);
+```
+
+### Statistics
+
+```typescript
+const stats = healthSteward.getStats();
+console.log(`Total checks: ${stats.totalChecks}`);
+console.log(`Issues detected: ${stats.totalIssuesDetected}`);
+console.log(`Issues resolved: ${stats.totalIssuesResolved}`);
+console.log(`Actions taken: ${stats.totalActionsTaken}`);
+console.log(`Successful actions: ${stats.successfulActions}`);
+console.log(`Failed actions: ${stats.failedActions}`);
+console.log(`Active issues: ${stats.activeIssues}`);
+console.log(`Monitored agents: ${stats.monitoredAgents}`);
+```
+
+### Health Check Results
+
+```typescript
+interface HealthCheckResult {
+  timestamp: Timestamp;
+  agentsChecked: number;
+  agentsWithIssues: number;
+  newIssues: HealthIssue[];
+  resolvedIssues: string[];       // Issue IDs that resolved
+  actionsTaken: HealthActionResult[];
+  durationMs: number;
+}
+
+interface AgentHealthStatus {
+  agentId: EntityId;
+  agentName: string;
+  agentRole: AgentRole;
+  isHealthy: boolean;
+  issues: HealthIssue[];
+  lastActivityAt?: Timestamp;
+  lastHealthCheckAt?: Timestamp;
+  sessionStatus?: HealthSessionStatus;
+  currentTaskId?: ElementId;
+  recentErrorCount: number;
+  recentOutputCount: number;
+}
+
+interface HealthIssue {
+  id: string;
+  agentId: EntityId;
+  agentName: string;
+  agentRole: AgentRole;
+  issueType: HealthIssueType;
+  severity: HealthIssueSeverity;
+  description: string;
+  detectedAt: Timestamp;
+  lastSeenAt: Timestamp;
+  occurrenceCount: number;
+  sessionId?: string;
+  taskId?: ElementId;
+  context?: Record<string, unknown>;
+}
+```
+
+### Integration with Other Services
+
+**With SessionManager:**
+```typescript
+// Session manager can record activity for health tracking
+sessionManager.on('session:output', (agentId) => {
+  healthSteward.recordOutput(agentId);
+});
+
+sessionManager.on('session:error', (agentId, error) => {
+  healthSteward.recordError(agentId, error);
+});
+
+sessionManager.on('session:crashed', (agentId, exitCode) => {
+  healthSteward.recordCrash(agentId, exitCode);
+});
+```
+
+**With StewardScheduler:**
+```typescript
+// Configure health steward to run via scheduler
+const steward = await api.registerSteward({
+  name: 'HealthMonitor',
+  stewardFocus: 'health',
+  triggers: [
+    { type: 'cron', schedule: '*/5 * * * *' }, // Every 5 minutes
+  ],
+  createdBy: systemEntity,
+});
+
+// The scheduler can invoke health checks
+scheduler.on('steward:execute', async (steward) => {
+  if (steward.stewardFocus === 'health') {
+    await healthSteward.runHealthCheck();
+  }
+});
+```
+
 ## See Also
 
 - [ElementalAPI](elemental-api.md) - Base API documentation
