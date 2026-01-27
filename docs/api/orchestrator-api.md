@@ -712,12 +712,72 @@ events.on('exit', (code, signal) => console.log(`Exited: ${code}`));
 
 ```typescript
 // Resume a previous session using its Claude Code session ID
-const { session, events } = await sessionManager.resumeSession(agentId, {
+const { session, events, uwpCheck } = await sessionManager.resumeSession(agentId, {
   claudeSessionId: 'previous-claude-session-id',
   workingDirectory: '/path/to/worktree',
   resumePrompt: 'Continue where you left off',
 });
 ```
+
+### Session Recovery with UWP (TB-O10a)
+
+When resuming a session, the SessionManager implements the Universal Work Principle (UWP): before continuing with the previous context, it checks if any tasks were assigned during suspension.
+
+```typescript
+import type { UWPTaskInfo, ResumeUWPCheckResult } from '@elemental/orchestrator-sdk';
+
+// Define callback to get ready tasks (integrates with TaskAssignmentService)
+const getReadyTasks = async (agentId: EntityId, limit: number): Promise<UWPTaskInfo[]> => {
+  const assignments = await assignmentService.getAgentTasks(agentId, {
+    taskStatus: ['open', 'in_progress'],
+  });
+  return assignments.slice(0, limit).map(a => ({
+    id: a.task.id,
+    title: a.task.title,
+    priority: a.task.priority,
+    status: a.task.status,
+  }));
+};
+
+// Resume with UWP check enabled (default)
+const { session, events, uwpCheck } = await sessionManager.resumeSession(agentId, {
+  claudeSessionId: 'previous-session-id',
+  checkReadyQueue: true,  // Default - checks for assigned tasks before resuming
+  getReadyTasks,          // Callback to query ready tasks
+  resumePrompt: 'Continue where you left off',
+});
+
+// Check UWP result
+if (uwpCheck?.hasReadyTask) {
+  console.log(`Task found: ${uwpCheck.taskTitle} (${uwpCheck.taskId})`);
+  console.log('Session will process this task before continuing');
+  // The resume prompt is automatically prepended with task instructions
+}
+
+// Disable UWP check if needed
+const { session: session2 } = await sessionManager.resumeSession(agentId, {
+  claudeSessionId: 'session-id',
+  checkReadyQueue: false, // Skip UWP check, resume normally
+});
+```
+
+#### ResumeUWPCheckResult Type
+
+```typescript
+interface ResumeUWPCheckResult {
+  hasReadyTask: boolean;      // Whether a task was found
+  taskId?: string;            // Task ID if found
+  taskTitle?: string;         // Task title if found
+  taskPriority?: number;      // Task priority if found
+  shouldProcessFirst: boolean; // Whether task instructions were prepended
+}
+```
+
+**How it works:**
+1. When `checkReadyQueue` is true (default), the manager calls `getReadyTasks(agentId, 1)` before spawning
+2. If a task is found, it builds a task prompt with instructions to process it first
+3. The task prompt is prepended to any `resumePrompt` provided
+4. The `uwpCheck` in the result indicates what was found and whether task instructions were added
 
 ### Stopping and Suspending Sessions
 

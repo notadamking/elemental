@@ -701,16 +701,24 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O10a: Session Recovery with UWP
+#### - [x] TB-O10a: Session Recovery with UWP
 
 **Goal**: Check ready queue on session resume
 
 **Changes**:
 
-- [ ] On resume, check queue before continuing previous context
-- [ ] If task assigned during suspension, process it first
+- [x] On resume, check queue before continuing previous context
+- [x] If task assigned during suspension, process it first
 
 **Verification**: Suspend agent, assign task, resume, verify task processed
+
+**Implementation Notes**:
+- Added `checkReadyQueue` option to `ResumeSessionOptions` (defaults to true)
+- Added `getReadyTasks` callback to allow integration without circular dependencies
+- Added `ResumeUWPCheckResult` type to report UWP check results
+- Modified `resumeSession()` to perform UWP check before resuming
+- If tasks found, prepends task instructions to resume prompt using `buildUWPTaskPrompt()`
+- 7 new unit tests covering all UWP scenarios (enabled, disabled, no tasks, defaults)
 
 ---
 

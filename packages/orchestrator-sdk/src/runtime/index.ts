@@ -50,6 +50,8 @@ export {
   type SessionFilter,
   type SessionHistoryEntry,
   type SessionManager,
+  // UWP Check Result (TB-O10a)
+  type ResumeUWPCheckResult,
   // Implementation
   SessionManagerImpl,
   // Factory

@@ -421,6 +421,101 @@ describe('SessionManager', () => {
         sessionManager.resumeSession(testAgentId, { claudeSessionId: 'test' })
       ).rejects.toThrow('already has an active session');
     });
+
+    test('performs UWP check when enabled and callback provided', async () => {
+      const mockReadyTasks = [
+        { id: 'task-001', title: 'Fix critical bug', priority: 1, status: 'open' },
+      ];
+
+      const getReadyTasks = async (_agentId: EntityId, _limit: number) => mockReadyTasks;
+
+      const result = await sessionManager.resumeSession(testAgentId, {
+        claudeSessionId: 'claude-session-previous',
+        checkReadyQueue: true,
+        getReadyTasks,
+      });
+
+      expect(result.uwpCheck).toBeDefined();
+      expect(result.uwpCheck?.hasReadyTask).toBe(true);
+      expect(result.uwpCheck?.taskId).toBe('task-001');
+      expect(result.uwpCheck?.taskTitle).toBe('Fix critical bug');
+      expect(result.uwpCheck?.taskPriority).toBe(1);
+      expect(result.uwpCheck?.shouldProcessFirst).toBe(true);
+    });
+
+    test('UWP check returns empty result when no tasks assigned', async () => {
+      const getReadyTasks = async (_agentId: EntityId, _limit: number) => [];
+
+      const result = await sessionManager.resumeSession(testAgentId, {
+        claudeSessionId: 'claude-session-previous',
+        checkReadyQueue: true,
+        getReadyTasks,
+      });
+
+      expect(result.uwpCheck).toBeDefined();
+      expect(result.uwpCheck?.hasReadyTask).toBe(false);
+      expect(result.uwpCheck?.shouldProcessFirst).toBe(false);
+      expect(result.uwpCheck?.taskId).toBeUndefined();
+    });
+
+    test('skips UWP check when checkReadyQueue is false', async () => {
+      const getReadyTasks = async (_agentId: EntityId, _limit: number) => [
+        { id: 'task-001', title: 'Some task', priority: 1, status: 'open' },
+      ];
+
+      const result = await sessionManager.resumeSession(testAgentId, {
+        claudeSessionId: 'claude-session-previous',
+        checkReadyQueue: false,
+        getReadyTasks,
+      });
+
+      expect(result.uwpCheck).toBeUndefined();
+    });
+
+    test('skips UWP check when no callback provided', async () => {
+      const result = await sessionManager.resumeSession(testAgentId, {
+        claudeSessionId: 'claude-session-previous',
+        checkReadyQueue: true,
+        // No getReadyTasks callback
+      });
+
+      expect(result.uwpCheck).toBeUndefined();
+    });
+
+    test('UWP check defaults to enabled when not specified', async () => {
+      const mockReadyTasks = [
+        { id: 'task-002', title: 'Deploy feature', priority: 2, status: 'open' },
+      ];
+
+      const getReadyTasks = async (_agentId: EntityId, _limit: number) => mockReadyTasks;
+
+      const result = await sessionManager.resumeSession(testAgentId, {
+        claudeSessionId: 'claude-session-previous',
+        // checkReadyQueue not specified, should default to true
+        getReadyTasks,
+      });
+
+      expect(result.uwpCheck).toBeDefined();
+      expect(result.uwpCheck?.hasReadyTask).toBe(true);
+      expect(result.uwpCheck?.taskId).toBe('task-002');
+    });
+
+    test('preserves resume prompt when UWP task found', async () => {
+      const mockReadyTasks = [
+        { id: 'task-003', title: 'Review PR', priority: 3, status: 'open' },
+      ];
+
+      const getReadyTasks = async (_agentId: EntityId, _limit: number) => mockReadyTasks;
+
+      const result = await sessionManager.resumeSession(testAgentId, {
+        claudeSessionId: 'claude-session-previous',
+        resumePrompt: 'Continue where you left off',
+        getReadyTasks,
+      });
+
+      expect(result.uwpCheck?.hasReadyTask).toBe(true);
+      expect(result.session.status).toBe('running');
+    });
   });
 
   describe('stopSession', () => {

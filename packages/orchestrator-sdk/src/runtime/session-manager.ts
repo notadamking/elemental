@@ -26,6 +26,7 @@ import type {
   SpawnOptions,
   SpawnResult,
   SessionStatus,
+  UWPTaskInfo,
 } from './spawner.js';
 import type { AgentRegistry } from '../services/agent-registry.js';
 
@@ -95,6 +96,17 @@ export interface ResumeSessionOptions {
   readonly worktree?: string;
   /** Additional prompt to send after resume */
   readonly resumePrompt?: string;
+  /**
+   * Whether to check the ready queue before resuming (UWP compliance).
+   * If true (default), the session will check for assigned tasks before
+   * continuing with the previous context.
+   */
+  readonly checkReadyQueue?: boolean;
+  /**
+   * Callback to get ready tasks - allows integration without circular deps.
+   * If not provided and checkReadyQueue is true, UWP check will be skipped.
+   */
+  readonly getReadyTasks?: (agentId: EntityId, limit: number) => Promise<UWPTaskInfo[]>;
 }
 
 /**
@@ -173,6 +185,25 @@ export interface SessionHistoryEntry {
   readonly terminationReason?: string;
 }
 
+/**
+ * Result of the UWP check performed during session resume
+ */
+export interface ResumeUWPCheckResult {
+  /** Whether a ready task was found during the UWP check */
+  readonly hasReadyTask: boolean;
+  /** The task ID if a ready task was found */
+  readonly taskId?: string;
+  /** The task title if a ready task was found */
+  readonly taskTitle?: string;
+  /** The task priority if a ready task was found */
+  readonly taskPriority?: number;
+  /**
+   * Whether the resumed session should process this task first.
+   * If true, the resume prompt includes instructions to process the task.
+   */
+  readonly shouldProcessFirst: boolean;
+}
+
 // ============================================================================
 // Session Manager Interface
 // ============================================================================
@@ -207,14 +238,18 @@ export interface SessionManager {
   /**
    * Resumes a previous session using its Claude Code session ID.
    *
+   * When `checkReadyQueue` is true (default), implements the Universal Work Principle (UWP):
+   * - Before continuing with the previous context, checks if any tasks were assigned during suspension
+   * - If tasks are found, the session will be instructed to process them first
+   *
    * @param agentId - The agent entity ID
    * @param options - Resume options including the Claude session ID
-   * @returns The resumed session record and event emitter
+   * @returns The resumed session record, event emitter, and UWP check result
    */
   resumeSession(
     agentId: EntityId,
     options: ResumeSessionOptions
-  ): Promise<{ session: SessionRecord; events: EventEmitter }>;
+  ): Promise<{ session: SessionRecord; events: EventEmitter; uwpCheck?: ResumeUWPCheckResult }>;
 
   /**
    * Stops a running session.
@@ -438,7 +473,7 @@ export class SessionManagerImpl implements SessionManager {
   async resumeSession(
     agentId: EntityId,
     options: ResumeSessionOptions
-  ): Promise<{ session: SessionRecord; events: EventEmitter }> {
+  ): Promise<{ session: SessionRecord; events: EventEmitter; uwpCheck?: ResumeUWPCheckResult }> {
     // Get agent to determine role and mode
     const agent = await this.registry.getAgent(agentId);
     if (!agent) {
@@ -459,11 +494,45 @@ export class SessionManagerImpl implements SessionManager {
       }
     }
 
+    // Perform UWP check before resuming (if enabled)
+    // This implements the Universal Work Principle: check queue before continuing previous context
+    let uwpCheck: ResumeUWPCheckResult | undefined;
+    const shouldCheckQueue = options.checkReadyQueue !== false; // Default to true
+
+    if (shouldCheckQueue && options.getReadyTasks) {
+      const readyTasks = await options.getReadyTasks(agentId, 1);
+
+      if (readyTasks.length > 0) {
+        const task = readyTasks[0];
+        uwpCheck = {
+          hasReadyTask: true,
+          taskId: task.id,
+          taskTitle: task.title,
+          taskPriority: task.priority,
+          shouldProcessFirst: true,
+        };
+      } else {
+        uwpCheck = {
+          hasReadyTask: false,
+          shouldProcessFirst: false,
+        };
+      }
+    }
+
+    // Build the resume prompt, prepending task instructions if UWP found a task
+    let effectivePrompt = options.resumePrompt;
+    if (uwpCheck?.hasReadyTask && uwpCheck.shouldProcessFirst) {
+      const taskInstructions = this.buildUWPTaskPrompt(uwpCheck);
+      effectivePrompt = effectivePrompt
+        ? `${taskInstructions}\n\n${effectivePrompt}`
+        : taskInstructions;
+    }
+
     // Build spawn options with resume
     const spawnOptions: SpawnOptions = {
       workingDirectory: options.workingDirectory,
       resumeSessionId: options.claudeSessionId,
-      initialPrompt: options.resumePrompt,
+      initialPrompt: effectivePrompt,
     };
 
     // Spawn the session with resume
@@ -491,6 +560,7 @@ export class SessionManagerImpl implements SessionManager {
     return {
       session: this.toPublicSession(sessionState),
       events: sessionState.events,
+      uwpCheck,
     };
   }
 
@@ -994,6 +1064,36 @@ export class SessionManagerImpl implements SessionManager {
 
   private getTimestampMs(timestamp: Timestamp): number {
     return typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
+  }
+
+  /**
+   * Builds the UWP task prompt to instruct the agent to process the assigned task first.
+   * This ensures compliance with the Universal Work Principle: "If there is work on your anchor, YOU MUST RUN IT"
+   */
+  private buildUWPTaskPrompt(uwpCheck: ResumeUWPCheckResult): string {
+    const parts = [
+      '**IMPORTANT: Task Assigned During Suspension**',
+      '',
+      'Before continuing with any previous context, you must first process the following assigned task:',
+      '',
+      `- Task ID: ${uwpCheck.taskId}`,
+    ];
+
+    if (uwpCheck.taskTitle) {
+      parts.push(`- Title: ${uwpCheck.taskTitle}`);
+    }
+
+    if (uwpCheck.taskPriority !== undefined) {
+      parts.push(`- Priority: ${uwpCheck.taskPriority}`);
+    }
+
+    parts.push(
+      '',
+      'Please check the task details and begin working on it immediately.',
+      'Use `el task get ' + uwpCheck.taskId + '` to retrieve full task details.',
+    );
+
+    return parts.join('\n');
   }
 }
 
