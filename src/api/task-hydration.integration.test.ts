@@ -549,7 +549,6 @@ describe('Task Hydration', () => {
         title: 'Complex Task',
         descriptionRef: doc.id as DocumentId,
         tags: ['important', 'urgent'],
-        notes: 'Some notes here',
         acceptanceCriteria: 'Must pass all tests',
       });
       await api.create(toCreateInput(originalTask));
@@ -565,7 +564,6 @@ describe('Task Hydration', () => {
       // Verify original properties are preserved
       expect(hydrated?.title).toBe('Complex Task');
       expect(hydrated?.tags).toEqual(['important', 'urgent']);
-      expect(hydrated?.notes).toBe('Some notes here');
       expect(hydrated?.acceptanceCriteria).toBe('Must pass all tests');
       expect(hydrated?.descriptionRef).toBe(doc.id);
     });

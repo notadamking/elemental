@@ -112,7 +112,6 @@ interface CreateOptions {
   type?: string;
   assignee?: string;
   tag?: string[];
-  notes?: string;
 }
 
 const createOptions: CommandOption[] = [
@@ -150,12 +149,6 @@ const createOptions: CommandOption[] = [
     description: 'Add a tag (can be repeated)',
     hasValue: true,
     array: true,
-  },
-  {
-    name: 'notes',
-    short: 'n',
-    description: 'Additional notes or context',
-    hasValue: true,
   },
 ];
 
@@ -241,7 +234,6 @@ async function createHandler(
       ...(taskType !== undefined && { taskType }),
       ...(options.assignee && { assignee: options.assignee as EntityId }),
       ...(tags && { tags }),
-      ...(options.notes && { notes: options.notes }),
     };
 
     // Create the task
@@ -272,12 +264,10 @@ Task options:
       --type <type>       Task type: bug, feature, task, chore
   -a, --assignee <id>     Assignee entity ID
       --tag <tag>         Add a tag (can be repeated)
-  -n, --notes <text>      Additional notes or context
 
 Examples:
   el create task --title "Fix login bug" --priority 1 --type bug
-  el create task -t "Add dark mode" --tag ui --tag feature
-  el create task -t "Implement feature" --notes "See specs/feature.md"`,
+  el create task -t "Add dark mode" --tag ui --tag feature`,
   options: createOptions,
   handler: createHandler as Command['handler'],
 };

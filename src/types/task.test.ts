@@ -15,7 +15,6 @@ import {
   DEFAULT_TASK_TYPE,
   MAX_TITLE_LENGTH,
   MAX_ACCEPTANCE_CRITERIA_LENGTH,
-  MAX_NOTES_LENGTH,
   MAX_CLOSE_REASON_LENGTH,
   isValidTaskStatus,
   validateTaskStatus,
@@ -531,7 +530,6 @@ describe('isTask', () => {
           descriptionRef: 'el-doc123' as DocumentId,
           designRef: 'el-design1' as DocumentId,
           acceptanceCriteria: 'Test criteria',
-          notes: 'Some notes',
           closeReason: 'Done',
           assignee: 'el-user1' as EntityId,
           owner: 'el-owner1' as EntityId,
@@ -632,13 +630,6 @@ describe('validateTask', () => {
         acceptanceCriteria: 'a'.repeat(MAX_ACCEPTANCE_CRITERIA_LENGTH + 1),
       })
     ).toThrow(ValidationError);
-
-    expect(() =>
-      validateTask({
-        ...createTestTask(),
-        notes: 'a'.repeat(MAX_NOTES_LENGTH + 1),
-      })
-    ).toThrow(ValidationError);
   });
 });
 
@@ -673,7 +664,6 @@ describe('createTask', () => {
       descriptionRef: 'el-doc123' as DocumentId,
       designRef: 'el-design1' as DocumentId,
       acceptanceCriteria: 'Test criteria',
-      notes: 'Some notes',
       status: TaskStatus.IN_PROGRESS,
       priority: Priority.HIGH,
       complexity: Complexity.COMPLEX,
@@ -690,7 +680,6 @@ describe('createTask', () => {
     expect(task.descriptionRef).toBe('el-doc123' as DocumentId);
     expect(task.designRef).toBe('el-design1' as DocumentId);
     expect(task.acceptanceCriteria).toBe('Test criteria');
-    expect(task.notes).toBe('Some notes');
     expect(task.status).toBe(TaskStatus.IN_PROGRESS);
     expect(task.priority).toBe(Priority.HIGH);
     expect(task.complexity).toBe(Complexity.COMPLEX);

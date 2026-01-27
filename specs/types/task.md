@@ -22,7 +22,6 @@ Tasks provide:
 | `descriptionRef` | `DocumentId` | No | Reference to description Document |
 | `designRef` | `DocumentId` | No | Reference to technical design Document |
 | `acceptanceCriteria` | `string` | No | Definition of done criteria |
-| `notes` | `string` | No | Scratchpad for additional context |
 
 ### Workflow
 

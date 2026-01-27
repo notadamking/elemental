@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, StickyNote, Save, Bot, Server } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, Save, Bot, Server } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { EntityLink } from '../entity/EntityLink';
 import { MarkdownRenderer } from '../shared/MarkdownRenderer';
@@ -37,7 +37,6 @@ interface TaskDetail {
   designRef?: string;
   description?: string;
   design?: string;
-  notes?: string;
   _dependencies: Dependency[];
   _dependents: Dependency[];
 }
@@ -1232,143 +1231,6 @@ function AttachmentsSection({
   );
 }
 
-// Task Notes Section with editing support (TB112)
-function TaskNotesSection({
-  notes,
-  onUpdate,
-  isUpdating,
-}: {
-  taskId?: string; // Reserved for future use (e.g., auto-save)
-  notes?: string;
-  onUpdate: (notes: string) => void;
-  isUpdating: boolean;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedNotes, setEditedNotes] = useState(notes || '');
-  const [isExpanded, setIsExpanded] = useState(true);
-
-  // Get entities for @mention autocomplete
-  const { data: entitiesData } = useAllEntities();
-  const mentionEntities: MentionEntity[] = useMemo(() => {
-    if (!entitiesData) return [];
-    return entitiesData.map((e) => ({
-      id: e.id,
-      name: e.name,
-      entityType: e.entityType,
-    }));
-  }, [entitiesData]);
-
-  // Reset edit state when notes change externally
-  useEffect(() => {
-    if (!isEditing) {
-      setEditedNotes(notes || '');
-    }
-  }, [notes, isEditing]);
-
-  const handleSave = useCallback(() => {
-    if (editedNotes !== (notes || '')) {
-      onUpdate(editedNotes);
-    }
-    setIsEditing(false);
-  }, [editedNotes, notes, onUpdate]);
-
-  const handleCancel = useCallback(() => {
-    setEditedNotes(notes || '');
-    setIsEditing(false);
-  }, [notes]);
-
-  const hasNotes = notes && notes.trim().length > 0;
-
-  return (
-    <div className="mb-6" data-testid="task-notes-section">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 hover:text-gray-700"
-        data-testid="notes-toggle"
-      >
-        {isExpanded ? (
-          <ChevronDown className="w-3 h-3" />
-        ) : (
-          <ChevronRight className="w-3 h-3" />
-        )}
-        <StickyNote className="w-3 h-3" />
-        Notes
-        {!hasNotes && (
-          <span className="text-xs text-gray-400 normal-case tracking-normal font-normal">(none)</span>
-        )}
-      </button>
-
-      {isExpanded && (
-        <div className="space-y-2">
-          {isEditing ? (
-            <>
-              <BlockEditor
-                content={editedNotes}
-                contentType="markdown"
-                onChange={setEditedNotes}
-                placeholder="Add notes with @mentions..."
-                mentionEntities={mentionEntities}
-              />
-              <div className="flex items-center gap-2 justify-end">
-                <button
-                  onClick={handleCancel}
-                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
-                  data-testid="notes-cancel-btn"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={isUpdating}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors disabled:opacity-50"
-                  data-testid="notes-save-btn"
-                >
-                  {isUpdating ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-3.5 h-3.5" />
-                      Save
-                    </>
-                  )}
-                </button>
-              </div>
-            </>
-          ) : hasNotes ? (
-            <div
-              onClick={() => setIsEditing(true)}
-              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all group"
-              data-testid="task-notes-content"
-            >
-              <MarkdownRenderer
-                content={notes}
-                className="text-gray-700 dark:text-gray-300"
-                testId="task-notes-markdown"
-              />
-              <div className="mt-2 flex items-center gap-1 text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Pencil className="w-3 h-3" />
-                Click to edit
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors w-full"
-              data-testid="add-notes-btn"
-            >
-              <Plus className="w-4 h-4" />
-              Add Notes
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Task Description Section with editing support (TB124)
 function TaskDescriptionSection({
   description,
@@ -1525,23 +1387,20 @@ function extractMentions(content?: string): string[] {
 function MentionedEntitiesSection({
   description,
   design,
-  notes,
 }: {
   description?: string;
   design?: string;
-  notes?: string;
 }) {
   const { data: entitiesData } = useAllEntities();
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Collect all mentions from description, design, and notes
+  // Collect all mentions from description and design
   const mentionedNames = useMemo(() => {
     const fromDescription = extractMentions(description);
     const fromDesign = extractMentions(design);
-    const fromNotes = extractMentions(notes);
-    const all = [...new Set([...fromDescription, ...fromDesign, ...fromNotes])];
+    const all = [...new Set([...fromDescription, ...fromDesign])];
     return all;
-  }, [description, design, notes]);
+  }, [description, design]);
 
   // Match mention names to actual entities
   const mentionedEntities = useMemo(() => {
@@ -2240,19 +2099,10 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           </div>
         )}
 
-        {/* Notes - editable with @mentions (TB112) */}
-        <TaskNotesSection
-          taskId={taskId}
-          notes={task.notes}
-          onUpdate={(notes) => handleUpdate({ notes }, 'notes')}
-          isUpdating={updateField === 'notes'}
-        />
-
-        {/* Mentioned Entities - collected from description, design, notes (TB112) */}
+        {/* Mentioned Entities - collected from description and design (TB112) */}
         <MentionedEntitiesSection
           description={task.description}
           design={task.design}
-          notes={task.notes}
         />
 
         {/* Attachments */}

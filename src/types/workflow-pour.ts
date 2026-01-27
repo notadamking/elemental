@@ -260,11 +260,6 @@ async function createTaskFromStep(
   // Substitute variables in title
   const title = substituteVariables(step.title, resolvedVariables, false);
 
-  // Substitute variables in description if present
-  const notes = step.description
-    ? substituteVariables(step.description, resolvedVariables, false)
-    : undefined;
-
   // Substitute variables in assignee if present
   const assignee = step.assignee
     ? (substituteVariables(step.assignee, resolvedVariables, true) as EntityId | undefined)
@@ -284,7 +279,6 @@ async function createTaskFromStep(
     complexity: step.complexity ?? DEFAULT_COMPLEXITY,
     taskType: step.taskType ?? DEFAULT_TASK_TYPE,
     status: TaskStatus.OPEN,
-    ...(notes && { notes }),
     ...(assignee && assignee.length > 0 && { assignee }),
   };
 

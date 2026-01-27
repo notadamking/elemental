@@ -500,22 +500,6 @@ describe('pourWorkflow', () => {
       expect(result.tasks[0].task.taskType).toBe('bug');
     });
 
-    it('should set step description as task notes', async () => {
-      const playbook = await createTestPlaybook({
-        steps: [
-          { id: 'step1', title: 'Step', description: 'Step details here' },
-        ],
-      });
-
-      const result = await pourWorkflow({
-        playbook,
-        variables: {},
-        createdBy: TEST_ENTITY,
-      });
-
-      expect(result.tasks[0].task.notes).toBe('Step details here');
-    });
-
     it('should create parent-child dependencies', async () => {
       const playbook = await createTestPlaybook({
         steps: [
@@ -553,23 +537,6 @@ describe('pourWorkflow', () => {
       });
 
       expect(result.tasks[0].task.title).toBe('Task: My Important Task');
-    });
-
-    it('should substitute variables in descriptions', async () => {
-      const playbook = await createTestPlaybook({
-        variables: [
-          { name: 'details', type: VariableType.STRING, required: false, default: 'default details' },
-        ],
-        steps: [{ id: 'step1', title: 'Step', description: 'Details: {{details}}' }],
-      });
-
-      const result = await pourWorkflow({
-        playbook,
-        variables: { details: 'custom details' },
-        createdBy: TEST_ENTITY,
-      });
-
-      expect(result.tasks[0].task.notes).toBe('Details: custom details');
     });
 
     it('should use default values for optional variables', async () => {

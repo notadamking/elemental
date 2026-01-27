@@ -9,20 +9,20 @@ test.describe('TB112: @Mention in Tasks', () => {
     return entities.length > 0 ? entities[0] : null;
   }
 
-  // Helper to create a test task with notes containing @mention
-  async function createTaskWithMentionInNotes(
+  // Helper to create a test task with @mention in description
+  async function createTaskWithMentionInDescription(
     page: Page,
     entityId: string,
     entityName: string
   ): Promise<{ id: string; title: string }> {
     const title = `Mention Test Task ${Date.now()}`;
-    const notes = `This task mentions @${entityName} for testing purposes.`;
+    const description = `This task mentions @${entityName} for testing purposes.`;
 
     const response = await page.request.post('/api/tasks', {
       data: {
         title,
         createdBy: entityId,
-        notes,
+        description,
         priority: 3,
         taskType: 'task',
       },
@@ -31,12 +31,12 @@ test.describe('TB112: @Mention in Tasks', () => {
     return { id: task.id, title };
   }
 
-  // Helper to create a test task without notes
-  async function createTaskWithoutNotes(
+  // Helper to create a test task without description
+  async function createTaskWithoutDescription(
     page: Page,
     entityId: string
   ): Promise<{ id: string; title: string }> {
-    const title = `Notes Test Task ${Date.now()}`;
+    const title = `Description Test Task ${Date.now()}`;
 
     const response = await page.request.post('/api/tasks', {
       data: {
@@ -58,72 +58,72 @@ test.describe('TB112: @Mention in Tasks', () => {
   }
 
   // ============================================================================
-  // Notes section tests
+  // Description section tests
   // ============================================================================
 
-  test('notes section shows "Add Notes" button when no notes', async ({ page }) => {
+  test('description section shows "Add Description" button when no description', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task without notes
-    const task = await createTaskWithoutNotes(page, entity.id);
+    // Create a task without description
+    const task = await createTaskWithoutDescription(page, entity.id);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
 
-    // Notes section should be visible
-    const notesSection = page.getByTestId('task-notes-section');
-    await expect(notesSection).toBeVisible();
+    // Description section should be visible
+    const descriptionSection = page.getByTestId('task-description-section');
+    await expect(descriptionSection).toBeVisible();
 
-    // Should show "Add Notes" button
-    const addNotesBtn = page.getByTestId('add-notes-btn');
-    await expect(addNotesBtn).toBeVisible();
+    // Should show "Add Description" button
+    const addDescriptionBtn = page.getByTestId('add-description-btn');
+    await expect(addDescriptionBtn).toBeVisible();
   });
 
-  test('clicking Add Notes opens editor', async ({ page }) => {
+  test('clicking Add Description opens editor', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task without notes
-    const task = await createTaskWithoutNotes(page, entity.id);
+    // Create a task without description
+    const task = await createTaskWithoutDescription(page, entity.id);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
 
-    // Click Add Notes button
-    const addNotesBtn = page.getByTestId('add-notes-btn');
-    await addNotesBtn.click();
+    // Click Add Description button
+    const addDescriptionBtn = page.getByTestId('add-description-btn');
+    await addDescriptionBtn.click();
 
     // Editor should be visible
     const editor = page.getByTestId('block-editor');
     await expect(editor).toBeVisible();
 
     // Save and Cancel buttons should be visible
-    await expect(page.getByTestId('notes-save-btn')).toBeVisible();
-    await expect(page.getByTestId('notes-cancel-btn')).toBeVisible();
+    await expect(page.getByTestId('description-save-btn')).toBeVisible();
+    await expect(page.getByTestId('description-cancel-btn')).toBeVisible();
   });
 
-  test('typing @ in notes editor shows mention autocomplete', async ({ page }) => {
+  test('typing @ in description editor shows mention autocomplete', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task without notes
-    const task = await createTaskWithoutNotes(page, entity.id);
+    // Create a task without description
+    const task = await createTaskWithoutDescription(page, entity.id);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
 
-    // Click Add Notes button
-    await page.getByTestId('add-notes-btn').click();
+    // Click Add Description button
+    await page.getByTestId('add-description-btn').click();
 
     // Type @ in the editor
     const editorContent = page.getByTestId('block-editor-content');
@@ -134,21 +134,21 @@ test.describe('TB112: @Mention in Tasks', () => {
     await expect(page.getByTestId('mention-autocomplete-menu')).toBeVisible({ timeout: 5000 });
   });
 
-  test('can save notes with @mention', async ({ page }) => {
+  test('can save description with @mention', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task without notes
-    const task = await createTaskWithoutNotes(page, entity.id);
+    // Create a task without description
+    const task = await createTaskWithoutDescription(page, entity.id);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
 
-    // Click Add Notes button
-    await page.getByTestId('add-notes-btn').click();
+    // Click Add Description button
+    await page.getByTestId('add-description-btn').click();
 
     // Type some text with @mention
     const editorContent = page.getByTestId('block-editor-content');
@@ -167,58 +167,58 @@ test.describe('TB112: @Mention in Tasks', () => {
     await page.keyboard.type(' about the implementation.');
 
     // Save
-    await page.getByTestId('notes-save-btn').click();
+    await page.getByTestId('description-save-btn').click();
 
     // Wait for save to complete (editor should close)
     await expect(page.getByTestId('block-editor')).not.toBeVisible({ timeout: 5000 });
 
-    // Notes content should be visible
-    await expect(page.getByTestId('task-notes-content')).toBeVisible();
+    // Description content should be visible
+    await expect(page.getByTestId('task-description-content')).toBeVisible();
   });
 
   // ============================================================================
-  // Notes @mention rendering tests
+  // Description @mention rendering tests
   // ============================================================================
 
-  test('notes with @mention renders as clickable link', async ({ page }) => {
+  test('description with @mention renders as clickable link', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task with @mention in notes
-    const task = await createTaskWithMentionInNotes(page, entity.id, entity.name);
+    // Create a task with @mention in description
+    const task = await createTaskWithMentionInDescription(page, entity.id, entity.name);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
 
-    // Find the notes section
-    const notesContent = page.getByTestId('task-notes-content');
-    await expect(notesContent).toBeVisible();
+    // Find the description section
+    const descriptionContent = page.getByTestId('task-description-content');
+    await expect(descriptionContent).toBeVisible();
 
     // Look for the mention chip with the entity name
-    const mentionChip = notesContent.locator('.mention-chip').first();
+    const mentionChip = descriptionContent.locator('.mention-chip').first();
     await expect(mentionChip).toBeVisible();
     await expect(mentionChip).toContainText(`@${entity.name}`);
   });
 
-  test('@mention in notes links to entity search', async ({ page }) => {
+  test('@mention in description links to entity search', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task with @mention in notes
-    const task = await createTaskWithMentionInNotes(page, entity.id, entity.name);
+    // Create a task with @mention in description
+    const task = await createTaskWithMentionInDescription(page, entity.id, entity.name);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
 
     // Find the mention chip
-    const notesContent = page.getByTestId('task-notes-content');
-    const mentionChip = notesContent.locator('.mention-chip').first();
+    const descriptionContent = page.getByTestId('task-description-content');
+    const mentionChip = descriptionContent.locator('.mention-chip').first();
     await expect(mentionChip).toBeVisible();
 
     // Check the href attribute
@@ -231,15 +231,15 @@ test.describe('TB112: @Mention in Tasks', () => {
   // Mentioned Entities section tests
   // ============================================================================
 
-  test('mentioned entities section shows entities from notes', async ({ page }) => {
+  test('mentioned entities section shows entities from description', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task with @mention in notes
-    const task = await createTaskWithMentionInNotes(page, entity.id, entity.name);
+    // Create a task with @mention in description
+    const task = await createTaskWithMentionInDescription(page, entity.id, entity.name);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
@@ -260,8 +260,8 @@ test.describe('TB112: @Mention in Tasks', () => {
       return;
     }
 
-    // Create a task with @mention in notes
-    const task = await createTaskWithMentionInNotes(page, entity.id, entity.name);
+    // Create a task with @mention in description
+    const task = await createTaskWithMentionInDescription(page, entity.id, entity.name);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
@@ -287,37 +287,37 @@ test.describe('TB112: @Mention in Tasks', () => {
     await expect(list).toBeVisible();
   });
 
-  test('notes section can be collapsed', async ({ page }) => {
+  test('description section can be collapsed', async ({ page }) => {
     const entity = await getFirstEntity(page);
     if (!entity) {
       test.skip();
       return;
     }
 
-    // Create a task with notes
-    const task = await createTaskWithMentionInNotes(page, entity.id, entity.name);
+    // Create a task with description
+    const task = await createTaskWithMentionInDescription(page, entity.id, entity.name);
 
     // Navigate to task detail
     await navigateToTaskDetail(page, task.id);
 
-    // Find the notes toggle button
-    const toggle = page.getByTestId('notes-toggle');
+    // Find the description toggle button
+    const toggle = page.getByTestId('description-toggle');
     await expect(toggle).toBeVisible();
 
-    // Notes content should be visible
-    const notesContent = page.getByTestId('task-notes-content');
-    await expect(notesContent).toBeVisible();
+    // Description content should be visible
+    const descriptionContent = page.getByTestId('task-description-content');
+    await expect(descriptionContent).toBeVisible();
 
     // Click to collapse
     await toggle.click();
 
-    // Notes content should be hidden
-    await expect(notesContent).not.toBeVisible();
+    // Description content should be hidden
+    await expect(descriptionContent).not.toBeVisible();
 
     // Click to expand
     await toggle.click();
 
-    // Notes content should be visible again
-    await expect(notesContent).toBeVisible();
+    // Description content should be visible again
+    await expect(descriptionContent).toBeVisible();
   });
 });

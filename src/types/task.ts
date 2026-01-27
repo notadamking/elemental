@@ -169,9 +169,6 @@ export const MAX_TITLE_LENGTH = 500;
 /** Maximum acceptance criteria length */
 export const MAX_ACCEPTANCE_CRITERIA_LENGTH = 10000;
 
-/** Maximum notes length */
-export const MAX_NOTES_LENGTH = 10000;
-
 /** Maximum close reason length */
 export const MAX_CLOSE_REASON_LENGTH = 1000;
 
@@ -198,8 +195,6 @@ export interface Task extends Element {
   designRef?: DocumentId;
   /** Definition of done criteria */
   acceptanceCriteria?: string;
-  /** Scratchpad for additional context */
-  notes?: string;
 
   // Workflow
   /** Current lifecycle state */
@@ -491,7 +486,6 @@ export function isTask(value: unknown): value is Task {
   if (obj.designRef !== undefined && typeof obj.designRef !== 'string') return false;
   if (obj.acceptanceCriteria !== undefined && typeof obj.acceptanceCriteria !== 'string')
     return false;
-  if (obj.notes !== undefined && typeof obj.notes !== 'string') return false;
   if (obj.closeReason !== undefined && typeof obj.closeReason !== 'string') return false;
   if (obj.assignee !== undefined && typeof obj.assignee !== 'string') return false;
   if (obj.owner !== undefined && typeof obj.owner !== 'string') return false;
@@ -582,7 +576,6 @@ export function validateTask(value: unknown): Task {
 
   // Validate optional text fields
   validateOptionalText(obj.acceptanceCriteria, 'acceptanceCriteria', MAX_ACCEPTANCE_CRITERIA_LENGTH);
-  validateOptionalText(obj.notes, 'notes', MAX_NOTES_LENGTH);
   validateOptionalText(obj.closeReason, 'closeReason', MAX_CLOSE_REASON_LENGTH);
   validateOptionalText(obj.deleteReason, 'deleteReason', MAX_DELETE_REASON_LENGTH);
 
@@ -609,8 +602,6 @@ export interface CreateTaskInput {
   designRef?: DocumentId;
   /** Optional: Definition of done criteria */
   acceptanceCriteria?: string;
-  /** Optional: Scratchpad for additional context */
-  notes?: string;
   /** Optional: Initial status (default: open) */
   status?: TaskStatus;
   /** Optional: 1-5 scale (default: 3) */
@@ -663,7 +654,6 @@ export async function createTask(
     'acceptanceCriteria',
     MAX_ACCEPTANCE_CRITERIA_LENGTH
   );
-  const notes = validateOptionalText(input.notes, 'notes', MAX_NOTES_LENGTH);
 
   // Validate tags and metadata
   const tags = input.tags ? validateTags(input.tags) : [];
@@ -690,7 +680,6 @@ export async function createTask(
     ...(input.descriptionRef !== undefined && { descriptionRef: input.descriptionRef }),
     ...(input.designRef !== undefined && { designRef: input.designRef }),
     ...(acceptanceCriteria !== undefined && { acceptanceCriteria }),
-    ...(notes !== undefined && { notes }),
     ...(input.assignee !== undefined && { assignee: input.assignee }),
     ...(input.owner !== undefined && { owner: input.owner }),
     ...(input.deadline !== undefined && { deadline: input.deadline }),

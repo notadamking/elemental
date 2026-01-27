@@ -500,7 +500,6 @@ app.post('/api/tasks', async (c) => {
       ...(descriptionRef !== undefined && { descriptionRef }),
       ...(body.designRef !== undefined && { designRef: body.designRef }),
       ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria }),
-      ...(body.notes !== undefined && { notes: body.notes }),
     };
     const task = await createTask(taskInput);
     const created = await api.create(task as unknown as Element & Record<string, unknown>);
@@ -650,7 +649,7 @@ app.patch('/api/tasks/:id', async (c) => {
     const updates: Record<string, unknown> = {};
     const allowedFields = [
       'title', 'status', 'priority', 'complexity', 'taskType',
-      'assignee', 'owner', 'deadline', 'scheduledFor', 'tags', 'metadata', 'notes'
+      'assignee', 'owner', 'deadline', 'scheduledFor', 'tags', 'metadata'
     ];
 
     for (const field of allowedFields) {
@@ -1518,39 +1517,8 @@ app.get('/api/entities/:id/mentions', async (c) => {
       }
     }
 
-    // Search for tasks containing the mention (in notes field)
-    const allTasks = await api.list({
-      type: 'task',
-    } as Parameters<typeof api.list>[0]);
-
-    const mentioningTasks: Array<{
-      id: string;
-      title: string;
-      status: string;
-      updatedAt: string;
-      type: 'task';
-    }> = [];
-
-    for (const task of allTasks) {
-      const taskTyped = task as unknown as { id: string; title?: string; notes?: string; status: string; updatedAt: string };
-      const notes = taskTyped.notes || '';
-
-      // Check if notes contain the @mention
-      if (notes.includes(mentionPattern)) {
-        mentioningTasks.push({
-          id: taskTyped.id,
-          title: taskTyped.title || `Task ${taskTyped.id}`,
-          status: taskTyped.status,
-          updatedAt: taskTyped.updatedAt,
-          type: 'task',
-        });
-
-        if (mentioningTasks.length >= limit) break;
-      }
-    }
-
-    // Combine and sort by updatedAt (most recent first)
-    const allMentions = [...mentioningDocuments, ...mentioningTasks]
+    // Sort documents by updatedAt (most recent first)
+    const allMentions = mentioningDocuments
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, limit);
 
@@ -1559,8 +1527,7 @@ app.get('/api/entities/:id/mentions', async (c) => {
       entityName,
       mentions: allMentions,
       documentCount: mentioningDocuments.length,
-      taskCount: mentioningTasks.length,
-      totalCount: mentioningDocuments.length + mentioningTasks.length,
+      totalCount: mentioningDocuments.length,
     });
   } catch (error) {
     console.error('[elemental] Failed to get entity mentions:', error);
