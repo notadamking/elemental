@@ -1,0 +1,523 @@
+/**
+ * ChannelView component - main channel display with messages
+ */
+
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  Hash,
+  Lock,
+  Users,
+  MessageSquare,
+  UserCog,
+  Search,
+  XCircle,
+  ChevronLeft,
+} from 'lucide-react';
+import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
+import { ChannelMembersPanel } from '../../../components/message/ChannelMembersPanel';
+import { groupMessagesByDay } from '../../../lib';
+import { useChannel, useChannelMessages, useEntities } from '../../../api/hooks/useMessages';
+import { MessageBubble, DateSeparator } from './MessageBubble';
+import { MessageComposer } from './MessageComposer';
+import { MessageSearchDropdown } from './MessageSearch';
+import { ThreadPanel } from './ThreadPanel';
+import type { Message, Channel } from '../types';
+
+// Estimated message height for virtualization
+const MESSAGE_ROW_HEIGHT = 100;
+
+// ============================================================================
+// ChannelView
+// ============================================================================
+
+interface ChannelViewProps {
+  channelId: string;
+  isMobile?: boolean;
+  onBack?: () => void;
+}
+
+export function ChannelView({ channelId, isMobile = false, onBack }: ChannelViewProps) {
+  const { data: channel } = useChannel(channelId);
+  const { data: messages = [], isLoading, error } = useChannelMessages(channelId);
+  const { data: entities } = useEntities();
+  const [selectedThread, setSelectedThread] = useState<Message | null>(null);
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+
+  // TB103: Message search state
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Determine current operator (prefer human entity, fall back to first entity)
+  const currentOperator =
+    entities?.find((e) => e.entityType === 'human')?.id || entities?.[0]?.id || '';
+
+  // TB103: Handle search result selection - scroll to and highlight message
+  const handleSearchResultSelect = useCallback((messageId: string) => {
+    setMessageSearchQuery('');
+    setIsSearchOpen(false);
+
+    // Find the message element and scroll to it
+    const messageElement = document.querySelector(`[data-testid="message-${messageId}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Highlight the message temporarily
+      setHighlightedMessageId(messageId);
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 2000);
+    }
+  }, []);
+
+  // TB103: Clear highlight when clicking elsewhere
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+
+    const handleClick = () => {
+      setHighlightedMessageId(null);
+    };
+
+    // Delay adding listener to avoid immediate clearing
+    const timeout = setTimeout(() => {
+      document.addEventListener('click', handleClick);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('click', handleClick);
+    };
+  }, [highlightedMessageId]);
+
+  // TB103: Handle search input focus with keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + F to focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setIsSearchOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Calculate reply counts for each message
+  const replyCounts = messages.reduce(
+    (acc, msg) => {
+      if (msg.threadId) {
+        acc[msg.threadId] = (acc[msg.threadId] || 0) + 1;
+      }
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  // Filter out threaded messages from main view (show only root messages)
+  const rootMessages = messages.filter((msg) => !msg.threadId);
+
+  // Group messages by day for date separators (TB99)
+  const groupedMessages = useMemo(
+    () => groupMessagesByDay(rootMessages, (msg) => msg.createdAt),
+    [rootMessages]
+  );
+
+  const handleReply = (message: Message) => {
+    setSelectedThread(message);
+  };
+
+  return (
+    <div
+      data-testid="channel-view"
+      className={`flex-1 flex bg-[var(--color-bg)] ${isMobile ? 'absolute inset-0 z-40' : ''}`}
+    >
+      {/* Main Channel Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Channel Header */}
+        <ChannelHeader
+          channel={channel}
+          isMobile={isMobile}
+          onBack={onBack}
+          showMobileSearch={showMobileSearch}
+          setShowMobileSearch={setShowMobileSearch}
+          setShowMembersPanel={setShowMembersPanel}
+          messageSearchQuery={messageSearchQuery}
+          setMessageSearchQuery={setMessageSearchQuery}
+          isSearchOpen={isSearchOpen}
+          setIsSearchOpen={setIsSearchOpen}
+          searchInputRef={searchInputRef}
+          channelId={channelId}
+          handleSearchResultSelect={handleSearchResultSelect}
+        />
+
+        {/* Messages Area - TB131: Always use virtualized chat list */}
+        <div
+          data-testid="messages-container"
+          className={`flex-1 overflow-hidden ${isMobile ? 'p-2' : 'p-4'}`}
+        >
+          {isLoading ? (
+            <div
+              data-testid="messages-loading"
+              className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400"
+            >
+              Loading messages...
+            </div>
+          ) : error ? (
+            <div
+              data-testid="messages-error"
+              className="flex items-center justify-center h-full text-red-500"
+            >
+              Failed to load messages
+            </div>
+          ) : (
+            <VirtualizedChatList
+              items={groupedMessages}
+              getItemKey={(grouped) => grouped.item.id}
+              estimateSize={(index) => {
+                const baseHeight = isMobile ? 80 : MESSAGE_ROW_HEIGHT;
+                const grouped = groupedMessages[index];
+                let height = baseHeight;
+
+                // Add more height for day separator
+                if (grouped?.isFirstInDay) {
+                  height += 48;
+                }
+
+                // Add height for messages with images (max-h-80 = 320px + margins)
+                const content = grouped?.item?._content || '';
+                if (content.includes('![') && content.includes('](')) {
+                  height += 340; // Account for max image height + margins
+                }
+
+                return height;
+              }}
+              scrollRestoreId={`messages-${channelId}`}
+              testId="virtualized-messages-list"
+              gap={isMobile ? 4 : 8}
+              latestMessageId={rootMessages[rootMessages.length - 1]?.id}
+              renderEmpty={() => (
+                <div
+                  data-testid="messages-empty"
+                  className={`flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 ${
+                    isMobile ? 'px-4' : ''
+                  }`}
+                >
+                  <MessageSquare
+                    className={`mb-3 text-gray-300 dark:text-gray-600 ${
+                      isMobile ? 'w-10 h-10' : 'w-12 h-12'
+                    }`}
+                  />
+                  <p className={isMobile ? 'text-base' : 'text-sm'}>No messages yet</p>
+                  <p
+                    className={`text-gray-400 dark:text-gray-500 mt-1 ${
+                      isMobile ? 'text-sm' : 'text-xs'
+                    }`}
+                  >
+                    Be the first to send a message!
+                  </p>
+                </div>
+              )}
+              renderItem={(grouped) => (
+                <div>
+                  {grouped.isFirstInDay && <DateSeparator date={grouped.formattedDate} />}
+                  <MessageBubble
+                    message={grouped.item}
+                    onReply={handleReply}
+                    replyCount={replyCounts[grouped.item.id] || 0}
+                    isHighlighted={highlightedMessageId === grouped.item.id}
+                    isMobile={isMobile}
+                  />
+                </div>
+              )}
+            />
+          )}
+        </div>
+
+        {/* Message Composer */}
+        <MessageComposer channelId={channelId} channel={channel} isMobile={isMobile} />
+      </div>
+
+      {/* Thread Panel - hide on mobile when showing channel view */}
+      {selectedThread && !isMobile && (
+        <ThreadPanel
+          parentMessage={selectedThread}
+          channel={channel}
+          onClose={() => setSelectedThread(null)}
+        />
+      )}
+
+      {/* Thread Panel as full-screen modal on mobile */}
+      {selectedThread && isMobile && (
+        <MobileThreadPanel
+          selectedThread={selectedThread}
+          channel={channel}
+          onClose={() => setSelectedThread(null)}
+        />
+      )}
+
+      {/* Members Panel */}
+      {showMembersPanel && channel && currentOperator && (
+        <ChannelMembersPanel
+          channel={channel}
+          currentOperator={currentOperator}
+          onClose={() => setShowMembersPanel(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// ChannelHeader (extracted for clarity)
+// ============================================================================
+
+interface ChannelHeaderProps {
+  channel: Channel | undefined;
+  isMobile: boolean;
+  onBack?: () => void;
+  showMobileSearch: boolean;
+  setShowMobileSearch: (show: boolean) => void;
+  setShowMembersPanel: (show: boolean) => void;
+  messageSearchQuery: string;
+  setMessageSearchQuery: (query: string) => void;
+  isSearchOpen: boolean;
+  setIsSearchOpen: (open: boolean) => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  channelId: string;
+  handleSearchResultSelect: (messageId: string) => void;
+}
+
+function ChannelHeader({
+  channel,
+  isMobile,
+  onBack,
+  showMobileSearch,
+  setShowMobileSearch,
+  setShowMembersPanel,
+  messageSearchQuery,
+  setMessageSearchQuery,
+  isSearchOpen,
+  setIsSearchOpen,
+  searchInputRef,
+  channelId,
+  handleSearchResultSelect,
+}: ChannelHeaderProps) {
+  return (
+    <div
+      data-testid="channel-header"
+      className={`border-b border-[var(--color-border)] ${isMobile ? 'p-3' : 'p-4'}`}
+    >
+      <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-2'}`}>
+        {/* Mobile back button */}
+        {isMobile && onBack && (
+          <button
+            onClick={onBack}
+            className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+            data-testid="channel-back-button"
+            aria-label="Back to channels"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        )}
+
+        {channel && (
+          <>
+            {channel.channelType === 'direct' ? (
+              <Users className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+            ) : channel.permissions.visibility === 'private' ? (
+              <Lock className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+            ) : (
+              <Hash className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+            )}
+            <h3
+              data-testid="channel-name"
+              className={`font-medium text-[var(--color-text)] truncate ${
+                isMobile ? 'text-base flex-1' : ''
+              }`}
+            >
+              {channel.name}
+            </h3>
+
+            {/* Desktop: show members button and search inline */}
+            {!isMobile && (
+              <>
+                <button
+                  onClick={() => setShowMembersPanel(true)}
+                  className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition-colors"
+                  data-testid="channel-members-button"
+                >
+                  <UserCog className="w-4 h-4" />
+                  {channel.members.length} members
+                </button>
+                <div className="flex-1" />
+                {/* TB103: Message Search Input */}
+                <div className="relative" data-testid="message-search-container">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={messageSearchQuery}
+                      onChange={(e) => {
+                        setMessageSearchQuery(e.target.value);
+                        setIsSearchOpen(e.target.value.length > 0);
+                      }}
+                      onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setMessageSearchQuery('');
+                          setIsSearchOpen(false);
+                          searchInputRef.current?.blur();
+                        }
+                      }}
+                      placeholder="Search messages..."
+                      className="w-48 pl-8 pr-8 py-1.5 text-sm border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+                      data-testid="message-search-input"
+                    />
+                    {messageSearchQuery && (
+                      <button
+                        onClick={() => {
+                          setMessageSearchQuery('');
+                          setIsSearchOpen(false);
+                          searchInputRef.current?.focus();
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        data-testid="message-search-clear"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {/* Search Results Dropdown */}
+                  {isSearchOpen && (
+                    <MessageSearchDropdown
+                      searchQuery={messageSearchQuery}
+                      channelId={channelId}
+                      onSelectResult={handleSearchResultSelect}
+                      onClose={() => setIsSearchOpen(false)}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Mobile: show search and members as icon buttons */}
+            {isMobile && (
+              <div className="flex items-center gap-1 ml-auto">
+                <button
+                  onClick={() => setShowMobileSearch(!showMobileSearch)}
+                  className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+                  data-testid="mobile-search-toggle"
+                  aria-label="Search messages"
+                >
+                  <Search className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setShowMembersPanel(true)}
+                  className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+                  data-testid="channel-members-button"
+                  aria-label="View members"
+                >
+                  <Users className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Mobile search bar (shown below header when toggled) */}
+      {isMobile && showMobileSearch && (
+        <div className="mt-3 relative" data-testid="mobile-message-search-container">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={messageSearchQuery}
+            onChange={(e) => {
+              setMessageSearchQuery(e.target.value);
+              setIsSearchOpen(e.target.value.length > 0);
+            }}
+            onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setMessageSearchQuery('');
+                setIsSearchOpen(false);
+                setShowMobileSearch(false);
+              }
+            }}
+            placeholder="Search..."
+            className="w-full pl-10 pr-10 py-2.5 text-base border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+            data-testid="mobile-message-search-input"
+            autoFocus
+          />
+          {messageSearchQuery && (
+            <button
+              onClick={() => {
+                setMessageSearchQuery('');
+                setIsSearchOpen(false);
+                searchInputRef.current?.focus();
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          )}
+          {/* Search Results Dropdown */}
+          {isSearchOpen && (
+            <MessageSearchDropdown
+              searchQuery={messageSearchQuery}
+              channelId={channelId}
+              onSelectResult={(messageId) => {
+                handleSearchResultSelect(messageId);
+                setShowMobileSearch(false);
+              }}
+              onClose={() => {
+                setIsSearchOpen(false);
+                setShowMobileSearch(false);
+              }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// MobileThreadPanel (extracted for clarity)
+// ============================================================================
+
+interface MobileThreadPanelProps {
+  selectedThread: Message;
+  channel: Channel | undefined;
+  onClose: () => void;
+}
+
+function MobileThreadPanel({ selectedThread, channel, onClose }: MobileThreadPanelProps) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-[var(--color-bg)] flex flex-col"
+      data-testid="mobile-thread-panel"
+    >
+      <div className="flex items-center gap-2 p-3 border-b border-[var(--color-border)]">
+        <button
+          onClick={onClose}
+          className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+          data-testid="mobile-thread-back"
+          aria-label="Close thread"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <span className="font-medium text-[var(--color-text)]">Thread</span>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <ThreadPanel parentMessage={selectedThread} channel={channel} onClose={onClose} />
+      </div>
+    </div>
+  );
+}

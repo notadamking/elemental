@@ -25,3 +25,16 @@ export {
   groupMessagesByDay,
   type MessageWithDayGroup,
 } from './time';
+
+// Message content rendering utilities
+export {
+  MENTION_REGEX,
+  IMAGE_REGEX,
+  EMBED_REGEX,
+  LINK_REGEX,
+  extractMentionName,
+  unescapeMarkdown,
+  convertInlineMarkdown,
+  renderMessageContent,
+  highlightSearchMatch,
+} from './message-content';
