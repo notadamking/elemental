@@ -1483,17 +1483,29 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O25b: Command Palette
+#### - [x] TB-O25b: Command Palette
 
 **Goal**: Cmd+K palette for quick navigation and actions
 
 **Changes**:
 
-- [ ] Trigger with Cmd+K / Ctrl+K
-- [ ] Navigation, task actions, agent actions, workflow actions, quick filters
-- [ ] Fuzzy search across all commands
+- [x] Trigger with Cmd+K / Ctrl+K
+- [x] Navigation, task actions, agent actions, workflow actions, quick filters
+- [x] Fuzzy search across all commands
 
-**Verification**: Press Cmd+K, type "agents", select, navigate to Agents page
+**Verification**: 41 Playwright tests in `apps/orchestrator-web/tests/command-palette.spec.ts`
+
+**Implementation Notes** (2026-01-27):
+- Created `CommandPalette` component in `apps/orchestrator-web/src/components/command/CommandPalette.tsx`
+- Uses cmdk library for fuzzy search and keyboard navigation
+- Command categories: navigation, tasks, agents, workflows, actions, settings
+- Search button in header with keyboard shortcut hint (⌘K)
+- Theme switching commands (light, dark, system)
+- Director terminal toggle command
+- Opens with Cmd+K (Mac) or Ctrl+K (Windows/Linux)
+- Closes with Escape, clicking backdrop, or Cmd+K again
+- Keyboard navigation with arrow keys and Enter to select
+- Fuzzy search matches command labels, descriptions, and keywords
 
 ---
 

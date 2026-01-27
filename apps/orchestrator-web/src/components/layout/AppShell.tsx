@@ -10,6 +10,7 @@ import { MobileDrawer } from './MobileDrawer';
 import { DirectorPanel } from './DirectorPanel';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationCenter } from '../notification';
+import { CommandPalette, useCommandPalette } from '../command';
 import { useQuery } from '@tanstack/react-query';
 import { useNotifications } from '../../api/hooks/useNotifications';
 import {
@@ -23,6 +24,7 @@ import {
   Settings,
   Menu,
   Search,
+  Command,
 } from 'lucide-react';
 
 // Responsive breakpoint hooks
@@ -321,6 +323,9 @@ export function AppShell() {
     clearAll,
   } = useNotifications();
 
+  // Command palette
+  const { open: commandPaletteOpen, setOpen: setCommandPaletteOpen } = useCommandPalette();
+
   const toggleDirectorPanel = useCallback(() => {
     setDirectorCollapsed(prev => !prev);
   }, [setDirectorCollapsed]);
@@ -332,6 +337,15 @@ export function AppShell() {
   const closeMobileDrawer = useCallback(() => {
     setMobileDrawerOpen(false);
   }, [setMobileDrawerOpen]);
+
+  // Listen for toggle-director-panel event from command palette
+  useEffect(() => {
+    const handleToggleDirector = () => {
+      setDirectorCollapsed(prev => !prev);
+    };
+    window.addEventListener('toggle-director-panel', handleToggleDirector);
+    return () => window.removeEventListener('toggle-director-panel', handleToggleDirector);
+  }, [setDirectorCollapsed]);
 
   // Close mobile drawer on navigation
   useEffect(() => {
@@ -406,6 +420,21 @@ export function AppShell() {
           {!isMobile && <Breadcrumbs />}
 
           <div className="flex items-center gap-2 md:gap-4">
+            {/* Command palette trigger - hidden on mobile */}
+            {!isMobile && (
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] transition-colors duration-150"
+                aria-label="Open command palette"
+                data-testid="command-palette-trigger"
+              >
+                <Search className="w-4 h-4" />
+                <span className="hidden lg:inline">Search...</span>
+                <kbd className="hidden md:flex items-center gap-0.5 px-1.5 py-0.5 text-xs bg-[var(--color-bg)] border border-[var(--color-border)] rounded">
+                  <Command className="w-3 h-3" />K
+                </kbd>
+              </button>
+            )}
             <NotificationCenter
               notifications={notifications}
               unreadCount={unreadCount}
@@ -439,6 +468,12 @@ export function AppShell() {
           onToggle={toggleDirectorPanel}
         />
       )}
+
+      {/* Command Palette (Cmd+K) */}
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+      />
     </div>
   );
 }
