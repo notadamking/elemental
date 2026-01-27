@@ -2363,6 +2363,326 @@ Key files:
 - `packages/orchestrator-sdk/src/runtime/predecessor-query.ts` - Predecessor query service (TB-O10d)
 - `packages/orchestrator-sdk/src/runtime/handoff.ts` - Handoff service (TB-O10e, TB-O10f)
 - `packages/orchestrator-sdk/src/git/worktree-manager.ts` - Git worktree management (TB-O11)
+- `packages/orchestrator-sdk/src/services/steward-scheduler.ts` - Steward scheduler service (TB-O23)
+
+## StewardScheduler (TB-O23)
+
+The StewardScheduler service executes stewards on cron schedules or in response to events. It provides cron-based scheduling, event-triggered execution, condition evaluation, and execution history tracking.
+
+### Creating a StewardScheduler
+
+```typescript
+import {
+  createStewardScheduler,
+  createDefaultStewardExecutor,
+  type StewardScheduler,
+  type StewardSchedulerConfig,
+  type StewardExecutor,
+} from '@elemental/orchestrator-sdk';
+
+// Create an executor that runs stewards (customize for your environment)
+const executor: StewardExecutor = async (stewardId, context) => {
+  console.log(`Executing steward ${stewardId}`);
+  // Your steward execution logic here
+  return { success: true, message: 'Steward executed' };
+};
+
+// Or use the default executor (simple execution with logging)
+const defaultExecutor = createDefaultStewardExecutor(sessionManager, spawnerService);
+
+// Create the scheduler
+const scheduler = createStewardScheduler(api, agentRegistry, executor, {
+  checkIntervalMs: 60000,        // Cron check interval (default: 60s)
+  maxHistoryEntries: 100,        // Max history entries (default: 100)
+  enableCronScheduling: true,    // Enable cron scheduling (default: true)
+  enableEventTriggers: true,     // Enable event triggers (default: true)
+});
+```
+
+### Starting and Stopping
+
+```typescript
+// Start the scheduler (activates all cron jobs and event subscriptions)
+scheduler.start();
+
+// Stop the scheduler (deactivates all jobs and subscriptions)
+scheduler.stop();
+
+// Check if running
+scheduler.isRunning();  // true/false
+```
+
+### Registering Stewards
+
+```typescript
+// Register a single steward (creates cron jobs and event subscriptions based on triggers)
+const result = await scheduler.registerSteward(stewardId);
+console.log(`Registered: ${result.jobs.length} cron jobs, ${result.subscriptions.length} event subscriptions`);
+
+// Register all stewards in the system
+const allResult = await scheduler.registerAllStewards();
+console.log(`Registered ${allResult.registeredCount} stewards`);
+
+// Unregister a steward (removes its cron jobs and event subscriptions)
+const unregistered = await scheduler.unregisterSteward(stewardId);
+console.log(`Unregistered: ${unregistered}`);
+```
+
+### Manual Execution
+
+```typescript
+// Manually execute a steward (useful for testing or on-demand execution)
+const result = await scheduler.executeManually(stewardId, {
+  triggerReason: 'manual',
+  context: { requestedBy: 'admin' },
+});
+
+if (result.success) {
+  console.log('Execution succeeded:', result.result);
+} else {
+  console.log('Execution failed:', result.error);
+}
+```
+
+### Event Publishing
+
+```typescript
+// Publish an event to trigger event-based stewards
+const triggered = await scheduler.publishEvent('task_completed', {
+  taskId: 'task-123',
+  status: 'done',
+});
+console.log(`Triggered ${triggered} stewards`);
+```
+
+### Querying Scheduled Jobs
+
+```typescript
+import type { ScheduledJobInfo } from '@elemental/orchestrator-sdk';
+
+// Get all scheduled cron jobs
+const jobs = scheduler.getScheduledJobs();
+
+// Get jobs for a specific steward
+const stewardJobs = scheduler.getScheduledJobs(stewardId);
+
+for (const job of jobs) {
+  console.log(`Job ${job.id}:`);
+  console.log(`  Steward: ${job.stewardId}`);
+  console.log(`  Schedule: ${job.schedule}`);
+  console.log(`  Active: ${job.isActive}`);
+  console.log(`  Next run: ${job.nextRun}`);
+  console.log(`  Last run: ${job.lastRun}`);
+}
+```
+
+### Querying Event Subscriptions
+
+```typescript
+import type { EventSubscriptionInfo } from '@elemental/orchestrator-sdk';
+
+// Get all event subscriptions
+const subscriptions = scheduler.getEventSubscriptions();
+
+// Get subscriptions for a specific steward
+const stewardSubs = scheduler.getEventSubscriptions(stewardId);
+
+for (const sub of subscriptions) {
+  console.log(`Subscription ${sub.id}:`);
+  console.log(`  Steward: ${sub.stewardId}`);
+  console.log(`  Event: ${sub.eventName}`);
+  console.log(`  Condition: ${sub.condition || '(none)'}`);
+  console.log(`  Active: ${sub.isActive}`);
+}
+```
+
+### Execution History
+
+```typescript
+import type { StewardExecutionEntry, ExecutionHistoryFilter } from '@elemental/orchestrator-sdk';
+
+// Get execution history (most recent first)
+const history = scheduler.getExecutionHistory();
+
+// Get history with filters
+const filteredHistory = scheduler.getExecutionHistory({
+  stewardId: 'steward-123',           // Filter by steward
+  triggerType: 'cron',                 // 'cron' | 'event' | 'manual'
+  success: true,                       // Filter by success/failure
+  limit: 50,                           // Max entries to return
+});
+
+for (const entry of history) {
+  console.log(`Execution ${entry.id}:`);
+  console.log(`  Steward: ${entry.stewardId}`);
+  console.log(`  Trigger: ${entry.triggerType}`);
+  console.log(`  Success: ${entry.success}`);
+  console.log(`  Started: ${entry.startedAt}`);
+  console.log(`  Duration: ${entry.durationMs}ms`);
+  if (entry.eventData) {
+    console.log(`  Event: ${entry.eventData.eventName}`);
+  }
+}
+
+// Get last execution for a steward
+const lastExecution = scheduler.getLastExecution(stewardId);
+```
+
+### Scheduler Statistics
+
+```typescript
+import type { StewardSchedulerStats } from '@elemental/orchestrator-sdk';
+
+const stats = scheduler.getStats();
+console.log(`Registered stewards: ${stats.registeredStewards}`);
+console.log(`Active cron jobs: ${stats.activeCronJobs}`);
+console.log(`Active event subscriptions: ${stats.activeEventSubscriptions}`);
+console.log(`Total executions: ${stats.totalExecutions}`);
+console.log(`Successful executions: ${stats.successfulExecutions}`);
+console.log(`Failed executions: ${stats.failedExecutions}`);
+```
+
+### Scheduler Events
+
+The scheduler emits events for monitoring:
+
+```typescript
+// Listen for execution events
+scheduler.on('execution:started', (entry) => {
+  console.log(`Steward ${entry.stewardId} execution started`);
+});
+
+scheduler.on('execution:completed', (entry) => {
+  console.log(`Steward ${entry.stewardId} completed in ${entry.durationMs}ms`);
+});
+
+scheduler.on('execution:failed', (entry) => {
+  console.error(`Steward ${entry.stewardId} failed: ${entry.error}`);
+});
+
+// Listen for scheduler lifecycle events
+scheduler.on('scheduler:started', () => console.log('Scheduler started'));
+scheduler.on('scheduler:stopped', () => console.log('Scheduler stopped'));
+
+scheduler.on('steward:registered', ({ stewardId }) => {
+  console.log(`Steward ${stewardId} registered`);
+});
+
+scheduler.on('steward:unregistered', ({ stewardId }) => {
+  console.log(`Steward ${stewardId} unregistered`);
+});
+```
+
+### Utility Functions
+
+```typescript
+import {
+  isValidCronExpression,
+  getNextCronRunTime,
+  evaluateCondition,
+} from '@elemental/orchestrator-sdk';
+
+// Validate a cron expression
+isValidCronExpression('*/5 * * * *');  // true
+isValidCronExpression('invalid');       // false
+
+// Get next run time for a cron expression
+const nextRun = getNextCronRunTime('0 2 * * *');  // 2 AM daily
+console.log(`Next run: ${nextRun?.toISOString()}`);
+
+// Evaluate a condition expression (for event triggers)
+const context = {
+  task: { status: 'done', priority: 1 },
+  event: { type: 'task_completed' },
+};
+const matches = evaluateCondition("task.status === 'done'", context);
+console.log(`Matches: ${matches}`);  // true
+```
+
+### REST API Endpoints
+
+The orchestrator-server exposes these scheduler endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/scheduler/status` | Get scheduler status and stats |
+| POST | `/api/scheduler/start` | Start the scheduler |
+| POST | `/api/scheduler/stop` | Stop the scheduler |
+| POST | `/api/scheduler/register-all` | Register all stewards |
+| POST | `/api/scheduler/stewards/:id/register` | Register a single steward |
+| POST | `/api/scheduler/stewards/:id/unregister` | Unregister a steward |
+| POST | `/api/scheduler/stewards/:id/execute` | Manually execute a steward |
+| POST | `/api/scheduler/events` | Publish an event |
+| GET | `/api/scheduler/jobs` | Get scheduled cron jobs |
+| GET | `/api/scheduler/subscriptions` | Get event subscriptions |
+| GET | `/api/scheduler/history` | Get execution history |
+| GET | `/api/scheduler/stewards/:id/last-execution` | Get last execution for steward |
+
+### Configuration
+
+```typescript
+interface StewardSchedulerConfig {
+  /** Interval to check cron jobs (default: 60000ms = 1 minute) */
+  checkIntervalMs?: number;
+
+  /** Maximum execution history entries to keep (default: 100) */
+  maxHistoryEntries?: number;
+
+  /** Enable cron scheduling (default: true) */
+  enableCronScheduling?: boolean;
+
+  /** Enable event triggers (default: true) */
+  enableEventTriggers?: boolean;
+}
+```
+
+### Types
+
+```typescript
+interface StewardExecutionResult {
+  success: boolean;
+  message?: string;
+  data?: unknown;
+  error?: string;
+}
+
+interface StewardExecutionEntry {
+  id: string;
+  stewardId: EntityId;
+  stewardName?: string;
+  triggerType: 'cron' | 'event' | 'manual';
+  success: boolean;
+  startedAt: Timestamp;
+  completedAt: Timestamp;
+  durationMs: number;
+  result?: StewardExecutionResult;
+  error?: string;
+  manual?: boolean;
+  eventData?: {
+    eventName: string;
+    eventData?: unknown;
+    condition?: string;
+  };
+}
+
+type StewardExecutor = (
+  stewardId: EntityId,
+  context: {
+    triggerType: 'cron' | 'event' | 'manual';
+    schedule?: string;
+    eventName?: string;
+    eventData?: unknown;
+    context?: unknown;
+  }
+) => Promise<StewardExecutionResult>;
+```
+
+### Notes
+
+- **Cron Expressions**: Uses standard 5-field cron format (`minute hour day month weekday`)
+- **Event Conditions**: Conditions are JavaScript expressions evaluated with `Function` constructor; context variables are available in the expression
+- **Execution History**: Capped at `maxHistoryEntries` (default 100) to prevent memory growth
+- **Thread Safety**: The scheduler uses internal locking to prevent concurrent execution of the same steward
 
 ## See Also
 

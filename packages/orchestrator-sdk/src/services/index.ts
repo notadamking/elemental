@@ -132,3 +132,26 @@ export {
   // Factory
   createMergeStewardService,
 } from './merge-steward-service.js';
+
+// Steward scheduler service (TB-O23)
+export {
+  // Types
+  type StewardExecutionResult,
+  type StewardExecutionEntry,
+  type ExecutionHistoryFilter,
+  type StewardSchedulerConfig,
+  type ScheduledJobInfo,
+  type EventSubscriptionInfo,
+  type StewardExecutor,
+  type StewardScheduler,
+  type StewardSchedulerStats,
+  // Utilities
+  isValidCronExpression,
+  getNextCronRunTime,
+  evaluateCondition,
+  // Implementation
+  StewardSchedulerImpl,
+  // Factory
+  createStewardScheduler,
+  createDefaultStewardExecutor,
+} from './steward-scheduler.js';

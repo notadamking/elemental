@@ -1332,18 +1332,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O23: Steward Scheduler Service
+#### - [x] TB-O23: Steward Scheduler Service ✅
 
 **Goal**: Execute Stewards on schedule or event
 
 **Changes**:
 
-- [ ] Create `StewardScheduler` service in orchestrator-sdk
-- [ ] For cron triggers: use node-cron to schedule execution
-- [ ] For event triggers: subscribe to event bus, evaluate conditions
-- [ ] Track execution history
+- [x] Create `StewardScheduler` service in orchestrator-sdk
+- [x] For cron triggers: use interval-based scheduling with cron expression evaluation
+- [x] For event triggers: subscribe to events, evaluate JavaScript conditions
+- [x] Track execution history with configurable limit
+- [x] REST API endpoints for scheduler management
+- [x] Utility functions for cron validation and condition evaluation
 
-**Verification**: Create cron Steward, wait for schedule, see it execute
+**Verification**: 107 unit tests in `steward-scheduler.test.ts`, 21 Playwright API tests in `steward-scheduler.spec.ts`
+
+**Implementation** (commit TBD):
+- Created `StewardSchedulerImpl` in `packages/orchestrator-sdk/src/services/steward-scheduler.ts`
+- Service provides: `start()`, `stop()`, `registerSteward()`, `registerAllStewards()`, `unregisterSteward()`, `executeManually()`, `publishEvent()`, `getScheduledJobs()`, `getEventSubscriptions()`, `getExecutionHistory()`, `getLastExecution()`, `getStats()`
+- REST API endpoints: `/api/scheduler/status`, `/api/scheduler/start`, `/api/scheduler/stop`, `/api/scheduler/register-all`, `/api/scheduler/stewards/:id/register`, `/api/scheduler/stewards/:id/unregister`, `/api/scheduler/stewards/:id/execute`, `/api/scheduler/events`, `/api/scheduler/jobs`, `/api/scheduler/subscriptions`, `/api/scheduler/history`, `/api/scheduler/stewards/:id/last-execution`
+- Exports added to `services/index.ts`
+- Documentation added to `docs/api/orchestrator-api.md`
 
 ---
 

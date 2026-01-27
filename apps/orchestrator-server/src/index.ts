@@ -37,6 +37,8 @@ import {
   createDispatchService,
   createRoleDefinitionService,
   createWorkerTaskService,
+  createStewardScheduler,
+  createDefaultStewardExecutor,
   // Capability service functions (no CapabilityService class - it's just utility functions)
   getTaskCapabilityRequirements,
   setTaskCapabilityRequirements,
@@ -49,6 +51,7 @@ import {
   type DispatchService,
   type RoleDefinitionService,
   type WorkerTaskService,
+  type StewardScheduler,
   type SessionRecord,
   type SessionFilter,
   type WorktreeInfo,
@@ -61,6 +64,7 @@ import {
   type AgentWorkloadSummary,
   type StartWorkerOnTaskResult,
   type CompleteTaskResult,
+  type StewardExecutionEntry,
   GitRepositoryNotFoundError,
 } from '@elemental/orchestrator-sdk';
 import type { ServerWebSocket } from 'bun';
@@ -91,6 +95,7 @@ let taskAssignmentService: TaskAssignmentService;
 let dispatchService: DispatchService;
 let roleDefinitionService: RoleDefinitionService;
 let workerTaskService: WorkerTaskService;
+let stewardScheduler: StewardScheduler;
 let storageBackend: ReturnType<typeof createStorage>;
 
 try {
@@ -134,6 +139,14 @@ try {
     worktreeManager
   );
 
+  // Initialize steward scheduler service (TB-O23)
+  const stewardExecutor = createDefaultStewardExecutor();
+  stewardScheduler = createStewardScheduler(agentRegistry, stewardExecutor, {
+    maxHistoryPerSteward: 100,
+    defaultTimeoutMs: 5 * 60 * 1000, // 5 minutes
+    startImmediately: false, // Don't auto-register stewards on startup
+  });
+
   console.log(`[orchestrator] Connected to database: ${DB_PATH}`);
 } catch (error) {
   console.error('[orchestrator] Failed to initialize:', error);
@@ -175,6 +188,7 @@ app.get('/api/health', (c) => {
       dispatch: 'ready',
       roleDefinition: 'ready',
       workerTask: 'ready',
+      stewardScheduler: stewardScheduler.isRunning() ? 'running' : 'stopped',
     },
   });
 });
@@ -1624,6 +1638,261 @@ app.delete('/api/worktrees/:path', async (c) => {
 });
 
 // ============================================================================
+// Steward Scheduler Endpoints (TB-O23)
+// ============================================================================
+
+/**
+ * GET /api/scheduler/status
+ * Get steward scheduler status and statistics
+ */
+app.get('/api/scheduler/status', (c) => {
+  const stats = stewardScheduler.getStats();
+  return c.json({
+    isRunning: stewardScheduler.isRunning(),
+    stats,
+  });
+});
+
+/**
+ * POST /api/scheduler/start
+ * Start the steward scheduler
+ */
+app.post('/api/scheduler/start', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({})) as {
+      registerAllStewards?: boolean;
+    };
+
+    await stewardScheduler.start();
+
+    // Optionally register all stewards
+    if (body.registerAllStewards) {
+      const registered = await stewardScheduler.registerAllStewards();
+      return c.json({
+        success: true,
+        isRunning: stewardScheduler.isRunning(),
+        registeredStewards: registered,
+      });
+    }
+
+    return c.json({
+      success: true,
+      isRunning: stewardScheduler.isRunning(),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to start scheduler:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/scheduler/stop
+ * Stop the steward scheduler
+ */
+app.post('/api/scheduler/stop', async (c) => {
+  try {
+    await stewardScheduler.stop();
+    return c.json({
+      success: true,
+      isRunning: stewardScheduler.isRunning(),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to stop scheduler:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/scheduler/register-all
+ * Register all stewards with the scheduler
+ */
+app.post('/api/scheduler/register-all', async (c) => {
+  try {
+    const registered = await stewardScheduler.registerAllStewards();
+    return c.json({
+      success: true,
+      registeredCount: registered,
+      stats: stewardScheduler.getStats(),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to register stewards:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/scheduler/stewards/:id/register
+ * Register a specific steward with the scheduler
+ */
+app.post('/api/scheduler/stewards/:id/register', async (c) => {
+  try {
+    const stewardId = c.req.param('id') as EntityId;
+
+    const success = await stewardScheduler.registerSteward(stewardId);
+    if (!success) {
+      return c.json({
+        error: { code: 'NOT_FOUND', message: 'Steward not found or not a valid steward agent' },
+      }, 404);
+    }
+
+    return c.json({
+      success: true,
+      stewardId,
+      jobs: stewardScheduler.getScheduledJobs(stewardId),
+      subscriptions: stewardScheduler.getEventSubscriptions(stewardId),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to register steward:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/scheduler/stewards/:id/unregister
+ * Unregister a steward from the scheduler
+ */
+app.post('/api/scheduler/stewards/:id/unregister', async (c) => {
+  try {
+    const stewardId = c.req.param('id') as EntityId;
+
+    const success = await stewardScheduler.unregisterSteward(stewardId);
+    return c.json({
+      success,
+      stewardId,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to unregister steward:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/scheduler/stewards/:id/execute
+ * Manually execute a steward
+ */
+app.post('/api/scheduler/stewards/:id/execute', async (c) => {
+  try {
+    const stewardId = c.req.param('id') as EntityId;
+    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+
+    const result = await stewardScheduler.executeSteward(stewardId, body);
+    return c.json({
+      success: result.success,
+      result,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to execute steward:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/scheduler/events
+ * Publish an event to trigger event-based stewards
+ *
+ * Body:
+ * - eventName: string (required)
+ * - eventData: Record<string, unknown>
+ */
+app.post('/api/scheduler/events', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      eventName: string;
+      eventData?: Record<string, unknown>;
+    };
+
+    if (!body.eventName) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'eventName is required' } }, 400);
+    }
+
+    const triggered = await stewardScheduler.publishEvent(
+      body.eventName,
+      body.eventData ?? {}
+    );
+
+    return c.json({
+      success: true,
+      eventName: body.eventName,
+      stewardsTriggered: triggered,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to publish event:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * GET /api/scheduler/jobs
+ * Get all scheduled cron jobs
+ */
+app.get('/api/scheduler/jobs', (c) => {
+  const url = new URL(c.req.url);
+  const stewardId = url.searchParams.get('stewardId') as EntityId | null;
+
+  const jobs = stewardScheduler.getScheduledJobs(stewardId ?? undefined);
+  return c.json({ jobs });
+});
+
+/**
+ * GET /api/scheduler/subscriptions
+ * Get all event subscriptions
+ */
+app.get('/api/scheduler/subscriptions', (c) => {
+  const url = new URL(c.req.url);
+  const stewardId = url.searchParams.get('stewardId') as EntityId | null;
+
+  const subscriptions = stewardScheduler.getEventSubscriptions(stewardId ?? undefined);
+  return c.json({ subscriptions });
+});
+
+/**
+ * GET /api/scheduler/history
+ * Get execution history
+ *
+ * Query params:
+ * - stewardId: Filter by steward
+ * - triggerType: Filter by trigger type (cron or event)
+ * - success: Filter by success (true or false)
+ * - limit: Maximum entries to return
+ */
+app.get('/api/scheduler/history', (c) => {
+  const url = new URL(c.req.url);
+  const stewardId = url.searchParams.get('stewardId') as EntityId | null;
+  const triggerType = url.searchParams.get('triggerType') as 'cron' | 'event' | null;
+  const successParam = url.searchParams.get('success');
+  const limitParam = url.searchParams.get('limit');
+
+  const history = stewardScheduler.getExecutionHistory({
+    stewardId: stewardId ?? undefined,
+    triggerType: triggerType ?? undefined,
+    success: successParam !== null ? successParam === 'true' : undefined,
+    limit: limitParam ? parseInt(limitParam, 10) : undefined,
+  });
+
+  return c.json({
+    history: history.map(formatExecutionEntry),
+    count: history.length,
+  });
+});
+
+/**
+ * GET /api/scheduler/stewards/:id/last-execution
+ * Get the last execution for a steward
+ */
+app.get('/api/scheduler/stewards/:id/last-execution', (c) => {
+  const stewardId = c.req.param('id') as EntityId;
+
+  const lastExecution = stewardScheduler.getLastExecution(stewardId);
+  if (!lastExecution) {
+    return c.json({ lastExecution: null });
+  }
+
+  return c.json({
+    lastExecution: formatExecutionEntry(lastExecution),
+  });
+});
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -1701,6 +1970,23 @@ function formatWorktreeInfo(worktree: WorktreeInfo) {
     agentName: worktree.agentName,
     taskId: worktree.taskId,
     createdAt: worktree.createdAt,
+  };
+}
+
+/**
+ * Format a StewardExecutionEntry for JSON response
+ */
+function formatExecutionEntry(entry: StewardExecutionEntry) {
+  return {
+    executionId: entry.executionId,
+    stewardId: entry.stewardId,
+    stewardName: entry.stewardName,
+    trigger: entry.trigger,
+    manual: entry.manual,
+    startedAt: entry.startedAt,
+    completedAt: entry.completedAt,
+    result: entry.result,
+    eventContext: entry.eventContext,
   };
 }
 
