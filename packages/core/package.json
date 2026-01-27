@@ -1,0 +1,68 @@
+{
+  "name": "@elemental/core",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Core types, errors, ID generation, and utilities for Elemental",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js"
+    },
+    "./id": {
+      "types": "./dist/id/index.d.ts",
+      "import": "./dist/id/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test src",
+    "test:node": "vitest run",
+    "test:all": "pnpm run test && pnpm run test:node",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/toolco/elemental.git",
+    "directory": "packages/core"
+  },
+  "author": "Toolco",
+  "license": "MIT",
+  "keywords": [
+    "elemental",
+    "types",
+    "errors",
+    "id-generation"
+  ],
+  "dependencies": {
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
+  }
+}

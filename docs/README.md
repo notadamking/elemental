@@ -41,9 +41,17 @@
                         └─────────────────┘
 ```
 
+## File Map (Packages)
+
+| Package | Purpose | Key Exports |
+|---------|---------|-------------|
+| `packages/core/` | Shared types, errors, ID generation, utilities | `ElementType`, `Task`, `ErrorCode`, `generateId` |
+
+> **Migration Status**: `@elemental/core` extracted. Storage and SDK packages pending.
+
 ## File Map (Core Library - apps/legacy/src/)
 
-> **Note**: All paths below are relative to `apps/legacy/src/`. The core library will be extracted to separate packages (`@elemental/core`, `@elemental/storage`, `@elemental/sdk`) in future tracer bullets.
+> **Note**: All paths below are relative to `apps/legacy/src/`. The core library is being extracted to separate packages (`@elemental/core` complete, `@elemental/storage` and `@elemental/sdk` pending).
 
 | Concept | Source | Tests |
 |---------|--------|-------|
