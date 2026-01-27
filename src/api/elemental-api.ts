@@ -1145,6 +1145,31 @@ export class ElementalAPIImpl implements ElementalAPI {
             }
           }
         }
+
+        // For thread replies: Notify the parent message sender
+        if (messageData.threadId) {
+          const parentMessageRow = this.backend.queryOne<ElementRow>(
+            `SELECT * FROM elements WHERE id = ? AND type = 'message' AND deleted_at IS NULL`,
+            [messageData.threadId]
+          );
+          if (parentMessageRow) {
+            const parentMessage = deserializeElement<Message>(parentMessageRow, []);
+            // Notify parent message sender (if not replying to yourself)
+            if (parentMessage.sender !== messageData.sender) {
+              try {
+                this.inboxService.addToInbox({
+                  recipientId: parentMessage.sender as EntityId,
+                  messageId: messageData.id as unknown as import('../types/message.js').MessageId,
+                  channelId: messageData.channelId as unknown as import('../types/message.js').ChannelId,
+                  sourceType: InboxSourceType.THREAD_REPLY,
+                  createdBy: messageData.sender,
+                });
+              } catch {
+                // Ignore errors (e.g., duplicate inbox item)
+              }
+            }
+          }
+        }
       }
     }
 

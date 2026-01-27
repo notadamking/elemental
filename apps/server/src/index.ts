@@ -2865,6 +2865,42 @@ app.post('/api/messages', async (c) => {
       }
     }
 
+    // For thread replies: Notify the parent message sender
+    if (body.threadId) {
+      try {
+        const parentMessage = await api.get(body.threadId as ElementId);
+        if (parentMessage && parentMessage.type === 'message') {
+          const parentSender = (parentMessage as Message).sender;
+          // Notify parent message sender (if not replying to yourself and not already notified)
+          if (parentSender !== senderId && !notifiedEntities.has(parentSender)) {
+            inboxService.addToInbox({
+              recipientId: parentSender,
+              messageId: messageId as any,
+              channelId: channelIdStr as any,
+              sourceType: 'thread_reply',
+              createdBy: senderId,
+            });
+            notifiedEntities.add(parentSender);
+
+            // Broadcast inbox event for real-time updates
+            broadcastInboxEvent(
+              `inbox-${parentSender}-${messageId}`,
+              parentSender,
+              'created',
+              null,
+              { recipientId: parentSender, messageId, channelId: channelIdStr, sourceType: 'thread_reply' },
+              senderId
+            );
+          }
+        }
+      } catch (error) {
+        // Ignore errors (e.g., parent message not found, duplicate inbox)
+        if ((error as { code?: string }).code !== 'ALREADY_EXISTS') {
+          console.error(`[elemental] Failed to create thread reply inbox item:`, error);
+        }
+      }
+    }
+
     // Return the message with content and attachments hydrated
     return c.json({
       ...createdMessage,

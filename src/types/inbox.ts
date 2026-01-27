@@ -5,6 +5,7 @@
  * Items are added to the inbox when:
  * - A message is sent directly to the entity (via direct channel)
  * - A message mentions the entity (via @mention in content)
+ * - A reply is added to a thread the entity started
  *
  * Inbox items track read/unread status and can be archived.
  */
@@ -29,6 +30,8 @@ export const InboxSourceType = {
   DIRECT: 'direct',
   /** Entity was mentioned in a message */
   MENTION: 'mention',
+  /** Reply to a thread the entity started */
+  THREAD_REPLY: 'thread_reply',
 } as const;
 
 export type InboxSourceType = (typeof InboxSourceType)[keyof typeof InboxSourceType];
@@ -421,6 +424,13 @@ export function isFromDirectMessage(item: InboxItem): boolean {
  */
 export function isFromMention(item: InboxItem): boolean {
   return item.sourceType === InboxSourceType.MENTION;
+}
+
+/**
+ * Check if inbox item came from a thread reply
+ */
+export function isFromThreadReply(item: InboxItem): boolean {
+  return item.sourceType === InboxSourceType.THREAD_REPLY;
 }
 
 /**
