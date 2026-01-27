@@ -2,12 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Loader2, Plus, FileText } from 'lucide-react';
 import { TagInput } from '../ui/TagInput';
-
-interface Entity {
-  id: string;
-  name: string;
-  entityType: string;
-}
+import { useCurrentUser } from '../../contexts';
 
 interface Library {
   id: string;
@@ -29,19 +24,6 @@ interface CreateDocumentModalProps {
   onSuccess?: (document: { id: string }) => void;
   defaultLibraryId?: string;
   isMobile?: boolean;
-}
-
-function useEntities() {
-  return useQuery<Entity[]>({
-    queryKey: ['entities'],
-    queryFn: async () => {
-      const response = await fetch('/api/entities');
-      if (!response.ok) throw new Error('Failed to fetch entities');
-      const data = await response.json();
-      // Handle paginated response format
-      return data.items || data;
-    },
-  });
 }
 
 function useLibraries() {
@@ -101,13 +83,12 @@ export function CreateDocumentModal({
   const [contentType, setContentType] = useState('markdown');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [createdBy, setCreatedBy] = useState('');
   const [libraryId, setLibraryId] = useState(defaultLibraryId || '');
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const createDocument = useCreateDocument();
-  const { data: entities } = useEntities();
   const { data: libraries } = useLibraries();
+  const { currentUser } = useCurrentUser();
 
   // Focus title input when modal opens
   useEffect(() => {
@@ -123,19 +104,10 @@ export function CreateDocumentModal({
       setContentType('markdown');
       setContent('');
       setTags([]);
-      setCreatedBy('');
       setLibraryId(defaultLibraryId || '');
       createDocument.reset();
     }
   }, [isOpen, defaultLibraryId]);
-
-  // Set default createdBy to operator (human entity), fall back to first entity
-  useEffect(() => {
-    if (entities && entities.length > 0 && !createdBy) {
-      const operator = entities.find((e) => e.entityType === 'human');
-      setCreatedBy(operator?.id || entities[0].id);
-    }
-  }, [entities, createdBy]);
 
   // Set default libraryId when libraries load
   useEffect(() => {
@@ -148,13 +120,13 @@ export function CreateDocumentModal({
     e.preventDefault();
 
     if (!title.trim()) return;
-    if (!createdBy) return;
+    if (!currentUser) return;
 
     const input: CreateDocumentInput = {
       title: title.trim(),
       contentType,
       content,
-      createdBy,
+      createdBy: currentUser.id,
     };
 
     if (tags.length > 0) {
@@ -230,46 +202,24 @@ export function CreateDocumentModal({
               />
             </div>
 
-            {/* Content Type & Created By row - stack on mobile */}
-            <div className={`${isMobile ? 'space-y-4' : 'grid grid-cols-2 gap-4'} mb-4`}>
-              <div>
-                <label htmlFor="document-content-type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Content Type
-                </label>
-                <select
-                  id="document-content-type"
-                  value={contentType}
-                  onChange={(e) => setContentType(e.target.value)}
-                  className={`w-full px-3 ${isMobile ? 'py-3' : 'py-2'} border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                  data-testid="create-document-content-type-select"
-                >
-                  {CONTENT_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="document-created-by" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Created By <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="document-created-by"
-                  value={createdBy}
-                  onChange={(e) => setCreatedBy(e.target.value)}
-                  className={`w-full px-3 ${isMobile ? 'py-3' : 'py-2'} border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                  data-testid="create-document-created-by-select"
-                  required
-                >
-                  <option value="">Select entity...</option>
-                  {entities?.map((entity) => (
-                    <option key={entity.id} value={entity.id}>
-                      {entity.name} ({entity.entityType})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Content Type */}
+            <div className="mb-4">
+              <label htmlFor="document-content-type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Content Type
+              </label>
+              <select
+                id="document-content-type"
+                value={contentType}
+                onChange={(e) => setContentType(e.target.value)}
+                className={`w-full px-3 ${isMobile ? 'py-3' : 'py-2'} border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                data-testid="create-document-content-type-select"
+              >
+                {CONTENT_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Library */}
@@ -344,7 +294,7 @@ export function CreateDocumentModal({
                 <>
                   <button
                     type="submit"
-                    disabled={createDocument.isPending || !title.trim() || !createdBy}
+                    disabled={createDocument.isPending || !title.trim() || !currentUser}
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target"
                     data-testid="create-document-submit-button"
                   >
@@ -381,7 +331,7 @@ export function CreateDocumentModal({
                   </button>
                   <button
                     type="submit"
-                    disabled={createDocument.isPending || !title.trim() || !createdBy}
+                    disabled={createDocument.isPending || !title.trim() || !currentUser}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     data-testid="create-document-submit-button"
                   >

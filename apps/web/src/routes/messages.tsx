@@ -30,6 +30,7 @@ import { useAllChannels } from '../api/hooks/useAllElements';
 import { usePaginatedData, createChannelFilter } from '../hooks/usePaginatedData';
 import { groupMessagesByDay } from '../lib';
 import { EntityLink } from '../components/entity/EntityLink';
+import { useCurrentUser } from '../contexts';
 import { MessageEmbedCard } from '../components/message/MessageEmbedCard';
 import { useRealtimeEvents } from '../api/hooks/useRealtimeEvents';
 import type { WebSocketEvent } from '../api/websocket';
@@ -1145,13 +1146,12 @@ function ThreadComposer({
   const [content, setContent] = useState('');
   const sendMessage = useSendMessage();
   const editorRef = useRef<MessageRichComposerRef>(null);
+  const { currentUser } = useCurrentUser();
 
   const handleSubmit = async () => {
-    if (!content.trim() || !channel) return;
+    if (!content.trim() || !channel || !currentUser) return;
 
-    // Use first member as sender for now (would be current user in real app)
-    const sender = channel.members[0];
-    if (!sender) return;
+    const sender = currentUser.id;
 
     try {
       await sendMessage.mutateAsync({
@@ -1346,6 +1346,7 @@ function MessageComposer({
   const editorRef = useRef<MessageRichComposerRef>(null);
   const dropZoneRef = useRef<HTMLFormElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const { currentUser } = useCurrentUser();
 
   // Focus editor when channel changes
   useEffect(() => {
@@ -1495,11 +1496,9 @@ function MessageComposer({
     const hasAttachments = attachments.length > 0;
 
     if (!hasContent && !hasImages && !hasAttachments) return;
-    if (!channel) return;
+    if (!channel || !currentUser) return;
 
-    // Use first member as sender for now (would be current user in real app)
-    const sender = channel.members[0];
-    if (!sender) return;
+    const sender = currentUser.id;
 
     try {
       // Include image URLs in the message content using Markdown
@@ -2263,6 +2262,7 @@ export function MessagesPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: '/messages' });
   const isMobile = useIsMobile();
+  const { currentUser } = useCurrentUser();
 
   // Pagination state from URL
   const currentPage = search.page ?? 1;
@@ -2278,6 +2278,11 @@ export function MessagesPage() {
   const handleMessageEvent = useCallback((event: WebSocketEvent) => {
     if (event.elementType === 'message' && event.eventType === 'created') {
       const msgChannelId = event.newValue?.channelId as string | undefined;
+      const msgSender = event.newValue?.sender as string | undefined;
+      // Don't show toast for messages sent by the current user
+      if (msgSender && currentUser && msgSender === currentUser.id) {
+        return;
+      }
       // Show toast for new messages in the currently selected channel
       if (msgChannelId && msgChannelId === selectedChannelId) {
         toast.info('New message received', {
@@ -2286,7 +2291,7 @@ export function MessagesPage() {
         });
       }
     }
-  }, [selectedChannelId]);
+  }, [selectedChannelId, currentUser]);
 
   // Subscribe to messages channel for real-time updates
   useRealtimeEvents({

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, Hash, Users } from 'lucide-react';
 import { TagInput } from '../ui/TagInput';
 import { ResponsiveModal } from '../shared/ResponsiveModal';
+import { useCurrentUser } from '../../contexts';
 
 interface Entity {
   id: string;
@@ -83,7 +84,6 @@ export function CreateChannelModal({
 }: CreateChannelModalProps) {
   const [channelType, setChannelType] = useState<'group' | 'direct'>('group');
   const [name, setName] = useState('');
-  const [createdBy, setCreatedBy] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [joinPolicy, setJoinPolicy] = useState<'open' | 'invite-only' | 'request'>('invite-only');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
@@ -94,6 +94,7 @@ export function CreateChannelModal({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const createChannel = useCreateChannel();
   const { data: entities } = useEntities();
+  const { currentUser } = useCurrentUser();
 
   // Focus name input when modal opens
   useEffect(() => {
@@ -107,7 +108,6 @@ export function CreateChannelModal({
     if (!isOpen) {
       setChannelType('group');
       setName('');
-      setCreatedBy('');
       setVisibility('private');
       setJoinPolicy('invite-only');
       setSelectedMembers([]);
@@ -118,18 +118,10 @@ export function CreateChannelModal({
     }
   }, [isOpen]);
 
-  // Set default createdBy to operator (human entity), fall back to first entity
-  useEffect(() => {
-    if (entities && entities.length > 0 && !createdBy) {
-      const operator = entities.find((e) => e.entityType === 'human');
-      setCreatedBy(operator?.id || entities[0].id);
-    }
-  }, [entities, createdBy]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!createdBy) return;
+    if (!currentUser) return;
 
     let input: CreateChannelInput;
 
@@ -139,7 +131,7 @@ export function CreateChannelModal({
       input = {
         channelType: 'group',
         name: name.trim().replace(/\s+/g, '-').toLowerCase(),
-        createdBy,
+        createdBy: currentUser.id,
         visibility,
         joinPolicy,
         ...(selectedMembers.length > 0 && { members: selectedMembers }),
@@ -151,7 +143,7 @@ export function CreateChannelModal({
 
       input = {
         channelType: 'direct',
-        createdBy,
+        createdBy: currentUser.id,
         entityA,
         entityB,
         ...(tags.length > 0 && { tags }),
@@ -181,8 +173,8 @@ export function CreateChannelModal({
     );
   };
 
-  const isGroupFormValid = name.trim() && createdBy;
-  const isDirectFormValid = entityA && entityB && entityA !== entityB && createdBy;
+  const isGroupFormValid = name.trim() && currentUser;
+  const isDirectFormValid = entityA && entityB && entityA !== entityB && currentUser;
   const isFormValid = channelType === 'group' ? isGroupFormValid : isDirectFormValid;
 
   const formActions = (
@@ -331,7 +323,7 @@ export function CreateChannelModal({
                 className="border border-gray-300 dark:border-gray-600 rounded-lg max-h-32 overflow-y-auto bg-white dark:bg-gray-800"
                 data-testid="create-channel-members-list"
               >
-                {entities?.filter((e) => e.id !== createdBy).map((entity) => (
+                {entities?.filter((e) => e.id !== currentUser?.id).map((entity) => (
                   <label
                     key={entity.id}
                     className="flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer touch-target"
@@ -409,28 +401,6 @@ export function CreateChannelModal({
             </div>
           </>
         )}
-
-        {/* Created By */}
-        <div className="mb-4">
-          <label htmlFor="channel-created-by" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Created By <span className="text-red-500">*</span>
-          </label>
-          <select
-            id="channel-created-by"
-            value={createdBy}
-            onChange={(e) => setCreatedBy(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
-            data-testid="create-channel-created-by-select"
-            required
-          >
-            <option value="">Select entity...</option>
-            {entities?.map((entity) => (
-              <option key={entity.id} value={entity.id}>
-                {entity.name} ({entity.entityType})
-              </option>
-            ))}
-          </select>
-        </div>
 
         {/* Tags */}
         <div className="mb-4">

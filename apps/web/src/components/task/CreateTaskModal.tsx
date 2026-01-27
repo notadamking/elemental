@@ -3,6 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Loader2, Plus, ChevronLeft } from 'lucide-react';
 import { TagInput } from '../ui/TagInput';
 import { useIsMobile } from '../../hooks';
+import { useCurrentUser } from '../../contexts';
 
 interface Entity {
   id: string;
@@ -104,11 +105,11 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [taskType, setTaskType] = useState('task');
   const [assignee, setAssignee] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [createdBy, setCreatedBy] = useState('');
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const createTask = useCreateTask();
   const { data: entities } = useEntities();
+  const { currentUser } = useCurrentUser();
 
   // Focus title input when modal opens
   useEffect(() => {
@@ -127,28 +128,19 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       setTaskType('task');
       setAssignee('');
       setTags([]);
-      setCreatedBy('');
       createTask.reset();
     }
   }, [isOpen]);
-
-  // Set default createdBy to operator (human entity), fall back to first entity
-  useEffect(() => {
-    if (entities && entities.length > 0 && !createdBy) {
-      const operator = entities.find((e) => e.entityType === 'human');
-      setCreatedBy(operator?.id || entities[0].id);
-    }
-  }, [entities, createdBy]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim()) return;
-    if (!createdBy) return;
+    if (!currentUser) return;
 
     const input: CreateTaskInput = {
       title: title.trim(),
-      createdBy,
+      createdBy: currentUser.id,
       priority,
       complexity,
       taskType,
@@ -203,7 +195,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
           <h2 className="flex-1 text-lg font-semibold text-[var(--color-text)]">Create Task</h2>
           <button
             onClick={handleSubmit as unknown as () => void}
-            disabled={createTask.isPending || !title.trim() || !createdBy}
+            disabled={createTask.isPending || !title.trim() || !currentUser}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors touch-target"
             data-testid="create-task-submit-mobile"
           >
@@ -252,28 +244,6 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
               className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
               data-testid="create-task-description-input"
             />
-          </div>
-
-          {/* Created By */}
-          <div className="mb-4">
-            <label htmlFor="task-created-by" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-              Created By <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="task-created-by"
-              value={createdBy}
-              onChange={(e) => setCreatedBy(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-target"
-              data-testid="create-task-created-by-select"
-              required
-            >
-              <option value="">Select entity...</option>
-              {entities?.map((entity) => (
-                <option key={entity.id} value={entity.id}>
-                  {entity.name} ({entity.entityType})
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Priority */}
@@ -435,28 +405,6 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
               />
             </div>
 
-            {/* Created By */}
-            <div className="mb-4">
-              <label htmlFor="task-created-by" className="block text-sm font-medium text-gray-700 mb-1">
-                Created By <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="task-created-by"
-                value={createdBy}
-                onChange={(e) => setCreatedBy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                data-testid="create-task-created-by-select"
-                required
-              >
-                <option value="">Select entity...</option>
-                {entities?.map((entity) => (
-                  <option key={entity.id} value={entity.id}>
-                    {entity.name} ({entity.entityType})
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Priority & Complexity row */}
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
@@ -570,7 +518,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
               </button>
               <button
                 type="submit"
-                disabled={createTask.isPending || !title.trim() || !createdBy}
+                disabled={createTask.isPending || !title.trim() || !currentUser}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="create-task-submit-button"
               >

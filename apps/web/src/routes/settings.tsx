@@ -1054,7 +1054,7 @@ const DEFAULT_NOTIFICATIONS: NotificationsSettings = {
     workflowCompleted: true,
   },
   toastDuration: 5000,
-  toastPosition: 'top-right',
+  toastPosition: 'bottom-right',
 };
 
 function getStoredNotifications(): NotificationsSettings {

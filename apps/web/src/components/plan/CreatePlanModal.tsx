@@ -11,6 +11,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, ChevronLeft, Search, Check, Info, Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '../../hooks';
+import { useCurrentUser } from '../../contexts';
 
 interface TaskType {
   id: string;
@@ -131,6 +132,7 @@ const priorityLabels: Record<number, string> = {
 
 export function CreatePlanModal({ isOpen, onClose, onSuccess }: CreatePlanModalProps) {
   const isMobile = useIsMobile();
+  const { currentUser } = useCurrentUser();
   const [planTitle, setPlanTitle] = useState('');
   const [tasks, setTasks] = useState<TaskEntry[]>([
     { id: '1', mode: 'new', title: '', priority: 3 },
@@ -193,7 +195,7 @@ export function CreatePlanModal({ isOpen, onClose, onSuccess }: CreatePlanModalP
     }
   });
 
-  const canSubmit = planTitle.trim().length > 0 && hasValidTask;
+  const canSubmit = planTitle.trim().length > 0 && hasValidTask && currentUser;
 
   const addTask = () => {
     const newId = String(Date.now());
@@ -229,7 +231,7 @@ export function CreatePlanModal({ isOpen, onClose, onSuccess }: CreatePlanModalP
 
       const result = await createPlan.mutateAsync({
         title: planTitle.trim(),
-        createdBy: 'system', // TODO: Use actual user ID
+        createdBy: currentUser!.id,
         ...(firstTask.mode === 'new'
           ? { initialTask: { title: firstTask.title!.trim(), priority: firstTask.priority } }
           : { initialTaskId: firstTask.existingTaskId! }),

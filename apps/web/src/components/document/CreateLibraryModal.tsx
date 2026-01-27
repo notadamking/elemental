@@ -3,12 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, FolderPlus } from 'lucide-react';
 import { TagInput } from '../ui/TagInput';
 import { ResponsiveModal } from '../shared/ResponsiveModal';
-
-interface Entity {
-  id: string;
-  name: string;
-  entityType: string;
-}
+import { useCurrentUser } from '../../contexts';
 
 interface Library {
   id: string;
@@ -27,19 +22,6 @@ interface CreateLibraryModalProps {
   onClose: () => void;
   onSuccess?: (library: { id: string }) => void;
   defaultParentId?: string;
-}
-
-function useEntities() {
-  return useQuery<Entity[]>({
-    queryKey: ['entities'],
-    queryFn: async () => {
-      const response = await fetch('/api/entities');
-      if (!response.ok) throw new Error('Failed to fetch entities');
-      const data = await response.json();
-      // Handle paginated response format
-      return data.items || data;
-    },
-  });
 }
 
 function useLibraries() {
@@ -89,13 +71,12 @@ export function CreateLibraryModal({
 }: CreateLibraryModalProps) {
   const [name, setName] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [createdBy, setCreatedBy] = useState('');
   const [parentId, setParentId] = useState(defaultParentId || '');
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const createLibrary = useCreateLibrary();
-  const { data: entities } = useEntities();
   const { data: libraries } = useLibraries();
+  const { currentUser } = useCurrentUser();
 
   // Focus name input when modal opens
   useEffect(() => {
@@ -109,19 +90,10 @@ export function CreateLibraryModal({
     if (!isOpen) {
       setName('');
       setTags([]);
-      setCreatedBy('');
       setParentId(defaultParentId || '');
       createLibrary.reset();
     }
   }, [isOpen, defaultParentId]);
-
-  // Set default createdBy to operator (human entity), fall back to first entity
-  useEffect(() => {
-    if (entities && entities.length > 0 && !createdBy) {
-      const operator = entities.find((e) => e.entityType === 'human');
-      setCreatedBy(operator?.id || entities[0].id);
-    }
-  }, [entities, createdBy]);
 
   // Set default parentId when passed
   useEffect(() => {
@@ -134,11 +106,11 @@ export function CreateLibraryModal({
     e.preventDefault();
 
     if (!name.trim()) return;
-    if (!createdBy) return;
+    if (!currentUser) return;
 
     const input: CreateLibraryInput = {
       name: name.trim(),
-      createdBy,
+      createdBy: currentUser.id,
     };
 
     if (tags.length > 0) {
@@ -177,7 +149,7 @@ export function CreateLibraryModal({
       <button
         type="button"
         onClick={handleSubmit as unknown as () => void}
-        disabled={createLibrary.isPending || !name.trim() || !createdBy}
+        disabled={createLibrary.isPending || !name.trim() || !currentUser}
         className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target"
         data-testid="create-library-submit-button"
       >
@@ -226,28 +198,6 @@ export function CreateLibraryModal({
             maxLength={100}
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">1-100 characters</p>
-        </div>
-
-        {/* Created By */}
-        <div className="mb-4">
-          <label htmlFor="library-created-by" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Created By <span className="text-red-500">*</span>
-          </label>
-          <select
-            id="library-created-by"
-            value={createdBy}
-            onChange={(e) => setCreatedBy(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent touch-target"
-            data-testid="create-library-created-by-select"
-            required
-          >
-            <option value="">Select entity...</option>
-            {entities?.map((entity) => (
-              <option key={entity.id} value={entity.id}>
-                {entity.name} ({entity.entityType})
-              </option>
-            ))}
-          </select>
         </div>
 
         {/* Parent Library */}
