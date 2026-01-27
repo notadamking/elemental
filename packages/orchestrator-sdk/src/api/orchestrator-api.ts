@@ -17,13 +17,11 @@ import {
   type EntityId,
   type Task,
   type ChannelId,
-  type Element,
   type ElementId,
   ElementType,
   EntityTypeValue,
   createEntity,
   createTimestamp,
-  ChannelTypeValue,
 } from '@elemental/core';
 import {
   type ElementalAPI,
@@ -49,6 +47,7 @@ import {
   generateBranchName,
   generateWorktreePath,
   createSlugFromTitle,
+  createAgentCapabilities,
 } from '../types/index.js';
 
 // ============================================================================
@@ -243,6 +242,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
     const agentMetadata: DirectorMetadata = {
       agentRole: 'director',
       sessionStatus: 'idle',
+      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
     };
 
     // Create the entity with agent metadata nested under the agent key
@@ -269,6 +269,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       agentRole: 'worker',
       workerMode: input.workerMode,
       sessionStatus: 'idle',
+      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
     };
 
     // Create the entity with agent metadata nested under the agent key
@@ -296,6 +297,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       stewardFocus: input.stewardFocus,
       triggers: input.triggers,
       sessionStatus: 'idle',
+      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
     };
 
     // Create the entity with agent metadata nested under the agent key

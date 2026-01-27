@@ -6,6 +6,17 @@
 
 // Agent types
 export {
+  // Capability types
+  type AgentCapabilities,
+  DefaultAgentCapabilities,
+  type TaskCapabilityRequirements,
+  DefaultTaskCapabilityRequirements,
+  type CapabilityMatchResult,
+  createAgentCapabilities,
+  isAgentCapabilities,
+  isTaskCapabilityRequirements,
+  normalizeCapabilityString,
+  normalizeCapabilityArray,
   // Role types
   type AgentRole,
   AgentRoleValues,

@@ -17,6 +17,8 @@
 | Add React hook | [platform/web.md](platform/web.md) | `apps/web/src/api/hooks/` |
 | Use WebSocket | [platform/websocket.md](platform/websocket.md) | `apps/server/src/ws/` |
 | Use the TypeScript API | [api/elemental-api.md](api/elemental-api.md) | `packages/sdk/src/api/elemental-api.ts` |
+| Use the Orchestrator API | [api/orchestrator-api.md](api/orchestrator-api.md) | `packages/orchestrator-sdk/src/api/orchestrator-api.ts` |
+| Work with agent capabilities | [api/orchestrator-api.md#agent-capabilities](api/orchestrator-api.md#agent-capabilities) | `packages/orchestrator-sdk/src/services/capability-service.ts` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
@@ -138,6 +140,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Agent types | `types/agent.ts` | `types/agent.test.ts` |
 | Task metadata | `types/task-meta.ts` | `types/task-meta.test.ts` |
 | OrchestratorAPI | `api/orchestrator-api.ts` | `api/orchestrator-api.integration.test.ts` |
+| Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
 
 ## File Map (Platform)
 

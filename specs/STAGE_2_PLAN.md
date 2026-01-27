@@ -450,13 +450,13 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O6a: Agent Capability System
+#### - [x] TB-O6a: Agent Capability System
 
 **Goal**: Define agent capabilities for intelligent task routing
 
 **Changes**:
 
-- [ ] Add capability types to `packages/orchestrator-sdk/src/types/agent.ts`:
+- [x] Add capability types to `packages/orchestrator-sdk/src/types/agent.ts`:
   ```typescript
   interface AgentCapabilities {
     skills: string[]; // e.g., ['frontend', 'testing', 'database']
@@ -466,13 +466,20 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
   interface TaskCapabilityRequirements {
     requiredSkills?: string[];
     preferredSkills?: string[];
+    requiredLanguages?: string[];
+    preferredLanguages?: string[];
   }
   ```
-- [ ] Store capabilities in Entity metadata: `entity.metadata.capabilities`
-- [ ] Create `CapabilityService` with methods: `matchAgentToTask()`, `getAgentCapabilities()`, `validateCapabilities()`
-- [ ] Integrate with dispatch service for capability-aware routing
+- [x] Store capabilities in Entity metadata: `entity.metadata.agent.capabilities`
+- [x] Create `CapabilityService` with methods: `matchAgentToTask()`, `matchAgentToTaskRequirements()`, `getAgentCapabilities()`, `validateAgentCapabilities()`, `findAgentsForTask()`, `getBestAgentForTask()`, `agentHasSkill()`, `agentHasLanguage()`, `agentHasCapacity()`
+- [ ] Integrate with dispatch service for capability-aware routing (deferred to TB-O8a)
 
 **Verification**: Register agent with capabilities, create task with requirements, dispatch routes to matching agent
+
+**Implementation Notes**:
+- Capability matching is case-insensitive (normalized to lowercase)
+- Scoring system: 50 points for meeting requirements, 25 points for preferred skills, 25 for preferred languages
+- 128 tests passing for capability system (56 new tests)
 
 ---
 

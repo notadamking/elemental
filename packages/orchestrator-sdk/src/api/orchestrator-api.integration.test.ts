@@ -14,7 +14,14 @@ import {
   isAgentEntity,
   getAgentMetadata,
 } from './orchestrator-api.js';
-import type { WorkerMetadata, StewardMetadata } from '../types/agent.js';
+import type { WorkerMetadata, StewardMetadata, AgentCapabilities } from '../types/agent.js';
+import {
+  getAgentCapabilities,
+  matchAgentToTask,
+  findAgentsForTask,
+  getBestAgentForTask,
+  setTaskCapabilityRequirements,
+} from '../services/capability-service.js';
 
 describe('OrchestratorAPI', () => {
   let api: OrchestratorAPI;
@@ -268,6 +275,181 @@ describe('OrchestratorAPI', () => {
       expect(meta?.branch).toContain('agent/taskworker/');
       expect(meta?.worktree).toContain('.worktrees/taskworker');
       expect(meta?.startedAt).toBeDefined();
+    });
+  });
+
+  describe('Agent Capabilities (TB-O6a)', () => {
+    test('registerWorker with capabilities stores capabilities in metadata', async () => {
+      const worker = await api.registerWorker({
+        name: 'SkillfulWorker',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: {
+          skills: ['frontend', 'testing'],
+          languages: ['typescript', 'python'],
+          maxConcurrentTasks: 2,
+        },
+      });
+
+      expect(worker).toBeDefined();
+      const meta = getAgentMetadata(worker);
+      expect(meta?.capabilities).toBeDefined();
+      expect(meta?.capabilities?.skills).toEqual(['frontend', 'testing']);
+      expect(meta?.capabilities?.languages).toEqual(['typescript', 'python']);
+      expect(meta?.capabilities?.maxConcurrentTasks).toBe(2);
+    });
+
+    test('registerDirector with capabilities works', async () => {
+      const director = await api.registerDirector({
+        name: 'CapableDirector',
+        createdBy: systemEntity,
+        capabilities: {
+          skills: ['planning', 'coordination'],
+        },
+      });
+
+      const meta = getAgentMetadata(director);
+      expect(meta?.capabilities?.skills).toEqual(['planning', 'coordination']);
+    });
+
+    test('getAgentCapabilities returns capabilities from agent', async () => {
+      const worker = await api.registerWorker({
+        name: 'CapWorker',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: {
+          skills: ['backend'],
+          languages: ['go'],
+        },
+      });
+
+      const caps = getAgentCapabilities(worker);
+      expect(caps.skills).toEqual(['backend']);
+      expect(caps.languages).toEqual(['go']);
+    });
+
+    test('matchAgentToTask matches agent with task requirements', async () => {
+      const worker = await api.registerWorker({
+        name: 'FrontendWorker',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: {
+          skills: ['frontend', 'testing'],
+          languages: ['typescript'],
+        },
+      });
+
+      const taskData = await createTask({
+        title: 'Implement UI component',
+        createdBy: systemEntity,
+      });
+      const task = await api.create(taskData as unknown as Record<string, unknown> & { type: 'task'; createdBy: EntityId });
+
+      // Set capability requirements on the task
+      const requirementsMetadata = setTaskCapabilityRequirements(task.metadata as Record<string, unknown> | undefined, {
+        requiredSkills: ['frontend'],
+        requiredLanguages: ['typescript'],
+      });
+      const updatedTask = await api.update(task.id, { metadata: requirementsMetadata });
+
+      const match = matchAgentToTask(worker, updatedTask);
+      expect(match.isEligible).toBe(true);
+      expect(match.matchedRequiredSkills).toEqual(['frontend']);
+      expect(match.matchedRequiredLanguages).toEqual(['typescript']);
+    });
+
+    test('findAgentsForTask finds matching agents', async () => {
+      // Create workers with different capabilities
+      const frontendWorker = await api.registerWorker({
+        name: 'FrontendDev',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: { skills: ['frontend'], languages: ['typescript'] },
+      });
+
+      const backendWorker = await api.registerWorker({
+        name: 'BackendDev',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: { skills: ['backend'], languages: ['go'] },
+      });
+
+      const fullstackWorker = await api.registerWorker({
+        name: 'FullstackDev',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: { skills: ['frontend', 'backend'], languages: ['typescript', 'go'] },
+      });
+
+      // Create a task requiring frontend
+      const taskData = await createTask({
+        title: 'Build dashboard',
+        createdBy: systemEntity,
+        metadata: {
+          capabilityRequirements: {
+            requiredSkills: ['frontend'],
+            requiredLanguages: ['typescript'],
+          },
+        },
+      });
+      const task = await api.create(taskData as unknown as Record<string, unknown> & { type: 'task'; createdBy: EntityId });
+
+      const agents = await api.listAgents({ role: 'worker' });
+      const frontendAgents = agents.filter(a =>
+        a.name === 'FrontendDev' || a.name === 'BackendDev' || a.name === 'FullstackDev'
+      );
+
+      const matches = findAgentsForTask(frontendAgents, task);
+
+      // Should find FrontendDev and FullstackDev (both have frontend + typescript)
+      expect(matches.length).toBe(2);
+      const matchedNames = matches.map(m => m.agent.name);
+      expect(matchedNames).toContain('FrontendDev');
+      expect(matchedNames).toContain('FullstackDev');
+      expect(matchedNames).not.toContain('BackendDev');
+    });
+
+    test('getBestAgentForTask returns highest scoring agent', async () => {
+      // Worker with exact match
+      const exactMatch = await api.registerWorker({
+        name: 'ExactMatchWorker',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: { skills: ['frontend', 'testing'], languages: ['typescript'] },
+      });
+
+      // Worker with only required skills (no preferred)
+      const basicMatch = await api.registerWorker({
+        name: 'BasicMatchWorker',
+        workerMode: 'ephemeral',
+        createdBy: systemEntity,
+        capabilities: { skills: ['frontend'], languages: ['typescript'] },
+      });
+
+      const taskData = await createTask({
+        title: 'Build tested component',
+        createdBy: systemEntity,
+        metadata: {
+          capabilityRequirements: {
+            requiredSkills: ['frontend'],
+            preferredSkills: ['testing'],
+            requiredLanguages: ['typescript'],
+          },
+        },
+      });
+      const task = await api.create(taskData as unknown as Record<string, unknown> & { type: 'task'; createdBy: EntityId });
+
+      const agents = await api.listAgents({ role: 'worker' });
+      const testAgents = agents.filter(a =>
+        a.name === 'ExactMatchWorker' || a.name === 'BasicMatchWorker'
+      );
+
+      const best = getBestAgentForTask(testAgents, task);
+
+      expect(best).toBeDefined();
+      // ExactMatch should score higher because it has the preferred 'testing' skill
+      expect(best?.agent.name).toBe('ExactMatchWorker');
+      expect(best?.matchResult.matchedPreferredSkills).toEqual(['testing']);
     });
   });
 });
