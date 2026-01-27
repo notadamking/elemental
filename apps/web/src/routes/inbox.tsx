@@ -5,9 +5,10 @@
  * Features split layout with message list (left) and message content (right).
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { toast } from 'sonner';
 import {
   Inbox,
   Mail,
@@ -34,6 +35,8 @@ import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { PageHeader } from '../components/shared';
 import { useKeyboardShortcut, useIsMobile } from '../hooks';
 import { useCurrentUser } from '../contexts';
+import { useRealtimeEvents } from '../api/hooks/useRealtimeEvents';
+import type { WebSocketEvent } from '../api/websocket';
 import { groupByTimePeriod, TIME_PERIOD_LABELS, type TimePeriod, formatCompactTime } from '../lib';
 
 // Types
@@ -272,6 +275,8 @@ function InboxMessageListItem({
   const senderType = item.sender?.entityType ?? 'agent';
   const messagePreview = item.message?.contentPreview ?? '';
   const firstLine = messagePreview.split('\n')[0]?.slice(0, 50) || '';
+  const hasThreadParent = item.threadParent !== null && item.threadParent !== undefined;
+  const threadParentSenderName = item.threadParent?.sender?.name ?? 'Unknown';
 
   const getAvatarIcon = () => {
     switch (senderType) {
@@ -318,6 +323,13 @@ function InboxMessageListItem({
             )}
           </div>
         </div>
+        {/* Show thread indicator when message is a reply */}
+        {hasThreadParent && (
+          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5" data-testid={`inbox-page-list-item-thread-${item.id}`}>
+            <CornerUpLeft className="w-3 h-3" />
+            <span>Reply to {threadParentSenderName}</span>
+          </div>
+        )}
         {/* Show recipient badge for global inbox */}
         {item.recipient && (
           <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -673,6 +685,8 @@ export function InboxPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { message?: string };
   const { currentUser, isLoading: userLoading } = useCurrentUser();
+  const queryClient = useQueryClient();
+  const prevUserIdRef = useRef<string | null>(null);
 
   // State
   const [inboxView, setInboxView] = useState<InboxViewType>(() => getStoredInboxView());
@@ -683,6 +697,51 @@ export function InboxPage() {
   const [timeUpdateTrigger, setTimeUpdateTrigger] = useState(0);
   const [replyContent, setReplyContent] = useState('');
   const [showReplyComposer, setShowReplyComposer] = useState(false);
+
+  // Real-time updates with toast notifications
+  const handleInboxEvent = useCallback((event: WebSocketEvent) => {
+    // Only handle inbox-item events for the current user
+    if (event.elementType === 'inbox-item' && event.eventType === 'created') {
+      const recipientId = event.newValue?.recipientId as string | undefined;
+      if (recipientId === currentUser?.id) {
+        // Show toast notification for new inbox item
+        const senderName = 'Someone'; // We'd need to fetch sender info for a better message
+        const sourceType = event.newValue?.sourceType as string;
+        const message = sourceType === 'mention'
+          ? `${senderName} mentioned you in a message`
+          : `You have a new direct message`;
+        toast.info(message, {
+          description: 'Click to view in inbox',
+          action: {
+            label: 'View',
+            onClick: () => {
+              // Scroll to top or select the new item
+              setSelectedInboxItemId(null);
+            },
+          },
+        });
+      }
+    }
+  }, [currentUser?.id]);
+
+  // Subscribe to real-time events
+  useRealtimeEvents({
+    channels: currentUser?.id ? [`inbox:${currentUser.id}`, 'inbox'] : ['inbox'],
+    onEvent: handleInboxEvent,
+  });
+
+  // Refetch inbox when switching users
+  useEffect(() => {
+    if (currentUser?.id && prevUserIdRef.current !== currentUser.id) {
+      // Clear selection when switching users
+      setSelectedInboxItemId(null);
+      setShowReplyComposer(false);
+      setReplyContent('');
+      // Invalidate queries to force refetch
+      queryClient.invalidateQueries({ queryKey: ['inbox', currentUser.id] });
+      prevUserIdRef.current = currentUser.id;
+    }
+  }, [currentUser?.id, queryClient]);
 
   // Periodic time updates
   useEffect(() => {

@@ -31,6 +31,8 @@ import { usePaginatedData, createChannelFilter } from '../hooks/usePaginatedData
 import { groupMessagesByDay } from '../lib';
 import { EntityLink } from '../components/entity/EntityLink';
 import { MessageEmbedCard } from '../components/message/MessageEmbedCard';
+import { useRealtimeEvents } from '../api/hooks/useRealtimeEvents';
+import type { WebSocketEvent } from '../api/websocket';
 
 // Estimated message height for virtualization
 const MESSAGE_ROW_HEIGHT = 100;
@@ -2271,6 +2273,26 @@ export function MessagesPage() {
     search.channel ?? null
   );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Real-time event handling for new messages
+  const handleMessageEvent = useCallback((event: WebSocketEvent) => {
+    if (event.elementType === 'message' && event.eventType === 'created') {
+      const msgChannelId = event.newValue?.channelId as string | undefined;
+      // Show toast for new messages in the currently selected channel
+      if (msgChannelId && msgChannelId === selectedChannelId) {
+        toast.info('New message received', {
+          description: 'The conversation has been updated',
+          duration: 3000,
+        });
+      }
+    }
+  }, [selectedChannelId]);
+
+  // Subscribe to messages channel for real-time updates
+  useRealtimeEvents({
+    channels: selectedChannelId ? [`messages:${selectedChannelId}`, 'messages'] : ['messages'],
+    onEvent: handleMessageEvent,
+  });
 
   // Use upfront-loaded data (TB67) instead of server-side pagination
   const { data: allChannels, isLoading: isChannelsLoading, isError } = useAllChannels();

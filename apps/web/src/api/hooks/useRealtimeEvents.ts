@@ -64,8 +64,16 @@ function getQueryKeysForEvent(event: WebSocketEvent): string[][] {
       keys.push(['messages']);
       keys.push(['messages', event.elementId]);
       // Also invalidate the channel's messages
+      if (event.newValue?.channelId) {
+        keys.push(['channels', event.newValue.channelId as string, 'messages']);
+      }
+      // Legacy field name support
       if (event.newValue?.channel) {
         keys.push(['channels', event.newValue.channel as string, 'messages']);
+      }
+      // Invalidate thread replies if this is a threaded message
+      if (event.newValue?.threadId) {
+        keys.push(['messages', event.newValue.threadId as string, 'replies']);
       }
       break;
 
@@ -80,12 +88,19 @@ function getQueryKeysForEvent(event: WebSocketEvent): string[][] {
       // The recipientId is included in the newValue by the server
       if (event.newValue?.recipientId) {
         const recipientId = event.newValue.recipientId as string;
+        // Match the query keys used in inbox.tsx
+        keys.push(['inbox', recipientId, 'unread']);
+        keys.push(['inbox', recipientId, 'all']);
+        keys.push(['inbox', recipientId, 'archived']);
+        keys.push(['inbox', recipientId, 'count']);
+        // Also invalidate without view for broader matching
+        keys.push(['inbox', recipientId]);
+        // Legacy keys for backwards compatibility
         keys.push(['entities', recipientId, 'inbox']);
         keys.push(['entities', recipientId, 'inbox', 'count']);
-        keys.push(['entities', recipientId, 'inbox', 'unread']);
-        keys.push(['entities', recipientId, 'inbox', 'read']);
-        keys.push(['entities', recipientId, 'inbox', 'archived']);
       }
+      // Also invalidate all inbox queries in case recipientId isn't available
+      keys.push(['inbox']);
       break;
 
     default:

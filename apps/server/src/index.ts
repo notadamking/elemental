@@ -3026,19 +3026,15 @@ app.get('/api/messages/:id/replies', async (c) => {
     }
 
     // Get all messages that have this message as their threadId
+    // Use the threadId filter supported by the API for efficient querying
     const filter: Record<string, unknown> = {
       type: 'message',
+      threadId: id,
       orderBy: 'created_at',
       orderDir: 'asc',
     };
 
-    const allMessages = await api.list(filter as Parameters<typeof api.list>[0]);
-
-    // Filter for messages with this threadId
-    const replies = allMessages.filter((msg) => {
-      const message = msg as { threadId?: string };
-      return message.threadId === id;
-    });
+    const replies = await api.list(filter as Parameters<typeof api.list>[0]);
 
     // Optionally hydrate content
     if (hydrateContent) {
