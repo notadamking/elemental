@@ -197,6 +197,24 @@ export interface SendInputOptions {
   readonly isUserMessage?: boolean;
 }
 
+/**
+ * Result of the UWP (Universal Work Principle) check
+ */
+export interface UWPCheckResult {
+  /** Whether a ready task was found */
+  hasReadyTask: boolean;
+  /** The ready task ID if found */
+  taskId?: string;
+  /** The task title if found */
+  taskTitle?: string;
+  /** The task priority if found */
+  taskPriority?: number;
+  /** Whether the task was automatically started */
+  autoStarted: boolean;
+  /** Session ID if a task was auto-started */
+  sessionId?: string;
+}
+
 // ============================================================================
 // Spawner Service Interface
 // ============================================================================
@@ -309,6 +327,52 @@ export interface SpawnerService {
    * @returns The event emitter or undefined if session not found
    */
   getEventEmitter(sessionId: string): EventEmitter | undefined;
+
+  // ----------------------------------------
+  // Universal Work Principle (UWP)
+  // ----------------------------------------
+
+  /**
+   * Checks the ready queue for an agent and optionally auto-starts the first task.
+   *
+   * This implements the Universal Work Principle (UWP):
+   * "If there is work on your anchor, YOU MUST RUN IT"
+   *
+   * On agent startup:
+   * 1. Query tasks ready for this agent (assigned to them, status open/in_progress)
+   * 2. If task exists → Optionally set task status to IN_PROGRESS, return task info
+   * 3. If no task → Return empty result, agent should enter idle/polling mode
+   *
+   * @param agentId - The agent entity ID to check tasks for
+   * @param options - Options for the check
+   * @returns UWP check result with task info if found
+   */
+  checkReadyQueue(
+    agentId: EntityId,
+    options?: UWPCheckOptions
+  ): Promise<UWPCheckResult>;
+}
+
+/**
+ * Options for UWP ready queue check
+ */
+export interface UWPCheckOptions {
+  /** Whether to automatically mark the task as started (default: false) */
+  autoStart?: boolean;
+  /** Maximum number of tasks to check (default: 1) */
+  limit?: number;
+  /** Callback to get task info - allows integration without circular deps */
+  getReadyTasks?: (agentId: EntityId, limit: number) => Promise<UWPTaskInfo[]>;
+}
+
+/**
+ * Task information for UWP check
+ */
+export interface UWPTaskInfo {
+  id: string;
+  title: string;
+  priority: number;
+  status: string;
 }
 
 // ============================================================================
@@ -516,6 +580,57 @@ export class SpawnerServiceImpl implements SpawnerService {
   getEventEmitter(sessionId: string): EventEmitter | undefined {
     const session = this.sessions.get(sessionId);
     return session?.events;
+  }
+
+  // ----------------------------------------
+  // Universal Work Principle (UWP)
+  // ----------------------------------------
+
+  async checkReadyQueue(
+    agentId: EntityId,
+    options?: UWPCheckOptions
+  ): Promise<UWPCheckResult> {
+    const limit = options?.limit ?? 1;
+
+    // If no getReadyTasks callback provided, return empty result
+    // The callback allows integration with TaskAssignmentService without circular deps
+    if (!options?.getReadyTasks) {
+      return {
+        hasReadyTask: false,
+        autoStarted: false,
+      };
+    }
+
+    // Query for ready tasks assigned to this agent
+    const readyTasks = await options.getReadyTasks(agentId, limit);
+
+    if (readyTasks.length === 0) {
+      return {
+        hasReadyTask: false,
+        autoStarted: false,
+      };
+    }
+
+    // Take the first task (highest priority should come first)
+    const task = readyTasks[0];
+
+    const result: UWPCheckResult = {
+      hasReadyTask: true,
+      taskId: task.id,
+      taskTitle: task.title,
+      taskPriority: task.priority,
+      autoStarted: false,
+    };
+
+    // Auto-start is handled by the caller using TaskAssignmentService
+    // We just report what we found - the caller can then decide to start the task
+    if (options.autoStart) {
+      result.autoStarted = true;
+      // Note: Actual task status update should be done by the caller
+      // using TaskAssignmentService.startTask() to avoid circular dependencies
+    }
+
+    return result;
   }
 
   // ----------------------------------------

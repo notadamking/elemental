@@ -22,6 +22,10 @@ export {
   type SpawnResult,
   type SendInputOptions,
   type SpawnerService,
+  // UWP Types (TB-O9a)
+  type UWPCheckResult,
+  type UWPCheckOptions,
+  type UWPTaskInfo,
   // Constants
   SessionStatusTransitions,
   // Implementation

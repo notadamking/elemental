@@ -20,6 +20,9 @@ import {
   type SpawnConfig,
   type StreamJsonEvent,
   type SpawnedSessionEvent,
+  type UWPCheckResult,
+  type UWPCheckOptions,
+  type UWPTaskInfo,
   SessionStatusTransitions,
   canReceiveInput,
   isTerminalStatus,
@@ -402,5 +405,261 @@ describe('Environment variables', () => {
 
     const service = createSpawnerService(config);
     expect(service).toBeDefined();
+  });
+});
+
+// ============================================================================
+// Universal Work Principle (UWP) Tests (TB-O9a)
+// ============================================================================
+
+describe('checkReadyQueue (UWP)', () => {
+  let spawnerService: SpawnerService;
+
+  beforeEach(() => {
+    spawnerService = createSpawnerService({
+      claudePath: 'claude',
+      workingDirectory: '/tmp',
+      timeout: 5000,
+    });
+  });
+
+  describe('without getReadyTasks callback', () => {
+    test('returns empty result when no callback provided', async () => {
+      const result = await spawnerService.checkReadyQueue(testAgentId);
+
+      expect(result.hasReadyTask).toBe(false);
+      expect(result.autoStarted).toBe(false);
+      expect(result.taskId).toBeUndefined();
+      expect(result.taskTitle).toBeUndefined();
+      expect(result.taskPriority).toBeUndefined();
+    });
+
+    test('returns empty result when callback is undefined', async () => {
+      const result = await spawnerService.checkReadyQueue(testAgentId, {});
+
+      expect(result.hasReadyTask).toBe(false);
+      expect(result.autoStarted).toBe(false);
+    });
+
+    test('returns empty result when options.limit is set but no callback', async () => {
+      const result = await spawnerService.checkReadyQueue(testAgentId, { limit: 5 });
+
+      expect(result.hasReadyTask).toBe(false);
+      expect(result.autoStarted).toBe(false);
+    });
+  });
+
+  describe('with getReadyTasks callback', () => {
+    test('returns empty result when callback returns no tasks', async () => {
+      const getReadyTasks = async (_agentId: EntityId, _limit: number): Promise<UWPTaskInfo[]> => {
+        return [];
+      };
+
+      const result = await spawnerService.checkReadyQueue(testAgentId, { getReadyTasks });
+
+      expect(result.hasReadyTask).toBe(false);
+      expect(result.autoStarted).toBe(false);
+      expect(result.taskId).toBeUndefined();
+    });
+
+    test('returns task info when callback returns tasks', async () => {
+      const mockTask: UWPTaskInfo = {
+        id: 'task-001',
+        title: 'Implement feature X',
+        priority: 1,
+        status: 'open',
+      };
+
+      const getReadyTasks = async (_agentId: EntityId, _limit: number): Promise<UWPTaskInfo[]> => {
+        return [mockTask];
+      };
+
+      const result = await spawnerService.checkReadyQueue(testAgentId, { getReadyTasks });
+
+      expect(result.hasReadyTask).toBe(true);
+      expect(result.taskId).toBe('task-001');
+      expect(result.taskTitle).toBe('Implement feature X');
+      expect(result.taskPriority).toBe(1);
+      expect(result.autoStarted).toBe(false);
+    });
+
+    test('returns first task when multiple tasks are returned', async () => {
+      const mockTasks: UWPTaskInfo[] = [
+        { id: 'task-high', title: 'High priority task', priority: 1, status: 'open' },
+        { id: 'task-low', title: 'Low priority task', priority: 3, status: 'open' },
+      ];
+
+      const getReadyTasks = async (_agentId: EntityId, _limit: number): Promise<UWPTaskInfo[]> => {
+        return mockTasks;
+      };
+
+      const result = await spawnerService.checkReadyQueue(testAgentId, { getReadyTasks });
+
+      expect(result.hasReadyTask).toBe(true);
+      expect(result.taskId).toBe('task-high');
+      expect(result.taskTitle).toBe('High priority task');
+      expect(result.taskPriority).toBe(1);
+    });
+
+    test('passes correct agentId and limit to callback', async () => {
+      let capturedAgentId: EntityId | undefined;
+      let capturedLimit: number | undefined;
+
+      const getReadyTasks = async (agentId: EntityId, limit: number): Promise<UWPTaskInfo[]> => {
+        capturedAgentId = agentId;
+        capturedLimit = limit;
+        return [];
+      };
+
+      await spawnerService.checkReadyQueue(testAgentId, { getReadyTasks, limit: 5 });
+
+      expect(capturedAgentId).toBe(testAgentId);
+      expect(capturedLimit).toBe(5);
+    });
+
+    test('uses default limit of 1 when not specified', async () => {
+      let capturedLimit: number | undefined;
+
+      const getReadyTasks = async (_agentId: EntityId, limit: number): Promise<UWPTaskInfo[]> => {
+        capturedLimit = limit;
+        return [];
+      };
+
+      await spawnerService.checkReadyQueue(testAgentId, { getReadyTasks });
+
+      expect(capturedLimit).toBe(1);
+    });
+  });
+
+  describe('with autoStart option', () => {
+    test('sets autoStarted to true when autoStart is enabled and task found', async () => {
+      const mockTask: UWPTaskInfo = {
+        id: 'task-001',
+        title: 'Implement feature X',
+        priority: 1,
+        status: 'open',
+      };
+
+      const getReadyTasks = async (_agentId: EntityId, _limit: number): Promise<UWPTaskInfo[]> => {
+        return [mockTask];
+      };
+
+      const result = await spawnerService.checkReadyQueue(testAgentId, {
+        getReadyTasks,
+        autoStart: true,
+      });
+
+      expect(result.hasReadyTask).toBe(true);
+      expect(result.autoStarted).toBe(true);
+      expect(result.taskId).toBe('task-001');
+    });
+
+    test('sets autoStarted to false when autoStart is disabled', async () => {
+      const mockTask: UWPTaskInfo = {
+        id: 'task-001',
+        title: 'Implement feature X',
+        priority: 1,
+        status: 'open',
+      };
+
+      const getReadyTasks = async (_agentId: EntityId, _limit: number): Promise<UWPTaskInfo[]> => {
+        return [mockTask];
+      };
+
+      const result = await spawnerService.checkReadyQueue(testAgentId, {
+        getReadyTasks,
+        autoStart: false,
+      });
+
+      expect(result.hasReadyTask).toBe(true);
+      expect(result.autoStarted).toBe(false);
+    });
+
+    test('does not set autoStarted when no task found', async () => {
+      const getReadyTasks = async (_agentId: EntityId, _limit: number): Promise<UWPTaskInfo[]> => {
+        return [];
+      };
+
+      const result = await spawnerService.checkReadyQueue(testAgentId, {
+        getReadyTasks,
+        autoStart: true,
+      });
+
+      expect(result.hasReadyTask).toBe(false);
+      expect(result.autoStarted).toBe(false);
+    });
+  });
+
+  describe('UWPCheckResult type', () => {
+    test('has correct structure for task found case', () => {
+      const result: UWPCheckResult = {
+        hasReadyTask: true,
+        taskId: 'task-001',
+        taskTitle: 'Test task',
+        taskPriority: 2,
+        autoStarted: false,
+      };
+
+      expect(result.hasReadyTask).toBe(true);
+      expect(result.taskId).toBeDefined();
+      expect(result.taskTitle).toBeDefined();
+      expect(result.taskPriority).toBeDefined();
+    });
+
+    test('has correct structure for no task case', () => {
+      const result: UWPCheckResult = {
+        hasReadyTask: false,
+        autoStarted: false,
+      };
+
+      expect(result.hasReadyTask).toBe(false);
+      expect(result.taskId).toBeUndefined();
+      expect(result.taskTitle).toBeUndefined();
+    });
+  });
+
+  describe('UWPTaskInfo type', () => {
+    test('has all required fields', () => {
+      const task: UWPTaskInfo = {
+        id: 'task-001',
+        title: 'Implement feature',
+        priority: 1,
+        status: 'open',
+      };
+
+      expect(task.id).toBe('task-001');
+      expect(task.title).toBe('Implement feature');
+      expect(task.priority).toBe(1);
+      expect(task.status).toBe('open');
+    });
+
+    test('handles in_progress status', () => {
+      const task: UWPTaskInfo = {
+        id: 'task-002',
+        title: 'Task in progress',
+        priority: 2,
+        status: 'in_progress',
+      };
+
+      expect(task.status).toBe('in_progress');
+    });
+  });
+
+  describe('UWPCheckOptions type', () => {
+    test('all options are optional', () => {
+      const options1: UWPCheckOptions = {};
+      const options2: UWPCheckOptions = { autoStart: true };
+      const options3: UWPCheckOptions = { limit: 5 };
+      const options4: UWPCheckOptions = {
+        autoStart: true,
+        limit: 3,
+        getReadyTasks: async () => [],
+      };
+
+      expect(options1).toBeDefined();
+      expect(options2.autoStart).toBe(true);
+      expect(options3.limit).toBe(5);
+      expect(options4.getReadyTasks).toBeDefined();
+    });
   });
 });

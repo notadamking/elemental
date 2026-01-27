@@ -589,6 +589,79 @@ isTerminalStatus('terminated');  // true
 getStatusDescription('running'); // 'Running'
 ```
 
+### Universal Work Principle (UWP) - TB-O9a
+
+The Universal Work Principle (UWP) states: "If there is work on your anchor, YOU MUST RUN IT"
+
+On agent startup, use `checkReadyQueue()` to check for pending work:
+
+```typescript
+import type { UWPCheckResult, UWPTaskInfo } from '@elemental/orchestrator-sdk';
+
+// The getReadyTasks callback allows integration with TaskAssignmentService
+// without circular dependencies
+const getReadyTasks = async (agentId: EntityId, limit: number): Promise<UWPTaskInfo[]> => {
+  // Use TaskAssignmentService to query ready tasks
+  const assignments = await assignmentService.getAgentTasks(agentId, {
+    taskStatus: ['open', 'in_progress'],
+  });
+
+  return assignments.slice(0, limit).map(a => ({
+    id: a.task.id,
+    title: a.task.title,
+    priority: a.task.priority,
+    status: a.task.status,
+  }));
+};
+
+// Check for ready tasks on startup
+const result = await spawner.checkReadyQueue(agentId, {
+  getReadyTasks,
+  limit: 1,        // Check first task only
+  autoStart: true, // Signal that caller should start the task
+});
+
+if (result.hasReadyTask) {
+  console.log(`Found ready task: ${result.taskTitle} (${result.taskId})`);
+  if (result.autoStarted) {
+    // Caller should start the task using TaskAssignmentService
+    await assignmentService.startTask(result.taskId as ElementId, sessionId);
+  }
+} else {
+  // No work found - enter idle/polling mode
+  console.log('No ready tasks, entering idle mode');
+}
+```
+
+#### UWP Types
+
+```typescript
+interface UWPCheckResult {
+  hasReadyTask: boolean;      // Whether a ready task was found
+  taskId?: string;            // The ready task ID if found
+  taskTitle?: string;         // The task title if found
+  taskPriority?: number;      // The task priority if found
+  autoStarted: boolean;       // Whether the task was flagged for auto-start
+  sessionId?: string;         // Session ID if a task was auto-started
+}
+
+interface UWPCheckOptions {
+  autoStart?: boolean;        // Signal auto-start intent (default: false)
+  limit?: number;             // Max tasks to check (default: 1)
+  getReadyTasks?: (           // Callback to get task info
+    agentId: EntityId,
+    limit: number
+  ) => Promise<UWPTaskInfo[]>;
+}
+
+interface UWPTaskInfo {
+  id: string;
+  title: string;
+  priority: number;
+  status: string;
+}
+```
+
 ### Notes
 
 - **Headless mode** uses `child_process.spawn()` with stream-json I/O
