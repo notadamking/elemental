@@ -9,27 +9,28 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNodesState, useEdgesState, ReactFlowProvider, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Network } from 'lucide-react';
-import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
-import { PageHeader } from '../components/shared';
+import { useTrackDashboardSection } from '../../hooks/useTrackDashboardSection';
+import { PageHeader } from '../../components/shared';
 
-// Import from the new dependency-graph components module
+import type { Task, TaskNodeData, LayoutOptions } from './types';
 import {
-  type Task,
-  type TaskNodeData,
-  type LayoutOptions,
   useReadyTasks,
   useBlockedTasks,
   useDependencyTree,
   useDependencyList,
+} from './hooks';
+import {
   loadLayoutOptions,
   saveLayoutOptions,
   applyAutoLayout,
   buildDependencyTypeMap,
   buildGraphFromTree,
+} from './utils';
+import {
   TaskSelector,
   DependencyGraphInner,
   GraphLegend,
-} from '../components/dependency-graph';
+} from './components';
 
 export function DependencyGraphPage() {
   // Track this dashboard section visit
@@ -209,3 +210,6 @@ export function DependencyGraphPage() {
     </div>
   );
 }
+
+// Default export for route
+export default DependencyGraphPage;

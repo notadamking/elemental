@@ -15,12 +15,12 @@ import {
   type NodeTypes,
   type EdgeTypes,
 } from '@xyflow/react';
-import { useIsMobile } from '../../hooks';
+import { useIsMobile } from '../../../hooks';
 import { TaskNode } from './TaskNode';
 import { CustomEdge } from './CustomEdge';
 import { GraphToolbar } from './GraphToolbar';
-import { STATUS_COLORS } from './constants';
-import type { TaskNodeData, LayoutOptions } from './types';
+import { STATUS_COLORS } from '../constants';
+import type { TaskNodeData, LayoutOptions } from '../types';
 
 // Node and edge type registrations
 const nodeTypes: NodeTypes = {

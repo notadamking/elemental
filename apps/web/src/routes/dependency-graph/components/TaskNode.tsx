@@ -3,8 +3,8 @@
  */
 
 import { Handle, Position } from '@xyflow/react';
-import { STATUS_COLORS, PRIORITY_COLORS } from './constants';
-import type { TaskNodeData } from './types';
+import { STATUS_COLORS, PRIORITY_COLORS } from '../constants';
+import type { TaskNodeData } from '../types';
 
 interface TaskNodeProps {
   data: TaskNodeData;

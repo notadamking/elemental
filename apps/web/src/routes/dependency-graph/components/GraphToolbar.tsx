@@ -21,8 +21,8 @@ import {
   STATUS_OPTIONS,
   DIRECTION_LABELS,
   ALGORITHM_LABELS,
-} from './constants';
-import type { LayoutOptions, LayoutDirection, LayoutAlgorithm } from './types';
+} from '../constants';
+import type { LayoutOptions, LayoutDirection, LayoutAlgorithm } from '../types';
 
 interface GraphToolbarProps {
   searchQuery: string;

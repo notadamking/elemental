@@ -2,7 +2,7 @@
  * Legend component for the dependency graph showing status and edge type colors
  */
 
-import { STATUS_COLORS, EDGE_TYPE_COLORS } from './constants';
+import { STATUS_COLORS, EDGE_TYPE_COLORS } from '../constants';
 
 export function GraphLegend() {
   return (

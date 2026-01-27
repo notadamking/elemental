@@ -2,7 +2,7 @@
  * Task selector component for choosing which task to visualize
  */
 
-import type { Task } from './types';
+import type { Task } from '../types';
 
 interface TaskSelectorProps {
   tasks: Task[];

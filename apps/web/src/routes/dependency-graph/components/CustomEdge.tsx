@@ -3,8 +3,8 @@
  */
 
 import { BaseEdge, getSmoothStepPath } from '@xyflow/react';
-import { DEPENDENCY_TYPES, getEdgeColor } from './constants';
-import type { CustomEdgeProps } from './types';
+import { DEPENDENCY_TYPES, getEdgeColor } from '../constants';
+import type { CustomEdgeProps } from '../types';
 
 export function CustomEdge({
   id,
