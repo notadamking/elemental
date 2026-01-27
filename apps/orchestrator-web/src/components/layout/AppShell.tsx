@@ -1,0 +1,421 @@
+/**
+ * AppShell - Main layout wrapper for Orchestrator web app
+ * Three-column layout: Sidebar | Main Content | Director Panel
+ */
+
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Outlet, useRouterState, Link, useRouter } from '@tanstack/react-router';
+import { Sidebar } from './Sidebar';
+import { MobileDrawer } from './MobileDrawer';
+import { DirectorPanel } from './DirectorPanel';
+import { ThemeToggle } from '../ui/ThemeToggle';
+import { useQuery } from '@tanstack/react-query';
+import {
+  ChevronRight,
+  Activity,
+  CheckSquare,
+  Users,
+  LayoutGrid,
+  Workflow,
+  BarChart3,
+  Settings,
+  Menu,
+  Search,
+} from 'lucide-react';
+
+// Responsive breakpoint hooks
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  return isMobile;
+}
+
+function useIsTablet() {
+  const [isTablet, setIsTablet] = useState(false);
+
+  useEffect(() => {
+    const checkTablet = () => setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
+    checkTablet();
+    window.addEventListener('resize', checkTablet);
+    return () => window.removeEventListener('resize', checkTablet);
+  }, []);
+
+  return isTablet;
+}
+
+// Health check hook
+interface HealthResponse {
+  status: string;
+  timestamp: string;
+  database: string;
+  websocket?: {
+    clients: number;
+    broadcasting: boolean;
+  };
+}
+
+function useHealth() {
+  return useQuery<HealthResponse>({
+    queryKey: ['health'],
+    queryFn: async () => {
+      const response = await fetch('/api/health');
+      if (!response.ok) throw new Error('Failed to fetch health');
+      return response.json();
+    },
+    refetchInterval: 30000,
+  });
+}
+
+// Connection status indicator
+function ConnectionStatus({ health }: { health: ReturnType<typeof useHealth> }) {
+  if (health.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
+        <div className="w-2 h-2 rounded-full bg-[var(--color-text-tertiary)] animate-pulse" />
+        <span className="text-sm">Connecting...</span>
+      </div>
+    );
+  }
+
+  if (health.isError) {
+    return (
+      <div className="flex items-center gap-2 text-[var(--color-danger-text)]">
+        <div className="w-2 h-2 rounded-full bg-[var(--color-danger)]" />
+        <span className="text-sm font-medium">Disconnected</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-[var(--color-success-text)]">
+      <div className="w-2 h-2 rounded-full bg-[var(--color-success)]" />
+      <span className="text-sm font-medium">Connected</span>
+    </div>
+  );
+}
+
+// Route metadata for breadcrumbs
+interface RouteConfig {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  parent?: string;
+}
+
+const ROUTE_CONFIG: Record<string, RouteConfig> = {
+  '/activity': { label: 'Activity', icon: Activity },
+  '/tasks': { label: 'Tasks', icon: CheckSquare },
+  '/agents': { label: 'Agents', icon: Users },
+  '/workspaces': { label: 'Workspaces', icon: LayoutGrid },
+  '/workflows': { label: 'Workflows', icon: Workflow },
+  '/metrics': { label: 'Metrics', icon: BarChart3 },
+  '/settings': { label: 'Settings', icon: Settings },
+};
+
+interface BreadcrumbItem {
+  label: string;
+  path: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  isLast: boolean;
+}
+
+function useBreadcrumbs(): BreadcrumbItem[] {
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
+
+  return useMemo(() => {
+    const breadcrumbs: BreadcrumbItem[] = [];
+    let path = currentPath;
+
+    // Build breadcrumb chain from current path
+    const pathsToResolve: string[] = [];
+    while (path) {
+      const config = ROUTE_CONFIG[path];
+      if (config) {
+        pathsToResolve.unshift(path);
+        path = config.parent || '';
+      } else {
+        const segments = path.split('/').filter(Boolean);
+        if (segments.length > 1) {
+          path = '/' + segments.slice(0, -1).join('/');
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Create breadcrumb items
+    pathsToResolve.forEach((p, index) => {
+      const config = ROUTE_CONFIG[p];
+      if (config) {
+        breadcrumbs.push({
+          label: config.label,
+          path: p,
+          icon: config.icon,
+          isLast: index === pathsToResolve.length - 1,
+        });
+      }
+    });
+
+    return breadcrumbs;
+  }, [currentPath]);
+}
+
+function Breadcrumbs() {
+  const breadcrumbs = useBreadcrumbs();
+
+  if (breadcrumbs.length === 0) {
+    return null;
+  }
+
+  return (
+    <nav aria-label="Breadcrumb" data-testid="breadcrumbs">
+      <ol className="flex items-center gap-1 text-sm">
+        {breadcrumbs.map((crumb, index) => {
+          const Icon = crumb.icon;
+          return (
+            <li key={crumb.path} className="flex items-center">
+              {index > 0 && (
+                <ChevronRight className="w-4 h-4 mx-1 text-[var(--color-text-muted)]" />
+              )}
+              {crumb.isLast ? (
+                <span
+                  className="flex items-center gap-1.5 px-2 py-1 font-semibold text-[var(--color-text)] rounded-md"
+                  data-testid={`breadcrumb-${crumb.label.toLowerCase().replace(/\s/g, '-')}`}
+                >
+                  {Icon && <Icon className="w-4 h-4" />}
+                  {crumb.label}
+                </span>
+              ) : (
+                <Link
+                  to={crumb.path}
+                  className="flex items-center gap-1.5 px-2 py-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors duration-150"
+                  data-testid={`breadcrumb-${crumb.label.toLowerCase().replace(/\s/g, '-')}`}
+                >
+                  {Icon && <Icon className="w-4 h-4" />}
+                  {crumb.label}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+function BreadcrumbsMobile() {
+  const breadcrumbs = useBreadcrumbs();
+  const lastCrumb = breadcrumbs[breadcrumbs.length - 1];
+
+  if (!lastCrumb) {
+    return null;
+  }
+
+  const Icon = lastCrumb.icon;
+
+  return (
+    <div
+      className="flex items-center justify-center gap-1.5 text-sm font-semibold text-[var(--color-text)]"
+      data-testid="breadcrumbs-mobile"
+    >
+      {Icon && <Icon className="w-4 h-4" />}
+      <span className="truncate max-w-[150px]">{lastCrumb.label}</span>
+    </div>
+  );
+}
+
+// Local storage keys
+const SIDEBAR_COLLAPSED_KEY = 'orchestrator-sidebar-collapsed';
+const DIRECTOR_COLLAPSED_KEY = 'orchestrator-director-collapsed';
+
+function useSidebarState() {
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  });
+
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(desktopCollapsed));
+  }, [desktopCollapsed]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileDrawerOpen(false);
+    }
+  }, [isMobile]);
+
+  return {
+    isMobile,
+    isTablet,
+    desktopCollapsed,
+    setDesktopCollapsed,
+    mobileDrawerOpen,
+    setMobileDrawerOpen,
+  };
+}
+
+function useDirectorPanelState() {
+  const isMobile = useIsMobile();
+
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    // Default to collapsed on initial load
+    const stored = localStorage.getItem(DIRECTOR_COLLAPSED_KEY);
+    return stored === null ? true : stored === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem(DIRECTOR_COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
+
+  // Always collapse on mobile
+  const effectiveCollapsed = isMobile ? true : collapsed;
+
+  return {
+    collapsed: effectiveCollapsed,
+    setCollapsed,
+    isMobile,
+  };
+}
+
+export function AppShell() {
+  const {
+    isMobile,
+    isTablet,
+    desktopCollapsed,
+    setDesktopCollapsed,
+    mobileDrawerOpen,
+    setMobileDrawerOpen,
+  } = useSidebarState();
+
+  const {
+    collapsed: directorCollapsed,
+    setCollapsed: setDirectorCollapsed,
+  } = useDirectorPanelState();
+
+  const health = useHealth();
+  const router = useRouter();
+
+  const toggleDirectorPanel = useCallback(() => {
+    setDirectorCollapsed(prev => !prev);
+  }, [setDirectorCollapsed]);
+
+  const openMobileDrawer = useCallback(() => {
+    setMobileDrawerOpen(true);
+  }, [setMobileDrawerOpen]);
+
+  const closeMobileDrawer = useCallback(() => {
+    setMobileDrawerOpen(false);
+  }, [setMobileDrawerOpen]);
+
+  // Close mobile drawer on navigation
+  useEffect(() => {
+    const unsubscribe = router.subscribe('onResolved', () => {
+      if (isMobile && mobileDrawerOpen) {
+        setMobileDrawerOpen(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router, isMobile, mobileDrawerOpen, setMobileDrawerOpen]);
+
+  const sidebarCollapsed = isMobile ? true : isTablet ? true : desktopCollapsed;
+
+  return (
+    <div className="flex h-screen bg-[var(--color-bg)]" data-testid="app-shell">
+      {/* Mobile: Sidebar as drawer */}
+      {isMobile && (
+        <MobileDrawer
+          open={mobileDrawerOpen}
+          onClose={closeMobileDrawer}
+          data-testid="mobile-drawer"
+        >
+          <Sidebar
+            collapsed={false}
+            onToggle={closeMobileDrawer}
+            isMobileDrawer
+          />
+        </MobileDrawer>
+      )}
+
+      {/* Tablet & Desktop: Static sidebar */}
+      {!isMobile && (
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={() => setDesktopCollapsed(!desktopCollapsed)}
+        />
+      )}
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <header
+          className="flex items-center justify-between h-14 px-4 md:px-6 bg-[var(--color-header-bg)] border-b border-[var(--color-header-border)]"
+          data-testid="header"
+        >
+          {/* Mobile: Hamburger menu + centered title + search button */}
+          {isMobile && (
+            <div className="flex items-center gap-3 flex-1">
+              <button
+                onClick={openMobileDrawer}
+                className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
+                aria-label="Open navigation menu"
+                aria-expanded={mobileDrawerOpen}
+                data-testid="mobile-menu-button"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <div className="flex-1 text-center">
+                <BreadcrumbsMobile />
+              </div>
+              <button
+                className="p-2 -mr-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 touch-target"
+                aria-label="Search"
+                data-testid="mobile-search-button"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
+          {/* Tablet & Desktop: Full breadcrumbs */}
+          {!isMobile && <Breadcrumbs />}
+
+          <div className="flex items-center gap-2 md:gap-4">
+            <ThemeToggle />
+            {!isMobile && (
+              <>
+                <div className="h-5 w-px bg-[var(--color-border)]" />
+                <ConnectionStatus health={health} />
+              </>
+            )}
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--color-bg)]">
+          <Outlet />
+        </main>
+      </div>
+
+      {/* Director Panel (right sidebar) - hidden on mobile */}
+      {!isMobile && (
+        <DirectorPanel
+          collapsed={directorCollapsed}
+          onToggle={toggleDirectorPanel}
+        />
+      )}
+    </div>
+  );
+}

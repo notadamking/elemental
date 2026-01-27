@@ -28,6 +28,7 @@
 | Manage git worktrees | [api/orchestrator-api.md#worktreemanager-tb-o11](api/orchestrator-api.md#worktreemanager-tb-o11) | `packages/orchestrator-sdk/src/git/worktree-manager.ts` |
 | Work with agent messages | [api/orchestrator-api.md#message-types-tb-o14a](api/orchestrator-api.md#message-types-tb-o14a) | `packages/orchestrator-sdk/src/types/message-types.ts` |
 | Use the Orchestrator Server | [platform/orchestrator-server.md](platform/orchestrator-server.md) | `apps/orchestrator-server/src/index.ts` |
+| Use the Orchestrator Web UI | [apps/orchestrator-web.md](apps/orchestrator-web.md) | `apps/orchestrator-web/src/` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
@@ -168,6 +169,26 @@ The project is a TurboRepo monorepo with the following structure:
 | Concept | Source | Tests |
 |---------|--------|-------|
 | Server entry | `index.ts` | `index.test.ts` |
+
+## File Map (@elemental/orchestrator-web - apps/orchestrator-web/src/)
+
+| Concept | Source | Tests |
+|---------|--------|-------|
+| React entry | `main.tsx` | - |
+| Router config | `router.tsx` | `tests/scaffold.spec.ts` |
+| App shell layout | `components/layout/AppShell.tsx` | - |
+| Sidebar navigation | `components/layout/Sidebar.tsx` | - |
+| Director panel | `components/layout/DirectorPanel.tsx` | - |
+| Mobile drawer | `components/layout/MobileDrawer.tsx` | - |
+| Activity page | `routes/activity/index.tsx` | - |
+| Tasks page | `routes/tasks/index.tsx` | - |
+| Agents page | `routes/agents/index.tsx` | - |
+| Workspaces page | `routes/workspaces/index.tsx` | - |
+| Workflows page | `routes/workflows/index.tsx` | - |
+| Metrics page | `routes/metrics/index.tsx` | - |
+| Settings page | `routes/settings/index.tsx` | - |
+| UI components | `components/ui/*.tsx` | - |
+| Design tokens | `styles/tokens.css` | - |
 
 ## File Map (Platform)
 

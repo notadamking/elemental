@@ -1,0 +1,116 @@
+/* Import design tokens first */
+@import "./styles/tokens.css";
+
+/* Import Tailwind */
+@import "tailwindcss";
+
+/* Configure Tailwind to use class-based dark mode instead of prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Apply theme colors to body with smooth 300ms transition */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  transition: background-color var(--duration-slow) var(--ease-in-out), color var(--duration-slow) var(--ease-in-out);
+}
+
+/* Global theme transition for major layout elements */
+.theme-transition,
+header,
+aside,
+main,
+nav,
+.sidebar,
+[data-testid="sidebar"],
+[data-testid="app-shell"] > div {
+  transition: background-color var(--duration-slow) var(--ease-in-out),
+              border-color var(--duration-slow) var(--ease-in-out),
+              color var(--duration-slow) var(--ease-in-out);
+}
+
+/* Dark mode styles for main content areas */
+.dark .bg-white {
+  background-color: var(--color-bg-secondary);
+}
+
+.dark .bg-gray-50 {
+  background-color: var(--color-bg);
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--color-surface);
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: var(--color-border);
+}
+
+.dark .border-gray-100 {
+  border-color: var(--color-border-subtle);
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800 {
+  color: var(--color-text);
+}
+
+.dark .text-gray-700 {
+  color: var(--color-text-secondary);
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: var(--color-text-tertiary);
+}
+
+.dark .text-gray-400 {
+  color: var(--color-text-tertiary);
+}
+
+/* Dark mode hover state overrides */
+.dark .hover\:bg-gray-50:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--color-surface-active);
+}
+
+.dark .hover\:text-gray-900:hover {
+  color: var(--color-text);
+}
+
+.dark .hover\:text-gray-600:hover {
+  color: var(--color-text-secondary);
+}
+
+/* Custom animations for slide-over panels */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.2s ease-out;
+}
+
+/* Fade-in animation for view transitions */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
