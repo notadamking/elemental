@@ -588,18 +588,25 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O8a: Dispatch Service
+#### - [x] TB-O8a: Dispatch Service
 
 **Goal**: Implement dispatch operation combining assignment + notification
 
 **Changes**:
 
-- [ ] Create `DispatchService` in `packages/orchestrator-sdk/src/services/`
-- [ ] Methods: `dispatch(task, agent, options)` - assigns task, sends notification, optionally triggers agent
-- [ ] Integrate with capability system for smart routing
-- [ ] Support options: `{ restart?: boolean, priority?: number }`
+- [x] Create `DispatchService` in `packages/orchestrator-sdk/src/services/`
+- [x] Methods: `dispatch(task, agent, options)` - assigns task, sends notification, optionally triggers agent
+- [x] Integrate with capability system for smart routing
+- [x] Support options: `{ restart?: boolean, priority?: number }`
 
 **Verification**: Dispatch task to agent, verify assignment and notification sent
+
+**Implementation Notes**:
+- Created `DispatchService` with interface, implementation, and factory function
+- Added methods: `dispatch()`, `dispatchBatch()`, `smartDispatch()`, `getCandidates()`, `getBestAgent()`, `notifyAgent()`
+- Added types: `DispatchOptions`, `DispatchResult`, `SmartDispatchOptions`, `SmartDispatchCandidatesResult`, `DispatchMessageType`, `DispatchNotificationMetadata`
+- Smart routing filters available workers by capacity and matches against task capability requirements
+- 32 new tests covering dispatch, batch dispatch, smart dispatch, candidate retrieval, and notifications
 
 ---
 

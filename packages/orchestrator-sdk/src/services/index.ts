@@ -5,8 +5,8 @@
  * - CapabilityService (TB-O6a) - Capability-based agent matching and task routing
  * - AgentRegistry (TB-O7, TB-O7a) - Agent registration, management, and channel setup
  * - RoleDefinitionService (TB-O7b) - Agent role definition storage and management
- * - TaskAssignmentService (TB-O8) - TODO
- * - DispatchService (TB-O8a) - TODO
+ * - TaskAssignmentService (TB-O8) - Task assignment with orchestrator metadata
+ * - DispatchService (TB-O8a) - Task dispatch with assignment + notification
  * - StewardScheduler (TB-O23) - TODO
  */
 
@@ -83,3 +83,19 @@ export {
   DefaultAgentCapabilities,
   DefaultTaskCapabilityRequirements,
 } from './capability-service.js';
+
+// Dispatch service (TB-O8a)
+export {
+  // Types
+  type DispatchOptions,
+  type DispatchResult,
+  type SmartDispatchOptions,
+  type SmartDispatchCandidatesResult,
+  type DispatchMessageType,
+  type DispatchNotificationMetadata,
+  type DispatchService,
+  // Implementation
+  DispatchServiceImpl,
+  // Factory
+  createDispatchService,
+} from './dispatch-service.js';

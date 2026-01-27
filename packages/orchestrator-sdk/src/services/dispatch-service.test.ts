@@ -1,0 +1,457 @@
+/**
+ * Dispatch Service Unit Tests
+ *
+ * Tests for the DispatchService which combines task assignment with
+ * agent notification and provides capability-based smart routing.
+ */
+
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import * as fs from 'fs';
+import { createStorage, initializeSchema } from '@elemental/storage';
+import { createElementalAPI, type ElementalAPI } from '@elemental/sdk';
+import {
+  createEntity,
+  createTask,
+  EntityTypeValue,
+  TaskStatus,
+  type EntityId,
+  type Task,
+  type ElementId,
+  type Message,
+} from '@elemental/core';
+import {
+  createDispatchService,
+  type DispatchService,
+  type DispatchResult,
+  type SmartDispatchCandidatesResult,
+} from './dispatch-service.js';
+import {
+  createTaskAssignmentService,
+  type TaskAssignmentService,
+} from './task-assignment-service.js';
+import {
+  createAgentRegistry,
+  type AgentRegistry,
+} from './agent-registry.js';
+import {
+  setTaskCapabilityRequirements,
+} from './capability-service.js';
+import {
+  getOrchestratorTaskMeta,
+} from '../types/task-meta.js';
+import type { AgentEntity } from '../api/orchestrator-api.js';
+
+describe('DispatchService', () => {
+  let dispatchService: DispatchService;
+  let taskAssignment: TaskAssignmentService;
+  let registry: AgentRegistry;
+  let api: ElementalAPI;
+  let testDbPath: string;
+  let systemEntity: EntityId;
+
+  beforeEach(async () => {
+    // Create a temporary database
+    testDbPath = `/tmp/dispatch-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
+    const storage = createStorage(testDbPath);
+    initializeSchema(storage);
+
+    api = createElementalAPI(storage);
+    taskAssignment = createTaskAssignmentService(api);
+    registry = createAgentRegistry(api);
+    dispatchService = createDispatchService(api, taskAssignment, registry);
+
+    // Create a system entity for tests
+    const entity = await createEntity({
+      name: 'test-system',
+      entityType: EntityTypeValue.SYSTEM,
+      createdBy: 'system:test' as EntityId,
+    });
+    const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
+    systemEntity = saved.id as unknown as EntityId;
+  });
+
+  afterEach(() => {
+    // Clean up the temporary database
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  });
+
+  // Helper function to create a test task
+  async function createTestTask(
+    title: string,
+    options?: {
+      status?: typeof TaskStatus[keyof typeof TaskStatus];
+      requiredSkills?: string[];
+      preferredSkills?: string[];
+      requiredLanguages?: string[];
+      preferredLanguages?: string[];
+    }
+  ): Promise<Task> {
+    let metadata: Record<string, unknown> = {};
+    if (options?.requiredSkills || options?.preferredSkills || options?.requiredLanguages || options?.preferredLanguages) {
+      metadata = setTaskCapabilityRequirements(metadata, {
+        requiredSkills: options.requiredSkills,
+        preferredSkills: options.preferredSkills,
+        requiredLanguages: options.requiredLanguages,
+        preferredLanguages: options.preferredLanguages,
+      });
+    }
+
+    const task = await createTask({
+      title,
+      createdBy: systemEntity,
+      status: options?.status ?? TaskStatus.OPEN,
+      metadata,
+    });
+    return api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Promise<Task>;
+  }
+
+  // Helper function to register a test worker
+  async function createTestWorker(
+    name: string,
+    options?: {
+      skills?: string[];
+      languages?: string[];
+      maxConcurrentTasks?: number;
+    }
+  ): Promise<AgentEntity> {
+    return registry.registerWorker({
+      name,
+      workerMode: 'ephemeral',
+      createdBy: systemEntity,
+      capabilities: {
+        skills: options?.skills ?? ['general'],
+        languages: options?.languages ?? ['typescript'],
+        maxConcurrentTasks: options?.maxConcurrentTasks ?? 1,
+      },
+    });
+  }
+
+  describe('dispatch', () => {
+    test('dispatches a task to an agent and sends notification', async () => {
+      const task = await createTestTask('Implement feature');
+      const worker = await createTestWorker('alice');
+
+      const agentId = worker.id as unknown as EntityId;
+      const result = await dispatchService.dispatch(task.id, agentId);
+
+      // Check dispatch result structure
+      expect(result.task).toBeDefined();
+      expect(result.agent).toBeDefined();
+      expect(result.notification).toBeDefined();
+      expect(result.channel).toBeDefined();
+      expect(result.isNewAssignment).toBe(true);
+      expect(result.dispatchedAt).toBeDefined();
+
+      // Check task was assigned
+      expect(result.task.assignee).toBe(agentId);
+      const meta = getOrchestratorTaskMeta(result.task.metadata as Record<string, unknown>);
+      expect(meta?.assignedAgent).toBe(agentId);
+      expect(meta?.branch).toContain('agent/alice/');
+
+      // Check notification was sent to the correct channel
+      expect(result.channel.name).toBe(`agent-${agentId}`);
+    });
+
+    test('dispatches with custom options (priority, restart)', async () => {
+      const task = await createTestTask('Urgent fix');
+      const worker = await createTestWorker('bob');
+
+      const agentId = worker.id as unknown as EntityId;
+      const result = await dispatchService.dispatch(task.id, agentId, {
+        priority: 10,
+        restart: true,
+        markAsStarted: true,
+        branch: 'custom/branch',
+        worktree: '.worktrees/custom',
+      });
+
+      // Check notification metadata includes priority and restart
+      const msgMeta = result.notification.metadata as Record<string, unknown>;
+      expect(msgMeta.priority).toBe(10);
+      expect(msgMeta.restart).toBe(true);
+      expect(msgMeta.type).toBe('task-assignment');
+
+      // Check task metadata
+      const taskMeta = getOrchestratorTaskMeta(result.task.metadata as Record<string, unknown>);
+      expect(taskMeta?.branch).toBe('custom/branch');
+      expect(taskMeta?.worktree).toBe('.worktrees/custom');
+
+      // Check task was marked as started
+      expect(result.task.status).toBe(TaskStatus.IN_PROGRESS);
+    });
+
+    test('dispatches with custom notification message', async () => {
+      const task = await createTestTask('Test task');
+      const worker = await createTestWorker('carol');
+
+      const agentId = worker.id as unknown as EntityId;
+      const result = await dispatchService.dispatch(task.id, agentId, {
+        notificationMessage: 'Custom notification: please start immediately',
+      });
+
+      // The notification content should be in the referenced document
+      const doc = await api.get(result.notification.contentRef as unknown as ElementId);
+      expect(doc).toBeDefined();
+      expect((doc as { content?: string })?.content).toBe('Custom notification: please start immediately');
+    });
+
+    test('detects reassignment and sets correct message type', async () => {
+      const task = await createTestTask('Shared task');
+      const worker1 = await createTestWorker('dave');
+      const worker2 = await createTestWorker('eve');
+
+      // First dispatch
+      const agentId1 = worker1.id as unknown as EntityId;
+      const result1 = await dispatchService.dispatch(task.id, agentId1);
+      expect(result1.isNewAssignment).toBe(true);
+      expect((result1.notification.metadata as Record<string, unknown>).type).toBe('task-assignment');
+
+      // Second dispatch (reassignment)
+      const agentId2 = worker2.id as unknown as EntityId;
+      const result2 = await dispatchService.dispatch(task.id, agentId2);
+      expect(result2.isNewAssignment).toBe(false);
+      expect((result2.notification.metadata as Record<string, unknown>).type).toBe('task-reassignment');
+    });
+
+    test('throws error for non-existent task', async () => {
+      const worker = await createTestWorker('frank');
+      const agentId = worker.id as unknown as EntityId;
+
+      await expect(
+        dispatchService.dispatch('nonexistent-task' as ElementId, agentId)
+      ).rejects.toThrow('Task not found');
+    });
+
+    test('throws error for non-existent agent', async () => {
+      const task = await createTestTask('Valid task');
+
+      await expect(
+        dispatchService.dispatch(task.id, 'nonexistent-agent' as EntityId)
+      ).rejects.toThrow('Agent not found');
+    });
+  });
+
+  describe('dispatchBatch', () => {
+    test('dispatches multiple tasks to the same agent', async () => {
+      const task1 = await createTestTask('Task 1');
+      const task2 = await createTestTask('Task 2');
+      const task3 = await createTestTask('Task 3');
+      const worker = await createTestWorker('grace', { maxConcurrentTasks: 5 });
+
+      const agentId = worker.id as unknown as EntityId;
+      const results = await dispatchService.dispatchBatch(
+        [task1.id, task2.id, task3.id],
+        agentId
+      );
+
+      expect(results.length).toBe(3);
+      for (const result of results) {
+        expect(result.task.assignee).toBe(agentId);
+        expect(result.agent.id).toBe(worker.id);
+      }
+    });
+  });
+
+  describe('getCandidates', () => {
+    test('returns available workers ranked by capability match', async () => {
+      // Create workers with different skills
+      const frontendDev = await createTestWorker('frontend-dev', {
+        skills: ['frontend', 'react', 'css'],
+        languages: ['typescript', 'javascript'],
+      });
+      const backendDev = await createTestWorker('backend-dev', {
+        skills: ['backend', 'api', 'database'],
+        languages: ['typescript', 'python'],
+      });
+      const fullstackDev = await createTestWorker('fullstack-dev', {
+        skills: ['frontend', 'backend', 'react', 'api'],
+        languages: ['typescript'],
+      });
+
+      // Create task requiring frontend skills
+      const task = await createTestTask('Build login form', {
+        requiredSkills: ['frontend', 'react'],
+        preferredLanguages: ['typescript'],
+      });
+
+      const result = await dispatchService.getCandidates(task.id);
+
+      expect(result.candidates.length).toBeGreaterThan(0);
+      expect(result.hasRequirements).toBe(true);
+
+      // Frontend and fullstack devs should be eligible, backend should not
+      const candidateNames = result.candidates.map(c => c.agent.name);
+      expect(candidateNames).toContain('frontend-dev');
+      expect(candidateNames).toContain('fullstack-dev');
+      expect(candidateNames).not.toContain('backend-dev');
+    });
+
+    test('returns empty candidates when no workers are available', async () => {
+      const task = await createTestTask('Orphan task');
+
+      const result = await dispatchService.getCandidates(task.id);
+
+      expect(result.candidates.length).toBe(0);
+      expect(result.bestCandidate).toBeUndefined();
+    });
+
+    test('respects eligibleOnly option', async () => {
+      const worker = await createTestWorker('limited-worker', {
+        skills: ['frontend'],
+        languages: ['javascript'],
+      });
+
+      const task = await createTestTask('Backend task', {
+        requiredSkills: ['backend'], // Worker doesn't have this
+        preferredSkills: ['frontend'],
+      });
+
+      // With eligibleOnly true (default), worker should not be returned
+      const eligibleResult = await dispatchService.getCandidates(task.id, { eligibleOnly: true });
+      expect(eligibleResult.candidates.length).toBe(0);
+
+      // With eligibleOnly false, worker should be returned (but with low score)
+      const allResult = await dispatchService.getCandidates(task.id, { eligibleOnly: false });
+      expect(allResult.candidates.length).toBe(1);
+      expect(allResult.candidates[0].matchResult.isEligible).toBe(false);
+    });
+
+    test('filters out workers without capacity', async () => {
+      // Create worker with max 1 concurrent task
+      const worker = await createTestWorker('busy-worker', {
+        skills: ['general'],
+        maxConcurrentTasks: 1,
+      });
+
+      // Assign a task to the worker (fills capacity)
+      const existingTask = await createTestTask('Existing task');
+      await taskAssignment.assignToAgent(
+        existingTask.id,
+        worker.id as unknown as EntityId,
+        { markAsStarted: true }
+      );
+
+      // Create new task
+      const newTask = await createTestTask('New task');
+
+      // Worker should not be in candidates (no capacity)
+      const result = await dispatchService.getCandidates(newTask.id);
+      const candidateIds = result.candidates.map(c => c.agent.id);
+      expect(candidateIds).not.toContain(worker.id);
+    });
+  });
+
+  describe('getBestAgent', () => {
+    test('returns the best matching agent', async () => {
+      // Create workers with different capability scores
+      const perfectMatch = await createTestWorker('perfect', {
+        skills: ['frontend', 'react', 'testing'],
+        languages: ['typescript', 'javascript'],
+      });
+      const goodMatch = await createTestWorker('good', {
+        skills: ['frontend', 'react'],
+        languages: ['typescript'],
+      });
+
+      const task = await createTestTask('Build component', {
+        requiredSkills: ['frontend', 'react'],
+        preferredSkills: ['testing'],
+        preferredLanguages: ['typescript', 'javascript'],
+      });
+
+      const bestAgent = await dispatchService.getBestAgent(task.id);
+
+      expect(bestAgent).toBeDefined();
+      // Perfect match has all preferred skills and languages
+      expect(bestAgent?.agent.name).toBe('perfect');
+    });
+
+    test('returns undefined when no eligible agents', async () => {
+      const task = await createTestTask('Impossible task', {
+        requiredSkills: ['alien-technology'],
+      });
+
+      const bestAgent = await dispatchService.getBestAgent(task.id);
+      expect(bestAgent).toBeUndefined();
+    });
+  });
+
+  describe('smartDispatch', () => {
+    test('automatically dispatches to the best agent', async () => {
+      const worker1 = await createTestWorker('worker-1', {
+        skills: ['frontend'],
+        languages: ['typescript'],
+      });
+      const worker2 = await createTestWorker('worker-2', {
+        skills: ['frontend', 'react', 'css'],
+        languages: ['typescript'],
+      });
+
+      const task = await createTestTask('React component', {
+        requiredSkills: ['frontend', 'react'],
+      });
+
+      const result = await dispatchService.smartDispatch(task.id);
+
+      // Should dispatch to worker-2 (has react skill)
+      expect(result.agent.name).toBe('worker-2');
+      expect(result.task.assignee).toBe(worker2.id as unknown as EntityId);
+    });
+
+    test('throws error when no eligible agents found', async () => {
+      const task = await createTestTask('Impossible task', {
+        requiredSkills: ['nonexistent-skill'],
+      });
+
+      await expect(dispatchService.smartDispatch(task.id)).rejects.toThrow(
+        'No eligible agents found'
+      );
+    });
+
+    test('passes options through to dispatch', async () => {
+      const worker = await createTestWorker('single-worker', {
+        skills: ['general'],
+      });
+
+      const task = await createTestTask('General task');
+
+      const result = await dispatchService.smartDispatch(task.id, {
+        priority: 5,
+        markAsStarted: true,
+      });
+
+      expect((result.notification.metadata as Record<string, unknown>).priority).toBe(5);
+      expect(result.task.status).toBe(TaskStatus.IN_PROGRESS);
+    });
+  });
+
+  describe('notifyAgent', () => {
+    test('sends notification without task assignment', async () => {
+      const worker = await createTestWorker('idle-worker');
+      const agentId = worker.id as unknown as EntityId;
+
+      const notification = await dispatchService.notifyAgent(
+        agentId,
+        'restart-signal',
+        'Please restart your session',
+        { reason: 'configuration change' }
+      );
+
+      expect(notification).toBeDefined();
+      expect((notification.metadata as Record<string, unknown>).type).toBe('restart-signal');
+      expect((notification.metadata as Record<string, unknown>).reason).toBe('configuration change');
+    });
+
+    test('throws error for non-existent agent', async () => {
+      await expect(
+        dispatchService.notifyAgent(
+          'nonexistent-agent' as EntityId,
+          'restart-signal',
+          'Test message'
+        )
+      ).rejects.toThrow('Agent channel not found');
+    });
+  });
+});

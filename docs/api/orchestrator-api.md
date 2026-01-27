@@ -351,6 +351,111 @@ The `AssignmentStatus` type tracks where a task is in the assignment lifecycle:
 | `completed` | Task completed, awaiting merge |
 | `merged` | Branch successfully merged |
 
+### DispatchService (TB-O8a)
+
+The DispatchService combines task assignment with agent notification and provides capability-based smart routing.
+
+```typescript
+import {
+  createDispatchService,
+  type DispatchResult,
+  type SmartDispatchOptions,
+} from '@elemental/orchestrator-sdk';
+
+const dispatchService = createDispatchService(api, assignmentService, registry);
+```
+
+#### Direct Dispatch
+
+```typescript
+// Dispatch a task to a specific agent
+const result = await dispatchService.dispatch(taskId, agentId, {
+  branch: 'custom/branch',        // Optional: custom branch name
+  worktree: '.worktrees/custom',  // Optional: custom worktree path
+  priority: 10,                    // Optional: priority level (higher = more urgent)
+  restart: true,                   // Optional: signal agent to restart
+  markAsStarted: true,             // Optional: immediately mark as in_progress
+  notificationMessage: 'Custom message', // Optional: custom notification
+  dispatchedBy: senderEntityId,    // Optional: who dispatched (for message sender)
+});
+
+// Result includes:
+// - result.task: Updated task after assignment
+// - result.agent: The agent dispatched to
+// - result.notification: The notification message sent
+// - result.channel: The agent's channel
+// - result.isNewAssignment: true if first assignment, false if reassignment
+// - result.dispatchedAt: Timestamp of dispatch
+```
+
+#### Batch Dispatch
+
+```typescript
+// Dispatch multiple tasks to the same agent
+const results = await dispatchService.dispatchBatch(
+  [taskId1, taskId2, taskId3],
+  agentId,
+  { priority: 5 }
+);
+```
+
+#### Smart Dispatch (Capability-based Routing)
+
+```typescript
+// Automatically dispatch to the best matching available agent
+const result = await dispatchService.smartDispatch(taskId, {
+  eligibleOnly: true,    // Only consider agents meeting all requirements
+  minScore: 50,          // Minimum capability score threshold
+  priority: 5,           // Priority for notification
+});
+
+// Get candidate agents without dispatching
+const candidates = await dispatchService.getCandidates(taskId, {
+  eligibleOnly: true,
+  minScore: 0,
+});
+// candidates.candidates: sorted list by score
+// candidates.bestCandidate: highest scoring agent
+// candidates.hasRequirements: whether task has capability requirements
+// candidates.requirements: the task's capability requirements
+
+// Get just the best agent
+const best = await dispatchService.getBestAgent(taskId);
+if (best) {
+  console.log(`Best: ${best.agent.name} (score: ${best.matchResult.score})`);
+}
+```
+
+#### Agent Notification (without task assignment)
+
+```typescript
+// Send notification to an agent without assigning a task
+await dispatchService.notifyAgent(
+  agentId,
+  'restart-signal',                // 'task-assignment' | 'task-reassignment' | 'restart-signal'
+  'Please restart your session',   // Message content
+  { reason: 'configuration change' } // Optional metadata
+);
+```
+
+#### Dispatch Notification Metadata
+
+Notifications sent via dispatch include structured metadata:
+
+```typescript
+interface DispatchNotificationMetadata {
+  type: 'task-assignment' | 'task-reassignment' | 'restart-signal';
+  taskId: ElementId;
+  priority?: number;
+  restart?: boolean;
+  branch?: string;
+  worktree?: string;
+  sessionId?: string;
+  dispatchedAt: Timestamp;
+  dispatchedBy?: EntityId;
+}
+```
+
 ## Session Management
 
 ```typescript
@@ -368,6 +473,7 @@ Key files:
 - `packages/orchestrator-sdk/src/services/capability-service.ts` - Capability matching
 - `packages/orchestrator-sdk/src/services/agent-registry.ts` - Agent registration and channel management
 - `packages/orchestrator-sdk/src/services/task-assignment-service.ts` - Task assignment and workload management
+- `packages/orchestrator-sdk/src/services/dispatch-service.ts` - Task dispatch with assignment + notification
 
 ## See Also
 
