@@ -465,6 +465,137 @@ await api.updateAgentSession(agentId, 'session-123', 'running');
 // Session states: 'idle' | 'running' | 'suspended' | 'terminated'
 ```
 
+## SpawnerService (TB-O9)
+
+The SpawnerService manages Claude Code process spawning and lifecycle for AI agents.
+
+### Creating a Spawner
+
+```typescript
+import { createSpawnerService, type SpawnerService } from '@elemental/orchestrator-sdk';
+
+const spawner = createSpawnerService({
+  claudePath: 'claude',           // Path to Claude Code binary
+  workingDirectory: '/workspace', // Default working directory
+  timeout: 30000,                 // Timeout for init (30s)
+  elementalRoot: '/workspace',    // Sets ELEMENTAL_ROOT env var
+  environmentVariables: {},       // Additional env vars
+});
+```
+
+### Spawning Agents
+
+```typescript
+// Spawn a headless worker (ephemeral workers, stewards)
+const result = await spawner.spawn(agentId, 'worker', {
+  mode: 'headless',                      // Uses stream-json format
+  workingDirectory: '/path/to/worktree',
+  resumeSessionId: 'previous-session',   // Resume previous session
+  initialPrompt: 'Implement the feature', // Initial prompt
+});
+
+// Access session info and event emitter
+console.log(result.session.id);           // Internal session ID
+console.log(result.session.claudeSessionId); // Claude Code session ID (for resume)
+console.log(result.session.status);       // 'running'
+
+// Listen for events
+result.events.on('event', (event) => {
+  console.log(`Event type: ${event.type}`);  // assistant, tool_use, tool_result, error, system
+  if (event.message) console.log(event.message);
+});
+
+result.events.on('exit', (code, signal) => {
+  console.log(`Process exited with code ${code}`);
+});
+```
+
+### Session States
+
+Sessions follow a state machine:
+
+| State | Description | Valid Transitions |
+|-------|-------------|-------------------|
+| `starting` | Process is starting | running, terminated |
+| `running` | Agent is active | suspended, terminating, terminated |
+| `suspended` | Paused for later resume | running, terminated |
+| `terminating` | Shutting down | terminated |
+| `terminated` | Process ended | (none) |
+
+### Session Operations
+
+```typescript
+// Terminate a session
+await spawner.terminate(sessionId, true); // graceful=true (SIGTERM then SIGKILL)
+await spawner.terminate(sessionId, false); // force kill (SIGKILL)
+
+// Suspend a session (marks for later resume)
+await spawner.suspend(sessionId);
+
+// Send input to a headless session
+await spawner.sendInput(sessionId, 'Please continue');
+```
+
+### Session Queries
+
+```typescript
+// Get session by ID
+const session = spawner.getSession(sessionId);
+
+// List active sessions
+const active = spawner.listActiveSessions();
+const forAgent = spawner.listActiveSessions(agentId);
+
+// List all sessions (including terminated)
+const all = spawner.listAllSessions();
+
+// Get most recent session for an agent
+const recent = spawner.getMostRecentSession(agentId);
+
+// Get event emitter for a session
+const events = spawner.getEventEmitter(sessionId);
+```
+
+### Stream JSON Events
+
+Headless agents emit stream-json events:
+
+```typescript
+interface SpawnedSessionEvent {
+  type: StreamJsonEventType;    // 'system' | 'assistant' | 'user' | 'tool_use' | 'tool_result' | 'result' | 'error'
+  subtype?: string;             // e.g., 'init', 'text'
+  receivedAt: Timestamp;        // When event was received
+  raw: StreamJsonEvent;         // Raw event data
+  message?: string;             // Parsed message content
+  tool?: {                      // Tool information (for tool_use/tool_result)
+    name?: string;
+    id?: string;
+    input?: unknown;
+  };
+}
+```
+
+### Utility Functions
+
+```typescript
+import {
+  canReceiveInput,
+  isTerminalStatus,
+  getStatusDescription,
+} from '@elemental/orchestrator-sdk';
+
+canReceiveInput('running');      // true
+isTerminalStatus('terminated');  // true
+getStatusDescription('running'); // 'Running'
+```
+
+### Notes
+
+- **Headless mode** uses `child_process.spawn()` with stream-json I/O
+- **Interactive mode** requires `node-pty` (not yet implemented)
+- The `ELEMENTAL_ROOT` environment variable is set for worktree root-finding
+- Sessions persist in memory; for cross-restart persistence, use the SessionManager (TB-O10)
+
 ## Type Definitions
 
 Key files:

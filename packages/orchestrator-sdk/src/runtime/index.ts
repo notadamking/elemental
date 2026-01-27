@@ -1,14 +1,35 @@
 /**
  * Orchestrator Runtime
  *
- * This module will export runtime management:
- * - Spawner for Claude Code processes (TB-O9)
- * - SessionManager for tracking sessions (TB-O10)
- * - Predecessor query service (TB-O10d)
- * - Handoff services (TB-O10e, TB-O10f)
- *
- * These are stubs for now - implementations will be added in later tracer bullets.
+ * This module exports runtime management for Claude Code agent processes:
+ * - SpawnerService (TB-O9) - Spawns and manages Claude Code processes
+ * - SessionManager (TB-O10) - Session tracking with resume support (TODO)
+ * - Predecessor query service (TB-O10d) - TODO
+ * - Handoff services (TB-O10e, TB-O10f) - TODO
  */
 
-// Placeholder exports - runtime components will be implemented in later TBs
-export {};
+// Spawner service (TB-O9)
+export {
+  // Types
+  type SpawnMode,
+  type SpawnConfig,
+  type SpawnOptions,
+  type StreamJsonEventType,
+  type StreamJsonEvent,
+  type SpawnedSessionEvent,
+  type SessionStatus,
+  type SpawnedSession,
+  type SpawnResult,
+  type SendInputOptions,
+  type SpawnerService,
+  // Constants
+  SessionStatusTransitions,
+  // Implementation
+  SpawnerServiceImpl,
+  // Factory
+  createSpawnerService,
+  // Utilities
+  canReceiveInput,
+  isTerminalStatus,
+  getStatusDescription,
+} from './spawner.js';
