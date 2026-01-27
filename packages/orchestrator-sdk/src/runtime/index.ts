@@ -3,7 +3,7 @@
  *
  * This module exports runtime management for Claude Code agent processes:
  * - SpawnerService (TB-O9) - Spawns and manages Claude Code processes
- * - SessionManager (TB-O10) - Session tracking with resume support (TODO)
+ * - SessionManager (TB-O10) - Session tracking with resume support
  * - Predecessor query service (TB-O10d) - TODO
  * - Handoff services (TB-O10e, TB-O10f) - TODO
  */
@@ -37,3 +37,21 @@ export {
   isTerminalStatus,
   getStatusDescription,
 } from './spawner.js';
+
+// Session Manager (TB-O10)
+export {
+  // Types
+  type SessionRecord,
+  type StartSessionOptions,
+  type ResumeSessionOptions,
+  type StopSessionOptions,
+  type MessageSessionOptions,
+  type MessageSessionResult,
+  type SessionFilter,
+  type SessionHistoryEntry,
+  type SessionManager,
+  // Implementation
+  SessionManagerImpl,
+  // Factory
+  createSessionManager,
+} from './session-manager.js';

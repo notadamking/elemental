@@ -669,6 +669,170 @@ interface UWPTaskInfo {
 - The `ELEMENTAL_ROOT` environment variable is set for worktree root-finding
 - Sessions persist in memory; for cross-restart persistence, use the SessionManager (TB-O10)
 
+## SessionManager (TB-O10)
+
+The SessionManager provides higher-level session lifecycle management with Claude Code session ID support for resumable sessions and cross-restart persistence.
+
+### Creating a SessionManager
+
+```typescript
+import {
+  createSessionManager,
+  createSpawnerService,
+  type SessionManager,
+} from '@elemental/orchestrator-sdk';
+
+// SessionManager wraps SpawnerService and integrates with AgentRegistry
+const spawner = createSpawnerService({ /* config */ });
+const sessionManager = createSessionManager(spawner, api, agentRegistry);
+```
+
+### Starting Sessions
+
+```typescript
+// Start a new session for an agent
+const { session, events } = await sessionManager.startSession(agentId, {
+  workingDirectory: '/path/to/worktree',
+  worktree: '/worktrees/worker-1',
+  initialPrompt: 'Please implement the feature',
+  interactive: false,  // true for PTY mode
+});
+
+console.log(session.id);              // Internal session ID
+console.log(session.claudeSessionId); // Claude Code session ID (for resume)
+console.log(session.status);          // 'running'
+
+// Listen for events
+events.on('event', (event) => console.log(event));
+events.on('status', (status) => console.log(`Status: ${status}`));
+events.on('exit', (code, signal) => console.log(`Exited: ${code}`));
+```
+
+### Resuming Sessions
+
+```typescript
+// Resume a previous session using its Claude Code session ID
+const { session, events } = await sessionManager.resumeSession(agentId, {
+  claudeSessionId: 'previous-claude-session-id',
+  workingDirectory: '/path/to/worktree',
+  resumePrompt: 'Continue where you left off',
+});
+```
+
+### Stopping and Suspending Sessions
+
+```typescript
+// Stop a session (terminate)
+await sessionManager.stopSession(sessionId, {
+  graceful: true,     // SIGTERM then SIGKILL
+  reason: 'Task completed',
+});
+
+// Suspend a session (can be resumed later)
+await sessionManager.suspendSession(sessionId, 'Context overflow');
+// Claude session ID is preserved in agent metadata for later resume
+```
+
+### Session Queries
+
+```typescript
+// Get session by internal ID
+const session = sessionManager.getSession(sessionId);
+
+// Get active session for an agent
+const activeSession = sessionManager.getActiveSession(agentId);
+
+// List sessions with filters
+const sessions = sessionManager.listSessions({
+  agentId,                           // Filter by agent
+  role: 'worker',                    // Filter by role
+  status: ['running', 'suspended'],  // Filter by status
+  resumable: true,                   // Only sessions with Claude session ID
+});
+
+// Get most recent resumable session
+const resumable = sessionManager.getMostRecentResumableSession(agentId);
+```
+
+### Session History
+
+```typescript
+// Get session history for an agent (stored in agent metadata)
+const history = await sessionManager.getSessionHistory(agentId, 10);
+
+for (const entry of history) {
+  console.log(`${entry.id}: ${entry.status} (${entry.startedAt} - ${entry.endedAt})`);
+}
+```
+
+### Session Communication
+
+```typescript
+// Send a message to a running session via its agent channel
+const result = await sessionManager.messageSession(sessionId, {
+  content: 'Please provide a status update',
+  senderId: directorAgentId,
+  metadata: { urgent: true },
+});
+
+if (result.success) {
+  console.log(`Message sent: ${result.messageId}`);
+}
+```
+
+### Session Events
+
+The session's event emitter provides:
+
+| Event | Description | Payload |
+|-------|-------------|---------|
+| `event` | Parsed stream-json event | `SpawnedSessionEvent` |
+| `status` | Session status change | `SessionStatus` |
+| `error` | Session error | `Error` |
+| `exit` | Process exit | `(code, signal)` |
+| `stderr` | stderr output | `Buffer` |
+| `raw` | Raw stdout data | `Buffer` |
+
+### Session Record
+
+```typescript
+interface SessionRecord {
+  id: string;                    // Internal session ID
+  claudeSessionId?: string;      // Claude Code session ID (for resume)
+  agentId: EntityId;             // Agent entity ID
+  agentRole: AgentRole;          // 'director' | 'worker' | 'steward'
+  workerMode?: WorkerMode;       // 'ephemeral' | 'persistent'
+  pid?: number;                  // Process ID (if running)
+  status: SessionStatus;         // Session state
+  workingDirectory: string;      // Working directory
+  worktree?: string;             // Git worktree path
+  createdAt: Timestamp;          // When session was created
+  startedAt?: Timestamp;         // When running state entered
+  lastActivityAt: Timestamp;     // Last activity timestamp
+  endedAt?: Timestamp;           // When terminated/suspended
+  terminationReason?: string;    // Reason for termination
+}
+```
+
+### Persistence
+
+Session state is automatically coordinated with the AgentRegistry:
+
+```typescript
+// Explicitly persist session state
+await sessionManager.persistSession(sessionId);
+
+// Load session state from database on startup
+await sessionManager.loadSessionState(agentId);
+```
+
+### Notes
+
+- SessionManager integrates SpawnerService, AgentRegistry, and ElementalAPI
+- Agent session status is automatically updated in the registry
+- Session history is stored in agent entity metadata for cross-restart persistence
+- Each agent can only have one active session at a time
+
 ## Type Definitions
 
 Key files:
@@ -678,6 +842,8 @@ Key files:
 - `packages/orchestrator-sdk/src/services/agent-registry.ts` - Agent registration and channel management
 - `packages/orchestrator-sdk/src/services/task-assignment-service.ts` - Task assignment and workload management
 - `packages/orchestrator-sdk/src/services/dispatch-service.ts` - Task dispatch with assignment + notification
+- `packages/orchestrator-sdk/src/runtime/spawner.ts` - Claude Code process spawning (TB-O9)
+- `packages/orchestrator-sdk/src/runtime/session-manager.ts` - Session lifecycle management (TB-O10)
 
 ## See Also
 

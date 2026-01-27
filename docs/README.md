@@ -24,6 +24,7 @@
 | Assign tasks to agents | [api/orchestrator-api.md#taskassignmentservice-tb-o8](api/orchestrator-api.md#taskassignmentservice-tb-o8) | `packages/orchestrator-sdk/src/services/task-assignment-service.ts` |
 | Dispatch tasks to agents | [api/orchestrator-api.md#dispatchservice-tb-o8a](api/orchestrator-api.md#dispatchservice-tb-o8a) | `packages/orchestrator-sdk/src/services/dispatch-service.ts` |
 | Spawn agent processes | [api/orchestrator-api.md#spawnerservice-tb-o9](api/orchestrator-api.md#spawnerservice-tb-o9) | `packages/orchestrator-sdk/src/runtime/spawner.ts` |
+| Manage agent sessions | [api/orchestrator-api.md#sessionmanager-tb-o10](api/orchestrator-api.md#sessionmanager-tb-o10) | `packages/orchestrator-sdk/src/runtime/session-manager.ts` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
@@ -152,6 +153,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Task assignment service | `services/task-assignment-service.ts` | `services/task-assignment-service.test.ts` |
 | Dispatch service | `services/dispatch-service.ts` | `services/dispatch-service.test.ts` |
 | Spawner service | `runtime/spawner.ts` | `runtime/spawner.test.ts`, `runtime/spawner.integration.test.ts` |
+| Session manager | `runtime/session-manager.ts` | `runtime/session-manager.test.ts` |
 
 ## File Map (Platform)
 

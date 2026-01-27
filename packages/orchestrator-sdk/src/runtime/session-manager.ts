@@ -1,0 +1,1013 @@
+/**
+ * Session Manager Service
+ *
+ * This service manages agent sessions with Claude Code session ID support for
+ * resumable sessions and cross-restart persistence.
+ *
+ * Key features:
+ * - Track active sessions with process metadata
+ * - Persist session state to database via Agent entity metadata
+ * - Start, resume, stop, and suspend sessions
+ * - Message running sessions via agent channels
+ * - Query session history per agent
+ *
+ * @module
+ */
+
+import { EventEmitter } from 'node:events';
+import type { EntityId, Timestamp, MessageId, DocumentId } from '@elemental/core';
+import { createTimestamp } from '@elemental/core';
+import type { ElementalAPI } from '@elemental/sdk';
+import type { AgentRole, WorkerMode } from '../types/agent.js';
+import type { AgentEntity } from '../api/orchestrator-api.js';
+import { getAgentMetadata } from '../api/orchestrator-api.js';
+import type {
+  SpawnerService,
+  SpawnOptions,
+  SpawnResult,
+  SessionStatus,
+} from './spawner.js';
+import type { AgentRegistry } from '../services/agent-registry.js';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * Session record with persistence metadata
+ */
+export interface SessionRecord {
+  /** Internal session ID (unique per spawn) */
+  readonly id: string;
+  /** Claude Code session ID (for resume) */
+  readonly claudeSessionId?: string;
+  /** Agent entity ID this session belongs to */
+  readonly agentId: EntityId;
+  /** Agent role */
+  readonly agentRole: AgentRole;
+  /** Worker mode (for workers) */
+  readonly workerMode?: WorkerMode;
+  /** Process ID (if running) */
+  readonly pid?: number;
+  /** Current status */
+  readonly status: SessionStatus;
+  /** Working directory */
+  readonly workingDirectory: string;
+  /** Git worktree path (for workers) */
+  readonly worktree?: string;
+  /** Session created timestamp */
+  readonly createdAt: Timestamp;
+  /** Session started timestamp (when running state entered) */
+  readonly startedAt?: Timestamp;
+  /** Last activity timestamp */
+  readonly lastActivityAt: Timestamp;
+  /** Session ended timestamp (when terminated/suspended) */
+  readonly endedAt?: Timestamp;
+  /** Reason for termination (if applicable) */
+  readonly terminationReason?: string;
+}
+
+/**
+ * Options for starting a new session
+ */
+export interface StartSessionOptions {
+  /** Working directory for the session */
+  readonly workingDirectory?: string;
+  /** Git worktree path */
+  readonly worktree?: string;
+  /** Initial prompt to send to the agent */
+  readonly initialPrompt?: string;
+  /** Additional environment variables */
+  readonly environmentVariables?: Record<string, string>;
+  /** Whether to use interactive mode (PTY) */
+  readonly interactive?: boolean;
+}
+
+/**
+ * Options for resuming a session
+ */
+export interface ResumeSessionOptions {
+  /** The Claude Code session ID to resume */
+  readonly claudeSessionId: string;
+  /** Working directory for the session */
+  readonly workingDirectory?: string;
+  /** Git worktree path */
+  readonly worktree?: string;
+  /** Additional prompt to send after resume */
+  readonly resumePrompt?: string;
+}
+
+/**
+ * Options for stopping a session
+ */
+export interface StopSessionOptions {
+  /** Whether to attempt graceful shutdown (default: true) */
+  readonly graceful?: boolean;
+  /** Reason for stopping */
+  readonly reason?: string;
+}
+
+/**
+ * Options for sending a message to a session
+ */
+export interface MessageSessionOptions {
+  /** Document ID containing the message content */
+  readonly contentRef?: DocumentId;
+  /** Message content (if contentRef not provided) */
+  readonly content?: string;
+  /** Entity ID of the sender */
+  readonly senderId?: EntityId;
+  /** Additional metadata for the message */
+  readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Result of sending a message to a session
+ */
+export interface MessageSessionResult {
+  /** Whether the message was sent successfully */
+  readonly success: boolean;
+  /** The message ID if sent via channel */
+  readonly messageId?: MessageId;
+  /** Error message if failed */
+  readonly error?: string;
+}
+
+/**
+ * Filter options for listing sessions
+ */
+export interface SessionFilter {
+  /** Filter by agent ID */
+  readonly agentId?: EntityId;
+  /** Filter by agent role */
+  readonly role?: AgentRole;
+  /** Filter by status */
+  readonly status?: SessionStatus | SessionStatus[];
+  /** Filter by sessions started after this time */
+  readonly startedAfter?: Timestamp;
+  /** Filter by sessions started before this time */
+  readonly startedBefore?: Timestamp;
+  /** Include only sessions with Claude session IDs (resumable) */
+  readonly resumable?: boolean;
+}
+
+/**
+ * Session history entry stored in database
+ */
+export interface SessionHistoryEntry {
+  /** Internal session ID */
+  readonly id: string;
+  /** Claude Code session ID */
+  readonly claudeSessionId?: string;
+  /** Session status when entry was created */
+  readonly status: SessionStatus;
+  /** Working directory */
+  readonly workingDirectory: string;
+  /** Worktree path */
+  readonly worktree?: string;
+  /** Session started timestamp */
+  readonly startedAt?: Timestamp;
+  /** Session ended timestamp */
+  readonly endedAt?: Timestamp;
+  /** Termination reason */
+  readonly terminationReason?: string;
+}
+
+// ============================================================================
+// Session Manager Interface
+// ============================================================================
+
+/**
+ * Session Manager interface for agent session lifecycle management.
+ *
+ * The manager provides methods for:
+ * - Starting new agent sessions
+ * - Resuming previous sessions with context preservation
+ * - Stopping and suspending sessions
+ * - Messaging running sessions
+ * - Querying session history
+ */
+export interface SessionManager {
+  // ----------------------------------------
+  // Session Lifecycle
+  // ----------------------------------------
+
+  /**
+   * Starts a new session for an agent.
+   *
+   * @param agentId - The agent entity ID
+   * @param options - Start options
+   * @returns The session record and event emitter
+   */
+  startSession(
+    agentId: EntityId,
+    options?: StartSessionOptions
+  ): Promise<{ session: SessionRecord; events: EventEmitter }>;
+
+  /**
+   * Resumes a previous session using its Claude Code session ID.
+   *
+   * @param agentId - The agent entity ID
+   * @param options - Resume options including the Claude session ID
+   * @returns The resumed session record and event emitter
+   */
+  resumeSession(
+    agentId: EntityId,
+    options: ResumeSessionOptions
+  ): Promise<{ session: SessionRecord; events: EventEmitter }>;
+
+  /**
+   * Stops a running session.
+   *
+   * @param sessionId - The internal session ID
+   * @param options - Stop options
+   */
+  stopSession(sessionId: string, options?: StopSessionOptions): Promise<void>;
+
+  /**
+   * Suspends a session (marks it for later resume).
+   * The session can be resumed later using its Claude Code session ID.
+   *
+   * @param sessionId - The internal session ID
+   * @param reason - Optional reason for suspension
+   */
+  suspendSession(sessionId: string, reason?: string): Promise<void>;
+
+  // ----------------------------------------
+  // Session Queries
+  // ----------------------------------------
+
+  /**
+   * Gets a session by internal ID.
+   *
+   * @param sessionId - The internal session ID
+   * @returns The session record or undefined if not found
+   */
+  getSession(sessionId: string): SessionRecord | undefined;
+
+  /**
+   * Gets the active session for an agent.
+   *
+   * @param agentId - The agent entity ID
+   * @returns The active session or undefined if none
+   */
+  getActiveSession(agentId: EntityId): SessionRecord | undefined;
+
+  /**
+   * Lists sessions matching the filter.
+   *
+   * @param filter - Filter options
+   * @returns Array of matching session records
+   */
+  listSessions(filter?: SessionFilter): SessionRecord[];
+
+  /**
+   * Gets the most recent session for an agent that can be resumed.
+   *
+   * @param agentId - The agent entity ID
+   * @returns The most recent resumable session or undefined
+   */
+  getMostRecentResumableSession(agentId: EntityId): SessionRecord | undefined;
+
+  /**
+   * Gets the session history for an agent from the database.
+   *
+   * @param agentId - The agent entity ID
+   * @param limit - Maximum number of entries to return
+   * @returns Array of session history entries
+   */
+  getSessionHistory(agentId: EntityId, limit?: number): Promise<SessionHistoryEntry[]>;
+
+  // ----------------------------------------
+  // Session Communication
+  // ----------------------------------------
+
+  /**
+   * Sends a message to a running session via its agent channel.
+   *
+   * For headless sessions, messages are queued for the agent to process.
+   * For interactive sessions, messages appear in the agent's inbox.
+   *
+   * @param sessionId - The internal session ID
+   * @param options - Message options
+   * @returns Result of the send operation
+   */
+  messageSession(
+    sessionId: string,
+    options: MessageSessionOptions
+  ): Promise<MessageSessionResult>;
+
+  /**
+   * Gets the event emitter for a session.
+   *
+   * Events emitted:
+   * - 'event' (SpawnedSessionEvent) - Parsed stream-json event
+   * - 'status' (SessionStatus) - Session status change
+   * - 'error' (Error) - Session error
+   * - 'exit' (code: number | null, signal: string | null) - Process exit
+   *
+   * @param sessionId - The internal session ID
+   * @returns The event emitter or undefined if session not found
+   */
+  getEventEmitter(sessionId: string): EventEmitter | undefined;
+
+  // ----------------------------------------
+  // Persistence
+  // ----------------------------------------
+
+  /**
+   * Persists the current session state to the database.
+   * Called automatically on state changes but can be called manually.
+   *
+   * @param sessionId - The internal session ID
+   */
+  persistSession(sessionId: string): Promise<void>;
+
+  /**
+   * Loads session state from the database for an agent.
+   * Used to recover sessions after restart.
+   *
+   * @param agentId - The agent entity ID
+   */
+  loadSessionState(agentId: EntityId): Promise<void>;
+}
+
+// ============================================================================
+// Internal Session State
+// ============================================================================
+
+/**
+ * Internal session state tracking
+ */
+interface InternalSessionState extends SessionRecord {
+  /** Event emitter for session events */
+  events: EventEmitter;
+  /** Whether the session state has been persisted */
+  persisted: boolean;
+}
+
+// ============================================================================
+// Session Manager Implementation
+// ============================================================================
+
+/**
+ * Implementation of the Session Manager.
+ */
+export class SessionManagerImpl implements SessionManager {
+  private readonly sessions: Map<string, InternalSessionState> = new Map();
+  private readonly agentSessions: Map<EntityId, string> = new Map(); // agentId -> active sessionId
+  private readonly sessionHistory: Map<EntityId, SessionHistoryEntry[]> = new Map();
+
+  constructor(
+    private readonly spawner: SpawnerService,
+    private readonly api: ElementalAPI, // Used for message operations in messageSession
+    private readonly registry: AgentRegistry
+  ) {
+    // Subscribe to spawner events to track session state
+    this.setupSpawnerEventHandlers();
+  }
+
+  /**
+   * Gets the API instance for direct operations
+   */
+  getApi(): ElementalAPI {
+    return this.api;
+  }
+
+  // ----------------------------------------
+  // Session Lifecycle
+  // ----------------------------------------
+
+  async startSession(
+    agentId: EntityId,
+    options?: StartSessionOptions
+  ): Promise<{ session: SessionRecord; events: EventEmitter }> {
+    // Get agent to determine role and mode
+    const agent = await this.registry.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`Agent not found: ${agentId}`);
+    }
+
+    const meta = getAgentMetadata(agent);
+    if (!meta) {
+      throw new Error(`Entity is not a valid agent: ${agentId}`);
+    }
+
+    // Check if agent already has an active session
+    const existingSessionId = this.agentSessions.get(agentId);
+    if (existingSessionId) {
+      const existingSession = this.sessions.get(existingSessionId);
+      if (existingSession && existingSession.status === 'running') {
+        throw new Error(`Agent ${agentId} already has an active session: ${existingSessionId}`);
+      }
+    }
+
+    // Build spawn options
+    const spawnOptions: SpawnOptions = {
+      workingDirectory: options?.workingDirectory,
+      initialPrompt: options?.initialPrompt,
+      environmentVariables: options?.environmentVariables,
+      mode: options?.interactive ? 'interactive' : 'headless',
+    };
+
+    // Spawn the session
+    const result = await this.spawner.spawn(agentId, meta.agentRole, spawnOptions);
+
+    // Create internal session state
+    const sessionState = this.createSessionState(result, agentId, meta, options);
+
+    // Track the session
+    this.sessions.set(sessionState.id, sessionState);
+    this.agentSessions.set(agentId, sessionState.id);
+
+    // Update agent's session status in database
+    await this.registry.updateAgentSession(agentId, result.session.claudeSessionId, 'running');
+
+    // Persist session state
+    await this.persistSession(sessionState.id);
+
+    // Forward events from spawner
+    this.setupSessionEventForwarding(sessionState, result.events);
+
+    return {
+      session: this.toPublicSession(sessionState),
+      events: sessionState.events,
+    };
+  }
+
+  async resumeSession(
+    agentId: EntityId,
+    options: ResumeSessionOptions
+  ): Promise<{ session: SessionRecord; events: EventEmitter }> {
+    // Get agent to determine role and mode
+    const agent = await this.registry.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`Agent not found: ${agentId}`);
+    }
+
+    const meta = getAgentMetadata(agent);
+    if (!meta) {
+      throw new Error(`Entity is not a valid agent: ${agentId}`);
+    }
+
+    // Check if agent already has an active session
+    const existingSessionId = this.agentSessions.get(agentId);
+    if (existingSessionId) {
+      const existingSession = this.sessions.get(existingSessionId);
+      if (existingSession && existingSession.status === 'running') {
+        throw new Error(`Agent ${agentId} already has an active session: ${existingSessionId}`);
+      }
+    }
+
+    // Build spawn options with resume
+    const spawnOptions: SpawnOptions = {
+      workingDirectory: options.workingDirectory,
+      resumeSessionId: options.claudeSessionId,
+      initialPrompt: options.resumePrompt,
+    };
+
+    // Spawn the session with resume
+    const result = await this.spawner.spawn(agentId, meta.agentRole, spawnOptions);
+
+    // Create internal session state
+    const sessionState = this.createSessionState(result, agentId, meta, {
+      workingDirectory: options.workingDirectory,
+      worktree: options.worktree,
+    });
+
+    // Track the session
+    this.sessions.set(sessionState.id, sessionState);
+    this.agentSessions.set(agentId, sessionState.id);
+
+    // Update agent's session status in database
+    await this.registry.updateAgentSession(agentId, options.claudeSessionId, 'running');
+
+    // Persist session state
+    await this.persistSession(sessionState.id);
+
+    // Forward events from spawner
+    this.setupSessionEventForwarding(sessionState, result.events);
+
+    return {
+      session: this.toPublicSession(sessionState),
+      events: sessionState.events,
+    };
+  }
+
+  async stopSession(sessionId: string, options?: StopSessionOptions): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    // Update session state BEFORE terminating to prevent race with exit event handler
+    const updatedSession: InternalSessionState = {
+      ...session,
+      status: 'terminated',
+      endedAt: createTimestamp(),
+      terminationReason: options?.reason,
+      persisted: false,
+    };
+    this.sessions.set(sessionId, updatedSession);
+
+    // Clear active session for agent
+    if (this.agentSessions.get(session.agentId) === sessionId) {
+      this.agentSessions.delete(session.agentId);
+    }
+
+    // Add to history (do this before terminate to avoid race with exit handler)
+    this.addToHistory(session.agentId, updatedSession);
+
+    // Now terminate via spawner (may trigger exit event, but status already terminated)
+    await this.spawner.terminate(sessionId, options?.graceful ?? true);
+
+    // Update agent's session status in database
+    await this.registry.updateAgentSession(session.agentId, undefined, 'idle');
+
+    // Persist session state
+    await this.persistSession(sessionId);
+
+    // Emit status change
+    session.events.emit('status', 'terminated');
+  }
+
+  async suspendSession(sessionId: string, reason?: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    // Suspend via spawner
+    await this.spawner.suspend(sessionId);
+
+    // Update session state
+    const updatedSession: InternalSessionState = {
+      ...session,
+      status: 'suspended',
+      endedAt: createTimestamp(),
+      terminationReason: reason,
+      persisted: false,
+    };
+    this.sessions.set(sessionId, updatedSession);
+
+    // Clear active session for agent (but keep in sessions map for resume)
+    if (this.agentSessions.get(session.agentId) === sessionId) {
+      this.agentSessions.delete(session.agentId);
+    }
+
+    // Add to history
+    this.addToHistory(session.agentId, updatedSession);
+
+    // Update agent's session status in database
+    await this.registry.updateAgentSession(session.agentId, session.claudeSessionId, 'suspended');
+
+    // Persist session state
+    await this.persistSession(sessionId);
+
+    // Emit status change
+    session.events.emit('status', 'suspended');
+  }
+
+  // ----------------------------------------
+  // Session Queries
+  // ----------------------------------------
+
+  getSession(sessionId: string): SessionRecord | undefined {
+    const session = this.sessions.get(sessionId);
+    return session ? this.toPublicSession(session) : undefined;
+  }
+
+  getActiveSession(agentId: EntityId): SessionRecord | undefined {
+    const sessionId = this.agentSessions.get(agentId);
+    if (!sessionId) {
+      return undefined;
+    }
+    const session = this.sessions.get(sessionId);
+    if (!session || session.status !== 'running') {
+      return undefined;
+    }
+    return this.toPublicSession(session);
+  }
+
+  listSessions(filter?: SessionFilter): SessionRecord[] {
+    let sessions = Array.from(this.sessions.values());
+
+    if (filter) {
+      if (filter.agentId !== undefined) {
+        sessions = sessions.filter((s) => s.agentId === filter.agentId);
+      }
+      if (filter.role !== undefined) {
+        sessions = sessions.filter((s) => s.agentRole === filter.role);
+      }
+      if (filter.status !== undefined) {
+        const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+        sessions = sessions.filter((s) => statuses.includes(s.status));
+      }
+      if (filter.startedAfter !== undefined) {
+        const afterTime = this.getTimestampMs(filter.startedAfter);
+        sessions = sessions.filter((s) => {
+          if (!s.startedAt) return false;
+          return this.getTimestampMs(s.startedAt) >= afterTime;
+        });
+      }
+      if (filter.startedBefore !== undefined) {
+        const beforeTime = this.getTimestampMs(filter.startedBefore);
+        sessions = sessions.filter((s) => {
+          if (!s.startedAt) return false;
+          return this.getTimestampMs(s.startedAt) <= beforeTime;
+        });
+      }
+      if (filter.resumable !== undefined) {
+        sessions = sessions.filter((s) =>
+          filter.resumable ? s.claudeSessionId !== undefined : s.claudeSessionId === undefined
+        );
+      }
+    }
+
+    return sessions.map((s) => this.toPublicSession(s));
+  }
+
+  getMostRecentResumableSession(agentId: EntityId): SessionRecord | undefined {
+    const agentSessions = Array.from(this.sessions.values())
+      .filter((s) => s.agentId === agentId && s.claudeSessionId !== undefined)
+      .sort((a, b) => {
+        const aTime = this.getTimestampMs(a.createdAt);
+        const bTime = this.getTimestampMs(b.createdAt);
+        return bTime - aTime;
+      });
+
+    return agentSessions.length > 0 ? this.toPublicSession(agentSessions[0]) : undefined;
+  }
+
+  async getSessionHistory(agentId: EntityId, limit = 10): Promise<SessionHistoryEntry[]> {
+    // First, check in-memory history
+    const inMemoryHistory = this.sessionHistory.get(agentId) ?? [];
+
+    // Load from agent metadata if needed
+    const agent = await this.registry.getAgent(agentId);
+    if (!agent) {
+      return inMemoryHistory.slice(0, limit);
+    }
+
+    const meta = getAgentMetadata(agent);
+    if (!meta) {
+      return inMemoryHistory.slice(0, limit);
+    }
+
+    // Get persisted history from agent metadata
+    const persistedHistory = this.getPersistedHistory(agent);
+
+    // Merge and dedupe
+    const allHistory = this.mergeHistory(inMemoryHistory, persistedHistory);
+
+    return allHistory.slice(0, limit);
+  }
+
+  // ----------------------------------------
+  // Session Communication
+  // ----------------------------------------
+
+  async messageSession(
+    sessionId: string,
+    options: MessageSessionOptions
+  ): Promise<MessageSessionResult> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return { success: false, error: `Session not found: ${sessionId}` };
+    }
+
+    // Validate options
+    if (!options.contentRef && !options.content) {
+      return { success: false, error: 'Either contentRef or content must be provided' };
+    }
+
+    // Get agent's channel
+    const agent = await this.registry.getAgent(session.agentId);
+    if (!agent) {
+      return { success: false, error: `Agent not found: ${session.agentId}` };
+    }
+
+    const meta = getAgentMetadata(agent);
+    const channelId = meta?.channelId;
+    if (!channelId) {
+      return { success: false, error: `Agent has no channel: ${session.agentId}` };
+    }
+
+    try {
+      // Send message via the channel
+      // The contentRef and senderId from options are used to construct the message
+      // Note: The actual message sending would use the API's message creation
+      // For now, we return success with placeholder - the full implementation
+      // would integrate with InboxService
+      const messageParams = {
+        contentRef: options.contentRef,
+        content: options.content,
+        senderId: options.senderId ?? session.agentId,
+        channelId: channelId,
+        metadata: options.metadata,
+      };
+
+      // TODO: Use InboxService to send the message
+      // const messageId = await this.api.sendMessage(messageParams);
+      void messageParams; // Acknowledge params until full implementation
+
+      // Update session activity
+      const updatedSession: InternalSessionState = {
+        ...session,
+        lastActivityAt: createTimestamp(),
+        persisted: false,
+      };
+      this.sessions.set(sessionId, updatedSession);
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  getEventEmitter(sessionId: string): EventEmitter | undefined {
+    const session = this.sessions.get(sessionId);
+    return session?.events;
+  }
+
+  // ----------------------------------------
+  // Persistence
+  // ----------------------------------------
+
+  async persistSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return;
+    }
+
+    // Get current agent state
+    const agent = await this.registry.getAgent(session.agentId);
+    if (!agent) {
+      return;
+    }
+
+    // Update agent metadata with session info
+    // Note: Session history is maintained in-memory by addToHistory()
+    await this.registry.updateAgentMetadata(session.agentId, {
+      sessionId: session.claudeSessionId,
+      sessionStatus: session.status === 'running' ? 'running' : session.status === 'suspended' ? 'suspended' : 'idle',
+      lastActivityAt: session.lastActivityAt,
+    } as Record<string, unknown>);
+
+    // Mark as persisted
+    const updatedSession: InternalSessionState = {
+      ...session,
+      persisted: true,
+    };
+    this.sessions.set(sessionId, updatedSession);
+  }
+
+  async loadSessionState(agentId: EntityId): Promise<void> {
+    const agent = await this.registry.getAgent(agentId);
+    if (!agent) {
+      return;
+    }
+
+    const meta = getAgentMetadata(agent);
+    if (!meta) {
+      return;
+    }
+
+    // Load history from agent metadata
+    const persistedHistory = this.getPersistedHistory(agent);
+    if (persistedHistory.length > 0) {
+      this.sessionHistory.set(agentId, persistedHistory);
+    }
+
+    // Check if there's a suspended session that can be resumed
+    if (meta.sessionId && meta.sessionStatus === 'suspended') {
+      // Create a placeholder session record for the suspended session
+      const suspendedSession = persistedHistory.find(
+        (h) => h.claudeSessionId === meta.sessionId && h.status === 'suspended'
+      );
+
+      if (suspendedSession) {
+        const sessionState: InternalSessionState = {
+          id: suspendedSession.id,
+          claudeSessionId: suspendedSession.claudeSessionId,
+          agentId,
+          agentRole: meta.agentRole,
+          workerMode: meta.agentRole === 'worker' ? (meta as { workerMode?: WorkerMode }).workerMode : undefined,
+          status: 'suspended',
+          workingDirectory: suspendedSession.workingDirectory,
+          worktree: suspendedSession.worktree,
+          createdAt: suspendedSession.startedAt ?? createTimestamp(),
+          startedAt: suspendedSession.startedAt,
+          lastActivityAt: suspendedSession.endedAt ?? createTimestamp(),
+          endedAt: suspendedSession.endedAt,
+          terminationReason: suspendedSession.terminationReason,
+          events: new EventEmitter(),
+          persisted: true,
+        };
+
+        this.sessions.set(sessionState.id, sessionState);
+      }
+    }
+  }
+
+  // ----------------------------------------
+  // Private Helpers
+  // ----------------------------------------
+
+  private setupSpawnerEventHandlers(): void {
+    // Note: The spawner emits events per-session via the session's event emitter
+    // We don't need global event handlers here
+  }
+
+  private setupSessionEventForwarding(
+    session: InternalSessionState,
+    spawnerEvents: EventEmitter
+  ): void {
+    // Forward all events from spawner to session's event emitter
+    spawnerEvents.on('event', (event) => {
+      session.events.emit('event', event);
+      // Update last activity
+      const updated: InternalSessionState = {
+        ...session,
+        lastActivityAt: createTimestamp(),
+        persisted: false,
+      };
+      this.sessions.set(session.id, updated);
+    });
+
+    spawnerEvents.on('error', (error) => {
+      session.events.emit('error', error);
+    });
+
+    spawnerEvents.on('exit', async (code, signal) => {
+      session.events.emit('exit', code, signal);
+
+      // Update session status if not already updated
+      const currentSession = this.sessions.get(session.id);
+      if (currentSession && currentSession.status === 'running') {
+        const updatedSession: InternalSessionState = {
+          ...currentSession,
+          status: 'terminated',
+          endedAt: createTimestamp(),
+          persisted: false,
+        };
+        this.sessions.set(session.id, updatedSession);
+
+        // Clear active session
+        if (this.agentSessions.get(session.agentId) === session.id) {
+          this.agentSessions.delete(session.agentId);
+        }
+
+        // Add to history
+        this.addToHistory(session.agentId, updatedSession);
+
+        // Update agent status
+        await this.registry.updateAgentSession(session.agentId, undefined, 'idle');
+
+        // Persist
+        await this.persistSession(session.id);
+
+        session.events.emit('status', 'terminated');
+      }
+    });
+
+    spawnerEvents.on('stderr', (data) => {
+      session.events.emit('stderr', data);
+    });
+
+    spawnerEvents.on('raw', (data) => {
+      session.events.emit('raw', data);
+    });
+  }
+
+  private createSessionState(
+    result: SpawnResult,
+    agentId: EntityId,
+    meta: { agentRole: AgentRole; workerMode?: WorkerMode },
+    options?: { workingDirectory?: string; worktree?: string }
+  ): InternalSessionState {
+    return {
+      id: result.session.id,
+      claudeSessionId: result.session.claudeSessionId,
+      agentId,
+      agentRole: meta.agentRole,
+      workerMode: meta.agentRole === 'worker' ? (meta as { workerMode?: WorkerMode }).workerMode : undefined,
+      pid: result.session.pid,
+      status: result.session.status,
+      workingDirectory: result.session.workingDirectory,
+      worktree: options?.worktree,
+      createdAt: result.session.createdAt,
+      startedAt: result.session.startedAt,
+      lastActivityAt: result.session.lastActivityAt,
+      events: new EventEmitter(),
+      persisted: false,
+    };
+  }
+
+  private toPublicSession(session: InternalSessionState): SessionRecord {
+    return {
+      id: session.id,
+      claudeSessionId: session.claudeSessionId,
+      agentId: session.agentId,
+      agentRole: session.agentRole,
+      workerMode: session.workerMode,
+      pid: session.pid,
+      status: session.status,
+      workingDirectory: session.workingDirectory,
+      worktree: session.worktree,
+      createdAt: session.createdAt,
+      startedAt: session.startedAt,
+      lastActivityAt: session.lastActivityAt,
+      endedAt: session.endedAt,
+      terminationReason: session.terminationReason,
+    };
+  }
+
+  private addToHistory(agentId: EntityId, session: InternalSessionState): void {
+    const historyEntry: SessionHistoryEntry = {
+      id: session.id,
+      claudeSessionId: session.claudeSessionId,
+      status: session.status,
+      workingDirectory: session.workingDirectory,
+      worktree: session.worktree,
+      startedAt: session.startedAt,
+      endedAt: session.endedAt,
+      terminationReason: session.terminationReason,
+    };
+
+    const history = this.sessionHistory.get(agentId) ?? [];
+    this.sessionHistory.set(
+      agentId,
+      [historyEntry, ...history.filter((h) => h.id !== session.id)].slice(0, 20)
+    );
+  }
+
+  private getPersistedHistory(agent: AgentEntity): SessionHistoryEntry[] {
+    const metadata = agent.metadata as Record<string, unknown>;
+    const sessionHistory = metadata?.sessionHistory;
+    if (!Array.isArray(sessionHistory)) {
+      return [];
+    }
+    // Validate and type-cast
+    return sessionHistory.filter((entry): entry is SessionHistoryEntry => {
+      if (typeof entry !== 'object' || entry === null) return false;
+      const e = entry as Record<string, unknown>;
+      return (
+        typeof e.id === 'string' &&
+        typeof e.status === 'string' &&
+        typeof e.workingDirectory === 'string'
+      );
+    });
+  }
+
+  private mergeHistory(
+    inMemory: SessionHistoryEntry[],
+    persisted: SessionHistoryEntry[]
+  ): SessionHistoryEntry[] {
+    const seen = new Set<string>();
+    const merged: SessionHistoryEntry[] = [];
+
+    // In-memory history takes precedence (more recent)
+    for (const entry of inMemory) {
+      if (!seen.has(entry.id)) {
+        seen.add(entry.id);
+        merged.push(entry);
+      }
+    }
+
+    // Add persisted entries not in memory
+    for (const entry of persisted) {
+      if (!seen.has(entry.id)) {
+        seen.add(entry.id);
+        merged.push(entry);
+      }
+    }
+
+    // Sort by start time descending
+    return merged.sort((a, b) => {
+      const aTime = a.startedAt ? this.getTimestampMs(a.startedAt) : 0;
+      const bTime = b.startedAt ? this.getTimestampMs(b.startedAt) : 0;
+      return bTime - aTime;
+    });
+  }
+
+  private getTimestampMs(timestamp: Timestamp): number {
+    return typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
+  }
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+/**
+ * Creates a SessionManager instance
+ */
+export function createSessionManager(
+  spawner: SpawnerService,
+  api: ElementalAPI,
+  registry: AgentRegistry
+): SessionManager {
+  return new SessionManagerImpl(spawner, api, registry);
+}

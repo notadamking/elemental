@@ -1,0 +1,870 @@
+/**
+ * Session Manager Unit Tests
+ *
+ * Tests for the SessionManager which manages agent sessions with Claude Code
+ * session ID support for resumable sessions and cross-restart persistence.
+ *
+ * Note: These tests use mock implementations of SpawnerService and AgentRegistry
+ * to test the SessionManager's internal logic without actually spawning processes.
+ */
+
+import { describe, test, expect, beforeEach } from 'bun:test';
+import { EventEmitter } from 'node:events';
+import type { EntityId, ChannelId } from '@elemental/core';
+import { createTimestamp, ElementType } from '@elemental/core';
+import type { ElementalAPI } from '@elemental/sdk';
+import type {
+  SpawnerService,
+  SpawnedSession,
+  SpawnResult,
+  SpawnOptions,
+  UWPCheckResult,
+  UWPCheckOptions,
+} from './spawner.js';
+import type { AgentRegistry } from '../services/agent-registry.js';
+import type { AgentEntity } from '../api/orchestrator-api.js';
+import type { AgentMetadata } from '../types/agent.js';
+import {
+  createSessionManager,
+  type SessionManager,
+  type StartSessionOptions,
+  type ResumeSessionOptions,
+} from './session-manager.js';
+
+// ============================================================================
+// Mock Factories
+// ============================================================================
+
+const testAgentId = 'el-test001' as EntityId;
+const testAgentId2 = 'el-test002' as EntityId;
+const testCreatorId = 'el-creator' as EntityId;
+
+let sessionIdCounter = 0;
+
+function createMockAgent(
+  agentId: EntityId,
+  role: 'director' | 'worker' | 'steward' = 'worker',
+  options?: { channelId?: string; sessionId?: string; sessionStatus?: 'idle' | 'running' | 'suspended' }
+): AgentEntity {
+  const baseMetadata = role === 'worker'
+    ? {
+        agentRole: 'worker' as const,
+        workerMode: 'ephemeral' as const,
+        sessionStatus: options?.sessionStatus ?? 'idle',
+        sessionId: options?.sessionId,
+        channelId: options?.channelId as ChannelId | undefined,
+      }
+    : {
+        agentRole: role as 'director',
+        sessionStatus: options?.sessionStatus ?? 'idle',
+        sessionId: options?.sessionId,
+        channelId: options?.channelId as ChannelId | undefined,
+      };
+
+  return {
+    id: agentId,
+    type: ElementType.ENTITY,
+    name: `test-agent-${agentId}`,
+    entityType: 'agent',
+    version: 1,
+    createdAt: createTimestamp(),
+    updatedAt: createTimestamp(),
+    createdBy: testCreatorId,
+    tags: [],
+    metadata: {
+      agent: baseMetadata,
+    },
+  } as unknown as AgentEntity;
+}
+
+function createMockSpawnerService(): SpawnerService & { _mockEmitters: Map<string, EventEmitter> } {
+  const sessions = new Map<string, SpawnedSession>();
+  const emitters = new Map<string, EventEmitter>();
+
+  return {
+    _mockEmitters: emitters,
+
+    async spawn(
+      agentId: EntityId,
+      agentRole: 'director' | 'worker' | 'steward',
+      options?: SpawnOptions
+    ): Promise<SpawnResult> {
+      sessionIdCounter++;
+      const sessionId = `session-mock-${sessionIdCounter}`;
+      const now = createTimestamp();
+      const events = new EventEmitter();
+
+      const session: SpawnedSession = {
+        id: sessionId,
+        claudeSessionId: `claude-session-${sessionIdCounter}`,
+        agentId,
+        agentRole,
+        workerMode: agentRole === 'worker' ? 'ephemeral' : undefined,
+        mode: options?.mode ?? 'headless',
+        pid: 12345 + sessionIdCounter,
+        status: 'running',
+        workingDirectory: options?.workingDirectory ?? '/tmp',
+        createdAt: now,
+        lastActivityAt: now,
+        startedAt: now,
+      };
+
+      sessions.set(sessionId, session);
+      emitters.set(sessionId, events);
+
+      return { session, events };
+    },
+
+    async terminate(sessionId: string, graceful?: boolean): Promise<void> {
+      const session = sessions.get(sessionId);
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+      sessions.set(sessionId, { ...session, status: 'terminated', endedAt: createTimestamp() });
+      const emitter = emitters.get(sessionId);
+      if (emitter) {
+        emitter.emit('exit', 0, null);
+      }
+    },
+
+    async suspend(sessionId: string): Promise<void> {
+      const session = sessions.get(sessionId);
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+      if (session.status !== 'running') {
+        throw new Error(`Cannot suspend session in status: ${session.status}`);
+      }
+      sessions.set(sessionId, { ...session, status: 'suspended' });
+    },
+
+    getSession(sessionId: string): SpawnedSession | undefined {
+      return sessions.get(sessionId);
+    },
+
+    listActiveSessions(agentId?: EntityId): SpawnedSession[] {
+      const allSessions = Array.from(sessions.values());
+      const active = allSessions.filter((s) => s.status !== 'terminated');
+      return agentId ? active.filter((s) => s.agentId === agentId) : active;
+    },
+
+    listAllSessions(agentId?: EntityId): SpawnedSession[] {
+      const allSessions = Array.from(sessions.values());
+      return agentId ? allSessions.filter((s) => s.agentId === agentId) : allSessions;
+    },
+
+    getMostRecentSession(agentId: EntityId): SpawnedSession | undefined {
+      const agentSessions = Array.from(sessions.values())
+        .filter((s) => s.agentId === agentId)
+        .sort((a, b) => {
+          const aTime = typeof a.createdAt === 'number' ? a.createdAt : new Date(a.createdAt).getTime();
+          const bTime = typeof b.createdAt === 'number' ? b.createdAt : new Date(b.createdAt).getTime();
+          return bTime - aTime;
+        });
+      return agentSessions[0];
+    },
+
+    async sendInput(sessionId: string, input: string): Promise<void> {
+      const session = sessions.get(sessionId);
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+      if (session.status !== 'running') {
+        throw new Error(`Cannot send input to session in status: ${session.status}`);
+      }
+    },
+
+    getEventEmitter(sessionId: string): EventEmitter | undefined {
+      return emitters.get(sessionId);
+    },
+
+    async checkReadyQueue(
+      agentId: EntityId,
+      options?: UWPCheckOptions
+    ): Promise<UWPCheckResult> {
+      return { hasReadyTask: false, autoStarted: false };
+    },
+  };
+}
+
+function createMockAgentRegistry(agents: Map<EntityId, AgentEntity>): AgentRegistry {
+  const updatedMetadata = new Map<EntityId, Partial<AgentMetadata>>();
+
+  return {
+    async registerAgent(input: any): Promise<AgentEntity> {
+      throw new Error('Not implemented in mock');
+    },
+
+    async registerDirector(input: any): Promise<AgentEntity> {
+      throw new Error('Not implemented in mock');
+    },
+
+    async registerWorker(input: any): Promise<AgentEntity> {
+      throw new Error('Not implemented in mock');
+    },
+
+    async registerSteward(input: any): Promise<AgentEntity> {
+      throw new Error('Not implemented in mock');
+    },
+
+    async getAgent(entityId: EntityId): Promise<AgentEntity | undefined> {
+      return agents.get(entityId);
+    },
+
+    async getAgentByName(name: string): Promise<AgentEntity | undefined> {
+      for (const agent of agents.values()) {
+        if (agent.name === name) {
+          return agent;
+        }
+      }
+      return undefined;
+    },
+
+    async listAgents(filter?: any): Promise<AgentEntity[]> {
+      return Array.from(agents.values());
+    },
+
+    async getAgentsByRole(role: 'director' | 'worker' | 'steward'): Promise<AgentEntity[]> {
+      return Array.from(agents.values()).filter((a) => {
+        const meta = a.metadata?.agent;
+        return meta && (meta as AgentMetadata).agentRole === role;
+      });
+    },
+
+    async getAvailableWorkers(): Promise<AgentEntity[]> {
+      return Array.from(agents.values()).filter((a) => {
+        const meta = a.metadata?.agent;
+        return meta && (meta as AgentMetadata).agentRole === 'worker';
+      });
+    },
+
+    async getStewards(): Promise<AgentEntity[]> {
+      return Array.from(agents.values()).filter((a) => {
+        const meta = a.metadata?.agent;
+        return meta && (meta as AgentMetadata).agentRole === 'steward';
+      });
+    },
+
+    async getDirector(): Promise<AgentEntity | undefined> {
+      for (const agent of agents.values()) {
+        const meta = agent.metadata?.agent;
+        if (meta && (meta as AgentMetadata).agentRole === 'director') {
+          return agent;
+        }
+      }
+      return undefined;
+    },
+
+    async updateAgentSession(
+      entityId: EntityId,
+      sessionId: string | undefined,
+      status: 'idle' | 'running' | 'suspended' | 'terminated'
+    ): Promise<AgentEntity> {
+      const agent = agents.get(entityId);
+      if (!agent) {
+        throw new Error(`Agent not found: ${entityId}`);
+      }
+      const currentMeta = agent.metadata?.agent as AgentMetadata;
+      const updatedAgent: AgentEntity = {
+        ...agent,
+        metadata: {
+          ...agent.metadata,
+          agent: {
+            ...currentMeta,
+            sessionId,
+            sessionStatus: status,
+          },
+        },
+      };
+      agents.set(entityId, updatedAgent);
+      return updatedAgent;
+    },
+
+    async updateAgentMetadata(
+      entityId: EntityId,
+      updates: Partial<AgentMetadata>
+    ): Promise<AgentEntity> {
+      const agent = agents.get(entityId);
+      if (!agent) {
+        throw new Error(`Agent not found: ${entityId}`);
+      }
+      const currentMeta = agent.metadata?.agent as AgentMetadata;
+      const updatedAgent = {
+        ...agent,
+        metadata: {
+          ...agent.metadata,
+          agent: {
+            ...currentMeta,
+            ...updates,
+          } as AgentMetadata,
+        },
+      } as AgentEntity;
+      agents.set(entityId, updatedAgent);
+      updatedMetadata.set(entityId, updates);
+      return updatedAgent;
+    },
+
+    async getAgentChannel(entityId: EntityId): Promise<string | undefined> {
+      const agent = agents.get(entityId);
+      if (!agent) {
+        return undefined;
+      }
+      const meta = agent.metadata?.agent as AgentMetadata;
+      return meta?.channelId;
+    },
+
+    async getAgentChannelId(entityId: EntityId): Promise<string | undefined> {
+      return this.getAgentChannel(entityId);
+    },
+  } as AgentRegistry;
+}
+
+function createMockApi(): ElementalAPI {
+  return {} as ElementalAPI;
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+describe('SessionManager', () => {
+  let sessionManager: SessionManager;
+  let spawner: SpawnerService & { _mockEmitters: Map<string, EventEmitter> };
+  let registry: AgentRegistry;
+  let api: ElementalAPI;
+  let agents: Map<EntityId, AgentEntity>;
+
+  beforeEach(() => {
+    sessionIdCounter = 0;
+    agents = new Map();
+    agents.set(testAgentId, createMockAgent(testAgentId, 'worker'));
+    agents.set(testAgentId2, createMockAgent(testAgentId2, 'director'));
+
+    spawner = createMockSpawnerService();
+    registry = createMockAgentRegistry(agents);
+    api = createMockApi();
+    sessionManager = createSessionManager(spawner, api, registry);
+  });
+
+  describe('startSession', () => {
+    test('starts a new session for an agent', async () => {
+      const result = await sessionManager.startSession(testAgentId);
+
+      expect(result.session).toBeDefined();
+      expect(result.session.agentId).toBe(testAgentId);
+      expect(result.session.status).toBe('running');
+      expect(result.session.agentRole).toBe('worker');
+      expect(result.session.claudeSessionId).toBeDefined();
+      expect(result.events).toBeInstanceOf(EventEmitter);
+    });
+
+    test('throws error for non-existent agent', async () => {
+      const nonExistentId = 'el-nonexist' as EntityId;
+      await expect(sessionManager.startSession(nonExistentId)).rejects.toThrow(
+        'Agent not found'
+      );
+    });
+
+    test('throws error if agent already has active session', async () => {
+      await sessionManager.startSession(testAgentId);
+      await expect(sessionManager.startSession(testAgentId)).rejects.toThrow(
+        'already has an active session'
+      );
+    });
+
+    test('applies start options correctly', async () => {
+      const options: StartSessionOptions = {
+        workingDirectory: '/custom/path',
+        worktree: '/worktrees/test',
+        initialPrompt: 'Hello agent',
+      };
+
+      const result = await sessionManager.startSession(testAgentId, options);
+
+      expect(result.session.workingDirectory).toBe('/custom/path');
+      expect(result.session.worktree).toBe('/worktrees/test');
+    });
+
+    test('updates agent session status in registry', async () => {
+      await sessionManager.startSession(testAgentId);
+
+      const agent = await registry.getAgent(testAgentId);
+      const meta = agent?.metadata?.agent as AgentMetadata;
+      expect(meta?.sessionStatus).toBe('running');
+    });
+  });
+
+  describe('resumeSession', () => {
+    test('resumes a session with Claude session ID', async () => {
+      const options: ResumeSessionOptions = {
+        claudeSessionId: 'claude-session-previous',
+        workingDirectory: '/resume/path',
+      };
+
+      const result = await sessionManager.resumeSession(testAgentId, options);
+
+      expect(result.session).toBeDefined();
+      expect(result.session.agentId).toBe(testAgentId);
+      expect(result.session.status).toBe('running');
+    });
+
+    test('throws error for non-existent agent', async () => {
+      const nonExistentId = 'el-nonexist' as EntityId;
+      await expect(
+        sessionManager.resumeSession(nonExistentId, { claudeSessionId: 'test' })
+      ).rejects.toThrow('Agent not found');
+    });
+
+    test('throws error if agent already has active session', async () => {
+      await sessionManager.startSession(testAgentId);
+      await expect(
+        sessionManager.resumeSession(testAgentId, { claudeSessionId: 'test' })
+      ).rejects.toThrow('already has an active session');
+    });
+  });
+
+  describe('stopSession', () => {
+    test('stops a running session', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.stopSession(session.id);
+
+      const stoppedSession = sessionManager.getSession(session.id);
+      expect(stoppedSession?.status).toBe('terminated');
+      expect(stoppedSession?.endedAt).toBeDefined();
+    });
+
+    test('throws error for non-existent session', async () => {
+      await expect(sessionManager.stopSession('nonexistent')).rejects.toThrow(
+        'Session not found'
+      );
+    });
+
+    test('records termination reason', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.stopSession(session.id, { reason: 'User requested' });
+
+      const stoppedSession = sessionManager.getSession(session.id);
+      expect(stoppedSession?.terminationReason).toBe('User requested');
+    });
+
+    test('updates agent session status to idle', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.stopSession(session.id);
+
+      const agent = await registry.getAgent(testAgentId);
+      const meta = agent?.metadata?.agent as AgentMetadata;
+      expect(meta?.sessionStatus).toBe('idle');
+    });
+
+    test('clears active session for agent', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.stopSession(session.id);
+
+      const activeSession = sessionManager.getActiveSession(testAgentId);
+      expect(activeSession).toBeUndefined();
+    });
+  });
+
+  describe('suspendSession', () => {
+    test('suspends a running session', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.suspendSession(session.id);
+
+      const suspendedSession = sessionManager.getSession(session.id);
+      expect(suspendedSession?.status).toBe('suspended');
+      expect(suspendedSession?.endedAt).toBeDefined();
+    });
+
+    test('throws error for non-existent session', async () => {
+      await expect(sessionManager.suspendSession('nonexistent')).rejects.toThrow(
+        'Session not found'
+      );
+    });
+
+    test('records suspension reason', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.suspendSession(session.id, 'Context overflow');
+
+      const suspendedSession = sessionManager.getSession(session.id);
+      expect(suspendedSession?.terminationReason).toBe('Context overflow');
+    });
+
+    test('updates agent session status to suspended', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.suspendSession(session.id);
+
+      const agent = await registry.getAgent(testAgentId);
+      const meta = agent?.metadata?.agent as AgentMetadata;
+      expect(meta?.sessionStatus).toBe('suspended');
+    });
+
+    test('preserves Claude session ID for resumption', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      const claudeSessionId = session.claudeSessionId;
+
+      await sessionManager.suspendSession(session.id);
+
+      const agent = await registry.getAgent(testAgentId);
+      const meta = agent?.metadata?.agent as AgentMetadata;
+      expect(meta?.sessionId).toBe(claudeSessionId);
+    });
+  });
+
+  describe('getSession', () => {
+    test('returns session by ID', async () => {
+      const { session: created } = await sessionManager.startSession(testAgentId);
+
+      const session = sessionManager.getSession(created.id);
+
+      expect(session).toBeDefined();
+      expect(session?.id).toBe(created.id);
+      expect(session?.agentId).toBe(testAgentId);
+    });
+
+    test('returns undefined for non-existent session', () => {
+      const session = sessionManager.getSession('nonexistent');
+      expect(session).toBeUndefined();
+    });
+  });
+
+  describe('getActiveSession', () => {
+    test('returns active session for agent', async () => {
+      const { session: created } = await sessionManager.startSession(testAgentId);
+
+      const session = sessionManager.getActiveSession(testAgentId);
+
+      expect(session).toBeDefined();
+      expect(session?.id).toBe(created.id);
+      expect(session?.status).toBe('running');
+    });
+
+    test('returns undefined when no active session', () => {
+      const session = sessionManager.getActiveSession(testAgentId);
+      expect(session).toBeUndefined();
+    });
+
+    test('returns undefined after session stopped', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session.id);
+
+      const activeSession = sessionManager.getActiveSession(testAgentId);
+      expect(activeSession).toBeUndefined();
+    });
+
+    test('returns undefined after session suspended', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.suspendSession(session.id);
+
+      const activeSession = sessionManager.getActiveSession(testAgentId);
+      expect(activeSession).toBeUndefined();
+    });
+  });
+
+  describe('listSessions', () => {
+    test('returns all sessions when no filter', async () => {
+      await sessionManager.startSession(testAgentId);
+      await sessionManager.startSession(testAgentId2);
+
+      const sessions = sessionManager.listSessions();
+
+      expect(sessions).toHaveLength(2);
+    });
+
+    test('filters by agentId', async () => {
+      await sessionManager.startSession(testAgentId);
+      await sessionManager.startSession(testAgentId2);
+
+      const sessions = sessionManager.listSessions({ agentId: testAgentId });
+
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].agentId).toBe(testAgentId);
+    });
+
+    test('filters by role', async () => {
+      await sessionManager.startSession(testAgentId); // worker
+      await sessionManager.startSession(testAgentId2); // director
+
+      const workerSessions = sessionManager.listSessions({ role: 'worker' });
+      const directorSessions = sessionManager.listSessions({ role: 'director' });
+
+      expect(workerSessions).toHaveLength(1);
+      expect(workerSessions[0].agentRole).toBe('worker');
+      expect(directorSessions).toHaveLength(1);
+      expect(directorSessions[0].agentRole).toBe('director');
+    });
+
+    test('filters by status', async () => {
+      const { session: session1 } = await sessionManager.startSession(testAgentId);
+      await sessionManager.startSession(testAgentId2);
+      await sessionManager.stopSession(session1.id);
+
+      const runningSessions = sessionManager.listSessions({ status: 'running' });
+      const terminatedSessions = sessionManager.listSessions({ status: 'terminated' });
+
+      expect(runningSessions).toHaveLength(1);
+      expect(terminatedSessions).toHaveLength(1);
+    });
+
+    test('filters by multiple statuses', async () => {
+      const { session: session1 } = await sessionManager.startSession(testAgentId);
+      const { session: session2 } = await sessionManager.startSession(testAgentId2);
+      await sessionManager.stopSession(session1.id);
+      await sessionManager.suspendSession(session2.id);
+
+      const sessions = sessionManager.listSessions({
+        status: ['terminated', 'suspended'],
+      });
+
+      expect(sessions).toHaveLength(2);
+    });
+
+    test('filters by resumable', async () => {
+      await sessionManager.startSession(testAgentId);
+      await sessionManager.startSession(testAgentId2);
+
+      const resumableSessions = sessionManager.listSessions({ resumable: true });
+
+      expect(resumableSessions).toHaveLength(2);
+      expect(resumableSessions.every((s) => s.claudeSessionId !== undefined)).toBe(true);
+    });
+  });
+
+  describe('getMostRecentResumableSession', () => {
+    test('returns most recent session with Claude session ID', async () => {
+      const { session: session1 } = await sessionManager.startSession(testAgentId);
+      await sessionManager.suspendSession(session1.id);
+
+      // Allow agent to start another session (clear the active check)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const mostRecent = sessionManager.getMostRecentResumableSession(testAgentId);
+
+      expect(mostRecent).toBeDefined();
+      expect(mostRecent?.agentId).toBe(testAgentId);
+      expect(mostRecent?.claudeSessionId).toBeDefined();
+    });
+
+    test('returns undefined when no sessions exist', () => {
+      const mostRecent = sessionManager.getMostRecentResumableSession(testAgentId);
+      expect(mostRecent).toBeUndefined();
+    });
+  });
+
+  describe('getSessionHistory', () => {
+    test('returns session history for agent', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session.id);
+
+      const history = await sessionManager.getSessionHistory(testAgentId);
+
+      expect(history).toHaveLength(1);
+      expect(history[0].id).toBe(session.id);
+    });
+
+    test('returns empty array for agent with no history', async () => {
+      const history = await sessionManager.getSessionHistory(testAgentId);
+      expect(history).toEqual([]);
+    });
+
+    test('limits number of entries returned', async () => {
+      // Create multiple sessions by stopping between each
+      for (let i = 0; i < 5; i++) {
+        const { session } = await sessionManager.startSession(testAgentId);
+        await sessionManager.stopSession(session.id);
+        // Small delay to ensure history is recorded
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        // Check history after each stop
+        const historyAfterStop = await sessionManager.getSessionHistory(testAgentId, 10);
+        expect(historyAfterStop.length).toBe(i + 1);
+      }
+
+      // Get all history first to see what we have
+      const allHistory = await sessionManager.getSessionHistory(testAgentId, 10);
+      // Should have 5 entries from 5 sessions
+      expect(allHistory.length).toBe(5);
+
+      // Now test the limit
+      const limitedHistory = await sessionManager.getSessionHistory(testAgentId, 3);
+      expect(limitedHistory).toHaveLength(3);
+    });
+  });
+
+  describe('messageSession', () => {
+    test('returns error for non-existent session', async () => {
+      const result = await sessionManager.messageSession('nonexistent', {
+        content: 'Hello',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Session not found');
+    });
+
+    test('returns error when no content provided', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      const result = await sessionManager.messageSession(session.id, {});
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Either contentRef or content must be provided');
+    });
+
+    test('returns error when agent has no channel', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      const result = await sessionManager.messageSession(session.id, {
+        content: 'Hello',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Agent has no channel');
+    });
+
+    test('succeeds when agent has channel', async () => {
+      // Update agent to have a channel
+      const agent = agents.get(testAgentId)!;
+      const updatedAgent = {
+        ...agent,
+        metadata: {
+          ...agent.metadata,
+          agent: {
+            ...(agent.metadata?.agent as AgentMetadata),
+            channelId: 'channel-test' as ChannelId,
+          } as AgentMetadata,
+        },
+      } as AgentEntity;
+      agents.set(testAgentId, updatedAgent);
+
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      const result = await sessionManager.messageSession(session.id, {
+        content: 'Hello agent',
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('getEventEmitter', () => {
+    test('returns event emitter for active session', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      const emitter = sessionManager.getEventEmitter(session.id);
+
+      expect(emitter).toBeInstanceOf(EventEmitter);
+    });
+
+    test('returns undefined for non-existent session', () => {
+      const emitter = sessionManager.getEventEmitter('nonexistent');
+      expect(emitter).toBeUndefined();
+    });
+  });
+
+  describe('persistSession', () => {
+    test('persists session state to agent metadata', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      await sessionManager.persistSession(session.id);
+
+      const agent = await registry.getAgent(testAgentId);
+      const meta = agent?.metadata?.agent as AgentMetadata;
+      expect(meta?.sessionId).toBe(session.claudeSessionId);
+    });
+
+    test('does nothing for non-existent session', async () => {
+      // Should not throw
+      await sessionManager.persistSession('nonexistent');
+    });
+  });
+
+  describe('loadSessionState', () => {
+    test('does nothing for non-existent agent', async () => {
+      // Should not throw
+      await sessionManager.loadSessionState('el-nonexist' as EntityId);
+    });
+
+    test('loads suspended session state', async () => {
+      // Create an agent with a suspended session in metadata
+      const agentWithSuspended = createMockAgent(testAgentId, 'worker', {
+        sessionId: 'claude-suspended',
+        sessionStatus: 'suspended',
+      });
+      // Add session history to metadata
+      (agentWithSuspended.metadata as Record<string, unknown>).sessionHistory = [
+        {
+          id: 'session-old',
+          claudeSessionId: 'claude-suspended',
+          status: 'suspended',
+          workingDirectory: '/old/path',
+          startedAt: createTimestamp(),
+          endedAt: createTimestamp(),
+        },
+      ];
+      agents.set(testAgentId, agentWithSuspended);
+
+      await sessionManager.loadSessionState(testAgentId);
+
+      // Should have loaded the suspended session
+      const history = await sessionManager.getSessionHistory(testAgentId);
+      expect(history.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('event forwarding', () => {
+    test('forwards events from spawner to session emitter', async () => {
+      const { session, events } = await sessionManager.startSession(testAgentId);
+
+      const receivedEvents: unknown[] = [];
+      events.on('event', (event) => receivedEvents.push(event));
+
+      // Emit event on spawner's emitter
+      const spawnerEmitter = spawner._mockEmitters.get(session.id);
+      spawnerEmitter?.emit('event', { type: 'assistant', message: 'Hello' });
+
+      expect(receivedEvents).toHaveLength(1);
+      expect((receivedEvents[0] as Record<string, unknown>).type).toBe('assistant');
+    });
+
+    test('forwards error events', async () => {
+      const { session, events } = await sessionManager.startSession(testAgentId);
+
+      const receivedErrors: Error[] = [];
+      events.on('error', (error) => receivedErrors.push(error));
+
+      // Emit error on spawner's emitter
+      const spawnerEmitter = spawner._mockEmitters.get(session.id);
+      spawnerEmitter?.emit('error', new Error('Test error'));
+
+      expect(receivedErrors).toHaveLength(1);
+      expect(receivedErrors[0].message).toBe('Test error');
+    });
+
+    test('updates session status on exit event', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+
+      // Emit exit on spawner's emitter
+      const spawnerEmitter = spawner._mockEmitters.get(session.id);
+      spawnerEmitter?.emit('exit', 0, null);
+
+      // Wait for async handler
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const updatedSession = sessionManager.getSession(session.id);
+      expect(updatedSession?.status).toBe('terminated');
+    });
+  });
+
+  describe('getApi', () => {
+    test('returns the API instance', () => {
+      const retrievedApi = (sessionManager as any).getApi();
+      expect(retrievedApi).toBe(api);
+    });
+  });
+});

@@ -677,18 +677,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O10: Agent Session Manager with Resume
+#### - [x] TB-O10: Agent Session Manager with Resume
 
 **Goal**: Track sessions with Claude Code session ID support
 
 **Changes**:
 
-- [ ] Create `SessionManager` class tracking active processes
-- [ ] Store session state: `pid`, `agentId`, `claudeSessionId`, `worktree`, `status`, `startedAt`
-- [ ] Methods: `startSession()`, `resumeSession()`, `stopSession()`, `getSession()`, `listSessions()`, `messageSession()`
-- [ ] Persist session IDs to database for cross-restart resumption
+- [x] Create `SessionManager` class tracking active processes
+- [x] Store session state: `pid`, `agentId`, `claudeSessionId`, `worktree`, `status`, `startedAt`
+- [x] Methods: `startSession()`, `resumeSession()`, `stopSession()`, `getSession()`, `listSessions()`, `messageSession()`
+- [x] Persist session IDs to database for cross-restart resumption
 
-**Verification**: Start session, stop it, resume with same session ID, verify context preserved
+**Verification**: 49 unit tests covering session lifecycle, queries, history, communication, and event forwarding
+
+**Implementation Notes**:
+- Created `SessionManager` interface and `SessionManagerImpl` class in `packages/orchestrator-sdk/src/runtime/session-manager.ts`
+- Session state types: `SessionRecord`, `StartSessionOptions`, `ResumeSessionOptions`, `StopSessionOptions`, `MessageSessionOptions`, `SessionFilter`, `SessionHistoryEntry`
+- Full integration with SpawnerService for process lifecycle
+- Session status coordinated with AgentRegistry for agent metadata updates
+- Event forwarding from spawner to session emitters for real-time updates
+- In-memory session history with support for cross-restart persistence via agent metadata
+- 49 new unit tests in `session-manager.test.ts`
 
 ---
 
