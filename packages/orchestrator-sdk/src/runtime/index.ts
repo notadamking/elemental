@@ -4,7 +4,8 @@
  * This module exports runtime management for Claude Code agent processes:
  * - SpawnerService (TB-O9) - Spawns and manages Claude Code processes
  * - SessionManager (TB-O10) - Session tracking with resume support
- * - Predecessor query service (TB-O10d) - TODO
+ * - InboxPollingService (TB-O10b) - Periodic inbox check for message processing
+ * - PredecessorQueryService (TB-O10d) - Query previous sessions for context
  * - Handoff services (TB-O10e, TB-O10f) - TODO
  */
 
@@ -78,3 +79,25 @@ export {
   // Factory
   createInboxPollingService,
 } from './inbox-polling.js';
+
+// Predecessor Query Service (TB-O10d)
+export {
+  // Constants
+  DEFAULT_QUERY_TIMEOUT_MS,
+  MIN_QUERY_TIMEOUT_MS,
+  MAX_QUERY_TIMEOUT_MS,
+  // Types
+  type PredecessorQueryOptions,
+  type PredecessorQueryResult,
+  type PredecessorInfo,
+  type PredecessorQueryStatus,
+  type ActivePredecessorQuery,
+  type PredecessorQueryService,
+  // Implementation
+  PredecessorQueryServiceImpl,
+  // Factory
+  createPredecessorQueryService,
+  // Errors
+  TimeoutError,
+  NoPredecessorError,
+} from './predecessor-query.js';

@@ -1182,6 +1182,258 @@ import {
 } from '@elemental/orchestrator-sdk';
 ```
 
+## PredecessorQueryService (TB-O10d)
+
+The PredecessorQueryService enables agents to consult previous sessions for context and guidance. It implements the predecessor query pattern for collaborative problem-solving between agents.
+
+### Creating a PredecessorQueryService
+
+```typescript
+import {
+  createPredecessorQueryService,
+  type PredecessorQueryService,
+} from '@elemental/orchestrator-sdk';
+
+const predecessorService = createPredecessorQueryService(sessionManager);
+```
+
+### Checking for Predecessors
+
+```typescript
+// Check if a predecessor exists and can be queried
+const hasPredecessor = await predecessorService.hasPredecessor('director');
+const hasWorkerPredecessor = await predecessorService.hasPredecessor('worker');
+
+// Get detailed predecessor information
+const predecessorInfo = await predecessorService.getPredecessorInfo('director');
+
+if (predecessorInfo) {
+  console.log(`Previous director: ${predecessorInfo.agentName}`);
+  console.log(`  Agent ID: ${predecessorInfo.agentId}`);
+  console.log(`  Session ID: ${predecessorInfo.claudeSessionId}`);
+  console.log(`  Last active: ${predecessorInfo.suspendedAt}`);
+}
+```
+
+### Querying a Predecessor
+
+The main method `consultPredecessor()` performs the full predecessor query flow:
+
+1. Finds the most recent suspended/terminated session for the role
+2. Resumes that session using Claude Code's `--resume` flag
+3. Sends the provided message to the predecessor
+4. Waits for and captures the response
+5. Suspends the predecessor session again
+6. Returns the response to the caller
+
+```typescript
+// Query the previous director for strategic context
+const result = await predecessorService.consultPredecessor(
+  currentAgentId,
+  'director',
+  'What was your approach to the authentication feature?',
+  {
+    timeout: 60000,             // Optional: max wait time (default: 60s)
+    context: 'Working on auth feature',  // Optional: additional context
+    workingDirectory: '/workspace',       // Optional: override working dir
+    suspendAfterResponse: true,           // Default: true
+  }
+);
+
+if (result.success) {
+  console.log('Predecessor response:', result.response);
+  console.log(`Query took ${result.durationMs}ms`);
+
+  // Access predecessor info
+  if (result.predecessor) {
+    console.log(`Queried: ${result.predecessor.agentName}`);
+    console.log(`Role: ${result.predecessor.role}`);
+  }
+} else {
+  console.error('Query failed:', result.error);
+}
+```
+
+### Query Options
+
+```typescript
+interface PredecessorQueryOptions {
+  // Maximum time to wait for response (default: 60000ms)
+  timeout?: number;
+
+  // Whether to suspend predecessor after response (default: true)
+  suspendAfterResponse?: boolean;
+
+  // Additional context prepended to the message
+  context?: string;
+
+  // Override the predecessor's working directory
+  workingDirectory?: string;
+}
+```
+
+### Query Result
+
+```typescript
+interface PredecessorQueryResult {
+  // Whether the query was successful
+  success: boolean;
+
+  // The response text from the predecessor
+  response?: string;
+
+  // Information about the predecessor session
+  predecessor?: PredecessorInfo;
+
+  // Error message if the query failed
+  error?: string;
+
+  // When the query completed
+  completedAt: Timestamp;
+
+  // Duration of the query in milliseconds
+  durationMs: number;
+}
+
+interface PredecessorInfo {
+  agentId: EntityId;
+  agentName?: string;
+  role: AgentRole;
+  claudeSessionId: string;
+  sessionId: string;
+  workingDirectory: string;
+  originalStartedAt?: Timestamp;
+  suspendedAt?: Timestamp;
+}
+```
+
+### Managing Active Queries
+
+```typescript
+// List all active predecessor queries
+const activeQueries = predecessorService.listActiveQueries();
+
+for (const query of activeQueries) {
+  console.log(`Query ${query.id}:`);
+  console.log(`  From: ${query.requestingAgentId}`);
+  console.log(`  To role: ${query.targetRole}`);
+  console.log(`  Status: ${query.status}`);
+  console.log(`  Message: ${query.message}`);
+}
+
+// Get specific active query by ID
+const query = predecessorService.getActiveQuery(queryId);
+
+// Cancel an active query
+await predecessorService.cancelQuery(queryId);
+```
+
+### Query Status
+
+Active queries track their status through the lifecycle:
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Query initialized, not yet started |
+| `resuming` | Resuming the predecessor session |
+| `waiting_response` | Session resumed, waiting for response |
+| `completed` | Response received successfully |
+| `failed` | Query failed due to error |
+| `timed_out` | Query timed out waiting for response |
+
+### Error Handling
+
+```typescript
+import {
+  TimeoutError,
+  NoPredecessorError,
+} from '@elemental/orchestrator-sdk';
+
+try {
+  const result = await predecessorService.consultPredecessor(
+    agentId,
+    'steward',
+    'What was the last cleanup operation?',
+    { timeout: 10000 }
+  );
+} catch (error) {
+  if (error instanceof TimeoutError) {
+    console.error('Query timed out - predecessor may be unresponsive');
+  } else if (error instanceof NoPredecessorError) {
+    console.error('No previous steward session exists');
+  }
+}
+
+// Alternatively, check result.success
+const result = await predecessorService.consultPredecessor(/* ... */);
+if (!result.success) {
+  // result.error contains the error message
+  console.error(result.error);
+}
+```
+
+### Timeout Configuration
+
+```typescript
+import {
+  DEFAULT_QUERY_TIMEOUT_MS,  // 60000 (60 seconds)
+  MIN_QUERY_TIMEOUT_MS,      // 10000 (10 seconds)
+  MAX_QUERY_TIMEOUT_MS,      // 300000 (5 minutes)
+} from '@elemental/orchestrator-sdk';
+```
+
+### Use Cases
+
+**Worker consulting previous worker:**
+```typescript
+// A new worker asking about implementation approach
+const result = await predecessorService.consultPredecessor(
+  currentWorkerId,
+  'worker',
+  'How did you structure the database migrations? I need to add a new table.',
+  { context: 'Working on user preferences feature' }
+);
+```
+
+**Director consulting previous director:**
+```typescript
+// A new director asking about project strategy
+const result = await predecessorService.consultPredecessor(
+  currentDirectorId,
+  'director',
+  'What tasks were prioritized and why? What is the current sprint focus?'
+);
+```
+
+**Steward consulting previous steward:**
+```typescript
+// A steward asking about operational context
+const result = await predecessorService.consultPredecessor(
+  currentStewardId,
+  'steward',
+  'What maintenance tasks have been completed recently? Any issues I should be aware of?'
+);
+```
+
+### Integration with Session History
+
+The PredecessorQueryService builds on the session history features from TB-O10c:
+
+```typescript
+// The service uses getPreviousSession internally
+// You can also query session history directly:
+const history = await sessionManager.getSessionHistoryByRole('worker', 10);
+const previous = await sessionManager.getPreviousSession('worker');
+```
+
+### Notes
+
+- Predecessors must have a Claude session ID to be resumable
+- The predecessor session is suspended after the query by default
+- Query timeout is normalized between 10 seconds and 5 minutes
+- Active queries are automatically cleaned up after completion
+- Context is prepended to the message in the format: `Context: {context}\n\nQuestion: {message}`
+
 ## Type Definitions
 
 Key files:
@@ -1194,6 +1446,7 @@ Key files:
 - `packages/orchestrator-sdk/src/runtime/spawner.ts` - Claude Code process spawning (TB-O9)
 - `packages/orchestrator-sdk/src/runtime/session-manager.ts` - Session lifecycle management (TB-O10)
 - `packages/orchestrator-sdk/src/runtime/inbox-polling.ts` - Inbox polling service (TB-O10b)
+- `packages/orchestrator-sdk/src/runtime/predecessor-query.ts` - Predecessor query service (TB-O10d)
 
 ## See Also
 

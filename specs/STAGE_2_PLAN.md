@@ -780,16 +780,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O10d: Predecessor Query Service
+#### - [x] TB-O10d: Predecessor Query Service
 
 **Goal**: Enable agents to consult previous sessions
 
 **Changes**:
 
-- [ ] Add `consultPredecessor(role, message)` method
-- [ ] Resume previous session, send message, capture response, suspend again
+- [x] Add `consultPredecessor(role, message)` method to PredecessorQueryService
+- [x] Resume previous session, send message, capture response, suspend again
+- [x] Add supporting methods: `getPredecessorInfo()`, `hasPredecessor()`, `cancelQuery()`, `listActiveQueries()`, `getActiveQuery()`
+- [x] Add timeout handling with configurable limits (10s-5min)
+- [x] Add error classes: `TimeoutError`, `NoPredecessorError`
 
-**Verification**: Kill agent, start new agent, query predecessor, verify response
+**Verification**: 27 unit tests covering predecessor queries, query lifecycle, error handling
+
+**Implementation Notes**:
+- Created `PredecessorQueryService` in `packages/orchestrator-sdk/src/runtime/predecessor-query.ts`
+- Service builds on TB-O10c session history features (`getPreviousSession()`)
+- Query status tracking through lifecycle: pending → resuming → waiting_response → completed/failed/timed_out
+- Context can be prepended to messages for additional context
+- Active queries tracked and can be cancelled mid-execution
+- Documentation added to `docs/api/orchestrator-api.md`
 
 ---
 
