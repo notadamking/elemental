@@ -3,37 +3,83 @@
  * Collapsible panel that shows the Director agent's interactive terminal
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
-  PanelRight,
   PanelRightClose,
   Terminal,
   Circle,
+  Play,
+  Square,
+  RefreshCw,
+  Maximize2,
+  AlertCircle,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
+import { XTerminal, type TerminalStatus } from '../terminal';
+import { useDirector, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
 
-type DirectorStatus = 'idle' | 'running' | 'error';
+type DirectorStatus = 'idle' | 'running' | 'error' | 'connecting' | 'no-director';
 
 interface DirectorPanelProps {
   collapsed?: boolean;
   onToggle?: () => void;
+  onOpenInWorkspaces?: () => void;
 }
 
-export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProps) {
-  // For now, director is always idle (no actual terminal yet)
-  const [status] = useState<DirectorStatus>('idle');
+export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces }: DirectorPanelProps) {
+  const [terminalStatus, setTerminalStatus] = useState<TerminalStatus>('disconnected');
+  const { director, hasActiveSession, isLoading, error } = useDirector();
+  const startSession = useStartAgentSession();
+  const stopSession = useStopAgentSession();
+
+  // Derive the director status from various sources
+  const getStatus = (): DirectorStatus => {
+    if (error || terminalStatus === 'error') return 'error';
+    if (isLoading || terminalStatus === 'connecting') return 'connecting';
+    if (!director) return 'no-director';
+    if (hasActiveSession && terminalStatus === 'connected') return 'running';
+    return 'idle';
+  };
+
+  const status = getStatus();
 
   const statusColor = {
     idle: 'text-[var(--color-text-tertiary)]',
     running: 'text-[var(--color-success)]',
     error: 'text-[var(--color-danger)]',
+    connecting: 'text-[var(--color-warning)]',
+    'no-director': 'text-[var(--color-text-muted)]',
   }[status];
 
   const statusLabel = {
     idle: 'Idle',
     running: 'Running',
     error: 'Error',
+    connecting: 'Connecting...',
+    'no-director': 'No Director',
   }[status];
+
+  const handleStartSession = useCallback(async () => {
+    if (!director?.id) return;
+    try {
+      await startSession.mutateAsync({ agentId: director.id });
+    } catch (err) {
+      console.error('Failed to start director session:', err);
+    }
+  }, [director?.id, startSession]);
+
+  const handleStopSession = useCallback(async () => {
+    if (!director?.id) return;
+    try {
+      await stopSession.mutateAsync({ agentId: director.id, graceful: true });
+    } catch (err) {
+      console.error('Failed to stop director session:', err);
+    }
+  }, [director?.id, stopSession]);
+
+  const handleTerminalStatusChange = useCallback((newStatus: TerminalStatus) => {
+    setTerminalStatus(newStatus);
+  }, []);
 
   if (collapsed) {
     return (
@@ -61,7 +107,7 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
 
   return (
     <aside
-      className="flex flex-col w-80 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
+      className="flex flex-col w-96 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
       data-testid="director-panel"
     >
       {/* Header */}
@@ -74,38 +120,104 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
             {statusLabel}
           </span>
         </div>
-        <Tooltip content="Collapse Panel" side="left">
-          <button
-            onClick={onToggle}
-            className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
-            aria-label="Collapse Director Panel"
-            data-testid="director-panel-collapse"
-          >
-            <PanelRightClose className="w-4 h-4" />
-          </button>
-        </Tooltip>
+        <div className="flex items-center gap-1">
+          {/* Session Controls */}
+          {director && (
+            <>
+              {!hasActiveSession ? (
+                <Tooltip content="Start Director Session" side="bottom">
+                  <button
+                    onClick={handleStartSession}
+                    disabled={startSession.isPending}
+                    className="p-1.5 rounded-md text-[var(--color-success)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 disabled:opacity-50"
+                    aria-label="Start Director Session"
+                    data-testid="director-start-session"
+                  >
+                    {startSession.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                  </button>
+                </Tooltip>
+              ) : (
+                <Tooltip content="Stop Director Session" side="bottom">
+                  <button
+                    onClick={handleStopSession}
+                    disabled={stopSession.isPending}
+                    className="p-1.5 rounded-md text-[var(--color-danger)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 disabled:opacity-50"
+                    aria-label="Stop Director Session"
+                    data-testid="director-stop-session"
+                  >
+                    {stopSession.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                  </button>
+                </Tooltip>
+              )}
+            </>
+          )}
+          <Tooltip content="Collapse Panel" side="left">
+            <button
+              onClick={onToggle}
+              className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
+              aria-label="Collapse Director Panel"
+              data-testid="director-panel-collapse"
+            >
+              <PanelRightClose className="w-4 h-4" />
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
-      {/* Terminal placeholder */}
-      <div className="flex-1 p-4 overflow-hidden">
-        <div className="h-full rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] flex flex-col">
+      {/* Terminal Area */}
+      <div className="flex-1 p-2 overflow-hidden" data-testid="director-terminal-container">
+        <div className="h-full rounded-lg bg-[#1a1a1a] border border-[var(--color-border)] flex flex-col overflow-hidden">
           {/* Terminal header */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)]">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500 opacity-50" />
-              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 opacity-50" />
-              <div className="w-2.5 h-2.5 rounded-full bg-green-500 opacity-50" />
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[#252525]">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2.5 h-2.5 rounded-full ${hasActiveSession ? 'bg-green-500' : 'bg-red-500 opacity-50'}`} />
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 opacity-50" />
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500 opacity-50" />
+              </div>
+              <span className="text-xs text-gray-400 font-mono">
+                {director?.name ?? 'director'}
+              </span>
             </div>
-            <span className="text-xs text-[var(--color-text-muted)] font-mono">director</span>
           </div>
 
           {/* Terminal body */}
-          <div className="flex-1 p-3 font-mono text-xs text-[var(--color-text-secondary)] overflow-auto">
-            <p className="text-[var(--color-text-muted)]"># Director terminal not connected</p>
-            <p className="text-[var(--color-text-muted)]"># Start the orchestrator server and connect an agent</p>
-            <p className="mt-4 text-[var(--color-text-tertiary)]">
-              <span className="text-[var(--color-success)]">$</span> _
-            </p>
+          <div className="flex-1 overflow-hidden">
+            {status === 'no-director' ? (
+              <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                <AlertCircle className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
+                <p className="text-sm text-[var(--color-text-muted)]">No Director agent found</p>
+                <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                  Register a Director agent to use this terminal
+                </p>
+              </div>
+            ) : status === 'error' && error ? (
+              <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                <AlertCircle className="w-8 h-8 text-[var(--color-danger)] mb-2" />
+                <p className="text-sm text-[var(--color-danger)]">Connection Error</p>
+                <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                  {error.message}
+                </p>
+              </div>
+            ) : (
+              <XTerminal
+                agentId={director?.id}
+                onStatusChange={handleTerminalStatusChange}
+                theme="dark"
+                fontSize={12}
+                autoFit={true}
+                interactive={true}
+                data-testid="director-xterminal"
+              />
+            )}
           </div>
         </div>
       </div>
@@ -113,12 +225,13 @@ export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProp
       {/* Controls */}
       <div className="px-4 py-3 border-t border-[var(--color-border)]">
         <div className="flex items-center gap-2">
-          <Tooltip content="Expand to full terminal" side="top">
+          <Tooltip content="Open full terminal in Workspaces" side="top">
             <button
+              onClick={onOpenInWorkspaces}
               className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
               data-testid="director-expand-terminal"
             >
-              <PanelRight className="w-4 h-4" />
+              <Maximize2 className="w-4 h-4" />
               Open in Workspaces
             </button>
           </Tooltip>

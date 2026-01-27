@@ -94,6 +94,9 @@ npm run typecheck
 - **@tanstack/react-router**: File-based routing with typed routes
 - **@tanstack/react-query**: Server state management
 - **@radix-ui/***: Accessible UI primitives (Dialog, Dropdown, Select, Tooltip)
+- **@xterm/xterm**: Terminal emulator for Director panel
+- **@xterm/addon-fit**: Auto-resize xterm to container
+- **@xterm/addon-web-links**: Clickable links in terminal
 - **lucide-react**: Icon library
 - **sonner**: Toast notifications
 
@@ -106,8 +109,15 @@ apps/orchestrator-web/
 │   │   ├── layout/
 │   │   │   ├── AppShell.tsx      # Main layout wrapper
 │   │   │   ├── Sidebar.tsx       # Navigation sidebar
-│   │   │   ├── DirectorPanel.tsx # Right terminal panel
+│   │   │   ├── DirectorPanel.tsx # Right terminal panel with xterm.js
 │   │   │   └── MobileDrawer.tsx  # Mobile sidebar overlay
+│   │   ├── terminal/
+│   │   │   ├── XTerminal.tsx     # xterm.js terminal component
+│   │   │   └── index.ts          # Terminal exports
+│   │   ├── agent/
+│   │   │   ├── AgentCard.tsx     # Agent display card
+│   │   │   ├── AgentStatusBadge.tsx # Status indicator
+│   │   │   └── AgentRoleBadge.tsx # Role badge
 │   │   └── ui/
 │   │       ├── Tooltip.tsx       # Tooltip component
 │   │       └── ThemeToggle.tsx   # Theme switcher
@@ -125,23 +135,31 @@ apps/orchestrator-web/
 │   ├── main.tsx                  # Entry point
 │   └── router.tsx                # Route configuration
 ├── tests/
-│   └── scaffold.spec.ts          # Playwright tests
+│   ├── scaffold.spec.ts          # Scaffold Playwright tests
+│   ├── agents.spec.ts            # Agent page tests
+│   └── director-terminal.spec.ts # Director terminal tests
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
 └── playwright.config.ts
 ```
 
+## Completed Features
+
+The following tracer bullets have been implemented:
+
+- **TB-O15**: Orchestrator Web Scaffold - Three-column layout with routing
+- **TB-O16**: Agent List Page - View and manage agents with status badges
+- **TB-O17**: Director Terminal Panel - Interactive xterm terminal for Director agent
+
 ## Future Work
 
-The following tracer bullets will add functionality to this scaffold:
+The following tracer bullets will add functionality:
 
-- **TB-O16**: Agent List Page - View and manage agents with status badges
-- **TB-O17**: Director Terminal Panel - Interactive xterm terminal
 - **TB-O17a**: Terminal Multiplexer - Tmux-like interface for agent sessions
-- **TB-O18**: Activity Feed - Real-time WebSocket event stream
-- **TB-O19**: Task Detail Panels - Orchestrator metadata display
-- **TB-O20**: Metrics Dashboards - Performance charts
+- **TB-O18**: Orchestrator Task List Page - Task management with orchestrator metadata
+- **TB-O25**: Activity Feed - Real-time WebSocket event stream
+- **TB-O43**: Metrics Dashboards - Performance charts
 
 ## Related Documentation
 

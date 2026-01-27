@@ -132,6 +132,30 @@ export function useAgentsByRole() {
   };
 }
 
+/**
+ * Hook to get the Director agent with status
+ * Combines agent data and status for the Director agent panel
+ */
+export function useDirector() {
+  const { director, isLoading: agentsLoading, error: agentsError, refetch: refetchAgents } = useAgentsByRole();
+
+  const {
+    data: statusData,
+    isLoading: statusLoading,
+    error: statusError
+  } = useAgentStatus(director?.id);
+
+  return {
+    director,
+    hasActiveSession: statusData?.hasActiveSession ?? false,
+    activeSession: statusData?.activeSession ?? null,
+    recentHistory: statusData?.recentHistory ?? [],
+    isLoading: agentsLoading || statusLoading,
+    error: agentsError || statusError,
+    refetch: refetchAgents,
+  };
+}
+
 // ============================================================================
 // Mutation Hooks
 // ============================================================================

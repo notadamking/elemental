@@ -178,7 +178,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Router config | `router.tsx` | `tests/scaffold.spec.ts` |
 | App shell layout | `components/layout/AppShell.tsx` | - |
 | Sidebar navigation | `components/layout/Sidebar.tsx` | - |
-| Director panel | `components/layout/DirectorPanel.tsx` | - |
+| Director panel | `components/layout/DirectorPanel.tsx` | `tests/director-terminal.spec.ts` |
 | Mobile drawer | `components/layout/MobileDrawer.tsx` | - |
 | Activity page | `routes/activity/index.tsx` | - |
 | Tasks page | `routes/tasks/index.tsx` | - |
@@ -192,6 +192,8 @@ The project is a TurboRepo monorepo with the following structure:
 | AgentCard component | `components/agent/AgentCard.tsx` | - |
 | AgentStatusBadge | `components/agent/AgentStatusBadge.tsx` | - |
 | AgentRoleBadge | `components/agent/AgentRoleBadge.tsx` | - |
+| XTerminal component | `components/terminal/XTerminal.tsx` | `tests/director-terminal.spec.ts` |
+| Terminal exports | `components/terminal/index.ts` | - |
 | UI components | `components/ui/*.tsx` | - |
 | Design tokens | `styles/tokens.css` | - |
 

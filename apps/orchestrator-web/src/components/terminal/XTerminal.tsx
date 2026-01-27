@@ -1,0 +1,388 @@
+/**
+ * XTerminal - Interactive terminal component using xterm.js
+ *
+ * This component provides a full-featured terminal emulator for interactive
+ * agent sessions. It connects via WebSocket to the orchestrator server
+ * and supports PTY communication.
+ */
+
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import '@xterm/xterm/css/xterm.css';
+
+export type TerminalStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+export interface XTerminalProps {
+  /** Agent ID to connect to */
+  agentId?: string;
+  /** WebSocket URL (defaults to orchestrator server) */
+  wsUrl?: string;
+  /** Called when terminal status changes */
+  onStatusChange?: (status: TerminalStatus) => void;
+  /** Called when terminal connects successfully */
+  onConnected?: () => void;
+  /** Called when terminal receives data */
+  onData?: (data: string) => void;
+  /** Theme variant */
+  theme?: 'dark' | 'light';
+  /** Font size in pixels */
+  fontSize?: number;
+  /** Font family */
+  fontFamily?: string;
+  /** Whether to auto-fit terminal to container */
+  autoFit?: boolean;
+  /** Whether terminal should be interactive (accept input) */
+  interactive?: boolean;
+  /** Test ID for testing */
+  'data-testid'?: string;
+}
+
+// Theme configurations
+const DARK_THEME = {
+  background: '#1a1a1a',
+  foreground: '#e0e0e0',
+  cursor: '#e0e0e0',
+  cursorAccent: '#1a1a1a',
+  selectionBackground: '#404040',
+  selectionForeground: '#ffffff',
+  black: '#1a1a1a',
+  red: '#ff5555',
+  green: '#50fa7b',
+  yellow: '#f1fa8c',
+  blue: '#6272a4',
+  magenta: '#ff79c6',
+  cyan: '#8be9fd',
+  white: '#e0e0e0',
+  brightBlack: '#555555',
+  brightRed: '#ff6e6e',
+  brightGreen: '#69ff94',
+  brightYellow: '#ffffa5',
+  brightBlue: '#d6acff',
+  brightMagenta: '#ff92df',
+  brightCyan: '#a4ffff',
+  brightWhite: '#ffffff',
+};
+
+const LIGHT_THEME = {
+  background: '#ffffff',
+  foreground: '#333333',
+  cursor: '#333333',
+  cursorAccent: '#ffffff',
+  selectionBackground: '#add6ff',
+  selectionForeground: '#000000',
+  black: '#000000',
+  red: '#cd3131',
+  green: '#00bc00',
+  yellow: '#949800',
+  blue: '#0451a5',
+  magenta: '#bc05bc',
+  cyan: '#0598bc',
+  white: '#555555',
+  brightBlack: '#666666',
+  brightRed: '#cd3131',
+  brightGreen: '#14ce14',
+  brightYellow: '#b5ba00',
+  brightBlue: '#0451a5',
+  brightMagenta: '#bc05bc',
+  brightCyan: '#0598bc',
+  brightWhite: '#a5a5a5',
+};
+
+const DEFAULT_WS_URL = 'ws://localhost:3457/ws';
+
+export function XTerminal({
+  agentId,
+  wsUrl = DEFAULT_WS_URL,
+  onStatusChange,
+  onConnected,
+  onData,
+  theme = 'dark',
+  fontSize = 13,
+  fontFamily = '"JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, Courier, monospace',
+  autoFit = true,
+  interactive = true,
+  'data-testid': testId = 'xterminal',
+}: XTerminalProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const [status, setStatus] = useState<TerminalStatus>('disconnected');
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
+
+  // Update status and notify callback
+  const updateStatus = useCallback((newStatus: TerminalStatus) => {
+    setStatus(newStatus);
+    onStatusChange?.(newStatus);
+  }, [onStatusChange]);
+
+  // Send data to WebSocket
+  const sendToServer = useCallback((data: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'input', input: data }));
+    }
+  }, []);
+
+  // Initialize terminal
+  useEffect(() => {
+    if (!containerRef.current || terminalRef.current) return;
+
+    const terminal = new Terminal({
+      theme: theme === 'dark' ? DARK_THEME : LIGHT_THEME,
+      fontSize,
+      fontFamily,
+      cursorBlink: true,
+      cursorStyle: 'block',
+      scrollback: 10000,
+      allowProposedApi: true,
+      convertEol: true,
+      disableStdin: !interactive,
+    });
+
+    const fitAddon = new FitAddon();
+    const webLinksAddon = new WebLinksAddon();
+
+    terminal.loadAddon(fitAddon);
+    terminal.loadAddon(webLinksAddon);
+    terminal.open(containerRef.current);
+
+    if (autoFit) {
+      fitAddon.fit();
+    }
+
+    // Handle user input
+    if (interactive) {
+      terminal.onData((data) => {
+        sendToServer(data);
+        onData?.(data);
+      });
+    }
+
+    terminalRef.current = terminal;
+    fitAddonRef.current = fitAddon;
+
+    // Write welcome message
+    terminal.writeln('\x1b[1;36m  Elemental Orchestrator Terminal\x1b[0m');
+    terminal.writeln('\x1b[90m  Connecting to agent...\x1b[0m');
+    terminal.writeln('');
+
+    return () => {
+      terminal.dispose();
+      terminalRef.current = null;
+      fitAddonRef.current = null;
+    };
+  }, [theme, fontSize, fontFamily, autoFit, interactive, sendToServer, onData]);
+
+  // Handle resize
+  useEffect(() => {
+    if (!autoFit || !containerRef.current || !fitAddonRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      try {
+        fitAddonRef.current?.fit();
+      } catch {
+        // Ignore resize errors (can happen during unmount)
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [autoFit]);
+
+  // WebSocket connection
+  useEffect(() => {
+    if (!agentId) {
+      updateStatus('disconnected');
+      terminalRef.current?.writeln('\x1b[33m  No agent selected\x1b[0m');
+      return;
+    }
+
+    const connect = () => {
+      updateStatus('connecting');
+      terminalRef.current?.writeln(`\x1b[90m  Connecting to agent ${agentId}...\x1b[0m`);
+
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        reconnectAttempts.current = 0;
+        // Subscribe to agent events
+        ws.send(JSON.stringify({ type: 'subscribe', agentId }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as {
+            type: string;
+            event?: { type: string; data?: unknown; content?: string; output?: string };
+            hasSession?: boolean;
+            error?: string;
+          };
+
+          switch (data.type) {
+            case 'subscribed':
+              updateStatus('connected');
+              onConnected?.();
+              terminalRef.current?.writeln(
+                data.hasSession
+                  ? '\x1b[32m  Connected to active session\x1b[0m\r\n'
+                  : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
+              );
+              break;
+
+            case 'event':
+              if (data.event) {
+                handleAgentEvent(data.event);
+              }
+              break;
+
+            case 'error':
+              terminalRef.current?.writeln(`\x1b[31m  Error: ${data.error}\x1b[0m`);
+              break;
+
+            case 'exit':
+              terminalRef.current?.writeln('\x1b[90m  Session ended\x1b[0m');
+              break;
+
+            case 'pong':
+              // Heartbeat response, ignore
+              break;
+          }
+        } catch (err) {
+          console.error('[XTerminal] Error parsing message:', err);
+        }
+      };
+
+      ws.onerror = () => {
+        updateStatus('error');
+        terminalRef.current?.writeln('\x1b[31m  WebSocket error\x1b[0m');
+      };
+
+      ws.onclose = () => {
+        if (reconnectAttempts.current < maxReconnectAttempts) {
+          reconnectAttempts.current++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          terminalRef.current?.writeln(
+            `\x1b[33m  Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts.current}/${maxReconnectAttempts})...\x1b[0m`
+          );
+          setTimeout(connect, delay);
+        } else {
+          updateStatus('error');
+          terminalRef.current?.writeln(
+            '\x1b[31m  Connection lost. Max reconnect attempts reached.\x1b[0m'
+          );
+        }
+      };
+    };
+
+    // Handle agent events
+    const handleAgentEvent = (event: { type: string; data?: unknown; content?: string; output?: string }) => {
+      const terminal = terminalRef.current;
+      if (!terminal) return;
+
+      switch (event.type) {
+        case 'assistant':
+          // Claude assistant response - may contain content
+          if (event.content) {
+            terminal.write(event.content);
+          }
+          break;
+
+        case 'tool_use':
+          // Tool invocation
+          terminal.writeln(`\x1b[36m[Tool: ${(event.data as { name?: string })?.name ?? 'unknown'}]\x1b[0m`);
+          break;
+
+        case 'tool_result':
+          // Tool result
+          if (event.output) {
+            terminal.writeln(`\x1b[90m${event.output}\x1b[0m`);
+          }
+          break;
+
+        case 'system':
+          // System message
+          if (event.content) {
+            terminal.writeln(`\x1b[33m[System] ${event.content}\x1b[0m`);
+          }
+          break;
+
+        case 'error':
+          // Error
+          terminal.writeln(`\x1b[31m[Error] ${event.content ?? 'Unknown error'}\x1b[0m`);
+          break;
+      }
+    };
+
+    connect();
+
+    // Heartbeat to keep connection alive
+    const heartbeatInterval = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [agentId, wsUrl, updateStatus, onConnected]);
+
+  // Public methods exposed via ref
+  const write = useCallback((data: string) => {
+    terminalRef.current?.write(data);
+  }, []);
+
+  const writeln = useCallback((data: string) => {
+    terminalRef.current?.writeln(data);
+  }, []);
+
+  const clear = useCallback(() => {
+    terminalRef.current?.clear();
+  }, []);
+
+  const focus = useCallback(() => {
+    terminalRef.current?.focus();
+  }, []);
+
+  const fit = useCallback(() => {
+    fitAddonRef.current?.fit();
+  }, []);
+
+  // Expose methods through window for testing
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__xterminal = {
+      write,
+      writeln,
+      clear,
+      focus,
+      fit,
+      getStatus: () => status,
+    };
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__xterminal;
+    };
+  }, [write, writeln, clear, focus, fit, status]);
+
+  return (
+    <div
+      ref={containerRef}
+      data-testid={testId}
+      data-status={status}
+      className="w-full h-full overflow-hidden"
+      style={{ minHeight: '200px' }}
+    />
+  );
+}
+
+export default XTerminal;
