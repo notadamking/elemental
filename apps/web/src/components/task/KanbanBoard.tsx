@@ -129,27 +129,27 @@ function TaskCard({
   return (
     <div
       className={`
-        p-3 bg-white rounded-lg shadow-sm border-l-4 ${priorityBorder}
-        cursor-pointer transition-all hover:shadow-md
-        ${isSelected ? 'ring-2 ring-blue-500' : 'border border-gray-200'}
+        p-3 bg-white dark:bg-neutral-700 rounded-lg shadow-sm border-l-4 ${priorityBorder}
+        cursor-pointer transition-all hover:shadow-md h-full
+        ${isSelected ? 'ring-2 ring-blue-500' : 'border border-gray-200 dark:border-neutral-600'}
         ${isDragging ? 'opacity-50' : ''}
       `}
       onClick={onClick}
       data-testid={`kanban-card-${task.id}`}
     >
-      <div className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">{task.title}</div>
-      <div className="text-xs text-gray-500 font-mono mb-2">{task.id}</div>
+      <div className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-1 line-clamp-2 break-words">{task.title}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mb-2">{task.id}</div>
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded capitalize">
+        <span className="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-neutral-600 text-gray-600 dark:text-gray-300 rounded capitalize">
           {task.taskType}
         </span>
         {task.assignee && (
-          <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded truncate max-w-20">
+          <span className="px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded truncate max-w-20">
             {task.assignee}
           </span>
         )}
         {task.tags.slice(0, 1).map((tag) => (
-          <span key={tag} className="px-1.5 py-0.5 text-xs bg-gray-200 rounded truncate max-w-16">
+          <span key={tag} className="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded truncate max-w-16">
             {tag}
           </span>
         ))}
@@ -182,14 +182,17 @@ function SortableTaskCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="h-full" {...attributes} {...listeners}>
       <TaskCard task={task} isSelected={isSelected} onClick={onClick} isDragging={isDragging} />
     </div>
   );
 }
 
-// Estimated height for each task card (including margin)
-const TASK_CARD_HEIGHT = 100;
+// Estimated height for each task card (without gap - gap is handled separately)
+// Card content: p-3 (24px) + title 2-lines (~40px) + id (~16px) + tags (~24px) + borders = ~110px
+const TASK_CARD_HEIGHT = 110;
+// Gap between cards
+const TASK_CARD_GAP = 8;
 
 /**
  * VirtualizedKanbanColumn - TB85/TB132
@@ -228,6 +231,7 @@ function VirtualizedKanbanColumn({
     count: tasks.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => TASK_CARD_HEIGHT,
+    gap: TASK_CARD_GAP,
     overscan: 5,
     getItemKey: (index) => tasks[index].id,
   });
@@ -308,7 +312,7 @@ function VirtualizedKanbanColumn({
       {/* Virtualized Cards Container */}
       <div
         ref={setRefs}
-        className={`flex-1 overflow-y-auto min-h-[200px] max-h-[calc(100vh-200px)] ${
+        className={`flex-1 overflow-y-auto ${
           isOver && isDragActive ? 'bg-blue-50 dark:bg-blue-950' : ''
         }`}
         style={{
@@ -341,7 +345,6 @@ function VirtualizedKanbanColumn({
                       width: '100%',
                       height: `${virtualItem.size}px`,
                       transform: `translateY(${virtualItem.start}px)`,
-                      padding: '4px 0',
                     }}
                     data-index={virtualItem.index}
                   >
@@ -435,7 +438,7 @@ export function KanbanBoard({ tasks, selectedTaskId, onTaskClick }: KanbanBoardP
       onDragEnd={handleDragEnd}
     >
       <div
-        className="flex gap-4 p-4 overflow-x-auto h-full min-h-[400px]"
+        className="flex gap-4 p-4 overflow-x-auto h-full"
         data-testid="kanban-board"
       >
         {COLUMNS.map((column) => {

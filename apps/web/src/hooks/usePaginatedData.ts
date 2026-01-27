@@ -159,11 +159,12 @@ export function usePaginatedData<T>({
   filterFn,
   sort,
   sortCompareFn,
-}: UsePaginatedDataOptions<T>): PaginatedResult<T> & { isLoading: boolean; filteredTotal: number } {
+}: UsePaginatedDataOptions<T>): PaginatedResult<T> & { isLoading: boolean; filteredTotal: number; allItems: T[] } {
   const result = useMemo(() => {
     if (!data) {
       return {
         items: [] as T[],
+        allItems: [] as T[],
         total: 0,
         totalPages: 0,
         page: 1,
@@ -184,6 +185,7 @@ export function usePaginatedData<T>({
 
     return {
       ...paginated,
+      allItems: sorted,
       filteredTotal: filtered.length,
     };
   }, [data, page, pageSize, filterFn, sort, sortCompareFn]);

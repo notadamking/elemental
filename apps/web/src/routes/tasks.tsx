@@ -1959,6 +1959,7 @@ export function TasksPage() {
 
   // Extract task items from client-side paginated data (TB69)
   const taskItems = paginatedData.items;
+  const allFilteredTasks = paginatedData.allItems; // Full filtered list for Kanban view
   const totalItems = paginatedData.filteredTotal;
   const totalPages = paginatedData.totalPages;
   const isLoading = isTasksLoading || paginatedData.isLoading || (readyOnly && isReadyTasksLoading);
@@ -2379,9 +2380,9 @@ export function TasksPage() {
           )}
 
           {!isLoading && viewMode === 'kanban' && (
-            <div className="animate-fade-in" data-testid="kanban-view-content">
+            <div className="animate-fade-in h-full" data-testid="kanban-view-content">
               <KanbanBoard
-                tasks={taskItems}
+                tasks={allFilteredTasks as Task[]}
                 selectedTaskId={selectedTaskId}
                 onTaskClick={handleTaskClick}
               />
