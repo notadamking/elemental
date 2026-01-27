@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun-types"],
+    "paths": {
+      "@elemental/core": ["../../packages/core/src/index.ts"],
+      "@elemental/core/*": ["../../packages/core/src/*"],
+      "@elemental/storage": ["../../packages/storage/src/index.ts"],
+      "@elemental/storage/*": ["../../packages/storage/src/*"],
+      "@elemental/sdk": ["../../packages/sdk/src/index.ts"],
+      "@elemental/sdk/*": ["../../packages/sdk/src/*"],
+      "@elemental/orchestrator-sdk": ["../../packages/orchestrator-sdk/src/index.ts"],
+      "@elemental/orchestrator-sdk/*": ["../../packages/orchestrator-sdk/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
