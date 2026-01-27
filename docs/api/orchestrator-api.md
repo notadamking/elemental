@@ -1726,6 +1726,256 @@ await handoffService.selfHandoff(agentId, sessionId, {
 - Claude session ID is preserved for predecessor queries
 - The source session is suspended (not terminated) to allow predecessor queries
 
+## WorktreeManager (TB-O11)
+
+The WorktreeManager provides git worktree operations for the orchestration system. Each worker agent gets a dedicated git worktree for true parallel development.
+
+### Creating a WorktreeManager
+
+```typescript
+import {
+  createWorktreeManager,
+  type WorktreeManager,
+  type WorktreeManagerConfig,
+} from '@elemental/orchestrator-sdk';
+
+const worktreeManager = createWorktreeManager({
+  workspaceRoot: '/path/to/project',      // Must be a git repository
+  worktreeDir: '.worktrees',               // Default: '.worktrees'
+  defaultBaseBranch: 'main',               // Default: auto-detected
+});
+
+// Initialize workspace (verifies git repo, creates worktree directory)
+await worktreeManager.initWorkspace();
+
+// Check if initialized
+worktreeManager.isInitialized();  // true
+
+// Get workspace root
+worktreeManager.getWorkspaceRoot();  // '/path/to/project'
+```
+
+### Creating Worktrees
+
+Worktrees are created with auto-generated branch names and paths:
+
+```typescript
+import type { CreateWorktreeOptions, CreateWorktreeResult } from '@elemental/orchestrator-sdk';
+
+// Create worktree for a worker
+const result = await worktreeManager.createWorktree({
+  agentName: 'alice',
+  taskId: 'task-123',
+  taskTitle: 'Implement Feature',        // Optional: used for slug
+  baseBranch: 'main',                     // Optional: default branch
+  trackRemote: true,                      // Optional: set up tracking
+});
+
+console.log(result.branch);        // 'agent/alice/task-123-implement-feature'
+console.log(result.path);          // '/path/to/project/.worktrees/alice-implement-feature'
+console.log(result.branchCreated); // true (false if branch already existed)
+console.log(result.worktree.state); // 'active'
+
+// Create with custom branch and path
+const custom = await worktreeManager.createWorktree({
+  agentName: 'bob',
+  taskId: 'task-456',
+  customBranch: 'feature/custom-branch',
+  customPath: '.worktrees/custom-path',
+});
+```
+
+### Naming Conventions
+
+Branches and worktree paths follow predictable naming conventions:
+
+- **Branch naming**: `agent/{worker-name}/{task-id}-{slug}`
+- **Worktree path**: `.worktrees/{worker-name}-{task-slug}/`
+
+```typescript
+import {
+  generateBranchName,
+  generateWorktreePath,
+  createSlugFromTitle,
+} from '@elemental/orchestrator-sdk';
+
+// Generate branch name
+const branch = generateBranchName('alice', 'task-123', 'implement-feature');
+// 'agent/alice/task-123-implement-feature'
+
+// Generate worktree path
+const wtPath = generateWorktreePath('alice', 'implement-feature');
+// '.worktrees/alice-implement-feature'
+
+// Create slug from title
+const slug = createSlugFromTitle('Implement Feature!');
+// 'implement-feature'
+```
+
+### Removing Worktrees
+
+```typescript
+import type { RemoveWorktreeOptions } from '@elemental/orchestrator-sdk';
+
+// Remove worktree (keeps branch)
+await worktreeManager.removeWorktree('.worktrees/alice-feature');
+
+// Remove worktree and delete branch
+await worktreeManager.removeWorktree('.worktrees/alice-feature', {
+  deleteBranch: true,
+  forceBranchDelete: true,  // Delete even if not fully merged
+});
+
+// Force remove (even with uncommitted changes)
+await worktreeManager.removeWorktree('.worktrees/alice-feature', {
+  force: true,
+});
+```
+
+### Suspending and Resuming Worktrees
+
+```typescript
+// Suspend a worktree (marks inactive but preserves it)
+await worktreeManager.suspendWorktree('.worktrees/alice-feature');
+
+// Resume a suspended worktree
+await worktreeManager.resumeWorktree('.worktrees/alice-feature');
+```
+
+### Querying Worktrees
+
+```typescript
+import type { WorktreeInfo } from '@elemental/orchestrator-sdk';
+
+// List all worktrees (excluding main)
+const worktrees = await worktreeManager.listWorktrees();
+
+// List all worktrees (including main)
+const allWorktrees = await worktreeManager.listWorktrees(true);
+
+// Get specific worktree
+const worktree = await worktreeManager.getWorktree('.worktrees/alice-feature');
+
+// Get worktree path for an agent/task
+const path = worktreeManager.getWorktreePath('alice', 'Feature Task');
+
+// Get worktrees for a specific agent
+const aliceWorktrees = await worktreeManager.getWorktreesForAgent('alice');
+
+// Check if worktree exists
+const exists = await worktreeManager.worktreeExists('.worktrees/alice-feature');
+```
+
+### WorktreeInfo
+
+```typescript
+interface WorktreeInfo {
+  path: string;           // Full absolute path
+  relativePath: string;   // Relative to workspace root
+  branch: string;         // Branch checked out
+  head: string;           // HEAD commit hash
+  isMain: boolean;        // Whether this is the main worktree
+  state: WorktreeState;   // Lifecycle state
+  agentName?: string;     // Agent name (if parseable from path)
+  taskId?: string;        // Task ID (if parseable from branch)
+  createdAt?: Timestamp;  // When created (if tracked)
+}
+```
+
+### Branch Operations
+
+```typescript
+// Get current branch of main worktree
+const currentBranch = await worktreeManager.getCurrentBranch();
+
+// Get default branch (main, master, etc.)
+const defaultBranch = await worktreeManager.getDefaultBranch();
+
+// Check if branch exists
+const exists = await worktreeManager.branchExists('feature/my-branch');
+```
+
+### Worktree Lifecycle States
+
+Worktrees follow a state machine:
+
+| State | Description | Valid Transitions |
+|-------|-------------|-------------------|
+| `creating` | Being created | active, cleaning |
+| `active` | Active and in use | suspended, merging, cleaning |
+| `suspended` | Suspended (can be resumed) | active, cleaning |
+| `merging` | Branch being merged | archived, cleaning, active |
+| `cleaning` | Being cleaned up | archived |
+| `archived` | Archived (removed) | (none) |
+
+```typescript
+import {
+  isWorktreeState,
+  isValidStateTransition,
+  getWorktreeStateDescription,
+} from '@elemental/orchestrator-sdk';
+
+isWorktreeState('active');                    // true
+isValidStateTransition('active', 'suspended'); // true
+getWorktreeStateDescription('suspended');      // 'Suspended (can be resumed)'
+```
+
+### Error Handling
+
+```typescript
+import {
+  GitRepositoryNotFoundError,
+  WorktreeError,
+} from '@elemental/orchestrator-sdk';
+
+try {
+  await worktreeManager.initWorkspace();
+} catch (error) {
+  if (error instanceof GitRepositoryNotFoundError) {
+    // No git repository found
+    console.error(error.message);
+    // "Git repository not found at /path/to/project.
+    //  Please initialize a git repository first:
+    //    cd /path/to/project
+    //    git init
+    //    ..."
+  }
+}
+
+try {
+  await worktreeManager.createWorktree({ agentName: 'alice', taskId: 'task-1' });
+} catch (error) {
+  if (error instanceof WorktreeError) {
+    console.error(`Error: ${error.message}`);
+    console.error(`Code: ${error.code}`);      // 'WORKTREE_EXISTS', 'NOT_INITIALIZED', etc.
+    console.error(`Details: ${error.details}`); // Additional error info
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `NOT_INITIALIZED` | WorktreeManager not initialized |
+| `WORKTREE_EXISTS` | Worktree already exists at path |
+| `WORKTREE_NOT_FOUND` | Worktree not found |
+| `CANNOT_REMOVE_MAIN` | Cannot remove the main worktree |
+| `INVALID_STATE_TRANSITION` | Invalid worktree state transition |
+| `WORKTREE_INFO_FAILED` | Failed to get worktree info |
+| `LIST_FAILED` | Failed to list worktrees |
+| `REMOVE_FAILED` | Failed to remove worktree |
+| `BRANCH_DELETE_FAILED` | Failed to delete branch |
+| `BRANCH_QUERY_FAILED` | Failed to query branch |
+
+### Notes
+
+- **Git Repository Required**: The orchestrator requires an existing git repository. If no repo is found, `initWorkspace()` throws `GitRepositoryNotFoundError` with setup instructions.
+- **ELEMENTAL_ROOT**: Agents spawned in worktrees use the `ELEMENTAL_ROOT` environment variable to find the main workspace's `.elemental` directory.
+- **Gitignore**: The worktree directory is automatically added to `.gitignore` during initialization.
+- **Symlinks**: The manager handles filesystem symlinks (like `/tmp` → `/private/tmp` on macOS) correctly.
+- **State Persistence**: Worktree states are tracked in memory; for cross-restart persistence, use orchestrator task metadata.
+
 ## Type Definitions
 
 Key files:
@@ -1740,6 +1990,7 @@ Key files:
 - `packages/orchestrator-sdk/src/runtime/inbox-polling.ts` - Inbox polling service (TB-O10b)
 - `packages/orchestrator-sdk/src/runtime/predecessor-query.ts` - Predecessor query service (TB-O10d)
 - `packages/orchestrator-sdk/src/runtime/handoff.ts` - Handoff service (TB-O10e, TB-O10f)
+- `packages/orchestrator-sdk/src/git/worktree-manager.ts` - Git worktree management (TB-O11)
 
 ## See Also
 

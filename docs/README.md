@@ -25,6 +25,7 @@
 | Dispatch tasks to agents | [api/orchestrator-api.md#dispatchservice-tb-o8a](api/orchestrator-api.md#dispatchservice-tb-o8a) | `packages/orchestrator-sdk/src/services/dispatch-service.ts` |
 | Spawn agent processes | [api/orchestrator-api.md#spawnerservice-tb-o9](api/orchestrator-api.md#spawnerservice-tb-o9) | `packages/orchestrator-sdk/src/runtime/spawner.ts` |
 | Manage agent sessions | [api/orchestrator-api.md#sessionmanager-tb-o10](api/orchestrator-api.md#sessionmanager-tb-o10) | `packages/orchestrator-sdk/src/runtime/session-manager.ts` |
+| Manage git worktrees | [api/orchestrator-api.md#worktreemanager-tb-o11](api/orchestrator-api.md#worktreemanager-tb-o11) | `packages/orchestrator-sdk/src/git/worktree-manager.ts` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
