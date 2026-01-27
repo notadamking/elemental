@@ -1846,6 +1846,7 @@ app.patch('/api/inbox/:itemId', async (c) => {
 
 // GET /api/inbox/all - Global inbox view across all entities (TB89)
 // NOTE: This route MUST be defined before /api/inbox/:itemId to prevent "all" being matched as itemId
+// Supports filtering by entityId to show a specific user's inbox
 app.get('/api/inbox/all', async (c) => {
   try {
     const url = new URL(c.req.url);
@@ -1855,6 +1856,7 @@ app.get('/api/inbox/all', async (c) => {
     const offsetParam = url.searchParams.get('offset');
     const statusParam = url.searchParams.get('status');
     const hydrateParam = url.searchParams.get('hydrate');
+    const entityIdParam = url.searchParams.get('entityId');
 
     const limit = limitParam ? parseInt(limitParam, 10) : 50;
     const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
@@ -1868,11 +1870,21 @@ app.get('/api/inbox/all', async (c) => {
       filter.status = statusParam as InboxStatus;
     }
 
-    // Get all inbox items across all entities by querying the database directly
+    // Get inbox items - optionally filtered by entityId
     // This requires a raw query since InboxService only supports per-entity queries
-    const statusCondition = statusParam ? `AND status = '${statusParam}'` : '';
+    // Handle comma-separated statuses (e.g., "unread,read")
+    let statusCondition = '';
+    if (statusParam) {
+      const statuses = statusParam.split(',').map(s => s.trim());
+      if (statuses.length === 1) {
+        statusCondition = `AND status = '${statuses[0]}'`;
+      } else {
+        statusCondition = `AND status IN (${statuses.map(s => `'${s}'`).join(', ')})`;
+      }
+    }
+    const entityCondition = entityIdParam ? `AND recipient_id = '${entityIdParam}'` : '';
     const countResult = storageBackend.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM inbox_items WHERE 1=1 ${statusCondition}`,
+      `SELECT COUNT(*) as count FROM inbox_items WHERE 1=1 ${statusCondition} ${entityCondition}`,
       []
     );
     const total = countResult?.count ?? 0;
@@ -1891,7 +1903,7 @@ app.get('/api/inbox/all', async (c) => {
     const rows = storageBackend.query<InboxItemRow>(
       `SELECT id, recipient_id, message_id, channel_id, source_type, status, read_at, created_at
        FROM inbox_items
-       WHERE 1=1 ${statusCondition}
+       WHERE 1=1 ${statusCondition} ${entityCondition}
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
       [limit, offset]
@@ -1998,18 +2010,28 @@ app.get('/api/inbox/all', async (c) => {
 
 // GET /api/inbox/count - Global inbox unread count (TB137)
 // NOTE: This route MUST be defined before /api/inbox/:itemId to prevent "count" being matched as itemId
+// Supports filtering by entityId to get count for a specific user
 app.get('/api/inbox/count', async (c) => {
   try {
     const url = new URL(c.req.url);
     const statusParam = url.searchParams.get('status');
+    const entityIdParam = url.searchParams.get('entityId');
 
-    // Default to unread count if no status specified
-    const statusCondition = statusParam
-      ? `WHERE status = '${statusParam}'`
-      : `WHERE status = 'unread'`;
+    // Build WHERE conditions
+    const conditions: string[] = [];
+    if (statusParam) {
+      conditions.push(`status = '${statusParam}'`);
+    } else {
+      conditions.push(`status = 'unread'`);
+    }
+    if (entityIdParam) {
+      conditions.push(`recipient_id = '${entityIdParam}'`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = storageBackend.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM inbox_items ${statusCondition}`,
+      `SELECT COUNT(*) as count FROM inbox_items ${whereClause}`,
       []
     );
 

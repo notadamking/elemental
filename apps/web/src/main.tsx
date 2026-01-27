@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import { router } from './router';
 import { TooltipProvider } from './components/ui/Tooltip';
 import { DataPreloader } from './components/shared';
+import { CurrentUserProvider } from './contexts';
 import { getToastPosition, getToastDuration } from './routes/settings';
 import './index.css';
 
@@ -93,12 +94,14 @@ function DynamicToaster() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <DataPreloader>
-          <RouterProvider router={router} />
-          <DynamicToaster />
-        </DataPreloader>
-      </TooltipProvider>
+      <CurrentUserProvider>
+        <TooltipProvider>
+          <DataPreloader>
+            <RouterProvider router={router} />
+            <DynamicToaster />
+          </DataPreloader>
+        </TooltipProvider>
+      </CurrentUserProvider>
     </QueryClientProvider>
   </StrictMode>
 );

@@ -33,6 +33,7 @@ import {
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { PageHeader } from '../components/shared';
 import { useKeyboardShortcut, useIsMobile } from '../hooks';
+import { useCurrentUser } from '../contexts';
 import { groupByTimePeriod, TIME_PERIOD_LABELS, type TimePeriod, formatCompactTime } from '../lib';
 
 // Types
@@ -144,9 +145,9 @@ function setStoredSortOrder(order: InboxSortOrder): void {
 }
 
 // Hooks
-function useGlobalInbox(view: InboxViewType = 'all') {
+function useUserInbox(view: InboxViewType = 'all', entityId: string | null) {
   return useQuery<PaginatedResult<InboxItem>>({
-    queryKey: ['inbox', 'global', view],
+    queryKey: ['inbox', entityId, view],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '100', hydrate: 'true' });
       if (view === 'unread') {
@@ -156,21 +157,31 @@ function useGlobalInbox(view: InboxViewType = 'all') {
       } else {
         params.set('status', 'unread,read');
       }
+      // Filter by entity if specified
+      if (entityId) {
+        params.set('entityId', entityId);
+      }
       const response = await fetch(`/api/inbox/all?${params}`);
       if (!response.ok) throw new Error('Failed to fetch inbox');
       return response.json();
     },
+    enabled: !!entityId, // Only fetch when we have an entity
   });
 }
 
-function useGlobalInboxCount() {
+function useUserInboxCount(entityId: string | null) {
   return useQuery<{ count: number }>({
-    queryKey: ['inbox', 'global', 'count'],
+    queryKey: ['inbox', entityId, 'count'],
     queryFn: async () => {
-      const response = await fetch('/api/inbox/count');
+      const params = new URLSearchParams();
+      if (entityId) {
+        params.set('entityId', entityId);
+      }
+      const response = await fetch(`/api/inbox/count?${params}`);
       if (!response.ok) throw new Error('Failed to fetch inbox count');
       return response.json();
     },
+    enabled: !!entityId, // Only fetch when we have an entity
   });
 }
 
@@ -188,7 +199,38 @@ function useMarkInboxRead() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inbox', 'global'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
+    },
+  });
+}
+
+// Hook to send a message reply
+function useSendReply() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      channelId,
+      sender,
+      content,
+      threadId,
+    }: {
+      channelId: string;
+      sender: string;
+      content: string;
+      threadId?: string;
+    }) => {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId, sender, content, threadId }),
+      });
+      if (!response.ok) throw new Error('Failed to send message');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox'] });
     },
   });
 }
@@ -383,7 +425,7 @@ function InboxMessageContent({
   const hasThreadParent = item.threadParent !== null && item.threadParent !== undefined;
 
   return (
-    <div className="h-full flex flex-col" data-testid={`inbox-page-message-content-${item.id}`}>
+    <div className="flex flex-col" data-testid={`inbox-page-message-content-${item.id}`}>
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-start justify-between">
@@ -508,7 +550,7 @@ function InboxMessageContent({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1">
         {/* Thread context */}
         {hasThreadParent && item.threadParent && (
           <div
@@ -626,6 +668,7 @@ function InboxMessageEmptyState() {
 export function InboxPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { message?: string };
+  const { currentUser, isLoading: userLoading } = useCurrentUser();
 
   // State
   const [inboxView, setInboxView] = useState<InboxViewType>(() => getStoredInboxView());
@@ -634,6 +677,8 @@ export function InboxPage() {
   const [selectedInboxItemId, setSelectedInboxItemId] = useState<string | null>((search as { message?: string }).message || null);
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [timeUpdateTrigger, setTimeUpdateTrigger] = useState(0);
+  const [replyContent, setReplyContent] = useState('');
+  const [showReplyComposer, setShowReplyComposer] = useState(false);
 
   // Periodic time updates
   useEffect(() => {
@@ -643,10 +688,11 @@ export function InboxPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch data
-  const { data: inboxData, isLoading: inboxLoading, isError: inboxError, refetch: refetchInbox } = useGlobalInbox(inboxView);
-  const { data: inboxCount } = useGlobalInboxCount();
+  // Fetch data for the current user
+  const { data: inboxData, isLoading: inboxLoading, isError: inboxError, refetch: refetchInbox } = useUserInbox(inboxView, currentUser?.id ?? null);
+  const { data: inboxCount } = useUserInboxCount(currentUser?.id ?? null);
   const markInboxMutation = useMarkInboxRead();
+  const sendReplyMutation = useSendReply();
 
   // Filter and sort items
   const filteredAndSortedInboxItems = useMemo(() => {
@@ -784,11 +830,52 @@ export function InboxPage() {
 
   const isMobile = useIsMobile();
 
+  // Handle reply submission
+  const handleSendReply = useCallback(async () => {
+    if (!replyContent.trim() || !selectedInboxItem || !currentUser) return;
+
+    try {
+      await sendReplyMutation.mutateAsync({
+        channelId: selectedInboxItem.channelId,
+        sender: currentUser.id,
+        content: replyContent.trim(),
+        threadId: selectedInboxItem.messageId, // Reply to the original message
+      });
+      setReplyContent('');
+      setShowReplyComposer(false);
+    } catch (error) {
+      console.error('Failed to send reply:', error);
+    }
+  }, [replyContent, selectedInboxItem, currentUser, sendReplyMutation]);
+
+  // Show no user selected state
+  if (!userLoading && !currentUser) {
+    return (
+      <div className="h-full flex flex-col bg-[var(--color-bg)]" data-testid="inbox-page">
+        <PageHeader
+          title="Inbox"
+          icon={Inbox}
+          iconColor="text-blue-500"
+          subtitle="No user selected"
+          bordered
+          testId="inbox-header"
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-gray-500 dark:text-gray-400">
+            <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p className="text-lg font-medium">No user selected</p>
+            <p className="text-sm mt-1">Select a user from the header dropdown to view their inbox</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col bg-[var(--color-bg)]" data-testid="inbox-page">
       {/* Header */}
       <PageHeader
-        title="Inbox"
+        title={currentUser ? `${currentUser.name}'s Inbox` : 'Inbox'}
         icon={Inbox}
         iconColor="text-blue-500"
         subtitle={inboxCount?.count !== undefined && inboxCount.count > 0
@@ -981,19 +1068,82 @@ export function InboxPage() {
         </div>
 
         {/* Right Panel - Message Content (60%) */}
-        <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900" data-testid="inbox-page-message-content-panel">
+        <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900 flex flex-col" data-testid="inbox-page-message-content-panel">
           {selectedInboxItem ? (
-            <InboxMessageContent
-              item={selectedInboxItem}
-              onMarkRead={() => handleMarkInboxRead(selectedInboxItem.id)}
-              onMarkUnread={() => handleMarkInboxUnread(selectedInboxItem.id)}
-              onArchive={() => handleArchiveInbox(selectedInboxItem.id)}
-              onRestore={() => handleRestoreInbox(selectedInboxItem.id)}
-              isPending={pendingItemId === selectedInboxItem.id}
-              onNavigateToMessage={() => handleNavigateToMessage(selectedInboxItem.channelId, selectedInboxItem.messageId)}
-              onNavigateToEntity={handleNavigateToEntity}
-              onReply={() => handleNavigateToMessage(selectedInboxItem.channelId, selectedInboxItem.messageId)}
-            />
+            <>
+              <div className="flex-1 overflow-auto">
+                <InboxMessageContent
+                  item={selectedInboxItem}
+                  onMarkRead={() => handleMarkInboxRead(selectedInboxItem.id)}
+                  onMarkUnread={() => handleMarkInboxUnread(selectedInboxItem.id)}
+                  onArchive={() => handleArchiveInbox(selectedInboxItem.id)}
+                  onRestore={() => handleRestoreInbox(selectedInboxItem.id)}
+                  isPending={pendingItemId === selectedInboxItem.id}
+                  onNavigateToMessage={() => handleNavigateToMessage(selectedInboxItem.channelId, selectedInboxItem.messageId)}
+                  onNavigateToEntity={handleNavigateToEntity}
+                  onReply={() => setShowReplyComposer(!showReplyComposer)}
+                />
+              </div>
+              {/* Reply Composer */}
+              {showReplyComposer && selectedInboxItem.status !== 'archived' && (
+                <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800" data-testid="inbox-reply-composer">
+                  <div className="flex items-center gap-2 mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    <Reply className="w-3 h-3" />
+                    <span>
+                      Replying as <span className="font-medium text-gray-700 dark:text-gray-300">{currentUser?.name}</span> to {selectedInboxItem.sender?.name ?? 'Unknown'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={replyContent}
+                      onChange={(e) => setReplyContent(e.target.value)}
+                      placeholder="Write your reply..."
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      rows={3}
+                      data-testid="inbox-reply-textarea"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handleSendReply();
+                        }
+                      }}
+                    />
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={handleSendReply}
+                        disabled={!replyContent.trim() || sendReplyMutation.isPending}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        data-testid="inbox-reply-send"
+                      >
+                        {sendReplyMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Reply className="w-4 h-4" />
+                        )}
+                        Send
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowReplyComposer(false);
+                          setReplyContent('');
+                        }}
+                        className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-lg transition-colors"
+                        data-testid="inbox-reply-cancel"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                  {sendReplyMutation.isError && (
+                    <p className="mt-2 text-xs text-red-500" data-testid="inbox-reply-error">
+                      Failed to send reply. Please try again.
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-gray-400">
+                    Press {navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'}+Enter to send
+                  </p>
+                </div>
+              )}
+            </>
           ) : (
             <InboxMessageEmptyState />
           )}

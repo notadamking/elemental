@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Outlet, useRouterState, Link, useRouter } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
 import { MobileDrawer } from './MobileDrawer';
+import { UserSelector } from './UserSelector';
 import { CommandPalette } from '../navigation';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
@@ -392,6 +393,8 @@ export function AppShell() {
           {!isMobile && <Breadcrumbs />}
 
           <div className="flex items-center gap-2 md:gap-4">
+            {/* User selector for switching human entities */}
+            {!isMobile && <UserSelector />}
             <ThemeToggle />
             {/* Only show divider and connection status on tablet+ */}
             {!isMobile && (
