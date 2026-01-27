@@ -146,6 +146,10 @@ export function VirtualizedChatList<T>({
     estimateSize: (index) => estimateSizeFn(index) + (index < items.length - 1 ? gap : 0),
     overscan,
     getItemKey: (index) => getItemKey(items[index], index),
+    // Enable dynamic measurement for variable height items
+    measureElement: (element) => {
+      return element.getBoundingClientRect().height;
+    },
   });
 
   // Check if scrolled to bottom
@@ -301,6 +305,7 @@ export function VirtualizedChatList<T>({
             return (
               <div
                 key={virtualItem.key}
+                ref={virtualizer.measureElement}
                 style={{
                   position: 'absolute',
                   top: 0,
