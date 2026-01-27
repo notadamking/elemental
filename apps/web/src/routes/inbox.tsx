@@ -31,7 +31,8 @@ import {
   FileText,
 } from 'lucide-react';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
-import { useKeyboardShortcut } from '../hooks';
+import { PageHeader } from '../components/shared';
+import { useKeyboardShortcut, useIsMobile } from '../hooks';
 import { groupByTimePeriod, TIME_PERIOD_LABELS, type TimePeriod, formatCompactTime } from '../lib';
 
 // Types
@@ -781,26 +782,23 @@ export function InboxPage() {
   useKeyboardShortcut('J', useCallback(() => handleKeyNavigation('next'), [handleKeyNavigation]), 'Next message');
   useKeyboardShortcut('K', useCallback(() => handleKeyNavigation('prev'), [handleKeyNavigation]), 'Previous message');
 
+  const isMobile = useIsMobile();
+
   return (
     <div className="h-full flex flex-col bg-[var(--color-bg)]" data-testid="inbox-page">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-            <Inbox className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-[var(--color-text)]">Inbox</h1>
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              {inboxCount?.count !== undefined && inboxCount.count > 0
-                ? `${inboxCount.count} unread`
-                : 'No unread messages'}
-            </p>
-          </div>
-        </div>
-
+      <PageHeader
+        title="Inbox"
+        icon={Inbox}
+        iconColor="text-blue-500"
+        subtitle={inboxCount?.count !== undefined && inboxCount.count > 0
+          ? `${inboxCount.count} unread`
+          : 'No unread messages'}
+        bordered
+        testId="inbox-header"
+      >
         {/* View tabs */}
-        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
           <button
             onClick={() => handleViewChange('unread')}
             className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
@@ -840,10 +838,10 @@ export function InboxPage() {
             Archived
           </button>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Filter/Sort bar */}
-      <div className="flex items-center justify-between px-6 py-2 border-b border-[var(--color-border)] bg-gray-50 dark:bg-gray-900/50">
+      <div className={`flex items-center justify-between ${isMobile ? 'px-3' : 'px-6'} py-2 border-b border-[var(--color-border)] bg-gray-50 dark:bg-gray-900/50`}>
         {/* Source filter */}
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-400" />

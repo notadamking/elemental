@@ -6,7 +6,7 @@ import { useDebounce, useIsMobile, useIsTablet, useGlobalQuickActions, useShortc
 import { getCurrentBinding } from '../lib/keyboard';
 import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
 import { KanbanBoard } from '../components/task/KanbanBoard';
-import { Pagination } from '../components/shared/Pagination';
+import { Pagination, PageHeader } from '../components/shared';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
@@ -2199,21 +2199,52 @@ export function TasksPage() {
 
       {/* Task List - full width on mobile, shrinks when detail panel is open on desktop */}
       <div className={`flex flex-col ${selectedTaskId && !isMobile ? 'w-1/2' : 'w-full'} transition-all duration-200 ${selectedTaskId && isMobile ? 'hidden' : ''}`}>
-        {/* Header - Responsive layout (TB147) */}
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          {/* Mobile header */}
-          {isMobile ? (
-            <div className="p-3 space-y-3">
-              {/* Search bar - full width on mobile */}
-              <TaskSearchBar
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onClear={handleClearSearch}
-                compact
-              />
-              {/* Controls row */}
-              <div className="flex items-center justify-between gap-2">
+        {/* Header */}
+        <PageHeader
+          title="Tasks"
+          icon={CheckSquare}
+          iconColor="text-blue-500"
+          bordered
+          actions={[
+            {
+              label: 'Create Task',
+              shortLabel: 'Create',
+              icon: Plus,
+              onClick: openCreateTaskModal,
+              shortcut: getCurrentBinding('action.createTask'),
+              testId: 'create-task-button',
+            },
+          ]}
+          testId="tasks-header"
+        >
+          {/* Search and controls */}
+          <div className="space-y-3">
+            {/* Search bar */}
+            <TaskSearchBar
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onClear={handleClearSearch}
+              compact={isMobile}
+            />
+            {/* Controls row */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {!isMobile && !isTablet && (
+                  <SortByDropdown
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    secondarySort={secondarySort}
+                    onSortFieldChange={handleSortFieldChange}
+                    onSortDirectionChange={handleSortDirectionChange}
+                    onSecondarySortChange={handleSecondarySortChange}
+                  />
+                )}
+                {viewMode === 'list' && !isMobile && !isTablet && (
+                  <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
+                )}
                 <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
+              </div>
+              {isMobile && (
                 <button
                   onClick={() => setMobileFilterOpen(true)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors touch-target ${
@@ -2231,48 +2262,10 @@ export function TasksPage() {
                     </span>
                   )}
                 </button>
-              </div>
+              )}
             </div>
-          ) : (
-            /* Desktop/Tablet header */
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-4 flex-1 mr-4">
-                <h2 className="text-lg font-medium text-[var(--color-text)] flex-shrink-0">Tasks</h2>
-                {/* Search Bar (TB82) */}
-                <TaskSearchBar
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onClear={handleClearSearch}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                {!isTablet && (
-                  <SortByDropdown
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    secondarySort={secondarySort}
-                    onSortFieldChange={handleSortFieldChange}
-                    onSortDirectionChange={handleSortDirectionChange}
-                    onSecondarySortChange={handleSecondarySortChange}
-                  />
-                )}
-                {viewMode === 'list' && !isTablet && (
-                  <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
-                )}
-                <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
-                <button
-                  onClick={openCreateTaskModal}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-                  data-testid="create-task-button"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create Task
-                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createTask')}</kbd>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        </PageHeader>
 
         {/* Bulk Action Menu - hide on mobile */}
         {selectedIds.size > 0 && viewMode === 'list' && !isMobile && (

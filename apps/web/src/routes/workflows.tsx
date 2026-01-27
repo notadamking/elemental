@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { PageHeader } from '../components/shared';
 import { MobileWorkflowCard } from '../components/workflow/MobileWorkflowCard';
 import { useAllWorkflows } from '../api/hooks/useAllElements';
 import { useDeepLink } from '../hooks/useDeepLink';
@@ -1093,53 +1094,32 @@ export function WorkflowsPage() {
 
   return (
     <div data-testid="workflows-page" className="h-full flex flex-col">
-      {/* Header - Responsive layout (TB148) */}
-      <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        {/* Mobile header */}
-        {isMobile ? (
-          <div className="p-3 space-y-3">
-            {/* Status filter - scrollable on mobile */}
-            <div className="overflow-x-auto -mx-3 px-3 scrollbar-hide">
-              <StatusFilter
-                selectedStatus={selectedStatus}
-                onStatusChange={handleStatusFilterChange}
-              />
-            </div>
-          </div>
-        ) : (
-          /* Desktop header */
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <GitBranch className="w-6 h-6 text-purple-500" />
-                <h1 className="text-xl font-semibold text-[var(--color-text)]">Workflows</h1>
-                {workflows.length > 0 && (
-                  <span
-                    data-testid="workflows-count"
-                    className="text-sm text-[var(--color-text-secondary)]"
-                  >
-                    ({workflows.length})
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={openPourWorkflowModal}
-                data-testid="pour-workflow-button"
-                className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                Create Workflow
-                <kbd className="ml-1 text-xs bg-purple-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createWorkflow')}</kbd>
-              </button>
-            </div>
-
-            <StatusFilter
-              selectedStatus={selectedStatus}
-              onStatusChange={handleStatusFilterChange}
-            />
-          </div>
-        )}
-      </div>
+      {/* Header */}
+      <PageHeader
+        title="Workflows"
+        icon={GitBranch}
+        iconColor="text-blue-500"
+        count={workflows.length > 0 ? workflows.length : undefined}
+        bordered
+        actions={[
+          {
+            label: 'Create Workflow',
+            shortLabel: 'Create',
+            icon: Plus,
+            onClick: openPourWorkflowModal,
+            shortcut: getCurrentBinding('action.createWorkflow'),
+            testId: 'pour-workflow-button',
+          },
+        ]}
+        testId="workflows-header"
+      >
+        <div className={isMobile ? 'overflow-x-auto -mx-3 px-3 scrollbar-hide' : ''}>
+          <StatusFilter
+            selectedStatus={selectedStatus}
+            onStatusChange={handleStatusFilterChange}
+          />
+        </div>
+      </PageHeader>
 
       {/* Content - Responsive layout (TB148) */}
       <div className={`flex-1 flex overflow-hidden ${selectedWorkflowId && isMobile ? 'hidden' : ''}`}>

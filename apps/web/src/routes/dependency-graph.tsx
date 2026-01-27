@@ -29,8 +29,9 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
-import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Loader2, Tag, LayoutGrid, ArrowDown, ArrowRight, ArrowUp, ArrowLeft, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { Search, X, Filter, ZoomIn, ZoomOut, Maximize2, Loader2, Tag, LayoutGrid, ArrowDown, ArrowRight, ArrowUp, ArrowLeft, SlidersHorizontal, ChevronDown, Network } from 'lucide-react';
 import { useIsMobile } from '../hooks';
+import { PageHeader } from '../components/shared';
 
 interface Task {
   id: string;
@@ -1439,12 +1440,13 @@ export function DependencyGraphPage() {
 
   return (
     <div className="h-full flex flex-col" data-testid="dependency-graph-page">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
-        <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">Dependency Graph</h2>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-          Visualize task dependencies
-        </p>
-      </div>
+      <PageHeader
+        title="Dependencies"
+        icon={Network}
+        iconColor="text-blue-500"
+        subtitle="Visualize task dependencies"
+        testId="dependency-graph-header"
+      />
 
       {isLoading && (
         <div className="text-gray-500 dark:text-gray-400 text-sm">Loading tasks...</div>

@@ -24,6 +24,7 @@ import {
   Menu,
   Search,
   Inbox,
+  Network,
 } from 'lucide-react';
 
 interface HealthResponse {
@@ -102,12 +103,13 @@ interface RouteConfig {
 
 const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/dashboard': { label: 'Dashboard', icon: LayoutDashboard },
-  '/dashboard/overview': { label: 'Overview', icon: LayoutDashboard, parent: '/dashboard' },
-  '/dashboard/task-flow': { label: 'Task Flow', icon: GitBranch, parent: '/dashboard' },
-  '/dashboard/timeline': { label: 'Timeline', icon: History, parent: '/dashboard' },
+  '/dashboard/overview': { label: 'Overview', icon: LayoutDashboard },
+  '/dashboard/task-flow': { label: 'Task Flow', icon: GitBranch },
+  '/dashboard/timeline': { label: 'Timeline', icon: History },
   '/tasks': { label: 'Tasks', icon: CheckSquare },
   '/plans': { label: 'Plans', icon: Folder },
   '/workflows': { label: 'Workflows', icon: Workflow },
+  '/dependencies': { label: 'Dependencies', icon: Network },
   '/inbox': { label: 'Inbox', icon: Inbox },
   '/messages': { label: 'Messages', icon: MessageSquare },
   '/documents': { label: 'Documents', icon: FileText },

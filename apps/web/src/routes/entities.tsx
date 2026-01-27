@@ -9,7 +9,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Bot, User, Server, Users, X, CheckCircle, Clock, FileText, MessageSquare, ListTodo, Activity, Plus, Loader2, Pencil, Save, Power, PowerOff, Tag, Inbox, Mail, Archive, AtSign, CheckCheck, ChevronRight, GitBranch, ChevronDown, AlertCircle, RefreshCw, Reply, Paperclip, CornerUpLeft, Filter, ArrowUpDown, ArrowUp, ArrowDown, Calendar, History, Hash, Eye, EyeOff } from 'lucide-react';
-import { Pagination } from '../components/shared/Pagination';
+import { Pagination, PageHeader } from '../components/shared';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { ContributionChart } from '../components/shared/ContributionChart';
@@ -3687,34 +3687,35 @@ export function EntitiesPage() {
       {/* Entity List - full width on mobile, split on desktop when entity selected */}
       <div className={`flex flex-col ${!isMobile && selectedEntityId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-lg font-medium text-[var(--color-text)]">Entities</h2>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <p className="text-xs sm:text-sm text-[var(--color-text-muted)] hidden sm:block">
-              {entityItems.length} of {totalItems} entities
-            </p>
-            <button
-              onClick={() => setIsCreateEntityModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors touch-target"
-              data-testid="create-entity-button"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Create Entity</span>
-              <span className="sm:hidden">Add</span>
-              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">{getCurrentBinding('action.createEntity')}</kbd>
-            </button>
+        <PageHeader
+          title="Entities"
+          icon={Users}
+          iconColor="text-blue-500"
+          count={entityItems.length}
+          totalCount={totalItems}
+          bordered
+          actions={[
+            {
+              label: 'Create Entity',
+              shortLabel: 'Add',
+              icon: Plus,
+              onClick: () => setIsCreateEntityModalOpen(true),
+              shortcut: getCurrentBinding('action.createEntity'),
+              testId: 'create-entity-button',
+            },
+          ]}
+          testId="entities-header"
+        >
+          {/* Filters - scrollable on mobile */}
+          <div className="flex flex-col gap-3">
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <FilterTabs selected={typeFilter} onChange={handleTypeFilterChange} counts={counts} />
+            </div>
+            <div className="w-full sm:w-64 sm:ml-auto">
+              <SearchBox value={searchQuery} onChange={handleSearchChange} />
+            </div>
           </div>
-        </div>
-
-        {/* Filters - scrollable on mobile */}
-        <div className="flex flex-col gap-3 mb-4 sm:mb-6">
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <FilterTabs selected={typeFilter} onChange={handleTypeFilterChange} counts={counts} />
-          </div>
-          <div className="w-full sm:w-64 sm:ml-auto">
-            <SearchBox value={searchQuery} onChange={handleSearchChange} />
-          </div>
-        </div>
+        </PageHeader>
 
         {/* Loading state */}
         {isLoading && (

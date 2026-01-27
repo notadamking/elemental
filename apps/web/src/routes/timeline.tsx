@@ -13,9 +13,10 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Pagination } from '../components/shared/Pagination';
+import { Pagination, PageHeader } from '../components/shared';
 import { VirtualizedList } from '../components/shared/VirtualizedList';
 import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
+import { History } from 'lucide-react';
 
 // Estimated event card height for virtualization
 const EVENT_CARD_HEIGHT = 140;
@@ -1627,12 +1628,15 @@ export function TimelinePage() {
   return (
     <div className="h-full flex flex-col" data-testid="timeline-page">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 sm:mb-4">
-        <div>
-          <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">Timeline</h2>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Event history across all elements</p>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3 sm:mb-4">
+        <PageHeader
+          title="Timeline"
+          icon={History}
+          iconColor="text-blue-500"
+          subtitle="Event history across all elements"
+          testId="timeline-header"
+        />
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           {/* TB116: View mode toggle */}
           <ViewModeToggle mode={viewMode} onChange={setViewMode} />
           {hasActiveFilters && (

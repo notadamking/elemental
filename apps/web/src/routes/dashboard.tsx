@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Plus, Zap, ListTodo, CheckCircle, Clock, AlertCircle, Users, Bot, Activity, FileText, MessageSquare, ArrowRight } from 'lucide-react';
+import { Plus, Zap, ListTodo, CheckCircle, Clock, AlertCircle, Users, Bot, Activity, FileText, MessageSquare, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { PageHeader } from '../components/shared';
 import { TaskCard } from '../components/entity/TaskCard';
 import type { Task } from '../components/entity/types';
 import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
@@ -404,7 +405,12 @@ export function DashboardPage() {
 
   return (
     <div data-testid="dashboard-page">
-      <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-6">Dashboard</h1>
+      <PageHeader
+        title="Dashboard"
+        icon={LayoutDashboard}
+        iconColor="text-blue-500"
+        testId="dashboard-header"
+      />
 
       {/* Key Metrics Overview */}
       <MetricsOverview />

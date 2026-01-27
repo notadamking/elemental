@@ -21,6 +21,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { ProgressRing, ProgressRingWithBreakdown } from '../components/shared/ProgressRing';
+import { PageHeader } from '../components/shared';
 import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
 import { MobilePlanCard } from '../components/plan/MobilePlanCard';
 import { useAllPlans } from '../api/hooks/useAllElements';
@@ -1828,79 +1829,52 @@ export function PlansPage() {
 
   return (
     <div data-testid="plans-page" className="h-full flex flex-col">
-      {/* Header - Responsive layout (TB148) */}
-      <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        {/* Mobile header */}
-        {isMobile ? (
-          <div className="p-3 space-y-3">
-            {/* Search bar - full width on mobile */}
-            <PlanSearchBar
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onClear={handleSearchClear}
-            />
-            {/* Status filter - scrollable on mobile */}
-            <div className="overflow-x-auto -mx-3 px-3 scrollbar-hide">
+      {/* Header */}
+      <PageHeader
+        title="Plans"
+        icon={ClipboardList}
+        iconColor="text-blue-500"
+        count={plans.length > 0 ? plans.length : undefined}
+        totalCount={isSearchActive && totalBeforeSearch !== plans.length ? totalBeforeSearch : undefined}
+        bordered
+        actions={[
+          {
+            label: 'Create Plan',
+            shortLabel: 'Create',
+            icon: Plus,
+            onClick: openCreatePlanModal,
+            shortcut: getCurrentBinding('action.createPlan'),
+            testId: 'create-plan-btn',
+          },
+        ]}
+        testId="plans-header"
+      >
+        {/* Search and filter controls */}
+        <div className="space-y-3">
+          {/* Search bar */}
+          <PlanSearchBar
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onClear={handleSearchClear}
+          />
+          {/* Filter and View Controls */}
+          <div className="flex items-center justify-between gap-4">
+            <div className={isMobile ? 'overflow-x-auto -mx-3 px-3 scrollbar-hide flex-1' : ''}>
               <StatusFilter
                 selectedStatus={selectedStatus}
                 onStatusChange={handleStatusFilterChange}
               />
             </div>
-          </div>
-        ) : (
-          /* Desktop header */
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <ClipboardList className="w-6 h-6 text-blue-500" />
-                <h1 className="text-xl font-semibold text-[var(--color-text)]">Plans</h1>
-                {plans.length > 0 && (
-                  <span
-                    data-testid="plans-count"
-                    className="text-sm text-[var(--color-text-secondary)]"
-                  >
-                    ({plans.length}{isSearchActive && totalBeforeSearch !== plans.length ? ` of ${totalBeforeSearch}` : ''})
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Create Plan Button (TB121) */}
-                <button
-                  data-testid="create-plan-btn"
-                  onClick={openCreatePlanModal}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create Plan
-                  <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createPlan')}</kbd>
-                </button>
-
-                {/* Search Bar (TB87) */}
-                <PlanSearchBar
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onClear={handleSearchClear}
-                />
-              </div>
-            </div>
-
-            {/* Filter and View Controls */}
-            <div className="flex items-center justify-between gap-4">
-              <StatusFilter
-                selectedStatus={selectedStatus}
-                onStatusChange={handleStatusFilterChange}
-              />
-
-              {/* View Toggle (TB88) - Hide on mobile */}
+            {/* View Toggle (TB88) - Hide on mobile */}
+            {!isMobile && (
               <ViewToggle
                 view={viewMode}
                 onViewChange={handleViewModeChange}
               />
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      </PageHeader>
 
       {/* Content - Responsive layout (TB148) */}
       <div className={`flex-1 flex overflow-hidden ${selectedPlanId && isMobile ? 'hidden' : ''}`}>

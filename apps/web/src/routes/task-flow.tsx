@@ -10,8 +10,9 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Filter, ArrowUpDown } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Filter, ArrowUpDown, GitBranch } from 'lucide-react';
 import { useTrackDashboardSection } from '../hooks/useTrackDashboardSection';
+import { PageHeader } from '../components/shared';
 
 interface Task {
   id: string;
@@ -1644,12 +1645,13 @@ export function TaskFlowPage() {
 
   return (
     <div className="h-full flex flex-col" data-testid="task-flow-page">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-medium text-gray-900">Task Flow</h2>
-        <p className="text-sm text-gray-500">
-          Real-time view of task states
-        </p>
-      </div>
+      <PageHeader
+        title="Task Flow"
+        icon={GitBranch}
+        iconColor="text-blue-500"
+        subtitle="Real-time view of task states"
+        testId="task-flow-header"
+      />
 
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-0">
         {/* Ready Tasks Column */}

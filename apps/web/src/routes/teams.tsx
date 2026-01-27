@@ -9,9 +9,10 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Search, Users, X, Bot, User, Server, ListTodo, CheckCircle, Clock, PlusCircle, Plus, Loader2, Pencil, Save, Trash2, UserMinus } from 'lucide-react';
-import { Pagination } from '../components/shared/Pagination';
+import { Pagination, PageHeader } from '../components/shared';
 import { ElementNotFound } from '../components/shared/ElementNotFound';
 import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { UsersRound } from 'lucide-react';
 import { MobileTeamCard } from '../components/team/MobileTeamCard';
 import { useAllTeams } from '../api/hooks/useAllElements';
 import { usePaginatedData, createTeamFilter } from '../hooks/usePaginatedData';
@@ -1305,29 +1306,27 @@ export function TeamsPage() {
       {/* Team List - full width on mobile, split on desktop when team selected */}
       <div className={`flex flex-col ${!isMobile && selectedTeamId ? 'w-1/2' : 'w-full'} transition-all duration-200`}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-lg font-medium text-[var(--color-text)]">Teams</h2>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <p className="text-xs sm:text-sm text-[var(--color-text-muted)] hidden sm:block">
-              {teamItems.length} of {totalItems} teams
-            </p>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors touch-target"
-              data-testid="new-team-button"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Create Team</span>
-              <span className="sm:hidden">Add</span>
-              <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded hidden sm:inline">{getCurrentBinding('action.createTeam')}</kbd>
-            </button>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="mb-4 sm:mb-6">
+        <PageHeader
+          title="Teams"
+          icon={UsersRound}
+          iconColor="text-blue-500"
+          count={teamItems.length}
+          totalCount={totalItems}
+          bordered
+          actions={[
+            {
+              label: 'Create Team',
+              shortLabel: 'Add',
+              icon: Plus,
+              onClick: () => setIsCreateModalOpen(true),
+              shortcut: getCurrentBinding('action.createTeam'),
+              testId: 'new-team-button',
+            },
+          ]}
+          testId="teams-header"
+        >
           <SearchBox value={searchQuery} onChange={handleSearchChange} />
-        </div>
+        </PageHeader>
 
         {/* Loading state */}
         {isLoading && (
