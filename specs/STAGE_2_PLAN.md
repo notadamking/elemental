@@ -367,18 +367,24 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O4: Extract @elemental/sdk
+#### - [x] TB-O4: Extract @elemental/sdk
 
 **Goal**: Core API as independent package (replaces @elemental/cli)
 
 **Changes**:
 
-- [ ] Create `packages/sdk/` with package.json
-- [ ] Move `src/api/`, `src/services/`, `src/sync/`, `src/cli/` to `packages/sdk/src/`
-- [ ] Add dependencies on `@elemental/core` and `@elemental/storage`
-- [ ] Update CLI binary to use new package structure
+- [x] Create `packages/sdk/` with package.json
+- [x] Move `src/api/`, `src/services/`, `src/sync/`, `src/cli/` to `packages/sdk/src/`
+- [x] Add dependencies on `@elemental/core` and `@elemental/storage`
+- [x] Update CLI binary to use new package structure
 
 **Verification**: `elemental doctor` and `elemental stats` work from CLI
+
+**Notes**:
+- Files were copied (not moved) to allow incremental migration while legacy package continues to function
+- Also copied: `config/`, `http/`, `systems/`, `bin/` directories required for CLI operation
+- 2,625 tests pass, CLI commands work correctly
+- Extensive import updates required to replace relative paths with `@elemental/core` and `@elemental/storage`
 
 ---
 

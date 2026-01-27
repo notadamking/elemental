@@ -159,6 +159,8 @@ export {
   validateMergedSteps,
   resolvePlaybookInheritance,
   createPlaybookLoader,
+  // Cycle detection
+  validateNoCircularInheritance,
 } from './playbook.js';
 
 // Playbook YAML exports
@@ -239,6 +241,8 @@ export {
   type Team,
   type HydratedTeam,
   type TeamId,
+  type TeamStatus,
+  TeamStatus as TeamStatusEnum,
   // Constants
   MIN_TEAM_NAME_LENGTH,
   MAX_TEAM_NAME_LENGTH,
@@ -286,6 +290,7 @@ export {
   getAllMembers as getAllTeamMembers,
   haveCommonMembers as teamsHaveCommonMembers,
   getCommonMembers as getTeamsCommonMembers,
+  isDeleted as isTeamDeleted,
 } from './team.js';
 
 // Channel exports - exclude duplicates that are already exported from message.js

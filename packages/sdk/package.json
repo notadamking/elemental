@@ -1,0 +1,83 @@
+{
+  "name": "@elemental/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Core SDK for Elemental - API, services, sync, and CLI",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "el": "./dist/bin/el.js",
+    "elemental": "./dist/bin/el.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./dist/api/index.d.ts",
+      "import": "./dist/api/index.js"
+    },
+    "./services": {
+      "types": "./dist/services/index.d.ts",
+      "import": "./dist/services/index.js"
+    },
+    "./sync": {
+      "types": "./dist/sync/index.d.ts",
+      "import": "./dist/sync/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/bin/el.js",
+    "test": "bun test src",
+    "test:node": "vitest run",
+    "test:all": "pnpm run test && pnpm run test:node",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/toolco/elemental.git",
+    "directory": "packages/sdk"
+  },
+  "author": "Toolco",
+  "license": "MIT",
+  "keywords": [
+    "elemental",
+    "sdk",
+    "api",
+    "cli",
+    "agents",
+    "coordination"
+  ],
+  "dependencies": {
+    "@elemental/core": "workspace:*",
+    "@elemental/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
+  }
+}
