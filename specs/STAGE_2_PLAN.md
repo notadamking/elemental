@@ -722,17 +722,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O10b: Inbox Polling Service
+#### - [x] TB-O10b: Inbox Polling Service
 
 **Goal**: Periodic inbox check in session manager
 
 **Changes**:
 
-- [ ] Add periodic inbox check to session manager
-- [ ] Configurable poll interval (default 30s)
-- [ ] Process unread messages by type
+- [x] Add periodic inbox check to session manager
+- [x] Configurable poll interval (default 30s)
+- [x] Process unread messages by type
 
 **Verification**: Send message to agent channel, verify agent processes it
+
+**Implementation Summary**:
+- Created `InboxPollingService` in `packages/orchestrator-sdk/src/runtime/inbox-polling.ts`
+- Configurable poll interval (30s default, min 1s, max 5 min)
+- Message type-based processing with `OrchestratorMessageType` constants (task-assignment, status-update, help-request, handoff, health-check, generic)
+- Per-agent polling with start/stop controls
+- Event emission for poll results and message processing
+- Handler registration for type-specific and all-message processing
+- 34+ unit tests with comprehensive coverage
+- Documentation added to `docs/api/orchestrator-api.md`
 
 ---
 

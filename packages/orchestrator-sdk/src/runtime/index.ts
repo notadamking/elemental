@@ -57,3 +57,22 @@ export {
   // Factory
   createSessionManager,
 } from './session-manager.js';
+
+// Inbox Polling Service (TB-O10b)
+export {
+  // Constants
+  DEFAULT_POLL_INTERVAL_MS,
+  MIN_POLL_INTERVAL_MS,
+  MAX_POLL_INTERVAL_MS,
+  OrchestratorMessageType,
+  // Types
+  type InboxPollingConfig,
+  type ProcessedInboxMessage,
+  type InboxPollResult,
+  type InboxMessageHandler,
+  type InboxPollingService,
+  // Implementation
+  InboxPollingServiceImpl,
+  // Factory
+  createInboxPollingService,
+} from './inbox-polling.js';

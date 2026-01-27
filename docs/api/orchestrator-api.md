@@ -893,6 +893,208 @@ await sessionManager.loadSessionState(agentId);
 - Session history is stored in agent entity metadata for cross-restart persistence
 - Each agent can only have one active session at a time
 
+## InboxPollingService (TB-O10b)
+
+The InboxPollingService provides periodic inbox checking for agent sessions, dispatching messages based on type.
+
+### Creating an InboxPollingService
+
+```typescript
+import {
+  createInboxPollingService,
+  type InboxPollingService,
+  type InboxPollingConfig,
+} from '@elemental/orchestrator-sdk';
+import { createInboxService } from '@elemental/sdk';
+
+const inboxService = createInboxService(storage);
+const pollingService = createInboxPollingService(inboxService, agentRegistry, {
+  pollIntervalMs: 30000,        // Default: 30 seconds
+  autoStart: true,               // Auto-start polling on session start
+  autoMarkAsRead: true,          // Mark messages as read after processing
+  maxMessagesPerPoll: 10,        // Max messages per poll cycle
+  processOldestFirst: true,      // FIFO ordering
+});
+```
+
+### Starting and Stopping Polling
+
+```typescript
+// Start polling for an agent
+const events = pollingService.startPolling(agentId, {
+  pollIntervalMs: 5000,  // Override default config
+});
+
+// Listen for poll events
+events.on('poll', (result) => {
+  console.log(`Polled ${result.totalFound} messages, processed ${result.processed}`);
+});
+
+events.on('error', (error) => {
+  console.error('Polling error:', error);
+});
+
+// Stop polling for an agent
+pollingService.stopPolling(agentId);
+
+// Check if agent is being polled
+pollingService.isPolling(agentId);
+
+// Get all polling agents
+const agents = pollingService.getPollingAgents();
+```
+
+### Immediate Polling
+
+```typescript
+// Poll immediately without waiting for interval
+const result = await pollingService.pollNow(agentId);
+
+console.log(`Found: ${result.totalFound}`);
+console.log(`Processed: ${result.processed}`);
+console.log(`Skipped: ${result.skipped}`);
+console.log(`Duration: ${result.durationMs}ms`);
+
+// Messages by type
+console.log('Task assignments:', result.byType['task-assignment']);
+console.log('Status updates:', result.byType['status-update']);
+```
+
+### Message Handlers
+
+```typescript
+import { OrchestratorMessageType } from '@elemental/orchestrator-sdk';
+
+// Register handler for specific message type
+pollingService.onMessageType(
+  OrchestratorMessageType.TASK_ASSIGNMENT,
+  async (message, agentId) => {
+    console.log(`Agent ${agentId} received task: ${message.item.messageId}`);
+    // Process task assignment
+  }
+);
+
+// Register handler for all messages
+pollingService.onAnyMessage(async (message, agentId) => {
+  console.log(`Agent ${agentId} received message of type ${message.messageType}`);
+});
+
+// Remove handlers
+pollingService.offMessageType(OrchestratorMessageType.TASK_ASSIGNMENT, handler);
+pollingService.offAnyMessage(anyHandler);
+```
+
+### Message Types
+
+The following message types are defined for orchestrator inter-agent communication:
+
+| Type | Description |
+|------|-------------|
+| `task-assignment` | New task assigned to the agent |
+| `status-update` | Status update from another agent |
+| `help-request` | Agent requesting assistance |
+| `handoff` | Session handoff request |
+| `health-check` | Health check ping from steward |
+| `generic` | Generic message (no specific type) |
+
+```typescript
+import { OrchestratorMessageType } from '@elemental/orchestrator-sdk';
+
+// Access message type constants
+OrchestratorMessageType.TASK_ASSIGNMENT;  // 'task-assignment'
+OrchestratorMessageType.STATUS_UPDATE;    // 'status-update'
+OrchestratorMessageType.HELP_REQUEST;     // 'help-request'
+OrchestratorMessageType.HANDOFF;          // 'handoff'
+OrchestratorMessageType.HEALTH_CHECK;     // 'health-check'
+OrchestratorMessageType.GENERIC;          // 'generic'
+```
+
+### Configuration
+
+```typescript
+interface InboxPollingConfig {
+  pollIntervalMs?: number;      // Interval in ms (default: 30000, min: 1000, max: 300000)
+  autoStart?: boolean;          // Auto-start on session start (default: true)
+  autoMarkAsRead?: boolean;     // Mark messages as read (default: true)
+  maxMessagesPerPoll?: number;  // Max messages per cycle (default: 10)
+  processOldestFirst?: boolean; // FIFO ordering (default: true)
+}
+
+// Update default config
+pollingService.setDefaultConfig({ pollIntervalMs: 10000 });
+
+// Get current default config
+const config = pollingService.getDefaultConfig();
+```
+
+### Polling State
+
+```typescript
+// Get polling state for an agent
+const state = pollingService.getPollingState(agentId);
+if (state) {
+  console.log(`Polling: ${state.isPolling}`);
+  console.log(`Last poll: ${state.lastPollAt}`);
+  console.log(`Config: ${JSON.stringify(state.config)}`);
+}
+```
+
+### Poll Result
+
+```typescript
+interface InboxPollResult {
+  agentId: EntityId;                // Agent polled
+  totalFound: number;               // Total unread messages found
+  processed: number;                // Messages processed
+  skipped: number;                  // Messages skipped (errors)
+  byType: Record<OrchestratorMessageType, ProcessedInboxMessage[]>;
+  polledAt: string;                 // Timestamp
+  durationMs: number;               // Poll duration
+}
+
+interface ProcessedInboxMessage {
+  item: InboxItem;                  // The inbox item
+  messageType: OrchestratorMessageType;  // Parsed message type
+  metadata?: Record<string, unknown>;    // Raw message metadata
+  markedAsRead: boolean;            // Whether message was marked as read
+}
+```
+
+### Cleanup
+
+```typescript
+// Dispose the service (stops all polling, clears handlers)
+pollingService.dispose();
+```
+
+### Integration with SessionManager
+
+The InboxPollingService can be integrated with SessionManager for automatic polling:
+
+```typescript
+// Integration is available but requires SessionManager event emission
+pollingService.integrateWithSessionManager(sessionManager);
+
+// Currently, you can manually start/stop polling on session events:
+// When starting a session:
+sessionManager.startSession(agentId, options);
+pollingService.startPolling(agentId);
+
+// When stopping a session:
+sessionManager.stopSession(sessionId);
+pollingService.stopPolling(agentId);
+```
+
+### Polling Constants
+
+```typescript
+import {
+  DEFAULT_POLL_INTERVAL_MS,  // 30000 (30 seconds)
+  MIN_POLL_INTERVAL_MS,      // 1000 (1 second)
+  MAX_POLL_INTERVAL_MS,      // 300000 (5 minutes)
+} from '@elemental/orchestrator-sdk';
+```
+
 ## Type Definitions
 
 Key files:
@@ -904,6 +1106,7 @@ Key files:
 - `packages/orchestrator-sdk/src/services/dispatch-service.ts` - Task dispatch with assignment + notification
 - `packages/orchestrator-sdk/src/runtime/spawner.ts` - Claude Code process spawning (TB-O9)
 - `packages/orchestrator-sdk/src/runtime/session-manager.ts` - Session lifecycle management (TB-O10)
+- `packages/orchestrator-sdk/src/runtime/inbox-polling.ts` - Inbox polling service (TB-O10b)
 
 ## See Also
 
