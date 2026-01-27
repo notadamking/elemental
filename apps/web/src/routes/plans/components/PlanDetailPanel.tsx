@@ -16,7 +16,7 @@ import {
   Ban,
   FileEdit,
 } from 'lucide-react';
-import { ProgressRingWithBreakdown } from '../shared/ProgressRing';
+import { ProgressRingWithBreakdown } from '../../../components/shared/ProgressRing';
 import { StatusBadge } from './StatusBadge';
 import { TaskStatusSummary } from './TaskStatusSummary';
 import { PlanTaskList } from './PlanTaskList';
@@ -28,9 +28,9 @@ import {
   useUpdatePlan,
   useAddTaskToPlan,
   useRemoveTaskFromPlan,
-} from '../../api/hooks/usePlanApi';
-import { formatDate, formatRelativeTime } from '../../lib/plan-utils';
-import type { PlanType } from '../../lib/plan-types';
+} from '../../../api/hooks/usePlanApi';
+import { formatDate, formatRelativeTime } from '../utils';
+import type { PlanType } from '../types';
 
 interface PlanDetailPanelProps {
   planId: string;
@@ -387,7 +387,7 @@ export function PlanDetailPanel({ planId, onClose }: PlanDetailPanelProps) {
                   Tags
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {plan.tags.map((tag) => (
+                  {plan.tags.map((tag: string) => (
                     <span
                       key={tag}
                       data-testid={`plan-tag-${tag}`}

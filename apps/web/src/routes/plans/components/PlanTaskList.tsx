@@ -5,8 +5,8 @@
 import { useState } from 'react';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { PRIORITY_COLORS } from '../../lib/plan-config';
-import type { TaskType } from '../../lib/plan-types';
+import { PRIORITY_COLORS } from '../constants';
+import type { TaskType } from '../types';
 
 interface PlanTaskListProps {
   tasks: TaskType[];

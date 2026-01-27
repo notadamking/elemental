@@ -3,7 +3,7 @@
  */
 
 import { List, GanttChart } from 'lucide-react';
-import type { ViewMode } from '../../lib/plan-types';
+import type { ViewMode } from '../types';
 
 interface ViewToggleProps {
   view: ViewMode;

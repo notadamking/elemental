@@ -15,7 +15,7 @@ import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
 import { CreateEntityModal } from '../components/entity/CreateEntityModal';
 import { CreateTeamModal } from '../components/team/CreateTeamModal';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
-import { CreatePlanModal } from '../components/plan/CreatePlanModal';
+import { CreatePlanModal } from '../routes/plans/components/CreatePlanModal';
 
 interface GlobalQuickActionsContextValue {
   /** Open the create task modal */

@@ -2,7 +2,7 @@
  * Create Plan Modal Component
  *
  * Reusable modal for creating plans with an initial task.
- * Plans must have at least one task (TB121).
+ * Plans must have at least one task.
  * Supports both creating a new task or selecting an existing one.
  */
 
@@ -10,20 +10,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, ChevronLeft, Search, Check, Info, Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useIsMobile } from '../../hooks';
-import { useCurrentUser } from '../../contexts';
-
-interface TaskType {
-  id: string;
-  type: 'task';
-  title: string;
-  status: string;
-  priority: number;
-  assignee?: string;
-  createdAt: string;
-  updatedAt: string;
-  tags: string[];
-}
+import { useIsMobile } from '../../../hooks';
+import { useCurrentUser } from '../../../contexts';
+import type { TaskType } from '../types';
 
 interface TaskEntry {
   id: string; // Unique ID for this entry in the list

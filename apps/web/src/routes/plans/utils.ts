@@ -1,17 +1,15 @@
 /**
- * Plan Utilities - Search, date formatting, and storage helpers
- *
- * Utility functions for plan search, date formatting, and localStorage persistence.
+ * Utilities for the Plans page
+ * Search, date formatting, and storage helpers
  */
 
 import React from 'react';
+import type { ViewMode, FuzzySearchResult } from './types';
+import { SEARCH_STORAGE_KEY, VIEW_MODE_STORAGE_KEY } from './constants';
 
 // ============================================================================
-// Search Configuration
+// Search Storage
 // ============================================================================
-
-const SEARCH_STORAGE_KEY = 'plans.search';
-export const SEARCH_DEBOUNCE_DELAY = 300;
 
 export function getStoredSearch(): string {
   if (typeof window === 'undefined') return '';
@@ -28,13 +26,23 @@ export function setStoredSearch(search: string): void {
 }
 
 // ============================================================================
-// Fuzzy Search
+// View Mode Storage
 // ============================================================================
 
-export interface FuzzySearchResult {
-  matched: boolean;
-  indices: number[];
+export function getStoredViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'list';
+  const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+  return stored === 'roadmap' ? 'roadmap' : 'list';
 }
+
+export function setStoredViewMode(mode: ViewMode): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+}
+
+// ============================================================================
+// Fuzzy Search
+// ============================================================================
 
 /**
  * Fuzzy search function that matches query characters in sequence within the title.

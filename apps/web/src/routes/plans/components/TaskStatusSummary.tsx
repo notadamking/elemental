@@ -3,7 +3,7 @@
  */
 
 import { CheckCircle2, CircleDot, AlertCircle, ListTodo } from 'lucide-react';
-import type { PlanProgress } from '../../lib/plan-types';
+import type { PlanProgress } from '../types';
 
 interface TaskStatusSummaryProps {
   progress: PlanProgress;

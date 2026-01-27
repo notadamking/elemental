@@ -2,7 +2,7 @@
  * StatusBadge - Displays plan status with icon and color
  */
 
-import { STATUS_CONFIG } from '../../lib/plan-config';
+import { STATUS_CONFIG } from '../constants';
 
 interface StatusBadgeProps {
   status: string;

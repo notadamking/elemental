@@ -4,8 +4,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Search, X, Plus } from 'lucide-react';
-import { useAvailableTasks } from '../../api/hooks/usePlanApi';
-import { PRIORITY_COLORS } from '../../lib/plan-config';
+import { useAvailableTasks } from '../../../api/hooks/usePlanApi';
+import { PRIORITY_COLORS } from '../constants';
 
 interface TaskPickerModalProps {
   planId: string;

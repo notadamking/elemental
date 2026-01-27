@@ -1,5 +1,5 @@
 /**
- * MobilePlanCard - Card-based plan display for mobile devices (TB148)
+ * MobilePlanCard - Card-based plan display for mobile devices
  *
  * A touch-friendly plan card designed for mobile list views.
  * Shows key plan information in a compact, readable format with progress ring.
@@ -20,30 +20,11 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import { ProgressRing } from '../shared/ProgressRing';
-
-interface PlanProgress {
-  totalTasks: number;
-  completedTasks: number;
-  inProgressTasks: number;
-  blockedTasks: number;
-  remainingTasks: number;
-  completionPercentage: number;
-}
-
-interface Plan {
-  id: string;
-  type: 'plan';
-  title: string;
-  status: 'draft' | 'active' | 'completed' | 'cancelled';
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-  _progress?: PlanProgress;
-}
+import { ProgressRing } from '../../../components/shared/ProgressRing';
+import type { HydratedPlan } from '../types';
 
 interface MobilePlanCardProps {
-  plan: Plan;
+  plan: HydratedPlan;
   isSelected: boolean;
   onClick: () => void;
   searchMatchIndices?: number[];

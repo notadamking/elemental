@@ -1,7 +1,6 @@
 /**
- * Plan Types - Shared type definitions for plan-related components
- *
- * Centralized types for plans, progress tracking, and related entities.
+ * Types for the Plans page
+ * Page-specific types for plan-related operations
  */
 
 export interface PlanType {
@@ -45,3 +44,8 @@ export interface TaskType {
 }
 
 export type ViewMode = 'list' | 'roadmap';
+
+export interface FuzzySearchResult {
+  matched: boolean;
+  indices: number[];
+}

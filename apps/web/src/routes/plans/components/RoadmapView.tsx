@@ -13,8 +13,8 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
-import { STATUS_CONFIG, STATUS_BAR_COLORS } from '../../lib/plan-config';
-import type { HydratedPlan } from '../../lib/plan-types';
+import { STATUS_CONFIG, STATUS_BAR_COLORS } from '../constants';
+import type { HydratedPlan } from '../types';
 
 interface RoadmapBarData {
   planId: string;

@@ -1,5 +1,5 @@
 /**
- * Plan Components - Barrel exports
+ * Plans page components barrel export
  */
 
 export { StatusBadge } from './StatusBadge';

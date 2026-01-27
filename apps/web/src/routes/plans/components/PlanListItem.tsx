@@ -3,10 +3,10 @@
  */
 
 import { ChevronRight } from 'lucide-react';
-import { ProgressRing } from '../shared/ProgressRing';
+import { ProgressRing } from '../../../components/shared/ProgressRing';
 import { StatusBadge } from './StatusBadge';
-import { highlightMatches, formatRelativeTime, formatDate } from '../../lib/plan-utils';
-import type { HydratedPlan } from '../../lib/plan-types';
+import { highlightMatches, formatRelativeTime, formatDate } from '../utils';
+import type { HydratedPlan } from '../types';
 
 interface PlanListItemProps {
   plan: HydratedPlan;

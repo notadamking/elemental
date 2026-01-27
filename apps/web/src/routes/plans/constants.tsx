@@ -1,7 +1,6 @@
 /**
- * Plan Configuration - Status and view mode configurations
- *
- * Centralized configuration for plan status badges, colors, and view modes.
+ * Constants for the Plans page
+ * Status configurations, colors, and storage keys
  */
 
 import React from 'react';
@@ -11,7 +10,6 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import type { ViewMode } from './plan-types';
 
 // ============================================================================
 // Status Configuration
@@ -60,23 +58,6 @@ export const STATUS_BAR_COLORS: Record<string, string> = {
 };
 
 // ============================================================================
-// View Mode Configuration
-// ============================================================================
-
-const VIEW_MODE_STORAGE_KEY = 'plans.viewMode';
-
-export function getStoredViewMode(): ViewMode {
-  if (typeof window === 'undefined') return 'list';
-  const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-  return stored === 'roadmap' ? 'roadmap' : 'list';
-}
-
-export function setStoredViewMode(mode: ViewMode): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
-}
-
-// ============================================================================
 // Priority Colors
 // ============================================================================
 
@@ -87,3 +68,11 @@ export const PRIORITY_COLORS: Record<number, string> = {
   4: 'bg-orange-200',
   5: 'bg-red-200',
 };
+
+// ============================================================================
+// Search Configuration
+// ============================================================================
+
+export const SEARCH_STORAGE_KEY = 'plans.search';
+export const VIEW_MODE_STORAGE_KEY = 'plans.viewMode';
+export const SEARCH_DEBOUNCE_DELAY = 300;

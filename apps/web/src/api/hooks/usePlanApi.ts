@@ -5,7 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { HydratedPlan, PlanProgress, PlanType, TaskType } from '../../lib/plan-types';
+import type { HydratedPlan, PlanProgress, PlanType, TaskType } from '../../routes/plans/types';
 
 /**
  * Hook to fetch plans with optional status filter and progress hydration

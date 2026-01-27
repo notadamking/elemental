@@ -15,12 +15,12 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { useDebounce, useIsMobile, useGlobalQuickActions, useShortcutVersion } from '../hooks';
-import { getCurrentBinding } from '../lib/keyboard';
+import { useDebounce, useIsMobile, useGlobalQuickActions, useShortcutVersion } from '../../hooks';
+import { getCurrentBinding } from '../../lib/keyboard';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { ElementNotFound } from '../components/shared/ElementNotFound';
-import { PageHeader } from '../components/shared';
-import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
+import { ElementNotFound } from '../../components/shared/ElementNotFound';
+import { PageHeader } from '../../components/shared';
+import { MobileDetailSheet } from '../../components/shared/MobileDetailSheet';
 import {
   PlanSearchBar,
   StatusFilter,
@@ -29,19 +29,20 @@ import {
   MobilePlanCard,
   RoadmapView,
   PlanDetailPanel,
-} from '../components/plan';
-import { useAllPlans } from '../api/hooks/useAllElements';
-import { usePlans } from '../api/hooks/usePlanApi';
-import { useDeepLink } from '../hooks/useDeepLink';
+} from './components';
+import { useAllPlans } from '../../api/hooks/useAllElements';
+import { usePlans } from '../../api/hooks/usePlanApi';
+import { useDeepLink } from '../../hooks/useDeepLink';
 import { ClipboardList, Plus } from 'lucide-react';
-import type { HydratedPlan, ViewMode } from '../lib/plan-types';
+import type { HydratedPlan, ViewMode } from './types';
 import {
   getStoredSearch,
   setStoredSearch,
   fuzzySearch,
-  SEARCH_DEBOUNCE_DELAY,
-} from '../lib/plan-utils';
-import { getStoredViewMode, setStoredViewMode } from '../lib/plan-config';
+  getStoredViewMode,
+  setStoredViewMode,
+} from './utils';
+import { SEARCH_DEBOUNCE_DELAY } from './constants';
 
 /**
  * Main Plans Page Component with search and responsive design
@@ -379,3 +380,6 @@ export function PlansPage() {
     </div>
   );
 }
+
+// Default export for route
+export default PlansPage;
