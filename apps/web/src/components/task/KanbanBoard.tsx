@@ -20,7 +20,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, CheckCircle2, Clock, PlayCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, PlayCircle, User } from 'lucide-react';
+import { formatCompactTime } from '../../lib/time';
 
 // Storage for scroll positions keyed by column ID
 const kanbanScrollPositionStore = new Map<string, number>();
@@ -35,10 +36,17 @@ interface Task {
   taskType: string;
   assignee?: string;
   tags: string[];
+  createdAt: string;
+}
+
+interface Entity {
+  id: string;
+  name: string;
 }
 
 interface KanbanBoardProps {
   tasks: Task[];
+  entities: Entity[];
   selectedTaskId: string | null;
   onTaskClick: (taskId: string) => void;
 }
@@ -115,22 +123,27 @@ function useUpdateTaskStatus() {
 
 function TaskCard({
   task,
+  entities,
   isSelected,
   onClick,
   isDragging = false
 }: {
   task: Task;
+  entities: Entity[];
   isSelected: boolean;
   onClick: () => void;
   isDragging?: boolean;
 }) {
   const priorityBorder = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS[3];
+  const assigneeName = task.assignee
+    ? entities.find(e => e.id === task.assignee)?.name || task.assignee
+    : null;
 
   return (
     <div
       className={`
         p-3 bg-white dark:bg-neutral-700 rounded-lg shadow-sm border-l-4 ${priorityBorder}
-        cursor-pointer transition-all hover:shadow-md h-full
+        cursor-pointer transition-all hover:shadow-md h-full flex flex-col
         ${isSelected ? 'ring-2 ring-blue-500' : 'border-t border-r border-b border-t-gray-200 border-r-gray-200 border-b-gray-200 dark:border-t-neutral-600 dark:border-r-neutral-600 dark:border-b-neutral-600'}
         ${isDragging ? 'opacity-50' : ''}
       `}
@@ -138,14 +151,21 @@ function TaskCard({
       data-testid={`kanban-card-${task.id}`}
     >
       <div className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-1 line-clamp-2 break-words">{task.title}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mb-2">{task.id}</div>
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
+        <span className="font-mono">{task.id}</span>
+        <span className="flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {formatCompactTime(task.createdAt)}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap mt-auto">
         <span className="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-neutral-600 text-gray-600 dark:text-gray-300 rounded capitalize">
           {task.taskType}
         </span>
-        {task.assignee && (
-          <span className="px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded truncate max-w-20">
-            {task.assignee}
+        {assigneeName && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded truncate max-w-24">
+            <User className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{assigneeName}</span>
           </span>
         )}
         {task.tags.slice(0, 1).map((tag) => (
@@ -160,10 +180,12 @@ function TaskCard({
 
 function SortableTaskCard({
   task,
+  entities,
   isSelected,
   onClick
 }: {
   task: Task;
+  entities: Entity[];
   isSelected: boolean;
   onClick: () => void;
 }) {
@@ -183,7 +205,7 @@ function SortableTaskCard({
 
   return (
     <div ref={setNodeRef} style={style} className="h-full" {...attributes} {...listeners}>
-      <TaskCard task={task} isSelected={isSelected} onClick={onClick} isDragging={isDragging} />
+      <TaskCard task={task} entities={entities} isSelected={isSelected} onClick={onClick} isDragging={isDragging} />
     </div>
   );
 }
@@ -205,6 +227,7 @@ const TASK_CARD_GAP = 8;
 function VirtualizedKanbanColumn({
   column,
   tasks,
+  entities,
   selectedTaskId,
   onTaskClick,
   isDragActive,
@@ -212,6 +235,7 @@ function VirtualizedKanbanColumn({
 }: {
   column: ColumnConfig;
   tasks: Task[];
+  entities: Entity[];
   selectedTaskId: string | null;
   onTaskClick: (taskId: string) => void;
   isDragActive: boolean;
@@ -347,6 +371,7 @@ function VirtualizedKanbanColumn({
                   >
                     <SortableTaskCard
                       task={task}
+                      entities={entities}
                       isSelected={task.id === selectedTaskId}
                       onClick={() => onTaskClick(task.id)}
                     />
@@ -363,7 +388,7 @@ function VirtualizedKanbanColumn({
 
 // TB132: Removed VIRTUALIZATION_THRESHOLD - always use virtualized columns for consistent UX
 
-export function KanbanBoard({ tasks, selectedTaskId, onTaskClick }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, entities, selectedTaskId, onTaskClick }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const updateTaskStatus = useUpdateTaskStatus();
 
@@ -447,6 +472,7 @@ export function KanbanBoard({ tasks, selectedTaskId, onTaskClick }: KanbanBoardP
               key={column.id}
               column={column}
               tasks={columnTasks}
+              entities={entities}
               selectedTaskId={selectedTaskId}
               onTaskClick={onTaskClick}
               isDragActive={isDragActive}
@@ -460,6 +486,7 @@ export function KanbanBoard({ tasks, selectedTaskId, onTaskClick }: KanbanBoardP
         {activeTask && (
           <TaskCard
             task={activeTask}
+            entities={entities}
             isSelected={false}
             onClick={() => {}}
           />

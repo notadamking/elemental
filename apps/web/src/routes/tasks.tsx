@@ -2381,6 +2381,7 @@ export function TasksPage() {
             <div className="animate-fade-in h-full" data-testid="kanban-view-content">
               <KanbanBoard
                 tasks={allFilteredTasks as Task[]}
+                entities={entities.data ?? []}
                 selectedTaskId={selectedTaskId}
                 onTaskClick={handleTaskClick}
               />
