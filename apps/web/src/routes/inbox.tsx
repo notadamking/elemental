@@ -225,7 +225,11 @@ function useSendReply() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ channelId, sender, content, threadId }),
       });
-      if (!response.ok) throw new Error('Failed to send message');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error?.message || 'Failed to send message';
+        throw new Error(errorMessage);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -1135,7 +1139,9 @@ export function InboxPage() {
                   </div>
                   {sendReplyMutation.isError && (
                     <p className="mt-2 text-xs text-red-500" data-testid="inbox-reply-error">
-                      Failed to send reply. Please try again.
+                      {sendReplyMutation.error instanceof Error
+                        ? sendReplyMutation.error.message
+                        : 'Failed to send reply. Please try again.'}
                     </p>
                   )}
                   <p className="mt-2 text-xs text-gray-400">

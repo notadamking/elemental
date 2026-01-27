@@ -2723,6 +2723,20 @@ app.post('/api/messages', async (c) => {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Channel not found' } }, 404);
     }
 
+    // Verify sender entity exists
+    const senderEntity = await api.get(body.sender as ElementId);
+    if (!senderEntity || senderEntity.type !== 'entity') {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Sender entity not found' } }, 404);
+    }
+
+    // For group channels, verify sender is a member
+    const typedChannelCheck = channel as Channel;
+    if (typedChannelCheck.channelType === 'group') {
+      if (!typedChannelCheck.members.includes(body.sender as EntityId)) {
+        return c.json({ error: { code: 'FORBIDDEN', message: 'You must be a member of this channel to send messages' } }, 403);
+      }
+    }
+
     // Create a document for the message content
     const contentDoc = await createDocument({
       contentType: 'text',
