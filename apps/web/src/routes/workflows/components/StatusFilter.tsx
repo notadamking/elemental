@@ -1,0 +1,34 @@
+/**
+ * Status Filter Tabs for filtering workflows by status
+ */
+
+import { STATUS_FILTER_OPTIONS } from '../constants';
+
+interface StatusFilterProps {
+  selectedStatus: string | null;
+  onStatusChange: (status: string | null) => void;
+}
+
+export function StatusFilter({
+  selectedStatus,
+  onStatusChange,
+}: StatusFilterProps) {
+  return (
+    <div data-testid="workflow-status-filter" className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+      {STATUS_FILTER_OPTIONS.map((status) => (
+        <button
+          key={status.value ?? 'all'}
+          data-testid={`workflow-status-filter-${status.value ?? 'all'}`}
+          onClick={() => onStatusChange(status.value)}
+          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            selectedStatus === status.value
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {status.label}
+        </button>
+      ))}
+    </div>
+  );
+}

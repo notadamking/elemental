@@ -1,0 +1,503 @@
+/**
+ * Workflow Detail Panel with edit functionality (TB48)
+ * Displays workflow details, status actions, and task list
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import {
+  X,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  User,
+  Play,
+  Pencil,
+  Check,
+  Flame,
+  Archive,
+  Ban,
+  Loader2,
+} from 'lucide-react';
+
+import type { WorkflowType, StatusTransition } from '../types';
+import { formatDate, formatRelativeTime } from '../utils';
+import {
+  useWorkflow,
+  useWorkflowTasks,
+  useWorkflowProgress,
+  useUpdateWorkflow,
+  useBurnWorkflow,
+  useSquashWorkflow,
+} from '../hooks';
+import { StatusBadge } from './StatusBadge';
+import { ProgressBar } from './ProgressBar';
+import { TaskStatusSummary } from './TaskStatusSummary';
+import { WorkflowTaskList } from './WorkflowTaskList';
+
+interface WorkflowDetailPanelProps {
+  workflowId: string;
+  onClose: () => void;
+}
+
+/**
+ * Get available status transitions based on current status
+ */
+function getStatusTransitions(status: string): StatusTransition[] {
+  switch (status) {
+    case 'pending':
+      return [
+        { status: 'running', label: 'Start', icon: Play, color: 'bg-blue-500 hover:bg-blue-600' },
+        { status: 'cancelled', label: 'Cancel', icon: Ban, color: 'bg-orange-500 hover:bg-orange-600' },
+      ];
+    case 'running':
+      return [
+        { status: 'completed', label: 'Complete', icon: CheckCircle2, color: 'bg-green-500 hover:bg-green-600' },
+        { status: 'failed', label: 'Mark Failed', icon: AlertTriangle, color: 'bg-red-500 hover:bg-red-600' },
+        { status: 'cancelled', label: 'Cancel', icon: Ban, color: 'bg-orange-500 hover:bg-orange-600' },
+      ];
+    case 'completed':
+    case 'failed':
+    case 'cancelled':
+      return [{ status: 'pending', label: 'Reset to Pending', icon: Clock, color: 'bg-gray-500 hover:bg-gray-600' }];
+    default:
+      return [];
+  }
+}
+
+export function WorkflowDetailPanel({
+  workflowId,
+  onClose,
+}: WorkflowDetailPanelProps) {
+  const { data: workflow, isLoading, isError, error } = useWorkflow(workflowId);
+  const { data: tasks = [] } = useWorkflowTasks(workflowId);
+  const { data: progress } = useWorkflowProgress(workflowId);
+
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [showBurnConfirm, setShowBurnConfirm] = useState(false);
+
+  // Mutations
+  const updateWorkflow = useUpdateWorkflow();
+  const burnWorkflow = useBurnWorkflow();
+  const squashWorkflow = useSquashWorkflow();
+
+  // Initialize edited title when workflow loads
+  useEffect(() => {
+    if (workflow) {
+      setEditedTitle(workflow.title);
+    }
+  }, [workflow]);
+
+  // Exit edit mode when workflow changes
+  useEffect(() => {
+    setIsEditMode(false);
+    setShowBurnConfirm(false);
+  }, [workflowId]);
+
+  const handleSaveTitle = useCallback(async () => {
+    if (!workflow || editedTitle.trim() === workflow.title) {
+      setIsEditMode(false);
+      return;
+    }
+    try {
+      await updateWorkflow.mutateAsync({ workflowId, updates: { title: editedTitle.trim() } });
+      setIsEditMode(false);
+    } catch (err) {
+      console.error('Failed to update title:', err);
+    }
+  }, [workflow, editedTitle, workflowId, updateWorkflow]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (workflow) {
+      setEditedTitle(workflow.title);
+    }
+    setIsEditMode(false);
+  }, [workflow]);
+
+  const handleStatusChange = useCallback(async (newStatus: string) => {
+    if (!workflow || newStatus === workflow.status) return;
+    try {
+      await updateWorkflow.mutateAsync({
+        workflowId,
+        updates: { status: newStatus as WorkflowType['status'] },
+      });
+    } catch (err) {
+      console.error('Failed to update status:', err);
+    }
+  }, [workflow, workflowId, updateWorkflow]);
+
+  const handleBurn = useCallback(async () => {
+    try {
+      await burnWorkflow.mutateAsync({ workflowId });
+      onClose();
+    } catch (err) {
+      console.error('Failed to burn workflow:', err);
+    }
+  }, [workflowId, burnWorkflow, onClose]);
+
+  const handleSquash = useCallback(async () => {
+    try {
+      await squashWorkflow.mutateAsync({ workflowId });
+    } catch (err) {
+      console.error('Failed to squash workflow:', err);
+    }
+  }, [workflowId, squashWorkflow]);
+
+  if (isLoading) {
+    return (
+      <div
+        data-testid="workflow-detail-loading"
+        className="h-full flex items-center justify-center bg-white"
+      >
+        <div className="text-gray-500">Loading workflow...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div
+        data-testid="workflow-detail-error"
+        className="h-full flex flex-col items-center justify-center bg-white"
+      >
+        <div className="text-red-600 mb-2">Failed to load workflow</div>
+        <div className="text-sm text-gray-500">{(error as Error)?.message}</div>
+      </div>
+    );
+  }
+
+  if (!workflow) {
+    return (
+      <div
+        data-testid="workflow-detail-not-found"
+        className="h-full flex items-center justify-center bg-white"
+      >
+        <div className="text-gray-500">Workflow not found</div>
+      </div>
+    );
+  }
+
+  const statusTransitions = getStatusTransitions(workflow.status);
+
+  return (
+    <div
+      data-testid="workflow-detail-panel"
+      className="h-full flex flex-col bg-white border-l border-gray-200"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between p-4 border-b border-gray-200">
+        <div className="flex-1 min-w-0">
+          {/* Status badge */}
+          <div className="mb-2 flex items-center gap-2">
+            <StatusBadge status={workflow.status} />
+            {workflow.ephemeral && (
+              <span
+                data-testid="ephemeral-badge"
+                className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded"
+              >
+                Ephemeral
+              </span>
+            )}
+          </div>
+
+          {/* Title - editable */}
+          {isEditMode ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                data-testid="workflow-title-input"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                  if (e.key === 'Escape') handleCancelEdit();
+                }}
+                className="flex-1 text-lg font-semibold text-gray-900 border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+              <button
+                data-testid="save-title-btn"
+                onClick={handleSaveTitle}
+                disabled={updateWorkflow.isPending}
+                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                title="Save"
+              >
+                <Check className="w-5 h-5" />
+              </button>
+              <button
+                data-testid="cancel-edit-btn"
+                onClick={handleCancelEdit}
+                className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                title="Cancel"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 group">
+              <h2
+                data-testid="workflow-detail-title"
+                className="text-lg font-semibold text-gray-900"
+              >
+                {workflow.title}
+              </h2>
+              <button
+                data-testid="edit-title-btn"
+                onClick={() => setIsEditMode(true)}
+                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit title"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* ID */}
+          <div className="mt-1 text-xs text-gray-500 font-mono">
+            <span data-testid="workflow-detail-id">{workflow.id}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+          aria-label="Close panel"
+          data-testid="workflow-detail-close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Status Actions */}
+      {statusTransitions.length > 0 && (
+        <div className="flex flex-wrap gap-2 p-4 border-b border-gray-200 bg-gray-50">
+          {statusTransitions.map((transition) => {
+            const Icon = transition.icon;
+            return (
+              <button
+                key={transition.status}
+                data-testid={`status-action-${transition.status}`}
+                onClick={() => handleStatusChange(transition.status)}
+                disabled={updateWorkflow.isPending}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white rounded ${transition.color} disabled:opacity-50`}
+              >
+                <Icon className="w-4 h-4" />
+                {transition.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Ephemeral Workflow Actions */}
+      {workflow.ephemeral && (
+        <div className="flex gap-2 p-4 border-b border-gray-200 bg-yellow-50">
+          {showBurnConfirm ? (
+            <div className="flex-1 flex items-center gap-2">
+              <span className="text-sm text-red-600 font-medium">
+                Delete this workflow and all its tasks?
+              </span>
+              <button
+                data-testid="burn-confirm-btn"
+                onClick={handleBurn}
+                disabled={burnWorkflow.isPending}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded disabled:opacity-50"
+              >
+                {burnWorkflow.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Flame className="w-4 h-4" />
+                )}
+                Confirm Burn
+              </button>
+              <button
+                data-testid="burn-cancel-btn"
+                onClick={() => setShowBurnConfirm(false)}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                data-testid="squash-btn"
+                onClick={handleSquash}
+                disabled={squashWorkflow.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded disabled:opacity-50"
+              >
+                {squashWorkflow.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Archive className="w-4 h-4" />
+                )}
+                Squash (Make Durable)
+              </button>
+              <button
+                data-testid="burn-btn"
+                onClick={() => setShowBurnConfirm(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-300 hover:bg-red-50 rounded"
+              >
+                <Flame className="w-4 h-4" />
+                Burn
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* Progress Section */}
+        {progress && (
+          <div className="mb-6">
+            <div className="text-sm font-medium text-gray-700 mb-2">Progress</div>
+            <ProgressBar progress={progress} />
+            <div className="mt-4">
+              <TaskStatusSummary progress={progress} />
+            </div>
+          </div>
+        )}
+
+        {/* Tasks Section */}
+        <div className="mb-6">
+          <div className="text-sm font-medium text-gray-700 mb-2">
+            Tasks ({tasks.length})
+          </div>
+          {/* TB122: Warning when workflow has only one task */}
+          {tasks.length === 1 && (
+            <div
+              data-testid="last-task-warning"
+              className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+            >
+              <div className="flex items-center gap-2 text-amber-700">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-sm font-medium">Only one task remaining</span>
+              </div>
+              <p className="mt-1 text-xs text-amber-600">
+                Workflows must have at least one task. This task cannot be deleted.
+                Use &apos;Burn&apos; to delete the entire workflow if needed.
+              </p>
+            </div>
+          )}
+          <WorkflowTaskList tasks={tasks} />
+        </div>
+
+        {/* Metadata */}
+        <WorkflowMetadata workflow={workflow} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Workflow metadata display (dates, creator, tags, variables)
+ */
+function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
+  return (
+    <div className="pt-4 border-t border-gray-100">
+      <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+        <div>
+          <div className="flex items-center gap-1 mb-1">
+            <Clock className="w-3 h-3" />
+            <span className="font-medium">Created:</span>
+          </div>
+          <span title={formatDate(workflow.createdAt)}>
+            {formatRelativeTime(workflow.createdAt)}
+          </span>
+        </div>
+        <div>
+          <div className="flex items-center gap-1 mb-1">
+            <Clock className="w-3 h-3" />
+            <span className="font-medium">Updated:</span>
+          </div>
+          <span title={formatDate(workflow.updatedAt)}>
+            {formatRelativeTime(workflow.updatedAt)}
+          </span>
+        </div>
+        <div className="col-span-2">
+          <div className="flex items-center gap-1 mb-1">
+            <User className="w-3 h-3" />
+            <span className="font-medium">Created by:</span>
+          </div>
+          <span className="font-mono">{workflow.createdBy}</span>
+        </div>
+        {workflow.startedAt && (
+          <div className="col-span-2">
+            <div className="flex items-center gap-1 mb-1">
+              <Play className="w-3 h-3 text-blue-500" />
+              <span className="font-medium">Started:</span>
+            </div>
+            <span>{formatDate(workflow.startedAt)}</span>
+          </div>
+        )}
+        {workflow.finishedAt && (
+          <div className="col-span-2">
+            <div className="flex items-center gap-1 mb-1">
+              <CheckCircle2 className="w-3 h-3 text-green-500" />
+              <span className="font-medium">Finished:</span>
+            </div>
+            <span>{formatDate(workflow.finishedAt)}</span>
+          </div>
+        )}
+        {workflow.failureReason && (
+          <div className="col-span-2">
+            <div className="flex items-center gap-1 mb-1">
+              <AlertTriangle className="w-3 h-3 text-red-500" />
+              <span className="font-medium">Failure reason:</span>
+            </div>
+            <p className="text-red-600">{workflow.failureReason}</p>
+          </div>
+        )}
+        {workflow.cancelReason && (
+          <div className="col-span-2">
+            <div className="flex items-center gap-1 mb-1">
+              <XCircle className="w-3 h-3 text-orange-500" />
+              <span className="font-medium">Cancel reason:</span>
+            </div>
+            <p className="text-orange-600">{workflow.cancelReason}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Tags */}
+      {workflow.tags && workflow.tags.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+            Tags
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {workflow.tags.map((tag) => (
+              <span
+                key={tag}
+                data-testid={`workflow-tag-${tag}`}
+                className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Variables */}
+      {workflow.variables && Object.keys(workflow.variables).length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+            Variables
+          </div>
+          <div className="bg-gray-50 rounded p-2 text-xs font-mono">
+            {Object.entries(workflow.variables).map(([key, value]) => (
+              <div key={key} className="flex gap-2">
+                <span className="text-gray-500">{key}:</span>
+                <span className="text-gray-900">{JSON.stringify(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
