@@ -37,6 +37,8 @@ import {
 
 const testAgentId = 'el-test001' as EntityId;
 const testAgentId2 = 'el-test002' as EntityId;
+const testAgentId3 = 'el-test003' as EntityId;
+const testAgentId4 = 'el-test004' as EntityId;
 const testCreatorId = 'el-creator' as EntityId;
 
 let sessionIdCounter = 0;
@@ -891,8 +893,9 @@ describe('SessionManager', () => {
         sessionId: 'claude-suspended',
         sessionStatus: 'suspended',
       });
-      // Add session history to metadata
-      (agentWithSuspended.metadata as Record<string, unknown>).sessionHistory = [
+      // Add session history to agent metadata (under metadata.agent.sessionHistory)
+      const agentMeta = agentWithSuspended.metadata?.agent as unknown as Record<string, unknown>;
+      agentMeta.sessionHistory = [
         {
           id: 'session-old',
           claudeSessionId: 'claude-suspended',
@@ -960,6 +963,211 @@ describe('SessionManager', () => {
     test('returns the API instance', () => {
       const retrievedApi = (sessionManager as any).getApi();
       expect(retrievedApi).toBe(api);
+    });
+  });
+
+  // ============================================================================
+  // TB-O10c: Role-based Session History Tests
+  // ============================================================================
+
+  describe('getSessionHistoryByRole', () => {
+    beforeEach(() => {
+      // Add additional agents for role-based testing
+      agents.set(testAgentId3, createMockAgent(testAgentId3, 'worker'));
+      agents.set(testAgentId4, createMockAgent(testAgentId4, 'steward'));
+    });
+
+    test('returns empty array when no sessions exist for role', async () => {
+      const history = await sessionManager.getSessionHistoryByRole('steward');
+      expect(history).toEqual([]);
+    });
+
+    test('returns session history for a specific role', async () => {
+      // Start and stop a worker session
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session.id);
+
+      const workerHistory = await sessionManager.getSessionHistoryByRole('worker');
+
+      expect(workerHistory.length).toBeGreaterThan(0);
+      expect(workerHistory[0].role).toBe('worker');
+      expect(workerHistory[0].agentId).toBe(testAgentId);
+    });
+
+    test('aggregates history from multiple agents with same role', async () => {
+      // Start and stop sessions for two workers
+      const { session: session1 } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session1.id);
+
+      const { session: session2 } = await sessionManager.startSession(testAgentId3);
+      await sessionManager.stopSession(session2.id);
+
+      const workerHistory = await sessionManager.getSessionHistoryByRole('worker');
+
+      expect(workerHistory.length).toBe(2);
+      expect(workerHistory.every((h) => h.role === 'worker')).toBe(true);
+    });
+
+    test('does not include sessions from other roles', async () => {
+      // Start and stop a worker session
+      const { session: workerSession } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(workerSession.id);
+
+      // Start and stop a director session
+      const { session: directorSession } = await sessionManager.startSession(testAgentId2);
+      await sessionManager.stopSession(directorSession.id);
+
+      const workerHistory = await sessionManager.getSessionHistoryByRole('worker');
+      const directorHistory = await sessionManager.getSessionHistoryByRole('director');
+
+      expect(workerHistory.length).toBe(1);
+      expect(workerHistory[0].role).toBe('worker');
+      expect(directorHistory.length).toBe(1);
+      expect(directorHistory[0].role).toBe('director');
+    });
+
+    test('respects limit parameter', async () => {
+      // Create multiple sessions for the same worker
+      for (let i = 0; i < 5; i++) {
+        const { session } = await sessionManager.startSession(testAgentId);
+        await sessionManager.stopSession(session.id);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+
+      const limitedHistory = await sessionManager.getSessionHistoryByRole('worker', 3);
+
+      expect(limitedHistory.length).toBe(3);
+    });
+
+    test('includes agent name in history entries', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session.id);
+
+      const history = await sessionManager.getSessionHistoryByRole('worker');
+
+      expect(history[0].agentName).toBe(`test-agent-${testAgentId}`);
+    });
+
+    test('sorts history by most recent first', async () => {
+      // Create sessions for two workers with time gap
+      const { session: session1 } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session1.id);
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      const { session: session2 } = await sessionManager.startSession(testAgentId3);
+      await sessionManager.stopSession(session2.id);
+
+      const history = await sessionManager.getSessionHistoryByRole('worker');
+
+      // Most recent session (session2) should be first
+      expect(history[0].id).toBe(session2.id);
+      expect(history[1].id).toBe(session1.id);
+    });
+  });
+
+  describe('getPreviousSession', () => {
+    beforeEach(() => {
+      agents.set(testAgentId3, createMockAgent(testAgentId3, 'worker'));
+    });
+
+    test('returns undefined when no sessions exist for role', async () => {
+      const previous = await sessionManager.getPreviousSession('steward');
+      expect(previous).toBeUndefined();
+    });
+
+    test('returns undefined when only running sessions exist', async () => {
+      // Start but don't stop a session
+      await sessionManager.startSession(testAgentId);
+
+      // Running sessions shouldn't be returned as "previous"
+      const previous = await sessionManager.getPreviousSession('worker');
+      expect(previous).toBeUndefined();
+    });
+
+    test('returns terminated session', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session.id, { reason: 'Test termination' });
+
+      const previous = await sessionManager.getPreviousSession('worker');
+
+      expect(previous).toBeDefined();
+      expect(previous?.id).toBe(session.id);
+      expect(previous?.status).toBe('terminated');
+      expect(previous?.terminationReason).toBe('Test termination');
+    });
+
+    test('returns suspended session', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.suspendSession(session.id, 'Test suspension');
+
+      const previous = await sessionManager.getPreviousSession('worker');
+
+      expect(previous).toBeDefined();
+      expect(previous?.id).toBe(session.id);
+      expect(previous?.status).toBe('suspended');
+      expect(previous?.terminationReason).toBe('Test suspension');
+    });
+
+    test('returns most recent ended session when multiple exist', async () => {
+      // Create and stop first session
+      const { session: session1 } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session1.id);
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      // Create and suspend second session
+      const { session: session2 } = await sessionManager.startSession(testAgentId3);
+      await sessionManager.suspendSession(session2.id);
+
+      const previous = await sessionManager.getPreviousSession('worker');
+
+      // Should be the most recently ended session
+      expect(previous?.id).toBe(session2.id);
+    });
+
+    test('returns correct role in previous session', async () => {
+      // Create director session
+      const { session: directorSession } = await sessionManager.startSession(testAgentId2);
+      await sessionManager.stopSession(directorSession.id);
+
+      // Create worker session
+      const { session: workerSession } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(workerSession.id);
+
+      const previousDirector = await sessionManager.getPreviousSession('director');
+      const previousWorker = await sessionManager.getPreviousSession('worker');
+
+      expect(previousDirector?.role).toBe('director');
+      expect(previousWorker?.role).toBe('worker');
+    });
+
+    test('includes Claude session ID for resumption', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      const claudeSessionId = session.claudeSessionId;
+      await sessionManager.suspendSession(session.id);
+
+      const previous = await sessionManager.getPreviousSession('worker');
+
+      expect(previous?.claudeSessionId).toBe(claudeSessionId);
+    });
+  });
+
+  describe('persistSession with history', () => {
+    test('persists session history to agent metadata', async () => {
+      const { session } = await sessionManager.startSession(testAgentId);
+      await sessionManager.stopSession(session.id);
+
+      // Force persist
+      await sessionManager.persistSession(session.id);
+
+      const agent = await registry.getAgent(testAgentId);
+      // Session history is stored under metadata.agent.sessionHistory
+      const agentMeta = agent?.metadata?.agent as unknown as Record<string, unknown>;
+      const sessionHistory = agentMeta?.sessionHistory;
+
+      expect(Array.isArray(sessionHistory)).toBe(true);
+      expect((sessionHistory as Array<Record<string, unknown>>).length).toBeGreaterThan(0);
     });
   });
 });

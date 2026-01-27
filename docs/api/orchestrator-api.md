@@ -825,6 +825,93 @@ for (const entry of history) {
 }
 ```
 
+### Role-based Session History (TB-O10c)
+
+The SessionManager provides role-based session history queries, enabling predecessor queries across all agents with the same role.
+
+```typescript
+import type { RoleSessionHistoryEntry } from '@elemental/orchestrator-sdk';
+
+// Get session history for all agents with a specific role
+const workerHistory = await sessionManager.getSessionHistoryByRole('worker', 20);
+const directorHistory = await sessionManager.getSessionHistoryByRole('director');
+
+for (const entry of workerHistory) {
+  console.log(`${entry.agentName}: ${entry.status} (role: ${entry.role})`);
+  console.log(`  Started: ${entry.startedAt}, Ended: ${entry.endedAt}`);
+  if (entry.claudeSessionId) {
+    console.log(`  Can resume: ${entry.claudeSessionId}`);
+  }
+}
+```
+
+#### Get Previous Session for Role
+
+Find the most recent ended (suspended or terminated) session for a role:
+
+```typescript
+// Get the most recent previous session for a role
+const previousWorker = await sessionManager.getPreviousSession('worker');
+const previousDirector = await sessionManager.getPreviousSession('director');
+
+if (previousWorker) {
+  console.log(`Previous worker session: ${previousWorker.agentName}`);
+  console.log(`  Session ID: ${previousWorker.claudeSessionId}`);
+  console.log(`  Status: ${previousWorker.status}`);
+  console.log(`  Ended: ${previousWorker.endedAt}`);
+
+  // This session can be consulted for predecessor queries (TB-O10d)
+  // or resumed if needed
+}
+```
+
+#### RoleSessionHistoryEntry Type
+
+```typescript
+interface RoleSessionHistoryEntry extends SessionHistoryEntry {
+  /** Agent role for this session */
+  readonly role: AgentRole;
+  /** Agent entity ID */
+  readonly agentId: EntityId;
+  /** Agent name at time of session */
+  readonly agentName?: string;
+}
+
+interface SessionHistoryEntry {
+  /** Internal session ID */
+  readonly id: string;
+  /** Claude Code session ID */
+  readonly claudeSessionId?: string;
+  /** Session status when entry was created */
+  readonly status: SessionStatus;
+  /** Working directory */
+  readonly workingDirectory: string;
+  /** Worktree path */
+  readonly worktree?: string;
+  /** Session started timestamp */
+  readonly startedAt?: Timestamp;
+  /** Session ended timestamp */
+  readonly endedAt?: Timestamp;
+  /** Termination reason */
+  readonly terminationReason?: string;
+}
+```
+
+#### Session History Persistence
+
+Session history is automatically persisted to agent entity metadata when sessions end or are persisted:
+
+```typescript
+// Session history is stored under metadata.agent.sessionHistory
+// Persisted automatically on stop/suspend, or manually:
+await sessionManager.persistSession(sessionId);
+
+// Loaded on startup:
+await sessionManager.loadSessionState(agentId);
+```
+
+The history is limited to 20 entries per agent to avoid metadata bloat. Role-based queries aggregate history from all agents with the specified role.
+
 ### Session Communication
 
 ```typescript

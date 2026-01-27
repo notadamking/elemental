@@ -186,6 +186,18 @@ export interface SessionHistoryEntry {
 }
 
 /**
+ * Role-based session history entry - includes agent context
+ */
+export interface RoleSessionHistoryEntry extends SessionHistoryEntry {
+  /** Agent role for this session */
+  readonly role: AgentRole;
+  /** Agent entity ID */
+  readonly agentId: EntityId;
+  /** Agent name at time of session */
+  readonly agentName?: string;
+}
+
+/**
  * Result of the UWP check performed during session resume
  */
 export interface ResumeUWPCheckResult {
@@ -312,6 +324,30 @@ export interface SessionManager {
    * @returns Array of session history entries
    */
   getSessionHistory(agentId: EntityId, limit?: number): Promise<SessionHistoryEntry[]>;
+
+  /**
+   * Gets the session history for a role across all agents.
+   *
+   * This aggregates session history from all agents with the specified role,
+   * sorted by most recent first.
+   *
+   * @param role - The agent role to filter by
+   * @param limit - Maximum number of entries to return (default 10)
+   * @returns Array of role-based session history entries
+   */
+  getSessionHistoryByRole(role: AgentRole, limit?: number): Promise<RoleSessionHistoryEntry[]>;
+
+  /**
+   * Gets the most recent previous session for a role.
+   *
+   * Returns the most recently ended (suspended or terminated) session for
+   * agents with the specified role. This is useful for predecessor queries
+   * where a new agent needs to consult the previous session holder for context.
+   *
+   * @param role - The agent role to find previous session for
+   * @returns The most recent previous session, or undefined if none found
+   */
+  getPreviousSession(role: AgentRole): Promise<RoleSessionHistoryEntry | undefined>;
 
   // ----------------------------------------
   // Session Communication
@@ -733,6 +769,60 @@ export class SessionManagerImpl implements SessionManager {
     return allHistory.slice(0, limit);
   }
 
+  async getSessionHistoryByRole(role: AgentRole, limit = 10): Promise<RoleSessionHistoryEntry[]> {
+    // Get all agents with the specified role
+    const agents = await this.registry.getAgentsByRole(role);
+
+    // Collect all session history entries from all agents with this role
+    const allRoleHistory: RoleSessionHistoryEntry[] = [];
+
+    for (const agent of agents) {
+      // Agent.id is ElementId but we need EntityId for session history
+      const agentId = agent.id as unknown as EntityId;
+      const agentHistory = await this.getSessionHistory(agentId, limit);
+      const agentMeta = getAgentMetadata(agent);
+
+      // Convert to role-based entries
+      for (const entry of agentHistory) {
+        allRoleHistory.push({
+          ...entry,
+          role: agentMeta?.agentRole ?? role,
+          agentId: agentId,
+          agentName: agent.name,
+        });
+      }
+    }
+
+    // Sort by ended or started time, most recent first
+    allRoleHistory.sort((a, b) => {
+      const aTime = a.endedAt
+        ? this.getTimestampMs(a.endedAt)
+        : a.startedAt
+          ? this.getTimestampMs(a.startedAt)
+          : 0;
+      const bTime = b.endedAt
+        ? this.getTimestampMs(b.endedAt)
+        : b.startedAt
+          ? this.getTimestampMs(b.startedAt)
+          : 0;
+      return bTime - aTime;
+    });
+
+    return allRoleHistory.slice(0, limit);
+  }
+
+  async getPreviousSession(role: AgentRole): Promise<RoleSessionHistoryEntry | undefined> {
+    // Get session history for the role
+    const roleHistory = await this.getSessionHistoryByRole(role, 100);
+
+    // Find the most recent session that has ended (suspended or terminated)
+    const previousSession = roleHistory.find(
+      (entry) => entry.status === 'suspended' || entry.status === 'terminated'
+    );
+
+    return previousSession;
+  }
+
   // ----------------------------------------
   // Session Communication
   // ----------------------------------------
@@ -817,12 +907,17 @@ export class SessionManagerImpl implements SessionManager {
       return;
     }
 
-    // Update agent metadata with session info
-    // Note: Session history is maintained in-memory by addToHistory()
+    // Get the current in-memory session history for this agent
+    const inMemoryHistory = this.sessionHistory.get(session.agentId) ?? [];
+
+    // Update agent metadata with session info and history
+    // This persists session history to database for cross-restart recovery
     await this.registry.updateAgentMetadata(session.agentId, {
       sessionId: session.claudeSessionId,
       sessionStatus: session.status === 'running' ? 'running' : session.status === 'suspended' ? 'suspended' : 'idle',
       lastActivityAt: session.lastActivityAt,
+      // Persist session history (limited to 20 entries to avoid bloat)
+      sessionHistory: inMemoryHistory.slice(0, 20),
     } as Record<string, unknown>);
 
     // Mark as persisted
@@ -1014,8 +1109,9 @@ export class SessionManagerImpl implements SessionManager {
   }
 
   private getPersistedHistory(agent: AgentEntity): SessionHistoryEntry[] {
-    const metadata = agent.metadata as Record<string, unknown>;
-    const sessionHistory = metadata?.sessionHistory;
+    // Session history is stored under metadata.agent.sessionHistory
+    const agentMeta = agent.metadata?.agent as unknown as Record<string, unknown> | undefined;
+    const sessionHistory = agentMeta?.sessionHistory;
     if (!Array.isArray(sessionHistory)) {
       return [];
     }

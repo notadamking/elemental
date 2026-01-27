@@ -49,6 +49,8 @@ export {
   type MessageSessionResult,
   type SessionFilter,
   type SessionHistoryEntry,
+  // Role-based session history (TB-O10c)
+  type RoleSessionHistoryEntry,
   type SessionManager,
   // UWP Check Result (TB-O10a)
   type ResumeUWPCheckResult,
