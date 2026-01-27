@@ -61,18 +61,12 @@ export interface UpdateCommentInput {
 // API Functions
 // ============================================================================
 
-const API_BASE = 'http://localhost:3456';
-
 async function fetchComments(
   documentId: string,
   includeResolved = false
 ): Promise<CommentsResponse> {
-  const url = new URL(`${API_BASE}/api/documents/${documentId}/comments`);
-  if (includeResolved) {
-    url.searchParams.set('includeResolved', 'true');
-  }
-
-  const response = await fetch(url.toString());
+  const url = `/api/documents/${documentId}/comments${includeResolved ? '?includeResolved=true' : ''}`;
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch comments');
   }
@@ -85,7 +79,7 @@ async function createComment(
   input: CreateCommentInput
 ): Promise<Comment> {
   const response = await fetch(
-    `${API_BASE}/api/documents/${documentId}/comments`,
+    `/api/documents/${documentId}/comments`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -105,7 +99,7 @@ async function updateComment(
   commentId: string,
   input: UpdateCommentInput
 ): Promise<Comment> {
-  const response = await fetch(`${API_BASE}/api/comments/${commentId}`, {
+  const response = await fetch(`/api/comments/${commentId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -120,7 +114,7 @@ async function updateComment(
 }
 
 async function deleteComment(commentId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/comments/${commentId}`, {
+  const response = await fetch(`/api/comments/${commentId}`, {
     method: 'DELETE',
   });
 

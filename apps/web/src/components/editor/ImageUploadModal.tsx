@@ -50,8 +50,6 @@ interface UploadedFile {
   usedIn?: Array<{ id: string; title: string }>;
 }
 
-const API_BASE = 'http://localhost:3456';
-
 export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModalProps) {
   const [mode, setMode] = useState<'upload' | 'url' | 'library'>('upload');
   const [dragOver, setDragOver] = useState(false);
@@ -93,7 +91,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
     setLibraryLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/uploads`);
+      const response = await fetch('/api/uploads');
       if (!response.ok) {
         throw new Error('Failed to load images');
       }
@@ -104,7 +102,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
         data.files.map(async (file: UploadedFile) => {
           try {
             const usageRes = await fetch(
-              `${API_BASE}/api/uploads/${file.filename}/usage`
+              `/api/uploads/${file.filename}/usage`
             );
             if (usageRes.ok) {
               const usageData = await usageRes.json();
@@ -163,7 +161,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${API_BASE}/api/uploads`, {
+      const response = await fetch('/api/uploads', {
         method: 'POST',
         body: formData,
       });
@@ -174,8 +172,8 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
       }
 
       const result = await response.json();
-      // Return full URL for the image
-      return `${API_BASE}${result.url}`;
+      // Return the relative URL for the image
+      return result.url;
     } catch (err) {
       setError((err as Error).message);
       return null;
@@ -239,8 +237,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
         setError('Please select an image');
         return;
       }
-      const fullUrl = `${API_BASE}${selectedLibraryImage.url}`;
-      onInsert(fullUrl, altText || undefined);
+      onInsert(selectedLibraryImage.url, altText || undefined);
       handleClose();
     } else if (preview?.file) {
       const uploadedUrl = await uploadFile(preview.file);
@@ -263,7 +260,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
       setDeleting(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE}/api/uploads/${filename}`, {
+        const response = await fetch(`/api/uploads/${filename}`, {
           method: 'DELETE',
         });
 
@@ -514,7 +511,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
                           data-testid={`library-image-${image.filename}`}
                         >
                           <img
-                            src={`${API_BASE}${image.url}`}
+                            src={image.url}
                             alt={image.filename}
                             className="w-full h-24 object-cover bg-gray-100 dark:bg-gray-800"
                           />
@@ -848,7 +845,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
                         data-testid={`library-image-${image.filename}`}
                       >
                         <img
-                          src={`${API_BASE}${image.url}`}
+                          src={image.url}
                           alt={image.filename}
                           className="w-full h-28 object-cover bg-gray-100 dark:bg-gray-800"
                         />
@@ -928,7 +925,7 @@ export function ImageUploadModal({ isOpen, onClose, onInsert }: ImageUploadModal
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-4">
                     <img
-                      src={`${API_BASE}${selectedLibraryImage.url}`}
+                      src={selectedLibraryImage.url}
                       alt={selectedLibraryImage.filename}
                       className="w-16 h-16 object-cover rounded bg-gray-100 dark:bg-gray-800"
                     />

@@ -1321,8 +1321,6 @@ interface ImageAttachment {
   filename?: string;
 }
 
-const API_BASE = 'http://localhost:3456';
-
 function MessageComposer({
   channelId,
   channel,
@@ -1433,7 +1431,7 @@ function MessageComposer({
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${API_BASE}/api/uploads`, {
+      const response = await fetch('/api/uploads', {
         method: 'POST',
         body: formData,
       });
@@ -1443,7 +1441,7 @@ function MessageComposer({
       }
 
       const result = await response.json();
-      return `${API_BASE}${result.url}`;
+      return result.url;
     } catch (err) {
       toast.error('Failed to upload image');
       return null;

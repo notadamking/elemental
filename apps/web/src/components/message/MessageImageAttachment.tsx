@@ -42,8 +42,6 @@ interface UploadedFile {
   usageCount?: number;
 }
 
-const API_BASE = 'http://localhost:3456';
-
 export function MessageImageAttachment({
   isOpen,
   onClose,
@@ -82,7 +80,7 @@ export function MessageImageAttachment({
     setLibraryLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/uploads`);
+      const response = await fetch('/api/uploads');
       if (!response.ok) {
         throw new Error('Failed to load images');
       }
@@ -129,7 +127,7 @@ export function MessageImageAttachment({
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${API_BASE}/api/uploads`, {
+      const response = await fetch('/api/uploads', {
         method: 'POST',
         body: formData,
       });
@@ -140,7 +138,7 @@ export function MessageImageAttachment({
       }
 
       const result = await response.json();
-      return `${API_BASE}${result.url}`;
+      return result.url;
     } catch (err) {
       setError((err as Error).message);
       return null;
@@ -204,8 +202,7 @@ export function MessageImageAttachment({
         setError('Please select an image');
         return;
       }
-      const fullUrl = `${API_BASE}${selectedLibraryImage.url}`;
-      onAttach(fullUrl);
+      onAttach(selectedLibraryImage.url);
       handleClose();
     } else if (preview?.file) {
       const uploadedUrl = await uploadFile(preview.file);
@@ -379,7 +376,7 @@ export function MessageImageAttachment({
                         data-testid={`message-library-image-${image.filename}`}
                       >
                         <img
-                          src={`${API_BASE}${image.url}`}
+                          src={image.url}
                           alt={image.filename}
                           className="w-full h-24 object-cover bg-gray-100 dark:bg-gray-800"
                         />
@@ -407,7 +404,7 @@ export function MessageImageAttachment({
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-3">
                     <img
-                      src={`${API_BASE}${selectedLibraryImage.url}`}
+                      src={selectedLibraryImage.url}
                       alt={selectedLibraryImage.filename}
                       className="w-12 h-12 object-cover rounded bg-gray-100 dark:bg-gray-800"
                     />
