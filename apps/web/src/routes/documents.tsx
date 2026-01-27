@@ -876,7 +876,7 @@ function LibraryTree({
       <div className={`${isMobile ? 'p-3' : 'p-4'} border-b border-gray-200 dark:border-[var(--color-border)]`}>
         <div className="flex items-center justify-between mb-3">
           <h2 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-gray-900 dark:text-[var(--color-text)] flex items-center gap-2`}>
-            <Library className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-gray-500 dark:text-gray-400`} />
+            <Library className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-blue-500`} />
             Libraries
           </h2>
           {/* Hide action buttons on mobile - we have FABs instead */}

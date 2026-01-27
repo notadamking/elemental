@@ -573,13 +573,16 @@ function ChannelList({
   return (
     <div
       data-testid="channel-list"
-      className={`flex flex-col h-full bg-[var(--color-bg)] ${
+      className={`flex flex-col h-full bg-white dark:bg-[var(--color-bg)] ${
         isMobile ? 'w-full' : 'w-64 border-r border-[var(--color-border)]'
       }`}
     >
       <div className={`border-b border-[var(--color-border)] ${isMobile ? 'p-4 pt-2' : 'p-4'}`}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className={`font-semibold text-[var(--color-text)] ${isMobile ? 'text-xl' : 'text-lg'}`}>Channels</h2>
+          <h2 className={`font-semibold text-[var(--color-text)] ${isMobile ? 'text-xl' : 'text-lg'} flex items-center gap-2`}>
+            <MessageSquare className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-blue-500`} />
+            Channels
+          </h2>
           <button
             onClick={onNewChannel}
             className={`text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors ${
@@ -694,6 +697,16 @@ function ChannelList({
             onPageSizeChange={onPageSizeChange}
             showPageSizeSelector={false}
           />
+        </div>
+      )}
+
+      {/* Channel count footer - hidden on mobile */}
+      {!isMobile && (
+        <div
+          data-testid="channel-count"
+          className="p-3 border-t border-gray-200 dark:border-[var(--color-border)] text-xs text-gray-500 dark:text-gray-400"
+        >
+          {totalItems} {totalItems === 1 ? 'channel' : 'channels'}
         </div>
       )}
     </div>
