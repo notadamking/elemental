@@ -5,7 +5,7 @@
  * or a stream viewer for ephemeral workers.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio } from 'lucide-react';
 import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
 import { XTerminal } from '../terminal/XTerminal';
@@ -57,9 +57,16 @@ export function WorkspacePane({
 }: WorkspacePaneProps) {
   const [showMenu, setShowMenu] = useState(false);
 
-  const handleStatusChange = useCallback((status: 'disconnected' | 'connecting' | 'connected' | 'error') => {
-    onStatusChange(status);
+  // Use ref to avoid recreating callback when onStatusChange prop changes
+  // This prevents WebSocket reconnection loops caused by inline arrow functions in parent
+  const onStatusChangeRef = useRef(onStatusChange);
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
   }, [onStatusChange]);
+
+  const handleStatusChange = useCallback((status: 'disconnected' | 'connecting' | 'connected' | 'error') => {
+    onStatusChangeRef.current(status);
+  }, []);
 
   const roleStyle = roleBadgeStyles[pane.agentRole] || roleBadgeStyles.worker;
   const RoleIcon = roleStyle.icon;

@@ -113,11 +113,20 @@ export function XTerminal({
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
 
+  // Store callbacks in refs to avoid recreating dependent callbacks
+  // This prevents WebSocket reconnection loops when parent passes inline functions
+  const onStatusChangeRef = useRef(onStatusChange);
+  const onConnectedRef = useRef(onConnected);
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+    onConnectedRef.current = onConnected;
+  }, [onStatusChange, onConnected]);
+
   // Update status and notify callback
   const updateStatus = useCallback((newStatus: TerminalStatus) => {
     setStatus(newStatus);
-    onStatusChange?.(newStatus);
-  }, [onStatusChange]);
+    onStatusChangeRef.current?.(newStatus);
+  }, []);
 
   // Send data to WebSocket
   const sendToServer = useCallback((data: string) => {
@@ -228,7 +237,7 @@ export function XTerminal({
           switch (data.type) {
             case 'subscribed':
               updateStatus('connected');
-              onConnected?.();
+              onConnectedRef.current?.();
               terminalRef.current?.writeln(
                 data.hasSession
                   ? '\x1b[32m  Connected to active session\x1b[0m\r\n'
@@ -336,7 +345,8 @@ export function XTerminal({
         wsRef.current = null;
       }
     };
-  }, [agentId, wsUrl, updateStatus, onConnected]);
+  // Note: updateStatus uses refs internally so it's stable and doesn't need to be in deps
+  }, [agentId, wsUrl, updateStatus]);
 
   // Public methods exposed via ref
   const write = useCallback((data: string) => {
