@@ -1065,18 +1065,39 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O16: Agent List Page
+#### - [x] TB-O16: Agent List Page
 
 **Goal**: View and manage agents and stewards with status
 
 **Changes**:
 
-- [ ] Create `/agents` route with tabs: Agents, Stewards
-- [ ] Display: name, role, capabilities, session status
-- [ ] Show worktree status for workers
-- [ ] [+ Create Agent] and [+ Create Steward] buttons
+- [x] Create `/agents` route with tabs: Agents, Stewards
+- [x] Display: name, role, capabilities, session status
+- [x] Show worktree status for workers (branch display for workers)
+- [ ] [+ Create Agent] and [+ Create Steward] buttons (UI present, dialog TODO)
 
 **Verification**: Register agents via CLI, see them in web UI with status badges
+
+**Implementation Notes** (2026-01-27):
+- Created `api/types.ts` with Agent, Session, and Worktree types
+- Created `api/hooks/useAgents.ts` with React Query hooks for agents API
+- Created agent components: `AgentCard`, `AgentStatusBadge`, `AgentRoleBadge`
+- Implemented full `/agents` route with:
+  - Agents tab showing Director, Persistent Workers, and Ephemeral Workers sections
+  - Stewards tab grouped by focus (merge, health, reminder, ops)
+  - Search functionality filtering by name, skills, and languages
+  - Start/Stop agent session buttons with pending states
+  - Empty states for when no agents/stewards exist
+  - Error handling with retry button
+  - Loading indicator while fetching
+- 16 Playwright tests in `tests/agents.spec.ts` covering:
+  - Page layout and header
+  - Tab navigation and URL persistence
+  - Empty states for both tabs
+  - Search functionality
+  - Error handling
+  - Responsive design
+  - Loading state
 
 ---
 

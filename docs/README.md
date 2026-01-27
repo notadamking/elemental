@@ -182,11 +182,16 @@ The project is a TurboRepo monorepo with the following structure:
 | Mobile drawer | `components/layout/MobileDrawer.tsx` | - |
 | Activity page | `routes/activity/index.tsx` | - |
 | Tasks page | `routes/tasks/index.tsx` | - |
-| Agents page | `routes/agents/index.tsx` | - |
+| Agents page | `routes/agents/index.tsx` | `tests/agents.spec.ts` |
 | Workspaces page | `routes/workspaces/index.tsx` | - |
 | Workflows page | `routes/workflows/index.tsx` | - |
 | Metrics page | `routes/metrics/index.tsx` | - |
 | Settings page | `routes/settings/index.tsx` | - |
+| API types | `api/types.ts` | - |
+| Agent hooks | `api/hooks/useAgents.ts` | - |
+| AgentCard component | `components/agent/AgentCard.tsx` | - |
+| AgentStatusBadge | `components/agent/AgentStatusBadge.tsx` | - |
+| AgentRoleBadge | `components/agent/AgentRoleBadge.tsx` | - |
 | UI components | `components/ui/*.tsx` | - |
 | Design tokens | `styles/tokens.css` | - |
 

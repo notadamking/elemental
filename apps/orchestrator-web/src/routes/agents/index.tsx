@@ -1,15 +1,111 @@
 /**
  * Agents Page - View and manage agents and stewards
- * Displays agent status, capabilities, and current tasks
+ *
+ * Displays agent status, capabilities, and current tasks.
+ * Organized with tabs for Agents (Director + Workers) and Stewards.
  */
 
-import { Users, Plus, Search } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useSearch, useNavigate } from '@tanstack/react-router';
+import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { useAgentsByRole, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
+import { AgentCard } from '../../components/agent';
+import type { Agent, SessionStatus } from '../../api/types';
+
+type TabValue = 'agents' | 'stewards';
 
 export function AgentsPage() {
+  const search = useSearch({ from: '/agents' }) as { tab?: string; selected?: string; role?: string };
+  const navigate = useNavigate();
+
+  const currentTab = (search.tab as TabValue) || 'agents';
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Track which agents have pending actions
+  const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
+  const [pendingStop, setPendingStop] = useState<Set<string>>(new Set());
+
+  const {
+    director,
+    ephemeralWorkers,
+    persistentWorkers,
+    stewards,
+    isLoading,
+    error,
+    refetch,
+  } = useAgentsByRole();
+
+  const startSession = useStartAgentSession();
+  const stopSession = useStopAgentSession();
+
+  // Filter agents based on search query
+  const filteredAgents = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return { director, ephemeralWorkers, persistentWorkers, stewards };
+
+    const filter = (agents: Agent[]) =>
+      agents.filter(
+        (a) =>
+          a.name.toLowerCase().includes(query) ||
+          a.metadata?.agent?.capabilities?.skills?.some((s) => s.toLowerCase().includes(query)) ||
+          a.metadata?.agent?.capabilities?.languages?.some((l) => l.toLowerCase().includes(query))
+      );
+
+    return {
+      director: director?.name.toLowerCase().includes(query) ? director : undefined,
+      ephemeralWorkers: filter(ephemeralWorkers),
+      persistentWorkers: filter(persistentWorkers),
+      stewards: filter(stewards),
+    };
+  }, [searchQuery, director, ephemeralWorkers, persistentWorkers, stewards]);
+
+  const setTab = (tab: TabValue) => {
+    navigate({
+      to: '/agents',
+      search: { selected: search.selected, tab, role: search.role },
+    });
+  };
+
+  const handleStartAgent = async (agentId: string) => {
+    setPendingStart((prev) => new Set(prev).add(agentId));
+    try {
+      await startSession.mutateAsync({ agentId });
+    } finally {
+      setPendingStart((prev) => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
+    }
+  };
+
+  const handleStopAgent = async (agentId: string) => {
+    setPendingStop((prev) => new Set(prev).add(agentId));
+    try {
+      await stopSession.mutateAsync({ agentId, graceful: true });
+    } finally {
+      setPendingStop((prev) => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
+    }
+  };
+
+  const handleOpenTerminal = (agentId: string) => {
+    // Navigate to workspaces page with agent selected
+    // Note: When TB-O17a is implemented, this will open the agent in the workspace terminal
+    navigate({ to: '/workspaces', search: { layout: `agent-${agentId}` } });
+  };
+
+  // Count agents by tab
+  const agentCount = (director ? 1 : 0) + ephemeralWorkers.length + persistentWorkers.length;
+  const stewardCount = stewards.length;
+
   return (
     <div className="space-y-6 animate-fade-in" data-testid="agents-page">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-[var(--color-primary-muted)]">
             <Users className="w-5 h-5 text-[var(--color-primary)]" />
@@ -27,7 +123,9 @@ export function AgentsPage() {
             <input
               type="text"
               placeholder="Search agents..."
-              className="pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent w-48 md:w-64"
               data-testid="agents-search"
             />
           </div>
@@ -36,45 +134,353 @@ export function AgentsPage() {
             data-testid="agents-create"
           >
             <Plus className="w-4 h-4" />
-            Create Agent
+            <span className="hidden sm:inline">Create Agent</span>
           </button>
         </div>
       </div>
 
-      {/* Tabs: Agents | Stewards */}
+      {/* Tabs */}
       <div className="border-b border-[var(--color-border)]">
-        <nav className="flex gap-4" aria-label="Tabs">
+        <nav className="flex gap-1" aria-label="Tabs">
           <button
-            className="pb-3 px-1 text-sm font-medium text-[var(--color-primary)] border-b-2 border-[var(--color-primary)]"
+            onClick={() => setTab('agents')}
+            className={`pb-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+              currentTab === 'agents'
+                ? 'text-[var(--color-primary)] border-[var(--color-primary)]'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] border-transparent hover:border-[var(--color-border)]'
+            }`}
             data-testid="agents-tab-agents"
           >
-            Agents
+            <span className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Agents
+              {agentCount > 0 && (
+                <span className="px-1.5 py-0.5 text-xs rounded-full bg-[var(--color-surface-elevated)]">
+                  {agentCount}
+                </span>
+              )}
+            </span>
           </button>
           <button
-            className="pb-3 px-1 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text)] border-b-2 border-transparent hover:border-[var(--color-border)]"
+            onClick={() => setTab('stewards')}
+            className={`pb-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+              currentTab === 'stewards'
+                ? 'text-[var(--color-primary)] border-[var(--color-primary)]'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] border-transparent hover:border-[var(--color-border)]'
+            }`}
             data-testid="agents-tab-stewards"
           >
-            Stewards
+            <span className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Stewards
+              {stewardCount > 0 && (
+                <span className="px-1.5 py-0.5 text-xs rounded-full bg-[var(--color-surface-elevated)]">
+                  {stewardCount}
+                </span>
+              )}
+            </span>
           </button>
         </nav>
       </div>
 
-      {/* Empty state */}
-      <div className="flex flex-col items-center justify-center py-16 px-4 border border-dashed border-[var(--color-border)] rounded-lg">
-        <Users className="w-12 h-12 text-[var(--color-text-tertiary)] mb-4" />
-        <h3 className="text-lg font-medium text-[var(--color-text)]">No agents yet</h3>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)] text-center max-w-md">
-          Create your first agent to start orchestrating AI work.
-          Agents can work on tasks autonomously in isolated git worktrees.
-        </p>
-        <button
-          className="mt-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
-          data-testid="agents-create-empty"
-        >
-          <Plus className="w-4 h-4" />
-          Create Agent
-        </button>
-      </div>
+      {/* Content */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 text-[var(--color-primary)] animate-spin mb-4" />
+          <p className="text-sm text-[var(--color-text-secondary)]">Loading agents...</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-16 px-4 border border-dashed border-[var(--color-danger)] rounded-lg bg-[var(--color-danger-muted)]">
+          <AlertCircle className="w-12 h-12 text-[var(--color-danger)] mb-4" />
+          <h3 className="text-lg font-medium text-[var(--color-text)]">Failed to load agents</h3>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)] text-center max-w-md">
+            {error.message}
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--color-primary)] bg-[var(--color-surface)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      ) : currentTab === 'agents' ? (
+        <AgentsTab
+          director={filteredAgents.director}
+          ephemeralWorkers={filteredAgents.ephemeralWorkers}
+          persistentWorkers={filteredAgents.persistentWorkers}
+          onStart={handleStartAgent}
+          onStop={handleStopAgent}
+          onOpenTerminal={handleOpenTerminal}
+          pendingStart={pendingStart}
+          pendingStop={pendingStop}
+        />
+      ) : (
+        <StewardsTab
+          stewards={filteredAgents.stewards}
+          onStart={handleStartAgent}
+          onStop={handleStopAgent}
+          pendingStart={pendingStart}
+          pendingStop={pendingStop}
+        />
+      )}
     </div>
   );
+}
+
+// ============================================================================
+// Agents Tab
+// ============================================================================
+
+interface AgentsTabProps {
+  director?: Agent;
+  ephemeralWorkers: Agent[];
+  persistentWorkers: Agent[];
+  onStart: (agentId: string) => void;
+  onStop: (agentId: string) => void;
+  onOpenTerminal: (agentId: string) => void;
+  pendingStart: Set<string>;
+  pendingStop: Set<string>;
+}
+
+function AgentsTab({
+  director,
+  ephemeralWorkers,
+  persistentWorkers,
+  onStart,
+  onStop,
+  onOpenTerminal,
+  pendingStart,
+  pendingStop,
+}: AgentsTabProps) {
+  const hasAgents = director || ephemeralWorkers.length > 0 || persistentWorkers.length > 0;
+
+  if (!hasAgents) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No agents yet"
+        description="Create your first agent to start orchestrating AI work. Agents can work on tasks autonomously in isolated git worktrees."
+        actionLabel="Create Agent"
+        actionTestId="agents-create-empty"
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Director */}
+      {director && (
+        <AgentSection
+          title="Director"
+          icon={Crown}
+          description="Strategic agent that creates and assigns tasks"
+        >
+          <AgentCard
+            agent={director}
+            activeSessionStatus={getSessionStatus(director)}
+            onStart={() => onStart(director.id)}
+            onStop={() => onStop(director.id)}
+            onOpenTerminal={() => onOpenTerminal(director.id)}
+            isStarting={pendingStart.has(director.id)}
+            isStopping={pendingStop.has(director.id)}
+          />
+        </AgentSection>
+      )}
+
+      {/* Persistent Workers */}
+      {persistentWorkers.length > 0 && (
+        <AgentSection
+          title="Persistent Workers"
+          icon={Wrench}
+          description="Long-lived workers that handle multiple tasks"
+          count={persistentWorkers.length}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {persistentWorkers.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                activeSessionStatus={getSessionStatus(agent)}
+                onStart={() => onStart(agent.id)}
+                onStop={() => onStop(agent.id)}
+                onOpenTerminal={() => onOpenTerminal(agent.id)}
+                isStarting={pendingStart.has(agent.id)}
+                isStopping={pendingStop.has(agent.id)}
+              />
+            ))}
+          </div>
+        </AgentSection>
+      )}
+
+      {/* Ephemeral Workers */}
+      {ephemeralWorkers.length > 0 && (
+        <AgentSection
+          title="Ephemeral Workers"
+          icon={Wrench}
+          description="Short-lived workers spawned per task"
+          count={ephemeralWorkers.length}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {ephemeralWorkers.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                activeSessionStatus={getSessionStatus(agent)}
+                onStart={() => onStart(agent.id)}
+                onStop={() => onStop(agent.id)}
+                onOpenTerminal={() => onOpenTerminal(agent.id)}
+                isStarting={pendingStart.has(agent.id)}
+                isStopping={pendingStop.has(agent.id)}
+              />
+            ))}
+          </div>
+        </AgentSection>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Stewards Tab
+// ============================================================================
+
+interface StewardsTabProps {
+  stewards: Agent[];
+  onStart: (agentId: string) => void;
+  onStop: (agentId: string) => void;
+  pendingStart: Set<string>;
+  pendingStop: Set<string>;
+}
+
+function StewardsTab({ stewards, onStart, onStop, pendingStart, pendingStop }: StewardsTabProps) {
+  if (stewards.length === 0) {
+    return (
+      <EmptyState
+        icon={Shield}
+        title="No stewards yet"
+        description="Create stewards to automate maintenance tasks like merging branches, health monitoring, and cleanup operations."
+        actionLabel="Create Steward"
+        actionTestId="stewards-create-empty"
+      />
+    );
+  }
+
+  // Group stewards by focus
+  const stewardsByFocus = stewards.reduce(
+    (acc, steward) => {
+      const meta = steward.metadata?.agent;
+      const focus = meta?.agentRole === 'steward' ? (meta as { stewardFocus?: string })?.stewardFocus : 'ops';
+      if (!acc[focus ?? 'ops']) acc[focus ?? 'ops'] = [];
+      acc[focus ?? 'ops'].push(steward);
+      return acc;
+    },
+    {} as Record<string, Agent[]>
+  );
+
+  const focusLabels: Record<string, string> = {
+    merge: 'Merge Stewards',
+    health: 'Health Stewards',
+    reminder: 'Reminder Stewards',
+    ops: 'Ops Stewards',
+  };
+
+  return (
+    <div className="space-y-8">
+      {Object.entries(stewardsByFocus).map(([focus, agents]) => (
+        <AgentSection
+          key={focus}
+          title={focusLabels[focus] ?? focus}
+          icon={Shield}
+          count={agents.length}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {agents.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                activeSessionStatus={getSessionStatus(agent)}
+                onStart={() => onStart(agent.id)}
+                onStop={() => onStop(agent.id)}
+                isStarting={pendingStart.has(agent.id)}
+                isStopping={pendingStop.has(agent.id)}
+              />
+            ))}
+          </div>
+        </AgentSection>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// Shared Components
+// ============================================================================
+
+interface AgentSectionProps {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description?: string;
+  count?: number;
+  children: React.ReactNode;
+}
+
+function AgentSection({ title, icon: Icon, description, count, children }: AgentSectionProps) {
+  return (
+    <section data-testid={`agent-section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <Icon className="w-5 h-5 text-[var(--color-text-secondary)]" />
+        <h2 className="text-lg font-semibold text-[var(--color-text)]">{title}</h2>
+        {count !== undefined && (
+          <span className="px-2 py-0.5 text-xs rounded-full bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)]">
+            {count}
+          </span>
+        )}
+      </div>
+      {description && (
+        <p className="text-sm text-[var(--color-text-secondary)] mb-4">{description}</p>
+      )}
+      {children}
+    </section>
+  );
+}
+
+interface EmptyStateProps {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  actionLabel: string;
+  actionTestId: string;
+}
+
+function EmptyState({ icon: Icon, title, description, actionLabel, actionTestId }: EmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4 border border-dashed border-[var(--color-border)] rounded-lg">
+      <Icon className="w-12 h-12 text-[var(--color-text-tertiary)] mb-4" />
+      <h3 className="text-lg font-medium text-[var(--color-text)]">{title}</h3>
+      <p className="mt-1 text-sm text-[var(--color-text-secondary)] text-center max-w-md">
+        {description}
+      </p>
+      <button
+        className="mt-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
+        data-testid={actionTestId}
+      >
+        <Plus className="w-4 h-4" />
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function getSessionStatus(agent: Agent): SessionStatus | undefined {
+  const status = agent.metadata?.agent?.sessionStatus;
+  // Map agent session status to full session status
+  if (status === 'running') return 'running';
+  if (status === 'suspended') return 'suspended';
+  if (status === 'terminated') return 'terminated';
+  return undefined;
 }
