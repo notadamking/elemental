@@ -40,6 +40,7 @@ export {
 export {
   // Types
   type AssignTaskOptions,
+  type CompleteTaskOptions,
   type TaskAssignment,
   type AssignmentFilter,
   type AssignmentStatus,
@@ -99,3 +100,18 @@ export {
   // Factory
   createDispatchService,
 } from './dispatch-service.js';
+
+// Worker task service (TB-O20)
+export {
+  // Types
+  type StartWorkerOnTaskOptions,
+  type StartWorkerOnTaskResult,
+  type CompleteTaskOptions as WorkerCompleteTaskOptions,
+  type CompleteTaskResult,
+  type TaskContext,
+  type WorkerTaskService,
+  // Implementation
+  WorkerTaskServiceImpl,
+  // Factory
+  createWorkerTaskService,
+} from './worker-task-service.js';

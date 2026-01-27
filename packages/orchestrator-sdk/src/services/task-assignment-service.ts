@@ -55,6 +55,16 @@ export interface AssignTaskOptions {
 }
 
 /**
+ * Options for completing a task
+ */
+export interface CompleteTaskOptions {
+  /** Summary of what was accomplished */
+  summary?: string;
+  /** Commit hash for the final commit */
+  commitHash?: string;
+}
+
+/**
  * A task with its orchestrator metadata
  */
 export interface TaskAssignment {
@@ -185,9 +195,19 @@ export interface TaskAssignmentService {
    * The task remains assigned for merge tracking.
    *
    * @param taskId - The task to complete
+   * @param options - Optional completion options
    * @returns The updated task
    */
-  completeTask(taskId: ElementId): Promise<Task>;
+  completeTask(taskId: ElementId, options?: CompleteTaskOptions): Promise<Task>;
+
+  /**
+   * Updates the session ID for a task.
+   *
+   * @param taskId - The task to update
+   * @param sessionId - The new session ID
+   * @returns The updated task
+   */
+  updateSessionId(taskId: ElementId, sessionId: string): Promise<Task>;
 
   // ----------------------------------------
   // Workload Queries
@@ -383,7 +403,37 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     });
   }
 
-  async completeTask(taskId: ElementId): Promise<Task> {
+  async completeTask(taskId: ElementId, options?: CompleteTaskOptions): Promise<Task> {
+    const task = await this.api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    const metaUpdates: Partial<OrchestratorTaskMeta> = {
+      completedAt: createTimestamp(),
+      mergeStatus: 'pending',
+    };
+
+    // Add optional completion info
+    if (options?.summary) {
+      (metaUpdates as Record<string, unknown>).completionSummary = options.summary;
+    }
+    if (options?.commitHash) {
+      (metaUpdates as Record<string, unknown>).lastCommitHash = options.commitHash;
+    }
+
+    const newMeta = updateOrchestratorTaskMeta(
+      task.metadata as Record<string, unknown> | undefined,
+      metaUpdates
+    );
+
+    return this.api.update<Task>(taskId, {
+      status: TaskStatus.CLOSED,
+      metadata: newMeta,
+    });
+  }
+
+  async updateSessionId(taskId: ElementId, sessionId: string): Promise<Task> {
     const task = await this.api.get<Task>(taskId);
     if (!task || task.type !== ElementType.TASK) {
       throw new Error(`Task not found: ${taskId}`);
@@ -391,16 +441,10 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
     const newMeta = updateOrchestratorTaskMeta(
       task.metadata as Record<string, unknown> | undefined,
-      {
-        completedAt: createTimestamp(),
-        mergeStatus: 'pending',
-      }
+      { sessionId }
     );
 
-    return this.api.update<Task>(taskId, {
-      status: TaskStatus.CLOSED,
-      metadata: newMeta,
-    });
+    return this.api.update<Task>(taskId, { metadata: newMeta });
   }
 
   // ----------------------------------------

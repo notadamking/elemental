@@ -1977,6 +1977,126 @@ HealthCheckStatus.UNKNOWN;      // 'unknown'
 - Message types are designed to work with the InboxPollingService handlers
 - The HandoffMessage type extends the HandoffContent from handoff.ts
 
+## WorkerTaskService (TB-O20)
+
+The WorkerTaskService orchestrates the complete workflow for workers picking up tasks and working in isolated worktrees. It combines dispatch, worktree creation, session spawning, and task context delivery into a unified API.
+
+### Creating a WorkerTaskService
+
+```typescript
+import {
+  createWorkerTaskService,
+  type WorkerTaskService,
+} from '@elemental/orchestrator-sdk';
+
+const workerTaskService = createWorkerTaskService(
+  api,                    // ElementalAPI
+  taskAssignmentService,  // TaskAssignmentService
+  agentRegistry,          // AgentRegistry
+  dispatchService,        // DispatchService
+  spawnerService,         // SpawnerService
+  sessionManager,         // SessionManager
+  worktreeManager,        // WorktreeManager (optional)
+);
+```
+
+### Starting a Worker on a Task
+
+This method performs the complete workflow:
+1. Creates a worktree for the task (if worktrees enabled)
+2. Dispatches the task to the worker (assigns + notifies)
+3. Spawns the worker session in the worktree
+4. Sends task context to the worker
+
+```typescript
+import type { StartWorkerOnTaskOptions, StartWorkerOnTaskResult } from '@elemental/orchestrator-sdk';
+
+const result = await workerTaskService.startWorkerOnTask(taskId, workerId, {
+  branch: 'custom-branch-name',       // Optional: auto-generated
+  worktreePath: '/custom/path',       // Optional: auto-generated
+  baseBranch: 'main',                 // Optional: default branch
+  additionalPrompt: 'Focus on tests', // Optional: extra instructions
+  priority: 5,                        // Optional: dispatch priority
+  skipWorktree: false,                // Optional: skip worktree creation
+  workingDirectory: '/path',          // Optional: custom cwd (if skipWorktree)
+  performedBy: directorId,            // Optional: entity performing operation
+});
+
+// Result includes:
+console.log(result.task);             // Updated task
+console.log(result.agent);            // Worker agent
+console.log(result.session);          // Session record
+console.log(result.worktree);         // Worktree result (if created)
+console.log(result.dispatch);         // Dispatch result
+console.log(result.taskContextPrompt); // The prompt sent to worker
+console.log(result.startedAt);        // Timestamp
+```
+
+### Completing a Task
+
+Mark a task as completed and ready for merge:
+
+```typescript
+import type { CompleteTaskOptions, CompleteTaskResult } from '@elemental/orchestrator-sdk';
+
+const result = await workerTaskService.completeTask(taskId, {
+  summary: 'Implemented feature X with tests',  // Optional
+  commitHash: 'abc123',                          // Optional: final commit
+  performedBy: workerId,                         // Optional
+});
+
+// Result includes:
+console.log(result.task);         // Completed task (status: closed)
+console.log(result.worktree);     // Worktree info (if available)
+console.log(result.readyForMerge); // true
+console.log(result.completedAt);  // Timestamp
+```
+
+### Task Context
+
+Get task context information or build a prompt for workers:
+
+```typescript
+// Get structured context
+const context = await workerTaskService.getTaskContext(taskId);
+console.log(context.taskId);
+console.log(context.title);
+console.log(context.description);
+console.log(context.branch);
+console.log(context.worktreePath);
+
+// Build a formatted prompt
+const prompt = await workerTaskService.buildTaskContextPrompt(taskId, 'Additional instructions');
+// Returns formatted markdown with:
+// - Task ID, title, description
+// - Priority, complexity, tags
+// - Git branch and working directory
+// - Step-by-step instructions
+// - CLI command for completion
+```
+
+### Cleaning Up
+
+After a task is merged, clean up the worktree:
+
+```typescript
+// Clean up worktree (optionally delete branch)
+const success = await workerTaskService.cleanupTask(taskId, true); // deleteBranch=true
+```
+
+### REST API Endpoints
+
+The orchestrator-server exposes these endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/tasks/:id/start-worker` | Start a worker on a task with worktree |
+| POST | `/api/tasks/:id/complete` | Complete task, mark ready for merge |
+| GET | `/api/tasks/:id/context` | Get task context and prompt |
+| POST | `/api/tasks/:id/cleanup` | Clean up worktree after merge |
+
+---
+
 ## WorktreeManager (TB-O11)
 
 The WorktreeManager provides git worktree operations for the orchestration system. Each worker agent gets a dedicated git worktree for true parallel development.

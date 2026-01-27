@@ -36,6 +36,7 @@ import {
   createTaskAssignmentService,
   createDispatchService,
   createRoleDefinitionService,
+  createWorkerTaskService,
   // Capability service functions (no CapabilityService class - it's just utility functions)
   getTaskCapabilityRequirements,
   setTaskCapabilityRequirements,
@@ -47,6 +48,7 @@ import {
   type TaskAssignmentService,
   type DispatchService,
   type RoleDefinitionService,
+  type WorkerTaskService,
   type SessionRecord,
   type SessionFilter,
   type WorktreeInfo,
@@ -57,6 +59,8 @@ import {
   type OrchestratorTaskMeta,
   type AssignmentFilter,
   type AgentWorkloadSummary,
+  type StartWorkerOnTaskResult,
+  type CompleteTaskResult,
   GitRepositoryNotFoundError,
 } from '@elemental/orchestrator-sdk';
 import type { ServerWebSocket } from 'bun';
@@ -86,6 +90,7 @@ let worktreeManager: WorktreeManager | undefined;
 let taskAssignmentService: TaskAssignmentService;
 let dispatchService: DispatchService;
 let roleDefinitionService: RoleDefinitionService;
+let workerTaskService: WorkerTaskService;
 let storageBackend: ReturnType<typeof createStorage>;
 
 try {
@@ -117,6 +122,17 @@ try {
       throw err;
     }
   }
+
+  // Initialize worker task service (TB-O20)
+  workerTaskService = createWorkerTaskService(
+    api,
+    taskAssignmentService,
+    agentRegistry,
+    dispatchService,
+    spawnerService,
+    sessionManager,
+    worktreeManager
+  );
 
   console.log(`[orchestrator] Connected to database: ${DB_PATH}`);
 } catch (error) {
@@ -158,6 +174,7 @@ app.get('/api/health', (c) => {
       taskAssignment: 'ready',
       dispatch: 'ready',
       roleDefinition: 'ready',
+      workerTask: 'ready',
     },
   });
 });
@@ -594,6 +611,232 @@ app.get('/api/agents/:id/workload', async (c) => {
     });
   } catch (error) {
     console.error('[orchestrator] Failed to get agent workload:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+// ============================================================================
+// Worker Task Endpoints (TB-O20: Worker Picks Up Task with Worktree)
+// ============================================================================
+
+/**
+ * POST /api/tasks/:id/start-worker
+ * Start a worker on a task with worktree isolation
+ *
+ * This endpoint orchestrates the complete workflow:
+ * 1. Creates a worktree for the task (if worktrees enabled)
+ * 2. Dispatches the task to the worker (assigns + notifies)
+ * 3. Spawns the worker session in the worktree
+ * 4. Sends task context to the worker
+ *
+ * Body:
+ * - agentId: string (required) - The worker agent to start
+ * - branch?: string - Custom branch name
+ * - worktreePath?: string - Custom worktree path
+ * - baseBranch?: string - Base branch for worktree
+ * - additionalPrompt?: string - Additional instructions for the worker
+ * - skipWorktree?: boolean - Skip worktree creation
+ * - workingDirectory?: string - Custom working directory (if skipWorktree)
+ * - priority?: number - Dispatch priority
+ * - performedBy?: string - Entity performing the operation
+ */
+app.post('/api/tasks/:id/start-worker', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const body = await c.req.json() as {
+      agentId: string;
+      branch?: string;
+      worktreePath?: string;
+      baseBranch?: string;
+      additionalPrompt?: string;
+      skipWorktree?: boolean;
+      workingDirectory?: string;
+      priority?: number;
+      performedBy?: string;
+    };
+
+    if (!body.agentId) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'agentId is required' } }, 400);
+    }
+
+    // Verify task exists
+    const task = await api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Verify agent exists
+    const agent = await agentRegistry.getAgent(body.agentId as EntityId);
+    if (!agent) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } }, 404);
+    }
+
+    // Start the worker on the task
+    const result = await workerTaskService.startWorkerOnTask(
+      taskId,
+      body.agentId as EntityId,
+      {
+        branch: body.branch,
+        worktreePath: body.worktreePath,
+        baseBranch: body.baseBranch,
+        additionalPrompt: body.additionalPrompt,
+        skipWorktree: body.skipWorktree,
+        workingDirectory: body.workingDirectory,
+        priority: body.priority,
+        performedBy: body.performedBy as EntityId | undefined,
+      }
+    );
+
+    return c.json({
+      success: true,
+      task: formatTaskResponse(result.task),
+      agent: {
+        id: result.agent.id,
+        name: result.agent.name,
+      },
+      session: {
+        id: result.session.id,
+        claudeSessionId: result.session.claudeSessionId,
+        status: result.session.status,
+        workingDirectory: result.session.workingDirectory,
+      },
+      worktree: result.worktree ? {
+        path: result.worktree.path,
+        branch: result.worktree.branch,
+        branchCreated: result.worktree.branchCreated,
+      } : null,
+      dispatch: {
+        notificationId: result.dispatch.notification.id,
+        channelId: result.dispatch.channel.id,
+        isNewAssignment: result.dispatch.isNewAssignment,
+      },
+      startedAt: result.startedAt,
+    }, 201);
+  } catch (error) {
+    const errorMessage = String(error);
+    if (errorMessage.includes('not a worker')) {
+      return c.json({
+        error: { code: 'INVALID_AGENT', message: 'Agent is not a worker' },
+      }, 400);
+    }
+    console.error('[orchestrator] Failed to start worker on task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
+/**
+ * POST /api/tasks/:id/complete
+ * Complete a task and mark branch as ready for merge
+ *
+ * Body:
+ * - summary?: string - Summary of what was accomplished
+ * - commitHash?: string - Final commit hash
+ * - performedBy?: string - Entity completing the task
+ */
+app.post('/api/tasks/:id/complete', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const body = await c.req.json().catch(() => ({})) as {
+      summary?: string;
+      commitHash?: string;
+      performedBy?: string;
+    };
+
+    // Verify task exists
+    const task = await api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Complete the task
+    const result = await workerTaskService.completeTask(taskId, {
+      summary: body.summary,
+      commitHash: body.commitHash,
+      performedBy: body.performedBy as EntityId | undefined,
+    });
+
+    return c.json({
+      success: true,
+      task: formatTaskResponse(result.task),
+      worktree: result.worktree ? {
+        path: result.worktree.path,
+        branch: result.worktree.branch,
+        state: result.worktree.state,
+      } : null,
+      readyForMerge: result.readyForMerge,
+      completedAt: result.completedAt,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to complete task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * GET /api/tasks/:id/context
+ * Get task context prompt for a worker
+ *
+ * Query params:
+ * - additionalInstructions?: string - Additional instructions to include
+ */
+app.get('/api/tasks/:id/context', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const additionalInstructions = url.searchParams.get('additionalInstructions') ?? undefined;
+
+    // Verify task exists
+    const task = await api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    const context = await workerTaskService.getTaskContext(taskId);
+    const prompt = await workerTaskService.buildTaskContextPrompt(taskId, additionalInstructions);
+
+    return c.json({
+      task: {
+        id: task.id,
+        title: task.title,
+      },
+      context,
+      prompt,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to get task context:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/tasks/:id/cleanup
+ * Clean up task worktree after completion
+ *
+ * Body:
+ * - deleteBranch?: boolean - Whether to delete the branch (default false)
+ */
+app.post('/api/tasks/:id/cleanup', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const body = await c.req.json().catch(() => ({})) as {
+      deleteBranch?: boolean;
+    };
+
+    // Verify task exists
+    const task = await api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    const success = await workerTaskService.cleanupTask(taskId, body.deleteBranch ?? false);
+
+    return c.json({
+      success,
+      taskId,
+      deletedBranch: success && (body.deleteBranch ?? false),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to cleanup task:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
   }
 });

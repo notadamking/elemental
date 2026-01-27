@@ -157,6 +157,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Role definition service | `services/role-definition-service.ts` | `services/role-definition-service.test.ts` |
 | Task assignment service | `services/task-assignment-service.ts` | `services/task-assignment-service.test.ts` |
 | Dispatch service | `services/dispatch-service.ts` | `services/dispatch-service.test.ts` |
+| Worker task service | `services/worker-task-service.ts` | `services/worker-task-service.test.ts` |
 | Spawner service | `runtime/spawner.ts` | `runtime/spawner.test.ts`, `runtime/spawner.integration.test.ts` |
 | Session manager | `runtime/session-manager.ts` | `runtime/session-manager.test.ts` |
 | Inbox polling | `runtime/inbox-polling.ts` | `runtime/inbox-polling.test.ts` |
