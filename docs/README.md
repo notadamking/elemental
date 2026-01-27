@@ -140,6 +140,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Agent types | `types/agent.ts` | `types/agent.test.ts` |
 | Task metadata | `types/task-meta.ts` | `types/task-meta.test.ts` |
 | OrchestratorAPI | `api/orchestrator-api.ts` | `api/orchestrator-api.integration.test.ts` |
+| Agent registry | `services/agent-registry.ts` | `services/agent-registry.test.ts` |
 | Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
 
 ## File Map (Platform)

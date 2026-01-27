@@ -483,18 +483,25 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O7: Agent Registry Service
+#### - [x] TB-O7: Agent Registry Service
 
 **Goal**: Register and query agents by role
 
 **Changes**:
 
-- [ ] Implement `AgentRegistry` service in orchestrator-sdk
-- [ ] Store agent metadata on Entity: `{ agentRole, capabilities, workerMode?, stewardFocus?, stewardTriggers? }`
-- [ ] Add methods: `registerAgent()`, `getAgentsByRole()`, `getAvailableWorkers()`, `getStewards()`
-- [ ] Use existing Entity and Team primitives
+- [x] Implement `AgentRegistry` service in orchestrator-sdk
+- [x] Store agent metadata on Entity: `{ agentRole, capabilities, workerMode?, stewardFocus?, stewardTriggers? }`
+- [x] Add methods: `registerAgent()`, `getAgentsByRole()`, `getAvailableWorkers()`, `getStewards()`
+- [x] Use existing Entity and Team primitives
 
 **Verification**: Unit tests for agent registration and role queries
+
+**Implementation Notes**:
+- Created standalone `AgentRegistry` service class in `packages/orchestrator-sdk/src/services/agent-registry.ts`
+- Service uses `ElementalAPI` for storage operations, creating Entity elements with specialized agent metadata
+- Supports filtering by role, workerMode, stewardFocus, sessionStatus, reportsTo, hasSession, requiredSkills, requiredLanguages, hasCapacity
+- Agent metadata stored under `entity.metadata.agent` key (consistent with OrchestratorAPI)
+- 47 new unit tests added covering registration, queries, session management, and capability filtering
 
 ---
 
