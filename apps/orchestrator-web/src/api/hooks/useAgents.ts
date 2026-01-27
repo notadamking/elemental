@@ -4,6 +4,7 @@
  * Provides hooks for fetching and mutating agent data from the orchestrator API.
  */
 
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   AgentRole,
@@ -103,29 +104,36 @@ export function useSessions(filters?: { agentId?: string; role?: AgentRole; stat
 export function useAgentsByRole() {
   const { data, isLoading, error, refetch } = useAgents();
 
-  const agents = data?.agents ?? [];
+  // Memoize the derived data to prevent re-creating arrays on each render
+  const result = useMemo(() => {
+    const agents = data?.agents ?? [];
 
-  const director = agents.find(a => a.metadata?.agent?.agentRole === 'director');
-  const workers = agents.filter(a => a.metadata?.agent?.agentRole === 'worker');
-  const stewards = agents.filter(a => a.metadata?.agent?.agentRole === 'steward');
+    const director = agents.find(a => a.metadata?.agent?.agentRole === 'director');
+    const workers = agents.filter(a => a.metadata?.agent?.agentRole === 'worker');
+    const stewards = agents.filter(a => a.metadata?.agent?.agentRole === 'steward');
 
-  // Separate workers by mode
-  const ephemeralWorkers = workers.filter(a => {
-    const meta = a.metadata?.agent;
-    return meta?.agentRole === 'worker' && (meta as { workerMode?: string })?.workerMode === 'ephemeral';
-  });
-  const persistentWorkers = workers.filter(a => {
-    const meta = a.metadata?.agent;
-    return meta?.agentRole === 'worker' && (meta as { workerMode?: string })?.workerMode === 'persistent';
-  });
+    // Separate workers by mode
+    const ephemeralWorkers = workers.filter(a => {
+      const meta = a.metadata?.agent;
+      return meta?.agentRole === 'worker' && (meta as { workerMode?: string })?.workerMode === 'ephemeral';
+    });
+    const persistentWorkers = workers.filter(a => {
+      const meta = a.metadata?.agent;
+      return meta?.agentRole === 'worker' && (meta as { workerMode?: string })?.workerMode === 'persistent';
+    });
+
+    return {
+      director,
+      workers,
+      ephemeralWorkers,
+      persistentWorkers,
+      stewards,
+      allAgents: agents,
+    };
+  }, [data?.agents]);
 
   return {
-    director,
-    workers,
-    ephemeralWorkers,
-    persistentWorkers,
-    stewards,
-    allAgents: agents,
+    ...result,
     isLoading,
     error,
     refetch,
