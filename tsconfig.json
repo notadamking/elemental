@@ -4,7 +4,9 @@
     "noEmit": true
   },
   "references": [
-    { "path": "./apps/legacy" },
+    { "path": "./packages/core" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/sdk" },
     { "path": "./apps/server" },
     { "path": "./apps/web" }
   ],

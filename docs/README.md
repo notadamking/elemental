@@ -4,25 +4,25 @@
 
 | I want to... | Read | Key Files |
 |-------------|------|-----------|
-| Work with tasks | [core/types.md#task](core/types.md#task) | `apps/legacy/src/types/task.ts` |
-| Work with entities | [core/types.md#entity](core/types.md#entity) | `apps/legacy/src/types/entity.ts` |
-| Work with messages | [core/types.md#message](core/types.md#message) | `apps/legacy/src/types/message.ts` |
-| Work with documents | [core/types.md#document](core/types.md#document) | `apps/legacy/src/types/document.ts` |
-| Work with collections | [core/collections.md](core/collections.md) | `apps/legacy/src/types/plan.ts`, etc. |
-| Add dependencies | [core/dependencies.md](core/dependencies.md) | `apps/legacy/src/services/dependency.ts` |
-| Understand storage | [core/storage.md](core/storage.md) | `apps/legacy/src/storage/bun-backend.ts` |
-| Export/import data | [core/storage.md#sync-system](core/storage.md#sync-system) | `apps/legacy/src/sync/service.ts` |
+| Work with tasks | [core/types.md#task](core/types.md#task) | `packages/core/src/types/task.ts` |
+| Work with entities | [core/types.md#entity](core/types.md#entity) | `packages/core/src/types/entity.ts` |
+| Work with messages | [core/types.md#message](core/types.md#message) | `packages/core/src/types/message.ts` |
+| Work with documents | [core/types.md#document](core/types.md#document) | `packages/core/src/types/document.ts` |
+| Work with collections | [core/collections.md](core/collections.md) | `packages/core/src/types/plan.ts`, etc. |
+| Add dependencies | [core/dependencies.md](core/dependencies.md) | `packages/sdk/src/services/dependency.ts` |
+| Understand storage | [core/storage.md](core/storage.md) | `packages/storage/src/bun-backend.ts` |
+| Export/import data | [core/storage.md#sync-system](core/storage.md#sync-system) | `packages/sdk/src/sync/service.ts` |
 | Add API endpoint | [platform/server.md](platform/server.md) | `apps/server/src/index.ts` |
 | Add React component | [platform/web.md](platform/web.md) | `apps/web/src/components/` |
 | Add React hook | [platform/web.md](platform/web.md) | `apps/web/src/api/hooks/` |
 | Use WebSocket | [platform/websocket.md](platform/websocket.md) | `apps/server/src/ws/` |
-| Use the TypeScript API | [api/elemental-api.md](api/elemental-api.md) | `apps/legacy/src/api/elemental-api.ts` |
-| Use the CLI | [api/cli.md](api/cli.md) | `apps/legacy/src/cli/commands/` |
+| Use the TypeScript API | [api/elemental-api.md](api/elemental-api.md) | `packages/sdk/src/api/elemental-api.ts` |
+| Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
 ## Architecture at a Glance
 
-> **Note**: The project is now a TurboRepo monorepo. The core CLI library is temporarily at `apps/legacy/` during the migration to separate packages.
+The project is a TurboRepo monorepo with the following structure:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐
@@ -31,32 +31,31 @@
 └─────────────────┘     └────────┬────────┘
                                  │
                         ┌────────▼────────┐
-                        │ @elemental/cli  │
-                        │ (apps/legacy/)  │
+                        │  @elemental/sdk │
+                        │  (packages/sdk/)│
                         └────────┬────────┘
                                  │
-                        ┌────────▼────────┐
-                        │     SQLite      │
-                        │  (.elemental/)  │
-                        └─────────────────┘
+              ┌──────────────────┼──────────────────┐
+              │                  │                  │
+     ┌────────▼────────┐ ┌──────▼───────┐ ┌───────▼───────┐
+     │ @elemental/core │ │@elemental/   │ │   SQLite      │
+     │ (packages/core/)│ │   storage    │ │ (.elemental/) │
+     └─────────────────┘ └──────────────┘ └───────────────┘
 ```
 
 ## File Map (Packages)
 
 | Package | Purpose | Key Exports |
 |---------|---------|-------------|
-| `packages/core/` | Shared types, errors, ID generation, utilities | `ElementType`, `Task`, `ErrorCode`, `generateId` |
+| `packages/core/` | Shared types, errors, ID generation, utilities | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId`, factory functions |
+| `packages/storage/` | SQLite storage layer with Bun, Node.js, and Browser backends | `createStorage`, `initializeSchema`, `StorageBackend` |
+| `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService`, CLI commands |
 
-> **Migration Status**: `@elemental/core` extracted. Storage and SDK packages pending.
-
-## File Map (Core Library - apps/legacy/src/)
-
-> **Note**: All paths below are relative to `apps/legacy/src/`. The core library is being extracted to separate packages (`@elemental/core` complete, `@elemental/storage` and `@elemental/sdk` pending).
+## File Map (@elemental/core - packages/core/src/)
 
 | Concept | Source | Tests |
 |---------|--------|-------|
-| Library entry point | `index.ts` | - |
-| CLI entry point | `bin/el.ts` | - |
+| Package entry | `index.ts` | - |
 | Type exports | `types/index.ts` | - |
 | Task type | `types/task.ts` | `types/task.test.ts` |
 | Entity type | `types/entity.ts` | `types/entity.test.ts` |
@@ -75,38 +74,49 @@
 | Playbook YAML | `types/playbook-yaml.ts` | `types/playbook-yaml.test.ts` |
 | Workflow ops | `types/workflow-ops.ts` | `types/workflow-ops.test.ts` |
 | Workflow pour | `types/workflow-pour.ts` | `types/workflow-pour.test.ts` |
+| ID generator | `id/generator.ts` | `id/generator.test.ts` |
+| Error codes | `errors/codes.ts` | `errors/codes.test.ts` |
+| Error base class | `errors/error.ts` | `errors/error.test.ts` |
+| Error factories | `errors/factories.ts` | `errors/factories.test.ts` |
+| Mention parsing | `utils/mentions.ts` | - |
+
+## File Map (@elemental/storage - packages/storage/src/)
+
+| Concept | Source | Tests |
+|---------|--------|-------|
+| Package entry | `index.ts` | - |
+| Storage backend interface | `backend.ts` | `backend.test.ts` |
+| Storage factory | `create-backend.ts` | - |
+| Storage errors | `errors.ts` | `errors.test.ts` |
+| Storage types | `types.ts` | `types.test.ts` |
+| Schema & migrations | `schema.ts` | `schema.test.ts` |
+| Bun backend | `bun-backend.ts` | `bun-backend.test.ts` |
+| Node backend | `node-backend.ts` | - |
+| Browser backend | `browser-backend.ts` | `browser-backend.test.ts` |
+
+## File Map (@elemental/sdk - packages/sdk/src/)
+
+| Concept | Source | Tests |
+|---------|--------|-------|
+| Package entry | `index.ts` | - |
+| ElementalAPI | `api/elemental-api.ts` | `api/*.integration.test.ts` |
+| API types | `api/types.ts` | `api/types.test.ts` |
 | Dependency service | `services/dependency.ts` | `services/dependency.test.ts` |
 | Blocked cache | `services/blocked-cache.ts` | `services/blocked-cache.test.ts` |
 | Inbox service | `services/inbox.ts` | `services/inbox.test.ts` |
 | Priority service | `services/priority-service.ts` | `services/priority-service.test.ts` |
 | ID length cache | `services/id-length-cache.ts` | `services/id-length-cache.test.ts` |
-| Storage exports | `storage/index.ts` | - |
-| Storage backend interface | `storage/backend.ts` | `storage/backend.test.ts` |
-| Storage factory | `storage/create-backend.ts` | - |
-| Storage errors | `storage/errors.ts` | `storage/errors.test.ts` |
-| Storage types | `storage/types.ts` | `storage/types.test.ts` |
-| Schema & migrations | `storage/schema.ts` | `storage/schema.test.ts` |
-| Bun backend | `storage/bun-backend.ts` | `storage/bun-backend.test.ts` |
-| Node backend | `storage/node-backend.ts` | - |
-| Browser backend | `storage/browser-backend.ts` | `storage/browser-backend.test.ts` |
-| ElementalAPI | `api/elemental-api.ts` | `api/*.integration.test.ts` |
-| API types | `api/types.ts` | `api/types.test.ts` |
-| CLI runner | `cli/runner.ts` | `cli/runner.test.ts` |
-| CLI parser | `cli/parser.ts` | `cli/parser.test.ts` |
-| CLI formatter | `cli/formatter.ts` | `cli/formatter.test.ts` |
-| CLI types | `cli/types.ts` | `cli/types.test.ts` |
-| CLI commands | `cli/commands/*.ts` | `cli/commands/*.test.ts` |
-| GC commands | `cli/commands/gc.ts` | - |
-| ID generator | `id/generator.ts` | `id/generator.test.ts` |
 | Sync service | `sync/service.ts` | `sync/service.test.ts` |
 | Sync types | `sync/types.ts` | - |
 | Sync serialization | `sync/serialization.ts` | - |
 | Sync merge | `sync/merge.ts` | - |
 | Sync hashing | `sync/hash.ts` | - |
-| Identity system | `systems/identity.ts` | `systems/identity.test.ts` |
-| Error codes | `errors/codes.ts` | `errors/codes.test.ts` |
-| Error base class | `errors/error.ts` | `errors/error.test.ts` |
-| Error factories | `errors/factories.ts` | `errors/factories.test.ts` |
+| CLI runner | `cli/runner.ts` | `cli/runner.test.ts` |
+| CLI parser | `cli/parser.ts` | `cli/parser.test.ts` |
+| CLI formatter | `cli/formatter.ts` | `cli/formatter.test.ts` |
+| CLI types | `cli/types.ts` | `cli/types.test.ts` |
+| CLI commands | `cli/commands/*.ts` | `cli/commands/*.test.ts` |
+| CLI entry point | `bin/el.ts` | - |
 | Config loader | `config/config.ts` | `config/config.test.ts` |
 | Config types | `config/types.ts` | - |
 | Config defaults | `config/defaults.ts` | - |
@@ -116,7 +126,7 @@
 | Config env vars | `config/env.ts` | - |
 | Duration parsing | `config/duration.ts` | - |
 | HTTP sync handlers | `http/sync-handlers.ts` | - |
-| Mention parsing | `utils/mentions.ts` | - |
+| Identity system | `systems/identity.ts` | `systems/identity.test.ts` |
 
 ## File Map (Platform)
 

@@ -218,13 +218,13 @@ export function broadcastInboxEvent(
 ): void {
   const event: WebSocketEvent = {
     id: Date.now(), // Use timestamp as pseudo-ID since inbox events aren't in events table
-    elementId: itemId as import('@elemental/cli').ElementId,
+    elementId: itemId as import('@elemental/core').ElementId,
     elementType: 'inbox-item',
-    eventType: eventType as import('@elemental/cli').EventType,
-    actor: (actor || 'system') as import('@elemental/cli').EntityId,
+    eventType: eventType as import('@elemental/core').EventType,
+    actor: (actor || 'system') as import('@elemental/core').EntityId,
     oldValue,
     newValue: { ...newValue, recipientId }, // Include recipientId for entity-specific subscriptions
-    createdAt: new Date().toISOString() as import('@elemental/cli').Timestamp,
+    createdAt: new Date().toISOString() as import('@elemental/core').Timestamp,
   };
 
   const message: ServerMessage = {

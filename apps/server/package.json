@@ -12,6 +12,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@elemental/core": "workspace:*",
+    "@elemental/storage": "workspace:*",
+    "@elemental/sdk": "workspace:*",
     "hono": "^4.7.0"
   },
   "devDependencies": {

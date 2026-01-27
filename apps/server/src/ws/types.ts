@@ -4,7 +4,7 @@
  * Message types and interfaces for the WebSocket protocol.
  */
 
-import type { Event } from '@elemental/cli';
+import type { Event } from '@elemental/core';
 
 /**
  * Valid subscription channels

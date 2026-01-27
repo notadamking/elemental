@@ -1,5 +1,0 @@
-[test]
-# Only run tests from the src directory by default.
-# Node.js-specific tests in tests/node/ require native modules (better-sqlite3)
-# and should be run with vitest via `bun run test:node` instead.
-root = "./src"

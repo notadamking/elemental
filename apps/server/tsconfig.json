@@ -3,8 +3,12 @@
   "compilerOptions": {
     "types": ["bun-types"],
     "paths": {
-      "@elemental/cli": ["../legacy/src/index.ts"],
-      "@elemental/cli/*": ["../legacy/src/*"]
+      "@elemental/core": ["../../packages/core/src/index.ts"],
+      "@elemental/core/*": ["../../packages/core/src/*"],
+      "@elemental/storage": ["../../packages/storage/src/index.ts"],
+      "@elemental/storage/*": ["../../packages/storage/src/*"],
+      "@elemental/sdk": ["../../packages/sdk/src/index.ts"],
+      "@elemental/sdk/*": ["../../packages/sdk/src/*"]
     }
   },
   "include": ["src/**/*"],

@@ -388,18 +388,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O5: Migrate Apps to Monorepo
+#### - [x] TB-O5: Migrate Apps to Monorepo
 
 **Goal**: Existing web and server apps work in monorepo
 
 **Changes**:
 
-- [ ] Move `apps/legacy/apps/web/` to `apps/web/`
-- [ ] Move `apps/legacy/apps/server/` to `apps/server/`
-- [ ] Update imports to use `@elemental/core`, `@elemental/sdk`
-- [ ] Remove `apps/legacy/`
+- [x] Move `apps/legacy/apps/web/` to `apps/web/` (already done in previous migration)
+- [x] Move `apps/legacy/apps/server/` to `apps/server/` (already done in previous migration)
+- [x] Update imports to use `@elemental/core`, `@elemental/storage`, `@elemental/sdk`
+- [x] Remove `apps/legacy/`
 
 **Verification**: `pnpm dev` starts both web and server, UI loads in browser
+
+**Notes**:
+- Server imports updated from `@elemental/cli` to proper package imports
+- Core types and factory functions imported from `@elemental/core`
+- Storage layer imported from `@elemental/storage`
+- API and services imported from `@elemental/sdk`
+- TypeScript path mappings updated in server tsconfig
+- Root tsconfig updated to reference packages instead of legacy
+- Docs updated to reflect new package structure
 
 ---
 

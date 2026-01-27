@@ -5,7 +5,7 @@
  * Uses a polling mechanism to check for new events in the database.
  */
 
-import type { ElementalAPI } from '@elemental/cli';
+import type { ElementalAPI } from '@elemental/sdk';
 import type { WebSocketEvent } from './types.js';
 
 /**
@@ -134,12 +134,12 @@ export class EventBroadcaster {
       for (const event of events) {
         const wsEvent: WebSocketEvent = {
           id: event.id,
-          elementId: event.element_id as import('@elemental/cli').ElementId,
-          eventType: event.event_type as import('@elemental/cli').EventType,
-          actor: event.actor as import('@elemental/cli').EntityId,
+          elementId: event.element_id as import('@elemental/core').ElementId,
+          eventType: event.event_type as import('@elemental/core').EventType,
+          actor: event.actor as import('@elemental/core').EntityId,
           oldValue: event.old_value ? JSON.parse(event.old_value) : null,
           newValue: event.new_value ? JSON.parse(event.new_value) : null,
-          createdAt: event.created_at as import('@elemental/cli').Timestamp,
+          createdAt: event.created_at as import('@elemental/core').Timestamp,
           elementType: event.element_type ?? 'unknown',
         };
 

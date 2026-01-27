@@ -10,9 +10,62 @@ import { mkdir, readdir, unlink, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { createStorage, createElementalAPI, initializeSchema, createTask, createDocument, createMessage, createPlan, pourWorkflow, createWorkflow, discoverPlaybookFiles, loadPlaybookFromFile, createPlaybook, createLibrary, createGroupChannel, createDirectChannel, createEntity, createTeam, createSyncService, createInboxService, getDirectReports, getManagementChain, validateManager, detectReportingCycle } from '@elemental/cli';
-import type { SyncService, InboxService } from '@elemental/cli';
-import type { ElementalAPI, ElementId, CreateTaskInput, Element, EntityId, CreateDocumentInput, CreateMessageInput, Document, Message, CreatePlanInput, PlanStatus, WorkflowStatus, CreateWorkflowInput, PourWorkflowInput, Playbook, DiscoveredPlaybook, CreateLibraryInput, CreateGroupChannelInput, CreateDirectChannelInput, Visibility, JoinPolicy, CreateTeamInput, Channel, Workflow, InboxFilter, InboxStatus, Entity, EventType } from '@elemental/cli';
+// Core types and factory functions
+import {
+  createTask,
+  createDocument,
+  createMessage,
+  createPlan,
+  pourWorkflow,
+  createWorkflow,
+  discoverPlaybookFiles,
+  loadPlaybookFromFile,
+  createPlaybook,
+  createLibrary,
+  createGroupChannel,
+  createDirectChannel,
+  createEntity,
+  createTeam,
+  getDirectReports,
+  getManagementChain,
+  validateManager,
+  detectReportingCycle,
+} from '@elemental/core';
+import type {
+  Element,
+  ElementId,
+  EntityId,
+  CreateTaskInput,
+  CreateDocumentInput,
+  CreateMessageInput,
+  Document,
+  DocumentId,
+  Message,
+  CreatePlanInput,
+  PlanStatus,
+  WorkflowStatus,
+  CreateWorkflowInput,
+  PourWorkflowInput,
+  Playbook,
+  DiscoveredPlaybook,
+  CreateLibraryInput,
+  CreateGroupChannelInput,
+  CreateDirectChannelInput,
+  Visibility,
+  JoinPolicy,
+  CreateTeamInput,
+  Channel,
+  Workflow,
+  InboxFilter,
+  InboxStatus,
+  Entity,
+  EventType,
+} from '@elemental/core';
+// Storage layer
+import { createStorage, initializeSchema } from '@elemental/storage';
+// SDK - API and services
+import { createElementalAPI, createSyncService, createInboxService } from '@elemental/sdk';
+import type { ElementalAPI, SyncService, InboxService } from '@elemental/sdk';
 import type { ServerWebSocket } from 'bun';
 import { initializeBroadcaster } from './ws/broadcaster.js';
 import { handleOpen, handleMessage, handleClose, handleError, getClientCount, broadcastInboxEvent, type ClientData } from './ws/handler.js';
@@ -3710,7 +3763,7 @@ app.get('/api/documents/:id/versions', async (c) => {
     }
 
     // Get version history using the API method
-    const versions = await api.getDocumentHistory(id as unknown as import('@elemental/cli').DocumentId);
+    const versions = await api.getDocumentHistory(id as unknown as DocumentId);
 
     return c.json(versions);
   } catch (error) {
@@ -3730,7 +3783,7 @@ app.get('/api/documents/:id/versions/:version', async (c) => {
     }
 
     // Get the specific version
-    const document = await api.getDocumentVersion(id as unknown as import('@elemental/cli').DocumentId, version);
+    const document = await api.getDocumentVersion(id as unknown as DocumentId, version);
 
     if (!document) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Document version not found' } }, 404);
@@ -3763,7 +3816,7 @@ app.post('/api/documents/:id/restore', async (c) => {
     }
 
     // Get the version to restore
-    const versionToRestore = await api.getDocumentVersion(id as unknown as import('@elemental/cli').DocumentId, version);
+    const versionToRestore = await api.getDocumentVersion(id as unknown as DocumentId, version);
     if (!versionToRestore) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Document version not found' } }, 404);
     }
