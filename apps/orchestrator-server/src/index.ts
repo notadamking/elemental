@@ -1269,6 +1269,9 @@ app.post('/api/agents/:id/start', async (c) => {
 /**
  * POST /api/agents/:id/stop
  * Stop an agent session
+ *
+ * If there's no active session but the agent's metadata shows "running",
+ * this endpoint clears the stale status and returns success.
  */
 app.post('/api/agents/:id/stop', async (c) => {
   try {
@@ -1280,7 +1283,18 @@ app.post('/api/agents/:id/stop', async (c) => {
 
     const activeSession = sessionManager.getActiveSession(agentId);
     if (!activeSession) {
-      return c.json({ error: { code: 'NO_SESSION', message: 'Agent has no active session' } }, 404);
+      // No active session - but the UI may have shown "running" due to stale metadata.
+      // Clear the session status to ensure UI and server are in sync.
+      try {
+        await agentRegistry.updateAgentSession(agentId, undefined, 'idle');
+      } catch (updateError) {
+        // Agent may not exist - that's fine
+        console.warn('[orchestrator] Could not update agent session status:', updateError);
+      }
+      return c.json({
+        success: true,
+        message: 'No active session to stop',
+      });
     }
 
     await sessionManager.stopSession(activeSession.id, {
