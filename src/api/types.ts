@@ -411,6 +411,30 @@ export interface GarbageCollectionResult {
 }
 
 /**
+ * Options for task garbage collection
+ */
+export interface TaskGarbageCollectionOptions {
+  /** Maximum age in milliseconds for tasks to be eligible (since closedAt/deletedAt) */
+  maxAgeMs: number;
+  /** Whether to run in dry-run mode (no actual deletion) */
+  dryRun?: boolean;
+  /** Maximum number of tasks to delete in one run */
+  limit?: number;
+}
+
+/**
+ * Result of task garbage collection
+ */
+export interface TaskGarbageCollectionResult {
+  /** Number of tasks that were deleted */
+  tasksDeleted: number;
+  /** Number of dependencies that were deleted */
+  dependenciesDeleted: number;
+  /** IDs of tasks that were deleted */
+  deletedTaskIds: ElementId[];
+}
+
+/**
  * Extended filter for workflow queries.
  * Includes all ElementFilter options plus workflow-specific filters.
  */
@@ -1303,6 +1327,17 @@ export interface ElementalAPI {
    * @returns Result with counts of deleted elements
    */
   garbageCollectWorkflows(options: GarbageCollectionOptions): Promise<GarbageCollectionResult>;
+
+  /**
+   * Garbage collect ephemeral tasks.
+   * Deletes ephemeral tasks that are in terminal state (closed or tombstone) and older than maxAgeMs.
+   * Only affects standalone ephemeral tasks - tasks belonging to workflows should be cleaned up via
+   * garbageCollectWorkflows() instead.
+   *
+   * @param options - GC configuration including maxAgeMs
+   * @returns Result with counts of deleted elements
+   */
+  garbageCollectTasks(options: TaskGarbageCollectionOptions): Promise<TaskGarbageCollectionResult>;
 
   /**
    * Get all tasks in a workflow.

@@ -31,22 +31,23 @@ All packages under `@elemental/*` scope:
 - `@elemental/orchestrator-web` - Orchestration web platform (imports from @elemental/ui)
 - `@elemental/orchestrator-server` - Orchestration server
 
-**Critical**: The `@elemental/ui` package contains ALL reusable components from the current web app. Both `@elemental/web` and `@elemental/orchestrator-web` import from this shared package. This ensures any improvements to shared components benefit both platforms.
+**Critical**: The `@elemental/ui` package contains ALL reusable components from the current web app. Both `@elemental/web` and `@elemental/orchestrator-web` import from this shared package.
 
 ### 2. Agent Runtime Model
 
-| Agent Type        | Runtime         | Interface            | Flags                                                                                                                    |
-| ----------------- | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Director          | Interactive PTY | xterm + node-pty     | `--dangerously-skip-permissions --session-id {id}`                                                                       |
-| Persistent Worker | Interactive PTY | xterm + node-pty     | `--dangerously-skip-permissions --session-id {id}`                                                                       |
-| Ephemeral Worker  | Headless        | stream-json via SSE  | `-p --dangerously-skip-permissions --output-format stream-json --input-format stream-json --session-id {id}`             |
-| Steward           | Headless        | stream-json via SSE  | `-p --dangerously-skip-permissions --output-format stream-json --input-format stream-json --session-id {id}`             |
+| Agent Type        | Runtime         | Interface           | Flags                                                                                                        |
+| ----------------- | --------------- | ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Director          | Interactive PTY | xterm + node-pty    | `--dangerously-skip-permissions --session-id {id}`                                                           |
+| Persistent Worker | Interactive PTY | xterm + node-pty    | `--dangerously-skip-permissions --session-id {id}`                                                           |
+| Ephemeral Worker  | Headless        | stream-json via SSE | `-p --dangerously-skip-permissions --output-format stream-json --input-format stream-json --session-id {id}` |
+| Steward           | Headless        | stream-json via SSE | `-p --dangerously-skip-permissions --output-format stream-json --input-format stream-json --session-id {id}` |
 
 **Implementation**: Claude Code as initial agent backend.
 
 **Permission Model**: All agents run with `--dangerously-skip-permissions` to enable fully autonomous operation. The orchestrator is responsible for security boundaries (worktree isolation, allowed operations).
 
 **Communication Model**:
+
 - **Interactive agents** (Director, Persistent Worker): WebSocket with xterm + node-pty for real terminal experience
 - **Headless agents** (Ephemeral Worker, Steward): Server-Sent Events (SSE) for streamed output, HTTP POST for user input
 - **All agents**: Use `--session-id {id}` and support `--resume {session_id}`
@@ -91,6 +92,85 @@ The `--resume {session_id}` feature serves two critical purposes:
    - Steward can message the Worker session whose branch it's merging
    - This enables collaborative problem-solving between agents
 
+### 3.2 Universal Work Principle (UWP)
+
+**Rule**: "If there is work on your anchor, YOU MUST RUN IT"
+
+On agent startup:
+
+1. Query: `el task ready --assignee <self> --limit 1`
+2. If task exists → Set task status to IN_PROGRESS, begin execution
+3. If no task → Enter idle/polling mode, wait for assignment
+
+On session resume: Check queue before continuing previous context.
+
+### 3.3 Inter-Agent Messaging
+
+Uses existing Elemental Messages, Channels, and Inbox system:
+
+- **Agent Channels**: Each agent gets a direct channel for receiving messages
+- **Message Types** (via metadata):
+  - `type: 'task-assignment'` - New task assigned
+  - `type: 'status-update'` - Progress notification
+  - `type: 'help-request'` - Agent needs assistance
+  - `type: 'handoff'` - Session handoff request
+  - `type: 'health-check'` - Ping from Steward
+- **Inbox Polling**: Agents check inbox on startup and periodically
+
+### 3.4 Dispatch Mechanism
+
+Uses existing task assignment + messaging:
+
+```
+dispatch(task, agent, options):
+1. Update task: `el task assign <task-id> <agent-entity>`
+2. Send notification: `el msg send --channel <agent-channel> --content "Task <id> assigned"`
+3. If options.restart: Signal agent to restart session
+4. If agent idle: Trigger agent to check ready queue
+```
+
+### 3.5 Session Handoff
+
+**Trigger**: Manual only - agent decides when to hand off.
+
+Two types:
+
+1. **Self-Handoff**: Agent hands off to fresh instance of itself
+2. **Agent-Agent Handoff**: Agent hands off to another agent
+
+```
+handoff(fromAgent, toAgent?, note?):
+1. Create handoff message with context summary
+2. If toAgent: Send to toAgent's channel; Else: Send to own channel
+3. Mark current session as "suspended" (available for predecessor query)
+4. Terminate current session gracefully
+5. If toAgent: Trigger toAgent to process handoff
+```
+
+### 3.6 Predecessor Query
+
+New agent can send message to previous session and receive response:
+
+```
+consultPredecessor(currentAgent, role, message):
+1. Find most recent session for this role
+2. Get previous session's Claude Code session ID
+3. Resume previous session with: `--resume <previous-session-id>`
+4. Send message, capture response
+5. Suspend predecessor session again
+6. Return response to current agent
+```
+
+### 3.7 Ephemeral Tasks
+
+Tasks with `ephemeral: true` are temporary work items:
+
+- Stored in SQLite only, excluded from JSONL export
+- Can be promoted to durable via `promoteTask()`
+- Garbage collected after configurable retention (default 24h)
+
+Use cases: Steward patrol tasks, automated maintenance, temporary workflow steps.
+
 ### 4. Git Isolation Strategy (Worktrees)
 
 Each Worker gets a dedicated **git worktree** for true parallel development.
@@ -107,28 +187,10 @@ workspace/
     └── worker-carol-refactor-789/ # Worker Carol's isolated worktree
 ```
 
-Orchestrator manages worktrees within the existing repo.
-
-**No Git Repo Error**:
-```
-Error: No git repository found in workspace
-
-The Elemental Orchestrator requires a git repository for agent isolation.
-Each agent works in its own git worktree to enable parallel development
-without conflicts.
-
-To fix this, initialize a git repository:
-
-  cd /path/to/workspace
-  git init
-  git add .
-  git commit -m "Initial commit"
-
-Then restart the orchestrator.
-```
-
 **Branch naming**: `agent/{worker-name}/{task-id}-{slug}`
 **Worktree path**: `.worktrees/{worker-name}-{task-slug}/`
+
+**Worktree Root-Finding**: Workers in worktrees need the root database. The spawner sets `ELEMENTAL_ROOT` env var pointing to workspace root. Config loader checks this env var first, then falls back to walk-up search.
 
 **Merge workflow**:
 
@@ -165,23 +227,85 @@ steward:
       condition: "branch.tests === 'passing'"
 ```
 
-Users create and configure Stewards in the UI.
+**Plugin System**: Stewards can execute plugins (Playbooks, scripts, or commands) on patrol:
+
+```yaml
+steward:
+  name: "Ops Steward"
+  focus: ops
+  schedule: "*/15 * * * *"
+  plugins:
+    - type: playbook
+      name: cleanup-stale-branches
+      playbookId: pb-cleanup-001
+    - type: script
+      name: custom-gc
+      path: ./scripts/custom-gc.sh
+    - type: command
+      name: gc-ephemeral
+      command: el gc --ephemeral --older-than 24h
+```
 
 ### 6. No Work Orders—Use Tasks
 
-Tasks are the universal work unit. Tasks already have an `assignee` field for the assigned entity/agent. For orchestration, Tasks gain additional metadata:
+Tasks are the universal work unit. Tasks already have an `assignee` field. For orchestration, Tasks gain additional metadata:
 
 - `branch: string` - Git branch for this task
 - `worktree: string` - Path to worktree
 - `sessionId: string` - Claude Code session ID for resumption
 
-No separate "work order" concept or new assignee field needed—use existing Task primitives.
+No separate "work order" concept needed—use existing Task primitives.
 
 ---
 
 ## Tracer Bullets (TB)
 
 Each tracer bullet is a small, full-stack feature verified immediately after completion.
+
+### Phase 0: Core Library Additions
+
+#### - [x] TB-Core-1: Ephemeral Task Support
+
+**Goal**: Add ephemeral field to Task type
+
+**Changes**:
+
+- [x] Add `ephemeral: boolean` field to Task type (default: false)
+- [x] Update `createTask()` to accept ephemeral option
+- [x] Update validation functions
+
+**Verification**: Create ephemeral task, verify field persists
+
+---
+
+#### - [x] TB-Core-2: Task Promote Operation
+
+**Goal**: Promote ephemeral tasks to durable
+
+**Changes**:
+
+- [x] Add `promoteTask()` function to convert ephemeral → durable
+- [x] Add utility functions: `isEphemeralTask`, `isDurableTask`, `filterEphemeralTasks`, `filterDurableTasks`
+- [x] Add GC eligibility functions: `isTaskEligibleForGarbageCollection`, `filterTaskGarbageCollectionByAge`
+
+**Verification**: Create ephemeral task, promote it, verify now durable
+
+---
+
+#### - [x] TB-Core-3: Ephemeral GC Service
+
+**Goal**: Garbage collect completed ephemeral tasks
+
+**Changes**:
+
+- [x] Add garbage collection for completed ephemeral tasks (`garbageCollectTasks()` API method)
+- [x] Configurable retention period (default 24h via `maxAgeMs` parameter)
+- [x] Add `el gc tasks` and `el gc workflows` CLI commands
+- [ ] Integrate with Ops Steward for scheduled runs (deferred to Phase 6 TB-O23a)
+
+**Verification**: Integration tests in `src/api/task-gc.integration.test.ts`
+
+---
 
 ### Phase 1: Monorepo Foundation
 
@@ -284,11 +408,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [ ] Define Task orchestrator metadata in `src/types/task-meta.ts`:
   ```typescript
   interface OrchestratorTaskMeta {
-    branch?: string; // Git branch for this task
-    worktree?: string; // Path to worktree
-    sessionId?: string; // Claude Code session for resumption
+    branch?: string;
+    worktree?: string;
+    sessionId?: string;
   }
-  // Note: Use existing task.assignee for agent assignment
   ```
 - [ ] Create `OrchestratorAPI` class extending `ElementalAPI`
 
@@ -303,25 +426,19 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [ ] Add capability types to `packages/orchestrator-sdk/src/types/agent.ts`:
-
   ```typescript
   interface AgentCapabilities {
     skills: string[]; // e.g., ['frontend', 'testing', 'database']
     languages: string[]; // e.g., ['typescript', 'python']
-    maxConcurrentTasks: number; // workload limit
+    maxConcurrentTasks: number;
   }
-
   interface TaskCapabilityRequirements {
     requiredSkills?: string[];
     preferredSkills?: string[];
   }
   ```
-
 - [ ] Store capabilities in Entity metadata: `entity.metadata.capabilities`
-- [ ] Create `CapabilityService` with methods:
-  - `matchAgentToTask(task, agents)` - Find capable agents
-  - `getAgentCapabilities(agentId)` - Get agent's capabilities
-  - `validateCapabilities(agent, task)` - Check if agent can handle task
+- [ ] Create `CapabilityService` with methods: `matchAgentToTask()`, `getAgentCapabilities()`, `validateCapabilities()`
 - [ ] Integrate with dispatch service for capability-aware routing
 
 **Verification**: Register agent with capabilities, create task with requirements, dispatch routes to matching agent
@@ -343,31 +460,42 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
+#### - [ ] TB-O7a: Agent Channel Setup
+
+**Goal**: Create direct channel per agent for messaging
+
+**Changes**:
+
+- [ ] On agent registration, create dedicated channel: `agent-{agentId}`
+- [ ] Add method: `getAgentChannel(agentId)` to AgentRegistry
+- [ ] Ensure channel created atomically with agent registration
+
+**Verification**: Register agent, verify channel exists, send message to channel
+
+---
+
 #### - [ ] TB-O7b: Agent Role Definition Storage
 
 **Goal**: Store agent system prompts and role behaviors as Documents
 
 **Changes**:
 
-- [ ] Define role definition structure in `packages/orchestrator-sdk/src/types/agent.ts`:
+- [ ] Define role definition structure:
   ```typescript
   interface AgentRoleDefinition {
     role: AgentRole;
-    systemPromptRef: DocumentId; // Prompt stored as Document
+    systemPromptRef: DocumentId;
     capabilities: AgentCapabilities;
     behaviors?: {
-      onStartup?: string; // Instructions for startup
-      onTaskAssigned?: string; // Instructions when receiving task
-      onStuck?: string; // Instructions when stuck
+      onStartup?: string;
+      onTaskAssigned?: string;
+      onStuck?: string;
     };
   }
   ```
 - [ ] Store prompts as Documents with tags: `['agent-prompt', 'role:{role}']`
 - [ ] Reference from Entity metadata: `entity.metadata.roleDefinitionRef`
-- [ ] Add methods to `AgentRegistry`:
-  - `createRoleDefinition(role, prompt, capabilities)` - Create role definition
-  - `getRoleDefinition(agentId)` - Get agent's role definition
-  - `getSystemPrompt(agentId)` - Get prompt content for spawning
+- [ ] Add methods: `createRoleDefinition()`, `getRoleDefinition()`, `getSystemPrompt()`
 
 **Verification**: Create role definition document, register agent referencing it, agent spawns with correct prompt
 
@@ -389,6 +517,21 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
+#### - [ ] TB-O8a: Dispatch Service
+
+**Goal**: Implement dispatch operation combining assignment + notification
+
+**Changes**:
+
+- [ ] Create `DispatchService` in `packages/orchestrator-sdk/src/services/`
+- [ ] Methods: `dispatch(task, agent, options)` - assigns task, sends notification, optionally triggers agent
+- [ ] Integrate with capability system for smart routing
+- [ ] Support options: `{ restart?: boolean, priority?: number }`
+
+**Verification**: Dispatch task to agent, verify assignment and notification sent
+
+---
+
 ### Phase 3: Agent Process Management
 
 #### - [ ] TB-O9: Claude Code Process Spawner
@@ -399,18 +542,26 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 - [ ] Create `packages/orchestrator-sdk/src/runtime/spawner.ts`
 - [ ] Two spawn modes:
-  - **Headless** (ephemeral workers, stewards):
-    - Use `child_process.spawn()`
-    - Flags: `-p --dangerously-skip-permissions --output-format stream-json --input-format stream-json --session-id {id}`
-    - Parse stream-json events: `assistant`, `tool_use`, `tool_result`, `error`
-    - Emit typed events via EventEmitter
-  - **Interactive** (Director, persistent workers):
-    - Use `node-pty` to create PTY
-    - Flags: `--dangerously-skip-permissions --session-id {id}` (no stream-json flags)
-    - Stream raw terminal output to xterm in browser
+  - **Headless** (ephemeral workers, stewards): `child_process.spawn()` with stream-json flags
+  - **Interactive** (Director, persistent workers): `node-pty` for PTY
 - [ ] All modes support `--resume {session_id}`
+- [ ] Parse stream-json events: `assistant`, `tool_use`, `tool_result`, `error`
 
 **Verification**: Spawn headless agent, parse response; spawn interactive agent, see terminal output
+
+---
+
+#### - [ ] TB-O9a: UWP Agent Startup Check
+
+**Goal**: Implement Universal Work Principle on agent startup
+
+**Changes**:
+
+- [ ] Add ready queue check to spawner before accepting new instructions
+- [ ] Query: `el task ready --assignee <self> --limit 1`
+- [ ] If task found, auto-start execution
+
+**Verification**: Assign task to stopped agent, start agent, verify auto-pickup
 
 ---
 
@@ -418,73 +569,128 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Goal**: Ensure workers in worktrees interact with root-level SQLite database
 
-**Problem**: Workers run in isolated worktrees (e.g., `.worktrees/worker-alice-feat-123/`) but need to use the workspace root's `.elemental/elements.db`, not create a new one.
-
 **Changes**:
 
 - [ ] Modify `src/config/file.ts` to check `ELEMENTAL_ROOT` env var first:
-
   ```typescript
   export function findElementalDir(startDir: string): string | undefined {
-    // NEW: Check environment variable first
     const envRoot = process.env.ELEMENTAL_ROOT;
     if (envRoot) {
       const elementalPath = path.join(envRoot, ELEMENTAL_DIR);
-      if (fs.existsSync(elementalPath)) {
-        return elementalPath;
-      }
+      if (fs.existsSync(elementalPath)) return elementalPath;
     }
-
     // Existing walk-up logic...
   }
   ```
+- [ ] Update spawner to set `ELEMENTAL_ROOT` when spawning workers
 
-- [ ] Update spawner to set `ELEMENTAL_ROOT` when spawning workers:
-
-  ```typescript
-  function spawnWorker(config: WorkerConfig) {
-    const env = {
-      ...process.env,
-      ELEMENTAL_ROOT: config.workspaceRoot, // Absolute path to workspace
-    };
-
-    spawn("claude", args, {
-      cwd: config.worktreePath, // Worker's git worktree
-      env, // Root override
-    });
-  }
-  ```
-
-**Benefits**:
-
-- Workers in worktrees always find root database
-- Explicit, debuggable configuration
-- Backwards compatible (falls back to walk-up)
-- Works even if worktrees are outside workspace
-
-**Verification**: Spawn worker in worktree, verify it uses root database; set invalid ELEMENTAL_ROOT, verify falls back to walk-up
+**Verification**: Spawn worker in worktree, verify it uses root database
 
 ---
 
 #### - [ ] TB-O10: Agent Session Manager with Resume
 
-**Goal**: Track sessions with Claude Code session ID support and inter-agent messaging
+**Goal**: Track sessions with Claude Code session ID support
 
 **Changes**:
 
 - [ ] Create `SessionManager` class tracking active processes
 - [ ] Store session state: `pid`, `agentId`, `claudeSessionId`, `worktree`, `status`, `startedAt`
-- [ ] Methods:
-  - `startSession(agentId, options)` - Start new session with generated session ID
-  - `resumeSession(agentId, claudeSessionId)` - Resume using `--resume {session_id}`
-  - `stopSession(agentId)` - Stop session (process killed, session ID preserved)
-  - `getSession(agentId)` - Get current session state
-  - `listSessions()` - List all sessions
-  - `messageSession(sessionId, message)` - Send message to another agent's session (inter-agent communication)
+- [ ] Methods: `startSession()`, `resumeSession()`, `stopSession()`, `getSession()`, `listSessions()`, `messageSession()`
 - [ ] Persist session IDs to database for cross-restart resumption
-- [ ] On crash recovery: auto-resume in correct worktree with full context
 
-**Verification**: Start session, stop it, resume with same session ID, verify context preserved; test inter-agent messaging
+**Verification**: Start session, stop it, resume with same session ID, verify context preserved
+
+---
+
+#### - [ ] TB-O10a: Session Recovery with UWP
+
+**Goal**: Check ready queue on session resume
+
+**Changes**:
+
+- [ ] On resume, check queue before continuing previous context
+- [ ] If task assigned during suspension, process it first
+
+**Verification**: Suspend agent, assign task, resume, verify task processed
+
+---
+
+#### - [ ] TB-O10b: Inbox Polling Service
+
+**Goal**: Periodic inbox check in session manager
+
+**Changes**:
+
+- [ ] Add periodic inbox check to session manager
+- [ ] Configurable poll interval (default 30s)
+- [ ] Process unread messages by type
+
+**Verification**: Send message to agent channel, verify agent processes it
+
+---
+
+#### - [ ] TB-O10c: Session History Tracking
+
+**Goal**: Store session history per role for predecessor queries
+
+**Changes**:
+
+- [ ] Track session history:
+  ```typescript
+  interface SessionHistory {
+    role: AgentRole;
+    agentId: EntityId;
+    claudeSessionId: string;
+    worktree?: string;
+    startedAt: Timestamp;
+    endedAt: Timestamp | null;
+    status: "active" | "suspended" | "terminated";
+  }
+  ```
+- [ ] Query methods: `getSessionHistory(role)`, `getPreviousSession(role)`
+
+**Verification**: Run multiple sessions for same role, query history
+
+---
+
+#### - [ ] TB-O10d: Predecessor Query Service
+
+**Goal**: Enable agents to consult previous sessions
+
+**Changes**:
+
+- [ ] Add `consultPredecessor(role, message)` method
+- [ ] Resume previous session, send message, capture response, suspend again
+
+**Verification**: Kill agent, start new agent, query predecessor, verify response
+
+---
+
+#### - [ ] TB-O10e: Self-Handoff
+
+**Goal**: Agent can trigger own restart with context preservation
+
+**Changes**:
+
+- [ ] Add `selfHandoff(note?)` method
+- [ ] Creates handoff message, marks session suspended, terminates gracefully
+
+**Verification**: Agent triggers handoff, new session finds handoff note
+
+---
+
+#### - [ ] TB-O10f: Agent-Agent Handoff
+
+**Goal**: Transfer work between agents
+
+**Changes**:
+
+- [ ] Add `handoffTo(targetAgent, taskIds, note?)` method
+- [ ] Sends handoff message to target agent's channel
+- [ ] Triggers target agent to process handoff
+
+**Verification**: Agent A hands off to Agent B, B receives and processes
 
 ---
 
@@ -495,22 +701,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [ ] Create `packages/orchestrator-sdk/src/git/worktree-manager.ts`
-- [ ] On init, verify git repo exists; if not, throw descriptive error with instructions
-- [ ] Methods:
-  - `initWorkspace(path)` - Verify git repo exists, throw if not
-  - `createWorktree(workerName, taskId, baseBranch)` - Creates branch + worktree
-  - `removeWorktree(workerName, taskId)` - Cleans up after merge
-  - `listWorktrees()` - List active worktrees
-  - `getWorktreePath(workerName, taskId)` - Get path for worker
+- [ ] On init, verify git repo exists; if not, throw descriptive error
+- [ ] Methods: `initWorkspace()`, `createWorktree()`, `removeWorktree()`, `listWorktrees()`, `getWorktreePath()`
 - [ ] Branch naming: `agent/{worker-name}/{task-id}-{slug}`
 - [ ] Worktree path: `.worktrees/{worker-name}-{task-slug}/`
-
-**Error Handling**:
-
-- If no `.git/` directory found, throw `GitRepoRequiredError` with:
-  - Clear explanation of why git is required (worktree isolation)
-  - Step-by-step instructions to initialize a repo
-  - The path where git repo was expected
 
 **Verification**: Create worktree, verify isolation; test error when no git repo
 
@@ -522,51 +716,15 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Add lifecycle state types to `packages/orchestrator-sdk/src/types/`:
-
+- [ ] Add lifecycle state types:
   ```typescript
-  // Worktree states
-  type WorktreeState =
-    | "creating" // git worktree add in progress
-    | "active" // worker using it
-    | "suspended" // worker paused, worktree preserved
-    | "merging" // merge steward processing
-    | "cleaning" // git worktree remove in progress
-    | "archived"; // removed, record kept for history
-
-  // Session states
-  type SessionState =
-    | "starting" // claude code spawning
-    | "running" // actively processing
-    | "suspended" // paused but resumable
-    | "terminating" // graceful shutdown
-    | "terminated"; // process ended
-
-  // State transitions
-  const WORKTREE_TRANSITIONS: Record<WorktreeState, WorktreeState[]> = {
-    creating: ["active"],
-    active: ["suspended", "merging"],
-    suspended: ["active", "cleaning"],
-    merging: ["cleaning", "active"], // active if merge fails
-    cleaning: ["archived"],
-    archived: [],
-  };
+  type WorktreeState = "creating" | "active" | "suspended" | "merging" | "cleaning" | "archived";
+  type SessionState = "starting" | "running" | "suspended" | "terminating" | "terminated";
   ```
+- [ ] Track state history in database
+- [ ] Add state transition validation
 
-- [ ] Track state history in database:
-  ```typescript
-  interface WorktreeRecord {
-    path: string;
-    workerName: string;
-    taskId: TaskId;
-    branch: string;
-    state: WorktreeState;
-    stateHistory: { state: WorktreeState; at: Timestamp }[];
-  }
-  ```
-- [ ] Add state transition validation to WorktreeManager and SessionManager
-
-**Verification**: Create worktree, observe state transitions through lifecycle, verify history recorded
+**Verification**: Create worktree, observe state transitions through lifecycle
 
 ---
 
@@ -578,15 +736,15 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 - [ ] Create `apps/orchestrator-server/` extending `apps/server/`
 - [ ] Add endpoints:
-  - `POST /api/agents/:id/start` - Start agent session (creates worktree if worker)
+  - `POST /api/agents/:id/start` - Start agent session
   - `POST /api/agents/:id/stop` - Stop agent session
   - `POST /api/agents/:id/resume` - Resume previous session
   - `GET /api/agents/:id/status` - Get session status
-  - `GET /api/agents/:id/stream` - SSE stream for headless agent output (Phase 4)
-  - `POST /api/agents/:id/input` - Send input to headless agent (Phase 4)
+  - `GET /api/agents/:id/stream` - SSE stream for headless agent output
+  - `POST /api/agents/:id/input` - Send input to headless agent
   - `GET /api/sessions` - List active sessions
   - `GET /api/worktrees` - List active worktrees
-- [ ] WebSocket endpoint for interactive terminals (Director, Persistent Workers)
+- [ ] WebSocket endpoint for interactive terminals
 
 **Verification**: Curl to start/stop/resume agent, verify worktree lifecycle
 
@@ -600,19 +758,12 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Add SSE endpoint `GET /api/agents/:id/stream` for headless agent output
+- [ ] Add SSE endpoint `GET /api/agents/:id/stream`
 - [ ] Pipe stream-json events from spawner to SSE stream
 - [ ] Event types: `agent_message`, `agent_tool_use`, `agent_tool_result`, `agent_status`
 - [ ] Support `Last-Event-ID` header for reconnection
-- [ ] Keep WebSocket for interactive terminals (Director, Persistent Workers via xterm)
 
-**Why SSE over WebSocket for headless agents**:
-- Simpler protocol, works through proxies/load balancers
-- Built-in reconnection with event IDs
-- HTTP/2 multiplexing support
-- Sufficient for one-way streaming (output)
-
-**Verification**: Connect to SSE endpoint, start headless agent, see events stream to browser
+**Verification**: Connect to SSE endpoint, start headless agent, see events stream
 
 ---
 
@@ -622,12 +773,48 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Add endpoint `POST /api/agents/:id/input` for sending messages
-- [ ] Write to agent process stdin in stream-json format (using `--input-format stream-json`)
-- [ ] Return immediately with 202 Accepted (response comes via SSE stream)
-- [ ] Handle buffering if agent is busy processing
+- [ ] Add endpoint `POST /api/agents/:id/input`
+- [ ] Write to agent process stdin in stream-json format
+- [ ] Return 202 Accepted (response comes via SSE stream)
 
 **Verification**: Start headless agent, POST message, see response in SSE stream
+
+---
+
+#### - [ ] TB-O14a: Message Event Types
+
+**Goal**: Define typed message conventions
+
+**Changes**:
+
+- [ ] Define message type schemas in orchestrator-sdk
+- [ ] Types: `task-assignment`, `status-update`, `help-request`, `handoff`, `health-check`
+- [ ] Validation functions for each type
+
+**Verification**: Create typed messages, validate schemas
+
+---
+
+#### - [ ] TB-O14b: Handoff Message Type
+
+**Goal**: Define handoff message schema
+
+**Changes**:
+
+- [ ] Define schema:
+  ```typescript
+  interface HandoffMessage {
+    type: "handoff";
+    fromAgent: EntityId;
+    toAgent?: EntityId;
+    taskIds: TaskId[];
+    contextSummary: string;
+    nextSteps?: string;
+  }
+  ```
+- [ ] Validation and parsing utilities
+
+**Verification**: Create handoff message, validate schema
 
 ---
 
@@ -639,13 +826,13 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 - [ ] Create `apps/orchestrator-web/` with Vite + React + TanStack
 - [ ] Import ALL shared components from `@elemental/ui`
-- [ ] Create orchestrator-specific three-column layout:
-  - Left sidebar: Navigation tabs (same base component as Elemental web)
+- [ ] Create three-column layout:
+  - Left sidebar: Navigation tabs
   - Center: Main content area
   - Right panel: Director terminal (xterm, collapsible)
-- [ ] Routes: `/activity` (home), `/tasks`, `/agents`, `/workspaces`, `/workflows`, `/metrics`, `/settings`
+- [ ] Routes: `/activity`, `/tasks`, `/agents`, `/workspaces`, `/workflows`, `/metrics`, `/settings`
 
-**Verification**: Web app loads, three-column layout renders, navigation works, connects to orchestrator-server
+**Verification**: Web app loads, three-column layout renders, navigation works
 
 > See **specs/STAGE_2_WEB_UI.md** for detailed UI/UX specifications.
 
@@ -658,11 +845,9 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [ ] Create `/agents` route with tabs: Agents, Stewards
-- [ ] Display: name, role, capabilities, session status (running/stopped/resumable)
+- [ ] Display: name, role, capabilities, session status
 - [ ] Show worktree status for workers
 - [ ] [+ Create Agent] and [+ Create Steward] buttons
-- [ ] Use existing EntityList patterns from @elemental/ui
-- [ ] Stewards tab shows: focus type, trigger info, last run, next scheduled
 
 **Verification**: Register agents via CLI, see them in web UI with status badges
 
@@ -670,19 +855,16 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 #### - [ ] TB-O17: Director Terminal Panel
 
-**Goal**: Interactive xterm terminal for Director agent (always visible in right panel)
+**Goal**: Interactive xterm terminal for Director agent
 
 **Changes**:
 
 - [ ] Implement right sidebar panel with xterm.js terminal
-- [ ] Director terminal is always accessible (not a separate route)
+- [ ] Director terminal always accessible (not a separate route)
 - [ ] Full PTY terminal experience via node-pty
-- [ ] Resize handle on left edge (300-600px width)
-- [ ] Collapse to icon with activity indicator
-- [ ] Session status indicator in header
-- [ ] Scrollback buffer for history
+- [ ] Resize handle, collapse to icon with activity indicator
 
-**Verification**: Start Director agent, see terminal in right panel, type commands, see responses
+**Verification**: Start Director agent, see terminal in right panel, type commands
 
 ---
 
@@ -697,11 +879,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [ ] Layout presets: single, vertical split, horizontal split, grid
 - [ ] Two pane types:
   - **Interactive terminal** (persistent workers): Full xterm.js PTY
-  - **Stream viewer** (ephemeral workers): JSON stream rendered as terminal-like output with input box
+  - **Stream viewer** (ephemeral workers): JSON stream rendered as terminal-like output
 - [ ] Layout persistence to localStorage
-- [ ] Named layout presets (saveable)
 
-**Verification**: Add multiple panes, resize them, drag to reorder, save layout, reload page, layout persists
+**Verification**: Add multiple panes, resize them, save layout, reload page, layout persists
 
 ---
 
@@ -709,7 +890,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 #### - [ ] TB-O18: Orchestrator Task List Page
 
-**Goal**: View tasks with orchestrator metadata (agent assignment, branch, worktree)
+**Goal**: View tasks with orchestrator metadata
 
 **Changes**:
 
@@ -728,15 +909,24 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Director uses `elemental` CLI directly for task operations:
-  - `elemental create task --title "..." --assignee worker-alice`
-  - `elemental update task --id X --assignee worker-bob`
-  - `elemental dep add --from task-1 --to task-2`
+- [ ] Director uses `elemental` CLI directly for task operations
 - [ ] Director analyzes user request, breaks into tasks with dependencies
 - [ ] Director assigns tasks to available workers
-- [ ] Tasks appear in queue with agent assignment
 
-**Verification**: Chat with Director, ask for feature, see tasks created via CLI and assigned
+**Verification**: Chat with Director, ask for feature, see tasks created and assigned
+
+---
+
+#### - [ ] TB-O19a: Director Dispatch Command
+
+**Goal**: Director uses dispatch for task assignment
+
+**Changes**:
+
+- [ ] Director uses dispatch service for smart task assignment
+- [ ] Capability-aware routing to workers
+
+**Verification**: Director dispatches task, worker with matching capabilities receives it
 
 ---
 
@@ -749,7 +939,6 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [ ] When task assigned to worker → WorktreeManager creates worktree
 - [ ] Worker spawned with `--cwd {worktree_path}`
 - [ ] Worker receives task context on startup
-- [ ] Worker status updates streamed to UI
 - [ ] On completion → task marked done, branch ready for merge
 
 **Verification**: Assign task to worker, see worktree created, worker completes, branch has changes
@@ -765,14 +954,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [ ] Merge Steward triggers on `task_completed` event
 - [ ] Runs tests on worker's branch
 - [ ] If tests pass → auto-merge to main, cleanup worktree
-- [ ] If tests fail:
-  1. Create new "fix tests" task
-  2. Assign to a worker (same or different)
-  3. Message that worker to start the task (inter-agent messaging)
-  4. Does NOT escalate to Director
-- [ ] If merge conflict → attempt auto-resolve, else create task for worker/human to resolve
+- [ ] If tests fail → Create new "fix tests" task, assign to worker, message worker
+- [ ] If merge conflict → attempt auto-resolve, else create task
 
-**Verification**: Complete task, see Steward run tests, auto-merge, worktree cleaned up; simulate test failure, see new task created and assigned
+**Verification**: Complete task, see Steward run tests, auto-merge, worktree cleaned up
 
 ---
 
@@ -784,12 +969,8 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Steward management in `/agents` page under "Stewards" tab (not separate route)
-- [ ] [+ Create Steward] dialog with fields:
-  - Name, Focus (merge/health/reminder/ops)
-  - Trigger type: cron schedule OR event triggers
-  - Associated workflow or task template
-- [ ] Save steward config to Entity with steward metadata
+- [ ] Steward management in `/agents` page under "Stewards" tab
+- [ ] [+ Create Steward] dialog with fields: Name, Focus, Trigger type, Workflow
 - [ ] List shows: name, focus, trigger type, last run, next scheduled
 - [ ] Actions: [Configure] [Run Now] [Disable]
 
@@ -806,7 +987,6 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [ ] Create `StewardScheduler` service in orchestrator-sdk
 - [ ] For cron triggers: use node-cron to schedule execution
 - [ ] For event triggers: subscribe to event bus, evaluate conditions
-- [ ] Spawn Steward agent when triggered
 - [ ] Track execution history
 
 **Verification**: Create cron Steward, wait for schedule, see it execute
@@ -815,80 +995,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 #### - [ ] TB-O23a: Plugin System for Stewards
 
-**Goal**: Enable custom automated maintenance tasks via plugins (Gas Town pattern)
-
-**Design**: A plugin is either a Playbook, shell script, or elemental command that Stewards execute on patrol.
+**Goal**: Enable custom automated maintenance tasks via plugins
 
 **Changes**:
 
-- [ ] Add plugin types to `packages/orchestrator-sdk/src/types/plugin.ts`:
-
+- [ ] Add plugin types:
   ```typescript
   interface StewardPlugin {
     name: string;
     type: "playbook" | "script" | "command";
-
-    // For playbook type
     playbookId?: PlaybookId;
-    variables?: Record<string, string>;
-
-    // For script type
     path?: string;
-    timeout?: number;
-
-    // For command type
     command?: string;
-
-    // Execution control
+    timeout?: number;
     runOnStartup?: boolean;
     continueOnError?: boolean;
   }
-
-  interface PluginExecutionResult {
-    pluginName: string;
-    success: boolean;
-    output?: string;
-    error?: string;
-    durationMs: number;
-    executedAt: Timestamp;
-  }
   ```
+- [ ] Create `PluginExecutor` service
+- [ ] Built-in plugins: `gc-ephemeral-tasks`, `cleanup-stale-worktrees`, `health-check-agents`
 
-- [ ] Extend Steward configuration:
-  ```yaml
-  steward:
-    name: "Ops Steward"
-    focus: ops
-    schedule: "*/15 * * * *"
-    plugins:
-      - type: playbook
-        name: cleanup-stale-branches
-        playbookId: pb-cleanup-001
-      - type: script
-        name: custom-gc
-        path: ./scripts/custom-gc.sh
-        timeout: 60000
-      - type: command
-        name: gc-ephemeral
-        command: el gc --ephemeral --older-than 24h
-  ```
-- [ ] Create `PluginExecutor` service in `packages/orchestrator-sdk/src/services/plugin-executor.ts`
-- [ ] Integrate with `StewardScheduler` to execute plugins on patrol
-
-**Built-in Plugins**:
-
-- `gc-ephemeral-tasks` - Clean up completed ephemeral tasks
-- `cleanup-stale-worktrees` - Remove orphaned worktrees
-- `health-check-agents` - Ping registered agents
-- `sync-session-states` - Reconcile session states with reality
-
-**UI Integration** (extends TB-O22):
-
-- Plugin list in Steward configuration
-- Plugin execution history
-- Manual "run plugin now" button
-
-**Verification**: Create steward with playbook/script/command plugins, verify each type executes correctly on schedule
+**Verification**: Create steward with plugins, verify each type executes correctly
 
 ---
 
@@ -898,14 +1025,11 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Health Steward triggers on: no output for X minutes, repeated errors, process crash
-- [ ] Actions:
-  1. Attempt to unstick (send prompt to agent)
-  2. If still stuck → notify Director
-  3. If unrecoverable → stop agent, mark task for reassignment
-- [ ] Configurable thresholds per project
+- [ ] Triggers on: no output for X minutes, repeated errors, process crash
+- [ ] Actions: Attempt to unstick, notify Director, stop and reassign
+- [ ] Configurable thresholds
 
-**Verification**: Start worker, simulate stuck (no output), see Health Steward detect and intervene
+**Verification**: Start worker, simulate stuck, see Health Steward detect and intervene
 
 ---
 
@@ -915,19 +1039,13 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Create `/activity` route as home page (default route)
-- [ ] Rich activity cards showing:
-  - Agent avatar, status badge, task context
-  - **Real-time truncated agent output** (updates live via SSE for headless agents, WebSocket for interactive)
-  - Running agents show live output preview in mini-terminal style block
-  - Completed events show summary (merged, completed task, etc.)
+- [ ] Create `/activity` route as home page
+- [ ] Rich activity cards with real-time agent output preview
 - [ ] Filter by: All, Tasks, Agents, etc.
-- [ ] Expandable cards for full output view
-- [ ] "Open in Workspace" button adds agent to terminal multiplexer
+- [ ] Expandable cards, "Open in Workspace" button
 - [ ] Infinite scroll for historical events
-- [ ] Uses existing Timeline patterns from @elemental/ui
 
-**Verification**: Start agent, see activity card appear with live output updating in real-time
+**Verification**: Start agent, see activity card appear with live output updating
 
 ---
 
@@ -937,19 +1055,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] **Toast notifications** (bottom-right):
-  - Auto-dismiss after 5s (configurable)
-  - Types: info, success, warning, error
-  - Click to navigate to relevant item
-  - Stack up to 3, then collapse to count
-- [ ] **Header notification center**:
-  - Bell icon with unread badge count
-  - Dropdown showing recent notifications
-  - Types: stuck agents, merge conflicts, failed tests
-  - Actions per notification: [View] [Nudge] [Resolve]
-  - [Mark all read] button
+- [ ] **Toast notifications** (bottom-right): Auto-dismiss, types (info/success/warning/error), click to navigate
+- [ ] **Header notification center**: Bell icon with badge, dropdown with recent notifications, actions per notification
 
-**Verification**: Trigger event (stuck agent), see toast appear, see notification in dropdown
+**Verification**: Trigger event, see toast appear, see notification in dropdown
 
 ---
 
@@ -959,12 +1068,8 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Trigger with Cmd+K (Mac) / Ctrl+K (Windows)
-- [ ] **Navigation**: Go to Activity / Tasks / Agents / Workspaces / Workflows / Metrics / Settings
-- [ ] **Task actions**: Create task, search tasks, view task by ID, assign task
-- [ ] **Agent actions**: Create agent/steward, start/stop/restart, open in workspace
-- [ ] **Workflow actions**: Create workflow, pour template, search templates
-- [ ] **Quick filters**: Show running agents, stuck agents, unassigned tasks
+- [ ] Trigger with Cmd+K / Ctrl+K
+- [ ] Navigation, task actions, agent actions, workflow actions, quick filters
 - [ ] Fuzzy search across all commands
 
 **Verification**: Press Cmd+K, type "agents", select, navigate to Agents page
@@ -978,16 +1083,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [ ] Create `/settings` route with tabs: Preferences, Workspace
-- [ ] **Preferences tab**:
-  - Theme: Light / Dark / System (default to system)
-  - Notifications: Desktop, sound for critical events (optional), toast
-  - Keyboard shortcuts reference
-- [ ] **Workspace tab**:
-  - Default agent configurations
-  - Ephemeral task retention period
-  - Steward schedules
+- [ ] Preferences: Theme, notifications, keyboard shortcuts reference
+- [ ] Workspace: Default agent configs, ephemeral retention, steward schedules
 
-**Verification**: Toggle dark mode, see theme change; update ephemeral retention, verify setting persists
+**Verification**: Toggle dark mode, verify setting persists
 
 ---
 
@@ -998,17 +1097,15 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [ ] Create workspace visualization using @xyflow/react
-- [ ] Show: Human → Director → (Workers + Stewards as siblings)
+- [ ] Show: Human → Director → (Workers + Stewards)
 - [ ] Display: agent status, current task, branch, health indicators
 - [ ] Click agent to open in Workspaces terminal multiplexer
 
-**Verification**: Register multiple agents, see workspace graph rendered correctly
+**Verification**: Register multiple agents, see workspace graph rendered
 
 ---
 
 ### Phase 7: UI Package Extraction (Should Run Early/Parallel)
-
-**Note**: This phase should ideally run in parallel with Phase 2-3, as it unblocks orchestrator-web development.
 
 #### - [ ] TB-O27: Extract @elemental/ui Package - Core Components
 
@@ -1017,9 +1114,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [ ] Create `packages/ui/` with package.json
-- [ ] Extract from `apps/web/src/components/`:
-  - `ui/` - ALL primitives (Button, Card, Dialog, Input, TagInput, Tooltip, etc.)
-  - `shared/` - Pagination, ConnectionStatus, EmptyState, LoadingSpinner
+- [ ] Extract from `apps/web/src/components/`: `ui/`, `shared/`
 - [ ] Export all components from `packages/ui/src/index.ts`
 - [ ] Update `apps/web/` to import from `@elemental/ui`
 
@@ -1033,11 +1128,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Extract to `packages/ui/src/layout/`:
-  - `AppShell` - Main layout wrapper
-  - `Sidebar` - Parameterized with `navItems: NavItem[]` prop
-  - `Header` - Configurable title, actions
-  - `MainContent` - Content area with optional sidebar
+- [ ] Extract: `AppShell`, `Sidebar` (parameterized), `Header`, `MainContent`
 - [ ] Both apps pass their own nav items to Sidebar
 
 **Verification**: Both apps render with their own navigation using shared layout
@@ -1050,11 +1141,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Extract to `packages/ui/src/domain/`:
-  - `task/` - TaskCard, TaskList, TaskDetail, TaskForm
-  - `entity/` - EntityBadge, EntityList, EntityHierarchy
-  - `document/` - DocumentEditor (TipTap), DocumentViewer
-  - `message/` - MessageList, MessageInput, ChannelView
+- [ ] Extract: `task/`, `entity/`, `document/`, `message/` components
 - [ ] Make components accept data via props (no hardcoded API calls)
 
 **Verification**: Orchestrator-web uses TaskList, TaskCard for its task view
@@ -1067,32 +1154,21 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Extract to `packages/ui/src/visualizations/`:
-  - `DependencyGraph` - Configurable node types, edge types
-  - `Timeline` - Event stream with filtering
-  - `HierarchyView` - Tree visualization
-  - `StatusDashboard` - Cards with metrics
+- [ ] Extract: `DependencyGraph`, `Timeline`, `HierarchyView`, `StatusDashboard`
 - [ ] Pass data and config via props
 
-**Verification**: Orchestrator-web uses Timeline for activity, HierarchyView for agents
+**Verification**: Orchestrator-web uses Timeline for activity
 
 ---
 
 #### - [ ] TB-O31: Extract @elemental/ui - Hooks and API Client
 
-**Goal**: Shared React hooks and WebSocket client
+**Goal**: Shared React hooks and WebSocket/SSE clients
 
 **Changes**:
 
-- [ ] Extract to `packages/ui/src/hooks/`:
-  - `useWebSocket` - WebSocket connection for interactive terminals
-  - `useSSEStream` - SSE connection for headless agent output
-  - `useRealtimeEvents` - Subscribe to event channels (abstracts SSE/WebSocket)
-  - `useKeyboardShortcuts` - Keyboard navigation
-- [ ] Extract to `packages/ui/src/api/`:
-  - `websocket.ts` - WebSocket client for interactive terminals
-  - `sse-client.ts` - SSE client for headless agent streams
-  - `api-client.ts` - Base HTTP client (parameterized base URL)
+- [ ] Extract hooks: `useWebSocket`, `useSSEStream`, `useRealtimeEvents`, `useKeyboardShortcuts`
+- [ ] Extract API: `websocket.ts`, `sse-client.ts`, `api-client.ts`
 
 **Verification**: Both apps connect to their respective servers using shared hooks
 
@@ -1102,40 +1178,29 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 #### - [ ] TB-O32: Workflows Page
 
-**Goal**: View and manage workflow templates (playbooks) in the UI
+**Goal**: View and manage workflow templates (playbooks)
 
 **Changes**:
 
 - [ ] Create `/workflows` route with tabs: Templates, Active
-- [ ] **Templates tab**: List all playbook templates
-  - Display: name, description, steps count, variables, last used
-  - Actions: [Pour] [Edit] [Export]
-  - [+ Create Workflow] and [Import YAML] buttons
-- [ ] **Active tab**: Show running/poured workflows
-  - Progress bars (tasks completed / total)
-  - Expand to see child tasks
-  - Actions: [Cancel] [Pause]
-- [ ] Import existing YAML playbooks from filesystem
-- [ ] Uses existing playbook types from @elemental/core
+- [ ] **Templates tab**: List playbooks, actions: [Pour] [Edit] [Export]
+- [ ] **Active tab**: Running workflows with progress bars
+- [ ] Import existing YAML playbooks
 
-**Verification**: Load playbooks from disk, see them in Templates tab; pour one, see it in Active tab
+**Verification**: Load playbooks, see them in Templates tab; pour one, see in Active tab
 
 ---
 
 #### - [ ] TB-O33: Visual Workflow Editor
 
-**Goal**: Create and edit workflow templates (playbooks) visually
+**Goal**: Create and edit workflow templates visually
 
 **Changes**:
 
-- [ ] Create workflow editor with:
-  - Step list (drag to reorder)
-  - Step form (title, description, assignee pattern, dependencies)
-  - Variable definitions with defaults
-  - Preview as YAML
-- [ ] Save workflow template to database and/or export as YAML
+- [ ] Step list (drag to reorder), step form, variable definitions
+- [ ] Preview as YAML, save/export
 
-**Verification**: Create workflow template visually, export as YAML, import back
+**Verification**: Create workflow visually, export as YAML, import back
 
 ---
 
@@ -1145,13 +1210,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] "Pour" button on workflow template in Templates tab
-- [ ] Variable resolution form (fill in variables)
-- [ ] Preview generated tasks before creation
+- [ ] "Pour" button, variable resolution form, preview generated tasks
 - [ ] Create workflow + tasks in one action
-- [ ] Redirect to Active tab showing new workflow
 
-**Verification**: Pour workflow template, fill variables, see workflow and tasks created in Active tab
+**Verification**: Pour workflow template, fill variables, see workflow and tasks created
 
 ---
 
@@ -1161,13 +1223,9 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Workflow detail page shows:
-  - Progress bar (tasks completed / total)
-  - Task list with status, assigned agent, branch
-  - Dependency graph of tasks
-  - Activity feed scoped to workflow
+- [ ] Progress bar, task list with status, dependency graph, scoped activity feed
 
-**Verification**: Create workflow, assign tasks to agents, see progress update in real-time
+**Verification**: Create workflow, assign tasks, see progress update in real-time
 
 ---
 
@@ -1179,10 +1237,9 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] On startup, load persisted session IDs from database
-- [ ] For each session with `resumable: true`, offer to resume
+- [ ] On startup, load persisted session IDs
+- [ ] For resumable sessions, offer to resume
 - [ ] Director can decide which sessions to resume
-- [ ] Use `--resume {session_id}` to restore context
 
 **Verification**: Start agent, stop server, restart, resume session with context
 
@@ -1194,10 +1251,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Ops Steward runs on schedule to detect:
-  - Tasks assigned but no agent running
-  - Worktrees with no active session
-  - Branches not merged after X days
+- [ ] Ops Steward detects: tasks assigned but no agent, worktrees with no session, old unmerged branches
 - [ ] Actions: notify Director, auto-reassign, cleanup
 
 **Verification**: Create stale task, Ops Steward detects and reports
@@ -1206,17 +1260,15 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 #### - [ ] TB-O41: Conflict Resolution UI
 
-**Goal**: Handle merge conflicts via UI when auto-resolve fails
+**Goal**: Handle merge conflicts via UI
 
 **Changes**:
 
-- [ ] When Merge Steward can't auto-resolve:
-  - Create "conflict" task assigned to Human
-  - Show diff in UI with conflict markers
-  - Human can: resolve manually, assign to worker, or abort
-- [ ] Track conflict resolution history
+- [ ] When auto-resolve fails: create "conflict" task for Human
+- [ ] Show diff with conflict markers
+- [ ] Options: resolve manually, assign to worker, abort
 
-**Verification**: Create conflicting changes, see conflict in UI, resolve manually
+**Verification**: Create conflicting changes, see conflict in UI, resolve
 
 ---
 
@@ -1228,14 +1280,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Collect metrics:
-  - Tasks completed per agent per day
-  - Average task duration
-  - Error rate, stuck incidents
-  - Token usage (if available from Claude Code)
+- [ ] Collect: tasks completed, average duration, error rate, stuck incidents
 - [ ] Store in time-series format
 
-**Verification**: Run agents for a while, see metrics in dashboard
+**Verification**: Run agents, see metrics in dashboard
 
 ---
 
@@ -1245,14 +1293,10 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Create `/metrics` route with:
-  - Agent activity chart (sparklines)
-  - Task throughput over time
-  - Merge success rate
-  - Health incidents timeline
+- [ ] Create `/metrics` route with charts: activity, throughput, merge success, health incidents
 - [ ] Configurable time ranges
 
-**Verification**: View dashboard, see real data from recent activity
+**Verification**: View dashboard, see real data
 
 ---
 
@@ -1262,11 +1306,8 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Export options:
-  - Task history as CSV/JSON
-  - Agent activity logs
-  - Workflow completion reports
-- [ ] Scheduled report generation (via Ops Steward)
+- [ ] Export: task history, agent activity logs, workflow reports
+- [ ] Scheduled report generation via Ops Steward
 
 **Verification**: Export task history, open in spreadsheet
 
@@ -1276,17 +1317,14 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 #### - [ ] TB-O45: Agent Capabilities Marketplace
 
-> **NOTE**: Core capability system moved to **TB-O6a** in Phase 2. This TB now covers only the "marketplace" sharing aspect.
-
 **Goal**: Share agent capability profiles across workspaces
 
 **Changes**:
 
 - [ ] Export/import capability profiles between workspaces
-- [ ] Community profile sharing (future)
 - [ ] Profile versioning and compatibility checks
 
-**Verification**: Export profile from workspace A, import to workspace B, verify agent uses imported profile
+**Verification**: Export profile from workspace A, import to workspace B
 
 ---
 
@@ -1297,9 +1335,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [ ] Built-in templates: "Feature Development", "Bug Fix", "Code Review"
-- [ ] Templates include: task structure, default assignments, dependencies
 - [ ] Import/export templates
-- [ ] Community template sharing (future)
 
 **Verification**: Use "Feature Development" template, see pre-structured workflow
 
@@ -1311,10 +1347,8 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 **Changes**:
 
-- [ ] Notification channels: Slack, Discord, email, webhooks
+- [ ] Channels: Slack, Discord, email, webhooks
 - [ ] Configure per-event notifications
-- [ ] E.g., "Notify Slack when task completed", "Email on merge conflict"
-- [ ] Steward can trigger notifications
 
 **Verification**: Configure Slack webhook, complete task, see Slack message
 
@@ -1342,7 +1376,7 @@ elemental/
 │   └── orchestrator-sdk/        # @elemental/orchestrator-sdk
 │       └── src/
 │           ├── types/           # Agent, Steward, task metadata types
-│           ├── services/        # AgentRegistry, TaskAssignment, StewardScheduler
+│           ├── services/        # AgentRegistry, TaskAssignment, Dispatch, StewardScheduler
 │           ├── runtime/         # Claude Code spawner, session manager
 │           └── git/             # WorktreeManager
 ├── apps/
@@ -1357,8 +1391,6 @@ elemental/
 
 ## Verification Strategy
 
-Each tracer bullet includes a verification step. Types of verification:
-
 | Method               | When to Use                                   |
 | -------------------- | --------------------------------------------- |
 | **Unit test**        | SDK/service changes with clear inputs/outputs |
@@ -1368,6 +1400,17 @@ Each tracer bullet includes a verification step. Types of verification:
 | **Browser manual**   | UI changes requiring visual verification      |
 | **Claude in Chrome** | Complex UI flows, end-to-end scenarios        |
 | **Playwright**       | Repeatable UI regression tests                |
+
+**Feature-specific verification**:
+
+| Feature               | Verification                                                                 |
+| --------------------- | ---------------------------------------------------------------------------- |
+| UWP                   | Assign task to stopped agent, start agent, verify auto-pickup                |
+| Inter-agent messaging | Agent A sends to Agent B, B's inbox shows unread                             |
+| Dispatch              | Director dispatches task, worker receives and starts                         |
+| Predecessor Query     | Kill agent, start new agent, query predecessor, verify response              |
+| Handoff               | Agent triggers handoff manually, new session finds handoff note              |
+| Ephemeral tasks       | Create ephemeral task, verify not in JSONL export, verify GC after retention |
 
 ---
 
@@ -1391,13 +1434,14 @@ Each tracer bullet includes a verification step. Types of verification:
 **Server patterns to replicate:**
 
 - `apps/server/src/index.ts` - Endpoint patterns for orchestrator-server
-- `apps/server/src/ws/` - WebSocket handler patterns (for interactive terminals)
+- `apps/server/src/ws/` - WebSocket handler patterns
 
 **New orchestrator-specific:**
 
 - `packages/orchestrator-sdk/src/runtime/spawner.ts` - Headless + interactive spawning
-- `packages/orchestrator-sdk/src/runtime/session-manager.ts` - Session tracking + inter-agent messaging
-- `packages/orchestrator-sdk/src/git/worktree-manager.ts` - Worktree management with git repo validation
+- `packages/orchestrator-sdk/src/runtime/session-manager.ts` - Session tracking + messaging
+- `packages/orchestrator-sdk/src/git/worktree-manager.ts` - Worktree management
+- `packages/orchestrator-sdk/src/services/dispatch-service.ts` - Task dispatch
 
 ---
 
@@ -1406,17 +1450,13 @@ Each tracer bullet includes a verification step. Types of verification:
 **orchestrator-sdk:**
 
 - `node-cron` - Cron scheduling for Steward triggers
-- `node-pty` - PTY for interactive agent sessions (Director, persistent workers)
-
-**orchestrator-server:**
-
-- (inherits from @elemental/server)
+- `node-pty` - PTY for interactive agent sessions
 
 **orchestrator-web:**
 
 - `@xyflow/react` - Already in web, ensure available
-- `@xterm/xterm` + `@xterm/addon-fit` + `@xterm/addon-web-links` - Terminal UI for Director panel and Workspaces
-- `cmdk` or similar - Command palette (Cmd+K)
+- `@xterm/xterm` + `@xterm/addon-fit` + `@xterm/addon-web-links` - Terminal UI
+- `cmdk` or similar - Command palette
 - `react-hot-toast` or `sonner` - Toast notifications
 
 ---
@@ -1428,438 +1468,14 @@ Each tracer bullet includes a verification step. Types of verification:
 | Package extraction breaks imports   | TB-O1 through TB-O5 done carefully with tests      |
 | UI extraction is large              | Phase 7 can run in parallel; start early           |
 | Agent process management complexity | Start with simple spawn/kill, add resume later     |
-| Streaming scalability               | SSE for headless agents (simpler), WebSocket only for interactive terminals |
+| Streaming scalability               | SSE for headless (simpler), WebSocket for interactive |
 | Worktree management complexity      | Require existing git repo, clear error if missing  |
 | Steward scheduling complexity       | Start with event triggers, add cron after          |
+| Predecessor query depends on Claude | Test Claude Code resume behavior early             |
 
 ---
 
-## Phase Summary
-
-| Phase | Tracer Bullets    | Focus                                                                      |
-| ----- | ----------------- | -------------------------------------------------------------------------- |
-| 1     | TB-O1 to TB-O5    | Monorepo foundation, package extraction                                    |
-| 2     | TB-O6 to TB-O8    | Orchestrator SDK types and services                                        |
-| 3     | TB-O9 to TB-O12   | Agent process management, worktrees                                        |
-| 4     | TB-O13 to TB-O17a | Real-time communication, Director terminal, Workspaces                     |
-| 5     | TB-O18 to TB-O21  | Task management, agent workflow, merge                                     |
-| 6     | TB-O22 to TB-O26  | Steward config, health, activity, notifications, command palette, settings |
-| 7     | TB-O27 to TB-O31  | UI package extraction (parallel)                                           |
-| 8     | TB-O32 to TB-O35  | Workflows UI, workflow creation                                            |
-| 9     | TB-O39 to TB-O41  | Recovery and reconciliation                                                |
-| 10    | TB-O42 to TB-O44  | Metrics and reporting                                                      |
-| 11    | TB-O45 to TB-O47  | Advanced features                                                          |
-
-**Total: 49 tracer bullets across 11 phases** (47 original - 3 removed + 5 new: TB-O17a, TB-O25a, TB-O25b, TB-O25c, plus UI tracer bullets in specs/STAGE_2_WEB_UI.md)
-
-> **UI Implementation Details**: See **specs/STAGE_2_WEB_UI.md** for detailed UI/UX specifications including 22 UI-specific tracer bullets (TB-UI-01 through TB-UI-22).
-
----
-
-# Stage 2 Plan Additions: Missing Gas Town Elements
-
-## Summary
-
-This section identifies critical functionality from Gas Town that should be added to the Stage 2 Orchestrator plan. The Stage 2 plan is solid but needs these additions to achieve parity with Gas Town's reliability and coordination capabilities.
-
----
-
-## 1. Universal Work Principle (UWP) — formerly GUPP
-
-**Gas Town**: "If there is work on your anchor, YOU MUST RUN IT"
-
-**Implementation for Stage 2**:
-
-Add to agent spawner behavior:
-
-```
-On agent startup:
-1. Query: `el task ready --assignee <self> --limit 1`
-2. If task exists:
-   a. Set task status to IN_PROGRESS
-   b. Begin execution
-3. If no task:
-   a. Enter idle/polling mode
-   b. Check ready queue periodically OR wait for WebSocket event
-```
-
-**New Tracer Bullets**:
-
-- **TB-O9a: UWP Agent Startup Check** - Add ready queue check to spawner before accepting new instructions
-- **TB-O10a: Session Recovery with UWP** - On resume, check queue before continuing previous context
-
-**Files to modify**:
-
-- `packages/orchestrator-sdk/src/runtime/spawner.ts` - Add startup queue check
-- `packages/orchestrator-sdk/src/runtime/session-manager.ts` - Add resume queue check
-
----
-
-## 2. Inter-Agent Messaging via Elemental Inbox
-
-**Gas Town**: Git-backed mailbox for async agent-to-agent communication
-
-**Elemental Already Has**: Messages, Channels, Inbox system
-
-**Implementation for Stage 2**:
-
-Define messaging conventions:
-
-- **Agent Channels**: Each agent gets a direct channel for receiving messages
-- **Message Types** (via metadata):
-  - `type: 'task-assignment'` - New task assigned
-  - `type: 'status-update'` - Progress notification
-  - `type: 'help-request'` - Agent needs assistance
-  - `type: 'handoff'` - Session handoff request
-  - `type: 'health-check'` - Ping from Steward
-- **Inbox Polling**: Agents check inbox on startup and periodically
-
-**New Tracer Bullets**:
-
-- **TB-O7a: Agent Channel Setup** - Create direct channel per agent on registration
-- **TB-O10b: Inbox Polling Service** - Add periodic inbox check to session manager
-- **TB-O14a: Message Event Types** - Define typed message conventions
-
-**CLI Usage**:
-
-```bash
-# Agent sends message to another agent
-el msg send --channel <target-agent-channel> --content "Task T123 blocked, need help"
-
-# Agent checks inbox
-el inbox <self> | jq '.[] | select(.status == "unread")'
-```
-
----
-
-## 3. Dispatch Mechanism (Work Assignment)
-
-**Gas Town**: `sling` command places work on agent's anchor with options
-
-**Implementation for Stage 2**:
-
-Use existing task assignment + messaging:
-
-```
-dispatch(task, agent, options):
-1. Update task: `el task assign <task-id> <agent-entity>`
-2. Send notification: `el msg send --channel <agent-channel> --content "Task <id> assigned"`
-3. If options.restart: Signal agent to restart session
-4. If agent idle: Trigger agent to check ready queue
-```
-
-**New Tracer Bullets**:
-
-- **TB-O8a: Dispatch Service** - Implement dispatch operation in orchestrator-sdk
-- **TB-O19a: Director Dispatch Command** - Director uses dispatch for task assignment
-
-**Files to create**:
-
-- `packages/orchestrator-sdk/src/services/dispatch-service.ts`
-
----
-
-## 4. Predecessor Query (Consult Previous Agent)
-
-**Gas Town**: Current agent communicates with previous session holder of same role ("Séance")
-
-**Implementation for Stage 2**:
-
-The new agent can send a message to the previous agent's session and receive a response. This is NOT about accessing history (handoff notes are already in inbox), but about **asking the predecessor questions**.
-
-```
-consultPredecessor(currentAgent, role, message):
-1. Query: Find most recent session for this role
-2. Get previous session's Claude Code session ID
-3. Resume previous session with: `--resume <previous-session-id>`
-4. Send message to resumed session
-5. Capture response
-6. Return response to current agent
-7. Suspend predecessor session again
-```
-
-**Use Cases**:
-
-- "What was the root cause of the bug you were investigating?"
-- "Where did you leave off with the refactoring?"
-- "What approach did you try that didn't work?"
-
-**New Tracer Bullets**:
-
-- **TB-O10c: Session History Tracking** - Store session history per role (not just per agent)
-- **TB-O10d: Predecessor Query Service** - Add `consultPredecessor(role, message)` method
-
-**Data Model Addition**:
-
-```typescript
-interface SessionHistory {
-  role: AgentRole;
-  agentId: EntityId;
-  claudeSessionId: string;
-  worktree?: string;
-  startedAt: Timestamp;
-  endedAt: Timestamp | null;
-  status: "active" | "suspended" | "terminated";
-}
-```
-
----
-
-## 5. Handoff Command
-
-**Gas Town**: `/handoff` for clean session transition
-
-**Implementation for Stage 2**:
-
-**Trigger**: Manual only - agent decides when to hand off (via command or natural language like "let's hand off").
-
-Two types of handoff:
-
-1. **Self-Handoff**: Agent hands off to fresh instance of itself
-2. **Agent-Agent Handoff**: Agent hands off to another agent (same or different role)
-
-```
-handoff(fromAgent, toAgent?, note?):
-1. Create handoff message with context summary
-2. If toAgent: Send to toAgent's channel
-3. Else: Send to own channel (for next session to find)
-4. Mark current session as "suspended" (available for predecessor query)
-5. Terminate current session gracefully
-6. If toAgent: Trigger toAgent to process handoff
-```
-
-**Handoff Message Schema**:
-
-```typescript
-interface HandoffMessage {
-  type: "handoff";
-  fromAgent: EntityId;
-  toAgent?: EntityId; // null = self-handoff
-  taskIds: TaskId[]; // tasks being handed off
-  contextSummary: string; // what was being worked on
-  nextSteps?: string; // suggested next actions
-}
-```
-
-**New Tracer Bullets**:
-
-- **TB-O10e: Self-Handoff** - Agent can trigger own restart with context preservation
-- **TB-O10f: Agent-Agent Handoff** - Transfer work to different agent
-- **TB-O14b: Handoff Message Type** - Define handoff message schema
-
----
-
-## 6. Ephemeral Work Items
-
-**Gas Town**: Wisps - non-persisted temporary work items
-
-**Implementation for Stage 2**:
-
-Add `ephemeral` field to Task (following existing Workflow pattern):
-
-```typescript
-// In src/types/task.ts
-interface Task extends Element {
-  // ... existing fields
-  ephemeral: boolean; // default: false
-}
-
-// In CreateTaskInput
-interface CreateTaskInput {
-  // ... existing fields
-  ephemeral?: boolean;
-}
-```
-
-**Behavior**:
-
-- Ephemeral tasks stored in SQLite only
-- Excluded from JSONL export by default
-- Can be promoted to durable via `promoteTask()`
-- Garbage collected after configurable retention period
-
-**Garbage Collection**:
-
-- **Default retention**: 24 hours after completion
-- **Configurable** at workspace level via config
-- Ops Steward runs GC on schedule
-
-```typescript
-// In workspace config
-interface WorkspaceConfig {
-  ephemeralRetention: number; // hours, default 24
-}
-```
-
-**Use Cases**:
-
-- Steward patrol tasks (health checks)
-- Automated maintenance operations
-- Temporary workflow steps
-
-**New Tracer Bullets**:
-
-- **- [ ] TB-Core-1: Ephemeral Task Support** - Add ephemeral field to Task type
-- **- [ ] TB-Core-2: Task Promote Operation** - Promote ephemeral → durable
-- **- [ ] TB-Core-3: Ephemeral GC Service** - Garbage collect old ephemeral tasks
-
-**Files to modify**:
-
-- `src/types/task.ts` - Add ephemeral field
-- `src/sync/service.ts` - Already handles ephemeral filtering
-- `src/config/config.ts` - Add ephemeralRetention setting
-
----
-
-## 7. Steward Meta-Monitoring
-
-**Gas Town**: Boot the Dog watches the Maintenance Manager
-
-**Implementation for Stage 2**:
-
-Stewards can watch other Stewards (no special handling needed):
-
-```yaml
-steward:
-  name: "Steward Watcher"
-  focus: health
-  triggers:
-    - event: steward_unhealthy
-      condition: "steward.lastHeartbeat < now() - 5min"
-  actions:
-    - restart_steward
-    - notify_director
-```
-
-**No new tracer bullets needed** - existing TB-O23 (Steward Scheduler) and TB-O24 (Health Steward) cover this.
-
----
-
-## 8. Plans as Work Batches (Convoys)
-
-**Gas Town**: Convoys track collections of related work items
-
-**Implementation for Stage 2**:
-
-Use existing Elemental Plans:
-
-- Plan contains tasks (children)
-- Plan has progress tracking (via child task completion)
-- Plan has metadata for batch labeling
-
-**Already Covered** by existing tracer bullets:
-
-- TB-O32 to TB-O35 cover Playbook/Workflow/Plan UI
-
----
-
-## Updated Tracer Bullet Summary
-
-### New Tracer Bullets to Add:
-
-| ID          | Phase  | Description                                      |
-| ----------- | ------ | ------------------------------------------------ |
-| TB-Core-1   | 0      | Ephemeral Task Support (core library)            |
-| TB-Core-2   | 0      | Task Promote Operation (core library)            |
-| TB-Core-3   | 0      | Ephemeral GC Service (core library)              |
-| **TB-O6a**  | **2**  | **Agent Capability System (moved from TB-O45)**  |
-| TB-O7a      | 2      | Agent Channel Setup                              |
-| **TB-O7b**  | **2**  | **Agent Role Definition Storage**                |
-| TB-O8a      | 2      | Dispatch Service                                 |
-| TB-O9a      | 3      | UWP Agent Startup Check                          |
-| **TB-O9b**  | **3**  | **Worktree Root-Finding via ELEMENTAL_ROOT**     |
-| TB-O10a     | 3      | Session Recovery with UWP                        |
-| TB-O10b     | 3      | Inbox Polling Service                            |
-| TB-O10c     | 3      | Session History Tracking                         |
-| TB-O10d     | 3      | Predecessor Query Service                        |
-| TB-O10e     | 3      | Self-Handoff                                     |
-| TB-O10f     | 3      | Agent-Agent Handoff                              |
-| **TB-O11a** | **3**  | **Worktree & Session Lifecycle State Machines**  |
-| TB-O14a     | 4      | Message Event Types                              |
-| TB-O14b     | 4      | Handoff Message Type                             |
-| **TB-O17a** | **4**  | **Terminal Multiplexer (Workspaces Page)**       |
-| TB-O19a     | 5      | Director Dispatch Command                        |
-| **TB-O23a** | **6**  | **Plugin System for Stewards**                   |
-| **TB-O25a** | **6**  | **Notification System (toasts + header center)** |
-| **TB-O25b** | **6**  | **Command Palette (Cmd+K)**                      |
-| **TB-O25c** | **6**  | **Settings Page**                                |
-
-### UI-Specific Tracer Bullets (in specs/STAGE_2_WEB_UI.md):
-
-| ID                   | Description                                                            |
-| -------------------- | ---------------------------------------------------------------------- |
-| TB-UI-01 to TB-UI-03 | Three-column layout shell, sidebar navigation, Director terminal panel |
-| TB-UI-04 to TB-UI-05 | Activity page with live agent output                                   |
-| TB-UI-06 to TB-UI-07 | Agents page with create dialogs                                        |
-| TB-UI-08 to TB-UI-09 | Tasks page with kanban/list toggle                                     |
-| TB-UI-10 to TB-UI-13 | Workspaces terminal multiplexer                                        |
-| TB-UI-14 to TB-UI-16 | Workflows page with pour flow                                          |
-| TB-UI-17             | Metrics page                                                           |
-| TB-UI-18 to TB-UI-20 | Command palette, notifications, settings                               |
-| TB-UI-21 to TB-UI-22 | Responsive design (tablet/mobile)                                      |
-
-### Phase 0: Core Library Additions (New Phase)
-
-Should run before Phase 2, as orchestrator-sdk depends on these:
-
-**- [x] TB-Core-1: Ephemeral Task Support**
-
-- [x] Add `ephemeral: boolean` field to Task type
-- [x] Update `createTask()` to accept ephemeral option
-- [x] Update validation functions
-
-**- [x] TB-Core-2: Task Promote Operation**
-
-- [x] Add `promoteTask()` function to convert ephemeral → durable
-- [x] Added ephemeral utility functions (isEphemeralTask, isDurableTask, filterEphemeralTasks, filterDurableTasks)
-- [x] Added GC eligibility functions (isTaskEligibleForGarbageCollection, filterTaskGarbageCollectionByAge)
-
-**- [ ] TB-Core-3: Ephemeral GC Service**
-
-- [ ] Add garbage collection for completed ephemeral tasks
-- [ ] Configurable retention period (default 24h)
-- [ ] Integrate with Ops Steward for scheduled runs
-
----
-
-## Worktree + Messaging Compatibility
-
-**Analysis**: No conflict between worktree isolation and shared messaging.
-
-- SQLite database is at workspace root (`.elemental/elements.db`)
-- All worktrees share the same database
-- Workers in different worktrees can message each other through shared SQLite
-- No git conflicts since messages are SQLite-only
-
----
-
-## Verification Strategy for New Features
-
-| Feature               | Verification                                                                 |
-| --------------------- | ---------------------------------------------------------------------------- |
-| UWP                   | Assign task to stopped agent, start agent, verify auto-pickup                |
-| Inter-agent messaging | Agent A sends to Agent B, B's inbox shows unread                             |
-| Dispatch              | Director dispatches task, worker receives and starts                         |
-| Predecessor Query     | Kill agent, start new agent, query predecessor, verify response              |
-| Handoff               | Agent triggers handoff manually, new session finds handoff note              |
-| Ephemeral tasks       | Create ephemeral task, verify not in JSONL export, verify GC after retention |
-
----
-
-## Risk Assessment
-
-| Addition          | Complexity | Risk   | Mitigation                                      |
-| ----------------- | ---------- | ------ | ----------------------------------------------- |
-| UWP               | Low        | Low    | Simple queue check on startup                   |
-| Messaging         | Low        | Low    | Uses existing system                            |
-| Dispatch          | Medium     | Low    | Thin wrapper over existing                      |
-| Predecessor Query | Medium     | Medium | Depends on Claude Code resume behavior          |
-| Handoff           | Medium     | Low    | Manual trigger only, clean shutdown + messaging |
-| Ephemeral         | Low        | Low    | Follows existing Workflow pattern               |
-
----
-
-## Design Decisions (Resolved)
+## Design Decisions
 
 1. **Predecessor Query scope**: New agent sends message to predecessor session, receives response. Handoff notes are separate (already in inbox).
 
@@ -1867,25 +1483,27 @@ Should run before Phase 2, as orchestrator-sdk depends on these:
 
 3. **Ephemeral task GC**: User configurable with 24-hour default retention.
 
+4. **Worktree + messaging compatibility**: No conflict - SQLite database at workspace root is shared by all worktrees.
+
 ---
 
-## Updated Phase Summary
+## Phase Summary
 
-| Phase | Tracer Bullets                            | Focus                                                                                         |
-| ----- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| 0     | TB-Core-1 to TB-Core-3                    | Core library additions (ephemeral)                                                            |
-| 1     | TB-O1 to TB-O5                            | Monorepo foundation, package extraction                                                       |
-| 2     | TB-O6 to TB-O8a + **TB-O6a, TB-O7b**      | Orchestrator SDK types, services, dispatch, **capabilities, role definitions**                |
-| 3     | TB-O9 to TB-O12 + **TB-O9b, TB-O11a**     | Agent process management, worktrees, UWP, handoff, **ELEMENTAL_ROOT, lifecycle states**       |
-| 4     | TB-O13 to TB-O17a                         | Real-time communication, Director terminal, Workspaces (terminal multiplexer)                 |
-| 5     | TB-O18 to TB-O21                          | Task management, agent workflow, merge                                                        |
-| 6     | TB-O22 to TB-O26 + **TB-O23a, TB-O25a-c** | Steward config, health, activity, **plugin system, notifications, command palette, settings** |
-| 7     | TB-O27 to TB-O31                          | UI package extraction (parallel)                                                              |
-| 8     | TB-O32 to TB-O35                          | Workflows UI (renamed from Playbooks), workflow creation                                      |
-| 9     | TB-O39 to TB-O41                          | Recovery and reconciliation                                                                   |
-| 10    | TB-O42 to TB-O44                          | Metrics and reporting                                                                         |
-| 11    | TB-O45 to TB-O47                          | Advanced features (TB-O45 core moved to TB-O6a)                                               |
+| Phase | Tracer Bullets         | Focus                                                     |
+| ----- | ---------------------- | --------------------------------------------------------- |
+| 0     | TB-Core-1 to TB-Core-3 | Core library additions (ephemeral tasks)                  |
+| 1     | TB-O1 to TB-O5         | Monorepo foundation, package extraction                   |
+| 2     | TB-O6 to TB-O8a        | Orchestrator SDK types, services, capabilities, dispatch  |
+| 3     | TB-O9 to TB-O12        | Agent process management, worktrees, UWP, handoff         |
+| 4     | TB-O13 to TB-O17a      | Real-time communication, terminals, Workspaces            |
+| 5     | TB-O18 to TB-O21       | Task management, agent workflow, merge                    |
+| 6     | TB-O22 to TB-O26       | Steward config, plugins, health, activity, notifications  |
+| 7     | TB-O27 to TB-O31       | UI package extraction (parallel)                          |
+| 8     | TB-O32 to TB-O35       | Workflows UI, workflow creation                           |
+| 9     | TB-O39 to TB-O41       | Recovery and reconciliation                               |
+| 10    | TB-O42 to TB-O44       | Metrics and reporting                                     |
+| 11    | TB-O45 to TB-O47       | Advanced features                                         |
 
-**Total: 69 tracer bullets across 12 phases** (47 original + 17 additions + 5 new UI features)
+**Total: 69 tracer bullets across 12 phases**
 
-> **UI Implementation Details**: See **specs/STAGE_2_WEB_UI.md** for detailed UI/UX specifications including 22 UI-specific tracer bullets (TB-UI-01 through TB-UI-22) that complement the backend tracer bullets above.
+> **UI Implementation Details**: See **specs/STAGE_2_WEB_UI.md** for detailed UI/UX specifications including 22 UI-specific tracer bullets (TB-UI-01 through TB-UI-22).

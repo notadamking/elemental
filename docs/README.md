@@ -84,6 +84,7 @@
 | CLI formatter | `src/cli/formatter.ts` | `src/cli/formatter.test.ts` |
 | CLI types | `src/cli/types.ts` | `src/cli/types.test.ts` |
 | CLI commands | `src/cli/commands/*.ts` | `src/cli/commands/*.test.ts` |
+| GC commands | `src/cli/commands/gc.ts` | - |
 | ID generator | `src/id/generator.ts` | `src/id/generator.test.ts` |
 | Sync service | `src/sync/service.ts` | `src/sync/service.test.ts` |
 | Sync types | `src/sync/types.ts` | - |

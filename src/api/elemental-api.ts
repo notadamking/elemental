@@ -14,7 +14,7 @@ import type { Dependency, DependencyType } from '../types/dependency.js';
 import type { Event, EventFilter, EventType } from '../types/event.js';
 import { reconstructStateAtTime, generateTimelineSnapshots } from '../types/event.js';
 import { createTimestamp } from '../types/element.js';
-import { isTask, TaskStatus as TaskStatusEnum } from '../types/task.js';
+import { isTask, TaskStatus as TaskStatusEnum, filterTaskGarbageCollectionByAge, isTaskEligibleForGarbageCollection } from '../types/task.js';
 import { isPlan, PlanStatus as PlanStatusEnum, calculatePlanProgress, type PlanProgress } from '../types/plan.js';
 import { createEvent, LifecycleEventType, MembershipEventType } from '../types/event.js';
 import { NotFoundError, ConflictError, ConstraintError, ValidationError } from '../errors/error.js';
@@ -77,6 +77,8 @@ import type {
   BurnWorkflowResult,
   GarbageCollectionOptions,
   GarbageCollectionResult,
+  TaskGarbageCollectionOptions,
+  TaskGarbageCollectionResult,
   TeamMembershipResult,
   TeamMetrics,
   OperationOptions,
@@ -3659,6 +3661,84 @@ export class ElementalAPIImpl implements ElementalAPI {
       result.tasksDeleted += burnResult.tasksDeleted;
       result.dependenciesDeleted += burnResult.dependenciesDeleted;
       result.deletedWorkflowIds.push(workflow.id);
+    }
+
+    return result;
+  }
+
+  async garbageCollectTasks(options: TaskGarbageCollectionOptions): Promise<TaskGarbageCollectionResult> {
+    const result: TaskGarbageCollectionResult = {
+      tasksDeleted: 0,
+      dependenciesDeleted: 0,
+      deletedTaskIds: [],
+    };
+
+    // Find all tasks (including tombstoned ones for GC)
+    const allTasks = await this.list<Task>({ type: 'task', includeDeleted: true });
+
+    // Filter to ephemeral tasks in terminal state that are old enough
+    const eligibleTasks = filterTaskGarbageCollectionByAge(allTasks, options.maxAgeMs);
+
+    // Exclude tasks that belong to workflows (they should be GC'd via garbageCollectWorkflows)
+    const allDependencies = await this.getAllDependencies();
+    const tasksInWorkflows = new Set<ElementId>();
+    for (const dep of allDependencies) {
+      if (dep.type === 'parent-child') {
+        // Tasks with a parent-child relationship where target is a workflow
+        // The sourceId is the task, targetId is the workflow
+        tasksInWorkflows.add(dep.sourceId);
+      }
+    }
+
+    const standaloneTasks = eligibleTasks.filter(task => !tasksInWorkflows.has(task.id));
+
+    // Apply limit if specified
+    const toDelete = options.limit ? standaloneTasks.slice(0, options.limit) : standaloneTasks;
+
+    // If dry run, just return what would be deleted
+    if (options.dryRun) {
+      for (const task of toDelete) {
+        result.deletedTaskIds.push(task.id);
+        result.tasksDeleted++;
+
+        // Count dependencies that would be deleted
+        for (const dep of allDependencies) {
+          if (dep.sourceId === task.id || dep.targetId === task.id) {
+            result.dependenciesDeleted++;
+          }
+        }
+      }
+      return result;
+    }
+
+    // Actually delete
+    for (const task of toDelete) {
+      // Find and count dependencies to delete
+      const taskDeps = allDependencies.filter(
+        dep => dep.sourceId === task.id || dep.targetId === task.id
+      );
+
+      // Delete dependencies first
+      for (const dep of taskDeps) {
+        try {
+          await this.removeDependency(dep.sourceId, dep.targetId, dep.type);
+        } catch {
+          // Ignore errors for dependencies that don't exist
+        }
+      }
+
+      // Hard delete the task via SQL
+      try {
+        this.backend.run('DELETE FROM elements WHERE id = ?', [task.id]);
+        this.backend.run('DELETE FROM tags WHERE element_id = ?', [task.id]);
+        this.backend.run('DELETE FROM events WHERE element_id = ?', [task.id]);
+
+        result.tasksDeleted++;
+        result.dependenciesDeleted += taskDeps.length;
+        result.deletedTaskIds.push(task.id);
+      } catch {
+        // Ignore errors for tasks that don't exist
+      }
     }
 
     return result;
