@@ -20,6 +20,7 @@
 | Use the Orchestrator API | [api/orchestrator-api.md](api/orchestrator-api.md) | `packages/orchestrator-sdk/src/api/orchestrator-api.ts` |
 | Work with agent capabilities | [api/orchestrator-api.md#agent-capabilities](api/orchestrator-api.md#agent-capabilities) | `packages/orchestrator-sdk/src/services/capability-service.ts` |
 | Work with agent channels | [api/orchestrator-api.md#agent-channels](api/orchestrator-api.md#agent-channels) | `packages/orchestrator-sdk/src/services/agent-registry.ts` |
+| Define agent role definitions | [orchestrator/role-definitions.md](orchestrator/role-definitions.md) | `packages/orchestrator-sdk/src/services/role-definition-service.ts` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
@@ -140,9 +141,11 @@ The project is a TurboRepo monorepo with the following structure:
 | Type exports | `types/index.ts` | - |
 | Agent types | `types/agent.ts` | `types/agent.test.ts` |
 | Task metadata | `types/task-meta.ts` | `types/task-meta.test.ts` |
+| Role definition types | `types/role-definition.ts` | `types/role-definition.test.ts` |
 | OrchestratorAPI | `api/orchestrator-api.ts` | `api/orchestrator-api.integration.test.ts` |
 | Agent registry | `services/agent-registry.ts` | `services/agent-registry.test.ts` |
 | Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
+| Role definition service | `services/role-definition-service.ts` | `services/role-definition-service.test.ts` |
 
 ## File Map (Platform)
 

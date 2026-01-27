@@ -243,6 +243,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       agentRole: 'director',
       sessionStatus: 'idle',
       capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      roleDefinitionRef: input.roleDefinitionRef,
     };
 
     // Create the entity with agent metadata nested under the agent key
@@ -270,6 +271,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       workerMode: input.workerMode,
       sessionStatus: 'idle',
       capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      roleDefinitionRef: input.roleDefinitionRef,
     };
 
     // Create the entity with agent metadata nested under the agent key
@@ -298,6 +300,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       triggers: input.triggers,
       sessionStatus: 'idle',
       capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      roleDefinitionRef: input.roleDefinitionRef,
     };
 
     // Create the entity with agent metadata nested under the agent key

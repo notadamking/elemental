@@ -4,6 +4,7 @@
  * This module exports orchestration services:
  * - CapabilityService (TB-O6a) - Capability-based agent matching and task routing
  * - AgentRegistry (TB-O7, TB-O7a) - Agent registration, management, and channel setup
+ * - RoleDefinitionService (TB-O7b) - Agent role definition storage and management
  * - TaskAssignmentService (TB-O8) - TODO
  * - DispatchService (TB-O8a) - TODO
  * - StewardScheduler (TB-O23) - TODO
@@ -24,6 +25,16 @@ export {
   generateAgentChannelName,
   parseAgentChannelName,
 } from './agent-registry.js';
+
+// Role definition service (TB-O7b)
+export {
+  // Types
+  type RoleDefinitionService,
+  // Implementation
+  RoleDefinitionServiceImpl,
+  // Factory
+  createRoleDefinitionService,
+} from './role-definition-service.js';
 
 // Capability service (TB-O6a)
 export {

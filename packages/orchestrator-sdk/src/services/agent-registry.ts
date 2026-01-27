@@ -256,6 +256,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       agentRole: 'director',
       sessionStatus: 'idle',
       capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      roleDefinitionRef: input.roleDefinitionRef,
     };
 
     const entity = await createEntity({
@@ -291,6 +292,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       workerMode: input.workerMode,
       sessionStatus: 'idle',
       capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      roleDefinitionRef: input.roleDefinitionRef,
     };
 
     const entity = await createEntity({
@@ -328,6 +330,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       triggers: input.triggers,
       sessionStatus: 'idle',
       capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      roleDefinitionRef: input.roleDefinitionRef,
     };
 
     const entity = await createEntity({

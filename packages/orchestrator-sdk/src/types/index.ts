@@ -73,3 +73,30 @@ export {
   generateWorktreePath,
   createSlugFromTitle,
 } from './task-meta.js';
+
+// Role definition types
+export {
+  // Behavior types
+  type AgentBehaviors,
+  isAgentBehaviors,
+  // Role definition types
+  type BaseRoleDefinition,
+  type DirectorRoleDefinition,
+  type WorkerRoleDefinition,
+  type StewardRoleDefinition,
+  type AgentRoleDefinition,
+  type StoredRoleDefinition,
+  // Type guards
+  isDirectorRoleDefinition,
+  isWorkerRoleDefinition,
+  isStewardRoleDefinition,
+  isAgentRoleDefinition,
+  // Input types
+  type CreateRoleDefinitionInput,
+  type UpdateRoleDefinitionInput,
+  // Query types
+  type RoleDefinitionFilter,
+  // Constants and utilities
+  ROLE_DEFINITION_TAGS,
+  generateRoleDefinitionTags,
+} from './role-definition.js';

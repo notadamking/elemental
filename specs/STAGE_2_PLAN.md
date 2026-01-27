@@ -527,13 +527,13 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O7b: Agent Role Definition Storage
+#### - [x] TB-O7b: Agent Role Definition Storage
 
 **Goal**: Store agent system prompts and role behaviors as Documents
 
 **Changes**:
 
-- [ ] Define role definition structure:
+- [x] Define role definition structure:
   ```typescript
   interface AgentRoleDefinition {
     role: AgentRole;
@@ -543,14 +543,25 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
       onStartup?: string;
       onTaskAssigned?: string;
       onStuck?: string;
+      onHandoff?: string;
+      onError?: string;
     };
   }
   ```
-- [ ] Store prompts as Documents with tags: `['agent-prompt', 'role:{role}']`
-- [ ] Reference from Entity metadata: `entity.metadata.roleDefinitionRef`
-- [ ] Add methods: `createRoleDefinition()`, `getRoleDefinition()`, `getSystemPrompt()`
+- [x] Store prompts as Documents with tags: `['agent-prompt', 'role:{role}']`
+- [x] Reference from Entity metadata: `entity.metadata.agent.roleDefinitionRef`
+- [x] Add methods: `createRoleDefinition()`, `getRoleDefinition()`, `getSystemPrompt()`, `listRoleDefinitions()`, `updateRoleDefinition()`, `deleteRoleDefinition()`, `getDefaultRoleDefinition()`, `getRoleDefinitionsByRole()`
 
 **Verification**: Create role definition document, register agent referencing it, agent spawns with correct prompt
+
+**Implementation Notes**:
+- Created `AgentRoleDefinition` types with support for Director, Worker, and Steward variants
+- Created `AgentBehaviors` interface for behavioral hooks (onStartup, onTaskAssigned, onStuck, onHandoff, onError)
+- Role definitions stored as JSON documents with `role-definition` tag
+- System prompts stored as separate markdown documents referenced by `systemPromptRef`
+- Added `RoleDefinitionService` with full CRUD operations and filtering
+- Added `roleDefinitionRef` field to BaseAgentMetadata and all registration inputs
+- 69 new tests covering type guards and service operations
 
 ---
 

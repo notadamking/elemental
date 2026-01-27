@@ -11,7 +11,7 @@
  * `metadata` field to track orchestrator-specific properties.
  */
 
-import type { EntityId, ChannelId, Timestamp } from '@elemental/core';
+import type { EntityId, ChannelId, Timestamp, ElementId } from '@elemental/core';
 
 // ============================================================================
 // Agent Capability Types
@@ -344,6 +344,12 @@ export interface BaseAgentMetadata {
   readonly lastActivityAt?: Timestamp;
   /** Agent capabilities for task routing */
   readonly capabilities?: AgentCapabilities;
+  /**
+   * Reference to the role definition Document that defines this agent's
+   * system prompt and behavioral configuration. If not set, the agent
+   * uses default behavior.
+   */
+  readonly roleDefinitionRef?: ElementId;
 }
 
 /**
@@ -421,6 +427,8 @@ export interface RegisterDirectorInput {
   readonly createdBy: EntityId;
   /** Optional capabilities (directors typically don't need task-routing capabilities) */
   readonly capabilities?: Partial<AgentCapabilities>;
+  /** Optional reference to a role definition for system prompt and behaviors */
+  readonly roleDefinitionRef?: ElementId;
 }
 
 /**
@@ -439,6 +447,8 @@ export interface RegisterWorkerInput {
   readonly reportsTo?: EntityId;
   /** Agent capabilities for task routing */
   readonly capabilities?: Partial<AgentCapabilities>;
+  /** Optional reference to a role definition for system prompt and behaviors */
+  readonly roleDefinitionRef?: ElementId;
 }
 
 /**
@@ -459,6 +469,8 @@ export interface RegisterStewardInput {
   readonly reportsTo?: EntityId;
   /** Optional capabilities (stewards may have specialized capabilities) */
   readonly capabilities?: Partial<AgentCapabilities>;
+  /** Optional reference to a role definition for system prompt and behaviors */
+  readonly roleDefinitionRef?: ElementId;
 }
 
 // ============================================================================
