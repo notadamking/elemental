@@ -2327,6 +2327,7 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Filter out scheduled-for-future tasks and ephemeral tasks
     const now = new Date();
+    const includeEphemeral = filter?.includeEphemeral === true;
     const readyTasks = tasks.filter((task) => {
       // Not blocked
       if (blockedIds.has(task.id)) {
@@ -2337,8 +2338,11 @@ export class ElementalAPIImpl implements ElementalAPI {
         return false;
       }
       // Not ephemeral (unless includeEphemeral is true)
-      if (ephemeralTaskIds.has(task.id)) {
-        return false;
+      // Check both direct ephemeral flag and workflow-child ephemeral status
+      if (!includeEphemeral) {
+        if (task.ephemeral || ephemeralTaskIds.has(task.id)) {
+          return false;
+        }
       }
       return true;
     });

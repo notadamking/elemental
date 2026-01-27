@@ -1802,16 +1802,17 @@ Use existing Elemental Plans:
 
 Should run before Phase 2, as orchestrator-sdk depends on these:
 
-**- [ ] TB-Core-1: Ephemeral Task Support**
+**- [x] TB-Core-1: Ephemeral Task Support**
 
-- [ ] Add `ephemeral: boolean` field to Task type
-- [ ] Update `createTask()` to accept ephemeral option
-- [ ] Update validation functions
+- [x] Add `ephemeral: boolean` field to Task type
+- [x] Update `createTask()` to accept ephemeral option
+- [x] Update validation functions
 
-**- [ ] TB-Core-2: Task Promote Operation**
+**- [x] TB-Core-2: Task Promote Operation**
 
-- [ ] Add `promoteTask()` function to convert ephemeral → durable
-- [ ] Mirror existing `squashWorkflow()` pattern (rename to `promoteWorkflow()` for consistency)
+- [x] Add `promoteTask()` function to convert ephemeral → durable
+- [x] Added ephemeral utility functions (isEphemeralTask, isDurableTask, filterEphemeralTasks, filterDurableTasks)
+- [x] Added GC eligibility functions (isTaskEligibleForGarbageCollection, filterTaskGarbageCollectionByAge)
 
 **- [ ] TB-Core-3: Ephemeral GC Service**
 

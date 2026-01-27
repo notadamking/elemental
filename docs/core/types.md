@@ -10,11 +10,22 @@ Key interfaces:
 - `TaskType` - `'feature' | 'bug' | 'chore' | 'task'`
 - `TaskPriority` - 1 (critical) to 5 (minimal)
 
+Key properties:
+- `ephemeral: boolean` - If true, task is not synced to JSONL export. Defaults to false.
+
 Key functions:
-- `createTask(input)` - Factory function
+- `createTask(input)` - Factory function (accepts optional `ephemeral` flag)
 - `updateTaskStatus(task, newStatus)` - Status transitions
+- `promoteTask(task)` - Promote ephemeral task to durable
 - `isTask(element)` - Type guard
 - `validateTask(task)` - Validation
+
+**Ephemeral tasks:**
+- Created with `ephemeral: true` option
+- Not included in JSONL export by default
+- Not returned by `ready()` unless `includeEphemeral: true` is passed
+- Use `promoteTask()` to convert to durable (begin syncing)
+- Eligible for garbage collection when closed/tombstoned
 
 **Status transitions:**
 - `open` → `in_progress`, `blocked`, `deferred`, `closed`
