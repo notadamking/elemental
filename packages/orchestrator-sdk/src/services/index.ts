@@ -155,3 +155,37 @@ export {
   createStewardScheduler,
   createDefaultStewardExecutor,
 } from './steward-scheduler.js';
+
+// Plugin executor service (TB-O23a)
+export {
+  // Types
+  type PluginType,
+  type StewardPlugin,
+  type PlaybookPlugin,
+  type ScriptPlugin,
+  type CommandPlugin,
+  type PluginExecutionResult,
+  type BatchPluginExecutionResult,
+  type PluginExecutionOptions,
+  type PluginExecutor,
+  // Constants
+  PluginTypeValues,
+  // Type guards
+  isPluginType,
+  isPlaybookPlugin,
+  isScriptPlugin,
+  isCommandPlugin,
+  isValidPlugin,
+  // Built-in plugins
+  BuiltInPlugins,
+  GcEphemeralTasksPlugin,
+  CleanupStaleWorktreesPlugin,
+  GcEphemeralWorkflowsPlugin,
+  HealthCheckAgentsPlugin,
+  getBuiltInPlugin,
+  listBuiltInPlugins,
+  // Implementation
+  PluginExecutorImpl,
+  // Factory
+  createPluginExecutor,
+} from './plugin-executor.js';

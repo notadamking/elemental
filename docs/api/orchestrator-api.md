@@ -2684,6 +2684,211 @@ type StewardExecutor = (
 - **Execution History**: Capped at `maxHistoryEntries` (default 100) to prevent memory growth
 - **Thread Safety**: The scheduler uses internal locking to prevent concurrent execution of the same steward
 
+## PluginExecutor (TB-O23a)
+
+The PluginExecutor service executes plugins for stewards and automated maintenance tasks. Plugins enable custom scripts, commands, and playbooks to be executed as part of steward automation.
+
+### Plugin Types
+
+Three plugin types are supported:
+
+```typescript
+// Command plugin - executes shell commands
+interface CommandPlugin {
+  type: 'command';
+  name: string;
+  description?: string;
+  command: string;           // Shell command to execute
+  cwd?: string;              // Working directory
+  env?: Record<string, string>; // Environment variables
+  timeout?: number;          // Timeout in milliseconds
+  continueOnError?: boolean; // Continue batch on failure (default: true)
+  tags?: string[];
+}
+
+// Script plugin - executes script files
+interface ScriptPlugin {
+  type: 'script';
+  name: string;
+  description?: string;
+  path: string;              // Script path (relative or absolute)
+  args?: string[];           // Command-line arguments
+  cwd?: string;
+  env?: Record<string, string>;
+  timeout?: number;
+  continueOnError?: boolean;
+  tags?: string[];
+}
+
+// Playbook plugin - executes Elemental playbooks
+interface PlaybookPlugin {
+  type: 'playbook';
+  name: string;
+  description?: string;
+  playbookId: PlaybookId;    // Playbook to execute
+  variables?: Record<string, string>; // Variables to pass
+  timeout?: number;
+  continueOnError?: boolean;
+  tags?: string[];
+}
+```
+
+### Creating a PluginExecutor
+
+```typescript
+import {
+  createPluginExecutor,
+  type PluginExecutor,
+  type StewardPlugin,
+} from '@elemental/orchestrator-sdk';
+
+const executor = createPluginExecutor({
+  api: elementalApi,          // Optional: required for playbook plugins
+  workspaceRoot: '/path/to/project', // Default working directory
+});
+```
+
+### Executing Plugins
+
+```typescript
+// Execute a single plugin
+const result = await executor.execute({
+  type: 'command',
+  name: 'cleanup',
+  command: 'rm -rf /tmp/cache',
+});
+
+console.log(`Success: ${result.success}`);
+console.log(`Duration: ${result.durationMs}ms`);
+console.log(`Output: ${result.stdout}`);
+
+// Execute multiple plugins in sequence
+const batchResult = await executor.executeBatch([
+  { type: 'command', name: 'build', command: 'npm run build' },
+  { type: 'command', name: 'test', command: 'npm test' },
+  { type: 'command', name: 'deploy', command: 'npm run deploy' },
+], {
+  stopOnError: true, // Stop on first failure
+});
+
+console.log(`Succeeded: ${batchResult.succeeded}/${batchResult.total}`);
+console.log(`All succeeded: ${batchResult.allSucceeded}`);
+```
+
+### Built-in Plugins
+
+Four built-in plugins are available for common maintenance tasks:
+
+```typescript
+import {
+  GcEphemeralTasksPlugin,      // Garbage collect old ephemeral tasks
+  CleanupStaleWorktreesPlugin, // Clean up stale git worktrees
+  GcEphemeralWorkflowsPlugin,  // Garbage collect old ephemeral workflows
+  HealthCheckAgentsPlugin,     // Check agent health status
+  getBuiltInPlugin,
+  listBuiltInPlugins,
+} from '@elemental/orchestrator-sdk';
+
+// List all built-in plugins
+const names = listBuiltInPlugins();
+// ['gc-ephemeral-tasks', 'cleanup-stale-worktrees', 'gc-ephemeral-workflows', 'health-check-agents']
+
+// Get a built-in plugin by name
+const plugin = getBuiltInPlugin('gc-ephemeral-tasks');
+
+// Execute a built-in plugin
+const result = await executor.execute(GcEphemeralTasksPlugin);
+```
+
+### Plugin Validation
+
+```typescript
+// Validate a plugin configuration
+const validation = executor.validate({
+  type: 'command',
+  name: 'test',
+  command: 'echo hello',
+});
+
+if (validation.valid) {
+  console.log('Plugin is valid');
+} else {
+  console.log('Errors:', validation.errors);
+}
+```
+
+### Execution Results
+
+```typescript
+interface PluginExecutionResult {
+  pluginName: string;
+  pluginType: 'playbook' | 'script' | 'command';
+  success: boolean;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number;        // For script/command plugins
+  durationMs: number;
+  itemsProcessed?: number;  // For plugins that track items
+  startedAt: Timestamp;
+  completedAt: Timestamp;
+}
+
+interface BatchPluginExecutionResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;          // Skipped due to stopOnError
+  results: PluginExecutionResult[];
+  durationMs: number;
+  allSucceeded: boolean;
+}
+```
+
+### REST API Endpoints
+
+The orchestrator-server exposes these plugin endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/plugins/builtin` | List all built-in plugins |
+| GET | `/api/plugins/builtin/:name` | Get details of a built-in plugin |
+| POST | `/api/plugins/validate` | Validate a plugin configuration |
+| POST | `/api/plugins/execute` | Execute a single plugin |
+| POST | `/api/plugins/execute-batch` | Execute multiple plugins |
+| POST | `/api/plugins/execute-builtin/:name` | Execute a built-in plugin by name |
+
+### Example: Custom Steward with Plugins
+
+```typescript
+// Define a steward with plugins
+const steward = await api.registerSteward({
+  name: 'MaintenanceSteward',
+  stewardFocus: 'ops',
+  triggers: [
+    { type: 'cron', schedule: '0 2 * * *' }, // Daily at 2 AM
+  ],
+  createdBy: systemEntity,
+});
+
+// Configure plugins for this steward
+const maintenancePlugins: StewardPlugin[] = [
+  GcEphemeralTasksPlugin,
+  GcEphemeralWorkflowsPlugin,
+  CleanupStaleWorktreesPlugin,
+  {
+    type: 'script',
+    name: 'custom-cleanup',
+    path: './scripts/cleanup.sh',
+    timeout: 300000, // 5 minutes
+  },
+];
+
+// Execute all maintenance plugins when steward runs
+const result = await executor.executeBatch(maintenancePlugins);
+console.log(`Maintenance complete: ${result.succeeded}/${result.total} succeeded`);
+```
+
 ## See Also
 
 - [ElementalAPI](elemental-api.md) - Base API documentation

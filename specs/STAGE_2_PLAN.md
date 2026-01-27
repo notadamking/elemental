@@ -301,7 +301,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [x] Add garbage collection for completed ephemeral tasks (`garbageCollectTasks()` API method)
 - [x] Configurable retention period (default 24h via `maxAgeMs` parameter)
 - [x] Add `el gc tasks` and `el gc workflows` CLI commands
-- [ ] Integrate with Ops Steward for scheduled runs (deferred to Phase 6 TB-O23a)
+- [x] Integrate with Ops Steward for scheduled runs (deferred to Phase 6 TB-O23a - now complete)
 
 **Verification**: Integration tests in `src/api/task-gc.integration.test.ts`
 
@@ -1356,29 +1356,60 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O23a: Plugin System for Stewards
+#### - [x] TB-O23a: Plugin System for Stewards ✅
 
 **Goal**: Enable custom automated maintenance tasks via plugins
 
 **Changes**:
 
-- [ ] Add plugin types:
+- [x] Add plugin types:
   ```typescript
-  interface StewardPlugin {
+  type StewardPlugin = PlaybookPlugin | ScriptPlugin | CommandPlugin;
+
+  interface PlaybookPlugin {
+    type: 'playbook';
     name: string;
-    type: "playbook" | "script" | "command";
-    playbookId?: PlaybookId;
-    path?: string;
-    command?: string;
+    playbookId: PlaybookId;
+    variables?: Record<string, string>;
     timeout?: number;
     runOnStartup?: boolean;
     continueOnError?: boolean;
+    tags?: string[];
+  }
+
+  interface ScriptPlugin {
+    type: 'script';
+    name: string;
+    path: string;
+    args?: string[];
+    cwd?: string;
+    env?: Record<string, string>;
+    timeout?: number;
+    runOnStartup?: boolean;
+    continueOnError?: boolean;
+    tags?: string[];
+  }
+
+  interface CommandPlugin {
+    type: 'command';
+    name: string;
+    command: string;
+    cwd?: string;
+    env?: Record<string, string>;
+    timeout?: number;
+    runOnStartup?: boolean;
+    continueOnError?: boolean;
+    tags?: string[];
   }
   ```
-- [ ] Create `PluginExecutor` service
-- [ ] Built-in plugins: `gc-ephemeral-tasks`, `cleanup-stale-worktrees`, `health-check-agents`
+- [x] Create `PluginExecutor` service with execute, executeBatch, validate
+- [x] Built-in plugins: `gc-ephemeral-tasks`, `cleanup-stale-worktrees`, `gc-ephemeral-workflows`, `health-check-agents`
+- [x] REST API endpoints: `/api/plugins/builtin`, `/api/plugins/validate`, `/api/plugins/execute`, `/api/plugins/execute-batch`, `/api/plugins/execute-builtin/:name`
+- [x] Unit tests in `services/plugin-executor.test.ts`
+- [x] Integration tests in `apps/orchestrator-server/src/plugins.integration.test.ts`
+- [x] Documentation added to `docs/api/orchestrator-api.md`
 
-**Verification**: Create steward with plugins, verify each type executes correctly
+**Verification**: Unit tests verify all plugin types execute correctly with proper output capture, timeout handling, and error reporting. Integration tests verify REST API endpoints work correctly.
 
 ---
 

@@ -39,6 +39,7 @@ import {
   createWorkerTaskService,
   createStewardScheduler,
   createDefaultStewardExecutor,
+  createPluginExecutor,
   // Capability service functions (no CapabilityService class - it's just utility functions)
   getTaskCapabilityRequirements,
   setTaskCapabilityRequirements,
@@ -52,6 +53,9 @@ import {
   type RoleDefinitionService,
   type WorkerTaskService,
   type StewardScheduler,
+  type PluginExecutor,
+  type StewardPlugin,
+  type PluginExecutionResult,
   type SessionRecord,
   type SessionFilter,
   type WorktreeInfo,
@@ -96,6 +100,7 @@ let dispatchService: DispatchService;
 let roleDefinitionService: RoleDefinitionService;
 let workerTaskService: WorkerTaskService;
 let stewardScheduler: StewardScheduler;
+let pluginExecutor: PluginExecutor;
 let storageBackend: ReturnType<typeof createStorage>;
 
 try {
@@ -145,6 +150,12 @@ try {
     maxHistoryPerSteward: 100,
     defaultTimeoutMs: 5 * 60 * 1000, // 5 minutes
     startImmediately: false, // Don't auto-register stewards on startup
+  });
+
+  // Initialize plugin executor service (TB-O23a)
+  pluginExecutor = createPluginExecutor({
+    api,
+    workspaceRoot: PROJECT_ROOT,
   });
 
   console.log(`[orchestrator] Connected to database: ${DB_PATH}`);
@@ -1893,6 +1904,184 @@ app.get('/api/scheduler/stewards/:id/last-execution', (c) => {
 });
 
 // ============================================================================
+// Plugin Executor Endpoints (TB-O23a)
+// ============================================================================
+
+/**
+ * GET /api/plugins/builtin
+ * List all built-in plugins
+ */
+app.get('/api/plugins/builtin', (c) => {
+  const names = pluginExecutor.listBuiltIns();
+  const plugins = names.map((name) => {
+    const plugin = pluginExecutor.getBuiltIn(name);
+    return plugin ? {
+      name: plugin.name,
+      type: plugin.type,
+      description: plugin.description,
+      tags: plugin.tags,
+      timeout: plugin.timeout,
+      continueOnError: plugin.continueOnError,
+    } : null;
+  }).filter(Boolean);
+
+  return c.json({
+    plugins,
+    count: plugins.length,
+  });
+});
+
+/**
+ * GET /api/plugins/builtin/:name
+ * Get details of a built-in plugin
+ */
+app.get('/api/plugins/builtin/:name', (c) => {
+  const name = c.req.param('name');
+  const plugin = pluginExecutor.getBuiltIn(name);
+
+  if (!plugin) {
+    return c.json({
+      error: { code: 'NOT_FOUND', message: `Built-in plugin not found: ${name}` },
+    }, 404);
+  }
+
+  return c.json({ plugin });
+});
+
+/**
+ * POST /api/plugins/validate
+ * Validate a plugin configuration
+ *
+ * Body: StewardPlugin
+ */
+app.post('/api/plugins/validate', async (c) => {
+  try {
+    const plugin = await c.req.json() as StewardPlugin;
+    const result = pluginExecutor.validate(plugin);
+
+    return c.json({
+      valid: result.valid,
+      errors: result.errors,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to validate plugin:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/plugins/execute
+ * Execute a single plugin
+ *
+ * Body:
+ * - plugin: StewardPlugin (required)
+ * - options?: PluginExecutionOptions
+ */
+app.post('/api/plugins/execute', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      plugin: StewardPlugin;
+      options?: {
+        workspaceRoot?: string;
+        defaultTimeout?: number;
+        env?: Record<string, string>;
+        stopOnError?: boolean;
+      };
+    };
+
+    if (!body.plugin) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'plugin is required' } }, 400);
+    }
+
+    const result = await pluginExecutor.execute(body.plugin, body.options);
+
+    return c.json({
+      result: formatPluginExecutionResult(result),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to execute plugin:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/plugins/execute-batch
+ * Execute multiple plugins in sequence
+ *
+ * Body:
+ * - plugins: StewardPlugin[] (required)
+ * - options?: PluginExecutionOptions
+ */
+app.post('/api/plugins/execute-batch', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      plugins: StewardPlugin[];
+      options?: {
+        workspaceRoot?: string;
+        defaultTimeout?: number;
+        env?: Record<string, string>;
+        stopOnError?: boolean;
+      };
+    };
+
+    if (!body.plugins || !Array.isArray(body.plugins)) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'plugins array is required' } }, 400);
+    }
+
+    const result = await pluginExecutor.executeBatch(body.plugins, body.options);
+
+    return c.json({
+      total: result.total,
+      succeeded: result.succeeded,
+      failed: result.failed,
+      skipped: result.skipped,
+      allSucceeded: result.allSucceeded,
+      durationMs: result.durationMs,
+      results: result.results.map(formatPluginExecutionResult),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to execute plugins batch:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/plugins/execute-builtin/:name
+ * Execute a built-in plugin by name
+ *
+ * Body:
+ * - options?: PluginExecutionOptions
+ */
+app.post('/api/plugins/execute-builtin/:name', async (c) => {
+  try {
+    const name = c.req.param('name');
+    const body = await c.req.json().catch(() => ({})) as {
+      options?: {
+        workspaceRoot?: string;
+        defaultTimeout?: number;
+        env?: Record<string, string>;
+      };
+    };
+
+    const plugin = pluginExecutor.getBuiltIn(name);
+    if (!plugin) {
+      return c.json({
+        error: { code: 'NOT_FOUND', message: `Built-in plugin not found: ${name}` },
+      }, 404);
+    }
+
+    const result = await pluginExecutor.execute(plugin, body.options);
+
+    return c.json({
+      result: formatPluginExecutionResult(result),
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to execute built-in plugin:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -1987,6 +2176,25 @@ function formatExecutionEntry(entry: StewardExecutionEntry) {
     completedAt: entry.completedAt,
     result: entry.result,
     eventContext: entry.eventContext,
+  };
+}
+
+/**
+ * Format a PluginExecutionResult for JSON response
+ */
+function formatPluginExecutionResult(result: PluginExecutionResult) {
+  return {
+    pluginName: result.pluginName,
+    pluginType: result.pluginType,
+    success: result.success,
+    error: result.error,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    exitCode: result.exitCode,
+    durationMs: result.durationMs,
+    itemsProcessed: result.itemsProcessed,
+    startedAt: result.startedAt,
+    completedAt: result.completedAt,
   };
 }
 
