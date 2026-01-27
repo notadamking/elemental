@@ -1509,17 +1509,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O25c: Settings Page
+#### - [x] TB-O25c: Settings Page
 
 **Goal**: User preferences and workspace configuration
 
 **Changes**:
 
-- [ ] Create `/settings` route with tabs: Preferences, Workspace
-- [ ] Preferences: Theme, notifications, keyboard shortcuts reference
-- [ ] Workspace: Default agent configs, ephemeral retention, steward schedules
+- [x] Create `/settings` route with tabs: Preferences, Workspace
+- [x] Preferences: Theme (light/dark/system), notifications toggle settings, keyboard shortcuts reference
+- [x] Workspace: Git worktrees (directory, default branch, auto-merge), ephemeral retention, steward schedules
+- [x] `useSettings` hook with localStorage persistence for all settings
+- [x] Reset functionality for individual sections and all settings
 
-**Verification**: Toggle dark mode, verify setting persists
+**Verification**: 46 Playwright tests in `apps/orchestrator-web/tests/settings.spec.ts`
+
+**Implementation Notes** (2026-01-27):
+- Created `api/hooks/useSettings.ts` with hooks: `useTheme()`, `useNotificationSettings()`, `useWorkspaceSettings()`, `useStewardScheduleSettings()`, `useSettings()`
+- Settings sections: Theme, Notifications, Keyboard Shortcuts, Git Worktrees, Ephemeral Tasks, Steward Schedules, Reset All
+- Tab navigation with URL persistence via `?tab=preferences` or `?tab=workspace`
+- Custom toggle switch component with proper accessibility
+- All settings persisted to localStorage and survive page reload
+- Confirmation dialog for "Reset All Settings" action
 
 ---
 

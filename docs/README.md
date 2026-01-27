@@ -221,6 +221,8 @@ The project is a TurboRepo monorepo with the following structure:
 | Terminal exports | `components/terminal/index.ts` | - |
 | NotificationCenter | `components/notification/NotificationCenter.tsx` | `tests/notifications.spec.ts` |
 | Notification hooks | `api/hooks/useNotifications.ts` | - |
+| Settings hooks | `api/hooks/useSettings.ts` | `tests/settings.spec.ts` |
+| Settings page | `routes/settings/index.tsx` | `tests/settings.spec.ts` |
 | CommandPalette | `components/command/CommandPalette.tsx` | `tests/command-palette.spec.ts` |
 | Command palette hook | `components/command/CommandPalette.tsx` | - |
 | UI components | `components/ui/*.tsx` | - |
