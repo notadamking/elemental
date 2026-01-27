@@ -181,7 +181,13 @@ The project is a TurboRepo monorepo with the following structure:
 | Director panel | `components/layout/DirectorPanel.tsx` | `tests/director-terminal.spec.ts` |
 | Mobile drawer | `components/layout/MobileDrawer.tsx` | - |
 | Activity page | `routes/activity/index.tsx` | - |
-| Tasks page | `routes/tasks/index.tsx` | - |
+| Tasks page | `routes/tasks/index.tsx` | `tests/tasks.spec.ts` |
+| Task hooks | `api/hooks/useTasks.ts` | - |
+| TaskCard component | `components/task/TaskCard.tsx` | - |
+| TaskRow component | `components/task/TaskRow.tsx` | - |
+| TaskStatusBadge | `components/task/TaskStatusBadge.tsx` | - |
+| TaskPriorityBadge | `components/task/TaskPriorityBadge.tsx` | - |
+| TaskTypeBadge | `components/task/TaskTypeBadge.tsx` | - |
 | Agents page | `routes/agents/index.tsx` | `tests/agents.spec.ts` |
 | Workspaces page | `routes/workspaces/index.tsx` | `tests/workspaces.spec.ts` |
 | Workspace pane manager | `components/workspace/usePaneManager.ts` | - |

@@ -1,0 +1,366 @@
+/**
+ * React Query hooks for task data
+ *
+ * Provides hooks for fetching and mutating task data from the orchestrator API.
+ */
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type {
+  TasksResponse,
+  TaskResponse,
+  TaskFilter,
+  TaskStatus,
+  Priority,
+  TaskTypeValue,
+  EntityId,
+} from '../types';
+
+// ============================================================================
+// API Functions
+// ============================================================================
+
+const API_BASE = '/api';
+
+async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+    throw new Error(error.error?.message || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// ============================================================================
+// Query Hooks
+// ============================================================================
+
+/**
+ * Hook to fetch all tasks with optional filters
+ */
+export function useTasks(filter?: TaskFilter) {
+  const params = new URLSearchParams();
+  if (filter?.status && filter.status !== 'all') params.set('status', filter.status);
+  if (filter?.assignment && filter.assignment !== 'all') params.set('assignment', filter.assignment);
+  if (filter?.assignee) params.set('assignee', filter.assignee);
+  if (filter?.priority) params.set('priority', String(filter.priority));
+  if (filter?.taskType) params.set('taskType', filter.taskType);
+  if (filter?.ephemeral !== undefined) params.set('ephemeral', String(filter.ephemeral));
+  if (filter?.page) params.set('page', String(filter.page));
+  if (filter?.limit) params.set('limit', String(filter.limit));
+
+  const queryString = params.toString();
+  const path = queryString ? `/tasks?${queryString}` : '/tasks';
+
+  return useQuery<TasksResponse, Error>({
+    queryKey: ['tasks', filter],
+    queryFn: () => fetchApi<TasksResponse>(path),
+    refetchInterval: 10000, // Poll every 10 seconds
+  });
+}
+
+/**
+ * Hook to fetch a single task by ID
+ */
+export function useTask(taskId: string | undefined) {
+  return useQuery<TaskResponse, Error>({
+    queryKey: ['task', taskId],
+    queryFn: () => fetchApi<TaskResponse>(`/tasks/${taskId}`),
+    enabled: !!taskId,
+  });
+}
+
+// ============================================================================
+// Derived Data Hooks
+// ============================================================================
+
+/**
+ * Hook to get tasks grouped by status for kanban view
+ */
+export function useTasksByStatus() {
+  const { data, isLoading, error, refetch } = useTasks();
+
+  const tasks = data?.tasks ?? [];
+
+  // Group tasks by status
+  const unassigned = tasks.filter(t => !t.assignee && t.status !== 'closed' && t.status !== 'tombstone');
+  const assigned = tasks.filter(t => t.assignee && t.status === 'open');
+  const inProgress = tasks.filter(t => t.status === 'in_progress');
+  const blocked = tasks.filter(t => t.status === 'blocked');
+  const done = tasks.filter(t => t.status === 'closed');
+  const awaitingMerge = tasks.filter(t => {
+    const meta = t.metadata?.orchestrator;
+    return t.status === 'closed' && meta?.mergeStatus && meta.mergeStatus !== 'merged';
+  });
+  const merged = tasks.filter(t => {
+    const meta = t.metadata?.orchestrator;
+    return t.status === 'closed' && meta?.mergeStatus === 'merged';
+  });
+
+  return {
+    unassigned,
+    assigned,
+    inProgress,
+    blocked,
+    done,
+    awaitingMerge,
+    merged,
+    allTasks: tasks,
+    total: data?.total ?? tasks.length,
+    isLoading,
+    error,
+    refetch,
+  };
+}
+
+/**
+ * Hook to get task counts by status for tab badges
+ */
+export function useTaskCounts() {
+  const { allTasks, isLoading, error } = useTasksByStatus();
+
+  const counts = {
+    all: allTasks.length,
+    unassigned: allTasks.filter(t => !t.assignee && t.status !== 'closed' && t.status !== 'tombstone').length,
+    assigned: allTasks.filter(t => t.assignee && t.status === 'open').length,
+    inProgress: allTasks.filter(t => t.status === 'in_progress').length,
+    blocked: allTasks.filter(t => t.status === 'blocked').length,
+    done: allTasks.filter(t => t.status === 'closed').length,
+    awaitingMerge: allTasks.filter(t => {
+      const meta = t.metadata?.orchestrator;
+      return t.status === 'closed' && meta?.mergeStatus && meta.mergeStatus !== 'merged';
+    }).length,
+  };
+
+  return { counts, isLoading, error };
+}
+
+// ============================================================================
+// Mutation Hooks
+// ============================================================================
+
+interface CreateTaskInput {
+  title: string;
+  descriptionRef?: string;
+  acceptanceCriteria?: string;
+  priority?: Priority;
+  complexity?: number;
+  taskType?: TaskTypeValue;
+  assignee?: EntityId;
+  owner?: EntityId;
+  deadline?: string;
+  scheduledFor?: string;
+  tags?: string[];
+  ephemeral?: boolean;
+}
+
+/**
+ * Hook to create a new task
+ */
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, CreateTaskInput>({
+    mutationFn: async (input: CreateTaskInput) => {
+      return fetchApi<TaskResponse>('/tasks', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+interface UpdateTaskInput {
+  taskId: string;
+  title?: string;
+  status?: TaskStatus;
+  priority?: Priority;
+  complexity?: number;
+  assignee?: EntityId | null;
+  owner?: EntityId | null;
+  deadline?: string | null;
+  closeReason?: string;
+}
+
+/**
+ * Hook to update a task
+ */
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, UpdateTaskInput>({
+    mutationFn: async ({ taskId, ...updates }) => {
+      return fetchApi<TaskResponse>(`/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+}
+
+/**
+ * Hook to assign a task to an agent
+ */
+export function useAssignTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, { taskId: string; agentId: EntityId | null }>({
+    mutationFn: async ({ taskId, agentId }) => {
+      return fetchApi<TaskResponse>(`/tasks/${taskId}/assign`, {
+        method: 'POST',
+        body: JSON.stringify({ agentId }),
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+}
+
+/**
+ * Hook to start working on a task (set to in_progress)
+ */
+export function useStartTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, { taskId: string }>({
+    mutationFn: async ({ taskId }) => {
+      return fetchApi<TaskResponse>(`/tasks/${taskId}/start`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+}
+
+/**
+ * Hook to complete a task (set to closed)
+ */
+export function useCompleteTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, { taskId: string; closeReason?: string }>({
+    mutationFn: async ({ taskId, closeReason }) => {
+      return fetchApi<TaskResponse>(`/tasks/${taskId}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ closeReason }),
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+}
+
+/**
+ * Hook to delete a task (soft-delete)
+ */
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { taskId: string; reason?: string }>({
+    mutationFn: async ({ taskId, reason }) => {
+      return fetchApi(`/tasks/${taskId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Get display name for task status
+ */
+export function getStatusDisplayName(status: TaskStatus): string {
+  switch (status) {
+    case 'open': return 'Open';
+    case 'in_progress': return 'In Progress';
+    case 'blocked': return 'Blocked';
+    case 'deferred': return 'Deferred';
+    case 'closed': return 'Closed';
+    case 'tombstone': return 'Deleted';
+    default: return status;
+  }
+}
+
+/**
+ * Get display name for priority
+ */
+export function getPriorityDisplayName(priority: Priority): string {
+  switch (priority) {
+    case 1: return 'Critical';
+    case 2: return 'High';
+    case 3: return 'Medium';
+    case 4: return 'Low';
+    case 5: return 'Minimal';
+    default: return `P${priority}`;
+  }
+}
+
+/**
+ * Get display name for task type
+ */
+export function getTaskTypeDisplayName(taskType: TaskTypeValue): string {
+  switch (taskType) {
+    case 'bug': return 'Bug';
+    case 'feature': return 'Feature';
+    case 'task': return 'Task';
+    case 'chore': return 'Chore';
+    default: return taskType;
+  }
+}
+
+/**
+ * Get status color class
+ */
+export function getStatusColor(status: TaskStatus): string {
+  switch (status) {
+    case 'open': return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30';
+    case 'in_progress': return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
+    case 'blocked': return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
+    case 'deferred': return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-900/30';
+    case 'closed': return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
+    case 'tombstone': return 'text-gray-400 bg-gray-100 dark:text-gray-500 dark:bg-gray-900/30';
+    default: return 'text-gray-600 bg-gray-100';
+  }
+}
+
+/**
+ * Get priority color class
+ */
+export function getPriorityColor(priority: Priority): string {
+  switch (priority) {
+    case 1: return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
+    case 2: return 'text-orange-600 bg-orange-100 dark:text-orange-400 dark:bg-orange-900/30';
+    case 3: return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
+    case 4: return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30';
+    case 5: return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-900/30';
+    default: return 'text-gray-600 bg-gray-100';
+  }
+}

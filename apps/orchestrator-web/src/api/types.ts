@@ -176,3 +176,103 @@ export interface CreateAgentInput {
   stewardFocus?: StewardFocus;
   triggers?: StewardTrigger[];
 }
+
+// ============================================================================
+// Task Types
+// ============================================================================
+
+export type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' | 'tombstone';
+export type Priority = 1 | 2 | 3 | 4 | 5;
+export type Complexity = 1 | 2 | 3 | 4 | 5;
+export type TaskTypeValue = 'bug' | 'feature' | 'task' | 'chore';
+export type MergeStatus = 'pending' | 'testing' | 'merging' | 'merged' | 'conflict' | 'test_failed' | 'failed';
+
+/**
+ * Orchestrator-specific metadata attached to tasks
+ */
+export interface OrchestratorTaskMeta {
+  branch?: string;
+  worktree?: string;
+  sessionId?: string;
+  assignedAgent?: EntityId;
+  startedAt?: string;
+  completedAt?: string;
+  mergedAt?: string;
+  mergeStatus?: MergeStatus;
+  mergeFailureReason?: string;
+  testRunCount?: number;
+  lastTestResult?: TestResult;
+}
+
+export interface TestResult {
+  passed: boolean;
+  totalTests?: number;
+  passedTests?: number;
+  failedTests?: number;
+  skippedTests?: number;
+  completedAt: string;
+  durationMs?: number;
+  errorMessage?: string;
+}
+
+/**
+ * Task entity as returned by the API
+ */
+export interface Task {
+  id: ElementId;
+  type: 'task';
+  title: string;
+  descriptionRef?: string;
+  designRef?: string;
+  acceptanceCriteria?: string;
+  status: TaskStatus;
+  priority: Priority;
+  complexity: Complexity;
+  taskType: TaskTypeValue;
+  closeReason?: string;
+  assignee?: EntityId;
+  owner?: EntityId;
+  deadline?: string;
+  scheduledFor?: string;
+  closedAt?: string;
+  ephemeral: boolean;
+  externalRef?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: EntityId;
+  tags: string[];
+  metadata?: {
+    orchestrator?: OrchestratorTaskMeta;
+    [key: string]: unknown;
+  };
+}
+
+// ============================================================================
+// Task API Response Types
+// ============================================================================
+
+export interface TasksResponse {
+  tasks: Task[];
+  total?: number;
+  page?: number;
+  limit?: number;
+}
+
+export interface TaskResponse {
+  task: Task;
+}
+
+// Filter for fetching tasks
+export type TaskFilterStatus = 'all' | 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' | 'done' | 'awaiting_merge';
+export type TaskAssignmentFilter = 'all' | 'unassigned' | 'assigned';
+
+export interface TaskFilter {
+  status?: TaskFilterStatus;
+  assignment?: TaskAssignmentFilter;
+  assignee?: EntityId;
+  priority?: Priority;
+  taskType?: TaskTypeValue;
+  ephemeral?: boolean;
+  page?: number;
+  limit?: number;
+}

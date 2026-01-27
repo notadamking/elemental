@@ -1177,18 +1177,39 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ### Phase 5: Task Management & Agent Workflow
 
-#### - [ ] TB-O18: Orchestrator Task List Page
+#### - [x] TB-O18: Orchestrator Task List Page
 
 **Goal**: View tasks with orchestrator metadata
 
 **Changes**:
 
-- [ ] Create `/tasks` route extending elemental task list
-- [ ] Additional columns: Assigned Agent, Branch, Worktree Status
-- [ ] Filter by: unassigned, assigned to agent, completed awaiting merge
-- [ ] Kanban view: Unassigned → Assigned → In Progress → Done → Merged
+- [x] Create `/tasks` route extending elemental task list
+- [x] Additional columns: Assigned Agent, Branch, Worktree Status
+- [x] Filter by: unassigned, assigned to agent, completed awaiting merge
+- [x] Kanban view: Unassigned → Assigned → In Progress → Done → Merged
 
-**Verification**: Create tasks, assign to agents, see orchestrator metadata in UI
+**Verification**: 28 Playwright tests in `tests/tasks.spec.ts`
+
+**Implementation Notes** (2026-01-27):
+- Created task API types and hooks in `api/types.ts` and `api/hooks/useTasks.ts`
+  - Types: `Task`, `TaskStatus`, `Priority`, `Complexity`, `TaskTypeValue`, `OrchestratorTaskMeta`, `MergeStatus`, `TestResult`, `TaskFilter`
+  - Hooks: `useTasks()`, `useTask()`, `useTasksByStatus()`, `useTaskCounts()`, `useStartTask()`, `useCompleteTask()`, `useCreateTask()`, `useUpdateTask()`, `useAssignTask()`, `useDeleteTask()`
+  - Utility functions: `getStatusDisplayName()`, `getPriorityDisplayName()`, `getTaskTypeDisplayName()`, `getStatusColor()`, `getPriorityColor()`
+- Created task components in `components/task/`:
+  - `TaskStatusBadge.tsx` - Status badge with merge status support
+  - `TaskPriorityBadge.tsx` - Priority badge with icons
+  - `TaskTypeBadge.tsx` - Task type badge (bug, feature, task, chore)
+  - `TaskCard.tsx` - Card view component for kanban
+  - `TaskRow.tsx` - Table row component for list view
+- Implemented `/tasks` route with:
+  - Header with search, view toggle (list/kanban), and Create Task button
+  - 6 filter tabs: All, Unassigned, Assigned, In Progress, Done, Awaiting Merge
+  - List view with table showing: Task, Status, Priority, Type, Assignee, Branch, Updated, Actions
+  - Kanban view with 5 columns (Unassigned, Assigned, In Progress, Done, Awaiting Merge)
+  - Empty states for each tab
+  - Loading and error states with retry
+  - Search functionality filtering by title, ID, and tags
+  - URL persistence for active tab
 
 ---
 
