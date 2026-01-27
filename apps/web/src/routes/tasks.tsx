@@ -2246,20 +2246,18 @@ export function TasksPage() {
                 />
               </div>
               <div className="flex items-center gap-3">
-                {viewMode === 'list' && (
-                  <>
-                    {!isTablet && (
-                      <SortByDropdown
-                        sortField={sortField}
-                        sortDirection={sortDirection}
-                        secondarySort={secondarySort}
-                        onSortFieldChange={handleSortFieldChange}
-                        onSortDirectionChange={handleSortDirectionChange}
-                        onSecondarySortChange={handleSecondarySortChange}
-                      />
-                    )}
-                    {!isTablet && <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />}
-                  </>
+                {!isTablet && (
+                  <SortByDropdown
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    secondarySort={secondarySort}
+                    onSortFieldChange={handleSortFieldChange}
+                    onSortDirectionChange={handleSortDirectionChange}
+                    onSecondarySortChange={handleSecondarySortChange}
+                  />
+                )}
+                {viewMode === 'list' && !isTablet && (
+                  <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
                 )}
                 <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
                 <button
@@ -2290,7 +2288,7 @@ export function TasksPage() {
         )}
 
         {/* Filter Bar - hide on mobile (uses mobile filter sheet instead) */}
-        {viewMode === 'list' && !isMobile && (
+        {!isMobile && (
           <FilterBar
             filters={filters}
             onFilterChange={handleFilterChange}
