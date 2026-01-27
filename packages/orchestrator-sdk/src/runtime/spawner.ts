@@ -525,8 +525,12 @@ export class SpawnerServiceImpl implements SpawnerService {
       }
     }
 
-    this.transitionStatus(session, 'terminated');
-    session.endedAt = createTimestamp();
+    // Only transition if not already terminated (process may have exited during graceful shutdown)
+    // The exit handler can race with this code and transition to 'terminated' first
+    if ((session.status as SessionStatus) !== 'terminated') {
+      this.transitionStatus(session, 'terminated');
+      session.endedAt = createTimestamp();
+    }
   }
 
   async suspend(sessionId: string): Promise<void> {
