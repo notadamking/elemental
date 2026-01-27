@@ -411,9 +411,9 @@ export function buildHeadlessArgs(options?: HeadlessArgsOptions): string[] {
     args.push('--resume', options.resumeSessionId);
   }
 
-  if (options?.initialPrompt) {
-    args.push(options.initialPrompt);
-  }
+  // Note: initialPrompt is NOT added as a CLI argument when using --input-format stream-json.
+  // Instead, it must be sent via stdin in JSON format after the process starts.
+  // This is handled in spawnHeadless().
 
   return args;
 }
@@ -606,10 +606,13 @@ export class SpawnerServiceImpl implements SpawnerService {
     }
 
     // Format as stream-json user message
+    // Format: {"type":"user","message":{"role":"user","content":"..."}}
     const message = {
       type: 'user',
-      message: input,
-      timestamp: new Date().toISOString(),
+      message: {
+        role: 'user',
+        content: input,
+      },
     };
 
     session.process.stdin.write(JSON.stringify(message) + '\n');
@@ -725,6 +728,19 @@ export class SpawnerServiceImpl implements SpawnerService {
     childProcess.on('error', (error) => {
       session.events.emit('error', error);
     });
+
+    // Send initial prompt via stdin in stream-json format
+    // This is required because --input-format stream-json makes Claude wait for JSON input
+    // Format: {"type":"user","message":{"role":"user","content":"..."}}
+    const initialPrompt = options?.initialPrompt ?? 'You are an AI agent. Await further instructions.';
+    const stdinMessage = {
+      type: 'user',
+      message: {
+        role: 'user',
+        content: initialPrompt,
+      },
+    };
+    childProcess.stdin?.write(JSON.stringify(stdinMessage) + '\n');
 
     // Wait for the init event to get the Claude session ID
     await this.waitForInit(session, options?.timeout ?? this.defaultConfig.timeout!);

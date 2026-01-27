@@ -150,13 +150,15 @@ describe('buildHeadlessArgs', () => {
     expect(args[resumeIndex + 1]).toBe('session-123');
   });
 
-  test('includes initial prompt as last argument', () => {
+  test('does NOT include initial prompt as CLI argument (sent via stdin instead)', () => {
+    // Initial prompt is sent via stdin in JSON format, not as a CLI argument
+    // This is because --input-format stream-json requires JSON input on stdin
     const args = buildHeadlessArgs({ initialPrompt: 'Hello, start working' });
 
-    expect(args[args.length - 1]).toBe('Hello, start working');
+    expect(args).not.toContain('Hello, start working');
   });
 
-  test('includes both resume and prompt when both provided', () => {
+  test('includes --resume but not prompt as CLI argument', () => {
     const args = buildHeadlessArgs({
       resumeSessionId: 'session-456',
       initialPrompt: 'Continue the work',
@@ -164,7 +166,8 @@ describe('buildHeadlessArgs', () => {
 
     expect(args).toContain('--resume');
     expect(args).toContain('session-456');
-    expect(args[args.length - 1]).toBe('Continue the work');
+    // Prompt is sent via stdin, not as CLI arg
+    expect(args).not.toContain('Continue the work');
   });
 
   test('does not include --resume when resumeSessionId is undefined', () => {
@@ -173,17 +176,13 @@ describe('buildHeadlessArgs', () => {
     expect(args).not.toContain('--resume');
   });
 
-  test('argument order is correct for Claude Code CLI', () => {
-    const args = buildHeadlessArgs({
-      resumeSessionId: 'test-session',
-      initialPrompt: 'test prompt',
-    });
+  test('--input-format stream-json is included for stdin communication', () => {
+    // This flag is required so we can send follow-up messages via stdin
+    const args = buildHeadlessArgs();
 
-    // Flags should come before the prompt
-    const promptIndex = args.indexOf('test prompt');
-    const outputFormatIndex = args.indexOf('--output-format');
-
-    expect(outputFormatIndex).toBeLessThan(promptIndex);
+    expect(args).toContain('--input-format');
+    const inputFormatIndex = args.indexOf('--input-format');
+    expect(args[inputFormatIndex + 1]).toBe('stream-json');
   });
 });
 
