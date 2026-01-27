@@ -333,7 +333,7 @@ app.post('/api/tasks', async (c) => {
     }
 
     // Use a system entity for createdBy if not provided
-    const createdBy = (body.createdBy ?? 'system') as EntityId;
+    const createdBy = (body.createdBy ?? 'el-0000') as EntityId;
 
     // Create the task using core factory
     const taskData = await createTask({
@@ -901,7 +901,7 @@ app.get('/api/agents', async (c) => {
  * - tags?: string[]
  * - triggers?: StewardTrigger[] (for stewards only)
  * - reportsTo?: EntityId
- * - createdBy?: EntityId (defaults to 'system')
+ * - createdBy?: EntityId (defaults to 'el-0000')
  */
 app.post('/api/agents', async (c) => {
   try {
@@ -925,7 +925,7 @@ app.post('/api/agents', async (c) => {
       return c.json({ error: { code: 'INVALID_INPUT', message: 'role and name are required' } }, 400);
     }
 
-    const createdBy = (body.createdBy ?? 'system') as EntityId;
+    const createdBy = (body.createdBy ?? 'el-0000') as EntityId;
 
     let agent;
     switch (body.role) {
@@ -990,7 +990,7 @@ app.post('/api/agents', async (c) => {
  * - name: string (required)
  * - capabilities?: { skills?: string[], languages?: string[], maxConcurrentTasks?: number }
  * - tags?: string[]
- * - createdBy?: EntityId (defaults to 'system')
+ * - createdBy?: EntityId (defaults to 'el-0000')
  */
 app.post('/api/agents/director', async (c) => {
   try {
@@ -1009,7 +1009,7 @@ app.post('/api/agents/director', async (c) => {
       return c.json({ error: { code: 'INVALID_INPUT', message: 'name is required' } }, 400);
     }
 
-    const createdBy = (body.createdBy ?? 'system') as EntityId;
+    const createdBy = (body.createdBy ?? 'el-0000') as EntityId;
 
     const agent = await agentRegistry.registerDirector({
       name: body.name,
@@ -1039,7 +1039,7 @@ app.post('/api/agents/director', async (c) => {
  * - capabilities?: { skills?: string[], languages?: string[], maxConcurrentTasks?: number }
  * - tags?: string[]
  * - reportsTo?: EntityId
- * - createdBy?: EntityId (defaults to 'system')
+ * - createdBy?: EntityId (defaults to 'el-0000')
  */
 app.post('/api/agents/worker', async (c) => {
   try {
@@ -1066,7 +1066,7 @@ app.post('/api/agents/worker', async (c) => {
       return c.json({ error: { code: 'INVALID_INPUT', message: 'workerMode must be "ephemeral" or "persistent"' } }, 400);
     }
 
-    const createdBy = (body.createdBy ?? 'system') as EntityId;
+    const createdBy = (body.createdBy ?? 'el-0000') as EntityId;
 
     const agent = await agentRegistry.registerWorker({
       name: body.name,
@@ -1099,7 +1099,7 @@ app.post('/api/agents/worker', async (c) => {
  * - capabilities?: { skills?: string[], languages?: string[], maxConcurrentTasks?: number }
  * - tags?: string[]
  * - reportsTo?: EntityId
- * - createdBy?: EntityId (defaults to 'system')
+ * - createdBy?: EntityId (defaults to 'el-0000')
  */
 app.post('/api/agents/steward', async (c) => {
   try {
@@ -1145,7 +1145,7 @@ app.post('/api/agents/steward', async (c) => {
       }
     }
 
-    const createdBy = (body.createdBy ?? 'system') as EntityId;
+    const createdBy = (body.createdBy ?? 'el-0000') as EntityId;
 
     const agent = await agentRegistry.registerSteward({
       name: body.name,

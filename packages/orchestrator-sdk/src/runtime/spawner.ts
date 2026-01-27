@@ -705,6 +705,7 @@ export class SpawnerServiceImpl implements SpawnerService {
   private buildHeadlessArgs(options?: SpawnOptions): string[] {
     const args: string[] = [
       '-p', // Print mode (non-interactive)
+      '--verbose', // Required for stream-json output in print mode
       '--dangerously-skip-permissions',
       '--output-format', 'stream-json',
       '--input-format', 'stream-json',
