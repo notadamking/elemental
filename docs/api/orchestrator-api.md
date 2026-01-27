@@ -1434,6 +1434,298 @@ const previous = await sessionManager.getPreviousSession('worker');
 - Active queries are automatically cleaned up after completion
 - Context is prepended to the message in the format: `Context: {context}\n\nQuestion: {message}`
 
+## HandoffService (TB-O10e, TB-O10f)
+
+The HandoffService enables agent session handoffs for context preservation. Agents can hand off to a fresh instance of themselves (self-handoff) or to another agent (agent-to-agent handoff).
+
+### Creating a HandoffService
+
+```typescript
+import {
+  createHandoffService,
+  type HandoffService,
+} from '@elemental/orchestrator-sdk';
+
+const handoffService = createHandoffService(sessionManager, agentRegistry, api);
+```
+
+### Self-Handoff (TB-O10e)
+
+Self-handoff allows an agent to hand off to a fresh instance of itself, preserving context through a handoff message. This is useful when:
+
+- Context window is getting full
+- Agent needs to restart with fresh state
+- Transitioning between phases of work
+
+```typescript
+import { type SelfHandoffOptions, type SelfHandoffResult } from '@elemental/orchestrator-sdk';
+
+// Perform a self-handoff
+const result = await handoffService.selfHandoff(agentId, sessionId, {
+  contextSummary: 'Working on feature X, completed steps 1-3, step 4 in progress',
+  nextSteps: 'Continue with step 4: implement the API endpoint',
+  reason: 'Context overflow',
+  metadata: { phase: 'implementation' },
+});
+
+if (result.success) {
+  console.log(`Handoff document: ${result.handoffDocumentId}`);
+  console.log(`Message sent: ${result.messageId}`);
+  console.log(`Session suspended: ${result.suspendedSession?.id}`);
+} else {
+  console.error('Handoff failed:', result.error);
+}
+```
+
+**What happens during self-handoff:**
+1. Creates a handoff document with context summary, next steps, and Claude session ID
+2. Sends a handoff message to the agent's own channel
+3. Suspends the current session (preserving Claude session ID for predecessor queries)
+4. Returns the result with document ID, message ID, and suspended session info
+
+The new session can:
+- Find the handoff message in its inbox
+- Query the suspended predecessor for more context using PredecessorQueryService
+
+### Agent-to-Agent Handoff (TB-O10f)
+
+Agent-to-agent handoff allows transferring work from one agent to another:
+
+```typescript
+import { type AgentHandoffOptions, type AgentHandoffResult } from '@elemental/orchestrator-sdk';
+
+// Hand off to another agent
+const result = await handoffService.handoffToAgent(
+  fromAgentId,
+  toAgentId,
+  sessionId,
+  {
+    contextSummary: 'Database schema designed, ready for implementation',
+    nextSteps: 'Implement migrations and model layer',
+    reason: 'Backend specialist needed',
+    taskIds: ['task-001', 'task-002'],  // Tasks to transfer
+    metadata: { priority: 'high' },
+    triggerTarget: true,  // Signal target agent to wake up
+  }
+);
+
+if (result.success) {
+  console.log(`Handed off to: ${result.targetAgentId}`);
+  console.log(`Message sent to target: ${result.messageId}`);
+}
+```
+
+**What happens during agent-to-agent handoff:**
+1. Creates a handoff document with context, task IDs, and source session info
+2. Sends a handoff message to the target agent's channel
+3. Suspends the source agent's session
+4. (Optional) Could trigger the target agent to wake up (requires notification integration)
+
+### Checking for Pending Handoffs
+
+When an agent starts or resumes, it can check for pending handoff messages:
+
+```typescript
+// Check if there's a pending handoff
+const hasPending = await handoffService.hasPendingHandoff(agentId);
+
+// Get the most recent handoff content
+const handoff = await handoffService.getLastHandoff(agentId);
+
+if (handoff) {
+  console.log(`Handoff from: ${handoff.fromAgentId}`);
+  console.log(`Context: ${handoff.contextSummary}`);
+  console.log(`Next steps: ${handoff.nextSteps}`);
+  console.log(`Reason: ${handoff.reason}`);
+
+  if (handoff.taskIds) {
+    console.log(`Tasks to pick up: ${handoff.taskIds.join(', ')}`);
+  }
+
+  // Can query predecessor for more context
+  if (handoff.claudeSessionId) {
+    const queryResult = await predecessorService.consultPredecessor(
+      agentId,
+      'worker',  // or appropriate role
+      'What was the specific blocker you encountered?'
+    );
+  }
+}
+```
+
+### Handoff Types
+
+```typescript
+interface SelfHandoffOptions {
+  contextSummary: string;              // Required: summary of current context
+  nextSteps?: string;                   // Recommended next steps
+  reason?: string;                      // Reason for handoff
+  metadata?: Record<string, unknown>;   // Additional metadata
+}
+
+interface AgentHandoffOptions {
+  contextSummary: string;              // Required: summary of current context
+  nextSteps?: string;                   // Recommended next steps for target
+  reason?: string;                      // Reason for handoff
+  taskIds?: string[];                   // Task IDs to transfer
+  metadata?: Record<string, unknown>;   // Additional metadata
+  triggerTarget?: boolean;              // Signal target to wake up (default: true)
+}
+
+interface HandoffContent {
+  type: 'handoff';                     // Message type identifier
+  fromAgentId: EntityId;               // Source agent
+  toAgentId?: EntityId;                // Target agent (undefined for self-handoff)
+  contextSummary: string;              // Context summary
+  nextSteps?: string;                  // Next steps
+  reason?: string;                     // Handoff reason
+  taskIds?: string[];                  // Transferred task IDs
+  claudeSessionId?: string;            // Claude session ID for predecessor query
+  initiatedAt: Timestamp;              // When handoff was initiated
+}
+```
+
+### Handoff Results
+
+```typescript
+interface SelfHandoffResult {
+  success: boolean;
+  handoffDocumentId?: DocumentId;      // Created handoff document
+  messageId?: MessageId;               // Message sent to channel
+  suspendedSession?: SessionRecord;    // The suspended session
+  error?: string;                      // Error message if failed
+  completedAt: Timestamp;
+}
+
+interface AgentHandoffResult {
+  success: boolean;
+  handoffDocumentId?: DocumentId;      // Created handoff document
+  messageId?: MessageId;               // Message sent to target channel
+  suspendedSession?: SessionRecord;    // Source session (suspended)
+  targetAgentId?: EntityId;            // Target agent ID
+  error?: string;                      // Error message if failed
+  completedAt: Timestamp;
+}
+```
+
+### Constants
+
+```typescript
+import {
+  HANDOFF_DOCUMENT_TAG,   // 'handoff' - tag for handoff documents
+  HANDOFF_MESSAGE_TYPE,   // 'handoff' - message type for handoff messages
+} from '@elemental/orchestrator-sdk';
+```
+
+### Integration with Other Services
+
+**With InboxPollingService:**
+```typescript
+// Register handler for handoff messages
+pollingService.onMessageType(
+  OrchestratorMessageType.HANDOFF,
+  async (message, agentId) => {
+    const handoff = await handoffService.getLastHandoff(agentId);
+    if (handoff) {
+      console.log(`Processing handoff from ${handoff.fromAgentId}`);
+      // Process handoff - pick up tasks, apply context, etc.
+    }
+  }
+);
+```
+
+**With PredecessorQueryService:**
+```typescript
+// After receiving handoff, query predecessor for more context
+const handoff = await handoffService.getLastHandoff(agentId);
+if (handoff?.claudeSessionId) {
+  const result = await predecessorService.consultPredecessor(
+    agentId,
+    'worker',
+    'Can you elaborate on the authentication implementation?',
+    { context: handoff.contextSummary }
+  );
+}
+```
+
+### Error Handling
+
+Self-handoff can fail for several reasons:
+
+```typescript
+const result = await handoffService.selfHandoff(agentId, sessionId, options);
+
+if (!result.success) {
+  switch (true) {
+    case result.error?.includes('Session not found'):
+      console.error('Invalid session ID');
+      break;
+    case result.error?.includes('does not belong to agent'):
+      console.error('Session belongs to a different agent');
+      break;
+    case result.error?.includes('Cannot handoff session in status'):
+      console.error('Session is not running (already suspended or terminated)');
+      break;
+    case result.error?.includes('has no channel'):
+      console.error('Agent does not have a messaging channel');
+      break;
+    default:
+      console.error('Unexpected error:', result.error);
+  }
+}
+```
+
+### Use Cases
+
+**Context Overflow Recovery:**
+```typescript
+// When context window is getting full
+await handoffService.selfHandoff(agentId, sessionId, {
+  contextSummary: `
+    Implementing auth feature:
+    - Created user model
+    - Set up JWT tokens
+    - Working on login endpoint
+  `,
+  nextSteps: 'Complete login endpoint validation and error handling',
+  reason: 'Context overflow - approaching token limit',
+});
+```
+
+**Specialist Handoff:**
+```typescript
+// Frontend agent handing off to backend specialist
+await handoffService.handoffToAgent(frontendAgentId, backendAgentId, sessionId, {
+  contextSummary: 'API contract defined, frontend components ready for data',
+  nextSteps: 'Implement backend endpoints matching the API contract',
+  taskIds: ['task-backend-api'],
+  reason: 'Backend expertise required',
+});
+```
+
+**Shift Change:**
+```typescript
+// End of work period, handing off to next agent
+await handoffService.selfHandoff(agentId, sessionId, {
+  contextSummary: `
+    Sprint progress:
+    - Completed: task-001, task-002
+    - In progress: task-003 (50% done)
+    - Blocked: task-004 (waiting on design review)
+  `,
+  nextSteps: 'Continue task-003, follow up on task-004 blocker',
+  reason: 'Session time limit reached',
+});
+```
+
+### Notes
+
+- Handoff is a manual operation - agents decide when to hand off
+- Handoff documents are stored persistently for audit trail
+- Messages are sent through the existing channel/inbox system
+- Claude session ID is preserved for predecessor queries
+- The source session is suspended (not terminated) to allow predecessor queries
+
 ## Type Definitions
 
 Key files:
@@ -1447,6 +1739,7 @@ Key files:
 - `packages/orchestrator-sdk/src/runtime/session-manager.ts` - Session lifecycle management (TB-O10)
 - `packages/orchestrator-sdk/src/runtime/inbox-polling.ts` - Inbox polling service (TB-O10b)
 - `packages/orchestrator-sdk/src/runtime/predecessor-query.ts` - Predecessor query service (TB-O10d)
+- `packages/orchestrator-sdk/src/runtime/handoff.ts` - Handoff service (TB-O10e, TB-O10f)
 
 ## See Also
 

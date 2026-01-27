@@ -101,3 +101,21 @@ export {
   TimeoutError,
   NoPredecessorError,
 } from './predecessor-query.js';
+
+// Handoff Service (TB-O10e, TB-O10f)
+export {
+  // Constants
+  HANDOFF_DOCUMENT_TAG,
+  HANDOFF_MESSAGE_TYPE,
+  // Types
+  type HandoffContent,
+  type SelfHandoffOptions,
+  type SelfHandoffResult,
+  type AgentHandoffOptions,
+  type AgentHandoffResult,
+  type HandoffService,
+  // Implementation
+  HandoffServiceImpl,
+  // Factory
+  createHandoffService,
+} from './handoff.js';

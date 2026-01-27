@@ -804,30 +804,49 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O10e: Self-Handoff
+#### - [x] TB-O10e: Self-Handoff
 
 **Goal**: Agent can trigger own restart with context preservation
 
 **Changes**:
 
-- [ ] Add `selfHandoff(note?)` method
-- [ ] Creates handoff message, marks session suspended, terminates gracefully
+- [x] Add `selfHandoff(note?)` method
+- [x] Creates handoff message, marks session suspended, terminates gracefully
 
 **Verification**: Agent triggers handoff, new session finds handoff note
 
+**Implementation Notes**:
+- Created `HandoffService` in `packages/orchestrator-sdk/src/runtime/handoff.ts`
+- `selfHandoff()` creates handoff document with context summary, Claude session ID, and next steps
+- Sends handoff message to agent's own channel for new session to find
+- Suspends current session (preserving Claude session ID for predecessor queries)
+- New session can query suspended predecessor using PredecessorQueryService
+- 26 unit tests covering self-handoff scenarios in `handoff.test.ts`
+- Documentation added to `docs/api/orchestrator-api.md`
+
 ---
 
-#### - [ ] TB-O10f: Agent-Agent Handoff
+#### - [x] TB-O10f: Agent-Agent Handoff
 
 **Goal**: Transfer work between agents
 
 **Changes**:
 
-- [ ] Add `handoffTo(targetAgent, taskIds, note?)` method
-- [ ] Sends handoff message to target agent's channel
-- [ ] Triggers target agent to process handoff
+- [x] Add `handoffTo(targetAgent, taskIds, note?)` method
+- [x] Sends handoff message to target agent's channel
+- [x] Triggers target agent to process handoff
 
 **Verification**: Agent A hands off to Agent B, B receives and processes
+
+**Implementation Notes**:
+- `handoffToAgent()` method in `HandoffService` transfers work from one agent to another
+- Creates handoff document with context, task IDs, and source session info
+- Sends handoff message to target agent's channel
+- Suspends source agent's session
+- Target agent can process handoff via InboxPollingService
+- 9 additional unit tests for agent-to-agent handoff
+- Helper methods: `getLastHandoff()`, `hasPendingHandoff()` for checking pending handoffs
+- Full documentation added to `docs/api/orchestrator-api.md`
 
 ---
 
