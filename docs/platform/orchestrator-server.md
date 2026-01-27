@@ -228,6 +228,260 @@ Body:
 
 Returns 202 Accepted (response comes via SSE stream).
 
+### Task Endpoints (TB-O19)
+
+Task endpoints enable the Director agent to create, query, and dispatch tasks to workers.
+
+#### List Tasks
+
+```
+GET /api/tasks
+GET /api/tasks?status=open
+GET /api/tasks?assignee=el-worker123
+GET /api/tasks?unassigned=true
+GET /api/tasks?limit=50
+```
+
+Query parameters:
+- `status` - Filter by task status: `open`, `in_progress`, `closed`
+- `assignee` - Filter by assigned agent ID
+- `unassigned` - Only show unassigned tasks (`true`)
+- `limit` - Maximum results (default: 100)
+
+#### Get Unassigned Tasks
+
+```
+GET /api/tasks/unassigned
+GET /api/tasks/unassigned?limit=20
+```
+
+Shortcut for `?unassigned=true`.
+
+#### Create Task
+
+```
+POST /api/tasks
+```
+
+Body:
+```json
+{
+  "title": "Implement user authentication",
+  "description": "Add login/logout with session management",
+  "priority": "high",
+  "complexity": "medium",
+  "tags": ["feature", "auth"],
+  "capabilityRequirements": {
+    "requiredSkills": ["backend", "security"],
+    "preferredSkills": ["authentication"],
+    "requiredLanguages": ["typescript"]
+  },
+  "ephemeral": false,
+  "createdBy": "el-director123"
+}
+```
+
+Fields:
+- `title` (required) - Task title
+- `description` - Task description
+- `priority` - `critical`, `high`, `medium`, `low`
+- `complexity` - `trivial`, `simple`, `medium`, `complex`, `very_complex`
+- `tags` - Array of tag strings
+- `capabilityRequirements` - Skills/languages needed for smart routing
+- `ephemeral` - Whether task is temporary (default: false)
+- `createdBy` - Entity ID of creator (default: "system")
+
+Response:
+```json
+{
+  "task": {
+    "id": "el-task123",
+    "title": "Implement user authentication",
+    "description": "Add login/logout with session management",
+    "status": "open",
+    "priority": 2,
+    "complexity": 3,
+    "taskType": "task",
+    "orchestrator": null,
+    ...
+  }
+}
+```
+
+#### Get Task
+
+```
+GET /api/tasks/:id
+```
+
+Returns task with assignment information:
+```json
+{
+  "task": { ... },
+  "assignment": {
+    "agent": {
+      "id": "el-worker123",
+      "name": "backend-specialist",
+      "role": "worker"
+    },
+    "branch": "agent/backend-specialist/el-task123-implement-auth",
+    "worktree": ".worktrees/backend-specialist-implement-auth/",
+    "sessionId": "sess-abc",
+    "mergeStatus": "pending",
+    "startedAt": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+#### Dispatch Task
+
+```
+POST /api/tasks/:id/dispatch
+```
+
+Assigns task to specific agent and sends notification.
+
+Body:
+```json
+{
+  "agentId": "el-worker123",
+  "priority": 5,
+  "restart": false,
+  "markAsStarted": true,
+  "branch": "custom-branch-name",
+  "worktree": ".worktrees/custom-path/",
+  "notificationMessage": "High priority task assigned",
+  "dispatchedBy": "el-director123"
+}
+```
+
+Fields:
+- `agentId` (required) - Agent to dispatch to
+- `priority` - Dispatch priority for notification
+- `restart` - Signal agent to restart session
+- `markAsStarted` - Mark task IN_PROGRESS immediately
+- `branch` - Custom branch name (auto-generated if not provided)
+- `worktree` - Custom worktree path (auto-generated if not provided)
+- `notificationMessage` - Custom notification message
+- `dispatchedBy` - Entity performing the dispatch
+
+Response:
+```json
+{
+  "success": true,
+  "task": { ... },
+  "agent": {
+    "id": "el-worker123",
+    "name": "backend-specialist"
+  },
+  "notification": {
+    "id": "el-msg123",
+    "channelId": "el-chan123"
+  },
+  "isNewAssignment": true,
+  "dispatchedAt": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Smart Dispatch
+
+```
+POST /api/tasks/:id/dispatch/smart
+```
+
+Finds the best available agent based on capabilities and dispatches.
+
+Body:
+```json
+{
+  "eligibleOnly": true,
+  "minScore": 50,
+  "priority": 5,
+  "restart": false,
+  "markAsStarted": true,
+  "dispatchedBy": "el-director123"
+}
+```
+
+Fields:
+- `eligibleOnly` - Only consider agents meeting all requirements (default: true)
+- `minScore` - Minimum capability match score 0-100 (default: 0)
+- Other fields same as dispatch
+
+Returns 404 with `NO_ELIGIBLE_AGENTS` if no suitable agents found.
+
+#### Get Task Candidates
+
+```
+GET /api/tasks/:id/candidates
+GET /api/tasks/:id/candidates?eligibleOnly=true&minScore=50
+```
+
+Gets agents ranked by capability match for a task.
+
+Response:
+```json
+{
+  "task": {
+    "id": "el-task123",
+    "title": "Implement user authentication"
+  },
+  "hasRequirements": true,
+  "requirements": {
+    "requiredSkills": ["backend", "security"],
+    "preferredSkills": ["authentication"]
+  },
+  "candidates": [
+    {
+      "agent": {
+        "id": "el-worker123",
+        "name": "backend-specialist",
+        "role": "worker",
+        "capabilities": { ... }
+      },
+      "isEligible": true,
+      "score": 85,
+      "matchDetails": {
+        "matchedRequiredSkills": ["backend", "security"],
+        "matchedPreferredSkills": ["authentication"],
+        "matchedRequiredLanguages": ["typescript"],
+        "missingRequiredSkills": [],
+        "missingRequiredLanguages": []
+      }
+    }
+  ],
+  "bestCandidate": {
+    "agent": { "id": "el-worker123", "name": "backend-specialist" },
+    "score": 85
+  }
+}
+```
+
+#### Get Agent Workload
+
+```
+GET /api/agents/:id/workload
+```
+
+Returns agent's current workload and capacity.
+
+Response:
+```json
+{
+  "agentId": "el-worker123",
+  "agentName": "backend-specialist",
+  "workload": {
+    "agentId": "el-worker123",
+    "totalTasks": 2,
+    "byStatus": { "1": 1, "2": 1 },
+    "inProgressCount": 1,
+    "awaitingMergeCount": 0
+  },
+  "hasCapacity": true,
+  "maxConcurrentTasks": 3
+}
+```
+
 ### Session Endpoints
 
 #### List Sessions

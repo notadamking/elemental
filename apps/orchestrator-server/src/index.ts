@@ -19,8 +19,8 @@ import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 // Core types
-import type { EntityId, ElementId } from '@elemental/core';
-import { createTimestamp } from '@elemental/core';
+import type { EntityId, ElementId, Task } from '@elemental/core';
+import { createTimestamp, createTask, TaskStatus, ElementType, Priority, Complexity } from '@elemental/core';
 // Storage layer
 import { createStorage, initializeSchema } from '@elemental/storage';
 // SDK - API and services
@@ -36,6 +36,9 @@ import {
   createTaskAssignmentService,
   createDispatchService,
   createRoleDefinitionService,
+  // Capability service functions (no CapabilityService class - it's just utility functions)
+  getTaskCapabilityRequirements,
+  setTaskCapabilityRequirements,
   type OrchestratorAPI,
   type AgentRegistry,
   type SessionManager,
@@ -48,7 +51,12 @@ import {
   type SessionFilter,
   type WorktreeInfo,
   type SpawnedSessionEvent,
-  type AgentRole,
+  type DispatchResult,
+  type SmartDispatchCandidatesResult,
+  type TaskCapabilityRequirements,
+  type OrchestratorTaskMeta,
+  type AssignmentFilter,
+  type AgentWorkloadSummary,
   GitRepositoryNotFoundError,
 } from '@elemental/orchestrator-sdk';
 import type { ServerWebSocket } from 'bun';
@@ -152,6 +160,442 @@ app.get('/api/health', (c) => {
       roleDefinition: 'ready',
     },
   });
+});
+
+// ============================================================================
+// Task Endpoints (TB-O19: Director Creates & Assigns Tasks)
+// ============================================================================
+
+/**
+ * GET /api/tasks
+ * List tasks with optional filtering
+ *
+ * Query params:
+ * - status: Filter by task status (open, in_progress, closed)
+ * - assignee: Filter by assigned agent
+ * - unassigned: Only show unassigned tasks (true/false)
+ * - limit: Maximum number of tasks to return (default 100)
+ */
+app.get('/api/tasks', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const statusParam = url.searchParams.get('status');
+    const assigneeParam = url.searchParams.get('assignee');
+    const unassignedParam = url.searchParams.get('unassigned');
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 100;
+
+    // If unassigned=true, use the optimized method
+    if (unassignedParam === 'true') {
+      const unassignedTasks = await taskAssignmentService.getUnassignedTasks();
+      return c.json({ tasks: unassignedTasks.slice(0, limit).map(formatTaskResponse) });
+    }
+
+    // Build filter for assignment-based queries
+    if (assigneeParam) {
+      const agentAssignments = await taskAssignmentService.getAgentTasks(assigneeParam as EntityId);
+      const agentTasks = agentAssignments.map((a) => a.task);
+      const filtered = statusParam
+        ? agentTasks.filter((t) => t.status === TaskStatus[statusParam.toUpperCase() as keyof typeof TaskStatus])
+        : agentTasks;
+      return c.json({ tasks: filtered.slice(0, limit).map(formatTaskResponse) });
+    }
+
+    // Otherwise, query all tasks from the API
+    const allElements = await api.list({ type: ElementType.TASK, limit });
+    const tasks = allElements.filter((e): e is Task => e.type === ElementType.TASK);
+
+    // Apply status filter if provided
+    const filtered = statusParam
+      ? tasks.filter((t) => t.status === TaskStatus[statusParam.toUpperCase() as keyof typeof TaskStatus])
+      : tasks;
+
+    return c.json({ tasks: filtered.map(formatTaskResponse) });
+  } catch (error) {
+    console.error('[orchestrator] Failed to list tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * GET /api/tasks/unassigned
+ * Get unassigned tasks (shortcut for ?unassigned=true)
+ */
+app.get('/api/tasks/unassigned', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 100;
+
+    const tasks = await taskAssignmentService.getUnassignedTasks();
+    return c.json({ tasks: tasks.slice(0, limit).map(formatTaskResponse) });
+  } catch (error) {
+    console.error('[orchestrator] Failed to list unassigned tasks:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/tasks
+ * Create a new task
+ *
+ * Body:
+ * - title: string (required)
+ * - description?: string
+ * - priority?: 'critical' | 'high' | 'medium' | 'low'
+ * - complexity?: 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex'
+ * - tags?: string[]
+ * - capabilityRequirements?: TaskCapabilityRequirements
+ * - ephemeral?: boolean
+ * - createdBy?: EntityId
+ */
+app.post('/api/tasks', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      title: string;
+      description?: string;
+      priority?: 'critical' | 'high' | 'medium' | 'low';
+      complexity?: 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex';
+      tags?: string[];
+      capabilityRequirements?: TaskCapabilityRequirements;
+      ephemeral?: boolean;
+      createdBy?: string;
+    };
+
+    if (!body.title) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'title is required' } }, 400);
+    }
+
+    // Map string priority/complexity to enum values
+    const priorityMap: Record<string, Priority> = {
+      critical: Priority.CRITICAL,
+      high: Priority.HIGH,
+      medium: Priority.MEDIUM,
+      low: Priority.LOW,
+    };
+    const complexityMap: Record<string, Complexity> = {
+      trivial: Complexity.TRIVIAL,
+      simple: Complexity.SIMPLE,
+      medium: Complexity.MEDIUM,
+      complex: Complexity.COMPLEX,
+      very_complex: Complexity.VERY_COMPLEX,
+    };
+
+    // Build metadata including capability requirements and description
+    const metadata: Record<string, unknown> = {};
+    if (body.capabilityRequirements) {
+      metadata.capabilityRequirements = body.capabilityRequirements;
+    }
+    if (body.description) {
+      metadata.description = body.description;
+    }
+
+    // Use a system entity for createdBy if not provided
+    const createdBy = (body.createdBy ?? 'system') as EntityId;
+
+    // Create the task using core factory
+    const taskData = await createTask({
+      title: body.title,
+      priority: body.priority ? priorityMap[body.priority] : undefined,
+      complexity: body.complexity ? complexityMap[body.complexity] : undefined,
+      tags: body.tags,
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      ephemeral: body.ephemeral,
+      createdBy,
+    });
+
+    // Save to database
+    const savedTask = await api.create(taskData as unknown as Record<string, unknown> & { createdBy: EntityId });
+
+    return c.json({ task: formatTaskResponse(savedTask as unknown as Task) }, 201);
+  } catch (error) {
+    console.error('[orchestrator] Failed to create task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * GET /api/tasks/:id
+ * Get task details
+ */
+app.get('/api/tasks/:id', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const task = await api.get<Task>(taskId);
+
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Also get assignment info if assigned
+    let assignmentInfo = null;
+    if (task.assignee) {
+      const agent = await agentRegistry.getAgent(task.assignee);
+      if (agent) {
+        const meta = (task.metadata as { orchestrator?: OrchestratorTaskMeta })?.orchestrator;
+        assignmentInfo = {
+          agent: {
+            id: agent.id,
+            name: agent.name,
+            role: (agent.metadata as { agent?: { agentRole?: string } })?.agent?.agentRole,
+          },
+          branch: meta?.branch,
+          worktree: meta?.worktree,
+          sessionId: meta?.sessionId,
+          mergeStatus: meta?.mergeStatus,
+          startedAt: meta?.startedAt,
+          completedAt: meta?.completedAt,
+        };
+      }
+    }
+
+    return c.json({
+      task: formatTaskResponse(task),
+      assignment: assignmentInfo,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to get task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/tasks/:id/dispatch
+ * Dispatch a task to a specific agent
+ *
+ * Body:
+ * - agentId: string (required) - The agent to dispatch to
+ * - priority?: number - Dispatch priority (for notification)
+ * - restart?: boolean - Signal agent to restart session
+ * - markAsStarted?: boolean - Mark task as IN_PROGRESS immediately
+ * - branch?: string - Custom branch name
+ * - worktree?: string - Custom worktree path
+ * - notificationMessage?: string - Custom notification message
+ * - dispatchedBy?: string - Entity performing the dispatch
+ */
+app.post('/api/tasks/:id/dispatch', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const body = await c.req.json() as {
+      agentId: string;
+      priority?: number;
+      restart?: boolean;
+      markAsStarted?: boolean;
+      branch?: string;
+      worktree?: string;
+      notificationMessage?: string;
+      dispatchedBy?: string;
+    };
+
+    if (!body.agentId) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'agentId is required' } }, 400);
+    }
+
+    // Verify task exists
+    const task = await api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Verify agent exists
+    const agent = await agentRegistry.getAgent(body.agentId as EntityId);
+    if (!agent) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } }, 404);
+    }
+
+    // Dispatch the task
+    const result = await dispatchService.dispatch(taskId, body.agentId as EntityId, {
+      priority: body.priority,
+      restart: body.restart,
+      markAsStarted: body.markAsStarted,
+      branch: body.branch,
+      worktree: body.worktree,
+      notificationMessage: body.notificationMessage,
+      dispatchedBy: body.dispatchedBy as EntityId | undefined,
+    });
+
+    return c.json({
+      success: true,
+      task: formatTaskResponse(result.task),
+      agent: {
+        id: result.agent.id,
+        name: result.agent.name,
+      },
+      notification: {
+        id: result.notification.id,
+        channelId: result.channel.id,
+      },
+      isNewAssignment: result.isNewAssignment,
+      dispatchedAt: result.dispatchedAt,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to dispatch task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/tasks/:id/dispatch/smart
+ * Smart dispatch - find the best agent and dispatch
+ *
+ * Body:
+ * - eligibleOnly?: boolean - Only consider agents meeting requirements
+ * - minScore?: number - Minimum capability score (0-100)
+ * - priority?: number - Dispatch priority
+ * - restart?: boolean - Signal agent to restart
+ * - markAsStarted?: boolean - Mark task as IN_PROGRESS
+ * - dispatchedBy?: string - Entity performing the dispatch
+ */
+app.post('/api/tasks/:id/dispatch/smart', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const body = await c.req.json().catch(() => ({})) as {
+      eligibleOnly?: boolean;
+      minScore?: number;
+      priority?: number;
+      restart?: boolean;
+      markAsStarted?: boolean;
+      dispatchedBy?: string;
+    };
+
+    // Verify task exists
+    const task = await api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Try smart dispatch
+    const result = await dispatchService.smartDispatch(taskId, {
+      eligibleOnly: body.eligibleOnly,
+      minScore: body.minScore,
+      priority: body.priority,
+      restart: body.restart,
+      markAsStarted: body.markAsStarted,
+      dispatchedBy: body.dispatchedBy as EntityId | undefined,
+    });
+
+    return c.json({
+      success: true,
+      task: formatTaskResponse(result.task),
+      agent: {
+        id: result.agent.id,
+        name: result.agent.name,
+      },
+      notification: {
+        id: result.notification.id,
+        channelId: result.channel.id,
+      },
+      isNewAssignment: result.isNewAssignment,
+      dispatchedAt: result.dispatchedAt,
+    });
+  } catch (error) {
+    const errorMessage = String(error);
+    if (errorMessage.includes('No eligible agents')) {
+      return c.json({
+        error: { code: 'NO_ELIGIBLE_AGENTS', message: 'No eligible agents found for this task' },
+      }, 404);
+    }
+    console.error('[orchestrator] Failed to smart dispatch task:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
+/**
+ * GET /api/tasks/:id/candidates
+ * Get candidate agents for a task ranked by capability match
+ */
+app.get('/api/tasks/:id/candidates', async (c) => {
+  try {
+    const taskId = c.req.param('id') as ElementId;
+    const url = new URL(c.req.url);
+    const eligibleOnly = url.searchParams.get('eligibleOnly') !== 'false';
+    const minScoreParam = url.searchParams.get('minScore');
+    const minScore = minScoreParam ? parseInt(minScoreParam, 10) : undefined;
+
+    // Verify task exists
+    const task = await api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+    }
+
+    // Get candidates
+    const result = await dispatchService.getCandidates(taskId, {
+      eligibleOnly,
+      minScore,
+    });
+
+    return c.json({
+      task: {
+        id: task.id,
+        title: task.title,
+      },
+      hasRequirements: result.hasRequirements,
+      requirements: result.requirements,
+      candidates: result.candidates.map((entry) => ({
+        agent: {
+          id: entry.agent.id,
+          name: entry.agent.name,
+          role: (entry.agent.metadata as { agent?: { agentRole?: string } })?.agent?.agentRole,
+          capabilities: (entry.agent.metadata as { agent?: { capabilities?: unknown } })?.agent?.capabilities,
+        },
+        isEligible: entry.matchResult.isEligible,
+        score: entry.matchResult.score,
+        matchDetails: {
+          matchedRequiredSkills: entry.matchResult.matchedRequiredSkills,
+          matchedPreferredSkills: entry.matchResult.matchedPreferredSkills,
+          matchedRequiredLanguages: entry.matchResult.matchedRequiredLanguages,
+          matchedPreferredLanguages: entry.matchResult.matchedPreferredLanguages,
+          missingRequiredSkills: entry.matchResult.missingRequiredSkills,
+          missingRequiredLanguages: entry.matchResult.missingRequiredLanguages,
+        },
+      })),
+      bestCandidate: result.bestCandidate ? {
+        agent: {
+          id: result.bestCandidate.agent.id,
+          name: result.bestCandidate.agent.name,
+        },
+        score: result.bestCandidate.matchResult.score,
+      } : null,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to get task candidates:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * GET /api/agents/:id/workload
+ * Get agent's current workload and capacity
+ */
+app.get('/api/agents/:id/workload', async (c) => {
+  try {
+    const agentId = c.req.param('id') as EntityId;
+
+    // Verify agent exists
+    const agent = await agentRegistry.getAgent(agentId);
+    if (!agent) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } }, 404);
+    }
+
+    // Get workload
+    const workload = await taskAssignmentService.getAgentWorkload(agentId);
+    const hasCapacity = await taskAssignmentService.agentHasCapacity(agentId);
+
+    // Get agent capabilities for max concurrent tasks
+    const agentMeta = (agent.metadata as { agent?: { capabilities?: { maxConcurrentTasks?: number } } })?.agent;
+    const maxConcurrentTasks = agentMeta?.capabilities?.maxConcurrentTasks ?? 3;
+
+    return c.json({
+      agentId,
+      agentName: agent.name,
+      workload,
+      hasCapacity,
+      maxConcurrentTasks,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to get agent workload:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
 });
 
 // ============================================================================
@@ -659,6 +1103,44 @@ app.delete('/api/worktrees/:path', async (c) => {
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * Format a Task for JSON response
+ */
+function formatTaskResponse(task: Task) {
+  const meta = (task.metadata as { orchestrator?: OrchestratorTaskMeta })?.orchestrator;
+  const description = (task.metadata as { description?: string })?.description;
+  return {
+    id: task.id,
+    title: task.title,
+    description,
+    status: task.status,
+    priority: task.priority,
+    complexity: task.complexity,
+    taskType: task.taskType,
+    assignee: task.assignee,
+    owner: task.owner,
+    deadline: task.deadline,
+    scheduledFor: task.scheduledFor,
+    ephemeral: task.ephemeral,
+    tags: task.tags,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    // Orchestrator-specific metadata
+    orchestrator: meta ? {
+      branch: meta.branch,
+      worktree: meta.worktree,
+      sessionId: meta.sessionId,
+      assignedAgent: meta.assignedAgent,
+      startedAt: meta.startedAt,
+      completedAt: meta.completedAt,
+      mergeStatus: meta.mergeStatus,
+      mergedAt: meta.mergedAt,
+      lastTestResult: meta.lastTestResult,
+      testRunCount: meta.testRunCount,
+    } : null,
+  };
+}
 
 /**
  * Format a SessionRecord for JSON response
