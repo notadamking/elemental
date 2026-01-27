@@ -15,6 +15,7 @@ import type { EntityId, Timestamp } from '@elemental/core';
 import { createTimestamp } from '@elemental/core';
 import {
   createSpawnerService,
+  buildHeadlessArgs,
   type SpawnerService,
   type SpawnedSession,
   type SpawnConfig,
@@ -105,6 +106,84 @@ describe('SpawnerService', () => {
         spawnerService.sendInput('nonexistent-session', 'test message')
       ).rejects.toThrow('Session not found');
     });
+  });
+});
+
+// ============================================================================
+// CLI Argument Building Tests
+// ============================================================================
+
+describe('buildHeadlessArgs', () => {
+  test('includes required base flags for stream-json output', () => {
+    const args = buildHeadlessArgs();
+
+    // These flags are required for Claude Code to work in headless mode
+    expect(args).toContain('-p');
+    expect(args).toContain('--verbose');
+    expect(args).toContain('--dangerously-skip-permissions');
+    expect(args).toContain('--output-format');
+    expect(args).toContain('stream-json');
+    expect(args).toContain('--input-format');
+  });
+
+  test('--verbose is included (required for stream-json with -p)', () => {
+    // This is the specific regression test for the bug where --verbose was missing
+    // Claude Code requires --verbose when using --output-format=stream-json with -p
+    const args = buildHeadlessArgs();
+    expect(args).toContain('--verbose');
+
+    // Verify the order: -p should come before --verbose
+    const pIndex = args.indexOf('-p');
+    const verboseIndex = args.indexOf('--verbose');
+    expect(pIndex).toBeGreaterThanOrEqual(0);
+    expect(verboseIndex).toBeGreaterThan(pIndex);
+  });
+
+  test('includes --resume flag when resumeSessionId is provided', () => {
+    const args = buildHeadlessArgs({ resumeSessionId: 'session-123' });
+
+    expect(args).toContain('--resume');
+    expect(args).toContain('session-123');
+
+    // --resume and session ID should be consecutive
+    const resumeIndex = args.indexOf('--resume');
+    expect(args[resumeIndex + 1]).toBe('session-123');
+  });
+
+  test('includes initial prompt as last argument', () => {
+    const args = buildHeadlessArgs({ initialPrompt: 'Hello, start working' });
+
+    expect(args[args.length - 1]).toBe('Hello, start working');
+  });
+
+  test('includes both resume and prompt when both provided', () => {
+    const args = buildHeadlessArgs({
+      resumeSessionId: 'session-456',
+      initialPrompt: 'Continue the work',
+    });
+
+    expect(args).toContain('--resume');
+    expect(args).toContain('session-456');
+    expect(args[args.length - 1]).toBe('Continue the work');
+  });
+
+  test('does not include --resume when resumeSessionId is undefined', () => {
+    const args = buildHeadlessArgs({});
+
+    expect(args).not.toContain('--resume');
+  });
+
+  test('argument order is correct for Claude Code CLI', () => {
+    const args = buildHeadlessArgs({
+      resumeSessionId: 'test-session',
+      initialPrompt: 'test prompt',
+    });
+
+    // Flags should come before the prompt
+    const promptIndex = args.indexOf('test prompt');
+    const outputFormatIndex = args.indexOf('--output-format');
+
+    expect(outputFormatIndex).toBeLessThan(promptIndex);
   });
 });
 

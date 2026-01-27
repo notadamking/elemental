@@ -376,6 +376,49 @@ export interface UWPTaskInfo {
 }
 
 // ============================================================================
+// Argument Building (exported for testing)
+// ============================================================================
+
+/**
+ * Options for building headless CLI arguments
+ */
+export interface HeadlessArgsOptions {
+  /** Claude Code session ID to resume */
+  resumeSessionId?: string;
+  /** Initial prompt to send */
+  initialPrompt?: string;
+}
+
+/**
+ * Builds the CLI arguments for headless (non-interactive) Claude Code spawning.
+ *
+ * This function is exported to allow unit testing of the argument construction,
+ * which is critical for ensuring Claude Code is invoked correctly.
+ *
+ * @param options - Options affecting argument construction
+ * @returns Array of CLI arguments
+ */
+export function buildHeadlessArgs(options?: HeadlessArgsOptions): string[] {
+  const args: string[] = [
+    '-p', // Print mode (non-interactive)
+    '--verbose', // Required for stream-json output in print mode
+    '--dangerously-skip-permissions',
+    '--output-format', 'stream-json',
+    '--input-format', 'stream-json',
+  ];
+
+  if (options?.resumeSessionId) {
+    args.push('--resume', options.resumeSessionId);
+  }
+
+  if (options?.initialPrompt) {
+    args.push(options.initialPrompt);
+  }
+
+  return args;
+}
+
+// ============================================================================
 // Spawner Service Implementation
 // ============================================================================
 
@@ -703,23 +746,11 @@ export class SpawnerServiceImpl implements SpawnerService {
   }
 
   private buildHeadlessArgs(options?: SpawnOptions): string[] {
-    const args: string[] = [
-      '-p', // Print mode (non-interactive)
-      '--verbose', // Required for stream-json output in print mode
-      '--dangerously-skip-permissions',
-      '--output-format', 'stream-json',
-      '--input-format', 'stream-json',
-    ];
-
-    if (options?.resumeSessionId) {
-      args.push('--resume', options.resumeSessionId);
-    }
-
-    if (options?.initialPrompt) {
-      args.push(options.initialPrompt);
-    }
-
-    return args;
+    // Delegate to the exported function for testability
+    return buildHeadlessArgs({
+      resumeSessionId: options?.resumeSessionId,
+      initialPrompt: options?.initialPrompt,
+    });
   }
 
   private buildEnvironment(
