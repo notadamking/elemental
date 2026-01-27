@@ -1,0 +1,68 @@
+{
+  "name": "@elemental/storage",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "SQLite storage layer for Elemental with multi-runtime support",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bun": {
+      "types": "./dist/bun-backend.d.ts",
+      "import": "./dist/bun-backend.js"
+    },
+    "./node": {
+      "types": "./dist/node-backend.d.ts",
+      "import": "./dist/node-backend.js"
+    },
+    "./browser": {
+      "types": "./dist/browser-backend.d.ts",
+      "import": "./dist/browser-backend.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test src",
+    "test:node": "vitest run",
+    "test:all": "pnpm run test && pnpm run test:node",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/toolco/elemental.git",
+    "directory": "packages/storage"
+  },
+  "author": "Toolco",
+  "license": "MIT",
+  "keywords": [
+    "elemental",
+    "storage",
+    "sqlite",
+    "database"
+  ],
+  "dependencies": {
+    "@elemental/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.8.1",
+    "sql.js": "^1.12.0"
+  }
+}
