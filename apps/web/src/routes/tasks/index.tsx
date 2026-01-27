@@ -10,29 +10,29 @@ import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Plus, CheckSquare, X, Sparkles, SlidersHorizontal } from 'lucide-react';
 
 // Hooks
-import { useDebounce, useIsMobile, useIsTablet, useGlobalQuickActions, useShortcutVersion } from '../hooks';
-import { useAllTasks } from '../api/hooks/useAllElements';
-import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortConfig } from '../hooks/usePaginatedData';
-import { useDeepLink } from '../hooks/useDeepLink';
-import { useReadyTaskIds, useEntities, useBulkUpdate, useBulkDelete } from '../api/hooks/useTaskMutations';
+import { useDebounce, useIsMobile, useIsTablet, useGlobalQuickActions, useShortcutVersion } from '../../hooks';
+import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortConfig } from '../../hooks/usePaginatedData';
+import { useDeepLink } from '../../hooks/useDeepLink';
+import { useAllTasks, useReadyTaskIds, useEntities, useBulkUpdate, useBulkDelete } from './hooks';
 
 // Components
-import { PageHeader, Pagination } from '../components/shared';
-import { ElementNotFound } from '../components/shared/ElementNotFound';
-import { MobileDetailSheet } from '../components/shared/MobileDetailSheet';
-import { TaskDetailPanel } from '../components/task/TaskDetailPanel';
-import { KanbanBoard } from '../components/task/KanbanBoard';
-import { MobileTaskCard } from '../components/task/MobileTaskCard';
-import { ViewToggle } from '../components/task/ViewToggle';
-import { TaskSearchBar } from '../components/task/TaskSearchBar';
-import { SortByDropdown } from '../components/task/SortByDropdown';
-import { GroupByDropdown } from '../components/task/GroupByDropdown';
-import { BulkActionMenu } from '../components/task/BulkActionMenu';
-import { FilterBar } from '../components/task/FilterBar';
-import { ListView, GroupedListView } from '../components/task/TaskListView';
+import { PageHeader, Pagination } from '../../components/shared';
+import { ElementNotFound } from '../../components/shared/ElementNotFound';
+import { MobileDetailSheet } from '../../components/shared/MobileDetailSheet';
+import { TaskDetailPanel } from '../../components/task/TaskDetailPanel';
+import { KanbanBoard } from '../../components/task/KanbanBoard';
+import { MobileTaskCard } from '../../components/task/MobileTaskCard';
+import { ViewToggle } from '../../components/task/ViewToggle';
+import { TaskSearchBar } from '../../components/task/TaskSearchBar';
+import { SortByDropdown } from '../../components/task/SortByDropdown';
+import { GroupByDropdown } from '../../components/task/GroupByDropdown';
+import { BulkActionMenu } from '../../components/task/BulkActionMenu';
+import { FilterBar } from '../../components/task/FilterBar';
+import { ListView, GroupedListView } from '../../components/task/TaskListView';
+import { MobileFilterSheet } from './components';
 
 // Utils & Constants
-import { getCurrentBinding } from '../lib/keyboard';
+import { getCurrentBinding } from '../../lib/keyboard';
 import {
   fuzzySearch,
   groupTasks,
@@ -50,7 +50,7 @@ import {
   setStoredSortDirection,
   getStoredSecondarySort,
   setStoredSecondarySort,
-} from '../lib/task-utils';
+} from './utils';
 import type {
   Task,
   ViewMode,
@@ -58,14 +58,8 @@ import type {
   SortDirection,
   GroupByField,
   FilterConfig,
-} from '../lib/task-constants';
-import {
-  DEFAULT_PAGE_SIZE,
-  SEARCH_DEBOUNCE_DELAY,
-  EMPTY_FILTER,
-  STATUS_OPTIONS,
-  PRIORITY_OPTIONS,
-} from '../lib/task-constants';
+} from './types';
+import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_DELAY, EMPTY_FILTER } from './constants';
 
 export function TasksPage() {
   const navigate = useNavigate();
@@ -411,108 +405,15 @@ export function TasksPage() {
   return (
     <div className="flex h-full" data-testid="tasks-page">
       {/* Mobile Filter Sheet */}
-      {isMobile && mobileFilterOpen && (
-        <MobileDetailSheet
+      {isMobile && (
+        <MobileFilterSheet
           open={mobileFilterOpen}
           onClose={() => setMobileFilterOpen(false)}
-          title="Filters"
-          data-testid="mobile-filter-sheet"
-        >
-          <div className="p-4 space-y-6">
-            {/* Status filter */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Status</label>
-              <div className="flex flex-wrap gap-2">
-                {STATUS_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      const newStatus = filters.status.includes(option.value)
-                        ? filters.status.filter(s => s !== option.value)
-                        : [...filters.status, option.value];
-                      handleFilterChange({ ...filters, status: newStatus });
-                    }}
-                    className={`px-3 py-2 text-sm rounded-lg border transition-colors touch-target ${
-                      filters.status.includes(option.value)
-                        ? `${option.color} border-transparent font-medium`
-                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    }`}
-                    data-testid={`mobile-filter-status-${option.value}`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Priority filter */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Priority</label>
-              <div className="flex flex-wrap gap-2">
-                {PRIORITY_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      const newPriority = filters.priority.includes(option.value)
-                        ? filters.priority.filter(p => p !== option.value)
-                        : [...filters.priority, option.value];
-                      handleFilterChange({ ...filters, priority: newPriority });
-                    }}
-                    className={`px-3 py-2 text-sm rounded-lg border transition-colors touch-target ${
-                      filters.priority.includes(option.value)
-                        ? `${option.color} border-transparent font-medium`
-                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    }`}
-                    data-testid={`mobile-filter-priority-${option.value}`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Assignee filter */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Assignee</label>
-              <select
-                value={filters.assignee}
-                onChange={(e) => handleFilterChange({ ...filters, assignee: e.target.value })}
-                className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-[var(--color-text)] touch-target"
-                data-testid="mobile-filter-assignee"
-              >
-                <option value="">All assignees</option>
-                {entities.data?.map((entity) => (
-                  <option key={entity.id} value={entity.id}>
-                    {entity.name || entity.id}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Clear filters button */}
-            {activeFilterCount > 0 && (
-              <button
-                onClick={() => {
-                  handleClearFilters();
-                  setMobileFilterOpen(false);
-                }}
-                className="w-full py-2.5 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors touch-target"
-                data-testid="mobile-clear-filters"
-              >
-                Clear all filters ({activeFilterCount})
-              </button>
-            )}
-
-            {/* Apply button */}
-            <button
-              onClick={() => setMobileFilterOpen(false)}
-              className="w-full py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors touch-target"
-              data-testid="mobile-apply-filters"
-            >
-              Apply Filters
-            </button>
-          </div>
-        </MobileDetailSheet>
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={handleClearFilters}
+          entities={entities.data ?? []}
+        />
       )}
 
       {/* Task List */}
@@ -752,3 +653,6 @@ export function TasksPage() {
     </div>
   );
 }
+
+// Default export for route
+export default TasksPage;
