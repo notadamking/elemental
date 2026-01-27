@@ -2,7 +2,6 @@ import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/
 import { AppShell } from './components/layout';
 import { DashboardPage } from './routes/dashboard';
 import { TasksPage } from './routes/tasks';
-import { TaskFlowPage } from './routes/task-flow';
 import { DependencyGraphPage } from './routes/dependency-graph';
 import { TimelinePage } from './routes/timeline';
 import { MessagesPage } from './routes/messages';
@@ -15,9 +14,10 @@ import { SettingsPage, getDefaultDashboardLens, getLastVisitedDashboardSection }
 import { InboxPage } from './routes/inbox';
 
 // Map dashboard lens settings to routes
+// Note: 'task-flow' lens now redirects to /tasks (kanban view has task-flow columns)
 const DASHBOARD_LENS_ROUTES: Record<ReturnType<typeof getDefaultDashboardLens>, string> = {
   'overview': '/dashboard/overview',
-  'task-flow': '/dashboard/task-flow',
+  'task-flow': '/tasks',
   'dependencies': '/dependencies',
   'timeline': '/dashboard/timeline',
 };
@@ -74,11 +74,13 @@ const tasksRoute = createRoute({
   },
 });
 
-// Task Flow Lens route (Dashboard sub-view)
+// Legacy task-flow route - redirects to /tasks (kanban has task flow columns now)
 const taskFlowRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard/task-flow',
-  component: TaskFlowPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/tasks', search: { page: 1, limit: 25 } });
+  },
 });
 
 // Dependency Graph route (Work section)

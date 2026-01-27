@@ -360,7 +360,6 @@ app.get('/api/tasks/in-progress', async (c) => {
       status: 'in_progress',
       orderBy: 'updated_at',
       orderDir: 'desc',
-      limit: 50,
     } as Parameters<typeof api.list>[0]);
     return c.json(tasks);
   } catch (error) {

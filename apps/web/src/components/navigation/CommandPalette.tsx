@@ -13,7 +13,6 @@ import {
   Users,
   UsersRound,
   Settings,
-  GitBranch,
   Network,
   History,
   Search,
@@ -148,15 +147,6 @@ export function CommandPalette() {
       shortcut: 'G H',
       group: 'Dashboard',
       keywords: ['overview', 'home'],
-    },
-    {
-      id: 'nav-task-flow',
-      label: 'Go to Task Flow',
-      icon: GitBranch,
-      action: () => navigate({ to: '/dashboard/task-flow' }),
-      shortcut: 'G F',
-      group: 'Dashboard',
-      keywords: ['ready', 'blocked', 'progress'],
     },
     {
       id: 'nav-timeline',

@@ -1959,7 +1959,6 @@ export function TasksPage() {
 
   // Extract task items from client-side paginated data (TB69)
   const taskItems = paginatedData.items;
-  const allFilteredTasks = paginatedData.allItems; // Full filtered list for Kanban view
   const totalItems = paginatedData.filteredTotal;
   const totalPages = paginatedData.totalPages;
   const isLoading = isTasksLoading || paginatedData.isLoading || (readyOnly && isReadyTasksLoading);
@@ -2280,8 +2279,8 @@ export function TasksPage() {
           />
         )}
 
-        {/* Filter Bar - hide on mobile (uses mobile filter sheet instead) */}
-        {!isMobile && (
+        {/* Filter Bar - hide on mobile (uses mobile filter sheet instead) and in kanban view (has per-column filters) */}
+        {!isMobile && viewMode === 'list' && (
           <FilterBar
             filters={filters}
             onFilterChange={handleFilterChange}
@@ -2373,10 +2372,11 @@ export function TasksPage() {
           {!isLoading && viewMode === 'kanban' && (
             <div className="animate-fade-in h-full" data-testid="kanban-view-content">
               <KanbanBoard
-                tasks={allFilteredTasks as Task[]}
                 entities={entities.data ?? []}
                 selectedTaskId={selectedTaskId}
                 onTaskClick={handleTaskClick}
+                searchQuery={debouncedSearch}
+                pageSort={{ field: sortField, direction: sortDirection }}
               />
             </div>
           )}

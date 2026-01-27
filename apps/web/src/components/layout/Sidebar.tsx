@@ -13,7 +13,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronDown,
-  GitBranch,
   Network,
   History,
   PanelLeftOpen,
@@ -69,7 +68,6 @@ const NAV_SECTIONS: NavSection[] = [
     defaultExpanded: true,
     items: [
       { to: '/dashboard/overview', icon: LayoutDashboard, label: 'Overview', actionId: 'nav.dashboard', testId: 'nav-dashboard' },
-      { to: '/dashboard/task-flow', icon: GitBranch, label: 'Task Flow', actionId: 'nav.taskFlow', testId: 'nav-task-flow' },
       { to: '/dashboard/timeline', icon: History, label: 'Timeline', actionId: 'nav.timeline', testId: 'nav-timeline', search: { page: 1, limit: 100, actor: undefined } },
     ],
   },

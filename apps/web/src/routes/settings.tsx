@@ -739,7 +739,7 @@ function ShortcutsSection({ isMobile }: { isMobile: boolean }) {
 const DEFAULTS_STORAGE_KEY = 'settings.defaults';
 
 type TasksViewMode = 'list' | 'kanban';
-type DashboardLens = 'overview' | 'task-flow' | 'dependencies' | 'timeline';
+type DashboardLens = 'overview' | 'task-flow' | 'dependencies' | 'timeline'; // 'task-flow' is legacy, redirects to /tasks
 type DefaultSortOrder = 'updated_at' | 'created_at' | 'priority' | 'title';
 
 interface DefaultsSettings {
@@ -803,6 +803,7 @@ export function getLastVisitedDashboardSection(): DashboardLens {
     return getDefaultDashboardLens();
   }
   const stored = localStorage.getItem(LAST_VISITED_DASHBOARD_KEY);
+  // 'task-flow' is legacy - redirect to tasks page (handled by router)
   if (stored && ['overview', 'task-flow', 'dependencies', 'timeline'].includes(stored)) {
     return stored as DashboardLens;
   }
@@ -940,15 +941,6 @@ function DefaultsSection({ isMobile: _isMobile }: { isMobile: boolean }) {
             isSelected={defaults.dashboardLens === 'overview'}
             onSelect={() => updateSetting('dashboardLens', 'overview')}
             testId="default-dashboard-lens-overview"
-          />
-          <OptionCard
-            value="task-flow"
-            label="Task Flow"
-            description="Ready, blocked & completed tasks"
-            icon={Workflow}
-            isSelected={defaults.dashboardLens === 'task-flow'}
-            onSelect={() => updateSetting('dashboardLens', 'task-flow')}
-            testId="default-dashboard-lens-task-flow"
           />
           <OptionCard
             value="dependencies"

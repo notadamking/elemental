@@ -20,7 +20,6 @@ import {
   Users,
   UsersRound,
   Settings,
-  GitBranch,
   History,
   Menu,
   Search,
@@ -105,7 +104,6 @@ interface RouteConfig {
 const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/dashboard': { label: 'Dashboard', icon: LayoutDashboard },
   '/dashboard/overview': { label: 'Overview', icon: LayoutDashboard },
-  '/dashboard/task-flow': { label: 'Task Flow', icon: GitBranch },
   '/dashboard/timeline': { label: 'Timeline', icon: History },
   '/tasks': { label: 'Tasks', icon: CheckSquare },
   '/plans': { label: 'Plans', icon: Folder },

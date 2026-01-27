@@ -8,7 +8,6 @@ import { keyboardManager, getCurrentBinding, useShortcutVersion, type ShortcutHa
  */
 const NAVIGATION_ACTION_ROUTES: Record<string, string> = {
   'nav.dashboard': '/dashboard/overview',
-  'nav.taskFlow': '/dashboard/task-flow',
   'nav.timeline': '/dashboard/timeline',
   'nav.tasks': '/tasks',
   'nav.plans': '/plans',

@@ -26,7 +26,6 @@ export type ShortcutCategory = 'navigation' | 'actions' | 'views' | 'editing' | 
 export const DEFAULT_SHORTCUTS: Record<string, { keys: string; description: string; category: ShortcutCategory }> = {
   // Navigation
   'nav.dashboard': { keys: 'G H', description: 'Go to Dashboard', category: 'navigation' },
-  'nav.taskFlow': { keys: 'G F', description: 'Go to Task Flow', category: 'navigation' },
   'nav.dependencies': { keys: 'G G', description: 'Go to Dependencies', category: 'navigation' },
   'nav.timeline': { keys: 'G L', description: 'Go to Timeline', category: 'navigation' },
   'nav.tasks': { keys: 'G T', description: 'Go to Tasks', category: 'navigation' },
