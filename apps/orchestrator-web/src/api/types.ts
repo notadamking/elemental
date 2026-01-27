@@ -276,3 +276,95 @@ export interface TaskFilter {
   page?: number;
   limit?: number;
 }
+
+// ============================================================================
+// Activity/Event Types
+// ============================================================================
+
+/**
+ * Event types for activity feed
+ */
+export type EventType =
+  | 'created'
+  | 'updated'
+  | 'closed'
+  | 'reopened'
+  | 'deleted'
+  | 'dependency_added'
+  | 'dependency_removed'
+  | 'tag_added'
+  | 'tag_removed'
+  | 'member_added'
+  | 'member_removed'
+  | 'auto_blocked'
+  | 'auto_unblocked';
+
+/**
+ * Element types that events can be associated with
+ */
+export type ElementType = 'task' | 'entity' | 'document' | 'channel' | 'message' | 'plan' | 'workflow' | 'library' | 'team';
+
+/**
+ * Event record from the API
+ */
+export interface ActivityEvent {
+  id: number;
+  elementId: ElementId;
+  elementType?: ElementType;
+  elementTitle?: string;
+  eventType: EventType;
+  actor: EntityId;
+  actorName?: string;
+  oldValue: Record<string, unknown> | null;
+  newValue: Record<string, unknown> | null;
+  createdAt: string;
+  summary?: string;
+}
+
+/**
+ * Activity filter options
+ */
+export type ActivityFilterCategory = 'all' | 'tasks' | 'agents' | 'sessions' | 'workflows';
+
+export interface ActivityFilter {
+  category?: ActivityFilterCategory;
+  elementId?: ElementId;
+  elementType?: ElementType | ElementType[];
+  eventType?: EventType | EventType[];
+  actor?: EntityId;
+  after?: string;
+  before?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Activity API response
+ */
+export interface ActivityResponse {
+  events: ActivityEvent[];
+  total?: number;
+  hasMore: boolean;
+}
+
+// ============================================================================
+// Activity Session Events (real-time agent activity)
+// ============================================================================
+
+/**
+ * Session event types for real-time streaming
+ */
+export type SessionEventType = 'assistant' | 'tool_use' | 'tool_result' | 'error' | 'system' | 'result';
+
+/**
+ * Session event for real-time activity
+ */
+export interface SessionEvent {
+  type: SessionEventType;
+  sessionId: string;
+  agentId: EntityId;
+  agentName?: string;
+  content?: string;
+  timestamp: string;
+  data?: Record<string, unknown>;
+}

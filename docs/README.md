@@ -188,7 +188,11 @@ The project is a TurboRepo monorepo with the following structure:
 | Sidebar navigation | `components/layout/Sidebar.tsx` | - |
 | Director panel | `components/layout/DirectorPanel.tsx` | `tests/director-terminal.spec.ts` |
 | Mobile drawer | `components/layout/MobileDrawer.tsx` | - |
-| Activity page | `routes/activity/index.tsx` | - |
+| Activity page | `routes/activity/index.tsx` | `tests/activity.spec.ts` |
+| Activity hooks | `api/hooks/useActivity.ts` | - |
+| ActivityCard component | `components/activity/ActivityCard.tsx` | - |
+| ActivityList component | `components/activity/ActivityList.tsx` | - |
+| SessionActivityCard | `components/activity/SessionActivityCard.tsx` | - |
 | Tasks page | `routes/tasks/index.tsx` | `tests/tasks.spec.ts` |
 | Task hooks | `api/hooks/useTasks.ts` | - |
 | TaskCard component | `components/task/TaskCard.tsx` | - |

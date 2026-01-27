@@ -2082,6 +2082,332 @@ app.post('/api/plugins/execute-builtin/:name', async (c) => {
 });
 
 // ============================================================================
+// Activity/Events Endpoints (TB-O25)
+// ============================================================================
+
+/**
+ * GET /api/events
+ * List events (activity feed) with filtering and pagination
+ *
+ * Query params:
+ * - elementId: Filter by specific element
+ * - elementType: Filter by element type (task, entity, etc.)
+ * - eventType: Filter by event type (created, updated, etc.)
+ * - actor: Filter by actor (who performed the action)
+ * - after: Events after this timestamp
+ * - before: Events before this timestamp
+ * - limit: Maximum events to return (default 50, max 200)
+ * - offset: Offset for pagination
+ */
+app.get('/api/events', async (c) => {
+  try {
+    const url = new URL(c.req.url);
+    const elementId = url.searchParams.get('elementId') as ElementId | null;
+    const elementTypeParam = url.searchParams.get('elementType');
+    const eventTypeParam = url.searchParams.get('eventType');
+    const actor = url.searchParams.get('actor') as EntityId | null;
+    const after = url.searchParams.get('after');
+    const before = url.searchParams.get('before');
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+
+    const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 50, 200);
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
+    // Build filter for listEvents
+    // Build filter for listEvents (using type assertion for EventFilter compatibility)
+    const filter = {
+      ...(elementId && { elementId }),
+      ...(eventTypeParam && {
+        eventType: eventTypeParam.includes(',') ? eventTypeParam.split(',') : eventTypeParam,
+      }),
+      ...(actor && { actor }),
+      ...(after && { after }),
+      ...(before && { before }),
+      limit: limit + 1, // Fetch one extra to determine hasMore
+      offset,
+    };
+
+    // Get events from the API (cast filter to any to work around strict typing)
+    const events = await api.listEvents(filter as Parameters<typeof api.listEvents>[0]);
+
+    // Determine if there are more events
+    const hasMore = events.length > limit;
+    const resultEvents = hasMore ? events.slice(0, limit) : events;
+
+    // Enrich events with element info
+    const enrichedEvents = await Promise.all(
+      resultEvents.map(async (event) => {
+        let elementType: string | undefined;
+        let elementTitle: string | undefined;
+        let actorName: string | undefined;
+
+        // Try to get element info
+        try {
+          const element = await api.get(event.elementId);
+          if (element) {
+            elementType = element.type;
+            // Get title based on element type
+            if ('title' in element) {
+              elementTitle = element.title as string;
+            } else if ('name' in element) {
+              elementTitle = element.name as string;
+            }
+          }
+        } catch {
+          // Element may have been deleted
+        }
+
+        // Filter by element type if requested
+        if (elementTypeParam && elementType) {
+          const requestedTypes = elementTypeParam.split(',');
+          if (!requestedTypes.includes(elementType)) {
+            return null;
+          }
+        }
+
+        // Try to get actor name
+        try {
+          const actorEntity = await api.get(event.actor as unknown as ElementId);
+          if (actorEntity && 'name' in actorEntity) {
+            actorName = actorEntity.name as string;
+          }
+        } catch {
+          // Actor may be a system entity
+        }
+
+        // Generate summary
+        const summary = generateActivitySummary(event, elementType, elementTitle);
+
+        return {
+          id: event.id,
+          elementId: event.elementId,
+          elementType,
+          elementTitle,
+          eventType: event.eventType,
+          actor: event.actor,
+          actorName,
+          oldValue: event.oldValue,
+          newValue: event.newValue,
+          createdAt: event.createdAt,
+          summary,
+        };
+      })
+    );
+
+    // Filter out null values (events that didn't match element type filter)
+    const filteredEvents = enrichedEvents.filter(Boolean);
+
+    return c.json({
+      events: filteredEvents,
+      hasMore,
+      total: filteredEvents.length,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to list events:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * GET /api/events/stream
+ * SSE stream for real-time activity events
+ */
+app.get('/api/events/stream', async (c) => {
+  const url = new URL(c.req.url);
+  const category = url.searchParams.get('category'); // 'all', 'tasks', 'agents', 'sessions'
+
+  return streamSSE(c, async (stream) => {
+    let eventId = 0;
+
+    // Send initial connection event
+    await stream.writeSSE({
+      id: String(++eventId),
+      event: 'connected',
+      data: JSON.stringify({
+        timestamp: createTimestamp(),
+        category: category || 'all',
+      }),
+    });
+
+    // Set up event listeners for real-time activity
+
+    // Listen for session events (all active sessions)
+    const sessionListeners = new Map<string, (event: SpawnedSessionEvent) => void>();
+    const sessions = sessionManager.listSessions({ status: ['starting', 'running'] });
+
+    for (const session of sessions) {
+      const events = spawnerService.getEventEmitter(session.id);
+      if (events) {
+        const onEvent = async (event: SpawnedSessionEvent) => {
+          // Filter by category
+          if (category === 'agents' || category === 'sessions' || category === 'all') {
+            await stream.writeSSE({
+              id: String(++eventId),
+              event: 'session_event',
+              data: JSON.stringify({
+                type: event.type,
+                sessionId: session.id,
+                agentId: session.agentId,
+                agentRole: session.agentRole,
+                content: event.message,
+                timestamp: createTimestamp(),
+              }),
+            });
+          }
+        };
+        events.on('event', onEvent);
+        sessionListeners.set(session.id, onEvent);
+      }
+    }
+
+    // Heartbeat to keep connection alive
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        await stream.writeSSE({
+          id: String(++eventId),
+          event: 'heartbeat',
+          data: JSON.stringify({ timestamp: createTimestamp() }),
+        });
+      } catch {
+        clearInterval(heartbeatInterval);
+      }
+    }, 30000);
+
+    // Clean up on close
+    stream.onAbort(() => {
+      clearInterval(heartbeatInterval);
+      for (const [sessionId, listener] of sessionListeners) {
+        const events = spawnerService.getEventEmitter(sessionId);
+        if (events) {
+          events.off('event', listener);
+        }
+      }
+    });
+
+    // Keep stream open
+    await new Promise(() => {});
+  });
+});
+
+/**
+ * GET /api/events/:id
+ * Get a specific event by ID
+ */
+app.get('/api/events/:id', async (c) => {
+  try {
+    const eventId = parseInt(c.req.param('id'), 10);
+    if (isNaN(eventId) || eventId < 1) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'Invalid event ID' } }, 400);
+    }
+
+    // Query for specific event
+    const events = await api.listEvents({ limit: 1 });
+    const event = events.find((e) => e.id === eventId);
+
+    if (!event) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Event not found' } }, 404);
+    }
+
+    // Enrich with element info
+    let elementType: string | undefined;
+    let elementTitle: string | undefined;
+    let actorName: string | undefined;
+
+    try {
+      const element = await api.get(event.elementId);
+      if (element) {
+        elementType = element.type;
+        if ('title' in element) {
+          elementTitle = element.title as string;
+        } else if ('name' in element) {
+          elementTitle = element.name as string;
+        }
+      }
+    } catch {
+      // Element may have been deleted
+    }
+
+    try {
+      const actorEntity = await api.get(event.actor as unknown as ElementId);
+      if (actorEntity && 'name' in actorEntity) {
+        actorName = actorEntity.name as string;
+      }
+    } catch {
+      // Actor may be a system entity
+    }
+
+    const summary = generateActivitySummary(event, elementType, elementTitle);
+
+    return c.json({
+      event: {
+        id: event.id,
+        elementId: event.elementId,
+        elementType,
+        elementTitle,
+        eventType: event.eventType,
+        actor: event.actor,
+        actorName,
+        oldValue: event.oldValue,
+        newValue: event.newValue,
+        createdAt: event.createdAt,
+        summary,
+      },
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to get event:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * Generate a human-readable summary for an activity event
+ */
+function generateActivitySummary(
+  event: { eventType: string; actor: string; oldValue: Record<string, unknown> | null; newValue: Record<string, unknown> | null },
+  elementType?: string,
+  elementTitle?: string
+): string {
+  const typeLabel = elementType || 'item';
+  const titlePart = elementTitle ? ` "${elementTitle}"` : '';
+
+  switch (event.eventType) {
+    case 'created':
+      return `Created ${typeLabel}${titlePart}`;
+    case 'updated':
+      return `Updated ${typeLabel}${titlePart}`;
+    case 'closed':
+      return `Closed ${typeLabel}${titlePart}`;
+    case 'reopened':
+      return `Reopened ${typeLabel}${titlePart}`;
+    case 'deleted':
+      return `Deleted ${typeLabel}${titlePart}`;
+    case 'dependency_added':
+      return `Added dependency to ${typeLabel}${titlePart}`;
+    case 'dependency_removed':
+      return `Removed dependency from ${typeLabel}${titlePart}`;
+    case 'tag_added': {
+      const tag = event.newValue?.tag as string;
+      return tag ? `Added tag "${tag}" to ${typeLabel}${titlePart}` : `Added tag to ${typeLabel}${titlePart}`;
+    }
+    case 'tag_removed': {
+      const tag = event.oldValue?.tag as string;
+      return tag ? `Removed tag "${tag}" from ${typeLabel}${titlePart}` : `Removed tag from ${typeLabel}${titlePart}`;
+    }
+    case 'member_added':
+      return `Added member to ${typeLabel}${titlePart}`;
+    case 'member_removed':
+      return `Removed member from ${typeLabel}${titlePart}`;
+    case 'auto_blocked':
+      return `${typeLabel}${titlePart} was automatically blocked`;
+    case 'auto_unblocked':
+      return `${typeLabel}${titlePart} was automatically unblocked`;
+    default:
+      return `${event.eventType} on ${typeLabel}${titlePart}`;
+  }
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 

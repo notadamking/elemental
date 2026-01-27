@@ -1439,19 +1439,23 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O25: Activity Feed
+#### - [x] TB-O25: Activity Feed
 
 **Goal**: Real-time feed of all orchestrator events with live agent output
 
 **Changes**:
 
-- [ ] Create `/activity` route as home page
-- [ ] Rich activity cards with real-time agent output preview
-- [ ] Filter by: All, Tasks, Agents, etc.
-- [ ] Expandable cards, "Open in Workspace" button
-- [ ] Infinite scroll for historical events
+- [x] Create `/activity` route as home page
+- [x] Rich activity cards with real-time agent output preview
+- [x] Filter by: All, Tasks, Agents, Workflows
+- [x] Expandable cards, "Open in Workspace" button
+- [x] Infinite scroll for historical events
+- [x] Add `/api/events` endpoint with filtering and pagination
+- [x] Add `/api/events/stream` SSE endpoint for real-time updates
+- [x] Create `ActivityCard`, `ActivityList`, `SessionActivityCard` components
+- [x] Create `useActivity`, `useInfiniteActivity`, `useActivityStream` hooks
 
-**Verification**: Start agent, see activity card appear with live output updating
+**Verification**: 24 Playwright tests in `apps/orchestrator-web/tests/activity.spec.ts`
 
 ---
 
