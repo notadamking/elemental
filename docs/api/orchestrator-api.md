@@ -243,6 +243,8 @@ const availableWorkers = await api.getAvailableWorkers();
 
 ## Task Assignment
 
+### Basic Assignment (OrchestratorAPI)
+
 ```typescript
 // Assign task to agent (auto-generates branch and worktree names)
 const task = await api.assignTaskToAgent(taskId, workerId);
@@ -261,6 +263,94 @@ await api.updateTaskOrchestratorMeta(taskId, {
 });
 ```
 
+### TaskAssignmentService (TB-O8)
+
+For comprehensive task assignment management, use the TaskAssignmentService:
+
+```typescript
+import {
+  createTaskAssignmentService,
+  type TaskAssignment,
+  type AssignmentStatus,
+} from '@elemental/orchestrator-sdk';
+
+const assignmentService = createTaskAssignmentService(api);
+```
+
+#### Assignment Operations
+
+```typescript
+// Assign a task to an agent
+const task = await assignmentService.assignToAgent(taskId, agentId, {
+  branch: 'custom/branch',      // Optional: auto-generated if not provided
+  worktree: '.worktrees/custom', // Optional: auto-generated if not provided
+  sessionId: 'session-123',      // Optional: Claude Code session ID
+  markAsStarted: true,           // Optional: immediately mark as in_progress
+});
+
+// Unassign a task
+const task = await assignmentService.unassignTask(taskId);
+
+// Start a task (mark as in_progress)
+const task = await assignmentService.startTask(taskId, 'session-456');
+
+// Complete a task (mark as closed, set mergeStatus to pending)
+const task = await assignmentService.completeTask(taskId);
+```
+
+#### Workload Queries
+
+```typescript
+// Get all tasks assigned to an agent
+const tasks = await assignmentService.getAgentTasks(agentId);
+
+// Get workload summary
+const workload = await assignmentService.getAgentWorkload(agentId);
+console.log(`Total tasks: ${workload.totalTasks}`);
+console.log(`In progress: ${workload.inProgressCount}`);
+console.log(`Awaiting merge: ${workload.awaitingMergeCount}`);
+console.log(`By status:`, workload.byStatus);
+
+// Check if agent has capacity for more tasks
+const hasCapacity = await assignmentService.agentHasCapacity(agentId);
+```
+
+#### Task Status Queries
+
+```typescript
+// Get unassigned tasks
+const unassigned = await assignmentService.getUnassignedTasks();
+
+// Get tasks by assignment status
+// Status: 'unassigned' | 'assigned' | 'in_progress' | 'completed' | 'merged'
+const inProgress = await assignmentService.getTasksByAssignmentStatus('in_progress');
+const completed = await assignmentService.getTasksByAssignmentStatus('completed');
+
+// Get tasks awaiting merge (completed but not yet merged)
+const awaitingMerge = await assignmentService.getTasksAwaitingMerge();
+
+// List with flexible filtering
+const assignments = await assignmentService.listAssignments({
+  agentId: agentId,                    // Filter by agent
+  taskStatus: 'in_progress',           // Filter by task status
+  assignmentStatus: ['assigned', 'in_progress'], // Filter by assignment status
+  mergeStatus: 'pending',              // Filter by merge status
+  includeEphemeral: true,              // Include ephemeral tasks
+});
+```
+
+#### Assignment Status
+
+The `AssignmentStatus` type tracks where a task is in the assignment lifecycle:
+
+| Status | Description |
+|--------|-------------|
+| `unassigned` | No agent assigned |
+| `assigned` | Agent assigned but task not yet started |
+| `in_progress` | Agent actively working on task |
+| `completed` | Task completed, awaiting merge |
+| `merged` | Branch successfully merged |
+
 ## Session Management
 
 ```typescript
@@ -277,6 +367,7 @@ Key files:
 - `packages/orchestrator-sdk/src/types/task-meta.ts` - Task orchestrator metadata
 - `packages/orchestrator-sdk/src/services/capability-service.ts` - Capability matching
 - `packages/orchestrator-sdk/src/services/agent-registry.ts` - Agent registration and channel management
+- `packages/orchestrator-sdk/src/services/task-assignment-service.ts` - Task assignment and workload management
 
 ## See Also
 

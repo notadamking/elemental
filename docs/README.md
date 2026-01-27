@@ -21,6 +21,7 @@
 | Work with agent capabilities | [api/orchestrator-api.md#agent-capabilities](api/orchestrator-api.md#agent-capabilities) | `packages/orchestrator-sdk/src/services/capability-service.ts` |
 | Work with agent channels | [api/orchestrator-api.md#agent-channels](api/orchestrator-api.md#agent-channels) | `packages/orchestrator-sdk/src/services/agent-registry.ts` |
 | Define agent role definitions | [orchestrator/role-definitions.md](orchestrator/role-definitions.md) | `packages/orchestrator-sdk/src/services/role-definition-service.ts` |
+| Assign tasks to agents | [api/orchestrator-api.md#taskassignmentservice-tb-o8](api/orchestrator-api.md#taskassignmentservice-tb-o8) | `packages/orchestrator-sdk/src/services/task-assignment-service.ts` |
 | Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
 | Debug issues | [gotchas.md](gotchas.md) | - |
 
@@ -146,6 +147,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Agent registry | `services/agent-registry.ts` | `services/agent-registry.test.ts` |
 | Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
 | Role definition service | `services/role-definition-service.ts` | `services/role-definition-service.test.ts` |
+| Task assignment service | `services/task-assignment-service.ts` | `services/task-assignment-service.test.ts` |
 
 ## File Map (Platform)
 

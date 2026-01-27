@@ -565,19 +565,26 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O8: Task Assignment Service
+#### - [x] TB-O8: Task Assignment Service
 
 **Goal**: Assign tasks to agents with orchestrator metadata
 
 **Changes**:
 
-- [ ] Implement `TaskAssignmentService` extending Task functionality
-- [ ] Methods: `assignToAgent()`, `getAgentWorkload()`, `getUnassignedTasks()`
-- [ ] Use existing `task.assignee` for agent assignment
-- [ ] Track `branch`, `worktree`, `sessionId` in task metadata
-- [ ] Query tasks by assignment status
+- [x] Implement `TaskAssignmentService` extending Task functionality
+- [x] Methods: `assignToAgent()`, `getAgentWorkload()`, `getUnassignedTasks()`
+- [x] Use existing `task.assignee` for agent assignment
+- [x] Track `branch`, `worktree`, `sessionId` in task metadata
+- [x] Query tasks by assignment status
 
 **Verification**: Can assign task to registered agent, query workload by agent
+
+**Implementation Notes**:
+- Created `TaskAssignmentService` with full interface, implementation, and factory function
+- Added methods: `assignToAgent()`, `unassignTask()`, `startTask()`, `completeTask()`, `getAgentTasks()`, `getAgentWorkload()`, `agentHasCapacity()`, `getUnassignedTasks()`, `getTasksByAssignmentStatus()`, `listAssignments()`, `getTasksAwaitingMerge()`
+- Added types: `AssignTaskOptions`, `TaskAssignment`, `AssignmentFilter`, `AssignmentStatus`, `AgentWorkloadSummary`
+- Uses OrchestratorTaskMeta for branch, worktree, sessionId tracking
+- 42 new tests covering assignment operations, workload queries, and filtering
 
 ---
 

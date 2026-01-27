@@ -36,6 +36,23 @@ export {
   createRoleDefinitionService,
 } from './role-definition-service.js';
 
+// Task assignment service (TB-O8)
+export {
+  // Types
+  type AssignTaskOptions,
+  type TaskAssignment,
+  type AssignmentFilter,
+  type AssignmentStatus,
+  type AgentWorkloadSummary,
+  type TaskAssignmentService,
+  // Constants
+  AssignmentStatusValues,
+  // Implementation
+  TaskAssignmentServiceImpl,
+  // Factory
+  createTaskAssignmentService,
+} from './task-assignment-service.js';
+
 // Capability service (TB-O6a)
 export {
   // Task capability metadata
