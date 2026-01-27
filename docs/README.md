@@ -205,6 +205,7 @@ The project is a TurboRepo monorepo with the following structure:
 | AgentCard component | `components/agent/AgentCard.tsx` | - |
 | AgentStatusBadge | `components/agent/AgentStatusBadge.tsx` | - |
 | AgentRoleBadge | `components/agent/AgentRoleBadge.tsx` | - |
+| CreateAgentDialog | `components/agent/CreateAgentDialog.tsx` | `tests/agents.spec.ts` |
 | XTerminal component | `components/terminal/XTerminal.tsx` | `tests/director-terminal.spec.ts` |
 | Terminal exports | `components/terminal/index.ts` | - |
 | UI components | `components/ui/*.tsx` | - |

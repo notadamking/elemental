@@ -864,6 +864,286 @@ app.get('/api/agents', async (c) => {
 });
 
 /**
+ * POST /api/agents
+ * Register a new agent (generic endpoint that accepts any role)
+ *
+ * Body:
+ * - role: 'director' | 'worker' | 'steward' (required)
+ * - name: string (required)
+ * - For workers: workerMode: 'ephemeral' | 'persistent' (required)
+ * - For stewards: stewardFocus: 'merge' | 'health' | 'reminder' | 'ops' (required)
+ * - capabilities?: { skills?: string[], languages?: string[], maxConcurrentTasks?: number }
+ * - tags?: string[]
+ * - triggers?: StewardTrigger[] (for stewards only)
+ * - reportsTo?: EntityId
+ * - createdBy?: EntityId (defaults to 'system')
+ */
+app.post('/api/agents', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      role: 'director' | 'worker' | 'steward';
+      name: string;
+      workerMode?: 'ephemeral' | 'persistent';
+      stewardFocus?: 'merge' | 'health' | 'reminder' | 'ops';
+      capabilities?: {
+        skills?: string[];
+        languages?: string[];
+        maxConcurrentTasks?: number;
+      };
+      tags?: string[];
+      triggers?: Array<{ type: 'cron'; schedule: string } | { type: 'event'; event: string; condition?: string }>;
+      reportsTo?: string;
+      createdBy?: string;
+    };
+
+    if (!body.role || !body.name) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'role and name are required' } }, 400);
+    }
+
+    const createdBy = (body.createdBy ?? 'system') as EntityId;
+
+    let agent;
+    switch (body.role) {
+      case 'director':
+        agent = await agentRegistry.registerDirector({
+          name: body.name,
+          createdBy,
+          tags: body.tags,
+          capabilities: body.capabilities,
+        });
+        break;
+
+      case 'worker':
+        if (!body.workerMode) {
+          return c.json({ error: { code: 'INVALID_INPUT', message: 'workerMode is required for workers' } }, 400);
+        }
+        agent = await agentRegistry.registerWorker({
+          name: body.name,
+          workerMode: body.workerMode,
+          createdBy,
+          tags: body.tags,
+          capabilities: body.capabilities,
+          reportsTo: body.reportsTo as EntityId | undefined,
+        });
+        break;
+
+      case 'steward':
+        if (!body.stewardFocus) {
+          return c.json({ error: { code: 'INVALID_INPUT', message: 'stewardFocus is required for stewards' } }, 400);
+        }
+        agent = await agentRegistry.registerSteward({
+          name: body.name,
+          stewardFocus: body.stewardFocus,
+          triggers: body.triggers,
+          createdBy,
+          tags: body.tags,
+          capabilities: body.capabilities,
+          reportsTo: body.reportsTo as EntityId | undefined,
+        });
+        break;
+
+      default:
+        return c.json({ error: { code: 'INVALID_INPUT', message: `Invalid role: ${body.role}` } }, 400);
+    }
+
+    return c.json({ agent }, 201);
+  } catch (error) {
+    const errorMessage = String(error);
+    if (errorMessage.includes('already exists') || errorMessage.includes('duplicate')) {
+      return c.json({ error: { code: 'ALREADY_EXISTS', message: errorMessage } }, 409);
+    }
+    console.error('[orchestrator] Failed to register agent:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
+/**
+ * POST /api/agents/director
+ * Register a Director agent
+ *
+ * Body:
+ * - name: string (required)
+ * - capabilities?: { skills?: string[], languages?: string[], maxConcurrentTasks?: number }
+ * - tags?: string[]
+ * - createdBy?: EntityId (defaults to 'system')
+ */
+app.post('/api/agents/director', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      name: string;
+      capabilities?: {
+        skills?: string[];
+        languages?: string[];
+        maxConcurrentTasks?: number;
+      };
+      tags?: string[];
+      createdBy?: string;
+    };
+
+    if (!body.name) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'name is required' } }, 400);
+    }
+
+    const createdBy = (body.createdBy ?? 'system') as EntityId;
+
+    const agent = await agentRegistry.registerDirector({
+      name: body.name,
+      createdBy,
+      tags: body.tags,
+      capabilities: body.capabilities,
+    });
+
+    return c.json({ agent }, 201);
+  } catch (error) {
+    const errorMessage = String(error);
+    if (errorMessage.includes('already exists') || errorMessage.includes('duplicate')) {
+      return c.json({ error: { code: 'ALREADY_EXISTS', message: errorMessage } }, 409);
+    }
+    console.error('[orchestrator] Failed to register director:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
+/**
+ * POST /api/agents/worker
+ * Register a Worker agent
+ *
+ * Body:
+ * - name: string (required)
+ * - workerMode: 'ephemeral' | 'persistent' (required)
+ * - capabilities?: { skills?: string[], languages?: string[], maxConcurrentTasks?: number }
+ * - tags?: string[]
+ * - reportsTo?: EntityId
+ * - createdBy?: EntityId (defaults to 'system')
+ */
+app.post('/api/agents/worker', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      name: string;
+      workerMode: 'ephemeral' | 'persistent';
+      capabilities?: {
+        skills?: string[];
+        languages?: string[];
+        maxConcurrentTasks?: number;
+      };
+      tags?: string[];
+      reportsTo?: string;
+      createdBy?: string;
+    };
+
+    if (!body.name) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'name is required' } }, 400);
+    }
+    if (!body.workerMode) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'workerMode is required' } }, 400);
+    }
+    if (body.workerMode !== 'ephemeral' && body.workerMode !== 'persistent') {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'workerMode must be "ephemeral" or "persistent"' } }, 400);
+    }
+
+    const createdBy = (body.createdBy ?? 'system') as EntityId;
+
+    const agent = await agentRegistry.registerWorker({
+      name: body.name,
+      workerMode: body.workerMode,
+      createdBy,
+      tags: body.tags,
+      capabilities: body.capabilities,
+      reportsTo: body.reportsTo as EntityId | undefined,
+    });
+
+    return c.json({ agent }, 201);
+  } catch (error) {
+    const errorMessage = String(error);
+    if (errorMessage.includes('already exists') || errorMessage.includes('duplicate')) {
+      return c.json({ error: { code: 'ALREADY_EXISTS', message: errorMessage } }, 409);
+    }
+    console.error('[orchestrator] Failed to register worker:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
+/**
+ * POST /api/agents/steward
+ * Register a Steward agent
+ *
+ * Body:
+ * - name: string (required)
+ * - stewardFocus: 'merge' | 'health' | 'reminder' | 'ops' (required)
+ * - triggers?: Array<{ type: 'cron'; schedule: string } | { type: 'event'; event: string; condition?: string }>
+ * - capabilities?: { skills?: string[], languages?: string[], maxConcurrentTasks?: number }
+ * - tags?: string[]
+ * - reportsTo?: EntityId
+ * - createdBy?: EntityId (defaults to 'system')
+ */
+app.post('/api/agents/steward', async (c) => {
+  try {
+    const body = await c.req.json() as {
+      name: string;
+      stewardFocus: 'merge' | 'health' | 'reminder' | 'ops';
+      triggers?: Array<{ type: 'cron'; schedule: string } | { type: 'event'; event: string; condition?: string }>;
+      capabilities?: {
+        skills?: string[];
+        languages?: string[];
+        maxConcurrentTasks?: number;
+      };
+      tags?: string[];
+      reportsTo?: string;
+      createdBy?: string;
+    };
+
+    if (!body.name) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'name is required' } }, 400);
+    }
+    if (!body.stewardFocus) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'stewardFocus is required' } }, 400);
+    }
+    const validFocuses = ['merge', 'health', 'reminder', 'ops'];
+    if (!validFocuses.includes(body.stewardFocus)) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: `stewardFocus must be one of: ${validFocuses.join(', ')}` } }, 400);
+    }
+
+    // Validate triggers if provided
+    if (body.triggers) {
+      for (const trigger of body.triggers) {
+        if (trigger.type === 'cron') {
+          if (!trigger.schedule) {
+            return c.json({ error: { code: 'INVALID_INPUT', message: 'Cron trigger requires a schedule' } }, 400);
+          }
+        } else if (trigger.type === 'event') {
+          if (!trigger.event) {
+            return c.json({ error: { code: 'INVALID_INPUT', message: 'Event trigger requires an event name' } }, 400);
+          }
+        } else {
+          return c.json({ error: { code: 'INVALID_INPUT', message: 'Trigger type must be "cron" or "event"' } }, 400);
+        }
+      }
+    }
+
+    const createdBy = (body.createdBy ?? 'system') as EntityId;
+
+    const agent = await agentRegistry.registerSteward({
+      name: body.name,
+      stewardFocus: body.stewardFocus,
+      triggers: body.triggers,
+      createdBy,
+      tags: body.tags,
+      capabilities: body.capabilities,
+      reportsTo: body.reportsTo as EntityId | undefined,
+    });
+
+    return c.json({ agent }, 201);
+  } catch (error) {
+    const errorMessage = String(error);
+    if (errorMessage.includes('already exists') || errorMessage.includes('duplicate')) {
+      return c.json({ error: { code: 'ALREADY_EXISTS', message: errorMessage } }, 409);
+    }
+    console.error('[orchestrator] Failed to register steward:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: errorMessage } }, 500);
+  }
+});
+
+/**
  * GET /api/agents/:id
  * Get agent details
  */

@@ -9,8 +9,8 @@ import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAgentsByRole, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
-import { AgentCard } from '../../components/agent';
-import type { Agent, SessionStatus } from '../../api/types';
+import { AgentCard, CreateAgentDialog } from '../../components/agent';
+import type { Agent, SessionStatus, AgentRole, StewardFocus } from '../../api/types';
 
 type TabValue = 'agents' | 'stewards';
 
@@ -20,6 +20,11 @@ export function AgentsPage() {
 
   const currentTab = (search.tab as TabValue) || 'agents';
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Create Agent Dialog state
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogRole, setCreateDialogRole] = useState<AgentRole | undefined>(undefined);
+  const [createDialogStewardFocus, setCreateDialogStewardFocus] = useState<StewardFocus | undefined>(undefined);
 
   // Track which agents have pending actions
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
@@ -98,6 +103,19 @@ export function AgentsPage() {
     navigate({ to: '/workspaces', search: { layout: `agent-${agentId}` } });
   };
 
+  // Create Agent Dialog handlers
+  const openCreateDialog = (role?: AgentRole, stewardFocus?: StewardFocus) => {
+    setCreateDialogRole(role);
+    setCreateDialogStewardFocus(stewardFocus);
+    setCreateDialogOpen(true);
+  };
+
+  const closeCreateDialog = () => {
+    setCreateDialogOpen(false);
+    setCreateDialogRole(undefined);
+    setCreateDialogStewardFocus(undefined);
+  };
+
   // Count agents by tab
   const agentCount = (director ? 1 : 0) + ephemeralWorkers.length + persistentWorkers.length;
   const stewardCount = stewards.length;
@@ -130,11 +148,12 @@ export function AgentsPage() {
             />
           </div>
           <button
+            onClick={() => openCreateDialog(currentTab === 'stewards' ? 'steward' : undefined)}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
             data-testid="agents-create"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Create Agent</span>
+            <span className="hidden sm:inline">{currentTab === 'stewards' ? 'Create Steward' : 'Create Agent'}</span>
           </button>
         </div>
       </div>
@@ -214,6 +233,7 @@ export function AgentsPage() {
           onOpenTerminal={handleOpenTerminal}
           pendingStart={pendingStart}
           pendingStop={pendingStop}
+          onCreateAgent={() => openCreateDialog()}
         />
       ) : (
         <StewardsTab
@@ -222,8 +242,18 @@ export function AgentsPage() {
           onStop={handleStopAgent}
           pendingStart={pendingStart}
           pendingStop={pendingStop}
+          onCreateSteward={() => openCreateDialog('steward')}
         />
       )}
+
+      {/* Create Agent Dialog */}
+      <CreateAgentDialog
+        isOpen={createDialogOpen}
+        onClose={closeCreateDialog}
+        initialRole={createDialogRole}
+        initialStewardFocus={createDialogStewardFocus}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }
@@ -241,6 +271,7 @@ interface AgentsTabProps {
   onOpenTerminal: (agentId: string) => void;
   pendingStart: Set<string>;
   pendingStop: Set<string>;
+  onCreateAgent: () => void;
 }
 
 function AgentsTab({
@@ -252,6 +283,7 @@ function AgentsTab({
   onOpenTerminal,
   pendingStart,
   pendingStop,
+  onCreateAgent,
 }: AgentsTabProps) {
   const hasAgents = director || ephemeralWorkers.length > 0 || persistentWorkers.length > 0;
 
@@ -263,6 +295,7 @@ function AgentsTab({
         description="Create your first agent to start orchestrating AI work. Agents can work on tasks autonomously in isolated git worktrees."
         actionLabel="Create Agent"
         actionTestId="agents-create-empty"
+        onAction={onCreateAgent}
       />
     );
   }
@@ -351,9 +384,10 @@ interface StewardsTabProps {
   onStop: (agentId: string) => void;
   pendingStart: Set<string>;
   pendingStop: Set<string>;
+  onCreateSteward: () => void;
 }
 
-function StewardsTab({ stewards, onStart, onStop, pendingStart, pendingStop }: StewardsTabProps) {
+function StewardsTab({ stewards, onStart, onStop, pendingStart, pendingStop, onCreateSteward }: StewardsTabProps) {
   if (stewards.length === 0) {
     return (
       <EmptyState
@@ -362,6 +396,7 @@ function StewardsTab({ stewards, onStart, onStop, pendingStart, pendingStop }: S
         description="Create stewards to automate maintenance tasks like merging branches, health monitoring, and cleanup operations."
         actionLabel="Create Steward"
         actionTestId="stewards-create-empty"
+        onAction={onCreateSteward}
       />
     );
   }
@@ -451,9 +486,10 @@ interface EmptyStateProps {
   description: string;
   actionLabel: string;
   actionTestId: string;
+  onAction?: () => void;
 }
 
-function EmptyState({ icon: Icon, title, description, actionLabel, actionTestId }: EmptyStateProps) {
+function EmptyState({ icon: Icon, title, description, actionLabel, actionTestId, onAction }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 border border-dashed border-[var(--color-border)] rounded-lg">
       <Icon className="w-12 h-12 text-[var(--color-text-tertiary)] mb-4" />
@@ -462,6 +498,7 @@ function EmptyState({ icon: Icon, title, description, actionLabel, actionTestId 
         {description}
       </p>
       <button
+        onClick={onAction}
         className="mt-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
         data-testid={actionTestId}
       >

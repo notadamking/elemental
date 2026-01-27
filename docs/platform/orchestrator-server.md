@@ -90,6 +90,72 @@ Query parameters:
 GET /api/agents/:id
 ```
 
+#### Create Agent (TB-O22)
+
+```
+POST /api/agents
+```
+
+Register a new agent (Director, Worker, or Steward).
+
+Body:
+```json
+{
+  "role": "steward",
+  "name": "Merge Bot",
+  "stewardFocus": "merge",
+  "triggers": [
+    { "type": "cron", "schedule": "0 * * * *" },
+    { "type": "event", "event": "task_completed" }
+  ],
+  "capabilities": {
+    "skills": ["git", "testing"],
+    "languages": ["typescript"],
+    "maxConcurrentTasks": 1
+  },
+  "tags": ["automation"],
+  "createdBy": "el-human123"
+}
+```
+
+Required fields by role:
+- **All roles**: `role`, `name`
+- **Workers**: `workerMode` (`ephemeral` | `persistent`)
+- **Stewards**: `stewardFocus` (`merge` | `health` | `reminder` | `ops`)
+
+Response (201):
+```json
+{
+  "agent": {
+    "id": "el-steward123",
+    "name": "Merge Bot",
+    "type": "entity",
+    "entityType": "agent",
+    "status": "active",
+    "metadata": {
+      "agent": {
+        "agentRole": "steward",
+        "stewardFocus": "merge",
+        "triggers": [...],
+        "sessionStatus": "idle"
+      }
+    }
+  }
+}
+```
+
+Error (409) if name already exists.
+
+**Role-specific endpoints:**
+
+```
+POST /api/agents/director  # Create Director
+POST /api/agents/worker    # Create Worker
+POST /api/agents/steward   # Create Steward
+```
+
+These accept the same body fields but default `role` to the endpoint type.
+
 #### Get Agent Status
 
 ```

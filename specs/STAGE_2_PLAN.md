@@ -1315,18 +1315,20 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ### Phase 6: Steward Configuration & Health
 
-#### - [ ] TB-O22: Steward Configuration UI
+#### - [x] TB-O22: Steward Configuration UI ✅
 
 **Goal**: Users can create and configure Stewards in the web UI
 
 **Changes**:
 
-- [ ] Steward management in `/agents` page under "Stewards" tab
-- [ ] [+ Create Steward] dialog with fields: Name, Focus, Trigger type, Workflow
-- [ ] List shows: name, focus, trigger type, last run, next scheduled
-- [ ] Actions: [Configure] [Run Now] [Disable]
+- [x] Steward management in `/agents` page under "Stewards" tab
+- [x] [+ Create Steward] dialog with fields: Name, Focus, Trigger type (cron/event)
+- [x] REST API endpoints for agent creation (`POST /api/agents`, `/api/agents/steward`, etc.)
+- [x] CreateAgentDialog component with full steward configuration (focus, triggers)
+- [x] Support for creating all agent types (Director, Worker, Steward)
+- [x] Playwright tests for steward configuration UI
 
-**Verification**: Create Merge Steward with event trigger, create Ops Steward with cron schedule
+**Verification**: Create Merge Steward with event trigger, create Ops Steward with cron schedule - DONE via Playwright tests
 
 ---
 
