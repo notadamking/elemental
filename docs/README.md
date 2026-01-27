@@ -183,7 +183,13 @@ The project is a TurboRepo monorepo with the following structure:
 | Activity page | `routes/activity/index.tsx` | - |
 | Tasks page | `routes/tasks/index.tsx` | - |
 | Agents page | `routes/agents/index.tsx` | `tests/agents.spec.ts` |
-| Workspaces page | `routes/workspaces/index.tsx` | - |
+| Workspaces page | `routes/workspaces/index.tsx` | `tests/workspaces.spec.ts` |
+| Workspace pane manager | `components/workspace/usePaneManager.ts` | - |
+| Workspace pane component | `components/workspace/WorkspacePane.tsx` | - |
+| Workspace grid layout | `components/workspace/WorkspaceGrid.tsx` | - |
+| Stream viewer | `components/workspace/StreamViewer.tsx` | - |
+| Add pane dialog | `components/workspace/AddPaneDialog.tsx` | - |
+| Workspace types | `components/workspace/types.ts` | - |
 | Workflows page | `routes/workflows/index.tsx` | - |
 | Metrics page | `routes/metrics/index.tsx` | - |
 | Settings page | `routes/settings/index.tsx` | - |
