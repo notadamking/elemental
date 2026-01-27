@@ -130,7 +130,7 @@ The project is a TurboRepo monorepo with the following structure:
 | Config defaults | `config/defaults.ts` | - |
 | Config validation | `config/validation.ts` | - |
 | Config merge | `config/merge.ts` | - |
-| Config file I/O | `config/file.ts` | - |
+| Config file I/O | `config/file.ts` | `config/file.test.ts` |
 | Config env vars | `config/env.ts` | - |
 | Duration parsing | `config/duration.ts` | - |
 | HTTP sync handlers | `http/sync-handlers.ts` | - |

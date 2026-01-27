@@ -33,12 +33,29 @@ export const ELEMENTAL_DIR = '.elemental';
 // ============================================================================
 
 /**
- * Finds the nearest .elemental directory by walking up from the given directory
+ * Finds the nearest .elemental directory by walking up from the given directory.
+ *
+ * This function first checks the ELEMENTAL_ROOT environment variable, which
+ * is used to support agents working in git worktrees. When an agent is spawned
+ * in a worktree, ELEMENTAL_ROOT points to the main workspace root where the
+ * SQLite database lives.
  *
  * @param startDir - Directory to start searching from
  * @returns Path to .elemental directory, or undefined if not found
  */
 export function findElementalDir(startDir: string): string | undefined {
+  // Check ELEMENTAL_ROOT env var first - used for worktree root-finding
+  // When agents work in git worktrees, they need to access the main
+  // workspace's .elemental directory where the SQLite database lives
+  const envRoot = process.env.ELEMENTAL_ROOT;
+  if (envRoot) {
+    const elementalPath = path.join(envRoot, ELEMENTAL_DIR);
+    if (fs.existsSync(elementalPath) && fs.statSync(elementalPath).isDirectory()) {
+      return elementalPath;
+    }
+  }
+
+  // Fall back to walk-up search
   let currentDir = path.resolve(startDir);
   const root = path.parse(currentDir).root;
 

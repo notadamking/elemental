@@ -658,26 +658,22 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O9b: Worktree Root-Finding via ELEMENTAL_ROOT
+#### - [x] TB-O9b: Worktree Root-Finding via ELEMENTAL_ROOT
 
 **Goal**: Ensure workers in worktrees interact with root-level SQLite database
 
 **Changes**:
 
-- [ ] Modify `src/config/file.ts` to check `ELEMENTAL_ROOT` env var first:
-  ```typescript
-  export function findElementalDir(startDir: string): string | undefined {
-    const envRoot = process.env.ELEMENTAL_ROOT;
-    if (envRoot) {
-      const elementalPath = path.join(envRoot, ELEMENTAL_DIR);
-      if (fs.existsSync(elementalPath)) return elementalPath;
-    }
-    // Existing walk-up logic...
-  }
-  ```
-- [ ] Update spawner to set `ELEMENTAL_ROOT` when spawning workers
+- [x] Modify `packages/sdk/src/config/file.ts` to check `ELEMENTAL_ROOT` env var first
+- [x] Update spawner to set `ELEMENTAL_ROOT` when spawning workers (already implemented in TB-O9)
 
-**Verification**: Spawn worker in worktree, verify it uses root database
+**Verification**: Unit tests in `packages/sdk/src/config/file.test.ts` verify ELEMENTAL_ROOT behavior
+
+**Implementation Notes**:
+- Modified `findElementalDir()` to check `ELEMENTAL_ROOT` env var before walk-up search
+- When spawner spawns agents with `elementalRoot` config, it sets `ELEMENTAL_ROOT` env var
+- This allows workers in worktrees to find and use the main workspace's `.elemental` directory
+- 14 new unit tests covering ELEMENTAL_ROOT priority, fallback behavior, and worktree simulation
 
 ---
 
