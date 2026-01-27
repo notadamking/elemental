@@ -1252,6 +1252,10 @@ app.post('/api/agents/:id/start', async (c) => {
       interactive: body.interactive,
     });
 
+    // Notify all WebSocket clients subscribed to this agent about the new session
+    // This allows them to send input to the session
+    notifyClientsOfNewSession(agentId, session, events);
+
     return c.json({
       success: true,
       session: formatSessionRecord(session),
@@ -1343,6 +1347,9 @@ app.post('/api/agents/:id/resume', async (c) => {
       resumePrompt: body.resumePrompt,
       checkReadyQueue: body.checkReadyQueue,
     });
+
+    // Notify all WebSocket clients subscribed to this agent about the resumed session
+    notifyClientsOfNewSession(agentId, session, events);
 
     return c.json({
       success: true,
@@ -2533,6 +2540,7 @@ interface WSClientData {
   id: string;
   agentId?: EntityId;
   sessionId?: string;
+  isInteractive?: boolean;
 }
 
 // Track WebSocket clients
@@ -2540,6 +2548,72 @@ const wsClients = new Map<string, { ws: ServerWebSocket<WSClientData>; cleanup?:
 
 function generateClientId(): string {
   return `ws-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+}
+
+/**
+ * Notify all WebSocket clients subscribed to an agent about a new session.
+ * This updates their session context so they can send input to the session.
+ */
+function notifyClientsOfNewSession(
+  agentId: EntityId,
+  session: { id: string; mode: 'headless' | 'interactive' },
+  events: import('events').EventEmitter
+): void {
+  for (const [clientId, client] of wsClients) {
+    if (client.ws.data.agentId === agentId) {
+      // Update client's session context
+      client.ws.data.sessionId = session.id;
+      client.ws.data.isInteractive = session.mode === 'interactive';
+
+      // Clean up any previous event listeners
+      if (client.cleanup) {
+        client.cleanup();
+      }
+
+      // Set up event forwarding for the new session
+      const onEvent = (event: SpawnedSessionEvent) => {
+        client.ws.send(JSON.stringify({ type: 'event', event }));
+      };
+
+      const onPtyData = (ptyData: string) => {
+        client.ws.send(JSON.stringify({ type: 'pty-data', data: ptyData }));
+      };
+
+      const onError = (error: Error) => {
+        client.ws.send(JSON.stringify({ type: 'error', error: error.message }));
+      };
+
+      const onExit = (code: number | null, signal: string | number | null) => {
+        client.ws.send(JSON.stringify({ type: 'exit', code, signal }));
+        // Clear session context on exit
+        client.ws.data.sessionId = undefined;
+        client.ws.data.isInteractive = undefined;
+      };
+
+      events.on('event', onEvent);
+      events.on('pty-data', onPtyData);
+      events.on('error', onError);
+      events.on('exit', onExit);
+
+      // Store cleanup function
+      client.cleanup = () => {
+        events.off('event', onEvent);
+        events.off('pty-data', onPtyData);
+        events.off('error', onError);
+        events.off('exit', onExit);
+      };
+
+      // Notify client of the new session
+      client.ws.send(JSON.stringify({
+        type: 'session-started',
+        agentId,
+        sessionId: session.id,
+        isInteractive: session.mode === 'interactive',
+      }));
+
+      console.log(`[orchestrator:ws] Notified client ${clientId} of new session for agent ${agentId}`);
+    }
+  }
 }
 
 // WebSocket handlers
@@ -2556,6 +2630,8 @@ function handleWSMessage(ws: ServerWebSocket<WSClientData>, message: string | Bu
       type: string;
       agentId?: string;
       input?: string;
+      cols?: number;
+      rows?: number;
     };
 
     switch (data.type) {
@@ -2565,25 +2641,38 @@ function handleWSMessage(ws: ServerWebSocket<WSClientData>, message: string | Bu
           const activeSession = sessionManager.getActiveSession(data.agentId as EntityId);
           if (activeSession) {
             ws.data.sessionId = activeSession.id;
+            ws.data.isInteractive = activeSession.mode === 'interactive';
+
             // Set up event forwarding
             const events = spawnerService.getEventEmitter(activeSession.id);
             if (events) {
+              // For headless sessions, forward structured events
               const onEvent = (event: SpawnedSessionEvent) => {
                 ws.send(JSON.stringify({ type: 'event', event }));
               };
+
+              // For interactive PTY sessions, forward raw terminal data
+              const onPtyData = (ptyData: string) => {
+                ws.send(JSON.stringify({ type: 'pty-data', data: ptyData }));
+              };
+
               const onError = (error: Error) => {
                 ws.send(JSON.stringify({ type: 'error', error: error.message }));
               };
-              const onExit = (code: number | null, signal: string | null) => {
+
+              const onExit = (code: number | null, signal: string | number | null) => {
                 ws.send(JSON.stringify({ type: 'exit', code, signal }));
               };
+
               events.on('event', onEvent);
+              events.on('pty-data', onPtyData);
               events.on('error', onError);
               events.on('exit', onExit);
 
               // Store cleanup function
               wsClients.get(ws.data.id)!.cleanup = () => {
                 events.off('event', onEvent);
+                events.off('pty-data', onPtyData);
                 events.off('error', onError);
                 events.off('exit', onExit);
               };
@@ -2593,18 +2682,38 @@ function handleWSMessage(ws: ServerWebSocket<WSClientData>, message: string | Bu
             type: 'subscribed',
             agentId: data.agentId,
             hasSession: !!activeSession,
+            isInteractive: activeSession?.mode === 'interactive',
           }));
         }
         break;
       }
+
       case 'input': {
-        if (ws.data.sessionId && data.input) {
+        // For headless sessions, send structured input
+        if (ws.data.sessionId && data.input && !ws.data.isInteractive) {
           spawnerService.sendInput(ws.data.sessionId, data.input).catch((err) => {
+            ws.send(JSON.stringify({ type: 'error', error: err.message }));
+          });
+        }
+        // For interactive PTY sessions, write directly to PTY
+        else if (ws.data.sessionId && data.input && ws.data.isInteractive) {
+          spawnerService.writeToPty(ws.data.sessionId, data.input).catch((err) => {
             ws.send(JSON.stringify({ type: 'error', error: err.message }));
           });
         }
         break;
       }
+
+      case 'resize': {
+        // Resize PTY for interactive sessions
+        if (ws.data.sessionId && ws.data.isInteractive && data.cols && data.rows) {
+          spawnerService.resize(ws.data.sessionId, data.cols, data.rows).catch((err) => {
+            ws.send(JSON.stringify({ type: 'error', error: err.message }));
+          });
+        }
+        break;
+      }
+
       case 'ping': {
         ws.send(JSON.stringify({ type: 'pong' }));
         break;

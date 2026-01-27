@@ -35,6 +35,8 @@ export interface XTerminalProps {
   autoFit?: boolean;
   /** Whether terminal should be interactive (accept input) */
   interactive?: boolean;
+  /** Whether to auto-focus the terminal on mount */
+  autoFocus?: boolean;
   /** Test ID for testing */
   'data-testid'?: string;
 }
@@ -103,6 +105,7 @@ export function XTerminal({
   fontFamily = '"JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, Courier, monospace',
   autoFit = true,
   interactive = true,
+  autoFocus = false,
   'data-testid': testId = 'xterminal',
 }: XTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -178,12 +181,18 @@ export function XTerminal({
     terminal.writeln('\x1b[90m  Connecting to agent...\x1b[0m');
     terminal.writeln('');
 
+    // Auto-focus if requested
+    if (autoFocus && interactive) {
+      // Delay focus slightly to ensure terminal is fully rendered
+      setTimeout(() => terminal.focus(), 100);
+    }
+
     return () => {
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [theme, fontSize, fontFamily, autoFit, interactive, sendToServer, onData]);
+  }, [theme, fontSize, fontFamily, autoFit, interactive, autoFocus, sendToServer, onData]);
 
   // Handle resize
   useEffect(() => {
@@ -192,6 +201,14 @@ export function XTerminal({
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddonRef.current?.fit();
+
+        // Send resize event to server for interactive PTY sessions
+        if (wsRef.current?.readyState === WebSocket.OPEN && terminalRef.current) {
+          const dims = fitAddonRef.current?.proposeDimensions();
+          if (dims) {
+            wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+          }
+        }
       } catch {
         // Ignore resize errors (can happen during unmount)
       }
@@ -230,7 +247,9 @@ export function XTerminal({
           const data = JSON.parse(event.data) as {
             type: string;
             event?: { type: string; data?: unknown; content?: string; output?: string };
+            data?: string; // For pty-data messages
             hasSession?: boolean;
+            isInteractive?: boolean;
             error?: string;
           };
 
@@ -238,11 +257,33 @@ export function XTerminal({
             case 'subscribed':
               updateStatus('connected');
               onConnectedRef.current?.();
-              terminalRef.current?.writeln(
-                data.hasSession
-                  ? '\x1b[32m  Connected to active session\x1b[0m\r\n'
-                  : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
-              );
+              if (data.isInteractive) {
+                terminalRef.current?.writeln(
+                  data.hasSession
+                    ? '\x1b[32m  Connected to interactive PTY session\x1b[0m\r\n'
+                    : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
+                );
+                // Send initial resize for interactive sessions
+                if (data.hasSession && fitAddonRef.current && terminalRef.current) {
+                  const dims = fitAddonRef.current.proposeDimensions();
+                  if (dims) {
+                    ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+                  }
+                }
+              } else {
+                terminalRef.current?.writeln(
+                  data.hasSession
+                    ? '\x1b[32m  Connected to active session\x1b[0m\r\n'
+                    : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
+                );
+              }
+              break;
+
+            case 'pty-data':
+              // Raw PTY data from interactive session
+              if (data.data) {
+                terminalRef.current?.write(data.data);
+              }
               break;
 
             case 'event':
@@ -261,6 +302,22 @@ export function XTerminal({
 
             case 'pong':
               // Heartbeat response, ignore
+              break;
+
+            case 'session-started':
+              // A new session was started for this agent
+              terminalRef.current?.writeln(
+                (data as { isInteractive?: boolean }).isInteractive
+                  ? '\x1b[32m  Session started - interactive PTY connected\x1b[0m\r\n'
+                  : '\x1b[32m  Session started - connected\x1b[0m\r\n'
+              );
+              // Send initial resize for interactive sessions
+              if ((data as { isInteractive?: boolean }).isInteractive && fitAddonRef.current && terminalRef.current) {
+                const dims = fitAddonRef.current.proposeDimensions();
+                if (dims) {
+                  ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+                }
+              }
               break;
           }
         } catch (err) {
@@ -384,13 +441,21 @@ export function XTerminal({
     };
   }, [write, writeln, clear, focus, fit, status]);
 
+  // Handle click to focus terminal
+  const handleClick = useCallback(() => {
+    if (interactive) {
+      terminalRef.current?.focus();
+    }
+  }, [interactive]);
+
   return (
     <div
       ref={containerRef}
       data-testid={testId}
       data-status={status}
-      className="w-full h-full overflow-hidden"
+      className="w-full h-full overflow-hidden cursor-text"
       style={{ minHeight: '200px' }}
+      onClick={handleClick}
     />
   );
 }
