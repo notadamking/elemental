@@ -91,15 +91,24 @@ interface Message {
 }
 
 // ============================================================================
-// Mention and Image Rendering (TB102)
+// Mention, Image, and Markdown Rendering
 // ============================================================================
 
 /**
  * Regex pattern to match @mentions in message content
  * Matches @ followed by a valid entity name (letter, then alphanumeric/hyphen/underscore)
  * Uses negative lookbehind to exclude email addresses
+ * Also handles markdown formatting around mention names: @**name**, @_name_, @`name`
  */
-const MENTION_REGEX = /(?<![a-zA-Z0-9])@([a-zA-Z][a-zA-Z0-9_-]*)/g;
+const MENTION_REGEX = /(?<![a-zA-Z0-9])@(?:\*\*|__)?(?:_|\*)?(`)?([a-zA-Z][a-zA-Z0-9_-]*)(`)?(?:\*|_)?(?:\*\*|__)?/g;
+
+/**
+ * Extracts the clean entity name from a mention match, stripping any markdown formatting
+ */
+function extractMentionName(match: RegExpExecArray): string {
+  // The entity name is in capture group 2 (after optional backtick in group 1)
+  return match[2];
+}
 
 /**
  * Regex pattern to match markdown images: ![alt](url)
@@ -113,22 +122,68 @@ const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
 const EMBED_REGEX = /!\[\[(task|doc):([\w-]+)\]\]/g;
 
 /**
- * Renders a single text segment, processing mentions within it
+ * Regex pattern to match markdown links: [text](url)
+ * Also handles escaped brackets: \[text\](url)
  */
-function renderTextWithMentions(text: string, keyPrefix: string): React.ReactNode[] {
+const LINK_REGEX = /\\?\[([^\]\\]+)\\?\]\(([^)]+)\)/g;
+
+/**
+ * Unescapes markdown escape sequences (backslash followed by special char)
+ */
+function unescapeMarkdown(text: string): string {
+  // Remove backslashes before special markdown characters
+  return text.replace(/\\([[\](){}*_`~#>+\-.!|])/g, '$1');
+}
+
+/**
+ * Converts inline markdown (bold, italic, code, strikethrough) to HTML
+ * This is a lightweight converter for inline formatting only
+ */
+function convertInlineMarkdown(text: string): string {
+  // First unescape any escaped markdown characters
+  let result = unescapeMarkdown(text);
+
+  // Bold: **text** or __text__
+  result = result.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  result = result.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+  // Italic: *text* or _text_ (but not in the middle of words)
+  result = result.replace(/(?<![a-zA-Z0-9])\*([^*]+)\*(?![a-zA-Z0-9])/g, '<em>$1</em>');
+  result = result.replace(/(?<![a-zA-Z0-9])_([^_]+)_(?![a-zA-Z0-9])/g, '<em>$1</em>');
+
+  // Inline code: `code`
+  result = result.replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>');
+
+  // Strikethrough: ~~text~~
+  result = result.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+  return result;
+}
+
+/**
+ * Renders a single text segment with inline markdown and mentions
+ */
+function renderFormattedTextWithMentions(text: string, keyPrefix: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   const regex = new RegExp(MENTION_REGEX.source, 'g');
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(text)) !== null) {
-    // Add text before the mention
+    // Add text before the mention (with markdown formatting)
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      const textBefore = text.slice(lastIndex, match.index);
+      const html = convertInlineMarkdown(textBefore);
+      parts.push(
+        <span
+          key={`${keyPrefix}-text-${lastIndex}`}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
     }
 
-    // Add the highlighted mention as a link to the entity
-    const entityName = match[1];
+    // Extract the clean entity name (stripping any markdown formatting)
+    const entityName = extractMentionName(match);
     parts.push(
       <Link
         key={`${keyPrefix}-mention-${match.index}`}
@@ -137,19 +192,83 @@ function renderTextWithMentions(text: string, keyPrefix: string): React.ReactNod
         className="text-blue-600 font-medium hover:underline"
         data-mention={entityName}
       >
-        {match[0]}
+        @{entityName}
       </Link>
     );
 
     lastIndex = match.index + match[0].length;
   }
 
-  // Add remaining text after last mention
+  // Add remaining text after last mention (with markdown formatting)
   if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+    const textAfter = text.slice(lastIndex);
+    const html = convertInlineMarkdown(textAfter);
+    parts.push(
+      <span
+        key={`${keyPrefix}-text-${lastIndex}`}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
   }
 
-  return parts.length > 0 ? parts : [text];
+  // If no mentions found, just return the formatted text
+  if (parts.length === 0) {
+    const html = convertInlineMarkdown(text);
+    return [
+      <span
+        key={`${keyPrefix}-text-0`}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    ];
+  }
+
+  return parts;
+}
+
+/**
+ * Renders text with links converted to clickable anchors
+ */
+function renderTextWithLinks(text: string, keyPrefix: string): React.ReactNode[] {
+  // First, unescape any escaped markdown characters to properly match links
+  const unescapedText = unescapeMarkdown(text);
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  const linkRegex = new RegExp(LINK_REGEX.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = linkRegex.exec(unescapedText)) !== null) {
+    // Add text before the link (with mention and markdown processing)
+    if (match.index > lastIndex) {
+      const textBefore = unescapedText.slice(lastIndex, match.index);
+      parts.push(...renderFormattedTextWithMentions(textBefore, `${keyPrefix}-before-${match.index}`));
+    }
+
+    // Add the link
+    const linkText = match[1];
+    const linkUrl = match[2];
+    parts.push(
+      <a
+        key={`${keyPrefix}-link-${match.index}`}
+        href={linkUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 hover:underline"
+      >
+        {linkText}
+      </a>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last link
+  if (lastIndex < unescapedText.length) {
+    const textAfter = unescapedText.slice(lastIndex);
+    parts.push(...renderFormattedTextWithMentions(textAfter, `${keyPrefix}-after-${lastIndex}`));
+  }
+
+  return parts.length > 0 ? parts : renderFormattedTextWithMentions(unescapedText, keyPrefix);
 }
 
 /**
@@ -163,10 +282,10 @@ function renderTextWithEmbeds(text: string, keyPrefix: string): React.ReactNode[
   let match: RegExpExecArray | null;
 
   while ((match = embedRegex.exec(text)) !== null) {
-    // Add text before the embed (with mention processing)
+    // Add text before the embed (with link, mention, and markdown processing)
     if (match.index > lastIndex) {
       const textBefore = text.slice(lastIndex, match.index);
-      parts.push(...renderTextWithMentions(textBefore, `${keyPrefix}-before-${match.index}`));
+      parts.push(...renderTextWithLinks(textBefore, `${keyPrefix}-before-${match.index}`));
     }
 
     // Add the embed card
@@ -183,18 +302,18 @@ function renderTextWithEmbeds(text: string, keyPrefix: string): React.ReactNode[
     lastIndex = match.index + match[0].length;
   }
 
-  // Add remaining text after last embed (with mention processing)
+  // Add remaining text after last embed (with link, mention, and markdown processing)
   if (lastIndex < text.length) {
     const textAfter = text.slice(lastIndex);
-    parts.push(...renderTextWithMentions(textAfter, `${keyPrefix}-after-${lastIndex}`));
+    parts.push(...renderTextWithLinks(textAfter, `${keyPrefix}-after-${lastIndex}`));
   }
 
-  return parts.length > 0 ? parts : renderTextWithMentions(text, keyPrefix);
+  return parts.length > 0 ? parts : renderTextWithLinks(text, keyPrefix);
 }
 
 /**
  * Renders message content with @mentions highlighted, images displayed (TB102),
- * and element embeds (TB128)
+ * element embeds (TB128), links, and markdown formatting (bold, italic, code)
  */
 function renderMessageContent(content: string): React.ReactNode {
   if (!content) return null;
@@ -205,22 +324,31 @@ function renderMessageContent(content: string): React.ReactNode {
   let match: RegExpExecArray | null;
 
   while ((match = imageRegex.exec(content)) !== null) {
-    // Add text before the image (with embed and mention processing)
+    // Add text before the image (with embed, link, mention, and markdown processing)
     if (match.index > lastIndex) {
       const textBefore = content.slice(lastIndex, match.index);
-      parts.push(...renderTextWithEmbeds(textBefore, `text-${lastIndex}`));
+      parts.push(
+        <span key={`text-${lastIndex}`}>
+          {renderTextWithEmbeds(textBefore, `text-${lastIndex}`)}
+        </span>
+      );
     }
 
-    // Add the image element
+    // Add the image element - using block display to prevent overlap
     const altText = match[1] || 'Image';
     const imageUrl = match[2];
     parts.push(
-      <div key={`image-${match.index}`} className="my-2">
+      <div key={`image-${match.index}`} className="my-2 block clear-both">
         <img
           src={imageUrl}
           alt={altText}
-          className="max-w-full max-h-80 rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+          className="max-w-full max-h-80 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity block"
           onClick={() => window.open(imageUrl, '_blank')}
+          onLoad={(e) => {
+            // Force reflow after image loads to ensure proper layout
+            const img = e.currentTarget;
+            img.style.display = 'block';
+          }}
           data-testid={`message-image-${match.index}`}
         />
       </div>
@@ -229,13 +357,22 @@ function renderMessageContent(content: string): React.ReactNode {
     lastIndex = match.index + match[0].length;
   }
 
-  // Add remaining text after last image (with embed and mention processing)
+  // Add remaining text after last image (with embed, link, mention, and markdown processing)
   if (lastIndex < content.length) {
     const textAfter = content.slice(lastIndex);
-    parts.push(...renderTextWithEmbeds(textAfter, `text-${lastIndex}`));
+    parts.push(
+      <span key={`text-${lastIndex}`}>
+        {renderTextWithEmbeds(textAfter, `text-${lastIndex}`)}
+      </span>
+    );
   }
 
-  return parts.length > 0 ? parts : content;
+  // If no special elements found, just process for embeds, links, mentions, and markdown
+  if (parts.length === 0) {
+    return <span>{renderTextWithEmbeds(content, 'content')}</span>;
+  }
+
+  return <>{parts}</>;
 }
 
 // ============================================================================
@@ -882,7 +1019,7 @@ function MessageBubble({
           </div>
           <div
             data-testid={`message-content-${message.id}`}
-            className={`text-[var(--color-text-secondary)] mt-1 break-words ${isMobile ? 'text-sm' : ''}`}
+            className={`text-[var(--color-text-secondary)] mt-1 break-words overflow-hidden ${isMobile ? 'text-sm' : ''}`}
           >
             {message._content ? (
               renderMessageContent(message._content)
@@ -1109,7 +1246,16 @@ function ThreadPanel({
           <VirtualizedChatList
             items={replies}
             getItemKey={(reply) => reply.id}
-            estimateSize={80} // Threaded messages are typically smaller
+            estimateSize={(index) => {
+              const baseHeight = 80; // Threaded messages are typically smaller
+              const reply = replies[index];
+              const content = reply?._content || '';
+              // Add height for messages with images
+              if (content.includes('![') && content.includes('](')) {
+                return baseHeight + 340;
+              }
+              return baseHeight;
+            }}
             testId="virtualized-thread-replies"
             gap={4}
             latestMessageId={replies[replies.length - 1]?.id}
@@ -1148,6 +1294,8 @@ function ThreadComposer({
   const sendMessage = useSendMessage();
   const editorRef = useRef<MessageRichComposerRef>(null);
   const { currentUser } = useCurrentUser();
+  // Fetch entities for @mention autocomplete
+  const { data: entities = [] } = useEntities();
 
   const handleSubmit = async () => {
     if (!content.trim() || !channel || !currentUser) return;
@@ -1190,6 +1338,7 @@ function ThreadComposer({
             disabled={sendMessage.isPending}
             maxHeight={120}
             minHeight={48}
+            mentionEntities={entities}
           />
         </div>
         <button
@@ -1348,6 +1497,9 @@ function MessageComposer({
   const dropZoneRef = useRef<HTMLFormElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const { currentUser } = useCurrentUser();
+
+  // Fetch entities for @mention autocomplete
+  const { data: entities = [] } = useEntities();
 
   // Focus editor when channel changes
   useEffect(() => {
@@ -1657,6 +1809,7 @@ function MessageComposer({
               maxHeight={isMobile ? 120 : 180}
               minHeight={isMobile ? 44 : 60}
               embedCallbacks={embedCallbacks}
+              mentionEntities={entities}
             />
           </div>
           <button
@@ -2170,7 +2323,21 @@ function ChannelView({
               getItemKey={(grouped) => grouped.item.id}
               estimateSize={(index) => {
                 const baseHeight = isMobile ? 80 : MESSAGE_ROW_HEIGHT;
-                return groupedMessages[index]?.isFirstInDay ? baseHeight + 48 : baseHeight;
+                const grouped = groupedMessages[index];
+                let height = baseHeight;
+
+                // Add more height for day separator
+                if (grouped?.isFirstInDay) {
+                  height += 48;
+                }
+
+                // Add height for messages with images (max-h-80 = 320px + margins)
+                const content = grouped?.item?._content || '';
+                if (content.includes('![') && content.includes('](')) {
+                  height += 340; // Account for max image height + margins
+                }
+
+                return height;
               }}
               scrollRestoreId={`messages-${channelId}`}
               testId="virtualized-messages-list"

@@ -12,6 +12,7 @@
  * - Image paste support (TB102)
  * - Slash commands for quick block insertion (TB127)
  * - # autocomplete for element embedding (TB128)
+ * - @ mention autocomplete for entity tagging
  *
  * TB101, TB102, TB127, TB128 Implementation
  */
@@ -24,6 +25,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import { MessageSlashCommands, type MessageEmbedCallbacks } from './MessageSlashCommands';
 import { HashAutocomplete, createElementFetcher } from './HashAutocomplete';
+import { MentionAutocomplete, MentionNode, type MentionEntity } from '../editor/MentionAutocomplete';
 import {
   useCallback,
   useEffect,
@@ -72,6 +74,8 @@ interface MessageRichComposerProps {
   onImagePaste?: (file: File) => void;
   /** Embed callbacks for slash commands (TB127) */
   embedCallbacks?: MessageEmbedCallbacks;
+  /** Entities available for @mention autocomplete */
+  mentionEntities?: MentionEntity[];
 }
 
 export interface MessageRichComposerRef {
@@ -132,11 +136,19 @@ export const MessageRichComposer = forwardRef<
     channelName,
     onImagePaste,
     embedCallbacks,
+    mentionEntities = [],
   },
   ref
 ) {
   const [showToolbar, setShowToolbar] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Store mentionEntities in a ref to avoid recreation of getEntities callback
+  const mentionEntitiesRef = useRef(mentionEntities);
+  mentionEntitiesRef.current = mentionEntities;
+
+  // Memoize getEntities callback
+  const getEntities = useCallback(() => mentionEntitiesRef.current, []);
 
   // Convert content (Markdown or legacy HTML) to HTML for Tiptap editor
   const getInitialContent = useCallback(() => {
@@ -167,6 +179,11 @@ export const MessageRichComposer = forwardRef<
       HashAutocomplete.configure({
         fetchElements: createElementFetcher(),
       }),
+      // @mention autocomplete for entity tagging
+      MentionNode,
+      MentionAutocomplete.configure({
+        getEntities,
+      }),
     ],
     content: getInitialContent(),
     editable: !disabled,
@@ -191,10 +208,11 @@ export const MessageRichComposer = forwardRef<
           const isInCodeBlock = editor?.isActive('codeBlock');
 
           // TB127/TB128: Check if suggestion menu is active by looking for tippy popups
-          // If a tippy popup exists with slash command or hash autocomplete menu, don't intercept Enter
+          // If a tippy popup exists with slash command, hash autocomplete, or mention menu, don't intercept Enter
           const slashMenuOpen = document.querySelector('[data-testid="message-slash-command-menu"]');
           const hashMenuOpen = document.querySelector('[data-testid="hash-autocomplete-menu"]');
-          if (slashMenuOpen || hashMenuOpen) {
+          const mentionMenuOpen = document.querySelector('[data-testid="mention-autocomplete-menu"]');
+          if (slashMenuOpen || hashMenuOpen || mentionMenuOpen) {
             // Let the suggestion plugin handle Enter
             return false;
           }
