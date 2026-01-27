@@ -15,6 +15,7 @@
  */
 
 import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
@@ -71,7 +72,18 @@ import {
   type StewardExecutionEntry,
   GitRepositoryNotFoundError,
 } from '@elemental/orchestrator-sdk';
-import type { ServerWebSocket } from 'bun';
+
+// Bun/Node.js compatibility: Use Bun types if available
+type ServerWebSocket<T> = {
+  data: T;
+  send(data: string | ArrayBuffer): void;
+  close(): void;
+  readyState: number;
+};
+
+// Cross-runtime __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // ============================================================================
 // Server Configuration
@@ -81,9 +93,63 @@ const PORT = parseInt(process.env.ORCHESTRATOR_PORT || process.env.PORT || '3457
 const HOST = process.env.HOST || 'localhost';
 
 // Database path - defaults to .elemental/elemental.db in project root
-const PROJECT_ROOT = resolve(dirname(import.meta.path), '../../..');
+const PROJECT_ROOT = resolve(__dirname, '../../..');
 const DEFAULT_DB_PATH = resolve(PROJECT_ROOT, '.elemental/elemental.db');
 const DB_PATH = process.env.ELEMENTAL_DB_PATH || DEFAULT_DB_PATH;
+
+// ============================================================================
+// Claude CLI Path Resolution
+// ============================================================================
+
+import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+
+/**
+ * Resolves the path to the Claude CLI executable.
+ *
+ * This is needed because node-pty spawns a shell that may not have
+ * the same PATH as the current process, causing "posix_spawnp failed".
+ *
+ * Resolution order:
+ * 1. CLAUDE_PATH environment variable (explicit override)
+ * 2. `which claude` (if claude is in current PATH)
+ * 3. Common installation locations
+ * 4. Fallback to 'claude' (rely on shell PATH)
+ */
+function getClaudePath(): string {
+  // 1. Environment variable override
+  if (process.env.CLAUDE_PATH) {
+    return process.env.CLAUDE_PATH;
+  }
+
+  // 2. Try to find claude using `which`
+  try {
+    const result = execSync('which claude', { encoding: 'utf-8', timeout: 5000 });
+    const path = result.trim();
+    if (path && existsSync(path)) {
+      return path;
+    }
+  } catch {
+    // `which` failed, continue to fallbacks
+  }
+
+  // 3. Check common installation locations
+  const commonPaths = [
+    `${process.env.HOME}/.local/bin/claude`,
+    '/usr/local/bin/claude',
+    '/opt/homebrew/bin/claude',
+  ];
+
+  for (const path of commonPaths) {
+    if (existsSync(path)) {
+      return path;
+    }
+  }
+
+  // 4. Fallback - rely on shell PATH (may fail with posix_spawnp)
+  console.warn('[orchestrator] Claude CLI not found at common paths, falling back to PATH resolution');
+  return 'claude';
+}
 
 // ============================================================================
 // Initialize Services
@@ -111,9 +177,15 @@ try {
 
   // Initialize orchestrator services
   agentRegistry = createAgentRegistry(api);
+
+  // Get Claude CLI path - resolves "posix_spawnp failed" when node-pty shell doesn't have claude in PATH
+  const claudePath = getClaudePath();
+  console.log(`[orchestrator] Using Claude CLI at: ${claudePath}`);
+
   spawnerService = createSpawnerService({
     workingDirectory: PROJECT_ROOT,
     elementalRoot: PROJECT_ROOT,
+    claudePath,
   });
   sessionManager = createSessionManager(spawnerService, api, agentRegistry);
   taskAssignmentService = createTaskAssignmentService(api);
@@ -2748,36 +2820,128 @@ function handleWSClose(ws: ServerWebSocket<WSClientData>): void {
 }
 
 // ============================================================================
-// Start Server
+// Start Server (Cross-runtime: Node.js with @hono/node-server + ws, or Bun)
 // ============================================================================
 
-const server = Bun.serve({
-  port: PORT,
-  hostname: HOST,
-  fetch: app.fetch,
-  websocket: {
-    open(ws: ServerWebSocket<WSClientData>) {
-      handleWSOpen(ws);
-    },
-    message(ws: ServerWebSocket<WSClientData>, message: string | Buffer) {
-      handleWSMessage(ws, message);
-    },
-    close(ws: ServerWebSocket<WSClientData>) {
-      handleWSClose(ws);
-    },
-  },
-});
+// Detect runtime
+const isBun = typeof globalThis.Bun !== 'undefined';
 
-// Upgrade WebSocket connections
-app.get('/ws', (c) => {
-  const upgraded = server.upgrade(c.req.raw, {
-    data: { id: '' },
+if (isBun) {
+  // Bun runtime - use native Bun.serve
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Bun = (globalThis as any).Bun;
+  const server = Bun.serve({
+    port: PORT,
+    hostname: HOST,
+    fetch: app.fetch,
+    websocket: {
+      open(ws: ServerWebSocket<WSClientData>) {
+        handleWSOpen(ws);
+      },
+      message(ws: ServerWebSocket<WSClientData>, message: string | Buffer) {
+        handleWSMessage(ws, message);
+      },
+      close(ws: ServerWebSocket<WSClientData>) {
+        handleWSClose(ws);
+      },
+    },
   });
-  if (upgraded) {
-    return new Response(null, { status: 101 });
-  }
-  return c.json({ error: 'WebSocket upgrade failed' }, 400);
-});
 
-console.log(`[orchestrator] Server running at http://${HOST}:${PORT}`);
-console.log(`[orchestrator] WebSocket available at ws://${HOST}:${PORT}/ws`);
+  // Upgrade WebSocket connections for Bun
+  app.get('/ws', (c) => {
+    const upgraded = server.upgrade(c.req.raw, {
+      data: { id: '' },
+    });
+    if (upgraded) {
+      return new Response(null, { status: 101 });
+    }
+    return c.json({ error: 'WebSocket upgrade failed' }, 400);
+  });
+
+  console.log(`[orchestrator] Server running at http://${HOST}:${PORT} (Bun)`);
+  console.log(`[orchestrator] WebSocket available at ws://${HOST}:${PORT}/ws`);
+} else {
+  // Node.js runtime - use @hono/node-server + ws
+  import('@hono/node-server').then(({ serve }) => {
+    import('ws').then(({ WebSocketServer }) => {
+      import('http').then(({ createServer }) => {
+        // Create HTTP server from Hono
+        const httpServer = createServer(async (req, res) => {
+          // Handle non-WebSocket requests through Hono
+          const url = `http://${HOST}:${PORT}${req.url}`;
+          const headers = new Headers();
+          for (const [key, value] of Object.entries(req.headers)) {
+            if (value) headers.set(key, Array.isArray(value) ? value.join(', ') : value);
+          }
+
+          let body: string | undefined;
+          if (req.method !== 'GET' && req.method !== 'HEAD') {
+            const chunks: Buffer[] = [];
+            for await (const chunk of req) {
+              chunks.push(chunk);
+            }
+            body = Buffer.concat(chunks).toString();
+          }
+
+          const request = new Request(url, {
+            method: req.method,
+            headers,
+            body,
+          });
+
+          const response = await app.fetch(request);
+          res.statusCode = response.status;
+          response.headers.forEach((value, key) => {
+            res.setHeader(key, value);
+          });
+          const responseBody = await response.text();
+          res.end(responseBody);
+        });
+
+        // Create WebSocket server on same HTTP server
+        const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+        wss.on('connection', (ws) => {
+          // Create a WSClientData compatible object
+          const wsData: WSClientData = {
+            id: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            agentId: undefined,
+            sessionId: undefined,
+            isInteractive: undefined,
+          };
+
+          // Adapter to match Bun's ServerWebSocket interface
+          // WebSocket.OPEN = 1 in the 'ws' library
+          const WS_OPEN = 1;
+          const wsAdapter: ServerWebSocket<WSClientData> = {
+            data: wsData,
+            send: (data: string | ArrayBuffer) => {
+              if (ws.readyState === WS_OPEN) {
+                ws.send(typeof data === 'string' ? data : Buffer.from(data));
+              }
+            },
+            close: () => ws.close(),
+            readyState: ws.readyState,
+          };
+
+          handleWSOpen(wsAdapter);
+
+          ws.on('message', (message) => {
+            // Update readyState proxy
+            (wsAdapter as { readyState: number }).readyState = ws.readyState;
+            handleWSMessage(wsAdapter, message.toString());
+          });
+
+          ws.on('close', () => {
+            handleWSClose(wsAdapter);
+          });
+        });
+
+        httpServer.listen(PORT, HOST, () => {
+          console.log(`[orchestrator] Server running at http://${HOST}:${PORT} (Node.js)`);
+          console.log(`[orchestrator] WebSocket available at ws://${HOST}:${PORT}/ws`);
+        });
+      });
+    });
+  });
+}
