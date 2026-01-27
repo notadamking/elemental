@@ -216,6 +216,31 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@20.19.30)(yaml@2.8.2)
 
+  packages/orchestrator-sdk:
+    dependencies:
+      '@elemental/core':
+        specifier: workspace:*
+        version: link:../core
+      '@elemental/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@elemental/storage':
+        specifier: workspace:*
+        version: link:../storage
+    devDependencies:
+      '@types/bun':
+        specifier: latest
+        version: 1.3.6
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.30
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.30)(yaml@2.8.2)
+
   packages/sdk:
     dependencies:
       '@elemental/core':

@@ -50,6 +50,7 @@ The project is a TurboRepo monorepo with the following structure:
 | `packages/core/` | Shared types, errors, ID generation, utilities | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId`, factory functions |
 | `packages/storage/` | SQLite storage layer with Bun, Node.js, and Browser backends | `createStorage`, `initializeSchema`, `StorageBackend` |
 | `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService`, CLI commands |
+| `packages/orchestrator-sdk/` | Agent orchestration, task metadata, worktree naming | `OrchestratorAPI`, `AgentRole`, `AgentMetadata`, `OrchestratorTaskMeta` |
 
 ## File Map (@elemental/core - packages/core/src/)
 
@@ -127,6 +128,16 @@ The project is a TurboRepo monorepo with the following structure:
 | Duration parsing | `config/duration.ts` | - |
 | HTTP sync handlers | `http/sync-handlers.ts` | - |
 | Identity system | `systems/identity.ts` | `systems/identity.test.ts` |
+
+## File Map (@elemental/orchestrator-sdk - packages/orchestrator-sdk/src/)
+
+| Concept | Source | Tests |
+|---------|--------|-------|
+| Package entry | `index.ts` | - |
+| Type exports | `types/index.ts` | - |
+| Agent types | `types/agent.ts` | `types/agent.test.ts` |
+| Task metadata | `types/task-meta.ts` | `types/task-meta.test.ts` |
+| OrchestratorAPI | `api/orchestrator-api.ts` | `api/orchestrator-api.integration.test.ts` |
 
 ## File Map (Platform)
 

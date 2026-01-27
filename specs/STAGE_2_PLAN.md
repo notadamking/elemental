@@ -414,14 +414,14 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ### Phase 2: Orchestrator SDK Foundation
 
-#### - [ ] TB-O6: Create @elemental/orchestrator-sdk Package
+#### - [x] TB-O6: Create @elemental/orchestrator-sdk Package
 
 **Goal**: Orchestrator SDK scaffold with agent types
 
 **Changes**:
 
-- [ ] Create `packages/orchestrator-sdk/` with package.json
-- [ ] Define agent role types in `src/types/agent.ts`:
+- [x] Create `packages/orchestrator-sdk/` with package.json
+- [x] Define agent role types in `src/types/agent.ts`:
   ```typescript
   type AgentRole = "director" | "steward" | "worker";
   type WorkerMode = "ephemeral" | "persistent";
@@ -430,7 +430,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
     | { type: "cron"; schedule: string }
     | { type: "event"; event: string; condition?: string };
   ```
-- [ ] Define Task orchestrator metadata in `src/types/task-meta.ts`:
+- [x] Define Task orchestrator metadata in `src/types/task-meta.ts`:
   ```typescript
   interface OrchestratorTaskMeta {
     branch?: string;
@@ -438,9 +438,15 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
     sessionId?: string;
   }
   ```
-- [ ] Create `OrchestratorAPI` class extending `ElementalAPI`
+- [x] Create `OrchestratorAPI` class extending `ElementalAPI`
 
 **Verification**: Types compile, can instantiate OrchestratorAPI
+
+**Notes**:
+- Agent metadata stored nested under `entity.metadata.agent` key
+- OrchestratorAPIImpl extends ElementalAPIImpl for full API access
+- 66 tests passing across agent types, task metadata, and integration tests
+- Agent channel setup deferred to TB-O7a (requires separate entity for direct channel)
 
 ---
 
