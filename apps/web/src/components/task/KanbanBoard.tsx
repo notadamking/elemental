@@ -312,12 +312,9 @@ function VirtualizedKanbanColumn({
       {/* Virtualized Cards Container */}
       <div
         ref={setRefs}
-        className={`flex-1 overflow-y-auto ${
+        className={`flex-1 overflow-y-auto p-2 pt-3 ${
           isOver && isDragActive ? 'bg-blue-50 dark:bg-blue-950' : ''
         }`}
-        style={{
-          contain: 'strict',
-        }}
         data-testid={`kanban-column-${column.id}-scroll`}
         onScroll={handleScroll}
       >
@@ -327,7 +324,7 @@ function VirtualizedKanbanColumn({
           </div>
         ) : (
           <div
-            className="relative w-full px-2 pt-3 pb-2"
+            className="relative w-full"
             style={{
               height: `${virtualizer.getTotalSize()}px`,
             }}
