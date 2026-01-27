@@ -14,18 +14,7 @@
 
 import { useMemo } from 'react';
 import { Bot, User, Server } from 'lucide-react';
-
-interface Entity {
-  id: string;
-  type: 'entity';
-  name: string;
-  entityType: 'agent' | 'human' | 'system';
-  publicKey?: string;
-  active?: boolean;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-}
+import type { Entity } from './types';
 
 interface MobileEntityCardProps {
   entity: Entity;
