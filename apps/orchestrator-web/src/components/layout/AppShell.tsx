@@ -9,7 +9,9 @@ import { Sidebar } from './Sidebar';
 import { MobileDrawer } from './MobileDrawer';
 import { DirectorPanel } from './DirectorPanel';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { NotificationCenter } from '../notification';
 import { useQuery } from '@tanstack/react-query';
+import { useNotifications } from '../../api/hooks/useNotifications';
 import {
   ChevronRight,
   Activity,
@@ -308,6 +310,17 @@ export function AppShell() {
   const health = useHealth();
   const router = useRouter();
 
+  // Notification system
+  const {
+    notifications,
+    unreadCount,
+    isConnected: notificationsConnected,
+    markAsRead,
+    markAllAsRead,
+    dismissNotification,
+    clearAll,
+  } = useNotifications();
+
   const toggleDirectorPanel = useCallback(() => {
     setDirectorCollapsed(prev => !prev);
   }, [setDirectorCollapsed]);
@@ -393,6 +406,16 @@ export function AppShell() {
           {!isMobile && <Breadcrumbs />}
 
           <div className="flex items-center gap-2 md:gap-4">
+            <NotificationCenter
+              notifications={notifications}
+              unreadCount={unreadCount}
+              isConnected={notificationsConnected}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onDismiss={dismissNotification}
+              onClearAll={clearAll}
+              onOpenSettings={() => router.navigate({ to: '/settings', search: { tab: 'preferences' } })}
+            />
             <ThemeToggle />
             {!isMobile && (
               <>

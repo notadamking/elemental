@@ -219,6 +219,8 @@ The project is a TurboRepo monorepo with the following structure:
 | CreateAgentDialog | `components/agent/CreateAgentDialog.tsx` | `tests/agents.spec.ts` |
 | XTerminal component | `components/terminal/XTerminal.tsx` | `tests/director-terminal.spec.ts` |
 | Terminal exports | `components/terminal/index.ts` | - |
+| NotificationCenter | `components/notification/NotificationCenter.tsx` | `tests/notifications.spec.ts` |
+| Notification hooks | `api/hooks/useNotifications.ts` | - |
 | UI components | `components/ui/*.tsx` | - |
 | Design tokens | `styles/tokens.css` | - |
 

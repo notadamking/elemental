@@ -1459,16 +1459,27 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O25a: Notification System
+#### - [x] TB-O25a: Notification System
 
 **Goal**: Toast notifications and header notification center
 
 **Changes**:
 
-- [ ] **Toast notifications** (bottom-right): Auto-dismiss, types (info/success/warning/error), click to navigate
-- [ ] **Header notification center**: Bell icon with badge, dropdown with recent notifications, actions per notification
+- [x] **Toast notifications** (bottom-right): Auto-dismiss, types (info/success/warning/error), click to navigate
+- [x] **Header notification center**: Bell icon with badge, dropdown with recent notifications, actions per notification
+- [x] **useNotifications hook**: SSE connection for real-time session events, localStorage persistence
+- [x] **useToast hook**: Programmatic toast API for mutations and other events
 
-**Verification**: Trigger event, see toast appear, see notification in dropdown
+**Verification**: 18 Playwright tests in `apps/orchestrator-web/tests/notifications.spec.ts`
+
+**Implementation Notes** (2026-01-27):
+- Created `api/hooks/useNotifications.ts` with SSE streaming, localStorage persistence, and Sonner integration
+- Created `components/notification/NotificationCenter.tsx` with bell icon, dropdown, badge, and notification list
+- Notification types: info, success, warning, error
+- Notification actions: mark as read, mark all as read, dismiss, clear all, settings navigation
+- SSE listeners for `session_event` (errors, system messages) and `notification` events
+- Auto-reconnect on SSE disconnect with 5-second delay
+- Offline indicator in dropdown header when SSE not connected
 
 ---
 

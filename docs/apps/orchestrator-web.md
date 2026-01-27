@@ -118,6 +118,9 @@ apps/orchestrator-web/
 │   │   │   ├── AgentCard.tsx     # Agent display card
 │   │   │   ├── AgentStatusBadge.tsx # Status indicator
 │   │   │   └── AgentRoleBadge.tsx # Role badge
+│   │   ├── notification/
+│   │   │   ├── NotificationCenter.tsx # Header notification dropdown
+│   │   │   └── index.ts           # Notification exports
 │   │   └── ui/
 │   │       ├── Tooltip.tsx       # Tooltip component
 │   │       └── ThemeToggle.tsx   # Theme switcher
@@ -137,7 +140,8 @@ apps/orchestrator-web/
 ├── tests/
 │   ├── scaffold.spec.ts          # Scaffold Playwright tests
 │   ├── agents.spec.ts            # Agent page tests
-│   └── director-terminal.spec.ts # Director terminal tests
+│   ├── director-terminal.spec.ts # Director terminal tests
+│   └── notifications.spec.ts     # Notification system tests
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
@@ -151,14 +155,17 @@ The following tracer bullets have been implemented:
 - **TB-O15**: Orchestrator Web Scaffold - Three-column layout with routing
 - **TB-O16**: Agent List Page - View and manage agents with status badges
 - **TB-O17**: Director Terminal Panel - Interactive xterm terminal for Director agent
+- **TB-O17a**: Terminal Multiplexer - Tmux-like interface for agent sessions
+- **TB-O18**: Orchestrator Task List Page - Task management with orchestrator metadata
+- **TB-O25**: Activity Feed - Real-time SSE event stream
+- **TB-O25a**: Notification System - Toast notifications and header notification center
 
 ## Future Work
 
 The following tracer bullets will add functionality:
 
-- **TB-O17a**: Terminal Multiplexer - Tmux-like interface for agent sessions
-- **TB-O18**: Orchestrator Task List Page - Task management with orchestrator metadata
-- **TB-O25**: Activity Feed - Real-time WebSocket event stream
+- **TB-O25b**: Command Palette - Cmd+K quick navigation
+- **TB-O25c**: Settings Page - User preferences and workspace configuration
 - **TB-O43**: Metrics Dashboards - Performance charts
 
 ## Related Documentation
