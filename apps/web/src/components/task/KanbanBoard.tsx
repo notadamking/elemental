@@ -327,7 +327,7 @@ function VirtualizedKanbanColumn({
           </div>
         ) : (
           <div
-            className="relative w-full p-2"
+            className="relative w-full px-2 pt-3 pb-2"
             style={{
               height: `${virtualizer.getTotalSize()}px`,
             }}
