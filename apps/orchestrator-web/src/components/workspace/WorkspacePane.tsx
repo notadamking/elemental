@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw } from 'lucide-react';
+import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle } from 'lucide-react';
 import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
 import { XTerminal } from '../terminal/XTerminal';
 import { StreamViewer } from './StreamViewer';
@@ -344,7 +344,7 @@ export function WorkspacePane({
       </div>
 
       {/* Pane Content */}
-      <div className="flex-1 min-h-0 overflow-hidden" data-testid="pane-content">
+      <div className="flex-1 min-h-0 overflow-hidden relative" data-testid="pane-content">
         {pane.agentRole === 'director' ? (
           // Director has a dedicated panel - show message instead of terminal
           <div className="flex flex-col items-center justify-center h-full p-6 text-center bg-[#1a1a1a]">
@@ -372,6 +372,88 @@ export function WorkspacePane({
             onStatusChange={handleStatusChange}
             data-testid={`stream-${pane.id}`}
           />
+        )}
+
+        {/* Idle/Stopped overlay for non-director agents */}
+        {pane.agentRole !== 'director' && !hasActiveSession && (
+          <div
+            className="
+              absolute inset-0 z-10
+              flex flex-col items-center justify-center
+              bg-[#1a1a1a]/95 backdrop-blur-sm
+            "
+            data-testid="pane-idle-overlay"
+          >
+            {/* Glow effect behind icon */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-[var(--color-primary)]/20 blur-xl rounded-full scale-150" />
+              <div className="
+                relative p-4 rounded-2xl
+                bg-gradient-to-br from-[#252525] to-[#1a1a1a]
+                border border-[#333]
+                shadow-lg
+              ">
+                {pane.status === 'error' ? (
+                  <AlertCircle className="w-10 h-10 text-red-400" />
+                ) : (
+                  <CirclePause className="w-10 h-10 text-[var(--color-text-muted)]" />
+                )}
+              </div>
+            </div>
+
+            {/* Status text */}
+            <div className="text-center mb-6">
+              <h3 className="text-lg font-medium text-[var(--color-text)] mb-1">
+                {pane.status === 'error' ? 'Session Error' : 'Session Idle'}
+              </h3>
+              <p className="text-sm text-[var(--color-text-muted)] max-w-xs px-4">
+                {pane.status === 'error'
+                  ? 'The agent session encountered an error.'
+                  : `Start a session to interact with ${pane.agentName}.`
+                }
+              </p>
+            </div>
+
+            {/* Start button */}
+            <button
+              onClick={handleStartSession}
+              disabled={startSession.isPending}
+              className="
+                inline-flex items-center gap-2.5
+                px-6 py-2.5 rounded-lg
+                bg-gradient-to-r from-green-600 to-green-500
+                hover:from-green-500 hover:to-green-400
+                text-white font-medium text-sm
+                shadow-lg shadow-green-500/25
+                transition-all duration-200
+                hover:scale-105 hover:shadow-green-500/40
+                disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed
+                focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]
+              "
+              data-testid="pane-overlay-start-btn"
+            >
+              {startSession.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  Start Session
+                </>
+              )}
+            </button>
+
+            {/* Agent info badge */}
+            <div className="
+              mt-6 px-3 py-1.5 rounded-full
+              bg-[#252525] border border-[#333]
+              text-xs text-[var(--color-text-tertiary)]
+            ">
+              {pane.workerMode === 'persistent' ? 'Persistent Worker' : 'Ephemeral Worker'} • {pane.paneType === 'terminal' ? 'Interactive' : 'Stream'}
+            </div>
+          </div>
         )}
       </div>
     </div>
