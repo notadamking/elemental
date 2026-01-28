@@ -260,13 +260,24 @@ export function WorkspacePane({
 
       {/* Pane Content */}
       <div className="flex-1 min-h-0 overflow-hidden" data-testid="pane-content">
-        {pane.paneType === 'terminal' ? (
+        {pane.agentRole === 'director' ? (
+          // Director has a dedicated panel - show message instead of terminal
+          <div className="flex flex-col items-center justify-center h-full p-6 text-center bg-[#1a1a1a]">
+            <Terminal className="w-12 h-12 text-[var(--color-text-muted)] mb-4" />
+            <p className="text-sm text-[var(--color-text-secondary)] mb-2">
+              Director Terminal
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)] max-w-xs">
+              Use the Director panel on the right for interactive terminal access.
+            </p>
+          </div>
+        ) : pane.paneType === 'terminal' ? (
           <XTerminal
             agentId={pane.agentId}
             onStatusChange={handleStatusChange}
             interactive={true}
             autoFocus={true}
-            controlsResize={false}
+            controlsResize={true}
             data-testid={`terminal-${pane.id}`}
           />
         ) : (
