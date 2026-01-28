@@ -134,6 +134,8 @@ export function XTerminal({
   const hasShownConnectionRef = useRef(false);
   // Track last sent dimensions to avoid duplicate resize messages
   const lastSentDimsRef = useRef<{ cols: number; rows: number } | null>(null);
+  // Track if we're intentionally closing to prevent reconnection attempts
+  const isIntentionalCloseRef = useRef(false);
   // Enable file drop by default for interactive terminals
   const fileDropEnabled = enableFileDrop ?? interactive;
 
@@ -277,6 +279,13 @@ export function XTerminal({
     hasShownConnectionRef.current = false;
     currentSessionRef.current = null;
     lastSentDimsRef.current = null;
+    isIntentionalCloseRef.current = false;
+
+    // Use a local variable to track if this effect instance has been cleaned up.
+    // This is captured by closures (connect, onclose handlers) and will be
+    // set to true when cleanup runs, preventing stale closures from reconnecting.
+    let isCleanedUp = false;
+
 
     const connect = () => {
       updateStatus('connecting');
@@ -415,13 +424,31 @@ export function XTerminal({
       };
 
       ws.onclose = () => {
+        // Don't attempt to reconnect if we're intentionally closing
+        // (e.g., during useEffect cleanup when agentId changes or component unmounts)
+        if (isIntentionalCloseRef.current) {
+          isIntentionalCloseRef.current = false;
+          return;
+        }
+
+        // Don't attempt to reconnect if this effect has been cleaned up
+        // (e.g., component unmounted or agentId changed)
+        if (isCleanedUp) {
+          return;
+        }
+
         if (reconnectAttempts.current < maxReconnectAttempts) {
           reconnectAttempts.current++;
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
           terminalRef.current?.writeln(
             `\x1b[33m  Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts.current}/${maxReconnectAttempts})...\x1b[0m`
           );
-          setTimeout(connect, delay);
+          setTimeout(() => {
+            // Double-check the effect hasn't been cleaned up during the delay
+            if (!isCleanedUp) {
+              connect();
+            }
+          }, delay);
         } else {
           updateStatus('error');
           terminalRef.current?.writeln(
@@ -480,8 +507,13 @@ export function XTerminal({
     }, 30000);
 
     return () => {
+      // Mark this effect as cleaned up FIRST - this is checked by closures
+      // to prevent stale reconnection attempts
+      isCleanedUp = true;
       clearInterval(heartbeatInterval);
       if (wsRef.current) {
+        // Mark as intentional close to prevent reconnection attempts
+        isIntentionalCloseRef.current = true;
         wsRef.current.close();
         wsRef.current = null;
       }

@@ -206,6 +206,8 @@ export function StreamViewer({
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
+  // Track if we're intentionally closing to prevent reconnection attempts
+  const isIntentionalCloseRef = useRef(false);
 
   // Update status and notify parent
   const updateStatus = useCallback((newStatus: PaneStatus) => {
@@ -275,6 +277,12 @@ export function StreamViewer({
       };
 
       eventSource.onerror = () => {
+        // Don't attempt to reconnect if we're intentionally closing
+        if (isIntentionalCloseRef.current) {
+          isIntentionalCloseRef.current = false;
+          return;
+        }
+
         updateStatus('error');
         eventSource.close();
 
@@ -286,10 +294,14 @@ export function StreamViewer({
       };
     };
 
+    // Reset the intentional close flag when starting a new connection
+    isIntentionalCloseRef.current = false;
     connect();
 
     return () => {
       if (eventSourceRef.current) {
+        // Mark as intentional close to prevent reconnection attempts
+        isIntentionalCloseRef.current = true;
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }

@@ -2818,6 +2818,15 @@ function handleWSMessage(ws: ServerWebSocket<WSClientData>, message: string | Bu
       case 'subscribe': {
         if (data.agentId) {
           ws.data.agentId = data.agentId as EntityId;
+
+          // Clean up any existing event listeners before setting up new ones
+          // This prevents duplicate listeners when a client re-subscribes
+          const client = wsClients.get(ws.data.id);
+          if (client?.cleanup) {
+            client.cleanup();
+            client.cleanup = undefined;
+          }
+
           const activeSession = sessionManager.getActiveSession(data.agentId as EntityId);
           if (activeSession) {
             ws.data.sessionId = activeSession.id;
