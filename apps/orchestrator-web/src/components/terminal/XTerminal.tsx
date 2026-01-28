@@ -37,6 +37,9 @@ export interface XTerminalProps {
   interactive?: boolean;
   /** Whether to auto-focus the terminal on mount */
   autoFocus?: boolean;
+  /** Whether this terminal controls PTY resize (default: true).
+   * Set to false for secondary viewers to prevent resize conflicts. */
+  controlsResize?: boolean;
   /** Test ID for testing */
   'data-testid'?: string;
 }
@@ -106,6 +109,7 @@ export function XTerminal({
   autoFit = true,
   interactive = true,
   autoFocus = false,
+  controlsResize = true,
   'data-testid': testId = 'xterminal',
 }: XTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -203,7 +207,8 @@ export function XTerminal({
         fitAddonRef.current?.fit();
 
         // Send resize event to server for interactive PTY sessions
-        if (wsRef.current?.readyState === WebSocket.OPEN && terminalRef.current) {
+        // Only send if this terminal controls resize (to avoid conflicts with multiple viewers)
+        if (controlsResize && wsRef.current?.readyState === WebSocket.OPEN && terminalRef.current) {
           const dims = fitAddonRef.current?.proposeDimensions();
           if (dims) {
             wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
@@ -219,7 +224,7 @@ export function XTerminal({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [autoFit]);
+  }, [autoFit, controlsResize]);
 
   // WebSocket connection
   useEffect(() => {
@@ -263,8 +268,8 @@ export function XTerminal({
                     ? '\x1b[32m  Connected to interactive PTY session\x1b[0m\r\n'
                     : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
                 );
-                // Send initial resize for interactive sessions
-                if (data.hasSession && fitAddonRef.current && terminalRef.current) {
+                // Send initial resize for interactive sessions (only if this terminal controls resize)
+                if (controlsResize && data.hasSession && fitAddonRef.current && terminalRef.current) {
                   const dims = fitAddonRef.current.proposeDimensions();
                   if (dims) {
                     ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
@@ -312,8 +317,8 @@ export function XTerminal({
                   ? '\x1b[32m  Session started - interactive PTY connected\x1b[0m\r\n'
                   : '\x1b[32m  Session started - connected\x1b[0m\r\n'
               );
-              // Send initial resize for interactive sessions
-              if ((data as { isInteractive?: boolean }).isInteractive && fitAddonRef.current && terminalRef.current) {
+              // Send initial resize for interactive sessions (only if this terminal controls resize)
+              if (controlsResize && (data as { isInteractive?: boolean }).isInteractive && fitAddonRef.current && terminalRef.current) {
                 const dims = fitAddonRef.current.proposeDimensions();
                 if (dims) {
                   ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
