@@ -264,6 +264,8 @@ export function WorkspacePane({
           <XTerminal
             agentId={pane.agentId}
             onStatusChange={handleStatusChange}
+            interactive={true}
+            autoFocus={true}
             data-testid={`terminal-${pane.id}`}
           />
         ) : (

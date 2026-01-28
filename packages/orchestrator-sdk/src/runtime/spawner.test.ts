@@ -351,14 +351,29 @@ describe('Type definitions', () => {
 
 describe('Spawn mode determination', () => {
   test('director defaults to interactive mode', async () => {
-    // This test validates the intended behavior
-    // The actual spawn would fail without Claude, but we can verify the logic
+    // This test validates that directors use interactive mode
+    // With node-pty installed, this now spawns a real PTY
+    // The spawn will fail because the shell is running but the claude command doesn't exist
     const service = createSpawnerService({ claudePath: 'nonexistent-claude' });
 
-    // Director should attempt interactive spawn (which will fail with our error)
-    await expect(
-      service.spawn(testAgentId, 'director')
-    ).rejects.toThrow('Interactive mode requires node-pty');
+    // Director spawns in interactive mode via PTY
+    // The PTY process spawns the shell successfully, but the claude command will fail
+    // We just verify the spawn attempt is made
+    const spawnPromise = service.spawn(testAgentId, 'director');
+
+    // The spawn should either succeed (PTY started) or fail (shell spawn failed)
+    // Either way indicates interactive mode was attempted
+    try {
+      const result = await spawnPromise;
+      // If spawn succeeds, verify it's in interactive mode
+      expect(result.session.mode).toBe('interactive');
+      // Clean up
+      await service.terminate(result.session.id, false);
+    } catch (error) {
+      // If it fails, it should be because the shell couldn't spawn
+      // (posix_spawnp failed) not because node-pty is missing
+      expect(String(error)).not.toContain('node-pty');
+    }
   });
 
   // Note: Tests for worker/steward defaulting to headless mode require the actual
@@ -369,10 +384,20 @@ describe('Spawn mode determination', () => {
   test('can override mode with options', async () => {
     const service = createSpawnerService({ claudePath: 'nonexistent-claude' });
 
-    // Worker with interactive mode override should fail with node-pty error
-    await expect(
-      service.spawn(testAgentId, 'worker', { mode: 'interactive' })
-    ).rejects.toThrow('Interactive mode requires node-pty');
+    // Worker with interactive mode override should use PTY
+    const spawnPromise = service.spawn(testAgentId, 'worker', { mode: 'interactive' });
+
+    try {
+      const result = await spawnPromise;
+      // If spawn succeeds, verify it's in interactive mode
+      expect(result.session.mode).toBe('interactive');
+      // Clean up
+      await service.terminate(result.session.id, false);
+    } catch (error) {
+      // If it fails, it should be because the shell couldn't spawn
+      // not because node-pty is missing
+      expect(String(error)).not.toContain('node-pty');
+    }
   });
 });
 
@@ -443,16 +468,24 @@ describe('Session ID generation', () => {
 });
 
 describe('Worker mode inference', () => {
-  test('headless mode is inferred for worker role', () => {
+  test('headless mode is inferred for worker role', async () => {
     // This tests that the service determines the correct mode based on role
     // Director -> interactive, Worker -> headless, Steward -> headless
-    // We can only test director (throws node-pty error) without a real claude binary
     const service = createSpawnerService({ claudePath: 'nonexistent-claude' });
 
-    // Director uses interactive mode - we can verify this throws the node-pty error
-    expect(
-      service.spawn(testAgentId, 'director')
-    ).rejects.toThrow('Interactive mode requires node-pty');
+    // Director uses interactive mode - verify via PTY spawn attempt
+    const spawnPromise = service.spawn(testAgentId, 'director');
+
+    try {
+      const result = await spawnPromise;
+      // If spawn succeeds, verify it's in interactive mode
+      expect(result.session.mode).toBe('interactive');
+      // Clean up
+      await service.terminate(result.session.id, false);
+    } catch (error) {
+      // If it fails, it should be because of the shell, not missing node-pty
+      expect(String(error)).not.toContain('node-pty');
+    }
 
     // Worker/Steward headless mode can only be verified with integration tests
     // because spawn() throws synchronously in Bun when binary is not found

@@ -215,6 +215,7 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
                 fontSize={12}
                 autoFit={true}
                 interactive={true}
+                autoFocus={true}
                 data-testid="director-xterminal"
               />
             )}

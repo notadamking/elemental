@@ -483,7 +483,21 @@ const spawner = createSpawnerService({
 });
 ```
 
-### Spawning Agents
+### Spawn Modes
+
+The SpawnerService supports two spawn modes:
+
+| Mode | Use Case | Communication |
+|------|----------|---------------|
+| `headless` | Ephemeral workers, stewards | Stream-JSON over stdin/stdout |
+| `interactive` | Directors, persistent workers | PTY (node-pty) for full terminal |
+
+By default:
+- **Directors** spawn in `interactive` mode
+- **Workers** spawn in `headless` mode (override with `mode: 'interactive'` for persistent workers)
+- **Stewards** spawn in `headless` mode
+
+### Spawning Headless Agents
 
 ```typescript
 // Spawn a headless worker (ephemeral workers, stewards)
@@ -498,6 +512,7 @@ const result = await spawner.spawn(agentId, 'worker', {
 console.log(result.session.id);           // Internal session ID
 console.log(result.session.claudeSessionId); // Claude Code session ID (for resume)
 console.log(result.session.status);       // 'running'
+console.log(result.session.mode);         // 'headless'
 
 // Listen for events
 result.events.on('event', (event) => {
@@ -508,6 +523,44 @@ result.events.on('event', (event) => {
 result.events.on('exit', (code, signal) => {
   console.log(`Process exited with code ${code}`);
 });
+```
+
+### Spawning Interactive Agents (PTY)
+
+Interactive agents use a full PTY (pseudo-terminal) for a true terminal experience:
+
+```typescript
+// Spawn an interactive director (or persistent worker)
+const result = await spawner.spawn(agentId, 'director', {
+  mode: 'interactive',                   // Uses PTY (node-pty)
+  workingDirectory: '/path/to/project',
+  resumeSessionId: 'previous-session',   // Resume previous session
+  initialPrompt: 'Hello',                // Initial prompt sent to Claude
+  cols: 120,                             // Terminal columns (default: 120)
+  rows: 30,                              // Terminal rows (default: 30)
+});
+
+console.log(result.session.mode);        // 'interactive'
+
+// Listen for raw PTY data (terminal output)
+result.events.on('pty-data', (data: string) => {
+  // Forward to xterm.js or similar terminal emulator
+  terminalEmulator.write(data);
+});
+
+result.events.on('exit', (code, signal) => {
+  console.log(`PTY exited with code ${code}`);
+});
+```
+
+### Interactive Session Operations
+
+```typescript
+// Write directly to PTY (for interactive sessions)
+await spawner.writeToPty(sessionId, 'ls -la\r');
+
+// Resize PTY when terminal window size changes
+await spawner.resize(sessionId, 80, 24);  // cols, rows
 ```
 
 ### Session States

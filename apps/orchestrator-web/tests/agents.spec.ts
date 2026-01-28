@@ -612,3 +612,500 @@ test.describe('TB-O22: Steward Configuration UI', () => {
     });
   });
 });
+
+test.describe('TB-O26: Agent Workspace View', () => {
+  test.describe('Graph tab', () => {
+    test('displays Graph tab in the agents page', async ({ page }) => {
+      await page.goto('/agents');
+
+      await expect(page.getByTestId('agents-tab-graph')).toBeVisible();
+      await expect(page.getByTestId('agents-tab-graph')).toContainText('Graph');
+    });
+
+    test('can switch to Graph tab', async ({ page }) => {
+      await page.goto('/agents');
+
+      await page.getByTestId('agents-tab-graph').click();
+
+      // URL should reflect tab change
+      await expect(page).toHaveURL(/tab=graph/);
+
+      // Graph tab should now be active
+      const graphTab = page.getByTestId('agents-tab-graph');
+      await expect(graphTab).toHaveClass(/text-\[var\(--color-primary\)\]/);
+    });
+
+    test('can switch to Graph tab via URL', async ({ page }) => {
+      await page.goto('/agents?tab=graph');
+
+      // Graph tab should be active
+      const graphTab = page.getByTestId('agents-tab-graph');
+      await expect(graphTab).toHaveClass(/text-\[var\(--color-primary\)\]/);
+    });
+  });
+
+  test.describe('Graph visualization - Empty state', () => {
+    test('shows empty state when no agents exist', async ({ page }) => {
+      // Mock empty agents response
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for loading to complete
+      await page.waitForTimeout(500);
+
+      // Should show empty state
+      await expect(page.getByTestId('agent-graph-empty')).toBeVisible();
+      await expect(page.getByText('No agents registered')).toBeVisible();
+    });
+  });
+
+  test.describe('Graph visualization - Loading state', () => {
+    test('shows loading indicator while fetching agents', async ({ page }) => {
+      // Add a delay to the API response
+      await page.route('**/api/agents*', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Should show loading indicator
+      await expect(page.getByTestId('agent-graph-loading')).toBeVisible();
+      await expect(page.getByText('Loading agents...')).toBeVisible();
+    });
+  });
+
+  test.describe('Graph visualization - Error state', () => {
+    test('shows error state when API request fails', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { message: 'Internal server error' } }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for error state
+      await page.waitForTimeout(500);
+
+      // Should show error state
+      await expect(page.getByTestId('agent-graph-error')).toBeVisible();
+      await expect(page.getByText('Failed to load agents')).toBeVisible();
+      await expect(page.getByTestId('agent-graph-retry')).toBeVisible();
+    });
+
+    test('can retry after error', async ({ page }) => {
+      let requestCount = 0;
+      await page.route('**/api/agents*', (route) => {
+        requestCount++;
+        if (requestCount === 1) {
+          // First request fails
+          route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: { message: 'Internal server error' } }),
+          });
+        } else {
+          // Second request succeeds
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ agents: [] }),
+          });
+        }
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for error state
+      await page.waitForTimeout(500);
+      await expect(page.getByTestId('agent-graph-error')).toBeVisible();
+
+      // Click retry
+      await page.getByTestId('agent-graph-retry').click();
+
+      // Should show empty state (second request succeeded with empty agents)
+      await expect(page.getByTestId('agent-graph-empty')).toBeVisible();
+    });
+  });
+
+  test.describe('Graph visualization - With agents', () => {
+    const mockAgents = [
+      {
+        id: 'el-director-1',
+        name: 'Director',
+        type: 'entity',
+        entityType: 'agent',
+        status: 'active',
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        metadata: {
+          agent: {
+            agentRole: 'director',
+            sessionStatus: 'idle',
+          },
+        },
+      },
+      {
+        id: 'el-worker-1',
+        name: 'Worker Alice',
+        type: 'entity',
+        entityType: 'agent',
+        status: 'active',
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        metadata: {
+          agent: {
+            agentRole: 'worker',
+            workerMode: 'ephemeral',
+            sessionStatus: 'running',
+            branch: 'agent/alice/task-123-fix-bug',
+          },
+        },
+      },
+      {
+        id: 'el-steward-1',
+        name: 'Merge Steward',
+        type: 'entity',
+        entityType: 'agent',
+        status: 'active',
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        metadata: {
+          agent: {
+            agentRole: 'steward',
+            stewardFocus: 'merge',
+            sessionStatus: 'idle',
+          },
+        },
+      },
+    ];
+
+    test('shows graph visualization when agents exist', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Should show graph container
+      await expect(page.getByTestId('agent-workspace-graph')).toBeVisible();
+    });
+
+    test('displays Human node at top of hierarchy', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Should show Human node
+      await expect(page.getByTestId('graph-node-human')).toBeVisible();
+      await expect(page.getByText('Human')).toBeVisible();
+    });
+
+    test('displays Director node connected to Human', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Should show Director node
+      await expect(page.getByTestId('graph-node-el-director-1')).toBeVisible();
+      await expect(page.getByText('Director')).toBeVisible();
+    });
+
+    test('displays Worker nodes with status and branch', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Should show Worker node
+      await expect(page.getByTestId('graph-node-el-worker-1')).toBeVisible();
+      await expect(page.getByText('Worker Alice')).toBeVisible();
+
+      // Should show branch info
+      await expect(page.getByText('agent/alice/task-123-fix-bug')).toBeVisible();
+    });
+
+    test('displays Steward nodes', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Should show Steward node
+      await expect(page.getByTestId('graph-node-el-steward-1')).toBeVisible();
+      await expect(page.getByText('Merge Steward')).toBeVisible();
+    });
+
+    test('graph has zoom controls', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // React Flow controls should be visible
+      const graphContainer = page.getByTestId('agent-workspace-graph');
+      await expect(graphContainer.locator('.react-flow__controls')).toBeVisible();
+    });
+
+    test('graph has minimap', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // React Flow minimap should be visible
+      const graphContainer = page.getByTestId('agent-workspace-graph');
+      await expect(graphContainer.locator('.react-flow__minimap')).toBeVisible();
+    });
+  });
+
+  test.describe('Graph interaction', () => {
+    const mockAgents = [
+      {
+        id: 'el-director-1',
+        name: 'Director',
+        type: 'entity',
+        entityType: 'agent',
+        status: 'active',
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        metadata: {
+          agent: {
+            agentRole: 'director',
+            sessionStatus: 'running',
+          },
+        },
+      },
+    ];
+
+    test('nodes are draggable', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Get the director node
+      const directorNode = page.getByTestId('graph-node-el-director-1');
+
+      // Get initial position
+      const initialBox = await directorNode.boundingBox();
+
+      // Drag the node
+      if (initialBox) {
+        await page.mouse.move(initialBox.x + initialBox.width / 2, initialBox.y + initialBox.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(initialBox.x + 100, initialBox.y + 50);
+        await page.mouse.up();
+      }
+
+      // Node should still be visible (dragging doesn't remove it)
+      await expect(directorNode).toBeVisible();
+    });
+
+    test('clicking running agent shows Open in Workspace indicator', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Running agent should show "Open in Workspace" indicator
+      await expect(page.getByText('Open in Workspace')).toBeVisible();
+    });
+
+    test('clicking agent navigates to workspaces', async ({ page }) => {
+      await page.route('**/api/agents*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ agents: mockAgents }),
+        });
+      });
+      await page.route('**/api/tasks*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ tasks: [] }),
+        });
+      });
+
+      await page.goto('/agents?tab=graph');
+
+      // Wait for graph to render
+      await page.waitForTimeout(1000);
+
+      // Click the Director node
+      await page.getByTestId('graph-node-el-director-1').click();
+
+      // Should navigate to workspaces with agent param
+      await expect(page).toHaveURL(/\/workspaces/);
+      await expect(page).toHaveURL(/agent=el-director-1/);
+    });
+  });
+
+  test.describe('Graph tab URL persistence', () => {
+    test('preserves graph tab in URL when navigating', async ({ page }) => {
+      await page.goto('/agents?tab=graph');
+
+      // Verify we're on graph tab
+      await expect(page).toHaveURL(/tab=graph/);
+
+      // Refresh the page
+      await page.reload();
+
+      // Should still be on graph tab
+      await expect(page).toHaveURL(/tab=graph/);
+      const graphTab = page.getByTestId('agents-tab-graph');
+      await expect(graphTab).toHaveClass(/text-\[var\(--color-primary\)\]/);
+    });
+  });
+});

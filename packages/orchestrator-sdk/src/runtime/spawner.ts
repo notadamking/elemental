@@ -20,6 +20,8 @@ import { EventEmitter } from 'node:events';
 import type { EntityId, Timestamp } from '@elemental/core';
 import { createTimestamp } from '@elemental/core';
 import type { AgentRole, WorkerMode } from '../types/agent.js';
+import * as pty from 'node-pty';
+import type { IPty } from 'node-pty';
 
 // ============================================================================
 // Types
@@ -56,6 +58,10 @@ export interface SpawnOptions extends SpawnConfig {
   readonly initialPrompt?: string;
   /** Spawn mode: headless (stream-json) or interactive (PTY) */
   readonly mode?: SpawnMode;
+  /** Terminal columns (for interactive mode, default 120) */
+  readonly cols?: number;
+  /** Terminal rows (for interactive mode, default 30) */
+  readonly rows?: number;
 }
 
 /**
@@ -171,12 +177,18 @@ export interface SpawnedSession {
  * Internal session state tracking
  */
 interface InternalSession extends SpawnedSession {
-  /** Child process handle */
+  /** Child process handle (for headless mode) */
   process?: ChildProcess;
+  /** PTY handle (for interactive mode) */
+  pty?: IPty;
   /** Event emitter for session events */
   events: EventEmitter;
   /** Buffer for incomplete JSON lines */
   jsonBuffer: string;
+  /** Terminal columns (for interactive mode) */
+  cols?: number;
+  /** Terminal rows (for interactive mode) */
+  rows?: number;
 }
 
 /**
@@ -310,6 +322,24 @@ export interface SpawnerService {
    * @param options - Send options
    */
   sendInput(sessionId: string, input: string, options?: SendInputOptions): Promise<void>;
+
+  /**
+   * Writes data directly to an interactive PTY session.
+   * This is for interactive sessions where input is sent character-by-character.
+   *
+   * @param sessionId - The internal session ID
+   * @param data - The data to write to the PTY
+   */
+  writeToPty(sessionId: string, data: string): Promise<void>;
+
+  /**
+   * Resizes an interactive PTY session.
+   *
+   * @param sessionId - The internal session ID
+   * @param cols - Number of columns
+   * @param rows - Number of rows
+   */
+  resize(sessionId: string, cols: number, rows: number): Promise<void>;
 
   // ----------------------------------------
   // Event Subscription
@@ -501,6 +531,37 @@ export class SpawnerServiceImpl implements SpawnerService {
 
     this.transitionStatus(session, 'terminating');
 
+    // Handle PTY sessions
+    if (session.pty) {
+      if (graceful) {
+        // Send exit command to shell
+        session.pty.write('exit\r');
+
+        // Wait for graceful shutdown with timeout
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            if (session.pty) {
+              session.pty.kill();
+            }
+            resolve();
+          }, 5000);
+
+          // PTY exit is handled by onExit callback which was set up during spawn
+          // We just need to wait for the timeout or the process to exit
+          const checkInterval = setInterval(() => {
+            if ((session.status as SessionStatus) === 'terminated') {
+              clearInterval(checkInterval);
+              clearTimeout(timeout);
+              resolve();
+            }
+          }, 100);
+        });
+      } else {
+        session.pty.kill();
+      }
+    }
+
+    // Handle headless process sessions
     if (session.process) {
       if (graceful) {
         // Try graceful shutdown first
@@ -547,6 +608,11 @@ export class SpawnerServiceImpl implements SpawnerService {
     // The claudeSessionId can be used to resume later
     if (session.process) {
       session.process.kill('SIGTERM');
+    }
+
+    // For interactive, we kill the PTY but mark as suspended
+    if (session.pty) {
+      session.pty.kill();
     }
 
     this.transitionStatus(session, 'suspended');
@@ -621,6 +687,69 @@ export class SpawnerServiceImpl implements SpawnerService {
 
     session.process.stdin.write(JSON.stringify(message) + '\n');
     session.lastActivityAt = createTimestamp();
+  }
+
+  // ----------------------------------------
+  // Interactive PTY Communication
+  // ----------------------------------------
+
+  async writeToPty(sessionId: string, data: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    if (session.mode !== 'interactive') {
+      throw new Error('writeToPty is only supported for interactive sessions');
+    }
+
+    if (session.status !== 'running') {
+      throw new Error(`Cannot write to PTY in status: ${session.status}`);
+    }
+
+    if (!session.pty) {
+      throw new Error('Session PTY is not available');
+    }
+
+    session.pty.write(data);
+    session.lastActivityAt = createTimestamp();
+  }
+
+  async resize(sessionId: string, cols: number, rows: number): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    if (session.mode !== 'interactive') {
+      throw new Error('resize is only supported for interactive sessions');
+    }
+
+    if (!session.pty) {
+      throw new Error('Session PTY is not available');
+    }
+
+    // Check if session is still running before attempting resize
+    if (session.status !== 'running') {
+      throw new Error(`Cannot resize session in ${session.status} state`);
+    }
+
+    try {
+      session.pty.resize(cols, rows);
+      session.cols = cols;
+      session.rows = rows;
+      session.lastActivityAt = createTimestamp();
+    } catch (error) {
+      // EBADF can occur if the PTY is closed or the process has exited
+      // This is often a race condition during session startup/shutdown
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('EBADF') || errorMessage.includes('ioctl')) {
+        console.warn(`[spawner] Resize failed for session ${sessionId} (PTY may be closed): ${errorMessage}`);
+        // Don't throw - this is a recoverable condition
+        return;
+      }
+      throw error;
+    }
   }
 
   // ----------------------------------------
@@ -751,18 +880,92 @@ export class SpawnerServiceImpl implements SpawnerService {
   }
 
   private async spawnInteractive(
-    _session: InternalSession,
-    _options?: SpawnOptions
+    session: InternalSession,
+    options?: SpawnOptions
   ): Promise<void> {
-    // For interactive mode, we need node-pty
-    // This is a placeholder - the actual implementation requires node-pty
-    // which needs to be added as a dependency
+    const args = this.buildInteractiveArgs(options);
+    const env = this.buildEnvironment(session, options);
 
-    // For now, throw an error indicating this feature requires node-pty
-    throw new Error(
-      'Interactive mode requires node-pty. ' +
-      'Interactive agent spawning will be fully implemented when node-pty is added as a dependency.'
-    );
+    // Default terminal dimensions
+    const cols = options?.cols ?? 120;
+    const rows = options?.rows ?? 30;
+
+    // Get shell based on platform
+    const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
+    const shellArgs = process.platform === 'win32' ? [] : ['-l'];
+
+    // Build the command to run claude inside the shell
+    const claudeCommand = [this.defaultConfig.claudePath!, ...args].join(' ');
+
+    let ptyProcess: IPty;
+    try {
+      // Spawn PTY with the shell
+      ptyProcess = pty.spawn(shell, shellArgs, {
+        name: 'xterm-256color',
+        cols,
+        rows,
+        cwd: session.workingDirectory,
+        env: env as Record<string, string>,
+      });
+    } catch (error) {
+      this.transitionStatus(session, 'terminated');
+      session.endedAt = createTimestamp();
+      throw error;
+    }
+
+    session.pty = ptyProcess;
+    session.cols = cols;
+    session.rows = rows;
+    (session as { pid?: number }).pid = ptyProcess.pid;
+
+    // Track if we've started claude
+    let claudeStarted = false;
+
+    // Handle PTY data output
+    ptyProcess.onData((data: string) => {
+      session.lastActivityAt = createTimestamp();
+
+      // Emit PTY data for WebSocket forwarding
+      session.events.emit('pty-data', data);
+
+      // Check for Claude session ID in output for interactive mode
+      // Claude outputs session info that we can parse
+      if (!session.claudeSessionId) {
+        // Try to extract session ID from output - Claude typically shows session info
+        const sessionMatch = data.match(/Session:\s*([a-zA-Z0-9-]+)/);
+        if (sessionMatch) {
+          (session as { claudeSessionId?: string }).claudeSessionId = sessionMatch[1];
+        }
+      }
+    });
+
+    // Handle PTY exit
+    ptyProcess.onExit((e: { exitCode: number; signal?: number }) => {
+      if (session.status !== 'suspended') {
+        this.transitionStatus(session, 'terminated');
+      }
+      session.endedAt = createTimestamp();
+      session.events.emit('exit', e.exitCode, e.signal);
+    });
+
+    // Transition to running state
+    this.transitionStatus(session, 'running');
+    session.startedAt = createTimestamp();
+
+    // Wait for shell to be ready, then start claude
+    await new Promise<void>((resolve) => {
+      const startClaude = () => {
+        if (!claudeStarted) {
+          claudeStarted = true;
+          // Send the claude command to the shell
+          ptyProcess.write(claudeCommand + '\r');
+          resolve();
+        }
+      };
+
+      // Give the shell a moment to initialize before running claude
+      setTimeout(startClaude, 100);
+    });
   }
 
   private buildHeadlessArgs(options?: SpawnOptions): string[] {
@@ -771,6 +974,23 @@ export class SpawnerServiceImpl implements SpawnerService {
       resumeSessionId: options?.resumeSessionId,
       initialPrompt: options?.initialPrompt,
     });
+  }
+
+  private buildInteractiveArgs(options?: SpawnOptions): string[] {
+    const args: string[] = [
+      '--dangerously-skip-permissions',
+    ];
+
+    if (options?.resumeSessionId) {
+      args.push('--resume', options.resumeSessionId);
+    }
+
+    // For interactive mode, we can add an initial prompt as a positional arg
+    if (options?.initialPrompt) {
+      args.push(options.initialPrompt);
+    }
+
+    return args;
   }
 
   private buildEnvironment(

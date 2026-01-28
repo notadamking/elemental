@@ -74,6 +74,7 @@ const workspacesRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     return {
       layout: typeof search.layout === 'string' ? search.layout : 'single',
+      agent: typeof search.agent === 'string' ? search.agent : undefined,
     };
   },
 });

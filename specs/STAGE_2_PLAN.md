@@ -341,6 +341,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: `pnpm --filter @elemental/core build` succeeds, types importable
 
 **Notes**:
+
 - Files were copied (not moved) to allow incremental migration while legacy package continues to function
 - Two integration test files were excluded as they require cross-package dependencies (storage, api)
 - 2,682 tests pass, 813 exports available
@@ -361,6 +362,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Storage tests pass in isolation (131 tests passing)
 
 **Notes**:
+
 - Files were copied (not moved) to allow incremental migration while legacy package continues to function
 - Storage backends for Bun, Node.js, and Browser are all included
 - Schema management and migrations are exported for downstream use
@@ -381,6 +383,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: `elemental doctor` and `elemental stats` work from CLI
 
 **Notes**:
+
 - Files were copied (not moved) to allow incremental migration while legacy package continues to function
 - Also copied: `config/`, `http/`, `systems/`, `bin/` directories required for CLI operation
 - 2,625 tests pass, CLI commands work correctly
@@ -402,6 +405,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: `pnpm dev` starts both web and server, UI loads in browser
 
 **Notes**:
+
 - Server imports updated from `@elemental/cli` to proper package imports
 - Core types and factory functions imported from `@elemental/core`
 - Storage layer imported from `@elemental/storage`
@@ -443,6 +447,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Types compile, can instantiate OrchestratorAPI
 
 **Notes**:
+
 - Agent metadata stored nested under `entity.metadata.agent` key
 - OrchestratorAPIImpl extends ElementalAPIImpl for full API access
 - 66 tests passing across agent types, task metadata, and integration tests
@@ -472,11 +477,12 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
   ```
 - [x] Store capabilities in Entity metadata: `entity.metadata.agent.capabilities`
 - [x] Create `CapabilityService` with methods: `matchAgentToTask()`, `matchAgentToTaskRequirements()`, `getAgentCapabilities()`, `validateAgentCapabilities()`, `findAgentsForTask()`, `getBestAgentForTask()`, `agentHasSkill()`, `agentHasLanguage()`, `agentHasCapacity()`
-- [ ] Integrate with dispatch service for capability-aware routing (deferred to TB-O8a)
+- [x] Integrate with dispatch service for capability-aware routing (deferred to TB-O8a)
 
 **Verification**: Register agent with capabilities, create task with requirements, dispatch routes to matching agent
 
 **Implementation Notes**:
+
 - Capability matching is case-insensitive (normalized to lowercase)
 - Scoring system: 50 points for meeting requirements, 25 points for preferred skills, 25 for preferred languages
 - 128 tests passing for capability system (56 new tests)
@@ -497,6 +503,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Unit tests for agent registration and role queries
 
 **Implementation Notes**:
+
 - Created standalone `AgentRegistry` service class in `packages/orchestrator-sdk/src/services/agent-registry.ts`
 - Service uses `ElementalAPI` for storage operations, creating Entity elements with specialized agent metadata
 - Supports filtering by role, workerMode, stewardFocus, sessionStatus, reportsTo, hasSession, requiredSkills, requiredLanguages, hasCapacity
@@ -518,6 +525,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Register agent, verify channel exists, send message to channel
 
 **Implementation Notes**:
+
 - Channel created as group channel with agent and creator as members
 - Added `getAgentChannel(agentId)` and `getAgentChannelId(agentId)` methods to AgentRegistry
 - Added utility functions: `generateAgentChannelName()`, `parseAgentChannelName()`
@@ -555,6 +563,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Create role definition document, register agent referencing it, agent spawns with correct prompt
 
 **Implementation Notes**:
+
 - Created `AgentRoleDefinition` types with support for Director, Worker, and Steward variants
 - Created `AgentBehaviors` interface for behavioral hooks (onStartup, onTaskAssigned, onStuck, onHandoff, onError)
 - Role definitions stored as JSON documents with `role-definition` tag
@@ -580,6 +589,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Can assign task to registered agent, query workload by agent
 
 **Implementation Notes**:
+
 - Created `TaskAssignmentService` with full interface, implementation, and factory function
 - Added methods: `assignToAgent()`, `unassignTask()`, `startTask()`, `completeTask()`, `getAgentTasks()`, `getAgentWorkload()`, `agentHasCapacity()`, `getUnassignedTasks()`, `getTasksByAssignmentStatus()`, `listAssignments()`, `getTasksAwaitingMerge()`
 - Added types: `AssignTaskOptions`, `TaskAssignment`, `AssignmentFilter`, `AssignmentStatus`, `AgentWorkloadSummary`
@@ -602,6 +612,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Dispatch task to agent, verify assignment and notification sent
 
 **Implementation Notes**:
+
 - Created `DispatchService` with interface, implementation, and factory function
 - Added methods: `dispatch()`, `dispatchBatch()`, `smartDispatch()`, `getCandidates()`, `getBestAgent()`, `notifyAgent()`
 - Added types: `DispatchOptions`, `DispatchResult`, `SmartDispatchOptions`, `SmartDispatchCandidatesResult`, `DispatchMessageType`, `DispatchNotificationMetadata`
@@ -621,19 +632,20 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [x] Create `packages/orchestrator-sdk/src/runtime/spawner.ts`
 - [x] Two spawn modes:
   - **Headless** (ephemeral workers, stewards): `child_process.spawn()` with stream-json flags
-  - **Interactive** (Director, persistent workers): Placeholder for `node-pty` (throws clear error until dependency added)
+  - **Interactive** (Director, persistent workers): `node-pty` for full PTY terminal experience
 - [x] All modes support `--resume {session_id}`
 - [x] Parse stream-json events: `assistant`, `tool_use`, `tool_result`, `error`, `system`
 
 **Verification**: Unit tests for spawner logic; integration tests available (RUN_INTEGRATION_TESTS=true)
 
 **Implementation Notes**:
-- Created `SpawnerService` interface with methods: `spawn()`, `terminate()`, `suspend()`, `getSession()`, `listActiveSessions()`, `listAllSessions()`, `getMostRecentSession()`, `sendInput()`, `getEventEmitter()`
+
+- Created `SpawnerService` interface with methods: `spawn()`, `terminate()`, `suspend()`, `getSession()`, `listActiveSessions()`, `listAllSessions()`, `getMostRecentSession()`, `sendInput()`, `getEventEmitter()`, `writeToPty()`, `resize()`
 - Created types: `SpawnMode`, `SpawnConfig`, `SpawnOptions`, `StreamJsonEvent`, `SpawnedSessionEvent`, `SessionStatus`, `SpawnedSession`, `SpawnResult`
 - Session status state machine with valid transitions
 - ELEMENTAL_ROOT environment variable support for worktree root-finding
 - 37 new unit tests, 4 integration tests (skipped by default)
-- Interactive mode deferred until node-pty dependency is added
+- PTY support added with `node-pty` (^1.1.0) for interactive sessions (Directors, persistent workers)
 
 ---
 
@@ -650,6 +662,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Assign task to stopped agent, start agent, verify auto-pickup
 
 **Implementation Notes**:
+
 - Added `checkReadyQueue()` method to SpawnerService interface
 - Added types: `UWPCheckResult`, `UWPCheckOptions`, `UWPTaskInfo`
 - Uses callback pattern (`getReadyTasks`) to avoid circular dependencies with TaskAssignmentService
@@ -670,6 +683,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Unit tests in `packages/sdk/src/config/file.test.ts` verify ELEMENTAL_ROOT behavior
 
 **Implementation Notes**:
+
 - Modified `findElementalDir()` to check `ELEMENTAL_ROOT` env var before walk-up search
 - When spawner spawns agents with `elementalRoot` config, it sets `ELEMENTAL_ROOT` env var
 - This allows workers in worktrees to find and use the main workspace's `.elemental` directory
@@ -691,6 +705,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 49 unit tests covering session lifecycle, queries, history, communication, and event forwarding
 
 **Implementation Notes**:
+
 - Created `SessionManager` interface and `SessionManagerImpl` class in `packages/orchestrator-sdk/src/runtime/session-manager.ts`
 - Session state types: `SessionRecord`, `StartSessionOptions`, `ResumeSessionOptions`, `StopSessionOptions`, `MessageSessionOptions`, `SessionFilter`, `SessionHistoryEntry`
 - Full integration with SpawnerService for process lifecycle
@@ -713,6 +728,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Suspend agent, assign task, resume, verify task processed
 
 **Implementation Notes**:
+
 - Added `checkReadyQueue` option to `ResumeSessionOptions` (defaults to true)
 - Added `getReadyTasks` callback to allow integration without circular dependencies
 - Added `ResumeUWPCheckResult` type to report UWP check results
@@ -735,6 +751,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Send message to agent channel, verify agent processes it
 
 **Implementation Summary**:
+
 - Created `InboxPollingService` in `packages/orchestrator-sdk/src/runtime/inbox-polling.ts`
 - Configurable poll interval (30s default, min 1s, max 5 min)
 - Message type-based processing with `OrchestratorMessageType` constants (task-assignment, status-update, help-request, handoff, health-check, generic)
@@ -771,6 +788,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 19 new unit tests covering role-based history queries and persistence
 
 **Implementation Notes**:
+
 - Added `RoleSessionHistoryEntry` type extending `SessionHistoryEntry` with role context
 - `getSessionHistoryByRole(role, limit)` aggregates history from all agents with the specified role
 - `getPreviousSession(role)` returns the most recent ended (suspended/terminated) session
@@ -795,6 +813,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 27 unit tests covering predecessor queries, query lifecycle, error handling
 
 **Implementation Notes**:
+
 - Created `PredecessorQueryService` in `packages/orchestrator-sdk/src/runtime/predecessor-query.ts`
 - Service builds on TB-O10c session history features (`getPreviousSession()`)
 - Query status tracking through lifecycle: pending → resuming → waiting_response → completed/failed/timed_out
@@ -816,6 +835,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Agent triggers handoff, new session finds handoff note
 
 **Implementation Notes**:
+
 - Created `HandoffService` in `packages/orchestrator-sdk/src/runtime/handoff.ts`
 - `selfHandoff()` creates handoff document with context summary, Claude session ID, and next steps
 - Sends handoff message to agent's own channel for new session to find
@@ -839,6 +859,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Agent A hands off to Agent B, B receives and processes
 
 **Implementation Notes**:
+
 - `handoffToAgent()` method in `HandoffService` transfers work from one agent to another
 - Creates handoff document with context, task IDs, and source session info
 - Sends handoff message to target agent's channel
@@ -870,6 +891,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 38+ new unit tests covering worktree creation, removal, suspension, listing, branch operations, state transitions, and error handling
 
 **Implementation Notes**:
+
 - Created `WorktreeManager` interface and `WorktreeManagerImpl` class
 - `WorktreeState` type with state transitions validation
 - `WorktreeInfo` type tracks path, branch, head, state, agent, and task metadata
@@ -888,8 +910,19 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 - [x] Add lifecycle state types:
   ```typescript
-  type WorktreeState = "creating" | "active" | "suspended" | "merging" | "cleaning" | "archived";
-  type SessionState = "starting" | "running" | "suspended" | "terminating" | "terminated";
+  type WorktreeState =
+    | "creating"
+    | "active"
+    | "suspended"
+    | "merging"
+    | "cleaning"
+    | "archived";
+  type SessionState =
+    | "starting"
+    | "running"
+    | "suspended"
+    | "terminating"
+    | "terminated";
   ```
 - [x] Track state in memory (database persistence deferred)
 - [x] Add state transition validation (`WorktreeStateTransitions`, `SessionStatusTransitions`)
@@ -897,6 +930,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Unit tests validate state transitions through worktree and session lifecycles
 
 **Implementation Notes**:
+
 - `WorktreeState` implemented in `worktree-manager.ts` with `WorktreeStateTransitions` map
 - `SessionStatus` (equivalent to SessionState) implemented in `spawner.ts` with `SessionStatusTransitions` map
 - State history in database deferred - current implementation tracks state in memory
@@ -926,6 +960,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 7 unit tests passing in `apps/orchestrator-server/src/index.test.ts`
 
 **Implementation Notes**:
+
 - Created `apps/orchestrator-server/` with package.json and tsconfig.json
 - Server uses Hono framework for HTTP routing and Bun for WebSocket
 - All orchestrator services initialized from `@elemental/orchestrator-sdk`
@@ -953,6 +988,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Connect to SSE endpoint, start headless agent, see events stream
 
 **Implementation Notes**:
+
 - Implemented in `apps/orchestrator-server/src/index.ts` as part of TB-O12
 - Uses Hono's `streamSSE()` for proper SSE formatting
 - Event types prefixed with `agent_` (e.g., `agent_assistant`, `agent_tool_use`)
@@ -974,6 +1010,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Start headless agent, POST message, see response in SSE stream
 
 **Implementation Notes**:
+
 - Implemented in `apps/orchestrator-server/src/index.ts` as part of TB-O12
 - Uses `spawnerService.sendInput()` to write to stdin
 - Supports `isUserMessage` flag for proper stream-json formatting
@@ -993,6 +1030,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 50+ unit tests in `message-types.test.ts`
 
 **Implementation Notes**:
+
 - Types defined in `packages/orchestrator-sdk/src/types/message-types.ts`
 - Type guards: `isTaskAssignmentMessage()`, `isStatusUpdateMessage()`, `isHelpRequestMessage()`, `isHandoffMessage()`, `isHealthCheckMessage()`, `isGenericMessage()`
 - Factory functions: `createTaskAssignmentMessage()`, `createStatusUpdateMessage()`, etc.
@@ -1026,6 +1064,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Create handoff message, validate schema
 
 **Implementation Notes**:
+
 - `HandoffMessage` in `packages/orchestrator-sdk/src/types/message-types.ts`
 - Additional implementation in `packages/orchestrator-sdk/src/runtime/handoff.ts` (TB-O10e, TB-O10f)
 - `isHandoffMessage()` type guard
@@ -1054,6 +1093,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Web app loads, three-column layout renders, navigation works, all 14 tests pass
 
 **Implementation Notes**:
+
 - Created standalone app with its own dependencies (similar structure to `apps/web`)
 - Sidebar with collapsible sections and active state indicators
 - Director panel on right with collapsed/expanded states
@@ -1065,7 +1105,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [x] TB-O16: Agent List Page
+#### - [] TB-O16: Agent List Page
 
 **Goal**: View and manage agents and stewards with status
 
@@ -1079,6 +1119,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Register agents via CLI, see them in web UI with status badges
 
 **Implementation Notes** (2026-01-27):
+
 - Created `api/types.ts` with Agent, Session, and Worktree types
 - Created `api/hooks/useAgents.ts` with React Query hooks for agents API
 - Created agent components: `AgentCard`, `AgentStatusBadge`, `AgentRoleBadge`
@@ -1101,7 +1142,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [x] TB-O17: Director Terminal Panel
+#### - [] TB-O17: Director Terminal Panel
 
 **Goal**: Interactive xterm terminal for Director agent
 
@@ -1111,12 +1152,13 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [x] Director terminal always accessible (not a separate route)
 - [x] WebSocket connection for real-time communication
 - [x] Collapse to icon with activity indicator
-- [ ] Full PTY terminal experience via node-pty (deferred - requires node-pty dependency)
+- [x] Full PTY terminal experience via node-pty
 - [ ] Resize handle (deferred to TB-O17a)
 
 **Verification**: 46 Playwright tests pass, Director terminal panel visible with xterm.js
 
 **Implementation Notes** (2026-01-27):
+
 - Created `XTerminal` component in `apps/orchestrator-web/src/components/terminal/XTerminal.tsx`
   - Full xterm.js integration with @xterm/xterm, @xterm/addon-fit, @xterm/addon-web-links
   - WebSocket connection to orchestrator server for real-time agent communication
@@ -1157,6 +1199,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 31 Playwright tests in `tests/workspaces.spec.ts`
 
 **Implementation Notes** (2026-01-27):
+
 - Created `components/workspace/` directory with:
   - `types.ts` - Types for panes, layouts, stream events
   - `usePaneManager.ts` - Hook for managing pane state and persistence
@@ -1191,6 +1234,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 28 Playwright tests in `tests/tasks.spec.ts`
 
 **Implementation Notes** (2026-01-27):
+
 - Created task API types and hooks in `api/types.ts` and `api/hooks/useTasks.ts`
   - Types: `Task`, `TaskStatus`, `Priority`, `Complexity`, `TaskTypeValue`, `OrchestratorTaskMeta`, `MergeStatus`, `TestResult`, `TaskFilter`
   - Hooks: `useTasks()`, `useTask()`, `useTasksByStatus()`, `useTaskCounts()`, `useStartTask()`, `useCompleteTask()`, `useCreateTask()`, `useUpdateTask()`, `useAssignTask()`, `useDeleteTask()`
@@ -1213,7 +1257,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [x] TB-O19: Director Creates & Assigns Tasks
+#### - [] TB-O19: Director Creates & Assigns Tasks
 
 **Goal**: Director agent can create tasks and assign to workers
 
@@ -1230,11 +1274,12 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
   - `GET /api/agents/:id/workload` - Get agent workload and capacity
 - [x] Integration tests for task dispatch workflow
 - [ ] Director system prompt that uses these APIs (deferred to TB-O7b role definitions)
-- [ ] CLI commands for dispatch operations (deferred - REST API preferred for Director)
+- [ ] CLI commands for dispatch operations
 
 **Verification**: Unit tests verify task creation, assignment, dispatch, and smart routing
 
 **Implementation Notes** (2026-01-27):
+
 - Added comprehensive REST API for task management in orchestrator-server
 - formatTaskResponse helper formats tasks with orchestrator metadata
 - TaskAssignmentService integration for workload tracking
@@ -1256,6 +1301,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Unit tests verify smart dispatch routes to workers with matching capabilities
 
 **Implementation Notes** (2026-01-27):
+
 - Smart dispatch finds available workers with capacity
 - Filters by capability requirements (required/preferred skills, languages)
 - Returns best candidate based on capability match score (0-100)
@@ -1277,6 +1323,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 30 unit tests in `worker-task-service.test.ts`, REST API endpoints verified
 
 **Implementation Notes** (2026-01-27):
+
 - Created `WorkerTaskService` in `packages/orchestrator-sdk/src/services/worker-task-service.ts`
 - Service orchestrates complete workflow: dispatch → worktree → spawn → context → complete
 - Added `updateSessionId()` method to `TaskAssignmentService`
@@ -1306,6 +1353,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Complete task, see Steward run tests, auto-merge, worktree cleaned up
 
 **Implementation** (commit efa65eb+):
+
 - Created `MergeStewardService` in `packages/orchestrator-sdk/src/services/merge-steward-service.ts`
 - Service provides: `processTask()`, `runTests()`, `attemptMerge()`, `createFixTask()`, `cleanupAfterMerge()`
 - Unit tests in `merge-steward-service.test.ts`
@@ -1348,6 +1396,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 107 unit tests in `steward-scheduler.test.ts`, 21 Playwright API tests in `steward-scheduler.spec.ts`
 
 **Implementation** (commit TBD):
+
 - Created `StewardSchedulerImpl` in `packages/orchestrator-sdk/src/services/steward-scheduler.ts`
 - Service provides: `start()`, `stop()`, `registerSteward()`, `registerAllStewards()`, `unregisterSteward()`, `executeManually()`, `publishEvent()`, `getScheduledJobs()`, `getEventSubscriptions()`, `getExecutionHistory()`, `getLastExecution()`, `getStats()`
 - REST API endpoints: `/api/scheduler/status`, `/api/scheduler/start`, `/api/scheduler/stop`, `/api/scheduler/register-all`, `/api/scheduler/stewards/:id/register`, `/api/scheduler/stewards/:id/unregister`, `/api/scheduler/stewards/:id/execute`, `/api/scheduler/events`, `/api/scheduler/jobs`, `/api/scheduler/subscriptions`, `/api/scheduler/history`, `/api/scheduler/stewards/:id/last-execution`
@@ -1363,11 +1412,12 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Changes**:
 
 - [x] Add plugin types:
+
   ```typescript
   type StewardPlugin = PlaybookPlugin | ScriptPlugin | CommandPlugin;
 
   interface PlaybookPlugin {
-    type: 'playbook';
+    type: "playbook";
     name: string;
     playbookId: PlaybookId;
     variables?: Record<string, string>;
@@ -1378,7 +1428,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
   }
 
   interface ScriptPlugin {
-    type: 'script';
+    type: "script";
     name: string;
     path: string;
     args?: string[];
@@ -1391,7 +1441,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
   }
 
   interface CommandPlugin {
-    type: 'command';
+    type: "command";
     name: string;
     command: string;
     cwd?: string;
@@ -1402,6 +1452,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
     tags?: string[];
   }
   ```
+
 - [x] Create `PluginExecutor` service with execute, executeBatch, validate
 - [x] Built-in plugins: `gc-ephemeral-tasks`, `cleanup-stale-worktrees`, `gc-ephemeral-workflows`, `health-check-agents`
 - [x] REST API endpoints: `/api/plugins/builtin`, `/api/plugins/validate`, `/api/plugins/execute`, `/api/plugins/execute-batch`, `/api/plugins/execute-builtin/:name`
@@ -1473,6 +1524,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 18 Playwright tests in `apps/orchestrator-web/tests/notifications.spec.ts`
 
 **Implementation Notes** (2026-01-27):
+
 - Created `api/hooks/useNotifications.ts` with SSE streaming, localStorage persistence, and Sonner integration
 - Created `components/notification/NotificationCenter.tsx` with bell icon, dropdown, badge, and notification list
 - Notification types: info, success, warning, error
@@ -1496,6 +1548,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 41 Playwright tests in `apps/orchestrator-web/tests/command-palette.spec.ts`
 
 **Implementation Notes** (2026-01-27):
+
 - Created `CommandPalette` component in `apps/orchestrator-web/src/components/command/CommandPalette.tsx`
 - Uses cmdk library for fuzzy search and keyboard navigation
 - Command categories: navigation, tasks, agents, workflows, actions, settings
@@ -1524,6 +1577,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 46 Playwright tests in `apps/orchestrator-web/tests/settings.spec.ts`
 
 **Implementation Notes** (2026-01-27):
+
 - Created `api/hooks/useSettings.ts` with hooks: `useTheme()`, `useNotificationSettings()`, `useWorkspaceSettings()`, `useStewardScheduleSettings()`, `useSettings()`
 - Settings sections: Theme, Notifications, Keyboard Shortcuts, Git Worktrees, Ephemeral Tasks, Steward Schedules, Reset All
 - Tab navigation with URL persistence via `?tab=preferences` or `?tab=workspace`
@@ -1893,7 +1947,7 @@ elemental/
 **orchestrator-sdk:**
 
 - `node-cron` - Cron scheduling for Steward triggers
-- `node-pty` - PTY for interactive agent sessions
+- `node-pty` - PTY for interactive agent sessions ✓ (added)
 
 **orchestrator-web:**
 
@@ -1906,15 +1960,15 @@ elemental/
 
 ## Risk Mitigation
 
-| Risk                                | Mitigation                                         |
-| ----------------------------------- | -------------------------------------------------- |
-| Package extraction breaks imports   | TB-O1 through TB-O5 done carefully with tests      |
-| UI extraction is large              | Phase 7 can run in parallel; start early           |
-| Agent process management complexity | Start with simple spawn/kill, add resume later     |
+| Risk                                | Mitigation                                            |
+| ----------------------------------- | ----------------------------------------------------- |
+| Package extraction breaks imports   | TB-O1 through TB-O5 done carefully with tests         |
+| UI extraction is large              | Phase 7 can run in parallel; start early              |
+| Agent process management complexity | Start with simple spawn/kill, add resume later        |
 | Streaming scalability               | SSE for headless (simpler), WebSocket for interactive |
-| Worktree management complexity      | Require existing git repo, clear error if missing  |
-| Steward scheduling complexity       | Start with event triggers, add cron after          |
-| Predecessor query depends on Claude | Test Claude Code resume behavior early             |
+| Worktree management complexity      | Require existing git repo, clear error if missing     |
+| Steward scheduling complexity       | Start with event triggers, add cron after             |
+| Predecessor query depends on Claude | Test Claude Code resume behavior early                |
 
 ---
 
@@ -1932,20 +1986,20 @@ elemental/
 
 ## Phase Summary
 
-| Phase | Tracer Bullets         | Focus                                                     |
-| ----- | ---------------------- | --------------------------------------------------------- |
-| 0     | TB-Core-1 to TB-Core-3 | Core library additions (ephemeral tasks)                  |
-| 1     | TB-O1 to TB-O5         | Monorepo foundation, package extraction                   |
-| 2     | TB-O6 to TB-O8a        | Orchestrator SDK types, services, capabilities, dispatch  |
-| 3     | TB-O9 to TB-O12        | Agent process management, worktrees, UWP, handoff         |
-| 4     | TB-O13 to TB-O17a      | Real-time communication, terminals, Workspaces            |
-| 5     | TB-O18 to TB-O21       | Task management, agent workflow, merge                    |
-| 6     | TB-O22 to TB-O26       | Steward config, plugins, health, activity, notifications  |
-| 7     | TB-O27 to TB-O31       | UI package extraction (parallel)                          |
-| 8     | TB-O32 to TB-O35       | Workflows UI, workflow creation                           |
-| 9     | TB-O39 to TB-O41       | Recovery and reconciliation                               |
-| 10    | TB-O42 to TB-O44       | Metrics and reporting                                     |
-| 11    | TB-O45 to TB-O47       | Advanced features                                         |
+| Phase | Tracer Bullets         | Focus                                                    |
+| ----- | ---------------------- | -------------------------------------------------------- |
+| 0     | TB-Core-1 to TB-Core-3 | Core library additions (ephemeral tasks)                 |
+| 1     | TB-O1 to TB-O5         | Monorepo foundation, package extraction                  |
+| 2     | TB-O6 to TB-O8a        | Orchestrator SDK types, services, capabilities, dispatch |
+| 3     | TB-O9 to TB-O12        | Agent process management, worktrees, UWP, handoff        |
+| 4     | TB-O13 to TB-O17a      | Real-time communication, terminals, Workspaces           |
+| 5     | TB-O18 to TB-O21       | Task management, agent workflow, merge                   |
+| 6     | TB-O22 to TB-O26       | Steward config, plugins, health, activity, notifications |
+| 7     | TB-O27 to TB-O31       | UI package extraction (parallel)                         |
+| 8     | TB-O32 to TB-O35       | Workflows UI, workflow creation                          |
+| 9     | TB-O39 to TB-O41       | Recovery and reconciliation                              |
+| 10    | TB-O42 to TB-O44       | Metrics and reporting                                    |
+| 11    | TB-O45 to TB-O47       | Advanced features                                        |
 
 **Total: 69 tracer bullets across 12 phases**
 

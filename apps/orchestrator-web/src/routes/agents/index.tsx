@@ -2,17 +2,19 @@
  * Agents Page - View and manage agents and stewards
  *
  * Displays agent status, capabilities, and current tasks.
- * Organized with tabs for Agents (Director + Workers) and Stewards.
+ * Organized with tabs for Agents (Director + Workers), Stewards, and Graph View.
  */
 
 import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw, Network } from 'lucide-react';
 import { useAgentsByRole, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
+import { useTasks } from '../../api/hooks/useTasks';
 import { AgentCard, CreateAgentDialog } from '../../components/agent';
+import { AgentWorkspaceGraph } from '../../components/agent-graph';
 import type { Agent, SessionStatus, AgentRole, StewardFocus } from '../../api/types';
 
-type TabValue = 'agents' | 'stewards';
+type TabValue = 'agents' | 'stewards' | 'graph';
 
 export function AgentsPage() {
   const search = useSearch({ from: '/agents' }) as { tab?: string; selected?: string; role?: string };
@@ -35,10 +37,15 @@ export function AgentsPage() {
     ephemeralWorkers,
     persistentWorkers,
     stewards,
+    workers,
     isLoading,
     error,
     refetch,
   } = useAgentsByRole();
+
+  // Fetch tasks for the graph view
+  const { data: tasksData } = useTasks({ status: 'all', limit: 100 });
+  const tasks = tasksData?.tasks ?? [];
 
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
@@ -99,8 +106,7 @@ export function AgentsPage() {
 
   const handleOpenTerminal = (agentId: string) => {
     // Navigate to workspaces page with agent selected
-    // Note: When TB-O17a is implemented, this will open the agent in the workspace terminal
-    navigate({ to: '/workspaces', search: { layout: `agent-${agentId}` } });
+    navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId } });
   };
 
   // Create Agent Dialog handlers
@@ -199,11 +205,38 @@ export function AgentsPage() {
               )}
             </span>
           </button>
+          <button
+            onClick={() => setTab('graph')}
+            className={`pb-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+              currentTab === 'graph'
+                ? 'text-[var(--color-primary)] border-[var(--color-primary)]'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] border-transparent hover:border-[var(--color-border)]'
+            }`}
+            data-testid="agents-tab-graph"
+          >
+            <span className="flex items-center gap-2">
+              <Network className="w-4 h-4" />
+              Graph
+            </span>
+          </button>
         </nav>
       </div>
 
       {/* Content */}
-      {isLoading ? (
+      {currentTab === 'graph' ? (
+        // Graph tab handles its own loading/error states
+        <div className="h-[600px] border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <AgentWorkspaceGraph
+            director={director}
+            workers={workers}
+            stewards={stewards}
+            tasks={tasks}
+            isLoading={isLoading}
+            error={error}
+            onRefresh={refetch}
+          />
+        </div>
+      ) : isLoading ? (
         <div className="flex flex-col items-center justify-center py-16">
           <Loader2 className="w-8 h-8 text-[var(--color-primary)] animate-spin mb-4" />
           <p className="text-sm text-[var(--color-text-secondary)]">Loading agents...</p>
@@ -235,7 +268,7 @@ export function AgentsPage() {
           pendingStop={pendingStop}
           onCreateAgent={() => openCreateDialog()}
         />
-      ) : (
+      ) : currentTab === 'stewards' ? (
         <StewardsTab
           stewards={filteredAgents.stewards}
           onStart={handleStartAgent}
@@ -244,7 +277,7 @@ export function AgentsPage() {
           pendingStop={pendingStop}
           onCreateSteward={() => openCreateDialog('steward')}
         />
-      )}
+      ) : null}
 
       {/* Create Agent Dialog */}
       <CreateAgentDialog

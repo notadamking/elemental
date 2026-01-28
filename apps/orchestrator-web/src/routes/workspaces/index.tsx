@@ -6,7 +6,8 @@
  * persists layout configuration to localStorage.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearch, useNavigate } from '@tanstack/react-router';
 import {
   LayoutGrid,
   Plus,
@@ -24,6 +25,7 @@ import {
   AddPaneDialog,
   type LayoutPreset,
 } from '../../components/workspace';
+import { useAgent } from '../../api/hooks/useAgents';
 
 /** Layout preset configuration */
 const layoutPresets: { id: LayoutPreset; icon: typeof Square; label: string }[] = [
@@ -34,6 +36,8 @@ const layoutPresets: { id: LayoutPreset; icon: typeof Square; label: string }[] 
 ];
 
 export function WorkspacesPage() {
+  const search = useSearch({ from: '/workspaces' }) as { layout?: string; agent?: string };
+  const navigate = useNavigate();
   const [showAddPane, setShowAddPane] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -55,6 +59,33 @@ export function WorkspacesPage() {
     deleteLayout,
     clearPanes,
   } = usePaneManager();
+
+  // Handle agent URL parameter - open agent in pane when navigating from Agents page
+  const agentIdFromUrl = search.agent;
+  const { data: agentResponse } = useAgent(agentIdFromUrl ?? '');
+  const agentFromUrl = agentResponse?.agent;
+  const processedAgentRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // If agent ID is in URL and we fetched the agent data, add it as a pane
+    if (agentFromUrl && agentIdFromUrl && processedAgentRef.current !== agentIdFromUrl) {
+      const existingPane = layout.panes.find(p => p.agentId === agentIdFromUrl);
+      if (!existingPane) {
+        // Add the agent as a new pane
+        addPane(agentFromUrl);
+      } else {
+        // Agent already exists, just activate it
+        setActivePane(existingPane.id);
+      }
+      // Mark as processed and clear the URL param
+      processedAgentRef.current = agentIdFromUrl;
+      navigate({
+        to: '/workspaces',
+        search: { layout: search.layout ?? 'single', agent: undefined },
+        replace: true,
+      });
+    }
+  }, [agentFromUrl, agentIdFromUrl, layout.panes, addPane, setActivePane, navigate, search.layout]);
 
   const currentPreset = layoutPresets.find(p => p.id === layout.preset) || layoutPresets[0];
   const existingAgentIds = layout.panes.map(p => p.agentId);

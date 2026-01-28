@@ -61,8 +61,9 @@
   ],
   "dependencies": {
     "@elemental/core": "workspace:*",
+    "@elemental/sdk": "workspace:*",
     "@elemental/storage": "workspace:*",
-    "@elemental/sdk": "workspace:*"
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
