@@ -3228,9 +3228,12 @@ app.get('/api/libraries', async (c) => {
   try {
     const url = new URL(c.req.url);
     const hydrateDescription = url.searchParams.get('hydrate.description') === 'true';
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 10000; // Default to loading all
 
     const libraries = await api.list({
       type: 'library',
+      limit,
       ...(hydrateDescription && { hydrate: { description: true } }),
     } as Parameters<typeof api.list>[0]);
 

@@ -207,21 +207,23 @@ test.describe('TB46: Universal Pagination', () => {
   });
 
   // ============================================================================
-  // DOCUMENTS PAGE PAGINATION
+  // DOCUMENTS PAGE (no pagination - uses virtualization)
   // ============================================================================
 
-  test('documents page loads with pagination params in URL', async ({ page }) => {
+  test('documents page loads without pagination params', async ({ page }) => {
     await page.goto('/documents');
-    await expect(page).toHaveURL(/\/documents\?.*page=1/);
+    // Documents page no longer uses pagination, so no page/limit params expected
     await expect(page.getByTestId('documents-page')).toBeVisible({ timeout: 10000 });
   });
 
-  test('sidebar navigation to documents uses default pagination', async ({ page }) => {
+  test('sidebar navigation to documents does not include pagination', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page.getByTestId('sidebar')).toBeVisible({ timeout: 10000 });
 
     await page.getByTestId('nav-documents').click();
-    await expect(page).toHaveURL(/\/documents\?.*page=1/);
+    // Documents page no longer uses pagination params
+    await expect(page).toHaveURL(/\/documents$/);
+    await expect(page.getByTestId('documents-page')).toBeVisible({ timeout: 10000 });
   });
 
   // ============================================================================

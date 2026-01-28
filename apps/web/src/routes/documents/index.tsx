@@ -21,7 +21,6 @@ import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useAllDocuments as useAllDocumentsPreloaded } from '../../api/hooks/useAllElements';
 
 import { useLibraries } from './hooks';
-import { DEFAULT_PAGE_SIZE } from './constants';
 import type { DocumentType } from './types';
 import {
   LibraryTree,
@@ -164,12 +163,12 @@ export function DocumentsPage() {
 
   const handleSelectDocument = (documentId: string) => {
     setSelectedDocumentId(documentId);
-    navigate({ to: '/documents', search: { selected: documentId, library: selectedLibraryId ?? undefined, page: 1, limit: DEFAULT_PAGE_SIZE } });
+    navigate({ to: '/documents', search: { selected: documentId, library: selectedLibraryId ?? undefined } });
   };
 
   const handleCloseDocument = () => {
     setSelectedDocumentId(null);
-    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined, page: 1, limit: DEFAULT_PAGE_SIZE } });
+    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined } });
   };
 
   const handleOpenCreateModal = () => {
@@ -198,7 +197,7 @@ export function DocumentsPage() {
 
   const handleMobileBack = () => {
     setSelectedDocumentId(null);
-    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined, page: 1, limit: DEFAULT_PAGE_SIZE } });
+    navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined } });
   };
 
   if (error) {

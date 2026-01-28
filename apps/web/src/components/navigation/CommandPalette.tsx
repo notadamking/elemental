@@ -229,7 +229,7 @@ export function CommandPalette() {
       id: 'nav-documents',
       label: 'Go to Documents',
       icon: FileText,
-      action: () => navigate({ to: '/documents', search: { selected: undefined, library: undefined, page: 1, limit: 25 } }),
+      action: () => navigate({ to: '/documents', search: { selected: undefined, library: undefined } }),
       shortcut: 'G D',
       group: 'Collaborate',
       keywords: ['files', 'notes', 'library'],

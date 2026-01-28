@@ -38,17 +38,19 @@ export function useDocumentSearch(query: string) {
 }
 
 /**
- * Hook to fetch all libraries
+ * Hook to fetch all libraries (no pagination - loads all upfront)
  */
 export function useLibraries() {
   return useQuery<LibraryType[]>({
     queryKey: ['libraries'],
     queryFn: async () => {
-      const response = await fetch('/api/libraries?hydrate.description=true');
+      const response = await fetch('/api/libraries?limit=10000&hydrate.description=true');
       if (!response.ok) {
         throw new Error('Failed to fetch libraries');
       }
-      return response.json();
+      const data = await response.json();
+      // Handle both array response and paginated response { items: [...] }
+      return Array.isArray(data) ? data : (data.items || []);
     },
   });
 }
@@ -356,13 +358,13 @@ export function useRemoveDocumentLink() {
 }
 
 /**
- * Hook to fetch all documents for the link picker
+ * Hook to fetch all documents for the link picker (no pagination - loads all upfront)
  */
 export function useAllDocumentsForPicker() {
   return useQuery<DocumentType[]>({
     queryKey: ['documents', 'all'],
     queryFn: async () => {
-      const response = await fetch('/api/documents?limit=100');
+      const response = await fetch('/api/documents?limit=10000');
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error?.message || 'Failed to fetch documents');

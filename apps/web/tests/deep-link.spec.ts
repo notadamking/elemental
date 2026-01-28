@@ -175,7 +175,7 @@ test.describe('TB70: Deep-Link Navigation', () => {
       const documentId = data.items[0].id;
 
       // Navigate directly with selected param
-      await page.goto(`/documents?selected=${documentId}&page=1&limit=25`);
+      await page.goto(`/documents?selected=${documentId}`);
       await expect(page.getByTestId('documents-page')).toBeVisible({ timeout: 10000 });
 
       // Document should be displayed
@@ -185,7 +185,7 @@ test.describe('TB70: Deep-Link Navigation', () => {
 
     test('navigating to non-existent document shows Not Found', async ({ page }) => {
       // Navigate to a non-existent document
-      await page.goto('/documents?selected=non-existent-document-id-12345&page=1&limit=25');
+      await page.goto('/documents?selected=non-existent-document-id-12345');
       await expect(page.getByTestId('documents-page')).toBeVisible({ timeout: 10000 });
 
       // Should show not found message

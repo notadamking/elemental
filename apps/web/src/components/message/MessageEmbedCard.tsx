@@ -184,7 +184,7 @@ export function DocumentEmbedCard({ documentId }: DocumentEmbedCardProps) {
   return (
     <Link
       to="/documents"
-      search={{ selected: documentId, library: undefined, page: 1, limit: 25 }}
+      search={{ selected: documentId, library: undefined }}
       data-testid={`doc-embed-${documentId}`}
       className="inline-flex items-center gap-2 px-2 py-1 bg-gray-50 rounded border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors text-sm group max-w-[400px]"
     >

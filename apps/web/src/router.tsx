@@ -156,10 +156,6 @@ const documentsRoute = createRoute({
     return {
       selected: typeof search.selected === 'string' ? search.selected : undefined,
       library: typeof search.library === 'string' ? search.library : undefined,
-      page: typeof search.page === 'number' ? search.page :
-            typeof search.page === 'string' ? parseInt(search.page, 10) || 1 : 1,
-      limit: typeof search.limit === 'number' ? search.limit :
-             typeof search.limit === 'string' ? parseInt(search.limit, 10) || 25 : 25,
     };
   },
 });

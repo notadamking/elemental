@@ -151,7 +151,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
       description: 'Your new document has been created.',
       action: {
         label: 'View Document',
-        onClick: () => navigate({ to: '/documents', search: { selected: document.id, library: undefined, page: 1, limit: 25 } }),
+        onClick: () => navigate({ to: '/documents', search: { selected: document.id, library: undefined } }),
       },
     });
   }, [navigate]);

@@ -1027,7 +1027,7 @@ function OverviewTabContent({
                 key={mention.id}
                 onClick={() => {
                   if (mention.type === 'document') {
-                    navigate({ to: '/documents', search: { selected: mention.id, library: undefined, page: 1, limit: 25 } });
+                    navigate({ to: '/documents', search: { selected: mention.id, library: undefined } });
                   } else {
                     navigate({ to: '/tasks', search: { selected: mention.id, page: 1, limit: 25 } });
                   }
