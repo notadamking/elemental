@@ -11,6 +11,7 @@ import type {
   PaneId,
   PaneStatus,
   LayoutPreset,
+  GridOrientation,
   WorkspacePane,
   WorkspaceLayout,
   WorkspaceState,
@@ -457,23 +458,70 @@ export function usePaneManager(): UsePaneManagerResult {
   }, []);
 
   // Rotate grid layout orientation (only works in grid mode with 3+ panes)
-  // Toggles between different grid arrangements
+  // Toggles between horizontal (columns first) and vertical (rows first) orientation
   const rotateLayout = useCallback(() => {
     setLayout(prev => {
       const paneCount = prev.panes.length;
       // Only rotate if we're in grid mode and have 3+ panes
       if (prev.preset !== 'grid' || paneCount < 3) return prev;
 
-      // For grid mode, we rotate by reversing the pane order
-      // This effectively changes orientation (e.g., 1 left + 2 right becomes 2 left + 1 right)
-      const rotatedPanes = [...prev.panes].reverse().map((p, i) => ({
+      // Toggle between horizontal and vertical orientation
+      const currentOrientation = prev.gridOrientation || 'horizontal';
+      const newOrientation: GridOrientation = currentOrientation === 'horizontal' ? 'vertical' : 'horizontal';
+
+      return {
+        ...prev,
+        gridOrientation: newOrientation,
+        modifiedAt: Date.now(),
+      };
+    });
+  }, []);
+
+  // Swap grid sections (columns or rows depending on orientation)
+  // For 3-pane grid: swaps the single-pane section with the two-pane section
+  const swapGridSections = useCallback((sectionIndex1: number, sectionIndex2: number) => {
+    setLayout(prev => {
+      const paneCount = prev.panes.length;
+      if (prev.preset !== 'grid' || paneCount < 3) return prev;
+
+      const orientation = prev.gridOrientation || 'horizontal';
+      const panes = [...prev.panes];
+
+      // For 3-pane grid: section 0 is pane 0, section 1 is panes 1 and 2
+      if (paneCount === 3) {
+        // Swap section 0 (pane 0) with section 1 (panes 1, 2)
+        // Result: [pane1, pane2, pane0]
+        const temp = panes[0];
+        panes[0] = panes[1];
+        panes[1] = panes[2];
+        panes[2] = temp;
+      } else if (paneCount === 4) {
+        // For 4-pane grid (2x2):
+        // horizontal: [[0,1], [2,3]] - swap columns means swap pairs
+        // vertical: same structure
+        if (sectionIndex1 === 0 && sectionIndex2 === 1) {
+          // Swap first pair with second pair
+          if (orientation === 'horizontal') {
+            // Swap columns: [0,2] <-> [1,3]
+            [panes[0], panes[1]] = [panes[1], panes[0]];
+            [panes[2], panes[3]] = [panes[3], panes[2]];
+          } else {
+            // Swap rows: [0,1] <-> [2,3]
+            [panes[0], panes[2]] = [panes[2], panes[0]];
+            [panes[1], panes[3]] = [panes[3], panes[1]];
+          }
+        }
+      }
+
+      // Re-index positions
+      const reindexed = panes.map((p, i) => ({
         ...p,
         position: i,
       }));
 
       return {
         ...prev,
-        panes: rotatedPanes,
+        panes: reindexed,
         modifiedAt: Date.now(),
       };
     });
@@ -512,5 +560,6 @@ export function usePaneManager(): UsePaneManagerResult {
     movePaneUp,
     movePaneDown,
     rotateLayout,
+    swapGridSections,
   };
 }

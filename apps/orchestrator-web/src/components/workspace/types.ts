@@ -12,6 +12,9 @@ export type PaneId = string;
 /** Layout preset types */
 export type LayoutPreset = 'single' | 'rows' | 'columns' | 'grid' | 'flex';
 
+/** Grid orientation - determines primary split direction */
+export type GridOrientation = 'horizontal' | 'vertical';
+
 /** Pane type determines rendering behavior */
 export type PaneType = 'terminal' | 'stream';
 
@@ -55,6 +58,8 @@ export interface WorkspaceLayout {
   name: string;
   preset: LayoutPreset;
   panes: WorkspacePane[];
+  /** Grid orientation - determines primary split direction (horizontal = columns first, vertical = rows first) */
+  gridOrientation?: GridOrientation;
   createdAt: number;
   modifiedAt: number;
 }
@@ -111,6 +116,8 @@ export interface WorkspaceActions {
   movePaneDown: (paneId: PaneId) => void;
   /** Rotate layout orientation (toggle between row-based and column-based layouts) */
   rotateLayout: () => void;
+  /** Swap grid sections (e.g., swap left column with right column) */
+  swapGridSections: (sectionIndex1: number, sectionIndex2: number) => void;
 }
 
 /**
@@ -161,6 +168,7 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   name: 'Default',
   preset: 'single',
   panes: [],
+  gridOrientation: 'horizontal',
   createdAt: Date.now(),
   modifiedAt: Date.now(),
 };

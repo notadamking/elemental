@@ -8,10 +8,11 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { X, Terminal, Radio } from 'lucide-react';
+import { X, Terminal, Radio, ArrowLeftRight, ArrowUpDown } from 'lucide-react';
 import type {
   WorkspacePane,
   LayoutPreset,
+  GridOrientation,
   PaneId,
   PaneStatus,
   DragState,
@@ -28,6 +29,7 @@ const tabRoleColors: Record<string, string> = {
 export interface WorkspaceGridProps {
   panes: WorkspacePane[];
   preset: LayoutPreset;
+  gridOrientation?: GridOrientation;
   activePane: PaneId | null;
   dragState: DragState | null;
   onPaneClose: (paneId: PaneId) => void;
@@ -36,6 +38,7 @@ export interface WorkspaceGridProps {
   onStartDrag: (paneId: PaneId) => void;
   onUpdateDragTarget: (targetPosition: number | null) => void;
   onEndDrag: () => void;
+  onSwapSections?: (sectionIndex1: number, sectionIndex2: number) => void;
 }
 
 /**
@@ -207,6 +210,7 @@ function getLayoutConfig(preset: LayoutPreset, paneCount: number): {
 export function WorkspaceGrid({
   panes,
   preset,
+  gridOrientation = 'horizontal',
   activePane,
   dragState,
   onPaneClose,
@@ -215,6 +219,7 @@ export function WorkspaceGrid({
   onStartDrag,
   onUpdateDragTarget,
   onEndDrag,
+  onSwapSections,
 }: WorkspaceGridProps) {
   const [maximizedPane, setMaximizedPane] = useState<PaneId | null>(null);
 
@@ -398,32 +403,66 @@ export function WorkspaceGrid({
     );
   }
 
-  // Special case for 3-pane grid layout (first pane full height on left)
+  // Special case for 3-pane grid layout
+  // Horizontal orientation: 1 pane on left, 2 stacked on right
+  // Vertical orientation: 1 pane on top, 2 side-by-side on bottom
   if (!isMaximized && preset === 'grid' && visiblePanes.length === 3) {
+    const isHorizontal = gridOrientation === 'horizontal';
+    const SwapIcon = isHorizontal ? ArrowLeftRight : ArrowUpDown;
+
     return (
       <div
-        className="h-full w-full"
+        className="h-full w-full relative"
         data-testid="workspace-grid"
         data-preset={preset}
         data-pane-count={visiblePanes.length}
+        data-orientation={gridOrientation}
       >
-        <Group orientation="horizontal" id="workspace-grid-3pane">
+        <Group orientation={isHorizontal ? 'horizontal' : 'vertical'} id="workspace-grid-3pane">
           <Panel id="pane-0" defaultSize={50} minSize={15}>
             {renderPane(0)}
           </Panel>
-          <CustomResizeHandle orientation="horizontal" />
+          <CustomResizeHandle orientation={isHorizontal ? 'horizontal' : 'vertical'} />
           <Panel id="pane-right" defaultSize={50} minSize={15}>
-            <Group orientation="vertical" id="workspace-grid-3pane-right">
+            <Group orientation={isHorizontal ? 'vertical' : 'horizontal'} id="workspace-grid-3pane-secondary">
               <Panel id="pane-1" defaultSize={50} minSize={15}>
                 {renderPane(1)}
               </Panel>
-              <CustomResizeHandle orientation="vertical" />
+              <CustomResizeHandle orientation={isHorizontal ? 'vertical' : 'horizontal'} />
               <Panel id="pane-2" defaultSize={50} minSize={15}>
                 {renderPane(2)}
               </Panel>
             </Group>
           </Panel>
         </Group>
+        {/* Swap button overlay - positioned at the main divider */}
+        {onSwapSections && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSwapSections(0, 1);
+            }}
+            className={`
+              absolute z-20
+              ${isHorizontal
+                ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'
+                : 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'
+              }
+              p-1.5 rounded-full
+              bg-[var(--color-surface)] border border-[var(--color-border)]
+              text-[var(--color-text-tertiary)]
+              hover:bg-[var(--color-primary-muted)] hover:text-[var(--color-primary)]
+              hover:border-[var(--color-primary)] hover:scale-110
+              transition-all duration-150
+              shadow-md
+              opacity-60 hover:opacity-100
+            `}
+            title="Swap sections"
+            data-testid="swap-sections-btn"
+          >
+            <SwapIcon className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     );
   }
