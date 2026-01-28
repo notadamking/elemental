@@ -1284,9 +1284,6 @@ app.patch('/api/agents/:id', async (c) => {
       name: body.name?.trim(),
     });
 
-    // Broadcast update
-    wsBroadcast({ type: 'agent-updated', agentId, agent: updatedAgent });
-
     return c.json({ agent: updatedAgent });
   } catch (error) {
     console.error('[orchestrator] Failed to update agent:', error);
