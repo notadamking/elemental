@@ -9,7 +9,7 @@
  * - Threading (TB19)
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,6 +41,12 @@ export function MessagesPage() {
   );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  // Use ref to track current user ID to avoid stale closure issues in WebSocket callbacks
+  const currentUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentUserIdRef.current = currentUser?.id ?? null;
+  }, [currentUser]);
+
   // Real-time event handling for new messages
   const handleMessageEvent = useCallback(
     (event: WebSocketEvent) => {
@@ -48,7 +54,7 @@ export function MessagesPage() {
         const msgChannelId = event.newValue?.channelId as string | undefined;
         const msgSender = event.newValue?.sender as string | undefined;
         // Don't show toast for messages sent by the current user
-        if (msgSender && currentUser && msgSender === currentUser.id) {
+        if (msgSender && currentUserIdRef.current && msgSender === currentUserIdRef.current) {
           return;
         }
         // Show toast for new messages in the currently selected channel
@@ -60,7 +66,7 @@ export function MessagesPage() {
         }
       }
     },
-    [selectedChannelId, currentUser]
+    [selectedChannelId]
   );
 
   // Subscribe to messages channel for real-time updates
