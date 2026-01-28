@@ -6,10 +6,12 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio } from 'lucide-react';
+import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw } from 'lucide-react';
 import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
 import { XTerminal } from '../terminal/XTerminal';
 import { StreamViewer } from './StreamViewer';
+import { Tooltip } from '../ui/Tooltip';
+import { useAgentStatus, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
 
 export interface WorkspacePaneProps {
   pane: WorkspacePaneType;
@@ -56,6 +58,32 @@ export function WorkspacePane({
   onStatusChange,
 }: WorkspacePaneProps) {
   const [showMenu, setShowMenu] = useState(false);
+
+  // Session status and controls for workers (not director - that has its own panel)
+  const { data: statusData } = useAgentStatus(pane.agentRole !== 'director' ? pane.agentId : undefined);
+  const startSession = useStartAgentSession();
+  const stopSession = useStopAgentSession();
+
+  const hasActiveSession = statusData?.hasActiveSession ?? false;
+
+  const handleStartSession = useCallback(async () => {
+    try {
+      await startSession.mutateAsync({
+        agentId: pane.agentId,
+        interactive: pane.paneType === 'terminal',
+      });
+    } catch (err) {
+      console.error('Failed to start session:', err);
+    }
+  }, [pane.agentId, pane.paneType, startSession]);
+
+  const handleStopSession = useCallback(async () => {
+    try {
+      await stopSession.mutateAsync({ agentId: pane.agentId, graceful: true });
+    } catch (err) {
+      console.error('Failed to stop session:', err);
+    }
+  }, [pane.agentId, stopSession]);
 
   // Use ref to avoid recreating callback when onStatusChange prop changes
   // This prevents WebSocket reconnection loops caused by inline arrow functions in parent
@@ -146,6 +174,63 @@ export function WorkspacePane({
 
         {/* Right: Window controls */}
         <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Session controls for workers (not director) */}
+          {pane.agentRole !== 'director' && (
+            <>
+              {!hasActiveSession ? (
+                <Tooltip content="Start Session" side="bottom">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStartSession();
+                    }}
+                    disabled={startSession.isPending}
+                    className="
+                      p-1 rounded
+                      text-green-600 dark:text-green-400
+                      hover:bg-[var(--color-surface-hover)]
+                      transition-colors
+                      disabled:opacity-50
+                    "
+                    title="Start Session"
+                    data-testid="pane-start-session"
+                  >
+                    {startSession.isPending ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </Tooltip>
+              ) : (
+                <Tooltip content="Stop Session" side="bottom">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStopSession();
+                    }}
+                    disabled={stopSession.isPending}
+                    className="
+                      p-1 rounded
+                      text-red-600 dark:text-red-400
+                      hover:bg-[var(--color-surface-hover)]
+                      transition-colors
+                      disabled:opacity-50
+                    "
+                    title="Stop Session"
+                    data-testid="pane-stop-session"
+                  >
+                    {stopSession.isPending ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Square className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </Tooltip>
+              )}
+            </>
+          )}
+
           {/* Maximize/Minimize button */}
           <button
             onClick={(e) => {
