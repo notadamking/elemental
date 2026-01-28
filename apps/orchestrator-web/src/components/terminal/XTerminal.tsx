@@ -206,7 +206,7 @@ export function XTerminal({
   useEffect(() => {
     if (!autoFit || !containerRef.current || !fitAddonRef.current) return;
 
-    const resizeObserver = new ResizeObserver(() => {
+    const handleResize = () => {
       try {
         fitAddonRef.current?.fit();
 
@@ -221,12 +221,17 @@ export function XTerminal({
       } catch {
         // Ignore resize errors (can happen during unmount)
       }
-    });
+    };
 
+    const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(containerRef.current);
+
+    // Also listen to window resize events (for panel resize triggers)
+    window.addEventListener('resize', handleResize);
 
     return () => {
       resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
     };
   }, [autoFit, controlsResize]);
 
