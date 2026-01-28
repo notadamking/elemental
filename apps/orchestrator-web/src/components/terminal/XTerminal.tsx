@@ -316,18 +316,14 @@ export function XTerminal({
                   );
                 }
               }
-              // Send initial resize for interactive sessions (only if this terminal controls resize)
+              // Send initial resize for existing sessions (only if this terminal controls resize)
               // Use a small delay to ensure terminal is fully laid out
+              // IMPORTANT: Force send (skip deduplication) since PTY may have stale dimensions from before page refresh
               if (controlsResize && data.hasSession && fitAddonRef.current && terminalRef.current) {
                 setTimeout(() => {
                   if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
                     const dims = fitAddonRef.current.proposeDimensions();
                     if (dims) {
-                      // Skip if dimensions haven't changed
-                      const last = lastSentDimsRef.current;
-                      if (last && last.cols === dims.cols && last.rows === dims.rows) {
-                        return;
-                      }
                       lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
                       wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
                     }
@@ -382,16 +378,12 @@ export function XTerminal({
               );
               // Send initial resize for interactive sessions (only if this terminal controls resize)
               // Use a small delay to ensure terminal is fully laid out
+              // IMPORTANT: Force send (skip deduplication) for new sessions to ensure PTY has correct dimensions
               if (controlsResize && (data as { isInteractive?: boolean }).isInteractive && fitAddonRef.current && terminalRef.current) {
                 setTimeout(() => {
                   if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
                     const dims = fitAddonRef.current.proposeDimensions();
                     if (dims) {
-                      // Skip if dimensions haven't changed
-                      const last = lastSentDimsRef.current;
-                      if (last && last.cols === dims.cols && last.rows === dims.rows) {
-                        return;
-                      }
                       lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
                       wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
                     }
