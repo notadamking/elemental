@@ -117,13 +117,12 @@ export function AddPaneDialog({
   existingAgentIds = [],
 }: AddPaneDialogProps) {
   const [search, setSearch] = useState('');
-  const { director, persistentWorkers, ephemeralWorkers, stewards, isLoading, error } = useAgentsByRole();
+  const { persistentWorkers, ephemeralWorkers, stewards, isLoading, error } = useAgentsByRole();
 
   if (!isOpen) return null;
 
-  // Combine all agents for filtering
+  // Combine all agents for filtering (excluding Director - use Director panel instead)
   const allAgents = [
-    director,
     ...persistentWorkers,
     ...ephemeralWorkers,
     ...stewards,
@@ -137,8 +136,7 @@ export function AddPaneDialog({
     return name.includes(searchLower) || role.includes(searchLower);
   });
 
-  // Group agents by category
-  const directorAgent = filteredAgents.find(a => a.metadata?.agent?.agentRole === 'director');
+  // Group agents by category (Director excluded - use Director panel instead)
   const workers = filteredAgents.filter(a => a.metadata?.agent?.agentRole === 'worker');
   const stewardAgents = filteredAgents.filter(a => a.metadata?.agent?.agentRole === 'steward');
 
@@ -245,20 +243,6 @@ export function AddPaneDialog({
               </div>
             ) : (
               <div className="space-y-1">
-                {/* Director */}
-                {directorAgent && (
-                  <div>
-                    <div className="px-2 py-1 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide">
-                      Director
-                    </div>
-                    <AgentListItem
-                      agent={directorAgent}
-                      isExisting={existingAgentIds.includes(directorAgent.id)}
-                      onSelect={() => handleSelect(directorAgent)}
-                    />
-                  </div>
-                )}
-
                 {/* Workers */}
                 {workers.length > 0 && (
                   <div>

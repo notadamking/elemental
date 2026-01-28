@@ -8,7 +8,7 @@
 import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw, Network } from 'lucide-react';
-import { useAgentsByRole, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
+import { useAgentsByRole, useStartAgentSession, useStopAgentSession, useDirector } from '../../api/hooks/useAgents';
 import { useTasks } from '../../api/hooks/useTasks';
 import { AgentCard, CreateAgentDialog } from '../../components/agent';
 import { AgentWorkspaceGraph } from '../../components/agent-graph';
@@ -49,6 +49,9 @@ export function AgentsPage() {
 
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
+
+  // Get Director session status from dedicated hook (polls for updates)
+  const { hasActiveSession: directorHasActiveSession } = useDirector();
 
   // Filter agents based on search query
   const filteredAgents = useMemo(() => {
@@ -107,6 +110,11 @@ export function AgentsPage() {
   const handleOpenTerminal = (agentId: string) => {
     // Navigate to workspaces page with agent selected
     navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId } });
+  };
+
+  const handleOpenDirectorPanel = () => {
+    // Dispatch event to open the Director panel in AppShell
+    window.dispatchEvent(new CustomEvent('open-director-panel'));
   };
 
   // Create Agent Dialog handlers
@@ -259,6 +267,8 @@ export function AgentsPage() {
       ) : currentTab === 'agents' ? (
         <AgentsTab
           director={filteredAgents.director}
+          directorHasActiveSession={directorHasActiveSession}
+          onOpenDirectorPanel={handleOpenDirectorPanel}
           ephemeralWorkers={filteredAgents.ephemeralWorkers}
           persistentWorkers={filteredAgents.persistentWorkers}
           onStart={handleStartAgent}
@@ -297,6 +307,8 @@ export function AgentsPage() {
 
 interface AgentsTabProps {
   director?: Agent;
+  directorHasActiveSession: boolean;
+  onOpenDirectorPanel: () => void;
   ephemeralWorkers: Agent[];
   persistentWorkers: Agent[];
   onStart: (agentId: string) => void;
@@ -309,6 +321,8 @@ interface AgentsTabProps {
 
 function AgentsTab({
   director,
+  directorHasActiveSession,
+  onOpenDirectorPanel,
   ephemeralWorkers,
   persistentWorkers,
   onStart,
@@ -344,10 +358,10 @@ function AgentsTab({
         >
           <AgentCard
             agent={director}
-            activeSessionStatus={getSessionStatus(director)}
+            activeSessionStatus={directorHasActiveSession ? 'running' : undefined}
             onStart={() => onStart(director.id)}
             onStop={() => onStop(director.id)}
-            onOpenTerminal={() => onOpenTerminal(director.id)}
+            onOpenTerminal={onOpenDirectorPanel}
             isStarting={pendingStart.has(director.id)}
             isStopping={pendingStop.has(director.id)}
           />

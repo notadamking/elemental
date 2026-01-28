@@ -347,6 +347,15 @@ export function AppShell() {
     return () => window.removeEventListener('toggle-director-panel', handleToggleDirector);
   }, [setDirectorCollapsed]);
 
+  // Listen for open-director-panel event (e.g., from Agents page "Open" button)
+  useEffect(() => {
+    const handleOpenDirector = () => {
+      setDirectorCollapsed(false);
+    };
+    window.addEventListener('open-director-panel', handleOpenDirector);
+    return () => window.removeEventListener('open-director-panel', handleOpenDirector);
+  }, [setDirectorCollapsed]);
+
   // Close mobile drawer on navigation
   useEffect(() => {
     const unsubscribe = router.subscribe('onResolved', () => {
