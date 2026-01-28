@@ -849,11 +849,16 @@ export class SpawnerServiceImpl implements SpawnerService {
     });
 
     // Handle process exit
+    // Note: exit event may fire multiple times in edge cases, so make handler idempotent
     childProcess.on('exit', (code, signal) => {
-      if (session.status !== 'suspended') {
+      // Only transition if not already terminated or suspended
+      if (session.status !== 'suspended' && session.status !== 'terminated') {
         this.transitionStatus(session, 'terminated');
       }
-      session.endedAt = createTimestamp();
+      // Only set endedAt once
+      if (!session.endedAt) {
+        session.endedAt = createTimestamp();
+      }
       session.events.emit('exit', code, signal);
     });
 
@@ -940,11 +945,17 @@ export class SpawnerServiceImpl implements SpawnerService {
     });
 
     // Handle PTY exit
+    // Note: onExit may fire multiple times (e.g., from different streams in node-pty)
+    // so we make this handler idempotent
     ptyProcess.onExit((e: { exitCode: number; signal?: number }) => {
-      if (session.status !== 'suspended') {
+      // Only transition if not already terminated or suspended
+      if (session.status !== 'suspended' && session.status !== 'terminated') {
         this.transitionStatus(session, 'terminated');
       }
-      session.endedAt = createTimestamp();
+      // Only set endedAt once
+      if (!session.endedAt) {
+        session.endedAt = createTimestamp();
+      }
       session.events.emit('exit', e.exitCode, e.signal);
     });
 
