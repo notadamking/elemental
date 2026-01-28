@@ -1058,6 +1058,18 @@ export class SessionManagerImpl implements SessionManager {
     spawnerEvents.on('raw', (data) => {
       session.events.emit('raw', data);
     });
+
+    // Forward PTY data for interactive sessions
+    spawnerEvents.on('pty-data', (data) => {
+      session.events.emit('pty-data', data);
+      // Update last activity
+      const updated: InternalSessionState = {
+        ...session,
+        lastActivityAt: createTimestamp(),
+        persisted: false,
+      };
+      this.sessions.set(session.id, updated);
+    });
   }
 
   private createSessionState(
