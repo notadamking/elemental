@@ -5,10 +5,10 @@
  * or a stream viewer for ephemeral workers.
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle, ArrowLeftRight } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle, ArrowLeftRight, RotateCw } from 'lucide-react';
 import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
-import { XTerminal } from '../terminal/XTerminal';
+import { XTerminal, type XTerminalHandle } from '../terminal/XTerminal';
 import { StreamViewer } from './StreamViewer';
 import { Tooltip } from '../ui/Tooltip';
 import { useAgentStatus, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
@@ -24,6 +24,12 @@ export interface WorkspacePaneProps {
   onMinimize: () => void;
   onFocus: () => void;
   onStatusChange: (status: PaneStatus) => void;
+}
+
+/** Methods exposed via ref */
+export interface WorkspacePaneHandle {
+  /** Refresh the terminal by re-fitting to current dimensions */
+  refresh: () => void;
 }
 
 /** Status indicator colors */
@@ -49,7 +55,7 @@ const roleBadgeStyles: Record<string, { bg: string; text: string; icon: typeof T
   steward: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', icon: Radio },
 };
 
-export function WorkspacePane({
+export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>(function WorkspacePane({
   pane,
   isActive,
   isMaximized,
@@ -59,8 +65,9 @@ export function WorkspacePane({
   onMinimize,
   onFocus,
   onStatusChange,
-}: WorkspacePaneProps) {
+}, ref) {
   const [showMenu, setShowMenu] = useState(false);
+  const terminalRef = useRef<XTerminalHandle>(null);
 
   // Session status and controls for workers (not director - that has its own panel)
   const { data: statusData } = useAgentStatus(pane.agentRole !== 'director' ? pane.agentId : undefined);
@@ -98,6 +105,16 @@ export function WorkspacePane({
   const handleStatusChange = useCallback((status: 'disconnected' | 'connecting' | 'connected' | 'error') => {
     onStatusChangeRef.current(status);
   }, []);
+
+  // Refresh the terminal (re-fits to current dimensions)
+  const handleRefresh = useCallback(() => {
+    terminalRef.current?.refresh();
+  }, []);
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    refresh: handleRefresh,
+  }), [handleRefresh]);
 
   const roleStyle = roleBadgeStyles[pane.agentRole] || roleBadgeStyles.worker;
   const RoleIcon = roleStyle.icon;
@@ -306,6 +323,24 @@ export function WorkspacePane({
                   "
                   data-testid="pane-menu"
                 >
+                  {/* Refresh button - refreshes terminal by re-fitting to container */}
+                  {pane.paneType === 'terminal' && pane.agentRole !== 'director' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMenu(false);
+                        handleRefresh();
+                      }}
+                      className="
+                        w-full px-3 py-1.5 text-left text-sm flex items-center gap-2
+                        text-[var(--color-text-secondary)]
+                        hover:bg-[var(--color-surface-hover)]
+                      "
+                    >
+                      <RotateCw className="w-4 h-4" />
+                      Refresh
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -378,6 +413,7 @@ export function WorkspacePane({
           </div>
         ) : pane.paneType === 'terminal' ? (
           <XTerminal
+            ref={terminalRef}
             agentId={pane.agentId}
             onStatusChange={handleStatusChange}
             interactive={true}
@@ -515,4 +551,4 @@ export function WorkspacePane({
       </div>
     </div>
   );
-}
+});

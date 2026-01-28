@@ -6,13 +6,29 @@
  * and supports PTY communication.
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
 export type TerminalStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+/** Methods exposed via ref */
+export interface XTerminalHandle {
+  /** Refresh the terminal by re-fitting to current dimensions */
+  refresh: () => void;
+  /** Write data to terminal */
+  write: (data: string) => void;
+  /** Write a line to terminal */
+  writeln: (data: string) => void;
+  /** Clear terminal */
+  clear: () => void;
+  /** Focus terminal */
+  focus: () => void;
+  /** Fit terminal to container */
+  fit: () => void;
+}
 
 export interface XTerminalProps {
   /** Agent ID to connect to */
@@ -102,7 +118,7 @@ const LIGHT_THEME = {
 const DEFAULT_WS_URL = 'ws://localhost:3457/ws';
 const DEFAULT_API_URL = 'http://localhost:3457';
 
-export function XTerminal({
+export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XTerminal({
   agentId,
   wsUrl = DEFAULT_WS_URL,
   apiUrl = DEFAULT_API_URL,
@@ -118,7 +134,7 @@ export function XTerminal({
   controlsResize = true,
   enableFileDrop,
   'data-testid': testId = 'xterminal',
-}: XTerminalProps) {
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -542,6 +558,32 @@ export function XTerminal({
     fitAddonRef.current?.fit();
   }, []);
 
+  // Refresh terminal by re-fitting to current dimensions
+  // This forces the terminal to recalculate and redraw
+  const refresh = useCallback(() => {
+    if (fitAddonRef.current && terminalRef.current) {
+      fitAddonRef.current.fit();
+      // Also send resize to server to ensure PTY dimensions are in sync
+      if (controlsResize && wsRef.current?.readyState === WebSocket.OPEN) {
+        const dims = fitAddonRef.current.proposeDimensions();
+        if (dims) {
+          lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
+          wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+        }
+      }
+    }
+  }, [controlsResize]);
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    refresh,
+    write,
+    writeln,
+    clear,
+    focus,
+    fit,
+  }), [refresh, write, writeln, clear, focus, fit]);
+
   // Expose methods through window for testing
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__xterminal = {
@@ -776,6 +818,6 @@ export function XTerminal({
       )}
     </div>
   );
-}
+});
 
 export default XTerminal;

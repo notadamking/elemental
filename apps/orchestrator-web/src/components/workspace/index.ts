@@ -30,7 +30,7 @@ export {
 export * from './usePaneManager';
 
 // Components
-export { WorkspacePane } from './WorkspacePane';
+export { WorkspacePane, type WorkspacePaneHandle } from './WorkspacePane';
 export { WorkspaceGrid } from './WorkspaceGrid';
 export { StreamViewer } from './StreamViewer';
 export { AddPaneDialog } from './AddPaneDialog';

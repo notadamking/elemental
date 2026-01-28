@@ -6,7 +6,7 @@
  * Single mode displays tabs like a browser/code editor.
  */
 
-import React, { useState, useCallback, useMemo, Fragment } from 'react';
+import React, { useState, useCallback, useMemo, Fragment, useRef, useEffect } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { X, Terminal, Radio, ArrowLeftRight, ArrowUpDown } from 'lucide-react';
 import type {
@@ -18,7 +18,7 @@ import type {
   PaneStatus,
   DragState,
 } from './types';
-import { WorkspacePane as WorkspacePaneComponent } from './WorkspacePane';
+import { WorkspacePane as WorkspacePaneComponent, type WorkspacePaneHandle } from './WorkspacePane';
 
 /** Role badge styles for tabs */
 const tabRoleColors: Record<string, string> = {
@@ -164,6 +164,7 @@ function PaneWrapper({
   onDragOver,
   onDrop,
   onDragEnd,
+  paneRef,
 }: {
   pane: WorkspacePane;
   isActive: boolean;
@@ -180,6 +181,7 @@ function PaneWrapper({
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onDragEnd: () => void;
+  paneRef?: React.RefObject<WorkspacePaneHandle | null>;
 }) {
   return (
     <div
@@ -203,6 +205,7 @@ function PaneWrapper({
         </div>
       )}
       <WorkspacePaneComponent
+        ref={paneRef}
         pane={pane}
         isActive={isActive}
         isMaximized={isMaximized}
@@ -301,6 +304,53 @@ export function WorkspaceGrid({
   // For single/tabbed mode, track which pane is selected (uses activePane or first pane)
   const selectedPaneId = activePane || panes[0]?.id || null;
 
+  // Track refs for all panes to enable refresh functionality
+  const paneRefs = useRef<Map<PaneId, React.RefObject<WorkspacePaneHandle | null>>>(new Map());
+
+  // Counter to trigger refresh after swaps/layout changes
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Get or create a ref for a pane
+  const getPaneRef = useCallback((paneId: PaneId): React.RefObject<WorkspacePaneHandle | null> => {
+    if (!paneRefs.current.has(paneId)) {
+      paneRefs.current.set(paneId, React.createRef<WorkspacePaneHandle>());
+    }
+    return paneRefs.current.get(paneId)!;
+  }, []);
+
+  // Refresh all panes after a delay (used after swaps/layout changes)
+  const refreshAllPanes = useCallback(() => {
+    setTimeout(() => {
+      paneRefs.current.forEach((ref) => {
+        ref.current?.refresh();
+      });
+    }, 200);
+  }, []);
+
+  // Trigger refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      refreshAllPanes();
+    }
+  }, [refreshTrigger, refreshAllPanes]);
+
+  // Wrap onSwapPanes to trigger refresh after swap
+  const handleSwapPanes = useCallback((paneId1: PaneId, paneId2: PaneId) => {
+    onSwapPanes?.(paneId1, paneId2);
+    setRefreshTrigger(t => t + 1);
+  }, [onSwapPanes]);
+
+  // Wrap onSwapSections to trigger refresh after swap
+  const handleSwapSections = useCallback(() => {
+    onSwapSections?.();
+    setRefreshTrigger(t => t + 1);
+  }, [onSwapSections]);
+
+  // Handle layout changes (panel resizes) to trigger refresh
+  const handleLayoutChange = useCallback(() => {
+    setRefreshTrigger(t => t + 1);
+  }, []);
+
   const handleMaximize = useCallback((paneId: PaneId) => {
     setMaximizedPane(paneId);
   }, []);
@@ -362,6 +412,7 @@ export function WorkspaceGrid({
       <PaneWrapper
         key={pane.id}
         pane={pane}
+        paneRef={getPaneRef(pane.id)}
         isActive={pane.id === activePane}
         isMaximized={maximizedPane === pane.id}
         isSingleMode={preset === 'single' && !isMaximized}
@@ -488,6 +539,7 @@ export function WorkspaceGrid({
               >
                 <PaneWrapper
                   pane={pane}
+                  paneRef={getPaneRef(pane.id)}
                   isActive={pane.id === activePane}
                   isMaximized={false}
                   isSingleMode={true}
@@ -535,7 +587,7 @@ export function WorkspaceGrid({
         data-orientation={gridOrientation}
         data-section-layout={sectionLayout}
       >
-        <Group orientation={isHorizontal ? 'horizontal' : 'vertical'} id="workspace-grid-3pane">
+        <Group orientation={isHorizontal ? 'horizontal' : 'vertical'} id="workspace-grid-3pane" onLayoutChange={handleLayoutChange}>
           {isSingleFirst ? (
             <>
               <Panel id="pane-single" defaultSize={50} minSize={15}>
@@ -543,17 +595,17 @@ export function WorkspaceGrid({
               </Panel>
               <CustomResizeHandle
                 orientation={isHorizontal ? 'horizontal' : 'vertical'}
-                onSwap={onSwapSections}
+                onSwap={handleSwapSections}
                 swapTestId="swap-sections-btn"
               />
               <Panel id="pane-paired" defaultSize={50} minSize={15}>
-                <Group orientation={isHorizontal ? 'vertical' : 'horizontal'} id="workspace-grid-3pane-secondary">
+                <Group orientation={isHorizontal ? 'vertical' : 'horizontal'} id="workspace-grid-3pane-secondary" onLayoutChange={handleLayoutChange}>
                   <Panel id="pane-paired-0" defaultSize={50} minSize={15}>
                     {renderPane(pairedPaneIndices[0])}
                   </Panel>
                   <CustomResizeHandle
                     orientation={isHorizontal ? 'vertical' : 'horizontal'}
-                    onSwap={onSwapPanes ? () => onSwapPanes(visiblePanes[pairedPaneIndices[0]].id, visiblePanes[pairedPaneIndices[1]].id) : undefined}
+                    onSwap={onSwapPanes ? () => handleSwapPanes(visiblePanes[pairedPaneIndices[0]].id, visiblePanes[pairedPaneIndices[1]].id) : undefined}
                     swapTestId="swap-panes-btn"
                   />
                   <Panel id="pane-paired-1" defaultSize={50} minSize={15}>
@@ -565,13 +617,13 @@ export function WorkspaceGrid({
           ) : (
             <>
               <Panel id="pane-paired" defaultSize={50} minSize={15}>
-                <Group orientation={isHorizontal ? 'vertical' : 'horizontal'} id="workspace-grid-3pane-secondary">
+                <Group orientation={isHorizontal ? 'vertical' : 'horizontal'} id="workspace-grid-3pane-secondary" onLayoutChange={handleLayoutChange}>
                   <Panel id="pane-paired-0" defaultSize={50} minSize={15}>
                     {renderPane(pairedPaneIndices[0])}
                   </Panel>
                   <CustomResizeHandle
                     orientation={isHorizontal ? 'vertical' : 'horizontal'}
-                    onSwap={onSwapPanes ? () => onSwapPanes(visiblePanes[pairedPaneIndices[0]].id, visiblePanes[pairedPaneIndices[1]].id) : undefined}
+                    onSwap={onSwapPanes ? () => handleSwapPanes(visiblePanes[pairedPaneIndices[0]].id, visiblePanes[pairedPaneIndices[1]].id) : undefined}
                     swapTestId="swap-panes-btn"
                   />
                   <Panel id="pane-paired-1" defaultSize={50} minSize={15}>
@@ -581,7 +633,7 @@ export function WorkspaceGrid({
               </Panel>
               <CustomResizeHandle
                 orientation={isHorizontal ? 'horizontal' : 'vertical'}
-                onSwap={onSwapSections}
+                onSwap={handleSwapSections}
                 swapTestId="swap-sections-btn"
               />
               <Panel id="pane-single" defaultSize={50} minSize={15}>
@@ -604,7 +656,7 @@ export function WorkspaceGrid({
         data-preset={preset}
         data-pane-count={visiblePanes.length}
       >
-        <Group orientation="vertical" id={`workspace-grid-${preset}`}>
+        <Group orientation="vertical" id={`workspace-grid-${preset}`} onLayoutChange={handleLayoutChange}>
           {layoutConfig.rows.map((rowIndices, rowIndex) => (
             <Fragment key={`row-group-${rowIndex}`}>
               {rowIndex > 0 && (
@@ -612,7 +664,7 @@ export function WorkspaceGrid({
                   orientation="vertical"
                   onSwap={
                     onSwapPanes && layoutConfig.rows[rowIndex - 1].length === 1 && rowIndices.length === 1
-                      ? () => onSwapPanes(visiblePanes[layoutConfig.rows[rowIndex - 1][0]].id, visiblePanes[rowIndices[0]].id)
+                      ? () => handleSwapPanes(visiblePanes[layoutConfig.rows[rowIndex - 1][0]].id, visiblePanes[rowIndices[0]].id)
                       : undefined
                   }
                   swapTestId={`swap-row-${rowIndex - 1}-${rowIndex}-btn`}
@@ -622,15 +674,15 @@ export function WorkspaceGrid({
                 {rowIndices.length === 1 ? (
                   renderPane(rowIndices[0])
                 ) : (
-                  <Group orientation="horizontal" id={`workspace-row-${rowIndex}`}>
+                  <Group orientation="horizontal" id={`workspace-row-${rowIndex}`} onLayoutChange={handleLayoutChange}>
                     {rowIndices.map((paneIndex, colIndex) => (
                       <Fragment key={`col-group-${colIndex}`}>
                         {colIndex > 0 && (
                           <CustomResizeHandle
                             orientation="horizontal"
                             onSwap={
-                              onSwapPanes
-                                ? () => onSwapPanes(visiblePanes[rowIndices[colIndex - 1]].id, visiblePanes[paneIndex].id)
+                              handleSwapPanes
+                                ? () => handleSwapPanes(visiblePanes[rowIndices[colIndex - 1]].id, visiblePanes[paneIndex].id)
                                 : undefined
                             }
                             swapTestId={`swap-col-${colIndex - 1}-${colIndex}-btn`}
@@ -659,7 +711,7 @@ export function WorkspaceGrid({
       data-preset={preset}
       data-pane-count={visiblePanes.length}
     >
-      <Group orientation="horizontal" id={`workspace-grid-${preset}`}>
+      <Group orientation="horizontal" id={`workspace-grid-${preset}`} onLayoutChange={handleLayoutChange}>
         {layoutConfig.rows.map((columnIndices, colIndex) => (
           <Fragment key={`col-group-${colIndex}`}>
             {colIndex > 0 && (
@@ -667,7 +719,7 @@ export function WorkspaceGrid({
                 orientation="horizontal"
                 onSwap={
                   onSwapPanes && layoutConfig.rows[colIndex - 1].length === 1 && columnIndices.length === 1
-                    ? () => onSwapPanes(visiblePanes[layoutConfig.rows[colIndex - 1][0]].id, visiblePanes[columnIndices[0]].id)
+                    ? () => handleSwapPanes(visiblePanes[layoutConfig.rows[colIndex - 1][0]].id, visiblePanes[columnIndices[0]].id)
                     : undefined
                 }
                 swapTestId={`swap-col-${colIndex - 1}-${colIndex}-btn`}
@@ -677,7 +729,7 @@ export function WorkspaceGrid({
               {columnIndices.length === 1 ? (
                 renderPane(columnIndices[0])
               ) : (
-                <Group orientation="vertical" id={`workspace-col-${colIndex}`}>
+                <Group orientation="vertical" id={`workspace-col-${colIndex}`} onLayoutChange={handleLayoutChange}>
                   {columnIndices.map((paneIndex, rowIndex) => (
                     <Fragment key={`row-group-${rowIndex}`}>
                       {rowIndex > 0 && (
@@ -685,7 +737,7 @@ export function WorkspaceGrid({
                           orientation="vertical"
                           onSwap={
                             onSwapPanes
-                              ? () => onSwapPanes(visiblePanes[columnIndices[rowIndex - 1]].id, visiblePanes[paneIndex].id)
+                              ? () => handleSwapPanes(visiblePanes[columnIndices[rowIndex - 1]].id, visiblePanes[paneIndex].id)
                               : undefined
                           }
                           swapTestId={`swap-row-${rowIndex - 1}-${rowIndex}-btn`}
