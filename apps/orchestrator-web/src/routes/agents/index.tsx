@@ -8,7 +8,7 @@
 import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw, Network } from 'lucide-react';
-import { useAgentsByRole, useStartAgentSession, useStopAgentSession, useDirector } from '../../api/hooks/useAgents';
+import { useAgentsByRole, useStartAgentSession, useStopAgentSession, useDirector, useSessions } from '../../api/hooks/useAgents';
 import { useTasks } from '../../api/hooks/useTasks';
 import { AgentCard, CreateAgentDialog, RenameAgentDialog } from '../../components/agent';
 import { AgentWorkspaceGraph } from '../../components/agent-graph';
@@ -56,6 +56,19 @@ export function AgentsPage() {
 
   // Get Director session status from dedicated hook (polls for updates)
   const { hasActiveSession: directorHasActiveSession } = useDirector();
+
+  // Fetch active sessions to determine which agents are actually running
+  const { data: sessionsData } = useSessions({ status: 'running' });
+  const activeSessions = sessionsData?.sessions ?? [];
+
+  // Helper to check if an agent has an active session
+  const getActiveSessionStatus = (agentId: string): SessionStatus | undefined => {
+    const session = activeSessions.find(s => s.agentId === agentId);
+    if (session) {
+      return session.status === 'running' ? 'running' : session.status === 'starting' ? 'starting' : undefined;
+    }
+    return undefined;
+  };
 
   // Filter agents based on search query
   const filteredAgents = useMemo(() => {
@@ -293,6 +306,7 @@ export function AgentsPage() {
           pendingStart={pendingStart}
           pendingStop={pendingStop}
           onCreateAgent={() => openCreateDialog()}
+          getActiveSessionStatus={getActiveSessionStatus}
         />
       ) : currentTab === 'stewards' ? (
         <StewardsTab
@@ -303,6 +317,7 @@ export function AgentsPage() {
           pendingStart={pendingStart}
           pendingStop={pendingStop}
           onCreateSteward={() => openCreateDialog('steward')}
+          getActiveSessionStatus={getActiveSessionStatus}
         />
       ) : null}
 
@@ -347,6 +362,7 @@ interface AgentsTabProps {
   pendingStart: Set<string>;
   pendingStop: Set<string>;
   onCreateAgent: () => void;
+  getActiveSessionStatus: (agentId: string) => SessionStatus | undefined;
 }
 
 function AgentsTab({
@@ -362,6 +378,7 @@ function AgentsTab({
   pendingStart,
   pendingStop,
   onCreateAgent,
+  getActiveSessionStatus,
 }: AgentsTabProps) {
   const hasAgents = director || ephemeralWorkers.length > 0 || persistentWorkers.length > 0;
 
@@ -413,7 +430,7 @@ function AgentsTab({
               <AgentCard
                 key={agent.id}
                 agent={agent}
-                activeSessionStatus={getSessionStatus(agent)}
+                activeSessionStatus={getActiveSessionStatus(agent.id)}
                 onStart={() => onStart(agent.id)}
                 onStop={() => onStop(agent.id)}
                 onOpenTerminal={() => onOpenTerminal(agent.id)}
@@ -439,7 +456,7 @@ function AgentsTab({
               <AgentCard
                 key={agent.id}
                 agent={agent}
-                activeSessionStatus={getSessionStatus(agent)}
+                activeSessionStatus={getActiveSessionStatus(agent.id)}
                 onStart={() => onStart(agent.id)}
                 onStop={() => onStop(agent.id)}
                 onOpenTerminal={() => onOpenTerminal(agent.id)}
@@ -467,9 +484,10 @@ interface StewardsTabProps {
   pendingStart: Set<string>;
   pendingStop: Set<string>;
   onCreateSteward: () => void;
+  getActiveSessionStatus: (agentId: string) => SessionStatus | undefined;
 }
 
-function StewardsTab({ stewards, onStart, onStop, onRename, pendingStart, pendingStop, onCreateSteward }: StewardsTabProps) {
+function StewardsTab({ stewards, onStart, onStop, onRename, pendingStart, pendingStop, onCreateSteward, getActiveSessionStatus }: StewardsTabProps) {
   if (stewards.length === 0) {
     return (
       <EmptyState
@@ -516,7 +534,7 @@ function StewardsTab({ stewards, onStart, onStop, onRename, pendingStart, pendin
               <AgentCard
                 key={agent.id}
                 agent={agent}
-                activeSessionStatus={getSessionStatus(agent)}
+                activeSessionStatus={getActiveSessionStatus(agent.id)}
                 onStart={() => onStart(agent.id)}
                 onStop={() => onStop(agent.id)}
                 onRename={() => onRename({ id: agent.id, name: agent.name })}
@@ -592,15 +610,3 @@ function EmptyState({ icon: Icon, title, description, actionLabel, actionTestId,
   );
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function getSessionStatus(agent: Agent): SessionStatus | undefined {
-  const status = agent.metadata?.agent?.sessionStatus;
-  // Map agent session status to full session status
-  if (status === 'running') return 'running';
-  if (status === 'suspended') return 'suspended';
-  if (status === 'terminated') return 'terminated';
-  return undefined;
-}

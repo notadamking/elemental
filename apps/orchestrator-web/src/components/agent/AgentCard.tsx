@@ -81,7 +81,7 @@ export function AgentCard({
               {agent.name}
             </h3>
             <AgentStatusBadge
-              status={activeSessionStatus ?? agentMeta?.sessionStatus ?? 'idle'}
+              status={activeSessionStatus ?? 'idle'}
               size="sm"
               showLabel={false}
             />
