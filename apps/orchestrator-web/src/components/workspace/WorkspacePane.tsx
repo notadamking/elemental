@@ -130,10 +130,22 @@ export function WorkspacePane({
       >
         {/* Left: Agent info */}
         <div className="flex items-center gap-2 min-w-0">
-          {/* Status indicator */}
+          {/* Status indicator - shows agent session status, not just connection status */}
           <div
-            className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusColors[pane.status]}`}
-            title={statusText[pane.status]}
+            className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+              pane.agentRole === 'director'
+                ? statusColors[pane.status]  // Director uses its own panel for session management
+                : hasActiveSession
+                  ? statusColors[pane.status]  // Agent running: show connection status
+                  : 'bg-gray-400'  // Agent not running: always grey
+            }`}
+            title={
+              pane.agentRole === 'director'
+                ? statusText[pane.status]
+                : hasActiveSession
+                  ? statusText[pane.status]
+                  : 'Session not running'
+            }
           />
 
           {/* Role badge */}
