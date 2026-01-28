@@ -2,11 +2,13 @@
  * WorkspaceGrid - Layout container for workspace panes
  *
  * Uses react-resizable-panels for smooth split-pane resizing with support
- * for multiple layouts (single, split, grid) and drag-drop reordering.
+ * for multiple layouts (single, columns, rows, grid) and drag-drop reordering.
+ * Single mode displays tabs like a browser/code editor.
  */
 
 import { useState, useCallback, useMemo } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
+import { X, Terminal, Radio } from 'lucide-react';
 import type {
   WorkspacePane,
   LayoutPreset,
@@ -15,6 +17,13 @@ import type {
   DragState,
 } from './types';
 import { WorkspacePane as WorkspacePaneComponent } from './WorkspacePane';
+
+/** Role badge styles for tabs */
+const tabRoleColors: Record<string, string> = {
+  director: 'text-purple-500',
+  worker: 'text-blue-500',
+  steward: 'text-amber-500',
+};
 
 export interface WorkspaceGridProps {
   panes: WorkspacePane[];
@@ -67,6 +76,7 @@ function PaneWrapper({
   pane,
   isActive,
   isMaximized,
+  isSingleMode,
   isDragging,
   isDropTarget,
   onClose,
@@ -82,6 +92,7 @@ function PaneWrapper({
   pane: WorkspacePane;
   isActive: boolean;
   isMaximized: boolean;
+  isSingleMode: boolean;
   isDragging: boolean;
   isDropTarget: boolean;
   onClose: () => void;
@@ -99,19 +110,27 @@ function PaneWrapper({
       className={`
         h-full w-full min-h-0 min-w-0 relative
         ${isDragging ? 'opacity-50 scale-95' : ''}
-        ${isDropTarget ? 'ring-2 ring-[var(--color-primary)] ring-offset-2' : ''}
         transition-all duration-150
       `}
-      draggable={!isMaximized}
+      draggable={!isMaximized && !isSingleMode}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
     >
+      {/* Drop target overlay */}
+      {isDropTarget && (
+        <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center bg-[var(--color-primary)]/10 border-2 border-dashed border-[var(--color-primary)] rounded-lg">
+          <div className="px-3 py-1.5 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium shadow-lg">
+            Drop to swap positions
+          </div>
+        </div>
+      )}
       <WorkspacePaneComponent
         pane={pane}
         isActive={isActive}
         isMaximized={isMaximized}
+        isSingleMode={isSingleMode}
         onClose={onClose}
         onMaximize={onMaximize}
         onMinimize={onMinimize}
@@ -139,43 +158,26 @@ function getLayoutConfig(preset: LayoutPreset, paneCount: number): {
 
   switch (preset) {
     case 'single':
-      // Stack vertically
+      // For single mode, we show one pane at a time (handled by tab UI)
+      // But if we get here, stack vertically for fallback
       return {
         orientation: 'vertical',
         rows: Array.from({ length: paneCount }, (_, i) => [i]),
       };
 
-    case 'split-vertical':
-      // Side by side
-      if (paneCount <= 2) {
-        return {
-          orientation: 'horizontal',
-          rows: [Array.from({ length: paneCount }, (_, i) => i)],
-        };
-      }
-      // For 3+, use 2 columns with rows
-      const colsV = 2;
-      const rowsV: number[][] = [];
-      for (let i = 0; i < paneCount; i += colsV) {
-        rowsV.push(Array.from({ length: Math.min(colsV, paneCount - i) }, (_, j) => i + j));
-      }
-      return { orientation: 'vertical', rows: rowsV };
+    case 'columns':
+      // All panes side by side in a single row (each pane is its own column)
+      return {
+        orientation: 'horizontal',
+        rows: Array.from({ length: paneCount }, (_, i) => [i]),
+      };
 
-    case 'split-horizontal':
-      // Stack vertically
-      if (paneCount <= 2) {
-        return {
-          orientation: 'vertical',
-          rows: Array.from({ length: paneCount }, (_, i) => [i]),
-        };
-      }
-      // For 3+, use 2 rows with columns
-      const colsH = Math.ceil(paneCount / 2);
-      const rowsH: number[][] = [[], []];
-      for (let i = 0; i < paneCount; i++) {
-        rowsH[Math.floor(i / colsH)].push(i);
-      }
-      return { orientation: 'vertical', rows: rowsH.filter(r => r.length > 0) };
+    case 'rows':
+      // All panes stacked vertically in a single column (each pane is its own row)
+      return {
+        orientation: 'vertical',
+        rows: Array.from({ length: paneCount }, (_, i) => [i]),
+      };
 
     case 'grid':
     case 'flex':
@@ -216,6 +218,9 @@ export function WorkspaceGrid({
 }: WorkspaceGridProps) {
   const [maximizedPane, setMaximizedPane] = useState<PaneId | null>(null);
 
+  // For single/tabbed mode, track which pane is selected (uses activePane or first pane)
+  const selectedPaneId = activePane || panes[0]?.id || null;
+
   const handleMaximize = useCallback((paneId: PaneId) => {
     setMaximizedPane(paneId);
   }, []);
@@ -228,6 +233,8 @@ export function WorkspaceGrid({
   const handleDragStart = useCallback((e: React.DragEvent, paneId: PaneId) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', paneId);
+    // Also set a custom MIME type to identify pane drags vs file drags
+    e.dataTransfer.setData('application/x-workspace-pane', paneId);
     onStartDrag(paneId);
   }, [onStartDrag]);
 
@@ -277,6 +284,7 @@ export function WorkspaceGrid({
         pane={pane}
         isActive={pane.id === activePane}
         isMaximized={maximizedPane === pane.id}
+        isSingleMode={preset === 'single' && !isMaximized}
         isDragging={isDragging}
         isDropTarget={isDropTarget}
         onClose={() => onPaneClose(pane.id)}
@@ -292,7 +300,7 @@ export function WorkspaceGrid({
     );
   };
 
-  // Special case: single pane
+  // Special case: single pane (no tabs needed)
   if (visiblePanes.length === 1) {
     return (
       <div
@@ -302,6 +310,90 @@ export function WorkspaceGrid({
         data-pane-count={visiblePanes.length}
       >
         {renderPane(0)}
+      </div>
+    );
+  }
+
+  // Single/Tabbed mode: show tabs like a browser with one pane visible at a time
+  if (preset === 'single' && !isMaximized && visiblePanes.length > 1) {
+    const selectedIndex = visiblePanes.findIndex(p => p.id === selectedPaneId);
+    const activeIndex = selectedIndex >= 0 ? selectedIndex : 0;
+
+    return (
+      <div
+        className="h-full w-full flex flex-col"
+        data-testid="workspace-grid"
+        data-preset={preset}
+        data-pane-count={visiblePanes.length}
+      >
+        {/* Tab bar */}
+        <div className="flex-shrink-0 flex items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] overflow-x-auto">
+          {visiblePanes.map((pane, index) => {
+            const isSelected = index === activeIndex;
+            const RoleIcon = pane.agentRole === 'steward' ? Radio : Terminal;
+            const roleColor = tabRoleColors[pane.agentRole] || tabRoleColors.worker;
+
+            return (
+              <div
+                key={pane.id}
+                className={`
+                  group relative flex items-center gap-2 px-3 py-2 min-w-0
+                  border-r border-[var(--color-border)]
+                  cursor-pointer select-none
+                  transition-colors duration-150
+                  ${isSelected
+                    ? 'bg-[var(--color-bg)] text-[var(--color-text)]'
+                    : 'bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'
+                  }
+                `}
+                onClick={() => onPaneActivate(pane.id)}
+                data-testid={`workspace-tab-${pane.id}`}
+              >
+                {/* Status indicator */}
+                <div
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    pane.status === 'connected' ? 'bg-green-500' :
+                    pane.status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                    pane.status === 'error' ? 'bg-red-500' :
+                    'bg-gray-400'
+                  }`}
+                />
+                {/* Role icon */}
+                <RoleIcon className={`w-3.5 h-3.5 flex-shrink-0 ${roleColor}`} />
+                {/* Agent name */}
+                <span className="truncate text-sm font-medium max-w-32" title={pane.agentName}>
+                  {pane.agentName}
+                </span>
+                {/* Close button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPaneClose(pane.id);
+                  }}
+                  className="
+                    p-0.5 rounded ml-1 flex-shrink-0
+                    text-[var(--color-text-tertiary)]
+                    hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20
+                    opacity-0 group-hover:opacity-100
+                    transition-all duration-150
+                  "
+                  title="Close tab"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                {/* Active indicator */}
+                {isSelected && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary)]" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Tab content - show only the selected pane */}
+        <div className="flex-1 min-h-0">
+          {renderPane(activeIndex)}
+        </div>
       </div>
     );
   }

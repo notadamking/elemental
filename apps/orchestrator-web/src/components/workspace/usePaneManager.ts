@@ -141,11 +141,11 @@ export function usePaneManager(): UsePaneManagerResult {
         setLayout(prev => {
           const updatedPanes = [...prev.panes, { ...newPane, position: prev.panes.length }];
 
-          // Auto-switch to appropriate preset
+          // Auto-switch to appropriate preset (don't auto-switch if user explicitly chose single)
           let newPreset = prev.preset;
           if (updatedPanes.length === 2 && prev.preset === 'single') {
-            newPreset = 'split-vertical';
-          } else if (updatedPanes.length > 2 && prev.preset !== 'grid' && prev.preset !== 'flex') {
+            newPreset = 'columns';
+          } else if (updatedPanes.length > 2 && prev.preset !== 'grid' && prev.preset !== 'flex' && prev.preset !== 'rows' && prev.preset !== 'columns') {
             newPreset = 'grid';
           }
 
@@ -188,11 +188,11 @@ export function usePaneManager(): UsePaneManagerResult {
     setLayout(prev => {
       const updatedPanes = [...prev.panes, { ...newPane, position: prev.panes.length }];
 
-      // Auto-switch to appropriate preset
+      // Auto-switch to appropriate preset (don't auto-switch if user explicitly chose single)
       let newPreset = prev.preset;
       if (updatedPanes.length === 2 && prev.preset === 'single') {
-        newPreset = 'split-vertical';
-      } else if (updatedPanes.length > 2 && prev.preset !== 'grid' && prev.preset !== 'flex') {
+        newPreset = 'columns';
+      } else if (updatedPanes.length > 2 && prev.preset !== 'grid' && prev.preset !== 'flex' && prev.preset !== 'rows' && prev.preset !== 'columns') {
         newPreset = 'grid';
       }
 
@@ -223,7 +223,7 @@ export function usePaneManager(): UsePaneManagerResult {
       if (reindexedPanes.length <= 1) {
         newPreset = 'single';
       } else if (reindexedPanes.length === 2 && prev.preset === 'grid') {
-        newPreset = 'split-vertical';
+        newPreset = 'columns';
       }
 
       return {
@@ -382,6 +382,103 @@ export function usePaneManager(): UsePaneManagerResult {
     setActivePane(null);
   }, []);
 
+  // Swap two panes by their IDs
+  const swapPanes = useCallback((paneId1: PaneId, paneId2: PaneId) => {
+    setLayout(prev => {
+      const panes = [...prev.panes];
+      const index1 = panes.findIndex(p => p.id === paneId1);
+      const index2 = panes.findIndex(p => p.id === paneId2);
+
+      if (index1 === -1 || index2 === -1) return prev;
+
+      // Swap the panes
+      [panes[index1], panes[index2]] = [panes[index2], panes[index1]];
+
+      // Re-index positions
+      const reindexed = panes.map((p, i) => ({
+        ...p,
+        position: i,
+      }));
+
+      return {
+        ...prev,
+        panes: reindexed,
+        modifiedAt: Date.now(),
+      };
+    });
+  }, []);
+
+  // Move a pane up in order (to lower position index)
+  const movePaneUp = useCallback((paneId: PaneId) => {
+    setLayout(prev => {
+      const paneIndex = prev.panes.findIndex(p => p.id === paneId);
+      if (paneIndex <= 0) return prev; // Already at top or not found
+
+      const panes = [...prev.panes];
+      // Swap with the pane above
+      [panes[paneIndex - 1], panes[paneIndex]] = [panes[paneIndex], panes[paneIndex - 1]];
+
+      // Re-index positions
+      const reindexed = panes.map((p, i) => ({
+        ...p,
+        position: i,
+      }));
+
+      return {
+        ...prev,
+        panes: reindexed,
+        modifiedAt: Date.now(),
+      };
+    });
+  }, []);
+
+  // Move a pane down in order (to higher position index)
+  const movePaneDown = useCallback((paneId: PaneId) => {
+    setLayout(prev => {
+      const paneIndex = prev.panes.findIndex(p => p.id === paneId);
+      if (paneIndex === -1 || paneIndex >= prev.panes.length - 1) return prev; // At bottom or not found
+
+      const panes = [...prev.panes];
+      // Swap with the pane below
+      [panes[paneIndex], panes[paneIndex + 1]] = [panes[paneIndex + 1], panes[paneIndex]];
+
+      // Re-index positions
+      const reindexed = panes.map((p, i) => ({
+        ...p,
+        position: i,
+      }));
+
+      return {
+        ...prev,
+        panes: reindexed,
+        modifiedAt: Date.now(),
+      };
+    });
+  }, []);
+
+  // Rotate grid layout orientation (only works in grid mode with 3+ panes)
+  // Toggles between different grid arrangements
+  const rotateLayout = useCallback(() => {
+    setLayout(prev => {
+      const paneCount = prev.panes.length;
+      // Only rotate if we're in grid mode and have 3+ panes
+      if (prev.preset !== 'grid' || paneCount < 3) return prev;
+
+      // For grid mode, we rotate by reversing the pane order
+      // This effectively changes orientation (e.g., 1 left + 2 right becomes 2 left + 1 right)
+      const rotatedPanes = [...prev.panes].reverse().map((p, i) => ({
+        ...p,
+        position: i,
+      }));
+
+      return {
+        ...prev,
+        panes: rotatedPanes,
+        modifiedAt: Date.now(),
+      };
+    });
+  }, []);
+
   return {
     // State
     layout,
@@ -411,5 +508,9 @@ export function usePaneManager(): UsePaneManagerResult {
     endDrag,
     cancelDrag,
     movePaneToPosition,
+    swapPanes,
+    movePaneUp,
+    movePaneDown,
+    rotateLayout,
   };
 }

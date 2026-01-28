@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle } from 'lucide-react';
+import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
 import { XTerminal } from '../terminal/XTerminal';
 import { StreamViewer } from './StreamViewer';
@@ -17,6 +17,8 @@ export interface WorkspacePaneProps {
   pane: WorkspacePaneType;
   isActive: boolean;
   isMaximized: boolean;
+  /** Whether the pane is in Single (tabbed) mode */
+  isSingleMode?: boolean;
   onClose: () => void;
   onMaximize: () => void;
   onMinimize: () => void;
@@ -51,6 +53,7 @@ export function WorkspacePane({
   pane,
   isActive,
   isMaximized,
+  isSingleMode = false,
   onClose,
   onMaximize,
   onMinimize,
@@ -243,28 +246,30 @@ export function WorkspacePane({
             </>
           )}
 
-          {/* Maximize/Minimize button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              isMaximized ? onMinimize() : onMaximize();
-            }}
-            className="
-              p-1 rounded
-              text-[var(--color-text-tertiary)]
-              hover:text-[var(--color-text)]
-              hover:bg-[var(--color-surface-hover)]
-              transition-colors
-            "
-            title={isMaximized ? 'Restore' : 'Maximize'}
-            data-testid="pane-maximize-btn"
-          >
-            {isMaximized ? (
-              <Minimize2 className="w-3.5 h-3.5" />
-            ) : (
-              <Maximize2 className="w-3.5 h-3.5" />
-            )}
-          </button>
+          {/* Maximize/Minimize button (hidden in single/tabbed mode) */}
+          {!isSingleMode && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                isMaximized ? onMinimize() : onMaximize();
+              }}
+              className="
+                p-1 rounded
+                text-[var(--color-text-tertiary)]
+                hover:text-[var(--color-text)]
+                hover:bg-[var(--color-surface-hover)]
+                transition-colors
+              "
+              title={isMaximized ? 'Restore' : 'Maximize'}
+              data-testid="pane-maximize-btn"
+            >
+              {isMaximized ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
 
           {/* More menu */}
           <div className="relative">
@@ -296,7 +301,7 @@ export function WorkspacePane({
                 <div
                   className="
                     absolute right-0 top-full mt-1 z-20
-                    min-w-32 py-1 rounded-md shadow-lg
+                    min-w-40 py-1 rounded-md shadow-lg
                     bg-[var(--color-bg)] border border-[var(--color-border)]
                   "
                   data-testid="pane-menu"
@@ -324,11 +329,12 @@ export function WorkspacePane({
                       onClose();
                     }}
                     className="
-                      w-full px-3 py-1.5 text-left text-sm
+                      w-full px-3 py-1.5 text-left text-sm flex items-center gap-2
                       text-[var(--color-text-secondary)]
                       hover:bg-[var(--color-surface-hover)]
                     "
                   >
+                    <ArrowLeftRight className="w-4 h-4" />
                     Pop out
                   </button>
                 </div>

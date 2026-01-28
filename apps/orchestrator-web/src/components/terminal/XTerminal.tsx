@@ -602,6 +602,11 @@ export function XTerminal({
 
   // Handle file drop
   const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    // Only handle file drags, not pane drags
+    const types = Array.from(e.dataTransfer.types);
+    const isFile = types.includes('Files') && !types.includes('text/plain');
+    if (!isFile) return;
+
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
@@ -637,26 +642,47 @@ export function XTerminal({
     }
   }, [fileDropEnabled, interactive, uploadFile, sendToServer]);
 
+  // Check if drag event contains files (not internal pane drag)
+  const isFileDrag = useCallback((e: React.DragEvent<HTMLDivElement>): boolean => {
+    const types = Array.from(e.dataTransfer.types);
+    // Internal pane drags have our custom MIME type
+    if (types.includes('application/x-workspace-pane')) {
+      return false;
+    }
+    // Files from file explorer will have 'Files' in types
+    // Internal pane drags also use 'text/plain' with pane ID
+    return types.includes('Files') && !types.includes('text/plain');
+  }, []);
+
   // Handle drag over
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // Only handle file drags, not pane drags
+    if (!isFileDrag(e)) return;
+
     e.preventDefault();
     e.stopPropagation();
     if (fileDropEnabled && interactive) {
       setIsDragOver(true);
     }
-  }, [fileDropEnabled, interactive]);
+  }, [fileDropEnabled, interactive, isFileDrag]);
 
   // Handle drag enter
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // Only handle file drags, not pane drags
+    if (!isFileDrag(e)) return;
+
     e.preventDefault();
     e.stopPropagation();
     if (fileDropEnabled && interactive) {
       setIsDragOver(true);
     }
-  }, [fileDropEnabled, interactive]);
+  }, [fileDropEnabled, interactive, isFileDrag]);
 
   // Handle drag leave
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // Only handle file drags, not pane drags
+    if (!isFileDrag(e)) return;
+
     e.preventDefault();
     e.stopPropagation();
     // Only set to false if we're leaving the container (not entering a child)
@@ -672,7 +698,7 @@ export function XTerminal({
         setIsDragOver(false);
       }
     }
-  }, []);
+  }, [isFileDrag]);
 
   return (
     <div

@@ -18,6 +18,7 @@ import {
   Save,
   ChevronDown,
   Trash2,
+  RotateCw,
 } from 'lucide-react';
 import {
   usePaneManager,
@@ -30,8 +31,8 @@ import { useAgent } from '../../api/hooks/useAgents';
 /** Layout preset configuration */
 const layoutPresets: { id: LayoutPreset; icon: typeof Square; label: string }[] = [
   { id: 'single', icon: Square, label: 'Single' },
-  { id: 'split-vertical', icon: Columns, label: 'Split Vertical' },
-  { id: 'split-horizontal', icon: Rows, label: 'Split Horizontal' },
+  { id: 'columns', icon: Columns, label: 'Columns' },
+  { id: 'rows', icon: Rows, label: 'Rows' },
   { id: 'grid', icon: Grid3X3, label: 'Grid' },
 ];
 
@@ -62,6 +63,7 @@ export function WorkspacesPage() {
     startDrag,
     updateDragTarget,
     endDrag,
+    rotateLayout,
   } = usePaneManager();
 
   // Handle agent URL parameter - open agent in pane when navigating from Agents page
@@ -246,6 +248,26 @@ export function WorkspacesPage() {
               </>
             )}
           </div>
+
+          {/* Rotate Layout button (only visible in Grid mode with 3+ panes) */}
+          {layout.preset === 'grid' && paneCount >= 3 && (
+            <button
+              onClick={rotateLayout}
+              className="
+                flex items-center gap-2 px-3 py-2
+                text-sm font-medium
+                text-[var(--color-text-secondary)]
+                rounded-md border border-[var(--color-border)]
+                hover:bg-[var(--color-surface-hover)]
+                transition-colors duration-150
+              "
+              title="Rotate grid layout"
+              data-testid="workspaces-rotate-btn"
+            >
+              <RotateCw className="w-4 h-4" />
+              <span className="hidden sm:inline">Rotate</span>
+            </button>
+          )}
 
           {/* Add pane button */}
           <button

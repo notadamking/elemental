@@ -10,7 +10,7 @@ import type { AgentRole, WorkerMode, Agent } from '../../api/types';
 export type PaneId = string;
 
 /** Layout preset types */
-export type LayoutPreset = 'single' | 'split-horizontal' | 'split-vertical' | 'grid' | 'flex';
+export type LayoutPreset = 'single' | 'rows' | 'columns' | 'grid' | 'flex';
 
 /** Pane type determines rendering behavior */
 export type PaneType = 'terminal' | 'stream';
@@ -103,6 +103,14 @@ export interface WorkspaceActions {
   cancelDrag: () => void;
   /** Move a pane to a new grid position */
   movePaneToPosition: (paneId: PaneId, position: number) => void;
+  /** Swap two panes by their IDs */
+  swapPanes: (paneId1: PaneId, paneId2: PaneId) => void;
+  /** Move a pane up in order (to lower position index) */
+  movePaneUp: (paneId: PaneId) => void;
+  /** Move a pane down in order (to higher position index) */
+  movePaneDown: (paneId: PaneId) => void;
+  /** Rotate layout orientation (toggle between row-based and column-based layouts) */
+  rotateLayout: () => void;
 }
 
 /**
