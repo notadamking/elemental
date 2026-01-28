@@ -123,6 +123,8 @@ export function XTerminal({
   const currentSessionRef = useRef<string | null>(null);
   // Track if we've shown initial connection message to avoid duplicates on reconnect
   const hasShownConnectionRef = useRef(false);
+  // Track last sent dimensions to avoid duplicate resize messages
+  const lastSentDimsRef = useRef<{ cols: number; rows: number } | null>(null);
 
   // Store callbacks in refs to avoid recreating dependent callbacks
   // This prevents WebSocket reconnection loops when parent passes inline functions
@@ -213,6 +215,12 @@ export function XTerminal({
       if (controlsResize && wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
         const dims = fitAddonRef.current.proposeDimensions();
         if (dims) {
+          // Skip if dimensions haven't changed
+          const last = lastSentDimsRef.current;
+          if (last && last.cols === dims.cols && last.rows === dims.rows) {
+            return;
+          }
+          lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
           wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
         }
       }
@@ -257,6 +265,7 @@ export function XTerminal({
     // Reset tracking refs when agentId changes
     hasShownConnectionRef.current = false;
     currentSessionRef.current = null;
+    lastSentDimsRef.current = null;
 
     const connect = () => {
       updateStatus('connecting');
@@ -314,6 +323,12 @@ export function XTerminal({
                   if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
                     const dims = fitAddonRef.current.proposeDimensions();
                     if (dims) {
+                      // Skip if dimensions haven't changed
+                      const last = lastSentDimsRef.current;
+                      if (last && last.cols === dims.cols && last.rows === dims.rows) {
+                        return;
+                      }
+                      lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
                       wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
                     }
                   }
@@ -355,6 +370,8 @@ export function XTerminal({
                 break; // Already processed this session
               }
               currentSessionRef.current = sessionId ?? null;
+              // Reset last sent dimensions so new session gets a fresh resize
+              lastSentDimsRef.current = null;
 
               // Clear previous output and show new session message
               terminalRef.current?.clear();
@@ -370,6 +387,12 @@ export function XTerminal({
                   if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
                     const dims = fitAddonRef.current.proposeDimensions();
                     if (dims) {
+                      // Skip if dimensions haven't changed
+                      const last = lastSentDimsRef.current;
+                      if (last && last.cols === dims.cols && last.rows === dims.rows) {
+                        return;
+                      }
+                      lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
                       wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
                     }
                   }
