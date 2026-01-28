@@ -266,6 +266,7 @@ export function WorkspacePane({
             onStatusChange={handleStatusChange}
             interactive={true}
             autoFocus={true}
+            controlsResize={false}
             data-testid={`terminal-${pane.id}`}
           />
         ) : (
