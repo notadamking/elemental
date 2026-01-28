@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Maximize2,
   AlertCircle,
+  CirclePause,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { XTerminal, type TerminalStatus } from '../terminal';
@@ -268,7 +269,7 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
           </div>
 
           {/* Terminal body */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden relative">
             {status === 'no-director' ? (
               <div className="flex flex-col items-center justify-center h-full p-4 text-center">
                 <AlertCircle className="w-8 h-8 text-[var(--color-text-muted)] mb-2" />
@@ -286,17 +287,119 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
                 </p>
               </div>
             ) : (
-              <XTerminal
-                agentId={director?.id}
-                onStatusChange={handleTerminalStatusChange}
-                theme="dark"
-                fontSize={12}
-                autoFit={true}
-                interactive={true}
-                autoFocus={true}
-                controlsResize={true}
-                data-testid="director-xterminal"
-              />
+              <>
+                <XTerminal
+                  agentId={director?.id}
+                  onStatusChange={handleTerminalStatusChange}
+                  theme="dark"
+                  fontSize={12}
+                  autoFit={true}
+                  interactive={true}
+                  autoFocus={true}
+                  controlsResize={true}
+                  data-testid="director-xterminal"
+                />
+
+                {/* Idle/Shutting down overlay */}
+                {director && (!hasActiveSession || stopSession.isPending) && (
+                  <div
+                    className="
+                      absolute inset-0 z-10
+                      flex flex-col items-center justify-center
+                      bg-[#1a1a1a]/95 backdrop-blur-sm
+                    "
+                    data-testid="director-idle-overlay"
+                  >
+                    {stopSession.isPending ? (
+                      // Shutting down state
+                      <>
+                        <div className="relative mb-5">
+                          <div className="absolute inset-0 bg-amber-500/20 blur-xl rounded-full scale-150" />
+                          <div className="
+                            relative p-3 rounded-xl
+                            bg-gradient-to-br from-[#252525] to-[#1a1a1a]
+                            border border-[#333]
+                            shadow-lg
+                          ">
+                            <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
+                          </div>
+                        </div>
+
+                        <div className="text-center mb-5">
+                          <h3 className="text-base font-medium text-[var(--color-text)] mb-1">
+                            Shutting Down
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)] max-w-xs px-4">
+                            Gracefully stopping the session...
+                          </p>
+                        </div>
+
+                        {/* Pulsing dots animation */}
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '0ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </>
+                    ) : (
+                      // Idle state
+                      <>
+                        <div className="relative mb-5">
+                          <div className="absolute inset-0 bg-[var(--color-primary)]/20 blur-xl rounded-full scale-150" />
+                          <div className="
+                            relative p-3 rounded-xl
+                            bg-gradient-to-br from-[#252525] to-[#1a1a1a]
+                            border border-[#333]
+                            shadow-lg
+                          ">
+                            <CirclePause className="w-8 h-8 text-[var(--color-text-muted)]" />
+                          </div>
+                        </div>
+
+                        <div className="text-center mb-5">
+                          <h3 className="text-base font-medium text-[var(--color-text)] mb-1">
+                            Director Idle
+                          </h3>
+                          <p className="text-xs text-[var(--color-text-muted)] max-w-xs px-4">
+                            Start a session to interact with the Director agent.
+                          </p>
+                        </div>
+
+                        {/* Start button */}
+                        <button
+                          onClick={handleStartSession}
+                          disabled={startSession.isPending}
+                          className="
+                            inline-flex items-center gap-2
+                            px-5 py-2 rounded-lg
+                            bg-gradient-to-r from-green-600 to-green-500
+                            hover:from-green-500 hover:to-green-400
+                            text-white font-medium text-sm
+                            shadow-lg shadow-green-500/25
+                            transition-all duration-200
+                            hover:scale-105 hover:shadow-green-500/40
+                            disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed
+                            focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]
+                          "
+                          data-testid="director-overlay-start-btn"
+                        >
+                          {startSession.isPending ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              Starting...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4" />
+                              Start Session
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
