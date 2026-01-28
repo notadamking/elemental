@@ -305,7 +305,8 @@ export function XTerminal({
               break;
 
             case 'session-started':
-              // A new session was started for this agent
+              // A new session was started for this agent - clear previous output
+              terminalRef.current?.clear();
               terminalRef.current?.writeln(
                 (data as { isInteractive?: boolean }).isInteractive
                   ? '\x1b[32m  Session started - interactive PTY connected\x1b[0m\r\n'
