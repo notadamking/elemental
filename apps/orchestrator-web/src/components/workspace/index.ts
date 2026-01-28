@@ -15,8 +15,14 @@ export type {
   WorkspaceState,
   WorkspaceActions,
   StreamEvent,
+  DragState,
 } from './types';
-export { WORKSPACE_STORAGE_KEY, ACTIVE_LAYOUT_KEY, DEFAULT_LAYOUT } from './types';
+export {
+  WORKSPACE_STORAGE_KEY,
+  ACTIVE_LAYOUT_KEY,
+  DEFAULT_LAYOUT,
+  MIN_PANE_SIZE_PX,
+} from './types';
 
 // Hooks
 export * from './usePaneManager';

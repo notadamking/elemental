@@ -10,7 +10,7 @@ import type { AgentRole, WorkerMode, Agent } from '../../api/types';
 export type PaneId = string;
 
 /** Layout preset types */
-export type LayoutPreset = 'single' | 'split-horizontal' | 'split-vertical' | 'grid';
+export type LayoutPreset = 'single' | 'split-horizontal' | 'split-vertical' | 'grid' | 'flex';
 
 /** Pane type determines rendering behavior */
 export type PaneType = 'terminal' | 'stream';
@@ -29,10 +29,22 @@ export interface WorkspacePane {
   workerMode?: WorkerMode;
   paneType: PaneType;
   status: PaneStatus;
-  /** Position in the grid (0-indexed) */
+  /** Position in the grid (0-indexed, for ordering) */
   position: number;
   /** Size weight for resizing (default 1) */
   weight: number;
+}
+
+/**
+ * Drag state for pane reordering
+ */
+export interface DragState {
+  /** ID of the pane being dragged */
+  paneId: PaneId;
+  /** Original position before drag started */
+  originalPosition: number;
+  /** Current drop target position */
+  targetPosition: number | null;
 }
 
 /**
@@ -53,7 +65,8 @@ export interface WorkspaceLayout {
 export interface WorkspaceState {
   layout: WorkspaceLayout;
   activePane: PaneId | null;
-  isResizing: boolean;
+  isDragging: boolean;
+  dragState: DragState | null;
 }
 
 /**
@@ -80,6 +93,16 @@ export interface WorkspaceActions {
   loadLayout: (layout: WorkspaceLayout) => void;
   /** Clear all panes */
   clearPanes: () => void;
+  /** Start dragging a pane */
+  startDrag: (paneId: PaneId) => void;
+  /** Update drag target position */
+  updateDragTarget: (targetPosition: number | null) => void;
+  /** End drag and apply reorder */
+  endDrag: () => void;
+  /** Cancel drag without applying */
+  cancelDrag: () => void;
+  /** Move a pane to a new grid position */
+  movePaneToPosition: (paneId: PaneId, position: number) => void;
 }
 
 /**
@@ -116,6 +139,11 @@ export interface PopBackInMessage {
 }
 
 export type WorkspaceChannelMessage = PopBackInMessage;
+
+/**
+ * Minimum pane size in pixels
+ */
+export const MIN_PANE_SIZE_PX = 150;
 
 /**
  * Default layout configuration

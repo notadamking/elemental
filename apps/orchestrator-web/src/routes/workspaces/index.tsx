@@ -49,6 +49,7 @@ export function WorkspacesPage() {
     hasPanes,
     paneCount,
     savedLayouts,
+    dragState,
     addPane,
     removePane,
     setActivePane,
@@ -58,6 +59,9 @@ export function WorkspacesPage() {
     loadLayout,
     deleteLayout,
     clearPanes,
+    startDrag,
+    updateDragTarget,
+    endDrag,
   } = usePaneManager();
 
   // Handle agent URL parameter - open agent in pane when navigating from Agents page
@@ -269,9 +273,13 @@ export function WorkspacesPage() {
             panes={layout.panes}
             preset={layout.preset}
             activePane={activePane}
+            dragState={dragState}
             onPaneClose={removePane}
             onPaneActivate={setActivePane}
             onPaneStatusChange={updatePaneStatus}
+            onStartDrag={startDrag}
+            onUpdateDragTarget={updateDragTarget}
+            onEndDrag={endDrag}
           />
         ) : (
           /* Empty state */

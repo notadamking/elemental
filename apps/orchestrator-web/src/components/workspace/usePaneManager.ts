@@ -1,10 +1,11 @@
 /**
  * usePaneManager - Hook for managing workspace pane state
  *
- * Handles pane creation, removal, layout management, resizing, drag-drop, and persistence.
+ * Handles pane creation, removal, layout management, drag-drop, and persistence.
+ * Resizing is handled by react-resizable-panels library.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Agent } from '../../api/types';
 import type {
   PaneId,
@@ -15,19 +16,13 @@ import type {
   WorkspaceState,
   WorkspaceActions,
   WorkspaceChannelMessage,
-  GridConfig,
   DragState,
-  ResizeState,
-  ResizeDirection,
 } from './types';
 import {
   DEFAULT_LAYOUT,
   WORKSPACE_STORAGE_KEY,
   ACTIVE_LAYOUT_KEY,
   WORKSPACE_CHANNEL_NAME,
-  DEFAULT_GRID_CONFIG,
-  createGridConfigForPanes,
-  calculateGridPosition,
 } from './types';
 
 /** Generate a unique pane ID */
@@ -83,10 +78,6 @@ function loadActiveLayout(): WorkspaceLayout {
       const layout = JSON.parse(saved);
       // Validate the layout has required fields
       if (layout.id && layout.panes && Array.isArray(layout.panes)) {
-        // Ensure gridConfig exists
-        if (!layout.gridConfig) {
-          layout.gridConfig = createGridConfigForPanes(layout.panes.length);
-        }
         return layout;
       }
     }
@@ -105,41 +96,6 @@ function saveActiveLayout(layout: WorkspaceLayout): void {
   }
 }
 
-/** Get grid config for a layout preset */
-function getGridConfigForPreset(preset: LayoutPreset, paneCount: number): GridConfig {
-  if (paneCount === 0) {
-    return DEFAULT_GRID_CONFIG;
-  }
-
-  switch (preset) {
-    case 'single':
-      return { cols: 1, rows: paneCount, colSizes: [{ fr: 1 }], rowSizes: Array(paneCount).fill({ fr: 1 }) };
-
-    case 'split-vertical':
-      if (paneCount <= 2) {
-        return { cols: paneCount, rows: 1, colSizes: Array(paneCount).fill({ fr: 1 }), rowSizes: [{ fr: 1 }] };
-      }
-      // For more than 2 panes, use 2 columns with multiple rows
-      const rowsV = Math.ceil(paneCount / 2);
-      return { cols: 2, rows: rowsV, colSizes: [{ fr: 1 }, { fr: 1 }], rowSizes: Array(rowsV).fill({ fr: 1 }) };
-
-    case 'split-horizontal':
-      if (paneCount <= 2) {
-        return { cols: 1, rows: paneCount, colSizes: [{ fr: 1 }], rowSizes: Array(paneCount).fill({ fr: 1 }) };
-      }
-      // For more than 2 panes, use 2 rows with multiple columns
-      const colsH = Math.ceil(paneCount / 2);
-      return { cols: colsH, rows: 2, colSizes: Array(colsH).fill({ fr: 1 }), rowSizes: [{ fr: 1 }, { fr: 1 }] };
-
-    case 'grid':
-    case 'flex':
-      return createGridConfigForPanes(paneCount);
-
-    default:
-      return createGridConfigForPanes(paneCount);
-  }
-}
-
 export interface UsePaneManagerResult extends WorkspaceState, WorkspaceActions {
   /** Get all saved layout presets */
   savedLayouts: WorkspaceLayout[];
@@ -149,8 +105,6 @@ export interface UsePaneManagerResult extends WorkspaceState, WorkspaceActions {
   hasPanes: boolean;
   /** Get number of panes */
   paneCount: number;
-  /** Get the current grid config */
-  gridConfig: GridConfig;
 }
 
 /**
@@ -160,17 +114,9 @@ export function usePaneManager(): UsePaneManagerResult {
   const [layout, setLayout] = useState<WorkspaceLayout>(() => loadActiveLayout());
   const [activePane, setActivePane] = useState<PaneId | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
-  const [resizeState, setResizeState] = useState<ResizeState | null>(null);
   const [savedLayouts, setSavedLayouts] = useState<WorkspaceLayout[]>(() => loadSavedLayouts());
 
-  // Refs for resize calculations
-  const resizeStartSizesRef = useRef<[number, number]>([0, 0]);
-
-  const isResizing = resizeState !== null;
   const isDragging = dragState !== null;
-
-  // Ensure gridConfig is always defined
-  const gridConfig = layout.gridConfig || createGridConfigForPanes(layout.panes.length);
 
   // Persist active layout on changes
   useEffect(() => {
@@ -194,14 +140,6 @@ export function usePaneManager(): UsePaneManagerResult {
 
         setLayout(prev => {
           const updatedPanes = [...prev.panes, { ...newPane, position: prev.panes.length }];
-          const newGridConfig = getGridConfigForPreset(prev.preset, updatedPanes.length);
-
-          // Assign grid positions to all panes
-          const panesWithPositions = updatedPanes.map((p, i) => ({
-            ...p,
-            position: i,
-            gridPosition: calculateGridPosition(i, updatedPanes.length),
-          }));
 
           // Auto-switch to appropriate preset
           let newPreset = prev.preset;
@@ -214,8 +152,7 @@ export function usePaneManager(): UsePaneManagerResult {
           return {
             ...prev,
             preset: newPreset,
-            panes: panesWithPositions,
-            gridConfig: newGridConfig,
+            panes: updatedPanes,
             modifiedAt: Date.now(),
           };
         });
@@ -250,14 +187,6 @@ export function usePaneManager(): UsePaneManagerResult {
 
     setLayout(prev => {
       const updatedPanes = [...prev.panes, { ...newPane, position: prev.panes.length }];
-      const newGridConfig = getGridConfigForPreset(prev.preset, updatedPanes.length);
-
-      // Assign grid positions to all panes
-      const panesWithPositions = updatedPanes.map((p, i) => ({
-        ...p,
-        position: i,
-        gridPosition: calculateGridPosition(i, updatedPanes.length),
-      }));
 
       // Auto-switch to appropriate preset
       let newPreset = prev.preset;
@@ -270,8 +199,7 @@ export function usePaneManager(): UsePaneManagerResult {
       return {
         ...prev,
         preset: newPreset,
-        panes: panesWithPositions,
-        gridConfig: newGridConfig,
+        panes: updatedPanes,
         modifiedAt: Date.now(),
       };
     });
@@ -284,14 +212,11 @@ export function usePaneManager(): UsePaneManagerResult {
     setLayout(prev => {
       const filteredPanes = prev.panes.filter(p => p.id !== paneId);
 
-      // Re-index positions and recalculate grid positions
+      // Re-index positions
       const reindexedPanes = filteredPanes.map((p, i) => ({
         ...p,
         position: i,
-        gridPosition: calculateGridPosition(i, filteredPanes.length),
       }));
-
-      const newGridConfig = getGridConfigForPreset(prev.preset, reindexedPanes.length);
 
       // Auto-switch layout if needed
       let newPreset = prev.preset;
@@ -305,7 +230,6 @@ export function usePaneManager(): UsePaneManagerResult {
         ...prev,
         preset: newPreset,
         panes: reindexedPanes,
-        gridConfig: newGridConfig,
         modifiedAt: Date.now(),
       };
     });
@@ -323,23 +247,11 @@ export function usePaneManager(): UsePaneManagerResult {
 
   // Change layout preset
   const setLayoutPreset = useCallback((preset: LayoutPreset) => {
-    setLayout(prev => {
-      const newGridConfig = getGridConfigForPreset(preset, prev.panes.length);
-
-      // Recalculate grid positions for the new layout
-      const panesWithPositions = prev.panes.map((p, i) => ({
-        ...p,
-        gridPosition: calculateGridPosition(i, prev.panes.length),
-      }));
-
-      return {
-        ...prev,
-        preset,
-        panes: panesWithPositions,
-        gridConfig: newGridConfig,
-        modifiedAt: Date.now(),
-      };
-    });
+    setLayout(prev => ({
+      ...prev,
+      preset,
+      modifiedAt: Date.now(),
+    }));
   }, []);
 
   // Reorder panes
@@ -349,11 +261,10 @@ export function usePaneManager(): UsePaneManagerResult {
       const [moved] = panes.splice(fromIndex, 1);
       panes.splice(toIndex, 0, moved);
 
-      // Re-index positions and recalculate grid positions
+      // Re-index positions
       const reindexed = panes.map((p, i) => ({
         ...p,
         position: i,
-        gridPosition: calculateGridPosition(i, panes.length),
       }));
 
       return {
@@ -402,157 +313,6 @@ export function usePaneManager(): UsePaneManagerResult {
     setDragState(null);
   }, []);
 
-  // Start resize operation - no dependencies to keep callback stable
-  const startResize = useCallback((direction: ResizeDirection, dividerIndex: number, startPos: number) => {
-    try {
-      let sizesValid = false;
-
-      // Read current layout state directly to get latest gridConfig
-      setLayout(currentLayout => {
-        try {
-          const config = currentLayout.gridConfig || createGridConfigForPanes(currentLayout.panes.length);
-          const sizes = direction === 'horizontal' ? config.colSizes : config.rowSizes;
-
-          if (!sizes || !Array.isArray(sizes) || sizes.length < 2) {
-            console.error('[usePaneManager.startResize] invalid sizes:', sizes);
-            return currentLayout;
-          }
-
-          if (dividerIndex < 0 || dividerIndex >= sizes.length - 1) {
-            console.error('[usePaneManager.startResize] invalid dividerIndex:', dividerIndex, 'sizes.length:', sizes.length);
-            return currentLayout;
-          }
-
-          const size1 = sizes[dividerIndex];
-          const size2 = sizes[dividerIndex + 1];
-
-          if (!size1 || typeof size1.fr !== 'number' || !size2 || typeof size2.fr !== 'number') {
-            console.error('[usePaneManager.startResize] invalid size objects:', size1, size2);
-            return currentLayout;
-          }
-
-          resizeStartSizesRef.current = [size1.fr, size2.fr];
-          sizesValid = true;
-        } catch (innerErr) {
-          console.error('[usePaneManager.startResize] inner error:', innerErr);
-        }
-
-        // We're using setLayout just to read current state, not to modify it
-        // The resize state is set separately
-        return currentLayout;
-      });
-
-      // Set resize state after reading current layout
-      if (sizesValid) {
-        const startSizes = resizeStartSizesRef.current;
-        if (startSizes && startSizes.length >= 2 && typeof startSizes[0] === 'number' && typeof startSizes[1] === 'number') {
-          setResizeState({
-            direction,
-            dividerIndex,
-            startPos,
-            startSizes: [startSizes[0], startSizes[1]],
-          });
-        }
-      }
-    } catch (e) {
-      console.error('[usePaneManager.startResize] error:', e);
-    }
-  }, []);
-
-  // Resize a track (column or row)
-  // deltaFr is the change in fr units (pre-calculated from pixels in WorkspaceGrid)
-  // No dependencies to keep callback stable across re-renders
-  const resizeTrack = useCallback((direction: ResizeDirection, index: number, deltaFr: number) => {
-    try {
-      setLayout(prev => {
-        try {
-          // Always read from prev state, create default if missing
-          const config = prev.gridConfig || createGridConfigForPanes(prev.panes.length);
-          if (!config) {
-            console.error('[usePaneManager.resizeTrack] no gridConfig');
-            return prev;
-          }
-
-          const sourceSizes = direction === 'horizontal' ? config.colSizes : config.rowSizes;
-          if (!sourceSizes || !Array.isArray(sourceSizes) || sourceSizes.length < 2) {
-            console.error('[usePaneManager.resizeTrack] invalid source sizes:', sourceSizes);
-            return prev;
-          }
-
-          if (index < 0 || index >= sourceSizes.length - 1) {
-            console.error('[usePaneManager.resizeTrack] invalid index:', index, 'sizes.length:', sourceSizes.length);
-            return prev;
-          }
-
-          // Use the start sizes from when resizing began
-          const startSizes = resizeStartSizesRef.current;
-          if (!startSizes || !Array.isArray(startSizes) || startSizes.length < 2) {
-            console.error('[usePaneManager.resizeTrack] invalid startSizes:', startSizes);
-            return prev;
-          }
-
-          if (typeof startSizes[0] !== 'number' || typeof startSizes[1] !== 'number') {
-            console.error('[usePaneManager.resizeTrack] startSizes are not numbers:', startSizes);
-            return prev;
-          }
-
-          const combinedFr = startSizes[0] + startSizes[1];
-
-          // Calculate new sizes, respecting minimum
-          const minFr = 0.15;
-          let newSize1 = startSizes[0] + deltaFr;
-          let newSize2 = startSizes[1] - deltaFr;
-
-          // Clamp to minimum
-          if (newSize1 < minFr) {
-            newSize1 = minFr;
-            newSize2 = combinedFr - minFr;
-          }
-          if (newSize2 < minFr) {
-            newSize2 = minFr;
-            newSize1 = combinedFr - minFr;
-          }
-
-          // Clone the sizes array and update the values
-          const sizes = sourceSizes.map((s, i) => {
-            if (i === index) return { ...s, fr: newSize1 };
-            if (i === index + 1) return { ...s, fr: newSize2 };
-            return { ...s };
-          });
-
-          const newGridConfig = direction === 'horizontal'
-            ? { ...config, colSizes: sizes }
-            : { ...config, rowSizes: sizes };
-
-          return {
-            ...prev,
-            gridConfig: newGridConfig,
-            modifiedAt: Date.now(),
-          };
-        } catch (innerErr) {
-          console.error('[usePaneManager.resizeTrack] inner error:', innerErr);
-          return prev;
-        }
-      });
-    } catch (err) {
-      console.error('[usePaneManager.resizeTrack] outer error:', err);
-    }
-  }, []);
-
-  // End resize operation
-  const endResize = useCallback(() => {
-    setResizeState(null);
-  }, []);
-
-  // Update grid configuration
-  const setGridConfig = useCallback((config: GridConfig) => {
-    setLayout(prev => ({
-      ...prev,
-      gridConfig: config,
-      modifiedAt: Date.now(),
-    }));
-  }, []);
-
   // Move a pane to a new position
   const movePaneToPosition = useCallback((paneId: PaneId, newPosition: number) => {
     setLayout(prev => {
@@ -566,11 +326,10 @@ export function usePaneManager(): UsePaneManagerResult {
       const insertIndex = Math.min(newPosition, panes.length);
       panes.splice(insertIndex, 0, moved);
 
-      // Re-index positions and recalculate grid positions
+      // Re-index positions
       const reindexed = panes.map((p, i) => ({
         ...p,
         position: i,
-        gridPosition: calculateGridPosition(i, panes.length),
       }));
 
       return {
@@ -618,7 +377,6 @@ export function usePaneManager(): UsePaneManagerResult {
       ...prev,
       preset: 'single',
       panes: [],
-      gridConfig: DEFAULT_GRID_CONFIG,
       modifiedAt: Date.now(),
     }));
     setActivePane(null);
@@ -628,12 +386,9 @@ export function usePaneManager(): UsePaneManagerResult {
     // State
     layout,
     activePane,
-    isResizing,
     isDragging,
     dragState,
-    resizeState,
     savedLayouts,
-    gridConfig,
 
     // Computed
     hasPanes: layout.panes.length > 0,
@@ -655,10 +410,6 @@ export function usePaneManager(): UsePaneManagerResult {
     updateDragTarget,
     endDrag,
     cancelDrag,
-    startResize,
-    resizeTrack,
-    endResize,
-    setGridConfig,
     movePaneToPosition,
   };
 }
