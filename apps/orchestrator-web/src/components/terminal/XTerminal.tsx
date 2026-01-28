@@ -206,18 +206,28 @@ export function XTerminal({
   useEffect(() => {
     if (!autoFit || !containerRef.current || !fitAddonRef.current) return;
 
+    // Debounce timer for PTY resize messages
+    let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const sendResizeToServer = () => {
+      if (controlsResize && wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
+        const dims = fitAddonRef.current.proposeDimensions();
+        if (dims) {
+          wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+        }
+      }
+    };
+
     const handleResize = () => {
       try {
+        // Always fit the terminal visually (this is fast and doesn't cause issues)
         fitAddonRef.current?.fit();
 
-        // Send resize event to server for interactive PTY sessions
-        // Only send if this terminal controls resize (to avoid conflicts with multiple viewers)
-        if (controlsResize && wsRef.current?.readyState === WebSocket.OPEN && terminalRef.current) {
-          const dims = fitAddonRef.current?.proposeDimensions();
-          if (dims) {
-            wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-          }
+        // Debounce sending resize to PTY server to avoid rapid redraws
+        if (resizeDebounceTimer) {
+          clearTimeout(resizeDebounceTimer);
         }
+        resizeDebounceTimer = setTimeout(sendResizeToServer, 150);
       } catch {
         // Ignore resize errors (can happen during unmount)
       }
@@ -232,6 +242,9 @@ export function XTerminal({
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
+      if (resizeDebounceTimer) {
+        clearTimeout(resizeDebounceTimer);
+      }
     };
   }, [autoFit, controlsResize]);
 
