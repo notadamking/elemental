@@ -3,7 +3,7 @@
  * Collapsible panel that shows the Director agent's interactive terminal
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   PanelRightClose,
   Terminal,
@@ -18,6 +18,12 @@ import { Tooltip } from '../ui/Tooltip';
 import { XTerminal, type TerminalStatus } from '../terminal';
 import { useDirector, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
 
+// Panel width constraints
+const MIN_WIDTH = 280;
+const MAX_WIDTH = 800;
+const DEFAULT_WIDTH = 384; // w-96
+const STORAGE_KEY = 'orchestrator-director-panel-width';
+
 type DirectorStatus = 'idle' | 'running' | 'error' | 'connecting' | 'no-director';
 
 interface DirectorPanelProps {
@@ -31,6 +37,66 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
   const { director, hasActiveSession, isLoading, error } = useDirector();
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
+
+  // Panel width state with localStorage persistence
+  const [width, setWidth] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_WIDTH;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed) && parsed >= MIN_WIDTH && parsed <= MAX_WIDTH) {
+        return parsed;
+      }
+    }
+    return DEFAULT_WIDTH;
+  });
+
+  // Resize state
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // Persist width to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(width));
+  }, [width]);
+
+  // Handle resize drag
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    resizeRef.current = { startX: e.clientX, startWidth: width };
+  }, [width]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    // Set cursor on body during resize for smooth dragging
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      // Since panel is on right side, dragging left increases width
+      const delta = resizeRef.current.startX - e.clientX;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, resizeRef.current.startWidth + delta));
+      setWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      resizeRef.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   // Derive the director status from various sources
   const getStatus = (): DirectorStatus => {
@@ -107,9 +173,21 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
 
   return (
     <aside
-      className="flex flex-col w-96 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
+      className="relative flex flex-col border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]"
+      style={{ width: `${width}px` }}
       data-testid="director-panel"
     >
+      {/* Resize handle */}
+      <div
+        className={`
+          absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10
+          hover:bg-[var(--color-primary)] hover:opacity-50
+          transition-colors duration-150
+          ${isResizing ? 'bg-[var(--color-primary)] opacity-50' : ''}
+        `}
+        onMouseDown={handleResizeStart}
+        data-testid="director-panel-resize-handle"
+      />
       {/* Header */}
       <div className="flex items-center justify-between h-14 px-4 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2">
