@@ -503,7 +503,7 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
             data-testid="message-send-error"
             className={`mt-2 text-red-500 ${isMobile ? 'text-xs' : 'text-sm'}`}
           >
-            Failed to send message. Please try again.
+            {sendMessage.error?.message || 'Failed to send message. Please try again.'}
           </p>
         )}
       </form>
