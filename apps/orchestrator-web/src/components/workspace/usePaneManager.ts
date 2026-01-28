@@ -479,19 +479,43 @@ export function usePaneManager(): UsePaneManagerResult {
   }, []);
 
   // Swap grid sections (columns or rows depending on orientation)
-  // For 3-pane grid: toggles between single-first and single-last section layout
+  // For 3-pane grid: swaps the single-pane section with the paired-pane section
+  // Example: [A] | [B, C] becomes [B, C] | [A]
   const swapGridSections = useCallback(() => {
     setLayout(prev => {
       const paneCount = prev.panes.length;
       if (prev.preset !== 'grid' || paneCount < 3) return prev;
 
-      // For 3-pane grid: toggle between single-first and single-last
+      // For 3-pane grid: toggle section layout AND reorder panes
+      // This ensures the same pane stays as the "single" pane, just on the other side
       if (paneCount === 3) {
         const currentLayout = prev.sectionLayout || 'single-first';
         const newLayout: SectionLayout = currentLayout === 'single-first' ? 'single-last' : 'single-first';
+        const panes = [...prev.panes];
+
+        if (currentLayout === 'single-first') {
+          // Going from single-first to single-last
+          // [A, B, C] with single at index 0 → [B, C, A] with single at index 2
+          // Move first pane to the end
+          const single = panes.shift()!;
+          panes.push(single);
+        } else {
+          // Going from single-last to single-first
+          // [B, C, A] with single at index 2 → [A, B, C] with single at index 0
+          // Move last pane to the beginning
+          const single = panes.pop()!;
+          panes.unshift(single);
+        }
+
+        // Re-index positions
+        const reindexed = panes.map((p, i) => ({
+          ...p,
+          position: i,
+        }));
 
         return {
           ...prev,
+          panes: reindexed,
           sectionLayout: newLayout,
           modifiedAt: Date.now(),
         };

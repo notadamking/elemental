@@ -6,7 +6,7 @@
  * Single mode displays tabs like a browser/code editor.
  */
 
-import { useState, useCallback, useMemo, Fragment } from 'react';
+import React, { useState, useCallback, useMemo, Fragment } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { X, Terminal, Radio, ArrowLeftRight, ArrowUpDown } from 'lucide-react';
 import type {
@@ -58,6 +58,27 @@ function CustomResizeHandle({
 }) {
   const isHorizontal = orientation === 'horizontal';
   const SwapIcon = isHorizontal ? ArrowLeftRight : ArrowUpDown;
+  // Track mouse position to detect if user is resizing vs clicking swap
+  const mouseDownPosRef = React.useRef<{ x: number; y: number } | null>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const handleSwapClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // Don't trigger swap if mouse moved significantly (user was resizing)
+    if (mouseDownPosRef.current && onSwap) {
+      const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+      const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+      const threshold = 5; // pixels
+      if (dx < threshold && dy < threshold) {
+        onSwap();
+      }
+    }
+    mouseDownPosRef.current = null;
+  }, [onSwap]);
 
   return (
     <Separator
@@ -69,26 +90,24 @@ function CustomResizeHandle({
         transition-colors duration-150
       `}
     >
-      {/* Visual indicator line */}
-      <div
-        className={`
-          ${isHorizontal ? 'w-0.5 h-8' : 'h-0.5 w-8'}
-          bg-[var(--color-border)]
-          group-hover:bg-[var(--color-primary)]
-          group-data-[resize-handle-active]:bg-[var(--color-primary)]
-          transition-colors duration-150
-          rounded-full
-        `}
-      />
+      {/* Visual indicator line - only shown when no swap button */}
+      {!onSwap && (
+        <div
+          className={`
+            ${isHorizontal ? 'w-0.5 h-8' : 'h-0.5 w-8'}
+            bg-[var(--color-border)]
+            group-hover:bg-[var(--color-primary)]
+            group-data-[resize-handle-active]:bg-[var(--color-primary)]
+            transition-colors duration-150
+            rounded-full
+          `}
+        />
+      )}
       {/* Swap button - positioned in center of resize handle */}
       {onSwap && (
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onSwap();
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={handleMouseDown}
+          onClick={handleSwapClick}
           onPointerDown={(e) => e.stopPropagation()}
           className={`
             absolute z-20
