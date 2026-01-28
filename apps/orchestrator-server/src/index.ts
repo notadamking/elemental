@@ -1259,6 +1259,42 @@ app.get('/api/agents/:id', async (c) => {
 });
 
 /**
+ * PATCH /api/agents/:id
+ * Update agent properties (e.g., rename)
+ */
+app.patch('/api/agents/:id', async (c) => {
+  try {
+    const agentId = c.req.param('id') as EntityId;
+    const body = await c.req.json() as { name?: string };
+
+    const agent = await agentRegistry.getAgent(agentId);
+    if (!agent) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } }, 404);
+    }
+
+    // Validate name if provided
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name must be a non-empty string' } }, 400);
+      }
+    }
+
+    // Update agent via registry
+    const updatedAgent = await agentRegistry.updateAgent(agentId, {
+      name: body.name?.trim(),
+    });
+
+    // Broadcast update
+    wsBroadcast({ type: 'agent-updated', agentId, agent: updatedAgent });
+
+    return c.json({ agent: updatedAgent });
+  } catch (error) {
+    console.error('[orchestrator] Failed to update agent:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
  * GET /api/agents/:id/status
  * Get agent session status
  */

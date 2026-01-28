@@ -254,3 +254,23 @@ export function useResumeAgentSession() {
     },
   });
 }
+
+/**
+ * Hook to rename an agent
+ */
+export function useRenameAgent() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AgentResponse, Error, { agentId: string; name: string }>({
+    mutationFn: async ({ agentId, name }) => {
+      return fetchApi<AgentResponse>(`/agents/${agentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
+    },
+    onSuccess: (_, { agentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] });
+    },
+  });
+}

@@ -39,6 +39,8 @@ export interface CreateAgentDialogProps {
   initialRole?: AgentRole;
   /** Pre-select a steward focus */
   initialStewardFocus?: StewardFocus;
+  /** Whether a Director already exists (prevents creating another) */
+  hasDirector?: boolean;
   onSuccess?: (agent: { id: string; name: string }) => void;
 }
 
@@ -123,6 +125,7 @@ export function CreateAgentDialog({
   onClose,
   initialRole,
   initialStewardFocus,
+  hasDirector = false,
   onSuccess,
 }: CreateAgentDialogProps) {
   const [form, setForm] = useState<FormState>({
@@ -287,24 +290,32 @@ export function CreateAgentDialog({
                     const config = roleDescriptions[role];
                     const Icon = config.icon;
                     const isSelected = form.role === role;
+                    const isDisabled = role === 'director' && hasDirector;
                     return (
                       <button
                         key={role}
                         type="button"
-                        onClick={() => setForm(prev => ({ ...prev, role }))}
+                        onClick={() => !isDisabled && setForm(prev => ({ ...prev, role }))}
+                        disabled={isDisabled}
                         className={`
                           flex flex-col items-center gap-2 p-3 rounded-lg border transition-all
-                          ${isSelected
-                            ? `border-${config.color}-500 bg-${config.color}-50 dark:bg-${config.color}-900/20`
-                            : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'
+                          ${isDisabled
+                            ? 'opacity-50 cursor-not-allowed border-[var(--color-border)] bg-[var(--color-surface)]'
+                            : isSelected
+                              ? `border-${config.color}-500 bg-${config.color}-50 dark:bg-${config.color}-900/20`
+                              : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'
                           }
                         `}
+                        title={isDisabled ? 'A Director already exists. Use the menu on the existing Director card to rename it.' : undefined}
                         data-testid={`role-${role}`}
                       >
-                        <Icon className={`w-6 h-6 ${isSelected ? `text-${config.color}-600 dark:text-${config.color}-400` : 'text-[var(--color-text-secondary)]'}`} />
-                        <span className={`text-sm font-medium capitalize ${isSelected ? `text-${config.color}-700 dark:text-${config.color}-300` : 'text-[var(--color-text)]'}`}>
+                        <Icon className={`w-6 h-6 ${isDisabled ? 'text-[var(--color-text-tertiary)]' : isSelected ? `text-${config.color}-600 dark:text-${config.color}-400` : 'text-[var(--color-text-secondary)]'}`} />
+                        <span className={`text-sm font-medium capitalize ${isDisabled ? 'text-[var(--color-text-tertiary)]' : isSelected ? `text-${config.color}-700 dark:text-${config.color}-300` : 'text-[var(--color-text)]'}`}>
                           {role}
                         </span>
+                        {isDisabled && (
+                          <span className="text-xs text-[var(--color-text-tertiary)]">(exists)</span>
+                        )}
                       </button>
                     );
                   })}

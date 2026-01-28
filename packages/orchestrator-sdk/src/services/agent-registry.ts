@@ -194,6 +194,14 @@ export interface AgentRegistry {
     updates: Partial<AgentMetadata>
   ): Promise<AgentEntity>;
 
+  /**
+   * Updates an agent's properties (e.g., name)
+   */
+  updateAgent(
+    entityId: EntityId,
+    updates: { name?: string }
+  ): Promise<AgentEntity>;
+
   // ----------------------------------------
   // Agent Channel Operations (TB-O7a)
   // ----------------------------------------
@@ -479,6 +487,27 @@ export class AgentRegistryImpl implements AgentRegistry {
     const updated = await this.api.update(entityId as unknown as ElementId, {
       metadata: { ...agent.metadata, [AGENT_META_KEY]: updatedAgentMeta },
     });
+
+    return updated as AgentEntity;
+  }
+
+  async updateAgent(
+    entityId: EntityId,
+    updates: { name?: string }
+  ): Promise<AgentEntity> {
+    const agent = await this.getAgent(entityId);
+    if (!agent) {
+      throw new Error(`Agent not found: ${entityId}`);
+    }
+
+    // Build update object with only provided fields
+    const updateData: { name?: string } = {};
+    if (updates.name !== undefined) {
+      updateData.name = updates.name;
+    }
+
+    // Cast EntityId to ElementId for update
+    const updated = await this.api.update(entityId as unknown as ElementId, updateData);
 
     return updated as AgentEntity;
   }

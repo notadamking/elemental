@@ -4,7 +4,8 @@
  * Shows agent name, role, status, capabilities, and actions.
  */
 
-import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Pencil } from 'lucide-react';
 import type { Agent, WorkerMetadata, StewardMetadata, SessionStatus } from '../../api/types';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { AgentRoleBadge } from './AgentRoleBadge';
@@ -17,6 +18,7 @@ interface AgentCardProps {
   onStop?: () => void;
   onRestart?: () => void;
   onOpenTerminal?: () => void;
+  onRename?: () => void;
   isStarting?: boolean;
   isStopping?: boolean;
 }
@@ -28,13 +30,31 @@ export function AgentCard({
   onStop,
   onRestart,
   onOpenTerminal,
+  onRename,
   isStarting,
   isStopping,
 }: AgentCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const agentMeta = agent.metadata?.agent;
   const isRunning = activeSessionStatus === 'running' || activeSessionStatus === 'starting';
   const canStart = !isRunning && !isStarting;
   const canStop = isRunning && !isStopping;
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   // Extract role-specific metadata
   const workerMeta = agentMeta?.agentRole === 'worker' ? (agentMeta as WorkerMetadata) : null;
@@ -75,12 +95,44 @@ export function AgentCard({
         </div>
 
         {/* Actions dropdown */}
-        <button
-          className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
-          data-testid={`agent-menu-${agent.id}`}
-        >
-          <MoreVertical className="w-4 h-4" />
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
+            data-testid={`agent-menu-${agent.id}`}
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+
+          {/* Dropdown menu */}
+          {menuOpen && (
+            <div
+              className="
+                absolute right-0 top-full mt-1 z-20
+                min-w-36 py-1 rounded-md shadow-lg
+                bg-[var(--color-bg)] border border-[var(--color-border)]
+              "
+              data-testid={`agent-menu-dropdown-${agent.id}`}
+            >
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onRename?.();
+                }}
+                className="
+                  w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm
+                  text-[var(--color-text-secondary)]
+                  hover:bg-[var(--color-surface-hover)]
+                  hover:text-[var(--color-text)]
+                "
+                data-testid={`agent-rename-${agent.id}`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Rename agent
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Worker-specific info */}
