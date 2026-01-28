@@ -418,7 +418,7 @@ export function WorkspacePane({
                   <h3 className="text-base font-medium text-[var(--color-text)] mb-0.5">
                     Shutting Down
                   </h3>
-                  <p className="text-xs text-[var(--color-text-muted)] max-w-[200px] px-2">
+                  <p className="text-xs text-[var(--color-text-muted)] max-w-[280px] px-2">
                     Gracefully stopping the session...
                   </p>
                 </div>
@@ -455,7 +455,7 @@ export function WorkspacePane({
                   <h3 className="text-base font-medium text-[var(--color-text)] mb-0.5">
                     {pane.status === 'error' ? 'Session Error' : 'Session Idle'}
                   </h3>
-                  <p className="text-xs text-[var(--color-text-muted)] max-w-[200px] px-2">
+                  <p className="text-xs text-[var(--color-text-muted)] max-w-[280px] px-2">
                     {pane.status === 'error'
                       ? 'The agent session encountered an error.'
                       : `Start a session to interact with ${pane.agentName}.`
