@@ -558,20 +558,51 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
     fitAddonRef.current?.fit();
   }, []);
 
-  // Refresh terminal by re-fitting to current dimensions
-  // This forces the terminal to recalculate and redraw
+  // Refresh terminal by triggering a PTY resize cycle on the server
+  // This causes the shell to receive SIGWINCH and redraw, which fixes broken states
   const refresh = useCallback(() => {
-    if (fitAddonRef.current && terminalRef.current) {
+    if (!fitAddonRef.current || !terminalRef.current) return;
+
+    const terminal = terminalRef.current;
+
+    // Clear the texture atlas to force re-rendering of glyphs
+    terminal.clearTextureAtlas();
+
+    // Get current dimensions
+    const dims = fitAddonRef.current.proposeDimensions();
+    if (!dims) return;
+
+    const originalCols = dims.cols;
+    const originalRows = dims.rows;
+
+    // Step 1: Send smaller size to PTY server (triggers SIGWINCH in shell)
+    if (controlsResize && wsRef.current?.readyState === WebSocket.OPEN) {
+      const smallerCols = Math.max(1, originalCols - 2);
+      const smallerRows = Math.max(1, originalRows - 1);
+      terminal.resize(smallerCols, smallerRows);
+      wsRef.current.send(JSON.stringify({ type: 'resize', cols: smallerCols, rows: smallerRows }));
+    }
+
+    // Step 2: Wait for server to process, then restore original size
+    setTimeout(() => {
+      if (!terminalRef.current || !fitAddonRef.current) return;
+
+      // Restore to proper container size
       fitAddonRef.current.fit();
-      // Also send resize to server to ensure PTY dimensions are in sync
+
+      // Send original size to PTY server (triggers another SIGWINCH/redraw)
       if (controlsResize && wsRef.current?.readyState === WebSocket.OPEN) {
-        const dims = fitAddonRef.current.proposeDimensions();
-        if (dims) {
-          lastSentDimsRef.current = { cols: dims.cols, rows: dims.rows };
-          wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+        const newDims = fitAddonRef.current.proposeDimensions();
+        if (newDims) {
+          lastSentDimsRef.current = { cols: newDims.cols, rows: newDims.rows };
+          wsRef.current.send(JSON.stringify({ type: 'resize', cols: newDims.cols, rows: newDims.rows }));
         }
       }
-    }
+
+      // Force local refresh of all visible rows
+      const rows = terminalRef.current.rows;
+      terminalRef.current.refresh(0, rows - 1);
+    }, 100);
   }, [controlsResize]);
 
   // Expose methods via ref
