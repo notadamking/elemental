@@ -58,26 +58,40 @@ function CustomResizeHandle({
 }) {
   const isHorizontal = orientation === 'horizontal';
   const SwapIcon = isHorizontal ? ArrowLeftRight : ArrowUpDown;
-  // Track mouse position to detect if user is resizing vs clicking swap
-  const mouseDownPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  // Track if user is dragging (mousemove after mousedown)
+  const isDraggingRef = React.useRef(false);
+  const isMouseDownRef = React.useRef(false);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+    e.stopPropagation();
+    isMouseDownRef.current = true;
+    isDraggingRef.current = false;
+
+    const handleMouseMove = () => {
+      if (isMouseDownRef.current) {
+        isDraggingRef.current = true;
+      }
+    };
+
+    const handleMouseUp = () => {
+      isMouseDownRef.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
   const handleSwapClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    // Don't trigger swap if mouse moved significantly (user was resizing)
-    if (mouseDownPosRef.current && onSwap) {
-      const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
-      const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
-      const threshold = 5; // pixels
-      if (dx < threshold && dy < threshold) {
-        onSwap();
-      }
+    // Only trigger swap if user didn't drag (just clicked)
+    if (!isDraggingRef.current && onSwap) {
+      onSwap();
     }
-    mouseDownPosRef.current = null;
+    isDraggingRef.current = false;
+    isMouseDownRef.current = false;
   }, [onSwap]);
 
   return (
@@ -107,11 +121,11 @@ function CustomResizeHandle({
       {onSwap && (
         <button
           onMouseDown={handleMouseDown}
-          onClick={handleSwapClick}
           onPointerDown={(e) => e.stopPropagation()}
+          onClick={handleSwapClick}
           className={`
             absolute z-20
-            p-1.5 rounded-full
+            p-2 rounded-full
             bg-[var(--color-surface)] border border-[var(--color-border)]
             text-[var(--color-text-tertiary)]
             hover:bg-[var(--color-primary-muted)] hover:text-[var(--color-primary)]
