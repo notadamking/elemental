@@ -236,12 +236,8 @@ export function XTerminal({
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(containerRef.current);
 
-    // Also listen to window resize events (for panel resize triggers)
-    window.addEventListener('resize', handleResize);
-
     return () => {
       resizeObserver.disconnect();
-      window.removeEventListener('resize', handleResize);
       if (resizeDebounceTimer) {
         clearTimeout(resizeDebounceTimer);
       }

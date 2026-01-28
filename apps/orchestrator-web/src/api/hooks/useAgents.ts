@@ -198,11 +198,11 @@ export function useCreateAgent() {
 export function useStartAgentSession() {
   const queryClient = useQueryClient();
 
-  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; initialPrompt?: string }>({
-    mutationFn: async ({ agentId, initialPrompt }) => {
+  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; initialPrompt?: string; interactive?: boolean }>({
+    mutationFn: async ({ agentId, initialPrompt, interactive }) => {
       return fetchApi(`/agents/${agentId}/start`, {
         method: 'POST',
-        body: JSON.stringify({ initialPrompt }),
+        body: JSON.stringify({ initialPrompt, interactive }),
       });
     },
     onSuccess: (_, { agentId }) => {

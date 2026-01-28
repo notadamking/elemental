@@ -55,15 +55,9 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
-  // Persist width to localStorage and trigger terminal resize
+  // Persist width to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(width));
-    // Dispatch resize event to trigger terminal fit during resize
-    // Use requestAnimationFrame to batch with browser paint
-    const rafId = requestAnimationFrame(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
-    return () => cancelAnimationFrame(rafId);
   }, [width]);
 
   // Handle resize drag
