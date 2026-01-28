@@ -535,4 +535,460 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       await expect(page.getByLabel('Close dialog')).toBeVisible();
     });
   });
+
+  test.describe('Drag and drop reordering', () => {
+    test('panes are draggable when not maximized', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a layout with two panes via localStorage
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'split-vertical',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 1,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Check that panes have draggable attribute
+      const grid = page.getByTestId('workspace-grid');
+      await expect(grid).toBeVisible();
+
+      // The inner div wrapper around each pane should be draggable
+      const draggables = grid.locator('[draggable="true"]');
+      await expect(draggables).toHaveCount(2);
+    });
+
+    test('grid maintains structure during drag', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a layout with two panes
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'split-vertical',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 1,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Grid should have correct preset
+      const grid = page.getByTestId('workspace-grid');
+      await expect(grid).toHaveAttribute('data-preset', 'split-vertical');
+      await expect(grid).toHaveAttribute('data-pane-count', '2');
+    });
+  });
+
+  test.describe('Resize handles', () => {
+    test('displays horizontal resize handle between columns in split-vertical layout', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a layout with two panes in split-vertical
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'split-vertical',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 1,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Should be in split-vertical layout
+      const grid = page.getByTestId('workspace-grid');
+      await expect(grid).toHaveAttribute('data-preset', 'split-vertical');
+
+      // Check for horizontal resize handle
+      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
+      await expect(horizontalHandle).toBeVisible();
+    });
+
+    test('displays vertical resize handle between rows in grid layout', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a layout with 3 panes in grid (triggers 2 rows)
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'grid',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+            {
+              id: 'pane-3',
+              agentId: 'agent-3',
+              agentName: 'Worker 3',
+              agentRole: 'worker',
+              workerMode: 'ephemeral',
+              paneType: 'stream',
+              status: 'disconnected',
+              position: 2,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 2,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }, { fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Should be in grid layout
+      const grid = page.getByTestId('workspace-grid');
+      await expect(grid).toHaveAttribute('data-preset', 'grid');
+
+      // Check for vertical resize handle (between row 0 and row 1)
+      const verticalHandle = page.getByTestId('resize-handle-vertical-0');
+      await expect(verticalHandle).toBeVisible();
+    });
+
+    test('resize handle has correct cursor style', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a layout with two panes
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'split-vertical',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 1,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Check horizontal handle has col-resize cursor class
+      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
+      await expect(horizontalHandle).toHaveClass(/cursor-col-resize/);
+    });
+
+    test('can resize both horizontal and vertical dividers sequentially', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a layout with 3 panes in grid (triggers 2x2 grid with one spanning pane)
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'grid',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+            {
+              id: 'pane-3',
+              agentId: 'agent-3',
+              agentName: 'Worker 3',
+              agentRole: 'worker',
+              workerMode: 'ephemeral',
+              paneType: 'stream',
+              status: 'disconnected',
+              position: 2,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 2,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }, { fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Wait for grid to render
+      const grid = page.getByTestId('workspace-grid');
+      await expect(grid).toBeVisible();
+
+      // Check for both resize handles
+      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
+      const verticalHandle = page.getByTestId('resize-handle-vertical-0');
+      await expect(horizontalHandle).toBeVisible({ timeout: 5000 });
+      await expect(verticalHandle).toBeVisible({ timeout: 5000 });
+
+      // Get the bounding boxes
+      const hBox = await horizontalHandle.boundingBox();
+      expect(hBox).toBeTruthy();
+
+      // Perform horizontal resize (drag right by 50 pixels)
+      await horizontalHandle.hover();
+      await page.mouse.down();
+      await page.mouse.move(hBox!.x + hBox!.width / 2 + 50, hBox!.y + hBox!.height / 2, { steps: 3 });
+      await page.mouse.up();
+
+      // Verify horizontal handle still visible
+      await expect(horizontalHandle).toBeVisible({ timeout: 5000 });
+
+      // Get vertical handle bounds and perform resize
+      const vBox = await verticalHandle.boundingBox();
+      expect(vBox).toBeTruthy();
+
+      // Perform vertical resize (drag down by 50 pixels)
+      await verticalHandle.hover();
+      await page.mouse.down();
+      await page.mouse.move(vBox!.x + vBox!.width / 2, vBox!.y + vBox!.height / 2 + 50, { steps: 3 });
+      await page.mouse.up();
+
+      // Verify both handles are still visible and functional
+      await expect(horizontalHandle).toBeVisible({ timeout: 5000 });
+      await expect(verticalHandle).toBeVisible({ timeout: 5000 });
+
+      // Try horizontal resize again after vertical resize
+      const hBox2 = await horizontalHandle.boundingBox();
+      expect(hBox2).toBeTruthy();
+
+      await horizontalHandle.hover();
+      await page.mouse.down();
+      await page.mouse.move(hBox2!.x + hBox2!.width / 2 - 30, hBox2!.y + hBox2!.height / 2, { steps: 3 });
+      await page.mouse.up();
+
+      // Verify handles are still visible
+      await expect(horizontalHandle).toBeVisible({ timeout: 5000 });
+      await expect(verticalHandle).toBeVisible({ timeout: 5000 });
+    });
+
+    test('resize handles are hidden when pane is maximized', async ({ page }) => {
+      await page.goto('/workspaces');
+
+      // Set up a layout with two panes
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'split-vertical',
+          panes: [
+            {
+              id: 'pane-1',
+              agentId: 'agent-1',
+              agentName: 'Worker 1',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-2',
+              agentId: 'agent-2',
+              agentName: 'Worker 2',
+              agentRole: 'worker',
+              workerMode: 'persistent',
+              paneType: 'terminal',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+          ],
+          gridConfig: {
+            cols: 2,
+            rows: 1,
+            colSizes: [{ fr: 1 }, { fr: 1 }],
+            rowSizes: [{ fr: 1 }],
+          },
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+
+      await page.reload();
+
+      // Resize handle should be visible initially
+      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
+      await expect(horizontalHandle).toBeVisible();
+
+      // Maximize a pane
+      const maximizeBtn = page.getByTestId('workspace-pane-pane-1').getByTestId('pane-maximize-btn');
+      await maximizeBtn.click();
+
+      // Resize handle should no longer be visible (not in DOM when maximized)
+      await expect(horizontalHandle).not.toBeVisible();
+    });
+  });
 });
