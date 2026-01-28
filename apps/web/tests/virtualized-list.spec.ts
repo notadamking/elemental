@@ -109,7 +109,7 @@ test.describe('TB68: Virtualized List Component', () => {
     }
 
     const channelId = data.items[0].id;
-    await page.goto(`/messages?page=1&limit=50&channel=${channelId}`);
+    await page.goto(`/messages?channel=${channelId}`);
     await expect(page.getByTestId('messages-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Loading channels...')).not.toBeVisible({ timeout: 10000 });
 
@@ -128,7 +128,7 @@ test.describe('TB68: Virtualized List Component', () => {
     }
 
     const channelId = data.items[0].id;
-    await page.goto(`/messages?page=1&limit=50&channel=${channelId}`);
+    await page.goto(`/messages?channel=${channelId}`);
     await expect(page.getByTestId('messages-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Loading channels...')).not.toBeVisible({ timeout: 10000 });
 

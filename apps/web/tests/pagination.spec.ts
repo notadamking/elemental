@@ -225,17 +225,17 @@ test.describe('TB46: Universal Pagination', () => {
   });
 
   // ============================================================================
-  // MESSAGES (CHANNELS) PAGE PAGINATION
+  // MESSAGES PAGE (no pagination - uses virtualization)
   // ============================================================================
 
-  test('messages page loads with pagination params in URL', async ({ page }) => {
+  test('messages page loads without pagination params', async ({ page }) => {
     await page.goto('/messages');
-    await expect(page).toHaveURL(/\/messages\?.*page=1/);
+    // Messages page no longer uses pagination, so no page/limit params expected
     await expect(page.getByTestId('messages-page')).toBeVisible({ timeout: 10000 });
   });
 
-  test('messages page shows channel list', async ({ page }) => {
-    await page.goto('/messages?page=1&limit=50');
+  test('messages page shows channel list with virtualization', async ({ page }) => {
+    await page.goto('/messages');
     await expect(page.getByTestId('messages-page')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Loading channels...')).not.toBeVisible({ timeout: 10000 });
 
@@ -248,12 +248,14 @@ test.describe('TB46: Universal Pagination', () => {
     expect(listVisible || placeholderVisible).toBe(true);
   });
 
-  test('sidebar navigation to messages uses default pagination', async ({ page }) => {
+  test('sidebar navigation to messages does not include pagination', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page.getByTestId('sidebar')).toBeVisible({ timeout: 10000 });
 
     await page.getByTestId('nav-messages').click();
-    await expect(page).toHaveURL(/\/messages\?.*page=1/);
+    // Messages page no longer uses pagination params
+    await expect(page).toHaveURL(/\/messages$/);
+    await expect(page.getByTestId('messages-page')).toBeVisible({ timeout: 10000 });
   });
 
   // ============================================================================

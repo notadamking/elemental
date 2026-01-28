@@ -121,7 +121,7 @@ export function CommandPalette() {
     setOpen(false);
     navigate({
       to: '/messages',
-      search: { channel: result.channelId, message: result.id, page: 1, limit: 50 },
+      search: { channel: result.channelId, message: result.id },
     });
     // Add a small delay before scrolling to message
     setTimeout(() => {
@@ -208,7 +208,7 @@ export function CommandPalette() {
       id: 'nav-messages',
       label: 'Go to Messages',
       icon: MessageSquare,
-      action: () => navigate({ to: '/messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } }),
+      action: () => navigate({ to: '/messages', search: { channel: undefined, message: undefined } }),
       shortcut: 'G M',
       group: 'Collaborate',
       keywords: ['chat', 'channels', 'communication'],

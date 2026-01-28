@@ -161,8 +161,8 @@ test.describe('TB69: Client-Side Pagination', () => {
   });
 
   test.describe('Messages/Channels Page', () => {
-    test('channel list shows with pagination', async ({ page }) => {
-      await page.goto('/messages?page=1&limit=50');
+    test('channel list shows with virtualization', async ({ page }) => {
+      await page.goto('/messages');
       await page.waitForLoadState('networkidle');
 
       // Wait for page to load
@@ -170,7 +170,7 @@ test.describe('TB69: Client-Side Pagination', () => {
     });
 
     test('channel search filters instantly', async ({ page }) => {
-      await page.goto('/messages?page=1&limit=50');
+      await page.goto('/messages');
       await page.waitForLoadState('networkidle');
 
       // Wait for page

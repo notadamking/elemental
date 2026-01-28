@@ -1040,7 +1040,7 @@ export function InboxPage() {
   const handleNavigateToMessage = useCallback((channelId: string, messageId: string) => {
     navigate({
       to: '/messages',
-      search: { channel: channelId, message: messageId, page: 1, limit: 50 },
+      search: { channel: channelId, message: messageId },
     });
   }, [navigate]);
 

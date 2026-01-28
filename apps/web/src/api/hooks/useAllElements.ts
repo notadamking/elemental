@@ -88,9 +88,14 @@ export interface Document extends Element {
 export interface Channel extends Element {
   type: 'channel';
   name: string;
-  channelType: string;
-  members?: string[];
+  channelType: 'group' | 'direct';
+  members: string[];
   createdBy: string;
+  permissions: {
+    visibility: 'public' | 'private';
+    joinPolicy: 'open' | 'invite-only' | 'request';
+    modifyMembers: string[];
+  };
   tags: string[];
   createdAt: string;
   updatedAt: string;

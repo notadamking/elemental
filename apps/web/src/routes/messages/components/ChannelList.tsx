@@ -1,10 +1,11 @@
 /**
  * Channel list components for the Messages sidebar
+ * Uses virtualization for efficient rendering of large channel lists
  */
 
 import { Hash, Lock, Users, MessageSquare, Plus, Search } from 'lucide-react';
-import { Pagination } from '../../../components/shared/Pagination';
-import type { Channel } from '../types';
+import { VirtualizedList } from '../../../components/shared/VirtualizedList';
+import type { Channel } from '../../../api/hooks/useAllElements';
 
 // ============================================================================
 // ChannelIcon
@@ -64,33 +65,33 @@ export function ChannelListItem({
 // ChannelList
 // ============================================================================
 
+// Item height constants for virtualization
+const DESKTOP_ITEM_HEIGHT = 36; // px-3 py-2 = ~36px
+const MOBILE_ITEM_HEIGHT = 48; // px-4 py-3 = ~48px
+const SECTION_HEADER_HEIGHT = 28; // section label height
+
 interface ChannelListProps {
   channels: Channel[];
   selectedChannelId: string | null;
   onSelectChannel: (id: string) => void;
   onNewChannel: () => void;
-  totalItems: number;
-  totalPages: number;
-  currentPage: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (pageSize: number) => void;
+  totalChannels: number;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   isMobile?: boolean;
 }
+
+// Type for virtualized list items (either a section header or a channel)
+type ListItem =
+  | { type: 'header'; label: string; key: string }
+  | { type: 'channel'; channel: Channel; key: string };
 
 export function ChannelList({
   channels,
   selectedChannelId,
   onSelectChannel,
   onNewChannel,
-  totalItems,
-  totalPages,
-  currentPage,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
+  totalChannels,
   searchQuery,
   onSearchChange,
   isMobile = false,
@@ -98,6 +99,54 @@ export function ChannelList({
   // Separate channels into groups and direct
   const groupChannels = channels.filter((c) => c.channelType === 'group');
   const directChannels = channels.filter((c) => c.channelType === 'direct');
+
+  // Build flat list with section headers for virtualization
+  const listItems: ListItem[] = [];
+
+  if (groupChannels.length > 0) {
+    listItems.push({ type: 'header', label: 'Channels', key: 'header-group' });
+    groupChannels.forEach((channel) => {
+      listItems.push({ type: 'channel', channel, key: channel.id });
+    });
+  }
+
+  if (directChannels.length > 0) {
+    listItems.push({ type: 'header', label: 'Direct Messages', key: 'header-direct' });
+    directChannels.forEach((channel) => {
+      listItems.push({ type: 'channel', channel, key: channel.id });
+    });
+  }
+
+  const itemHeight = isMobile ? MOBILE_ITEM_HEIGHT : DESKTOP_ITEM_HEIGHT;
+
+  const getItemSize = (index: number) => {
+    const item = listItems[index];
+    return item.type === 'header' ? SECTION_HEADER_HEIGHT : itemHeight;
+  };
+
+  const renderItem = (item: ListItem) => {
+    if (item.type === 'header') {
+      return (
+        <div
+          data-testid={item.key === 'header-group' ? 'channel-group-label' : 'channel-direct-label'}
+          className={`px-3 py-1 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
+            isMobile ? 'text-sm' : 'text-xs'
+          }`}
+        >
+          {item.label}
+        </div>
+      );
+    }
+
+    return (
+      <ChannelListItem
+        channel={item.channel}
+        isSelected={selectedChannelId === item.channel.id}
+        onClick={() => onSelectChannel(item.channel.id)}
+        isMobile={isMobile}
+      />
+    );
+  };
 
   return (
     <div
@@ -145,66 +194,11 @@ export function ChannelList({
             data-testid="channels-search-input"
           />
         </div>
-        <div
-          className={`mt-2 text-gray-500 dark:text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}
-        >
-          {channels.length} of {totalItems} channels
-        </div>
       </div>
 
-      <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-2' : 'p-2'}`}>
-        {/* Group Channels */}
-        {groupChannels.length > 0 && (
-          <div className="mb-4">
-            <div
-              data-testid="channel-group-label"
-              className={`px-3 py-1 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
-                isMobile ? 'text-sm' : 'text-xs'
-              }`}
-            >
-              Channels
-            </div>
-            <div data-testid="channel-group-list" className={`${isMobile ? 'space-y-1' : 'space-y-1'}`}>
-              {groupChannels.map((channel) => (
-                <ChannelListItem
-                  key={channel.id}
-                  channel={channel}
-                  isSelected={selectedChannelId === channel.id}
-                  onClick={() => onSelectChannel(channel.id)}
-                  isMobile={isMobile}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Direct Messages */}
-        {directChannels.length > 0 && (
-          <div>
-            <div
-              data-testid="channel-direct-label"
-              className={`px-3 py-1 font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
-                isMobile ? 'text-sm' : 'text-xs'
-              }`}
-            >
-              Direct Messages
-            </div>
-            <div data-testid="channel-direct-list" className={`${isMobile ? 'space-y-1' : 'space-y-1'}`}>
-              {directChannels.map((channel) => (
-                <ChannelListItem
-                  key={channel.id}
-                  channel={channel}
-                  isSelected={selectedChannelId === channel.id}
-                  onClick={() => onSelectChannel(channel.id)}
-                  isMobile={isMobile}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {channels.length === 0 && (
+      {/* Virtualized channel list */}
+      <div className="flex-1 min-h-0">
+        {channels.length === 0 ? (
           <div
             data-testid="channel-empty-state"
             className={`text-center text-gray-500 dark:text-gray-400 ${
@@ -231,23 +225,19 @@ export function ChannelList({
               </button>
             )}
           </div>
+        ) : (
+          <VirtualizedList
+            items={listItems}
+            getItemKey={(item) => item.key}
+            estimateSize={getItemSize}
+            renderItem={renderItem}
+            overscan={10}
+            className="h-full p-2"
+            scrollRestoreId="channel-list"
+            testId="channel-list-virtualized"
+          />
         )}
       </div>
-
-      {/* Pagination - hide on mobile to save space */}
-      {totalPages > 1 && !isMobile && (
-        <div className="border-t border-[var(--color-border)] p-2">
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            pageSize={pageSize}
-            onPageChange={onPageChange}
-            onPageSizeChange={onPageSizeChange}
-            showPageSizeSelector={false}
-          />
-        </div>
-      )}
 
       {/* Channel count footer - hidden on mobile */}
       {!isMobile && (
@@ -255,7 +245,7 @@ export function ChannelList({
           data-testid="channel-count"
           className="p-3 border-t border-gray-200 dark:border-[var(--color-border)] text-xs text-gray-500 dark:text-gray-400"
         >
-          {totalItems} {totalItems === 1 ? 'channel' : 'channels'}
+          {totalChannels} {totalChannels === 1 ? 'channel' : 'channels'}
         </div>
       )}
     </div>

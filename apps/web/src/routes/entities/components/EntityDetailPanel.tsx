@@ -199,7 +199,7 @@ export function EntityDetailPanel({ entityId, onClose }: EntityDetailPanelProps)
   const handleNavigateToMessage = (channelId: string, messageId: string) => {
     navigate({
       to: '/messages',
-      search: { channel: channelId, message: messageId, page: 1, limit: 50 },
+      search: { channel: channelId, message: messageId },
     });
   };
 

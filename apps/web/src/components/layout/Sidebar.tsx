@@ -88,7 +88,7 @@ const NAV_SECTIONS: NavSection[] = [
     defaultExpanded: true,
     items: [
       { to: '/inbox', icon: Inbox, label: 'Inbox', actionId: 'nav.inbox', testId: 'nav-inbox', search: { message: undefined }, badgeKey: 'inbox' },
-      { to: '/messages', icon: MessageSquare, label: 'Messages', actionId: 'nav.messages', testId: 'nav-messages', search: { channel: undefined, message: undefined, page: 1, limit: 50 } },
+      { to: '/messages', icon: MessageSquare, label: 'Messages', actionId: 'nav.messages', testId: 'nav-messages', search: { channel: undefined, message: undefined } },
       { to: '/documents', icon: FileText, label: 'Documents', actionId: 'nav.documents', testId: 'nav-documents', search: { selected: undefined, library: undefined, page: 1, limit: 25 } },
     ],
   },
