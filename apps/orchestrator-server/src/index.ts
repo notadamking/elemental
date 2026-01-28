@@ -2762,6 +2762,21 @@ function handleWSMessage(ws: ServerWebSocket<WSClientData>, message: string | Bu
                 events.off('error', onError);
                 events.off('exit', onExit);
               };
+
+              // For interactive sessions, trigger a terminal redraw by sending a resize event.
+              // This causes Claude Code (and most terminal apps) to redraw their UI,
+              // which is helpful when reconnecting to an existing session after page refresh.
+              if (activeSession.mode === 'interactive') {
+                // Small delay to ensure client is ready, then trigger redraw via resize
+                setTimeout(() => {
+                  // Get current terminal size from session if available, or use defaults
+                  const cols = 120;
+                  const rows = 30;
+                  spawnerService.resize(activeSession.id, cols, rows).catch(() => {
+                    // Ignore resize errors - session may have ended
+                  });
+                }, 100);
+              }
             }
           }
           ws.send(JSON.stringify({
