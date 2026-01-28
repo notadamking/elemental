@@ -206,6 +206,7 @@ export function useStartAgentSession() {
       });
     },
     onSuccess: (_, { agentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent-status', agentId] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
@@ -226,6 +227,7 @@ export function useStopAgentSession() {
       });
     },
     onSuccess: (_, { agentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent-status', agentId] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
@@ -246,6 +248,7 @@ export function useResumeAgentSession() {
       });
     },
     onSuccess: (_, { agentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent-status', agentId] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
