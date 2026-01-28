@@ -13,11 +13,16 @@ import type { PaneStatus } from './types';
 export interface StreamViewerProps {
   agentId: string;
   agentName: string;
+  /** API URL for file uploads (defaults to orchestrator server) */
+  apiUrl?: string;
   onStatusChange?: (status: PaneStatus) => void;
+  /** Whether to enable file drag and drop (default: true) */
+  enableFileDrop?: boolean;
   'data-testid'?: string;
 }
 
 const DEFAULT_SSE_URL = '/api/agents';
+const DEFAULT_API_URL = 'http://localhost:3457';
 
 /** Event type colors */
 const eventColors: Record<string, { bg: string; text: string; border: string }> = {
@@ -185,14 +190,19 @@ function StreamEventCard({
 export function StreamViewer({
   agentId,
   agentName,
+  apiUrl = DEFAULT_API_URL,
   onStatusChange,
+  enableFileDrop = true,
   'data-testid': testId = 'stream-viewer',
 }: StreamViewerProps) {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [status, setStatus] = useState<PaneStatus>('disconnected');
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
@@ -332,12 +342,206 @@ export function StreamViewer({
     }
   };
 
+  // File upload function - uses base64 encoding to avoid Bun's multipart binary corruption
+  const uploadFile = useCallback(async (file: File): Promise<string | null> => {
+    try {
+      // Read file as base64 to avoid binary corruption in Bun's multipart handling
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+
+      const response = await fetch(`${apiUrl}/api/terminal/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          data: base64,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Upload failed: ${response.status}`);
+      }
+
+      const data = await response.json() as { path: string; filename: string; size: number };
+      return data.path;
+    } catch (error) {
+      console.error('[StreamViewer] File upload failed:', error);
+      const errorEvent: StreamEvent = {
+        id: `error-${Date.now()}`,
+        type: 'error',
+        timestamp: Date.now(),
+        content: `File upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        isError: true,
+      };
+      setEvents(prev => [...prev, errorEvent]);
+      return null;
+    }
+  }, [apiUrl]);
+
+  // Handle file drop
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    if (!enableFileDrop || status !== 'connected') return;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+
+    // Add upload notification event
+    const uploadEvent: StreamEvent = {
+      id: `system-${Date.now()}`,
+      type: 'system',
+      timestamp: Date.now(),
+      content: `Uploading ${files.length} file(s)...`,
+    };
+    setEvents(prev => [...prev, uploadEvent]);
+
+    // Upload files and collect paths
+    const paths: string[] = [];
+    for (const file of files) {
+      const path = await uploadFile(file);
+      if (path) {
+        paths.push(path);
+      }
+    }
+
+    setIsUploading(false);
+
+    if (paths.length > 0) {
+      // Set the paths as input for the user to send
+      const pathsText = paths.join(' ');
+      setInput(prev => prev ? `${prev} ${pathsText}` : pathsText);
+
+      // Add success notification
+      const successEvent: StreamEvent = {
+        id: `system-${Date.now() + 1}`,
+        type: 'system',
+        timestamp: Date.now(),
+        content: `${paths.length} file(s) uploaded. Paths added to input.`,
+      };
+      setEvents(prev => [...prev, successEvent]);
+    }
+  }, [enableFileDrop, status, uploadFile]);
+
+  // Handle drag over
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (enableFileDrop && status === 'connected') {
+      setIsDragOver(true);
+    }
+  }, [enableFileDrop, status]);
+
+  // Handle drag enter
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (enableFileDrop && status === 'connected') {
+      setIsDragOver(true);
+    }
+  }, [enableFileDrop, status]);
+
+  // Handle drag leave
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set to false if we're leaving the container (not entering a child)
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const { clientX, clientY } = e;
+      if (
+        clientX < rect.left ||
+        clientX >= rect.right ||
+        clientY < rect.top ||
+        clientY >= rect.bottom
+      ) {
+        setIsDragOver(false);
+      }
+    }
+  }, []);
+
   return (
     <div
-      className="flex flex-col h-full bg-[var(--color-bg-secondary)]"
+      ref={containerRef}
+      className="relative flex flex-col h-full bg-[var(--color-bg-secondary)]"
       data-testid={testId}
       data-status={status}
+      data-drag-over={isDragOver}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
     >
+      {/* Drag and drop overlay */}
+      {isDragOver && enableFileDrop && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-primary)]/20 border-2 border-dashed border-[var(--color-primary)] rounded-lg pointer-events-none"
+          data-testid="file-drop-overlay"
+        >
+          <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-[var(--color-bg)]/90 shadow-lg">
+            <svg
+              className="w-10 h-10 text-[var(--color-primary)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            <span className="text-sm font-medium text-[var(--color-text)]">
+              Drop files to upload
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              File paths will be added to input
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress overlay */}
+      {isUploading && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/50 pointer-events-none"
+          data-testid="upload-progress-overlay"
+        >
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-[var(--color-bg)] shadow-lg border border-[var(--color-border)]">
+            <svg
+              className="w-5 h-5 text-[var(--color-primary)] animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span className="text-sm text-[var(--color-text)]">Uploading...</span>
+          </div>
+        </div>
+      )}
+
       {/* Event stream */}
       <div
         ref={scrollRef}

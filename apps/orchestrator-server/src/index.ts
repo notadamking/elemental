@@ -14,8 +14,10 @@
  * @module
  */
 
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
@@ -2649,6 +2651,65 @@ function formatPluginExecutionResult(result: PluginExecutionResult) {
     completedAt: result.completedAt,
   };
 }
+
+// ============================================================================
+// Terminal File Upload Endpoint
+// ============================================================================
+
+// Directory for uploaded files (in /tmp for system-managed cleanup)
+const UPLOAD_DIR = '/tmp/elemental-terminal-uploads';
+
+/**
+ * POST /api/terminal/upload
+ * Upload files for use in terminal sessions.
+ *
+ * Files are uploaded to /tmp and the path is returned so it can be
+ * pasted into the terminal. This enables drag-and-drop file support
+ * in the web terminal interface.
+ *
+ * Body: multipart/form-data with 'file' field
+ * Response: { path: string, filename: string, size: number }
+ */
+app.post('/api/terminal/upload', async (c) => {
+  try {
+    // Ensure upload directory exists
+    await mkdir(UPLOAD_DIR, { recursive: true });
+
+    const timestamp = Date.now();
+    const randomSuffix = randomBytes(4).toString('hex');
+
+    // Parse JSON body with base64-encoded file data
+    // This avoids Bun's multipart binary corruption issue
+    const body = await c.req.json() as { filename?: string; data?: string };
+
+    if (!body.data) {
+      return c.json({ error: { code: 'INVALID_INPUT', message: 'No file data provided' } }, 400);
+    }
+
+    // Decode base64 data
+    const buffer = Buffer.from(body.data, 'base64');
+    const originalName = body.filename || `file-${timestamp}`;
+
+    // Generate unique filename
+    const ext = extname(originalName);
+    const nameWithoutExt = ext ? originalName.slice(0, -ext.length) : originalName;
+    const sanitizedName = nameWithoutExt.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const uniqueFilename = `${timestamp}-${randomSuffix}-${sanitizedName}${ext}`;
+    const filePath = resolve(UPLOAD_DIR, uniqueFilename);
+
+    // Write file
+    await writeFile(filePath, buffer);
+
+    return c.json({
+      path: filePath,
+      filename: originalName,
+      size: buffer.length,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to upload file:', error);
+    return c.json({ error: { code: 'UPLOAD_FAILED', message: String(error) } }, 500);
+  }
+});
 
 // ============================================================================
 // WebSocket Handling for Interactive Terminals

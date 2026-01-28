@@ -19,6 +19,8 @@ export interface XTerminalProps {
   agentId?: string;
   /** WebSocket URL (defaults to orchestrator server) */
   wsUrl?: string;
+  /** API URL for file uploads (defaults to orchestrator server) */
+  apiUrl?: string;
   /** Called when terminal status changes */
   onStatusChange?: (status: TerminalStatus) => void;
   /** Called when terminal connects successfully */
@@ -40,6 +42,8 @@ export interface XTerminalProps {
   /** Whether this terminal controls PTY resize (default: true).
    * Set to false for secondary viewers to prevent resize conflicts. */
   controlsResize?: boolean;
+  /** Whether to enable file drag and drop (default: true for interactive terminals) */
+  enableFileDrop?: boolean;
   /** Test ID for testing */
   'data-testid'?: string;
 }
@@ -96,10 +100,12 @@ const LIGHT_THEME = {
 };
 
 const DEFAULT_WS_URL = 'ws://localhost:3457/ws';
+const DEFAULT_API_URL = 'http://localhost:3457';
 
 export function XTerminal({
   agentId,
   wsUrl = DEFAULT_WS_URL,
+  apiUrl = DEFAULT_API_URL,
   onStatusChange,
   onConnected,
   onData,
@@ -110,6 +116,7 @@ export function XTerminal({
   interactive = true,
   autoFocus = false,
   controlsResize = true,
+  enableFileDrop,
   'data-testid': testId = 'xterminal',
 }: XTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -117,6 +124,8 @@ export function XTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [status, setStatus] = useState<TerminalStatus>('disconnected');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
   // Track session to avoid duplicate session-started messages
@@ -125,6 +134,8 @@ export function XTerminal({
   const hasShownConnectionRef = useRef(false);
   // Track last sent dimensions to avoid duplicate resize messages
   const lastSentDimsRef = useRef<{ cols: number; rows: number } | null>(null);
+  // Enable file drop by default for interactive terminals
+  const fileDropEnabled = enableFileDrop ?? interactive;
 
   // Store callbacks in refs to avoid recreating dependent callbacks
   // This prevents WebSocket reconnection loops when parent passes inline functions
@@ -521,15 +532,191 @@ export function XTerminal({
     }
   }, [interactive]);
 
+  // File upload function - uses base64 encoding to avoid Bun's multipart binary corruption
+  const uploadFile = useCallback(async (file: File): Promise<string | null> => {
+    try {
+      // Read file as base64 to avoid binary corruption in Bun's multipart handling
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+
+      const response = await fetch(`${apiUrl}/api/terminal/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          data: base64,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Upload failed: ${response.status}`);
+      }
+
+      const data = await response.json() as { path: string; filename: string; size: number };
+      return data.path;
+    } catch (error) {
+      console.error('[XTerminal] File upload failed:', error);
+      terminalRef.current?.writeln(
+        `\x1b[31m  File upload failed: ${error instanceof Error ? error.message : 'Unknown error'}\x1b[0m`
+      );
+      return null;
+    }
+  }, [apiUrl]);
+
+  // Handle file drop
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    if (!fileDropEnabled || !interactive) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    terminalRef.current?.writeln(`\x1b[90m  Uploading ${files.length} file(s)...\x1b[0m`);
+
+    // Upload files and collect paths
+    const paths: string[] = [];
+    for (const file of files) {
+      const path = await uploadFile(file);
+      if (path) {
+        paths.push(path);
+      }
+    }
+
+    setIsUploading(false);
+
+    if (paths.length > 0) {
+      // Send paths to the terminal (with trailing space for convenience)
+      const pathsText = paths.join(' ') + ' ';
+      sendToServer(pathsText);
+
+      // Show confirmation message
+      terminalRef.current?.writeln(
+        `\x1b[32m  ${paths.length} file(s) uploaded and path(s) inserted\x1b[0m`
+      );
+    }
+  }, [fileDropEnabled, interactive, uploadFile, sendToServer]);
+
+  // Handle drag over
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (fileDropEnabled && interactive) {
+      setIsDragOver(true);
+    }
+  }, [fileDropEnabled, interactive]);
+
+  // Handle drag enter
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (fileDropEnabled && interactive) {
+      setIsDragOver(true);
+    }
+  }, [fileDropEnabled, interactive]);
+
+  // Handle drag leave
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set to false if we're leaving the container (not entering a child)
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const { clientX, clientY } = e;
+      if (
+        clientX < rect.left ||
+        clientX >= rect.right ||
+        clientY < rect.top ||
+        clientY >= rect.bottom
+      ) {
+        setIsDragOver(false);
+      }
+    }
+  }, []);
+
   return (
     <div
       ref={containerRef}
       data-testid={testId}
       data-status={status}
-      className="w-full h-full overflow-hidden cursor-text"
+      data-drag-over={isDragOver}
+      className="relative w-full h-full overflow-hidden cursor-text"
       style={{ minHeight: '200px' }}
       onClick={handleClick}
-    />
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+    >
+      {/* Drag and drop overlay */}
+      {isDragOver && fileDropEnabled && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-primary)]/20 border-2 border-dashed border-[var(--color-primary)] rounded-lg pointer-events-none"
+          data-testid="file-drop-overlay"
+        >
+          <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-[var(--color-bg)]/90 shadow-lg">
+            <svg
+              className="w-10 h-10 text-[var(--color-primary)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            <span className="text-sm font-medium text-[var(--color-text)]">
+              Drop files to upload
+            </span>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              File paths will be inserted at cursor
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress overlay */}
+      {isUploading && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/50 pointer-events-none"
+          data-testid="upload-progress-overlay"
+        >
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-[var(--color-bg)] shadow-lg border border-[var(--color-border)]">
+            <svg
+              className="w-5 h-5 text-[var(--color-primary)] animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span className="text-sm text-[var(--color-text)]">Uploading...</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
