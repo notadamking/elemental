@@ -272,8 +272,8 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       // Pane header should be visible
       await expect(page.getByTestId('pane-header')).toBeVisible();
 
-      // Agent name should be visible
-      await expect(page.getByText('Test Agent')).toBeVisible();
+      // Agent name should be visible in the header
+      await expect(page.getByTestId('pane-header').getByText('Test Agent')).toBeVisible();
     });
 
     test('pane has maximize button', async ({ page }) => {

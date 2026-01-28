@@ -395,66 +395,67 @@ export function WorkspacePane({
               absolute inset-0 z-10
               flex flex-col items-center justify-center
               bg-[#1a1a1a]/95 backdrop-blur-sm
+              overflow-y-auto p-3
             "
             data-testid="pane-idle-overlay"
           >
             {stopSession.isPending ? (
               // Shutting down state
               <>
-                <div className="relative mb-6">
+                <div className="relative mb-3">
                   <div className="absolute inset-0 bg-amber-500/20 blur-xl rounded-full scale-150" />
                   <div className="
-                    relative p-4 rounded-2xl
+                    relative p-2.5 rounded-xl
                     bg-gradient-to-br from-[#252525] to-[#1a1a1a]
                     border border-[#333]
                     shadow-lg
                   ">
-                    <RefreshCw className="w-10 h-10 text-amber-400 animate-spin" />
+                    <RefreshCw className="w-7 h-7 text-amber-400 animate-spin" />
                   </div>
                 </div>
 
-                <div className="text-center mb-6">
-                  <h3 className="text-lg font-medium text-[var(--color-text)] mb-1">
+                <div className="text-center mb-3">
+                  <h3 className="text-base font-medium text-[var(--color-text)] mb-0.5">
                     Shutting Down
                   </h3>
-                  <p className="text-sm text-[var(--color-text-muted)] max-w-xs px-4">
+                  <p className="text-xs text-[var(--color-text-muted)] max-w-[200px] px-2">
                     Gracefully stopping the session...
                   </p>
                 </div>
 
                 {/* Pulsing dots animation */}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '300ms' }} />
                 </div>
               </>
             ) : (
               // Idle/Error state
               <>
                 {/* Glow effect behind icon */}
-                <div className="relative mb-6">
+                <div className="relative mb-3 flex-shrink-0">
                   <div className="absolute inset-0 bg-[var(--color-primary)]/20 blur-xl rounded-full scale-150" />
                   <div className="
-                    relative p-4 rounded-2xl
+                    relative p-2.5 rounded-xl
                     bg-gradient-to-br from-[#252525] to-[#1a1a1a]
                     border border-[#333]
                     shadow-lg
                   ">
                     {pane.status === 'error' ? (
-                      <AlertCircle className="w-10 h-10 text-red-400" />
+                      <AlertCircle className="w-7 h-7 text-red-400" />
                     ) : (
-                      <CirclePause className="w-10 h-10 text-[var(--color-text-muted)]" />
+                      <CirclePause className="w-7 h-7 text-[var(--color-text-muted)]" />
                     )}
                   </div>
                 </div>
 
                 {/* Status text */}
-                <div className="text-center mb-6">
-                  <h3 className="text-lg font-medium text-[var(--color-text)] mb-1">
+                <div className="text-center mb-3 flex-shrink-0">
+                  <h3 className="text-base font-medium text-[var(--color-text)] mb-0.5">
                     {pane.status === 'error' ? 'Session Error' : 'Session Idle'}
                   </h3>
-                  <p className="text-sm text-[var(--color-text-muted)] max-w-xs px-4">
+                  <p className="text-xs text-[var(--color-text-muted)] max-w-[200px] px-2">
                     {pane.status === 'error'
                       ? 'The agent session encountered an error.'
                       : `Start a session to interact with ${pane.agentName}.`
@@ -467,8 +468,8 @@ export function WorkspacePane({
                   onClick={handleStartSession}
                   disabled={startSession.isPending}
                   className="
-                    inline-flex items-center gap-2.5
-                    px-6 py-2.5 rounded-lg
+                    inline-flex items-center gap-2 flex-shrink-0
+                    px-4 py-2 rounded-lg
                     bg-gradient-to-r from-green-600 to-green-500
                     hover:from-green-500 hover:to-green-400
                     text-white font-medium text-sm
@@ -482,12 +483,12 @@ export function WorkspacePane({
                 >
                   {startSession.isPending ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                       Starting...
                     </>
                   ) : (
                     <>
-                      <Play className="w-4 h-4" />
+                      <Play className="w-3.5 h-3.5" />
                       Start Session
                     </>
                   )}
@@ -495,9 +496,9 @@ export function WorkspacePane({
 
                 {/* Agent info badge */}
                 <div className="
-                  mt-6 px-3 py-1.5 rounded-full
+                  mt-3 px-2.5 py-1 rounded-full flex-shrink-0
                   bg-[#252525] border border-[#333]
-                  text-xs text-[var(--color-text-tertiary)]
+                  text-[10px] text-[var(--color-text-tertiary)]
                 ">
                   {pane.workerMode === 'persistent' ? 'Persistent Worker' : 'Ephemeral Worker'} • {pane.paneType === 'terminal' ? 'Interactive' : 'Stream'}
                 </div>
