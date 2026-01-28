@@ -119,6 +119,10 @@ export function XTerminal({
   const [status, setStatus] = useState<TerminalStatus>('disconnected');
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
+  // Track session to avoid duplicate session-started messages
+  const currentSessionRef = useRef<string | null>(null);
+  // Track if we've shown initial connection message to avoid duplicates on reconnect
+  const hasShownConnectionRef = useRef(false);
 
   // Store callbacks in refs to avoid recreating dependent callbacks
   // This prevents WebSocket reconnection loops when parent passes inline functions
@@ -230,13 +234,22 @@ export function XTerminal({
   useEffect(() => {
     if (!agentId) {
       updateStatus('disconnected');
-      terminalRef.current?.writeln('\x1b[33m  No agent selected\x1b[0m');
+      if (!hasShownConnectionRef.current) {
+        terminalRef.current?.writeln('\x1b[33m  No agent selected\x1b[0m');
+      }
       return;
     }
 
+    // Reset tracking refs when agentId changes
+    hasShownConnectionRef.current = false;
+    currentSessionRef.current = null;
+
     const connect = () => {
       updateStatus('connecting');
-      terminalRef.current?.writeln(`\x1b[90m  Connecting to agent ${agentId}...\x1b[0m`);
+      // Only show connecting message on first attempt, not reconnects
+      if (reconnectAttempts.current === 0) {
+        terminalRef.current?.writeln(`\x1b[90m  Connecting to agent ${agentId}...\x1b[0m`);
+      }
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -255,6 +268,7 @@ export function XTerminal({
             data?: string; // For pty-data messages
             hasSession?: boolean;
             isInteractive?: boolean;
+            sessionId?: string;
             error?: string;
           };
 
@@ -262,25 +276,34 @@ export function XTerminal({
             case 'subscribed':
               updateStatus('connected');
               onConnectedRef.current?.();
-              if (data.isInteractive) {
-                terminalRef.current?.writeln(
-                  data.hasSession
-                    ? '\x1b[32m  Connected to interactive PTY session\x1b[0m\r\n'
-                    : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
-                );
-                // Send initial resize for interactive sessions (only if this terminal controls resize)
-                if (controlsResize && data.hasSession && fitAddonRef.current && terminalRef.current) {
-                  const dims = fitAddonRef.current.proposeDimensions();
-                  if (dims) {
-                    ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-                  }
+              // Only show connection message once per mount
+              if (!hasShownConnectionRef.current) {
+                hasShownConnectionRef.current = true;
+                if (data.isInteractive) {
+                  terminalRef.current?.writeln(
+                    data.hasSession
+                      ? '\x1b[32m  Connected to interactive PTY session\x1b[0m\r\n'
+                      : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
+                  );
+                } else {
+                  terminalRef.current?.writeln(
+                    data.hasSession
+                      ? '\x1b[32m  Connected to active session\x1b[0m\r\n'
+                      : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
+                  );
                 }
-              } else {
-                terminalRef.current?.writeln(
-                  data.hasSession
-                    ? '\x1b[32m  Connected to active session\x1b[0m\r\n'
-                    : '\x1b[33m  Agent has no active session\x1b[0m\r\n'
-                );
+              }
+              // Send initial resize for interactive sessions (only if this terminal controls resize)
+              // Use a small delay to ensure terminal is fully laid out
+              if (controlsResize && data.hasSession && fitAddonRef.current && terminalRef.current) {
+                setTimeout(() => {
+                  if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
+                    const dims = fitAddonRef.current.proposeDimensions();
+                    if (dims) {
+                      wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+                    }
+                  }
+                }, 100);
               }
               break;
 
@@ -303,14 +326,23 @@ export function XTerminal({
 
             case 'exit':
               terminalRef.current?.writeln('\x1b[90m  Session ended\x1b[0m');
+              currentSessionRef.current = null;
               break;
 
             case 'pong':
               // Heartbeat response, ignore
               break;
 
-            case 'session-started':
-              // A new session was started for this agent - clear previous output
+            case 'session-started': {
+              // A new session was started for this agent
+              const sessionId = (data as { sessionId?: string }).sessionId;
+              // Only process if this is a new session (avoid duplicates)
+              if (sessionId && sessionId === currentSessionRef.current) {
+                break; // Already processed this session
+              }
+              currentSessionRef.current = sessionId ?? null;
+
+              // Clear previous output and show new session message
               terminalRef.current?.clear();
               terminalRef.current?.writeln(
                 (data as { isInteractive?: boolean }).isInteractive
@@ -318,13 +350,19 @@ export function XTerminal({
                   : '\x1b[32m  Session started - connected\x1b[0m\r\n'
               );
               // Send initial resize for interactive sessions (only if this terminal controls resize)
+              // Use a small delay to ensure terminal is fully laid out
               if (controlsResize && (data as { isInteractive?: boolean }).isInteractive && fitAddonRef.current && terminalRef.current) {
-                const dims = fitAddonRef.current.proposeDimensions();
-                if (dims) {
-                  ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-                }
+                setTimeout(() => {
+                  if (wsRef.current?.readyState === WebSocket.OPEN && fitAddonRef.current) {
+                    const dims = fitAddonRef.current.proposeDimensions();
+                    if (dims) {
+                      wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+                    }
+                  }
+                }, 100);
               }
               break;
+            }
           }
         } catch (err) {
           console.error('[XTerminal] Error parsing message:', err);
