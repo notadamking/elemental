@@ -305,7 +305,23 @@ export function WorkspacePane({
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowMenu(false);
-                      // TODO: Add pop-out functionality
+                      // Build popout URL with pane info for "pop back in" functionality
+                      const params = new URLSearchParams({
+                        agent: pane.agentId,
+                        type: pane.paneType,
+                        name: pane.agentName,
+                        role: pane.agentRole,
+                        ...(pane.workerMode && { mode: pane.workerMode }),
+                      });
+                      const popoutUrl = `/popout/terminal?${params.toString()}`;
+                      // Open terminal in a new window
+                      window.open(
+                        popoutUrl,
+                        `terminal-${pane.agentId}`,
+                        'width=800,height=600,menubar=no,toolbar=no,location=no,status=no'
+                      );
+                      // Remove pane from workspace
+                      onClose();
                     }}
                     className="
                       w-full px-3 py-1.5 text-left text-sm
@@ -314,20 +330,6 @@ export function WorkspacePane({
                     "
                   >
                     Pop out
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMenu(false);
-                      // TODO: Clear terminal
-                    }}
-                    className="
-                      w-full px-3 py-1.5 text-left text-sm
-                      text-[var(--color-text-secondary)]
-                      hover:bg-[var(--color-surface-hover)]
-                    "
-                  >
-                    Clear
                   </button>
                 </div>
               </>

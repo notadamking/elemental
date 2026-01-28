@@ -3,7 +3,7 @@
  * Uses TanStack Router with typed routes
  */
 
-import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/react-router';
+import { createRouter, createRoute, createRootRoute, redirect, Outlet, useRouterState } from '@tanstack/react-router';
 import { AppShell } from './components/layout';
 import { ActivityPage } from './routes/activity';
 import { TasksPage } from './routes/tasks';
@@ -12,10 +12,28 @@ import { WorkspacesPage } from './routes/workspaces';
 import { WorkflowsPage } from './routes/workflows';
 import { MetricsPage } from './routes/metrics';
 import { SettingsPage } from './routes/settings';
+import { PopoutTerminalPage } from './routes/popout';
 
-// Root route with the AppShell layout
+/**
+ * Root layout component that conditionally renders AppShell or plain Outlet
+ * based on whether we're in a popout route
+ */
+function RootLayout() {
+  const { location } = useRouterState();
+  const isPopout = location.pathname.startsWith('/popout');
+
+  if (isPopout) {
+    // Popout routes render without AppShell
+    return <Outlet />;
+  }
+
+  // Main app routes render with AppShell
+  return <AppShell />;
+}
+
+// Root route with conditional layout
 const rootRoute = createRootRoute({
-  component: AppShell,
+  component: RootLayout,
 });
 
 // Index route - redirect to activity (home page)
@@ -116,6 +134,28 @@ const settingsRoute = createRoute({
   },
 });
 
+// Popout routes - these render without AppShell via the RootLayout conditional
+const popoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/popout',
+});
+
+const popoutTerminalRoute = createRoute({
+  getParentRoute: () => popoutRoute,
+  path: '/terminal',
+  component: PopoutTerminalPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      agent: typeof search.agent === 'string' ? search.agent : undefined,
+      type: typeof search.type === 'string' ? search.type as 'terminal' | 'stream' : 'terminal',
+      // Additional params for "pop back in" functionality
+      name: typeof search.name === 'string' ? search.name : undefined,
+      role: typeof search.role === 'string' ? search.role : undefined,
+      mode: typeof search.mode === 'string' ? search.mode : undefined,
+    };
+  },
+});
+
 // Build the route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -126,6 +166,9 @@ const routeTree = rootRoute.addChildren([
   workflowsRoute,
   metricsRoute,
   settingsRoute,
+  popoutRoute.addChildren([
+    popoutTerminalRoute,
+  ]),
 ]);
 
 // Create and export the router

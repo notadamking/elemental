@@ -14,11 +14,13 @@ import type {
   WorkspaceLayout,
   WorkspaceState,
   WorkspaceActions,
+  WorkspaceChannelMessage,
 } from './types';
 import {
   DEFAULT_LAYOUT,
   WORKSPACE_STORAGE_KEY,
   ACTIVE_LAYOUT_KEY,
+  WORKSPACE_CHANNEL_NAME,
 } from './types';
 
 /** Generate a unique pane ID */
@@ -116,6 +118,55 @@ export function usePaneManager(): UsePaneManagerResult {
   useEffect(() => {
     saveActiveLayout(layout);
   }, [layout]);
+
+  // Listen for cross-window messages (pop back in)
+  useEffect(() => {
+    const channel = new BroadcastChannel(WORKSPACE_CHANNEL_NAME);
+
+    const handleMessage = (event: MessageEvent<WorkspaceChannelMessage>) => {
+      if (event.data.type === 'pop-back-in') {
+        const { pane } = event.data;
+        const newPane: WorkspacePane = {
+          id: generatePaneId(),
+          ...pane,
+          status: 'disconnected',
+          position: 0,
+          weight: 1,
+        };
+
+        setLayout(prev => {
+          // Update positions for existing panes
+          const updatedPanes = prev.panes.map((p, i) => ({ ...p, position: i }));
+          newPane.position = updatedPanes.length;
+
+          // Auto-switch to split view if adding second pane
+          let newPreset = prev.preset;
+          if (updatedPanes.length === 1 && prev.preset === 'single') {
+            newPreset = 'split-vertical';
+          } else if (updatedPanes.length === 3 && prev.preset === 'split-vertical') {
+            newPreset = 'grid';
+          }
+
+          return {
+            ...prev,
+            preset: newPreset,
+            panes: [...updatedPanes, newPane],
+            modifiedAt: Date.now(),
+          };
+        });
+
+        // Set as active pane
+        setActivePane(newPane.id);
+      }
+    };
+
+    channel.addEventListener('message', handleMessage);
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, []);
 
   // Add a new pane
   const addPane = useCallback((agent: Agent) => {

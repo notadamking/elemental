@@ -103,6 +103,21 @@ export const WORKSPACE_STORAGE_KEY = 'elemental-workspace-layouts';
 export const ACTIVE_LAYOUT_KEY = 'elemental-active-workspace-layout';
 
 /**
+ * BroadcastChannel name for cross-window communication
+ */
+export const WORKSPACE_CHANNEL_NAME = 'elemental-workspace-channel';
+
+/**
+ * Message types for cross-window communication
+ */
+export interface PopBackInMessage {
+  type: 'pop-back-in';
+  pane: Omit<WorkspacePane, 'id' | 'position' | 'weight' | 'status'>;
+}
+
+export type WorkspaceChannelMessage = PopBackInMessage;
+
+/**
  * Default layout configuration
  */
 export const DEFAULT_LAYOUT: WorkspaceLayout = {
