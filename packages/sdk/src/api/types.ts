@@ -1791,7 +1791,7 @@ export interface TeamMetrics {
 export const DEFAULT_PAGE_SIZE = 50;
 
 /** Maximum page size for list queries */
-export const MAX_PAGE_SIZE = 1000;
+export const MAX_PAGE_SIZE = 10000;
 
 /** Default conflict strategy for imports */
 export const DEFAULT_CONFLICT_STRATEGY: ConflictStrategy = 'error';

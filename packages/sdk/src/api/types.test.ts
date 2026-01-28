@@ -574,7 +574,7 @@ describe('Constants', () => {
 
   it('should have sensible MAX_PAGE_SIZE', () => {
     expect(MAX_PAGE_SIZE).toBeGreaterThan(DEFAULT_PAGE_SIZE);
-    expect(MAX_PAGE_SIZE).toBe(1000);
+    expect(MAX_PAGE_SIZE).toBe(10000);
   });
 
   it('should have DEFAULT_CONFLICT_STRATEGY as "error"', () => {
