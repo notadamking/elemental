@@ -178,7 +178,7 @@ export function MessageBubble({
           </div>
           <div
             data-testid={`message-content-${message.id}`}
-            className={`text-[var(--color-text-secondary)] mt-1 break-words overflow-hidden ${
+            className={`text-[var(--color-text-secondary)] mt-1 break-words overflow-hidden whitespace-pre-wrap ${
               isMobile ? 'text-sm' : ''
             }`}
           >
