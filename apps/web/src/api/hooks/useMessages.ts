@@ -81,15 +81,17 @@ export function useChannelsPaginated(
 // ============================================================================
 
 /**
- * Hook to fetch messages for a channel
+ * Hook to fetch all messages for a channel up-front
+ * Uses virtualization in the UI to handle large message lists efficiently
  */
 export function useChannelMessages(channelId: string | null) {
   return useQuery<Message[]>({
     queryKey: ['channels', channelId, 'messages'],
     queryFn: async () => {
       if (!channelId) throw new Error('No channel selected');
+      // Load all messages up-front with limit=10000 for virtualization
       const response = await fetch(
-        `/api/channels/${channelId}/messages?hydrate.content=true`
+        `/api/channels/${channelId}/messages?limit=10000&hydrate.content=true`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch messages');
@@ -145,15 +147,17 @@ export function useSendMessage() {
 }
 
 /**
- * Hook to fetch thread replies
+ * Hook to fetch all thread replies up-front
+ * Uses virtualization in the UI to handle large reply lists efficiently
  */
 export function useThreadReplies(threadId: string | null) {
   return useQuery<Message[]>({
     queryKey: ['messages', threadId, 'replies'],
     queryFn: async () => {
       if (!threadId) throw new Error('No thread selected');
+      // Load all replies up-front with limit=10000 for virtualization
       const response = await fetch(
-        `/api/messages/${threadId}/replies?hydrate.content=true`
+        `/api/messages/${threadId}/replies?limit=10000&hydrate.content=true`
       );
       if (!response.ok) {
         // If the endpoint doesn't exist yet, return empty array
