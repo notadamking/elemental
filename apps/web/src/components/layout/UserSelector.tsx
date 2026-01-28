@@ -43,8 +43,7 @@ export function UserSelector() {
         position: 'fixed',
         top: rect.bottom + 4,
         left: rect.left,
-        minWidth: rect.width,
-        maxWidth: Math.max(rect.width, 200),
+        width: rect.width * 2,
         zIndex: 9999,
       });
     }
