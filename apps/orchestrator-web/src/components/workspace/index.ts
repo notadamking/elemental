@@ -8,6 +8,8 @@
 export type {
   PaneId,
   LayoutPreset,
+  GridOrientation,
+  SectionLayout,
   PaneType,
   PaneStatus,
   WorkspacePane as WorkspacePaneData,

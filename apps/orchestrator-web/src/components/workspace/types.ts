@@ -15,6 +15,9 @@ export type LayoutPreset = 'single' | 'rows' | 'columns' | 'grid' | 'flex';
 /** Grid orientation - determines primary split direction */
 export type GridOrientation = 'horizontal' | 'vertical';
 
+/** Section layout - for 3-pane grid, determines if single pane is first or last */
+export type SectionLayout = 'single-first' | 'single-last';
+
 /** Pane type determines rendering behavior */
 export type PaneType = 'terminal' | 'stream';
 
@@ -60,6 +63,8 @@ export interface WorkspaceLayout {
   panes: WorkspacePane[];
   /** Grid orientation - determines primary split direction (horizontal = columns first, vertical = rows first) */
   gridOrientation?: GridOrientation;
+  /** Section layout - for 3-pane grid, whether single pane is first (left/top) or last (right/bottom) */
+  sectionLayout?: SectionLayout;
   createdAt: number;
   modifiedAt: number;
 }
@@ -116,8 +121,8 @@ export interface WorkspaceActions {
   movePaneDown: (paneId: PaneId) => void;
   /** Rotate layout orientation (toggle between row-based and column-based layouts) */
   rotateLayout: () => void;
-  /** Swap grid sections (e.g., swap left column with right column) */
-  swapGridSections: (sectionIndex1: number, sectionIndex2: number) => void;
+  /** Swap grid sections (toggles between single-first and single-last layout) */
+  swapGridSections: () => void;
 }
 
 /**
@@ -169,6 +174,7 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   preset: 'single',
   panes: [],
   gridOrientation: 'horizontal',
+  sectionLayout: 'single-first',
   createdAt: Date.now(),
   modifiedAt: Date.now(),
 };

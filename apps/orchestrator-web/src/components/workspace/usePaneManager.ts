@@ -12,6 +12,7 @@ import type {
   PaneStatus,
   LayoutPreset,
   GridOrientation,
+  SectionLayout,
   WorkspacePane,
   WorkspaceLayout,
   WorkspaceState,
@@ -478,52 +479,53 @@ export function usePaneManager(): UsePaneManagerResult {
   }, []);
 
   // Swap grid sections (columns or rows depending on orientation)
-  // For 3-pane grid: swaps the single-pane section with the two-pane section
-  const swapGridSections = useCallback((sectionIndex1: number, sectionIndex2: number) => {
+  // For 3-pane grid: toggles between single-first and single-last section layout
+  const swapGridSections = useCallback(() => {
     setLayout(prev => {
       const paneCount = prev.panes.length;
       if (prev.preset !== 'grid' || paneCount < 3) return prev;
 
-      const orientation = prev.gridOrientation || 'horizontal';
-      const panes = [...prev.panes];
-
-      // For 3-pane grid: section 0 is pane 0, section 1 is panes 1 and 2
+      // For 3-pane grid: toggle between single-first and single-last
       if (paneCount === 3) {
-        // Swap section 0 (pane 0) with section 1 (panes 1, 2)
-        // Result: [pane1, pane2, pane0]
-        const temp = panes[0];
-        panes[0] = panes[1];
-        panes[1] = panes[2];
-        panes[2] = temp;
-      } else if (paneCount === 4) {
-        // For 4-pane grid (2x2):
-        // horizontal: [[0,1], [2,3]] - swap columns means swap pairs
-        // vertical: same structure
-        if (sectionIndex1 === 0 && sectionIndex2 === 1) {
-          // Swap first pair with second pair
-          if (orientation === 'horizontal') {
-            // Swap columns: [0,2] <-> [1,3]
-            [panes[0], panes[1]] = [panes[1], panes[0]];
-            [panes[2], panes[3]] = [panes[3], panes[2]];
-          } else {
-            // Swap rows: [0,1] <-> [2,3]
-            [panes[0], panes[2]] = [panes[2], panes[0]];
-            [panes[1], panes[3]] = [panes[3], panes[1]];
-          }
-        }
+        const currentLayout = prev.sectionLayout || 'single-first';
+        const newLayout: SectionLayout = currentLayout === 'single-first' ? 'single-last' : 'single-first';
+
+        return {
+          ...prev,
+          sectionLayout: newLayout,
+          modifiedAt: Date.now(),
+        };
       }
 
-      // Re-index positions
-      const reindexed = panes.map((p, i) => ({
-        ...p,
-        position: i,
-      }));
+      // For 4-pane grid (2x2): swap pairs of panes
+      if (paneCount === 4) {
+        const orientation = prev.gridOrientation || 'horizontal';
+        const panes = [...prev.panes];
 
-      return {
-        ...prev,
-        panes: reindexed,
-        modifiedAt: Date.now(),
-      };
+        if (orientation === 'horizontal') {
+          // Swap columns: [0,2] <-> [1,3]
+          [panes[0], panes[1]] = [panes[1], panes[0]];
+          [panes[2], panes[3]] = [panes[3], panes[2]];
+        } else {
+          // Swap rows: [0,1] <-> [2,3]
+          [panes[0], panes[2]] = [panes[2], panes[0]];
+          [panes[1], panes[3]] = [panes[3], panes[1]];
+        }
+
+        // Re-index positions
+        const reindexed = panes.map((p, i) => ({
+          ...p,
+          position: i,
+        }));
+
+        return {
+          ...prev,
+          panes: reindexed,
+          modifiedAt: Date.now(),
+        };
+      }
+
+      return prev;
     });
   }, []);
 

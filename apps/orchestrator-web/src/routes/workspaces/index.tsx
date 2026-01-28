@@ -65,6 +65,7 @@ export function WorkspacesPage() {
     endDrag,
     rotateLayout,
     swapGridSections,
+    swapPanes,
   } = usePaneManager();
 
   // Handle agent URL parameter - open agent in pane when navigating from Agents page
@@ -296,6 +297,7 @@ export function WorkspacesPage() {
             panes={layout.panes}
             preset={layout.preset}
             gridOrientation={layout.gridOrientation}
+            sectionLayout={layout.sectionLayout}
             activePane={activePane}
             dragState={dragState}
             onPaneClose={removePane}
@@ -305,6 +307,7 @@ export function WorkspacesPage() {
             onUpdateDragTarget={updateDragTarget}
             onEndDrag={endDrag}
             onSwapSections={swapGridSections}
+            onSwapPanes={swapPanes}
           />
         ) : (
           /* Empty state */
