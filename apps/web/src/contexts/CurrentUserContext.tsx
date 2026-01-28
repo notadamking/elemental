@@ -36,12 +36,12 @@ const LOCAL_STORAGE_KEY = 'elemental-current-user-id';
 
 const CurrentUserContext = createContext<CurrentUserContextValue | undefined>(undefined);
 
-// Hook to fetch human entities
+// Hook to fetch all human entities up-front
 function useHumanEntities() {
   return useQuery<Entity[]>({
     queryKey: ['entities', 'humans'],
     queryFn: async () => {
-      const response = await fetch('/api/entities?entityType=human&limit=100');
+      const response = await fetch('/api/entities?entityType=human&limit=10000');
       if (!response.ok) throw new Error('Failed to fetch entities');
       const data = await response.json();
       return data.items || [];
