@@ -395,6 +395,7 @@ export function WorkspaceGrid({
   }
 
   // Single/Tabbed mode: show tabs like a browser with one pane visible at a time
+  // IMPORTANT: We render ALL panes but hide inactive ones with CSS to preserve terminal state
   if (preset === 'single' && !isMaximized && visiblePanes.length > 1) {
     const selectedIndex = visiblePanes.findIndex(p => p.id === selectedPaneId);
     const activeIndex = selectedIndex >= 0 ? selectedIndex : 0;
@@ -470,9 +471,41 @@ export function WorkspaceGrid({
           })}
         </div>
 
-        {/* Tab content - show only the selected pane */}
-        <div className="flex-1 min-h-0">
-          {renderPane(activeIndex)}
+        {/* Tab content - render ALL panes but hide inactive ones to preserve terminal state */}
+        <div className="flex-1 min-h-0 relative">
+          {visiblePanes.map((pane, index) => {
+            const isSelected = index === activeIndex;
+            const isDragging = dragState?.paneId === pane.id;
+            const isDropTarget = dragState !== null && dragState.targetPosition === index && !isDragging;
+
+            return (
+              <div
+                key={pane.id}
+                className={`
+                  absolute inset-0
+                  ${isSelected ? 'visible z-10' : 'invisible z-0'}
+                `}
+              >
+                <PaneWrapper
+                  pane={pane}
+                  isActive={pane.id === activePane}
+                  isMaximized={false}
+                  isSingleMode={true}
+                  isDragging={isDragging}
+                  isDropTarget={isDropTarget}
+                  onClose={() => onPaneClose(pane.id)}
+                  onMaximize={() => handleMaximize(pane.id)}
+                  onMinimize={handleMinimize}
+                  onFocus={() => onPaneActivate(pane.id)}
+                  onStatusChange={(status) => onPaneStatusChange(pane.id, status)}
+                  onDragStart={(e) => handleDragStart(e, pane.id)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={handleDrop}
+                  onDragEnd={handleDragEnd}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     );
