@@ -58,44 +58,95 @@ function CustomResizeHandle({
 }) {
   const isHorizontal = orientation === 'horizontal';
   const SwapIcon = isHorizontal ? ArrowLeftRight : ArrowUpDown;
-  // Track if user is dragging (mousemove after mousedown)
-  const isDraggingRef = React.useRef(false);
-  const isMouseDownRef = React.useRef(false);
+  const buttonRef = React.useRef<HTMLDivElement>(null);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    isMouseDownRef.current = true;
+  // Track if user dragged (moved more than threshold after pointerdown)
+  const isDraggingRef = React.useRef(false);
+  const startPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const DRAG_THRESHOLD = 5; // pixels - must move more than this to count as drag
+
+  // Track drag state on the Separator itself (not the button)
+  const handleSeparatorPointerDown = useCallback((e: React.PointerEvent) => {
+    startPosRef.current = { x: e.clientX, y: e.clientY };
     isDraggingRef.current = false;
 
-    const handleMouseMove = () => {
-      if (isMouseDownRef.current) {
-        isDraggingRef.current = true;
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (startPosRef.current) {
+        const dx = moveEvent.clientX - startPosRef.current.x;
+        const dy = moveEvent.clientY - startPosRef.current.y;
+        if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+          isDraggingRef.current = true;
+        }
       }
     };
 
-    const handleMouseUp = () => {
-      isMouseDownRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+    const handlePointerUp = () => {
+      startPosRef.current = null;
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+  }, []);
+
+  // Use global click listener to detect clicks within button bounds
+  // This allows the button to have pointer-events: none (so resize works)
+  // while still detecting clicks for swap functionality
+  React.useEffect(() => {
+    if (!onSwap) return;
+
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (buttonRef.current && !isDraggingRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        if (
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        ) {
+          onSwap();
+        }
+      }
+      isDraggingRef.current = false;
+    };
+
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, [onSwap]);
+
+  // Track hover state via mouse position since button has pointer-events: none
+  // This allows hover effects when mouse is over button edges (outside Separator bounds)
+  React.useEffect(() => {
+    if (!onSwap) return;
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = button.getBoundingClientRect();
+      const isOver =
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom;
+      button.classList.toggle('is-hovered', isOver);
+    };
+
+    const handleMouseLeave = () => {
+      button.classList.remove('is-hovered');
     };
 
     document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
-
-  const handleSwapClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    // Only trigger swap if user didn't drag (just clicked)
-    if (!isDraggingRef.current && onSwap) {
-      onSwap();
-    }
-    isDraggingRef.current = false;
-    isMouseDownRef.current = false;
+    document.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+    };
   }, [onSwap]);
 
   return (
     <Separator
+      onPointerDown={onSwap ? handleSeparatorPointerDown : undefined}
       className={`
         group relative
         flex items-center justify-center
@@ -117,29 +168,32 @@ function CustomResizeHandle({
           `}
         />
       )}
-      {/* Swap button - positioned in center of resize handle */}
+      {/* Swap button - pointer-events: none so all events go to Separator for resize */}
+      {/* Click detection is handled via global click listener checking bounds */}
+      {/* Hover is detected via JS adding .is-hovered class */}
       {onSwap && (
-        <button
-          onMouseDown={handleMouseDown}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={handleSwapClick}
+        <div
+          ref={buttonRef}
           className={`
             absolute z-20
             p-2 rounded-full
             bg-[var(--color-surface)] border border-[var(--color-border)]
             text-[var(--color-text-tertiary)]
-            hover:bg-[var(--color-primary-muted)] hover:text-[var(--color-primary)]
-            hover:border-[var(--color-primary)] hover:scale-110
+            pointer-events-none
             transition-all duration-150
             shadow-md
-            opacity-60 hover:opacity-100
-            cursor-pointer
+            opacity-60
+            [&.is-hovered]:opacity-100
+            [&.is-hovered]:bg-[var(--color-primary-muted)]
+            [&.is-hovered]:text-[var(--color-primary)]
+            [&.is-hovered]:border-[var(--color-primary)]
+            [&.is-hovered]:scale-110
           `}
           title="Swap sections"
           data-testid={swapTestId}
         >
           <SwapIcon className="w-3.5 h-3.5" />
-        </button>
+        </div>
       )}
     </Separator>
   );
