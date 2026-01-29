@@ -94,6 +94,28 @@ function formatSessionDate(timestamp: number | string | undefined): string {
   });
 }
 
+/** Get the first meaningful text content from an event */
+function getEventText(event: StreamEvent): string | undefined {
+  // Check content field first
+  if (event.content?.trim()) {
+    return event.content.trim();
+  }
+  // Check toolInput for tool_use events - might contain the task description
+  if (event.type === 'tool_use' && event.toolInput) {
+    const input = typeof event.toolInput === 'string'
+      ? event.toolInput
+      : JSON.stringify(event.toolInput);
+    if (input.trim()) {
+      return input.trim();
+    }
+  }
+  // Check toolOutput for tool_result events
+  if (event.type === 'tool_result' && event.toolOutput?.trim()) {
+    return event.toolOutput.trim();
+  }
+  return undefined;
+}
+
 /** Extract task name from worktree path, or first meaningful message from transcript */
 function extractSessionName(session: SessionRecord, transcript: StreamEvent[]): string {
   // Try to extract from worktree (format: usually contains task info)
@@ -108,21 +130,21 @@ function extractSessionName(session: SessionRecord, transcript: StreamEvent[]): 
   }
 
   // Try to get the first user message from the transcript
-  const firstUserMessage = transcript.find(e => e.type === 'user' && e.content?.trim());
-  if (firstUserMessage?.content) {
-    const content = firstUserMessage.content.trim();
-    if (content.length > 100) {
-      return content.slice(0, 100) + '...';
+  const firstUserMessage = transcript.find(e => e.type === 'user');
+  const userText = firstUserMessage ? getEventText(firstUserMessage) : undefined;
+  if (userText) {
+    if (userText.length > 100) {
+      return userText.slice(0, 100) + '...';
     }
-    return content;
+    return userText;
   }
 
   // Try to get the first assistant message as fallback (might describe the task)
-  const firstAssistantMessage = transcript.find(e => e.type === 'assistant' && e.content?.trim());
-  if (firstAssistantMessage?.content) {
-    const content = firstAssistantMessage.content.trim();
+  const firstAssistantMessage = transcript.find(e => e.type === 'assistant');
+  const assistantText = firstAssistantMessage ? getEventText(firstAssistantMessage) : undefined;
+  if (assistantText) {
     // Take first line or sentence
-    const firstLine = content.split('\n')[0].split('.')[0];
+    const firstLine = assistantText.split('\n')[0].split('.')[0];
     if (firstLine.length > 100) {
       return firstLine.slice(0, 100) + '...';
     }
@@ -131,16 +153,18 @@ function extractSessionName(session: SessionRecord, transcript: StreamEvent[]): 
     }
   }
 
-  // Try any event with content as a last resort before falling back to date
-  const anyWithContent = transcript.find(e => e.content?.trim() && e.type !== 'system' && e.type !== 'error');
-  if (anyWithContent?.content) {
-    const content = anyWithContent.content.trim();
-    const firstLine = content.split('\n')[0];
-    if (firstLine.length > 100) {
-      return firstLine.slice(0, 100) + '...';
-    }
-    if (firstLine.length > 0) {
-      return firstLine;
+  // Try any event with meaningful text as a last resort
+  for (const event of transcript) {
+    if (event.type === 'system' || event.type === 'error') continue;
+    const text = getEventText(event);
+    if (text) {
+      const firstLine = text.split('\n')[0];
+      if (firstLine.length > 100) {
+        return firstLine.slice(0, 100) + '...';
+      }
+      if (firstLine.length > 0) {
+        return firstLine;
+      }
     }
   }
 
