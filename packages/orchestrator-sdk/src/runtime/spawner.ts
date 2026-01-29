@@ -1103,14 +1103,41 @@ export class SpawnerServiceImpl implements SpawnerService {
 
   private parseAndEmitEvent(session: InternalSession, line: string): void {
     try {
-      const rawEvent = JSON.parse(line) as StreamJsonEvent;
+      // Parse as unknown first to handle dynamic content structures
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      const rawEvent = parsed as StreamJsonEvent;
+
+      // Extract string content from potentially complex structures
+      // Claude CLI can output content as string, array of content blocks, or nested objects
+      let message: string | undefined;
+      const rawContent = parsed.message ?? parsed.content;
+
+      if (typeof rawContent === 'string') {
+        message = rawContent;
+      } else if (Array.isArray(rawContent)) {
+        // Handle Claude API content array: [{type: "text", text: "..."}]
+        message = rawContent
+          .filter((item): item is { type: string; text: string } =>
+            typeof item === 'object' && item !== null && 'type' in item && item.type === 'text' && 'text' in item && typeof item.text === 'string'
+          )
+          .map((item) => item.text)
+          .join('\n') || undefined;
+      } else if (typeof rawContent === 'object' && rawContent !== null) {
+        const contentObj = rawContent as Record<string, unknown>;
+        // Handle object with content or text field
+        if ('content' in contentObj && typeof contentObj.content === 'string') {
+          message = contentObj.content;
+        } else if ('text' in contentObj && typeof contentObj.text === 'string') {
+          message = contentObj.text;
+        }
+      }
 
       const event: SpawnedSessionEvent = {
         type: rawEvent.type as StreamJsonEventType,
         subtype: rawEvent.subtype,
         receivedAt: createTimestamp(),
         raw: rawEvent,
-        message: rawEvent.message ?? rawEvent.content,
+        message,
         tool: rawEvent.tool
           ? {
               name: rawEvent.tool,

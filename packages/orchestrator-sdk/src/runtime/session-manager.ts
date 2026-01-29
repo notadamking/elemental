@@ -724,7 +724,9 @@ export class SessionManagerImpl implements SessionManager {
       return undefined;
     }
     const session = this.sessions.get(sessionId);
-    if (!session || session.status !== 'running') {
+    // Allow both 'starting' and 'running' status - 'starting' is needed for SSE
+    // connections that happen before the Claude CLI emits its init event
+    if (!session || (session.status !== 'running' && session.status !== 'starting')) {
       return undefined;
     }
     return this.toPublicSession(session);

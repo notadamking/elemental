@@ -1574,7 +1574,9 @@ app.get('/api/agents/:id/stream', async (c) => {
     return c.json({ error: { code: 'NO_SESSION', message: 'Agent has no active session' } }, 404);
   }
 
-  const events = spawnerService.getEventEmitter(activeSession.id);
+  // Use sessionManager's event emitter, not spawnerService's
+  // The sessionManager creates its own EventEmitter and forwards events from the spawner
+  const events = sessionManager.getEventEmitter(activeSession.id);
   if (!events) {
     return c.json({ error: { code: 'NO_EVENTS', message: 'Session event emitter not available' } }, 404);
   }
@@ -1582,16 +1584,17 @@ app.get('/api/agents/:id/stream', async (c) => {
   return streamSSE(c, async (stream) => {
     let eventId = 0;
 
-    // Send initial connection event
-    await stream.writeSSE({
-      id: String(++eventId),
-      event: 'connected',
-      data: JSON.stringify({
-        sessionId: activeSession.id,
-        agentId,
-        timestamp: createTimestamp(),
-      }),
-    });
+    try {
+      // Send initial connection event
+      await stream.writeSSE({
+        id: String(++eventId),
+        event: 'connected',
+        data: JSON.stringify({
+          sessionId: activeSession.id,
+          agentId,
+          timestamp: createTimestamp(),
+        }),
+      });
 
     // Set up event handlers
     const onEvent = async (event: SpawnedSessionEvent) => {
@@ -1646,6 +1649,9 @@ app.get('/api/agents/:id/stream', async (c) => {
 
     // Keep the stream open until client disconnects
     await new Promise(() => {});
+    } catch (error) {
+      console.error(`[orchestrator] SSE: Error in stream callback:`, error);
+    }
   });
 });
 
@@ -3057,10 +3063,9 @@ if (isBun) {
   console.log(`[orchestrator] Server running at http://${HOST}:${PORT} (Bun)`);
   console.log(`[orchestrator] WebSocket available at ws://${HOST}:${PORT}/ws`);
 } else {
-  // Node.js runtime - use @hono/node-server + ws
-  import('@hono/node-server').then(({ serve }) => {
-    import('ws').then(({ WebSocketServer }) => {
-      import('http').then(({ createServer }) => {
+  // Node.js runtime - use custom http server + ws (for streaming support)
+  import('ws').then(({ WebSocketServer }) => {
+    import('http').then(({ createServer }) => {
         // Create HTTP server from Hono
         const httpServer = createServer(async (req, res) => {
           // Handle non-WebSocket requests through Hono
@@ -3090,8 +3095,29 @@ if (isBun) {
           response.headers.forEach((value, key) => {
             res.setHeader(key, value);
           });
-          const responseBody = await response.text();
-          res.end(responseBody);
+
+          // Handle streaming responses (SSE) vs regular responses
+          if (response.body) {
+            const reader = response.body.getReader();
+            const pump = async (): Promise<void> => {
+              try {
+                const { done, value } = await reader.read();
+                if (done) {
+                  res.end();
+                  return;
+                }
+                res.write(value);
+                return pump();
+              } catch {
+                // Client disconnected or stream error
+                res.end();
+              }
+            };
+            await pump();
+          } else {
+            const responseBody = await response.text();
+            res.end(responseBody);
+          }
         });
 
         // Create WebSocket server on same HTTP server
@@ -3139,5 +3165,4 @@ if (isBun) {
         });
       });
     });
-  });
 }

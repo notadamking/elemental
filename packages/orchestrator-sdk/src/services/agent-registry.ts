@@ -506,8 +506,8 @@ export class AgentRegistryImpl implements AgentRegistry {
       updateData.name = updates.name;
     }
 
-    // Cast EntityId to ElementId for update
-    const updated = await this.api.update(entityId as unknown as ElementId, updateData);
+    // Cast EntityId to ElementId for update, explicitly type as Entity
+    const updated = await this.api.update<Entity>(entityId as unknown as ElementId, updateData as Partial<Entity>);
 
     return updated as AgentEntity;
   }

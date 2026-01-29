@@ -231,12 +231,60 @@ export function StreamViewer({
     const connect = () => {
       updateStatus('connecting');
 
-      const eventSource = new EventSource(`${DEFAULT_SSE_URL}/${agentId}/stream`);
+      const sseUrl = `${DEFAULT_SSE_URL}/${agentId}/stream`;
+      console.log('[StreamViewer] Connecting to SSE:', sseUrl);
+
+      const eventSource = new EventSource(sseUrl);
       eventSourceRef.current = eventSource;
 
+      // Log readyState changes
+      const logReadyState = () => {
+        const states = ['CONNECTING', 'OPEN', 'CLOSED'];
+        console.log('[StreamViewer] ReadyState:', states[eventSource.readyState] || eventSource.readyState);
+      };
+
       eventSource.onopen = () => {
+        console.log('[StreamViewer] Connection opened');
+        logReadyState();
         reconnectAttempts.current = 0;
         updateStatus('connected');
+      };
+
+      // Extract string content from potentially nested structures
+      const extractStringContent = (value: unknown): string | undefined => {
+        if (value === null || value === undefined) {
+          return undefined;
+        }
+        if (typeof value === 'string') {
+          return value;
+        }
+        // Handle Claude API content array: [{type: "text", text: "..."}]
+        if (Array.isArray(value)) {
+          const texts = value
+            .filter((item): item is { type: string; text?: string } =>
+              typeof item === 'object' && item !== null && item.type === 'text' && typeof item.text === 'string'
+            )
+            .map((item) => item.text);
+          return texts.length > 0 ? texts.join('\n') : undefined;
+        }
+        // Handle full Claude message object with content field
+        if (typeof value === 'object' && 'content' in value) {
+          return extractStringContent((value as { content: unknown }).content);
+        }
+        // Handle object with text field
+        if (typeof value === 'object' && 'text' in value && typeof (value as { text: unknown }).text === 'string') {
+          return (value as { text: string }).text;
+        }
+        // Fallback: stringify objects for debugging, but truncate
+        if (typeof value === 'object') {
+          try {
+            const json = JSON.stringify(value, null, 2);
+            return json.length > 500 ? json.slice(0, 500) + '...' : json;
+          } catch {
+            return '[Object]';
+          }
+        }
+        return String(value);
       };
 
       // Handler for agent events
@@ -248,11 +296,15 @@ export function StreamViewer({
           const eventData = data.event || data;
           const eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
 
+          // Extract content, ensuring we always get a string
+          const rawContent = eventData.message || eventData.content || eventData.data?.content;
+          const content = extractStringContent(rawContent);
+
           const newEvent: StreamEvent = {
             id: e.lastEventId || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: eventType,
             timestamp: Date.now(),
-            content: eventData.message || eventData.content || eventData.data?.content,
+            content,
             toolName: eventData.tool?.name || eventData.data?.name || eventData.toolName,
             toolInput: eventData.tool?.input || eventData.data?.input || eventData.toolInput,
             toolOutput: eventData.output || eventData.data?.output,
@@ -267,12 +319,12 @@ export function StreamViewer({
 
       // Listen for named SSE events from the server
       // The server sends: connected, heartbeat, agent_assistant, agent_tool_use, agent_tool_result, agent_error, agent_exit
-      eventSource.addEventListener('connected', () => {
-        // Connection confirmed by server
+      eventSource.addEventListener('connected', (e) => {
+        console.log('[StreamViewer] Received "connected" event:', e);
       });
 
       eventSource.addEventListener('heartbeat', () => {
-        // Heartbeat received, connection is alive
+        console.log('[StreamViewer] Received heartbeat');
       });
 
       eventSource.addEventListener('agent_system', handleAgentEvent);
@@ -315,7 +367,10 @@ export function StreamViewer({
         }
       };
 
-      eventSource.onerror = () => {
+      eventSource.onerror = (err) => {
+        console.log('[StreamViewer] SSE error:', err);
+        console.log('[StreamViewer] ReadyState on error:', eventSource.readyState);
+
         // Don't attempt to reconnect if we're intentionally closing
         if (isIntentionalCloseRef.current) {
           isIntentionalCloseRef.current = false;
@@ -328,7 +383,10 @@ export function StreamViewer({
         if (reconnectAttempts.current < maxReconnectAttempts) {
           reconnectAttempts.current++;
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          console.log(`[StreamViewer] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current}/${maxReconnectAttempts})`);
           setTimeout(connect, delay);
+        } else {
+          console.log('[StreamViewer] Max reconnect attempts reached');
         }
       };
     };
