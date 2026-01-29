@@ -35,8 +35,12 @@ export function getSessionTranscript(sessionId: string): StreamEvent[] {
   return [];
 }
 
-/** Save transcript to localStorage */
+/** Save transcript to localStorage (only if there are events) */
 export function saveSessionTranscript(sessionId: string, events: StreamEvent[]): void {
+  // Don't save empty transcripts
+  if (events.length === 0) {
+    return;
+  }
   try {
     localStorage.setItem(`${SESSION_STORAGE_PREFIX}${sessionId}`, JSON.stringify(events));
     cleanupOldTranscripts();
@@ -90,33 +94,45 @@ function formatSessionDate(timestamp: number | string | undefined): string {
   });
 }
 
-/** Extract task name from worktree path or session info */
-function extractSessionName(session: SessionRecord): string {
+/** Extract task name from worktree path, or first user message from transcript */
+function extractSessionName(session: SessionRecord, transcript: StreamEvent[]): string {
   // Try to extract from worktree (format: usually contains task info)
   if (session.worktree) {
     // Extract the last part of the worktree path
     const parts = session.worktree.split('/');
     const worktreeName = parts[parts.length - 1];
     // Clean up common prefixes
-    if (worktreeName) {
-      return worktreeName.replace(/^worktree-/, '').replace(/-/g, ' ');
+    if (worktreeName && !worktreeName.startsWith('worktree-')) {
+      return worktreeName.replace(/-/g, ' ');
     }
   }
 
-  // Fallback to session ID truncated
-  return `Session ${session.id.slice(0, 8)}`;
+  // Try to get the first user message from the transcript
+  const firstUserMessage = transcript.find(e => e.type === 'user' && e.content);
+  if (firstUserMessage?.content) {
+    // Truncate to reasonable length for display
+    const content = firstUserMessage.content.trim();
+    if (content.length > 100) {
+      return content.slice(0, 100) + '...';
+    }
+    return content;
+  }
+
+  // Last fallback to formatted date
+  const date = new Date(session.startedAt || session.createdAt);
+  return `Session from ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
 }
 
 interface SessionItemProps {
   session: SessionRecord;
+  transcript: StreamEvent[];
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
-  hasTranscript: boolean;
 }
 
-function SessionItem({ session, isSelected, onClick, onDelete, hasTranscript }: SessionItemProps) {
-  const sessionName = extractSessionName(session);
+function SessionItem({ session, transcript, isSelected, onClick, onDelete }: SessionItemProps) {
+  const sessionName = extractSessionName(session, transcript);
   const formattedDate = formatSessionDate(session.startedAt || session.createdAt);
 
   return (
@@ -142,25 +158,20 @@ function SessionItem({ session, isSelected, onClick, onDelete, hasTranscript }: 
         <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
           <Clock className="w-3 h-3" />
           <span>{formattedDate}</span>
-          {!hasTranscript && (
-            <span className="text-[var(--color-text-tertiary)]">(no transcript)</span>
-          )}
         </div>
       </div>
 
       <div className="flex items-center gap-1">
-        {hasTranscript && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-            title="Delete transcript"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+          title="Delete transcript"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
         <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'}`} />
       </div>
     </div>
@@ -246,12 +257,15 @@ export function SessionHistoryModal({
         cache[session.id] = getSessionTranscript(session.id);
       });
       setTranscriptCache(cache);
-
-      // Select first session with transcript by default
-      const firstWithTranscript = sessions.find(s => cache[s.id]?.length > 0);
-      setSelectedSessionId(firstWithTranscript?.id || sessions[0]?.id || null);
+      // Don't auto-select a session - start with full-width list
+      setSelectedSessionId(null);
     }
   }, [isOpen, sessions]);
+
+  // Filter to only sessions with transcripts
+  const sessionsWithTranscripts = useMemo(() => {
+    return sessions.filter(s => (transcriptCache[s.id]?.length || 0) > 0);
+  }, [sessions, transcriptCache]);
 
   const selectedTranscript = useMemo(() => {
     if (!selectedSessionId) return [];
@@ -264,9 +278,15 @@ export function SessionHistoryModal({
       ...prev,
       [sessionId]: []
     }));
+    // If we deleted the selected session, deselect it
+    if (sessionId === selectedSessionId) {
+      setSelectedSessionId(null);
+    }
   };
 
   if (!isOpen) return null;
+
+  const hasSelectedSession = selectedSessionId !== null;
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center p-4" data-testid="session-history-modal">
@@ -300,7 +320,7 @@ export function SessionHistoryModal({
 
         {/* Content */}
         <div className="flex-1 flex min-h-0">
-          {sessions.length === 0 ? (
+          {sessionsWithTranscripts.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-[var(--color-text-muted)] p-6">
               <History className="w-12 h-12 mb-3 opacity-50" />
               <p className="text-sm">No session history available</p>
@@ -308,24 +328,26 @@ export function SessionHistoryModal({
             </div>
           ) : (
             <>
-              {/* Session list */}
-              <div className="w-64 border-r border-[var(--color-border)] overflow-y-auto p-2 flex-shrink-0">
-                {sessions.map(session => (
+              {/* Session list - full width when no session selected */}
+              <div className={`${hasSelectedSession ? 'w-72 border-r border-[var(--color-border)]' : 'flex-1'} overflow-y-auto p-2 flex-shrink-0`}>
+                {sessionsWithTranscripts.map(session => (
                   <SessionItem
                     key={session.id}
                     session={session}
+                    transcript={transcriptCache[session.id] || []}
                     isSelected={session.id === selectedSessionId}
                     onClick={() => setSelectedSessionId(session.id)}
                     onDelete={() => handleDeleteTranscript(session.id)}
-                    hasTranscript={(transcriptCache[session.id]?.length || 0) > 0}
                   />
                 ))}
               </div>
 
-              {/* Transcript viewer */}
-              <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)]">
-                <TranscriptViewer events={selectedTranscript} />
-              </div>
+              {/* Transcript viewer - only shown when a session is selected */}
+              {hasSelectedSession && (
+                <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)]">
+                  <TranscriptViewer events={selectedTranscript} />
+                </div>
+              )}
             </>
           )}
         </div>
