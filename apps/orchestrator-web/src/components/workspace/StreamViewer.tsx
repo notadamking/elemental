@@ -376,11 +376,15 @@ export function StreamViewer({
               (eventType === 'tool_result' && typeof eventData.raw?.content === 'string' ? eventData.raw?.content : undefined);
           }
 
+          // For tool_result events, don't duplicate content in both content and toolOutput
+          // The output should only appear in the toolOutput section
+          const finalContent = (eventType === 'tool_result' && toolOutput) ? undefined : content;
+
           const newEvent: StreamEvent = {
             id: e.lastEventId || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: eventType,
             timestamp: Date.now(),
-            content,
+            content: finalContent,
             toolName,
             toolInput,
             toolOutput,
