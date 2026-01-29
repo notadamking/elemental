@@ -237,6 +237,8 @@ function PaneWrapper({
   onDragEnd: () => void;
   paneRef?: React.RefObject<WorkspacePaneHandle | null>;
 }) {
+  const canDrag = !isMaximized && !isSingleMode;
+
   return (
     <div
       className={`
@@ -244,11 +246,8 @@ function PaneWrapper({
         ${isDragging ? 'opacity-50 scale-95' : ''}
         transition-all duration-150
       `}
-      draggable={!isMaximized && !isSingleMode}
-      onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      onDragEnd={onDragEnd}
     >
       {/* Drop target overlay */}
       {isDropTarget && (
@@ -264,11 +263,16 @@ function PaneWrapper({
         isActive={isActive}
         isMaximized={isMaximized}
         isSingleMode={isSingleMode}
+        draggable={canDrag}
         onClose={onClose}
         onMaximize={onMaximize}
         onMinimize={onMinimize}
         onFocus={onFocus}
         onStatusChange={onStatusChange}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
       />
     </div>
   );

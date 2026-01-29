@@ -21,11 +21,18 @@ export interface WorkspacePaneProps {
   isMaximized: boolean;
   /** Whether the pane is in Single (tabbed) mode */
   isSingleMode?: boolean;
+  /** Whether dragging is enabled for this pane */
+  draggable?: boolean;
   onClose: () => void;
   onMaximize: () => void;
   onMinimize: () => void;
   onFocus: () => void;
   onStatusChange: (status: PaneStatus) => void;
+  /** Drag event handlers - applied to header only */
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
 }
 
 /** Methods exposed via ref */
@@ -62,11 +69,16 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   isActive,
   isMaximized,
   isSingleMode = false,
+  draggable = false,
   onClose,
   onMaximize,
   onMinimize,
   onFocus,
   onStatusChange,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }, ref) {
   const [showMenu, setShowMenu] = useState(false);
   const [showTextbox, setShowTextbox] = useState(false);
@@ -180,13 +192,18 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
     >
       {/* Pane Header */}
       <div
-        className="
+        className={`
           flex items-center justify-between
           px-3 py-2
           border-b border-[var(--color-border)]
           bg-[var(--color-surface)]
-          cursor-grab active:cursor-grabbing
-        "
+          ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}
+        `}
+        draggable={draggable}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
         data-testid="pane-header"
       >
         {/* Left: Agent info */}
