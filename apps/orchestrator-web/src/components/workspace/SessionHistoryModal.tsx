@@ -182,8 +182,25 @@ interface SessionItemProps {
 }
 
 function SessionItem({ session, transcript, isSelected, onClick, onDelete }: SessionItemProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const sessionName = extractSessionName(session, transcript);
   const formattedDate = formatSessionDate(session.startedAt || session.createdAt);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete();
+    setShowDeleteConfirm(false);
+  };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(false);
+  };
 
   return (
     <div
@@ -212,17 +229,33 @@ function SessionItem({ session, transcript, isSelected, onClick, onDelete }: Ses
       </div>
 
       <div className="flex items-center gap-1">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-          title="Delete transcript"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-        <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'}`} />
+        {showDeleteConfirm ? (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={handleConfirmDelete}
+              className="px-2 py-0.5 text-xs rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
+            >
+              Delete
+            </button>
+            <button
+              onClick={handleCancelDelete}
+              className="px-2 py-0.5 text-xs rounded bg-[var(--color-surface-hover)] text-[var(--color-text-muted)] hover:bg-[var(--color-border)] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={handleDeleteClick}
+              className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+              title="Delete transcript"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+            <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'}`} />
+          </>
+        )}
       </div>
     </div>
   );

@@ -171,6 +171,10 @@ let stewardScheduler: StewardScheduler;
 let pluginExecutor: PluginExecutor;
 let storageBackend: ReturnType<typeof createStorage>;
 
+// Map to store initial prompts for sessions (keyed by session ID)
+// This allows SSE clients to receive the initial prompt when they connect
+const sessionInitialPrompts = new Map<string, string>();
+
 try {
   storageBackend = createStorage({ path: DB_PATH });
   initializeSchema(storageBackend);
@@ -190,6 +194,9 @@ try {
     claudePath,
   });
   sessionManager = createSessionManager(spawnerService, api, agentRegistry);
+
+  // Map to store initial prompts for sessions (so they can be sent via SSE when clients connect)
+  sessionInitialPrompts.clear();
   taskAssignmentService = createTaskAssignmentService(api);
   dispatchService = createDispatchService(api, taskAssignmentService, agentRegistry);
   roleDefinitionService = createRoleDefinitionService(api);
@@ -1408,6 +1415,11 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       interactive: body.interactive,
     });
 
+    // Store initial prompt so SSE clients can receive it when they connect
+    if (effectivePrompt) {
+      sessionInitialPrompts.set(session.id, effectivePrompt);
+    }
+
     // Notify all WebSocket clients subscribed to this agent about the new session
     // This allows them to send input to the session
     notifyClientsOfNewSession(agentId, session, events);
@@ -1595,6 +1607,23 @@ app.get('/api/agents/:id/stream', async (c) => {
           timestamp: createTimestamp(),
         }),
       });
+
+      // Send the initial prompt as a user event if it exists
+      // This ensures the StreamViewer captures the initial message that started the session
+      const initialPrompt = sessionInitialPrompts.get(activeSession.id);
+      if (initialPrompt) {
+        await stream.writeSSE({
+          id: String(++eventId),
+          event: 'agent_user',
+          data: JSON.stringify({
+            type: 'user',
+            message: initialPrompt,
+            raw: { type: 'user', content: initialPrompt },
+          }),
+        });
+        // Remove from map after sending (only send once per session)
+        sessionInitialPrompts.delete(activeSession.id);
+      }
 
     // Set up event handlers
     const onEvent = async (event: SpawnedSessionEvent) => {
