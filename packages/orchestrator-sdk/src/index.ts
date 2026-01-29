@@ -29,3 +29,6 @@ export * from './runtime/index.js';
 
 // Re-export git utilities (stubs for now)
 export * from './git/index.js';
+
+// Re-export prompt loading utilities
+export * from './prompts/index.js';

@@ -216,6 +216,96 @@ Role definitions are stored as two Documents:
    - ContentType: `json`
    - Metadata includes the definition for quick access
 
+## Built-in Role Prompts
+
+The orchestrator SDK includes built-in role definition prompts that teach agents their responsibilities, workflows, and CLI commands.
+
+### File Locations
+
+```
+packages/orchestrator-sdk/src/prompts/
+├── director.md        # Director role definition
+├── worker.md          # Worker role definition
+├── steward-base.md    # Base steward prompt
+├── steward-merge.md   # Merge focus addendum
+├── steward-health.md  # Health focus addendum
+├── steward-ops.md     # Ops focus addendum
+└── steward-reminder.md # Reminder focus addendum
+```
+
+### Loading Built-in Prompts
+
+```typescript
+import {
+  loadRolePrompt,
+  loadBuiltInPrompt,
+  buildAgentPrompt,
+} from '@elemental/orchestrator-sdk';
+
+// Load a role prompt (checks for project overrides first)
+const result = loadRolePrompt('worker', undefined, { projectRoot: '/my/project' });
+console.log(result?.prompt);  // The prompt content
+console.log(result?.source);  // 'built-in' or path to override file
+
+// Load built-in only (skip project overrides)
+const builtIn = loadBuiltInPrompt('director');
+
+// For stewards, specify the focus
+const mergePrompt = loadRolePrompt('steward', 'merge');
+// Returns: steward-base.md + steward-merge.md combined
+
+// Build a complete agent prompt with task context
+const fullPrompt = buildAgentPrompt({
+  role: 'worker',
+  taskContext: 'Implement user login form with email/password validation.',
+  projectRoot: '/my/project',
+});
+```
+
+### Project-Level Overrides
+
+You can override built-in prompts by placing files in `.elemental/prompts/`:
+
+```
+my-project/
+├── .elemental/
+│   └── prompts/
+│       ├── worker.md           # Custom worker prompt
+│       └── steward-merge.md    # Custom merge steward prompt
+└── src/
+```
+
+The loader checks for project overrides first, then falls back to built-in prompts.
+
+### Prompt Structure
+
+Built-in prompts follow a consistent structure:
+
+1. **Identity**: Who the agent is, what they own, who they report to
+2. **System Overview**: Brief table of all roles
+3. **Core Workflows**: Step-by-step guides for key operations
+4. **Judgment Scenarios**: Concrete examples of decision-making
+5. **CLI Quick Reference**: Essential commands
+
+### Integration with Spawner
+
+When spawning an agent, use `buildAgentPrompt` to compose the initial prompt:
+
+```typescript
+import { buildAgentPrompt } from '@elemental/orchestrator-sdk';
+
+const prompt = buildAgentPrompt({
+  role: 'worker',
+  taskContext: taskDescription,
+  projectRoot: workspace,
+});
+
+const result = await spawner.spawn(agentId, 'worker', {
+  initialPrompt: prompt,
+  workingDirectory: worktreePath,
+});
+```
+
 ## Best Practices
 
 1. **Version your prompts**: Since system prompts are stored as Documents, they support versioning. Update the prompt to create a new version.
@@ -227,3 +317,7 @@ Role definitions are stored as two Documents:
 4. **Default definitions**: Create default definitions for each role type that can be used as templates.
 
 5. **Capability alignment**: Ensure the capabilities in the role definition match what the agent should actually be able to do.
+
+6. **Use built-in prompts**: Start with the built-in role prompts and customize via project overrides if needed.
+
+7. **Keep prompts concise**: Built-in prompts are designed to be additive to Claude Code's system prompt. They focus on role-specific guidance, not general instructions.
