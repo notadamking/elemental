@@ -94,11 +94,34 @@ function formatSessionDate(timestamp: number | string | undefined): string {
   });
 }
 
+/** Extract task title from a prompt that contains task assignment text */
+function extractTaskTitle(text: string): string | null {
+  // Look for "**Title**: {title}" pattern in the prompt
+  const titleMatch = text.match(/\*\*Title\*\*:\s*(.+?)(?:\n|$)/);
+  if (titleMatch?.[1]) {
+    return titleMatch[1].trim();
+  }
+  // Also try without markdown: "Title: {title}"
+  const plainTitleMatch = text.match(/Title:\s*(.+?)(?:\n|$)/);
+  if (plainTitleMatch?.[1]) {
+    return plainTitleMatch[1].trim();
+  }
+  return null;
+}
+
 /** Get the first meaningful text content from an event */
 function getEventText(event: StreamEvent): string | undefined {
   // Check content field first
   if (event.content?.trim()) {
-    return event.content.trim();
+    const content = event.content.trim();
+    // If this looks like a task assignment prompt, extract just the title
+    if (content.includes('You have been assigned the following task')) {
+      const title = extractTaskTitle(content);
+      if (title) {
+        return title;
+      }
+    }
+    return content;
   }
   // Check toolInput for tool_use events - might contain the task description
   if (event.type === 'tool_use' && event.toolInput) {
