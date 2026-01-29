@@ -94,28 +94,39 @@ function formatSessionDate(timestamp: number | string | undefined): string {
   });
 }
 
-/** Extract task name from worktree path, or first user message from transcript */
+/** Extract task name from worktree path, or first meaningful message from transcript */
 function extractSessionName(session: SessionRecord, transcript: StreamEvent[]): string {
   // Try to extract from worktree (format: usually contains task info)
   if (session.worktree) {
     // Extract the last part of the worktree path
     const parts = session.worktree.split('/');
     const worktreeName = parts[parts.length - 1];
-    // Clean up common prefixes
+    // Clean up common prefixes - only use if it's not a generic worktree name
     if (worktreeName && !worktreeName.startsWith('worktree-')) {
       return worktreeName.replace(/-/g, ' ');
     }
   }
 
   // Try to get the first user message from the transcript
-  const firstUserMessage = transcript.find(e => e.type === 'user' && e.content);
+  const firstUserMessage = transcript.find(e => e.type === 'user' && e.content?.trim());
   if (firstUserMessage?.content) {
-    // Truncate to reasonable length for display
     const content = firstUserMessage.content.trim();
     if (content.length > 100) {
       return content.slice(0, 100) + '...';
     }
     return content;
+  }
+
+  // Try to get the first assistant message as fallback (might describe the task)
+  const firstAssistantMessage = transcript.find(e => e.type === 'assistant' && e.content?.trim());
+  if (firstAssistantMessage?.content) {
+    const content = firstAssistantMessage.content.trim();
+    // Take first line or sentence
+    const firstLine = content.split('\n')[0].split('.')[0];
+    if (firstLine.length > 100) {
+      return firstLine.slice(0, 100) + '...';
+    }
+    return firstLine;
   }
 
   // Last fallback to formatted date
@@ -344,8 +355,26 @@ export function SessionHistoryModal({
 
               {/* Transcript viewer - only shown when a session is selected */}
               {hasSelectedSession && (
-                <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)]">
-                  <TranscriptViewer events={selectedTranscript} />
+                <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)] flex flex-col">
+                  {/* Transcript header with close button */}
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+                    <span className="text-sm font-medium text-[var(--color-text)] truncate">
+                      {extractSessionName(
+                        sessionsWithTranscripts.find(s => s.id === selectedSessionId)!,
+                        selectedTranscript
+                      )}
+                    </span>
+                    <button
+                      onClick={() => setSelectedSessionId(null)}
+                      className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors flex-shrink-0"
+                      title="Close transcript"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <TranscriptViewer events={selectedTranscript} />
+                  </div>
                 </div>
               )}
             </>
