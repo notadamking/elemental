@@ -60,6 +60,7 @@
     "claude"
   ],
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.23",
     "@elemental/core": "workspace:*",
     "@elemental/sdk": "workspace:*",
     "@elemental/storage": "workspace:*",

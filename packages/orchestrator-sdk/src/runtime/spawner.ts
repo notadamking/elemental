@@ -22,6 +22,68 @@ import { createTimestamp } from '@elemental/core';
 import type { AgentRole, WorkerMode } from '../types/agent.js';
 import * as pty from 'node-pty';
 import type { IPty } from 'node-pty';
+import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Query as SDKQuery, SDKMessage, SDKUserMessage, Options as SDKOptions } from '@anthropic-ai/claude-agent-sdk';
+
+/**
+ * Message queue for SDK streaming input mode.
+ * Allows pushing messages that will be sent to the SDK query.
+ */
+class SDKInputQueue implements AsyncIterable<SDKUserMessage> {
+  private queue: SDKUserMessage[] = [];
+  private waitingResolve: ((result: IteratorResult<SDKUserMessage>) => void) | null = null;
+  private closed = false;
+  private sessionId = '';
+
+  setSessionId(id: string): void {
+    this.sessionId = id;
+  }
+
+  push(content: string): void {
+    if (this.closed) return;
+
+    const message: SDKUserMessage = {
+      type: 'user',
+      message: {
+        role: 'user',
+        content: content,
+      },
+      parent_tool_use_id: null,
+      session_id: this.sessionId,
+    };
+
+    if (this.waitingResolve) {
+      this.waitingResolve({ value: message, done: false });
+      this.waitingResolve = null;
+    } else {
+      this.queue.push(message);
+    }
+  }
+
+  close(): void {
+    this.closed = true;
+    if (this.waitingResolve) {
+      this.waitingResolve({ value: undefined as unknown as SDKUserMessage, done: true });
+      this.waitingResolve = null;
+    }
+  }
+
+  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
+    return {
+      next: (): Promise<IteratorResult<SDKUserMessage>> => {
+        if (this.queue.length > 0) {
+          return Promise.resolve({ value: this.queue.shift()!, done: false });
+        }
+        if (this.closed) {
+          return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true });
+        }
+        return new Promise((resolve) => {
+          this.waitingResolve = resolve;
+        });
+      },
+    };
+  }
+}
 
 // ============================================================================
 // Types
@@ -177,10 +239,14 @@ export interface SpawnedSession {
  * Internal session state tracking
  */
 interface InternalSession extends SpawnedSession {
-  /** Child process handle (for headless mode) */
+  /** Child process handle (for headless mode - legacy) */
   process?: ChildProcess;
   /** PTY handle (for interactive mode) */
   pty?: IPty;
+  /** SDK Query handle (for headless mode with Agent SDK) */
+  sdkQuery?: SDKQuery;
+  /** SDK input queue for sending follow-up messages */
+  sdkInputQueue?: SDKInputQueue;
   /** Event emitter for session events */
   events: EventEmitter;
   /** Buffer for incomplete JSON lines */
@@ -570,7 +636,12 @@ export class SpawnerServiceImpl implements SpawnerService {
       }
     }
 
-    // Handle headless process sessions
+    // Handle SDK-based headless sessions
+    if (session.sdkInputQueue) {
+      session.sdkInputQueue.close();
+    }
+
+    // Handle headless process sessions (legacy)
     if (session.process) {
       if (graceful) {
         // Try graceful shutdown first
@@ -638,8 +709,12 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error(`Cannot interrupt session in status: ${session.status}`);
     }
 
-    // For headless sessions, send SIGINT to interrupt current operation
-    if (session.process) {
+    // For SDK-based headless sessions, use the SDK's interrupt method
+    if (session.sdkQuery) {
+      await session.sdkQuery.interrupt();
+    }
+    // For legacy process-based headless sessions, send SIGINT
+    else if (session.process) {
       session.process.kill('SIGINT');
     }
 
@@ -690,7 +765,7 @@ export class SpawnerServiceImpl implements SpawnerService {
   // Headless Agent Communication
   // ----------------------------------------
 
-  async sendInput(sessionId: string, input: string, options?: SendInputOptions): Promise<void> {
+  async sendInput(sessionId: string, input: string, _options?: SendInputOptions): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session not found: ${sessionId}`);
@@ -704,6 +779,14 @@ export class SpawnerServiceImpl implements SpawnerService {
       throw new Error(`Cannot send input to session in status: ${session.status}`);
     }
 
+    // For SDK-based sessions, use the input queue
+    if (session.sdkInputQueue) {
+      session.sdkInputQueue.push(input);
+      session.lastActivityAt = createTimestamp();
+      return;
+    }
+
+    // For legacy process-based sessions, write to stdin
     if (!session.process?.stdin?.writable) {
       throw new Error('Session stdin is not writable');
     }
@@ -850,71 +933,158 @@ export class SpawnerServiceImpl implements SpawnerService {
   // ----------------------------------------
 
   private async spawnHeadless(session: InternalSession, options?: SpawnOptions): Promise<void> {
-    const args = this.buildHeadlessArgs(options);
+    const initialPrompt = options?.initialPrompt ?? 'You are an AI agent. Await further instructions.';
     const env = this.buildEnvironment(session, options);
 
-    let childProcess;
+    // Create input queue for streaming input mode (enables interrupt support)
+    const inputQueue = new SDKInputQueue();
+    session.sdkInputQueue = inputQueue;
+
     try {
-      childProcess = spawn(this.defaultConfig.claudePath!, args, {
+      // Build SDK options
+      const sdkOptions: SDKOptions = {
         cwd: session.workingDirectory,
-        env,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        env: env as Record<string, string>,
+        permissionMode: 'bypassPermissions',
+        allowDangerouslySkipPermissions: true,
+      };
+
+      // Resume if we have a session ID
+      if (options?.resumeSessionId) {
+        sdkOptions.resume = options.resumeSessionId;
+      }
+
+      // Create the SDK query with streaming input (enables interrupt support)
+      const queryResult = sdkQuery({
+        prompt: inputQueue,
+        options: sdkOptions,
       });
+
+      session.sdkQuery = queryResult;
+
+      // Process SDK messages in the background
+      this.processSDKMessages(session, queryResult);
+
+      // Push the initial prompt to start the conversation
+      inputQueue.push(initialPrompt);
+
+      // Wait for the init event to get the Claude session ID
+      await this.waitForInit(session, options?.timeout ?? this.defaultConfig.timeout!);
+
+      // Update the queue with the session ID for future messages
+      if (session.claudeSessionId) {
+        inputQueue.setSessionId(session.claudeSessionId);
+      }
     } catch (error) {
-      // spawn can throw synchronously if the executable is not found
       this.transitionStatus(session, 'terminated');
       session.endedAt = createTimestamp();
       throw error;
     }
+  }
 
-    session.process = childProcess;
-    (session as { pid?: number }).pid = childProcess.pid;
+  /**
+   * Process SDK messages and emit them as session events
+   */
+  private async processSDKMessages(session: InternalSession, queryResult: SDKQuery): Promise<void> {
+    try {
+      for await (const message of queryResult) {
+        if (session.status === 'terminated') break;
 
-    // Handle stdout (stream-json output)
-    childProcess.stdout?.on('data', (data: Buffer) => {
-      this.handleHeadlessOutput(session, data);
-    });
+        // Convert SDK message to SpawnedSessionEvent
+        const event = this.convertSDKMessageToEvent(message);
+        if (event) {
+          session.events.emit('event', event);
 
-    // Handle stderr
-    childProcess.stderr?.on('data', (data: Buffer) => {
-      const errorMsg = data.toString();
-      session.events.emit('stderr', errorMsg);
-    });
-
-    // Handle process exit
-    // Note: exit event may fire multiple times in edge cases, so make handler idempotent
-    childProcess.on('exit', (code, signal) => {
-      // Only transition if not already terminated or suspended
+          // Extract Claude session ID from system init message
+          if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
+            (session as { claudeSessionId: string }).claudeSessionId = message.session_id;
+          }
+        }
+      }
+    } catch (error) {
+      // Check if this is an abort error (from interrupt)
+      if (error instanceof Error && error.name === 'AbortError') {
+        session.events.emit('interrupt');
+        return;
+      }
+      session.events.emit('error', error);
+    } finally {
+      // Session has ended
       if (session.status !== 'suspended' && session.status !== 'terminated') {
         this.transitionStatus(session, 'terminated');
       }
-      // Only set endedAt once
       if (!session.endedAt) {
         session.endedAt = createTimestamp();
       }
-      session.events.emit('exit', code, signal);
-    });
+      session.events.emit('exit', 0, null);
+    }
+  }
 
-    // Handle process errors
-    childProcess.on('error', (error) => {
-      session.events.emit('error', error);
-    });
+  /**
+   * Convert an SDK message to a SpawnedSessionEvent
+   */
+  private convertSDKMessageToEvent(message: SDKMessage): SpawnedSessionEvent | null {
+    const receivedAt = createTimestamp();
 
-    // Send initial prompt via stdin in stream-json format
-    // This is required because --input-format stream-json makes Claude wait for JSON input
-    // Format: {"type":"user","message":{"role":"user","content":"..."}}
-    const initialPrompt = options?.initialPrompt ?? 'You are an AI agent. Await further instructions.';
-    const stdinMessage = {
-      type: 'user',
-      message: {
-        role: 'user',
-        content: initialPrompt,
-      },
-    };
-    childProcess.stdin?.write(JSON.stringify(stdinMessage) + '\n');
+    switch (message.type) {
+      case 'system':
+        return {
+          type: 'system',
+          subtype: 'subtype' in message ? message.subtype : undefined,
+          receivedAt,
+          raw: message,
+        };
 
-    // Wait for the init event to get the Claude session ID
-    await this.waitForInit(session, options?.timeout ?? this.defaultConfig.timeout!);
+      case 'assistant':
+        return {
+          type: 'assistant',
+          receivedAt,
+          raw: message,
+          message: this.extractTextFromMessage((message as { message?: unknown }).message),
+        };
+
+      case 'user':
+        return {
+          type: 'user',
+          receivedAt,
+          raw: message,
+          message: this.extractTextFromMessage((message as { message?: unknown }).message),
+        };
+
+      case 'result':
+        return {
+          type: 'result',
+          receivedAt,
+          raw: message,
+          message: 'result' in message ? (message as { result?: string }).result : undefined,
+        };
+
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Extract text content from an API message
+   */
+  private extractTextFromMessage(apiMessage: unknown): string | undefined {
+    if (!apiMessage || typeof apiMessage !== 'object') return undefined;
+
+    const msg = apiMessage as { content?: unknown };
+    if (typeof msg.content === 'string') {
+      return msg.content;
+    }
+
+    if (Array.isArray(msg.content)) {
+      const textParts = msg.content
+        .filter((block: unknown): block is { type: 'text'; text: string } =>
+          typeof block === 'object' && block !== null && 'type' in block && block.type === 'text' && 'text' in block
+        )
+        .map((block) => block.text);
+      return textParts.length > 0 ? textParts.join('') : undefined;
+    }
+
+    return undefined;
   }
 
   private async spawnInteractive(

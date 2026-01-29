@@ -33,4 +33,5 @@ export * from './usePaneManager';
 export { WorkspacePane, type WorkspacePaneHandle } from './WorkspacePane';
 export { WorkspaceGrid } from './WorkspaceGrid';
 export { StreamViewer } from './StreamViewer';
+export { TerminalInput, type TerminalInputProps } from './TerminalInput';
 export { AddPaneDialog } from './AddPaneDialog';

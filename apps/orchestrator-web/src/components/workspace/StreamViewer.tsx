@@ -6,11 +6,14 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Bot, Wrench, AlertCircle, User, Info, CheckCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Bot, Wrench, AlertCircle, User, Info, CheckCircle, Loader2 } from 'lucide-react';
 import type { StreamEvent } from './types';
 import type { PaneStatus } from './types';
 import { TerminalInput } from './TerminalInput';
 import { MarkdownContent } from '../shared/MarkdownContent';
+
+/** Timeout for "working" indicator - 3 minutes */
+const WORKING_TIMEOUT_MS = 3 * 60 * 1000;
 
 export interface StreamViewerProps {
   agentId: string;
@@ -216,6 +219,7 @@ export function StreamViewer({
   const [status, setStatus] = useState<PaneStatus>('disconnected');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isWorking, setIsWorking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -223,12 +227,46 @@ export function StreamViewer({
   const maxReconnectAttempts = 5;
   // Track if we're intentionally closing to prevent reconnection attempts
   const isIntentionalCloseRef = useRef(false);
+  // Track last activity time for working timeout
+  const lastActivityRef = useRef<number>(0);
+  const workingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Update status and notify parent
   const updateStatus = useCallback((newStatus: PaneStatus) => {
     setStatus(newStatus);
     onStatusChange?.(newStatus);
   }, [onStatusChange]);
+
+  // Reset working timeout - accepts optional override for working state
+  // (needed because React state updates are async)
+  const resetWorkingTimeout = useCallback((working?: boolean) => {
+    lastActivityRef.current = Date.now();
+
+    // Clear existing timeout
+    if (workingTimeoutRef.current) {
+      clearTimeout(workingTimeoutRef.current);
+      workingTimeoutRef.current = null;
+    }
+
+    // Use override if provided, otherwise use current state
+    const isCurrentlyWorking = working ?? isWorking;
+
+    // Set new timeout to stop working indicator after 3 minutes of inactivity
+    if (isCurrentlyWorking) {
+      workingTimeoutRef.current = setTimeout(() => {
+        setIsWorking(false);
+      }, WORKING_TIMEOUT_MS);
+    }
+  }, [isWorking]);
+
+  // Cleanup working timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (workingTimeoutRef.current) {
+        clearTimeout(workingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -264,6 +302,10 @@ export function StreamViewer({
         logReadyState();
         reconnectAttempts.current = 0;
         updateStatus('connected');
+        // Assume agent is working when we connect to an active session
+        // This handles the case where we connect after the initial prompt was sent
+        setIsWorking(true);
+        resetWorkingTimeout(true);
       };
 
       // Extract string content from potentially nested structures
@@ -312,8 +354,15 @@ export function StreamViewer({
           const eventData = data.event || data;
           let eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
 
-          // Skip system messages (internal info) and result messages (duplicate of assistant)
-          if (eventType === 'system' || eventType === 'result') {
+          // Handle result event - stop working indicator (task complete)
+          if (eventType === 'result') {
+            setIsWorking(false);
+            resetWorkingTimeout(false);
+            return; // Don't display result events (duplicate of assistant)
+          }
+
+          // Skip system messages (internal info)
+          if (eventType === 'system') {
             return;
           }
 
@@ -390,6 +439,15 @@ export function StreamViewer({
           };
 
           setEvents(prev => [...prev.slice(-200), newEvent]); // Keep last 200 events
+
+          // Track activity for working indicator
+          resetWorkingTimeout();
+
+          // Start working indicator when we receive a user message (including initial prompt from server)
+          if (eventType === 'user') {
+            setIsWorking(true);
+            resetWorkingTimeout(true);
+          }
         } catch (err) {
           console.error('[StreamViewer] Error parsing event:', err);
         }
@@ -512,6 +570,10 @@ export function StreamViewer({
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
+
+      // Start working indicator after successful send
+      setIsWorking(true);
+      resetWorkingTimeout(true);
     } catch (err) {
       console.error('[StreamViewer] Error sending input:', err);
       // Add error event
@@ -523,9 +585,10 @@ export function StreamViewer({
         isError: true,
       };
       setEvents(prev => [...prev, errorEvent]);
+      setIsWorking(false);
       throw err; // Re-throw so TerminalInput can restore input
     }
-  }, [agentId]);
+  }, [agentId, resetWorkingTimeout]);
 
   // File upload function - uses base64 encoding to avoid Bun's multipart binary corruption
   const uploadFile = useCallback(async (file: File): Promise<string | null> => {
@@ -747,13 +810,25 @@ export function StreamViewer({
             </p>
           </div>
         ) : (
-          events.map((event, index) => (
-            <StreamEventCard
-              key={event.id}
-              event={event}
-              isLast={index === events.length - 1}
-            />
-          ))
+          <>
+            {events.map((event, index) => (
+              <StreamEventCard
+                key={event.id}
+                event={event}
+                isLast={index === events.length - 1 && !isWorking}
+              />
+            ))}
+            {/* Working indicator */}
+            {isWorking && status === 'connected' && (
+              <div
+                className="flex items-center gap-2 px-3 py-2 text-[var(--color-text-secondary)] animate-fade-in"
+                data-testid="working-indicator"
+              >
+                <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                <span className="text-sm">Agent is working...</span>
+              </div>
+            )}
+          </>
         )}
       </div>
 
