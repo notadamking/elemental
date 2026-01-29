@@ -2,13 +2,11 @@
  * Dispatch Service
  *
  * This service provides the dispatch operation that combines task assignment
- * with agent notification. It also integrates with the capability system
- * for intelligent task routing.
+ * with agent notification.
  *
  * Key features:
  * - Dispatch tasks to specific agents (assigns task + sends notification)
- * - Smart routing using capability-based agent matching
- * - Find best available agent for a task
+ * - Find available agents for a task
  * - Support for priority and restart options
  *
  * @module
@@ -32,16 +30,10 @@ import {
 } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
 
-import type { TaskCapabilityRequirements } from '../types/index.js';
 import type { AgentEntity } from '../api/orchestrator-api.js';
 
 import type { TaskAssignmentService, AssignTaskOptions } from './task-assignment-service.js';
 import type { AgentRegistry } from './agent-registry.js';
-import {
-  findAgentsForTask,
-  getTaskCapabilityRequirements,
-  type AgentMatchEntry,
-} from './capability-service.js';
 
 // ============================================================================
 // Types
@@ -93,24 +85,25 @@ export interface DispatchResult {
  * Options for finding the best agent and dispatching a task
  */
 export interface SmartDispatchOptions extends DispatchOptions {
-  /** Only consider agents that meet all task requirements */
-  eligibleOnly?: boolean;
-  /** Minimum capability score required (0-100) */
-  minScore?: number;
+  // All workers have the same capabilities - no filtering options needed
+}
+
+/**
+ * Agent candidate entry for dispatch
+ */
+export interface AgentCandidate {
+  /** The agent */
+  agent: AgentEntity;
 }
 
 /**
  * Result of smart dispatch candidate search
  */
 export interface SmartDispatchCandidatesResult {
-  /** Sorted list of candidate agents with their match scores */
-  candidates: AgentMatchEntry[];
-  /** The best candidate (first in sorted list) */
-  bestCandidate: AgentMatchEntry | undefined;
-  /** Whether the task has any capability requirements */
-  hasRequirements: boolean;
-  /** The task's capability requirements */
-  requirements: TaskCapabilityRequirements;
+  /** List of available candidate agents */
+  candidates: AgentCandidate[];
+  /** The best candidate (first available) */
+  bestCandidate: AgentCandidate | undefined;
 }
 
 /**
@@ -191,21 +184,21 @@ export interface DispatchService {
   ): Promise<DispatchResult[]>;
 
   // ----------------------------------------
-  // Smart Dispatch (Capability-based routing)
+  // Smart Dispatch
   // ----------------------------------------
 
   /**
-   * Finds the best available agent for a task and dispatches to them.
+   * Finds an available agent for a task and dispatches to them.
    *
    * This method:
    * 1. Gets available workers from the registry
-   * 2. Matches them against task requirements using capability service
-   * 3. Dispatches to the best match
+   * 2. Checks which have capacity
+   * 3. Dispatches to the first available
    *
    * @param taskId - The task to find an agent for
    * @param options - Smart dispatch options
    * @returns The dispatch result
-   * @throws Error if no eligible agents found
+   * @throws Error if no available agents found
    */
   smartDispatch(
     taskId: ElementId,
@@ -213,7 +206,7 @@ export interface DispatchService {
   ): Promise<DispatchResult>;
 
   /**
-   * Gets candidate agents for a task ranked by capability match.
+   * Gets candidate agents for a task.
    *
    * @param taskId - The task to find agents for
    * @param options - Options for filtering candidates
@@ -225,16 +218,16 @@ export interface DispatchService {
   ): Promise<SmartDispatchCandidatesResult>;
 
   /**
-   * Gets the best available agent for a task.
+   * Gets an available agent for a task.
    *
    * @param taskId - The task to find an agent for
    * @param options - Options for filtering candidates
-   * @returns The best agent match or undefined if none found
+   * @returns An available agent or undefined if none found
    */
   getBestAgent(
     taskId: ElementId,
     options?: Omit<SmartDispatchOptions, 'autoDispatch'>
-  ): Promise<AgentMatchEntry | undefined>;
+  ): Promise<AgentCandidate | undefined>;
 
   // ----------------------------------------
   // Notification
@@ -379,7 +372,7 @@ export class DispatchServiceImpl implements DispatchService {
   }
 
   // ----------------------------------------
-  // Smart Dispatch (Capability-based routing)
+  // Smart Dispatch
   // ----------------------------------------
 
   async smartDispatch(
@@ -389,7 +382,7 @@ export class DispatchServiceImpl implements DispatchService {
     const candidates = await this.getCandidates(taskId, options);
 
     if (candidates.candidates.length === 0) {
-      throw new Error(`No eligible agents found for task: ${taskId}`);
+      throw new Error(`No available agents found for task: ${taskId}`);
     }
 
     const bestAgent = candidates.candidates[0].agent;
@@ -402,7 +395,7 @@ export class DispatchServiceImpl implements DispatchService {
 
   async getCandidates(
     taskId: ElementId,
-    options?: Omit<SmartDispatchOptions, 'autoDispatch'>
+    _options?: Omit<SmartDispatchOptions, 'autoDispatch'>
   ): Promise<SmartDispatchCandidatesResult> {
     // Get the task
     const task = await this.api.get<Task>(taskId);
@@ -424,32 +417,21 @@ export class DispatchServiceImpl implements DispatchService {
       }
     }
 
-    // Get task requirements and find candidates
-    const requirements = getTaskCapabilityRequirements(task);
-    const hasRequirements = Boolean(
-      requirements.requiredSkills?.length ||
-      requirements.preferredSkills?.length ||
-      requirements.requiredLanguages?.length ||
-      requirements.preferredLanguages?.length
-    );
-
-    const candidates = findAgentsForTask(workersWithCapacity, task, {
-      eligibleOnly: options?.eligibleOnly ?? true,
-      minScore: options?.minScore,
-    });
+    // All workers have the same capabilities - just return available ones
+    const candidates: AgentCandidate[] = workersWithCapacity.map((agent) => ({
+      agent,
+    }));
 
     return {
       candidates,
       bestCandidate: candidates[0],
-      hasRequirements,
-      requirements,
     };
   }
 
   async getBestAgent(
     taskId: ElementId,
     options?: Omit<SmartDispatchOptions, 'autoDispatch'>
-  ): Promise<AgentMatchEntry | undefined> {
+  ): Promise<AgentCandidate | undefined> {
     const result = await this.getCandidates(taskId, options);
     return result.bestCandidate;
   }

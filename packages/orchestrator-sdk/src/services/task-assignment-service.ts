@@ -511,7 +511,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     }
 
     const meta = getAgentMetadata(agent);
-    const maxConcurrent = meta?.capabilities?.maxConcurrentTasks ?? 1;
+    const maxConcurrent = meta?.maxConcurrentTasks ?? 1;
 
     // Count currently active tasks
     const workload = await this.getAgentWorkload(agentId);

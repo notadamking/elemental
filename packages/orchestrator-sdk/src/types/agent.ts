@@ -14,178 +14,6 @@
 import type { EntityId, ChannelId, Timestamp, ElementId } from '@elemental/core';
 
 // ============================================================================
-// Agent Capability Types
-// ============================================================================
-
-/**
- * Agent capabilities for intelligent task routing.
- *
- * Capabilities define what an agent is able to do, allowing the dispatch
- * system to route tasks to the most appropriate agent.
- */
-export interface AgentCapabilities {
-  /**
-   * Skills the agent possesses (e.g., 'frontend', 'testing', 'database')
-   * These are free-form strings that match against task requirements.
-   */
-  readonly skills: readonly string[];
-
-  /**
-   * Programming languages the agent is proficient in (e.g., 'typescript', 'python')
-   * Languages are normalized to lowercase for matching.
-   */
-  readonly languages: readonly string[];
-
-  /**
-   * Maximum number of tasks this agent can work on concurrently.
-   * Default is 1 for most agents.
-   */
-  readonly maxConcurrentTasks: number;
-}
-
-/**
- * Default capabilities for agents without explicit capability definitions
- */
-export const DefaultAgentCapabilities: AgentCapabilities = {
-  skills: [],
-  languages: [],
-  maxConcurrentTasks: 1,
-};
-
-/**
- * Task capability requirements for matching with agent capabilities.
- *
- * Used by the dispatch system to find suitable agents for tasks.
- */
-export interface TaskCapabilityRequirements {
-  /**
-   * Skills that are required for the task - agent MUST have all of these
-   */
-  readonly requiredSkills?: readonly string[];
-
-  /**
-   * Skills that are preferred but not required - used for ranking matches
-   */
-  readonly preferredSkills?: readonly string[];
-
-  /**
-   * Languages required for the task
-   */
-  readonly requiredLanguages?: readonly string[];
-
-  /**
-   * Languages that are preferred but not required
-   */
-  readonly preferredLanguages?: readonly string[];
-}
-
-/**
- * Default task capability requirements (no requirements)
- */
-export const DefaultTaskCapabilityRequirements: TaskCapabilityRequirements = {
-  requiredSkills: [],
-  preferredSkills: [],
-  requiredLanguages: [],
-  preferredLanguages: [],
-};
-
-/**
- * Result of matching an agent against task requirements
- */
-export interface CapabilityMatchResult {
-  /** Whether the agent meets all required capabilities */
-  readonly isEligible: boolean;
-
-  /** Score from 0-100 indicating how well the agent matches (higher is better) */
-  readonly score: number;
-
-  /** Skills the agent has that are required by the task */
-  readonly matchedRequiredSkills: readonly string[];
-
-  /** Skills the agent has that are preferred by the task */
-  readonly matchedPreferredSkills: readonly string[];
-
-  /** Languages the agent has that are required by the task */
-  readonly matchedRequiredLanguages: readonly string[];
-
-  /** Languages the agent has that are preferred by the task */
-  readonly matchedPreferredLanguages: readonly string[];
-
-  /** Required skills the agent is missing */
-  readonly missingRequiredSkills: readonly string[];
-
-  /** Required languages the agent is missing */
-  readonly missingRequiredLanguages: readonly string[];
-}
-
-/**
- * Creates an AgentCapabilities object with defaults for unspecified fields
- */
-export function createAgentCapabilities(
-  partial: Partial<AgentCapabilities> = {}
-): AgentCapabilities {
-  return {
-    skills: partial.skills ?? [],
-    languages: partial.languages ?? [],
-    maxConcurrentTasks: partial.maxConcurrentTasks ?? 1,
-  };
-}
-
-/**
- * Validates that a value is a valid AgentCapabilities object
- */
-export function isAgentCapabilities(value: unknown): value is AgentCapabilities {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  return (
-    Array.isArray(obj.skills) &&
-    obj.skills.every((s) => typeof s === 'string') &&
-    Array.isArray(obj.languages) &&
-    obj.languages.every((l) => typeof l === 'string') &&
-    typeof obj.maxConcurrentTasks === 'number' &&
-    obj.maxConcurrentTasks >= 0
-  );
-}
-
-/**
- * Validates that a value is a valid TaskCapabilityRequirements object
- */
-export function isTaskCapabilityRequirements(
-  value: unknown
-): value is TaskCapabilityRequirements {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-
-  const isStringArrayOrUndefined = (v: unknown): boolean =>
-    v === undefined || (Array.isArray(v) && v.every((s) => typeof s === 'string'));
-
-  return (
-    isStringArrayOrUndefined(obj.requiredSkills) &&
-    isStringArrayOrUndefined(obj.preferredSkills) &&
-    isStringArrayOrUndefined(obj.requiredLanguages) &&
-    isStringArrayOrUndefined(obj.preferredLanguages)
-  );
-}
-
-/**
- * Normalizes a string for case-insensitive matching (lowercase, trimmed)
- */
-export function normalizeCapabilityString(s: string): string {
-  return s.toLowerCase().trim();
-}
-
-/**
- * Normalizes an array of capability strings
- */
-export function normalizeCapabilityArray(arr: readonly string[]): string[] {
-  return arr.map(normalizeCapabilityString);
-}
-
-// ============================================================================
 // Agent Role Types
 // ============================================================================
 
@@ -342,8 +170,11 @@ export interface BaseAgentMetadata {
   readonly sessionStatus?: 'idle' | 'running' | 'suspended' | 'terminated';
   /** Timestamp of last activity */
   readonly lastActivityAt?: Timestamp;
-  /** Agent capabilities for task routing */
-  readonly capabilities?: AgentCapabilities;
+  /**
+   * Maximum number of tasks this agent can work on concurrently.
+   * Default is 1 for most agents.
+   */
+  readonly maxConcurrentTasks?: number;
   /**
    * Reference to the role definition Document that defines this agent's
    * system prompt and behavioral configuration. If not set, the agent
@@ -425,8 +256,8 @@ export interface RegisterDirectorInput {
   readonly tags?: string[];
   /** Entity ID of the creator (usually a human) */
   readonly createdBy: EntityId;
-  /** Optional capabilities (directors typically don't need task-routing capabilities) */
-  readonly capabilities?: Partial<AgentCapabilities>;
+  /** Maximum concurrent tasks (default: 1) */
+  readonly maxConcurrentTasks?: number;
   /** Optional reference to a role definition for system prompt and behaviors */
   readonly roleDefinitionRef?: ElementId;
 }
@@ -445,8 +276,8 @@ export interface RegisterWorkerInput {
   readonly createdBy: EntityId;
   /** Optional manager entity (Director for ephemeral, Human for persistent) */
   readonly reportsTo?: EntityId;
-  /** Agent capabilities for task routing */
-  readonly capabilities?: Partial<AgentCapabilities>;
+  /** Maximum concurrent tasks (default: 1) */
+  readonly maxConcurrentTasks?: number;
   /** Optional reference to a role definition for system prompt and behaviors */
   readonly roleDefinitionRef?: ElementId;
 }
@@ -467,8 +298,8 @@ export interface RegisterStewardInput {
   readonly createdBy: EntityId;
   /** Optional manager entity (usually the Director) */
   readonly reportsTo?: EntityId;
-  /** Optional capabilities (stewards may have specialized capabilities) */
-  readonly capabilities?: Partial<AgentCapabilities>;
+  /** Maximum concurrent tasks (default: 1) */
+  readonly maxConcurrentTasks?: number;
   /** Optional reference to a role definition for system prompt and behaviors */
   readonly roleDefinitionRef?: ElementId;
 }
@@ -493,12 +324,6 @@ export interface AgentFilter {
   readonly reportsTo?: EntityId;
   /** Include only agents with sessions */
   readonly hasSession?: boolean;
-  /** Filter by required skills (agents must have ALL of these) */
-  readonly requiredSkills?: readonly string[];
-  /** Filter by required languages (agents must have ALL of these) */
-  readonly requiredLanguages?: readonly string[];
-  /** Filter by agents that can take more tasks (have capacity) */
-  readonly hasCapacity?: boolean;
 }
 
 // ============================================================================
@@ -519,8 +344,8 @@ export function validateAgentMetadata(metadata: unknown): metadata is AgentMetad
     return false;
   }
 
-  // Validate capabilities if present
-  if (obj.capabilities !== undefined && !isAgentCapabilities(obj.capabilities)) {
+  // Validate maxConcurrentTasks if present
+  if (obj.maxConcurrentTasks !== undefined && typeof obj.maxConcurrentTasks !== 'number') {
     return false;
   }
 

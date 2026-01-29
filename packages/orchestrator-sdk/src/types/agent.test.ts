@@ -9,14 +9,11 @@ import type {
   DirectorMetadata,
   WorkerMetadata,
   StewardMetadata,
-  AgentCapabilities,
 } from './agent.js';
 import {
   AgentRoleValues,
   WorkerModeValues,
   StewardFocusValues,
-  DefaultAgentCapabilities,
-  DefaultTaskCapabilityRequirements,
   isAgentRole,
   isWorkerMode,
   isStewardFocus,
@@ -27,11 +24,6 @@ import {
   isWorkerMetadata,
   isStewardMetadata,
   validateAgentMetadata,
-  createAgentCapabilities,
-  isAgentCapabilities,
-  isTaskCapabilityRequirements,
-  normalizeCapabilityString,
-  normalizeCapabilityArray,
 } from './agent.js';
 
 describe('AgentRole', () => {
@@ -197,132 +189,12 @@ describe('validateAgentMetadata', () => {
     expect(validateAgentMetadata({ agentRole: 'invalid' })).toBe(false);
   });
 
-  test('validates agent metadata with capabilities', () => {
-    const validCaps: AgentCapabilities = {
-      skills: ['frontend', 'testing'],
-      languages: ['typescript', 'python'],
-      maxConcurrentTasks: 2,
-    };
-    expect(validateAgentMetadata({ agentRole: 'director', capabilities: validCaps })).toBe(true);
-    expect(validateAgentMetadata({ agentRole: 'worker', workerMode: 'ephemeral', capabilities: validCaps })).toBe(true);
+  test('validates agent metadata with maxConcurrentTasks', () => {
+    expect(validateAgentMetadata({ agentRole: 'director', maxConcurrentTasks: 2 })).toBe(true);
+    expect(validateAgentMetadata({ agentRole: 'worker', workerMode: 'ephemeral', maxConcurrentTasks: 3 })).toBe(true);
   });
 
-  test('rejects agent metadata with invalid capabilities', () => {
-    expect(validateAgentMetadata({ agentRole: 'director', capabilities: 'invalid' })).toBe(false);
-    expect(validateAgentMetadata({ agentRole: 'director', capabilities: { skills: 'not-array' } })).toBe(false);
-    expect(validateAgentMetadata({ agentRole: 'director', capabilities: { skills: [], languages: [], maxConcurrentTasks: -1 } })).toBe(false);
-  });
-});
-
-// ============================================================================
-// Capability Types Tests
-// ============================================================================
-
-describe('AgentCapabilities', () => {
-  test('DefaultAgentCapabilities has expected values', () => {
-    expect(DefaultAgentCapabilities.skills).toEqual([]);
-    expect(DefaultAgentCapabilities.languages).toEqual([]);
-    expect(DefaultAgentCapabilities.maxConcurrentTasks).toBe(1);
-  });
-
-  test('createAgentCapabilities creates with defaults', () => {
-    const caps = createAgentCapabilities();
-    expect(caps.skills).toEqual([]);
-    expect(caps.languages).toEqual([]);
-    expect(caps.maxConcurrentTasks).toBe(1);
-  });
-
-  test('createAgentCapabilities creates with partial input', () => {
-    const caps = createAgentCapabilities({
-      skills: ['frontend', 'backend'],
-    });
-    expect(caps.skills).toEqual(['frontend', 'backend']);
-    expect(caps.languages).toEqual([]);
-    expect(caps.maxConcurrentTasks).toBe(1);
-  });
-
-  test('createAgentCapabilities creates with full input', () => {
-    const caps = createAgentCapabilities({
-      skills: ['frontend', 'testing'],
-      languages: ['typescript', 'python'],
-      maxConcurrentTasks: 3,
-    });
-    expect(caps.skills).toEqual(['frontend', 'testing']);
-    expect(caps.languages).toEqual(['typescript', 'python']);
-    expect(caps.maxConcurrentTasks).toBe(3);
-  });
-
-  test('isAgentCapabilities validates valid capabilities', () => {
-    expect(isAgentCapabilities({
-      skills: ['frontend'],
-      languages: ['typescript'],
-      maxConcurrentTasks: 1,
-    })).toBe(true);
-
-    expect(isAgentCapabilities({
-      skills: [],
-      languages: [],
-      maxConcurrentTasks: 0,
-    })).toBe(true);
-  });
-
-  test('isAgentCapabilities rejects invalid capabilities', () => {
-    expect(isAgentCapabilities(null)).toBe(false);
-    expect(isAgentCapabilities(undefined)).toBe(false);
-    expect(isAgentCapabilities({})).toBe(false);
-    expect(isAgentCapabilities({ skills: 'not-array' })).toBe(false);
-    expect(isAgentCapabilities({ skills: [], languages: 'not-array' })).toBe(false);
-    expect(isAgentCapabilities({ skills: [], languages: [], maxConcurrentTasks: 'not-number' })).toBe(false);
-    expect(isAgentCapabilities({ skills: [], languages: [], maxConcurrentTasks: -1 })).toBe(false);
-    expect(isAgentCapabilities({ skills: [123], languages: [], maxConcurrentTasks: 1 })).toBe(false);
-  });
-});
-
-describe('TaskCapabilityRequirements', () => {
-  test('DefaultTaskCapabilityRequirements has expected values', () => {
-    expect(DefaultTaskCapabilityRequirements.requiredSkills).toEqual([]);
-    expect(DefaultTaskCapabilityRequirements.preferredSkills).toEqual([]);
-    expect(DefaultTaskCapabilityRequirements.requiredLanguages).toEqual([]);
-    expect(DefaultTaskCapabilityRequirements.preferredLanguages).toEqual([]);
-  });
-
-  test('isTaskCapabilityRequirements validates valid requirements', () => {
-    expect(isTaskCapabilityRequirements({})).toBe(true);
-    expect(isTaskCapabilityRequirements({
-      requiredSkills: ['frontend'],
-      preferredSkills: ['testing'],
-    })).toBe(true);
-    expect(isTaskCapabilityRequirements({
-      requiredSkills: [],
-      preferredSkills: [],
-      requiredLanguages: ['typescript'],
-      preferredLanguages: ['python'],
-    })).toBe(true);
-  });
-
-  test('isTaskCapabilityRequirements rejects invalid requirements', () => {
-    expect(isTaskCapabilityRequirements(null)).toBe(false);
-    expect(isTaskCapabilityRequirements(undefined)).toBe(false);
-    expect(isTaskCapabilityRequirements({ requiredSkills: 'not-array' })).toBe(false);
-    expect(isTaskCapabilityRequirements({ requiredSkills: [123] })).toBe(false);
-  });
-});
-
-describe('Capability string normalization', () => {
-  test('normalizeCapabilityString normalizes correctly', () => {
-    expect(normalizeCapabilityString('Frontend')).toBe('frontend');
-    expect(normalizeCapabilityString('  TypeScript  ')).toBe('typescript');
-    expect(normalizeCapabilityString('PYTHON')).toBe('python');
-    expect(normalizeCapabilityString('react-native')).toBe('react-native');
-  });
-
-  test('normalizeCapabilityArray normalizes all elements', () => {
-    const input = ['Frontend', '  Backend  ', 'TESTING'];
-    const result = normalizeCapabilityArray(input);
-    expect(result).toEqual(['frontend', 'backend', 'testing']);
-  });
-
-  test('normalizeCapabilityArray handles empty array', () => {
-    expect(normalizeCapabilityArray([])).toEqual([]);
+  test('rejects agent metadata with invalid maxConcurrentTasks', () => {
+    expect(validateAgentMetadata({ agentRole: 'director', maxConcurrentTasks: 'invalid' })).toBe(false);
   });
 });

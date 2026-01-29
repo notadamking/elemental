@@ -1,0 +1,213 @@
+# OrchestratorAPI Reference
+
+**File:** `packages/orchestrator-sdk/src/api/orchestrator-api.ts`
+
+Extends ElementalAPI with agent orchestration capabilities.
+
+## Initialization
+
+```typescript
+import { createOrchestratorAPI } from '@elemental/orchestrator-sdk';
+import { createStorage, initializeSchema } from '@elemental/storage';
+
+const storage = createStorage('./project/.elemental/db.sqlite');
+initializeSchema(storage);
+
+const api = createOrchestratorAPI(storage);
+```
+
+---
+
+## Agent Registration
+
+### Register Director
+
+```typescript
+const director = await api.registerDirector({
+  name: 'MainDirector',
+  createdBy: humanEntityId,
+  maxConcurrentTasks: 1,  // Optional, default: 1
+});
+```
+
+### Register Worker
+
+```typescript
+const worker = await api.registerWorker({
+  name: 'Worker-1',
+  workerMode: 'ephemeral',  // or 'persistent'
+  createdBy: directorEntityId,
+  reportsTo: directorEntityId,
+  maxConcurrentTasks: 2,    // Optional, default: 1
+  roleDefinitionRef: roleDefId,  // Optional: link to role definition
+});
+```
+
+### Register Steward
+
+```typescript
+const steward = await api.registerSteward({
+  name: 'MergeSteward',
+  stewardFocus: 'merge',  // 'merge' | 'health' | 'reminder' | 'ops'
+  triggers: [
+    { type: 'event', event: 'task_completed' },
+  ],
+  createdBy: directorEntityId,
+  maxConcurrentTasks: 1,  // Optional, default: 1
+});
+```
+
+---
+
+## Agent Queries
+
+```typescript
+// Get specific agent
+const agent = await api.getAgent(entityId);
+const agentByName = await api.getAgentByName('Worker-1');
+
+// List and filter
+const allAgents = await api.listAgents();
+const workers = await api.listAgents({ role: 'worker' });
+const ephemeralWorkers = await api.listAgents({
+  role: 'worker',
+  workerMode: 'ephemeral',
+});
+
+// Role-specific queries
+const director = await api.getDirector();
+const stewards = await api.getStewards();
+const availableWorkers = await api.getAvailableWorkers();
+```
+
+---
+
+## Agent Channels
+
+Each agent gets a dedicated channel on registration.
+
+```typescript
+import { createAgentRegistry } from '@elemental/orchestrator-sdk';
+
+const registry = createAgentRegistry(api);
+
+// Get channel
+const channel = await registry.getAgentChannel(agentId);
+const channelId = await registry.getAgentChannelId(agentId);
+
+// Channel name utilities
+import { generateAgentChannelName, parseAgentChannelName } from '@elemental/orchestrator-sdk';
+
+generateAgentChannelName(agentId);  // 'agent-el-abc123'
+parseAgentChannelName('agent-el-abc123');  // 'el-abc123' or null
+```
+
+---
+
+## Task Assignment
+
+### Basic Assignment
+
+```typescript
+// Auto-generates branch and worktree names
+const task = await api.assignTaskToAgent(taskId, workerId);
+
+// With explicit options
+const task = await api.assignTaskToAgent(taskId, workerId, {
+  branch: 'agent/worker-1/task-feat-auth',
+  worktree: '.worktrees/worker-1-feat-auth',
+  sessionId: 'claude-session-123',
+});
+
+// Get/update orchestrator metadata
+const meta = await api.getTaskOrchestratorMeta(taskId);
+await api.updateTaskOrchestratorMeta(taskId, {
+  mergeStatus: 'pending',
+});
+```
+
+### Orchestrator Task Metadata
+
+```typescript
+interface OrchestratorTaskMeta {
+  agentId?: EntityId;
+  branch?: string;
+  worktree?: string;
+  sessionId?: string;
+  mergeStatus?: 'pending' | 'merged' | 'conflict' | 'skipped';
+  mergedAt?: Timestamp;
+  mergedBy?: EntityId;
+}
+```
+
+---
+
+## Session Management
+
+```typescript
+// Update agent session
+await api.updateAgentSession(agentId, 'session-123', 'running');
+
+// Session states
+type SessionState = 'idle' | 'running' | 'suspended' | 'terminated';
+```
+
+---
+
+## Agent Types
+
+### AgentRole
+
+```typescript
+type AgentRole = 'director' | 'worker' | 'steward';
+```
+
+### AgentMetadata
+
+```typescript
+interface AgentMetadata {
+  role: AgentRole;
+  workerMode?: 'ephemeral' | 'persistent';
+  stewardFocus?: 'merge' | 'health' | 'reminder' | 'ops';
+  maxConcurrentTasks?: number;  // Default: 1
+  sessionState?: SessionState;
+  currentSessionId?: string;
+  channelId?: ChannelId;
+  reportsTo?: EntityId;
+  roleDefinitionRef?: ElementId;
+  triggers?: StewardTrigger[];
+}
+```
+
+### StewardTrigger
+
+```typescript
+interface StewardTrigger {
+  type: 'cron' | 'event' | 'condition';
+  cron?: string;           // For cron type
+  event?: string;          // For event type
+  condition?: string;      // For condition type
+}
+```
+
+---
+
+## Type Guards
+
+```typescript
+import {
+  isDirector,
+  isWorker,
+  isSteward,
+  isEphemeralWorker,
+  isPersistentWorker,
+} from '@elemental/orchestrator-sdk';
+
+if (isWorker(agent)) {
+  console.log(agent.metadata.agent.workerMode);
+}
+
+if (isEphemeralWorker(agent)) {
+  // Ephemeral worker specific logic
+}
+```

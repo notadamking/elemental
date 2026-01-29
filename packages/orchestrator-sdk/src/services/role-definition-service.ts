@@ -19,7 +19,6 @@ import { ContentType, createDocument, createTimestamp } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
 import type {
   AgentRole,
-  AgentCapabilities,
   AgentRoleDefinition,
   DirectorRoleDefinition,
   WorkerRoleDefinition,
@@ -31,7 +30,6 @@ import type {
   AgentBehaviors,
 } from '../types/index.js';
 import {
-  createAgentCapabilities,
   isAgentRoleDefinition,
   ROLE_DEFINITION_TAGS,
   generateRoleDefinitionTags,
@@ -158,9 +156,6 @@ export class RoleDefinitionServiceImpl implements RoleDefinitionService {
 
   async createRoleDefinition(input: CreateRoleDefinitionInput): Promise<StoredRoleDefinition> {
     const now = createTimestamp();
-    const capabilities = input.capabilities
-      ? createAgentCapabilities(input.capabilities)
-      : createAgentCapabilities({});
 
     // Create the system prompt document first
     const systemPromptDoc = await createDocument({
@@ -188,7 +183,7 @@ export class RoleDefinitionServiceImpl implements RoleDefinitionService {
       name: input.name,
       description: input.description,
       systemPromptRef: savedPromptDoc.id as unknown as DocumentId,
-      capabilities,
+      maxConcurrentTasks: input.maxConcurrentTasks ?? 1,
       behaviors: input.behaviors,
       tags: input.tags,
       createdAt: now,
@@ -332,18 +327,8 @@ export class RoleDefinitionServiceImpl implements RoleDefinitionService {
       newSystemPromptRef = updatedPromptDoc.id as unknown as DocumentId;
     }
 
-    // Merge capabilities
-    const newCapabilities: AgentCapabilities = updates.capabilities
-      ? {
-          ...existing.definition.capabilities,
-          ...updates.capabilities,
-          skills: updates.capabilities.skills ?? existing.definition.capabilities.skills,
-          languages: updates.capabilities.languages ?? existing.definition.capabilities.languages,
-          maxConcurrentTasks:
-            updates.capabilities.maxConcurrentTasks ??
-            existing.definition.capabilities.maxConcurrentTasks,
-        }
-      : existing.definition.capabilities;
+    // Determine maxConcurrentTasks
+    const newMaxConcurrentTasks = updates.maxConcurrentTasks ?? existing.definition.maxConcurrentTasks ?? 1;
 
     // Merge behaviors
     const newBehaviors: AgentBehaviors | undefined =
@@ -360,7 +345,7 @@ export class RoleDefinitionServiceImpl implements RoleDefinitionService {
       name: updates.name ?? existing.definition.name,
       description: updates.description ?? existing.definition.description,
       systemPromptRef: newSystemPromptRef,
-      capabilities: newCapabilities,
+      maxConcurrentTasks: newMaxConcurrentTasks,
       behaviors: newBehaviors,
       tags: updates.tags ?? existing.definition.tags,
       updatedAt: now,

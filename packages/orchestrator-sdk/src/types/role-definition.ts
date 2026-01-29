@@ -14,7 +14,7 @@
  */
 
 import type { DocumentId, EntityId, Timestamp, ElementId } from '@elemental/core';
-import type { AgentRole, AgentCapabilities, WorkerMode, StewardFocus } from './agent.js';
+import type { AgentRole, WorkerMode, StewardFocus } from './agent.js';
 
 // ============================================================================
 // Role Definition Types
@@ -80,10 +80,10 @@ export interface BaseRoleDefinition {
   readonly systemPromptRef: DocumentId;
 
   /**
-   * Default capabilities for agents using this role definition.
-   * Can be overridden at the individual agent level.
+   * Maximum number of concurrent tasks for agents using this role.
+   * Default is 1.
    */
-  readonly capabilities: AgentCapabilities;
+  readonly maxConcurrentTasks?: number;
 
   /**
    * Behavioral hooks - prompts/instructions for specific events
@@ -178,9 +178,9 @@ export interface CreateRoleDefinitionInput {
   readonly systemPrompt: string;
 
   /**
-   * Default capabilities for agents using this role
+   * Maximum number of concurrent tasks (default: 1)
    */
-  readonly capabilities?: Partial<AgentCapabilities>;
+  readonly maxConcurrentTasks?: number;
 
   /**
    * Behavioral hooks
@@ -228,9 +228,9 @@ export interface UpdateRoleDefinitionInput {
   readonly systemPrompt?: string;
 
   /**
-   * Updated capabilities (merged with existing)
+   * Updated max concurrent tasks
    */
-  readonly capabilities?: Partial<AgentCapabilities>;
+  readonly maxConcurrentTasks?: number;
 
   /**
    * Updated behaviors (merged with existing)
@@ -358,30 +358,13 @@ function isBaseRoleDefinition(value: unknown): value is BaseRoleDefinition {
   if (typeof obj.createdBy !== 'string') return false;
   if (typeof obj.updatedAt !== 'string') return false;
 
-  // Capabilities is required
-  if (!isCapabilitiesLike(obj.capabilities)) return false;
-
   // Optional fields
+  if (obj.maxConcurrentTasks !== undefined && typeof obj.maxConcurrentTasks !== 'number') return false;
   if (obj.description !== undefined && typeof obj.description !== 'string') return false;
   if (obj.behaviors !== undefined && !isAgentBehaviors(obj.behaviors)) return false;
   if (obj.tags !== undefined && !Array.isArray(obj.tags)) return false;
 
   return true;
-}
-
-/**
- * Helper to check if value looks like AgentCapabilities
- */
-function isCapabilitiesLike(value: unknown): boolean {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  return (
-    Array.isArray(obj.skills) &&
-    Array.isArray(obj.languages) &&
-    typeof obj.maxConcurrentTasks === 'number'
-  );
 }
 
 // ============================================================================

@@ -47,7 +47,6 @@ import {
   generateBranchName,
   generateWorktreePath,
   createSlugFromTitle,
-  createAgentCapabilities,
 } from '../types/index.js';
 
 // ============================================================================
@@ -242,7 +241,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
     const agentMetadata: DirectorMetadata = {
       agentRole: 'director',
       sessionStatus: 'idle',
-      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
     };
 
@@ -270,7 +269,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       agentRole: 'worker',
       workerMode: input.workerMode,
       sessionStatus: 'idle',
-      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
     };
 
@@ -299,7 +298,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       stewardFocus: input.stewardFocus,
       triggers: input.triggers,
       sessionStatus: 'idle',
-      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
     };
 

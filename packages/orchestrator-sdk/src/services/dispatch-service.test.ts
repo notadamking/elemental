@@ -2,7 +2,7 @@
  * Dispatch Service Unit Tests
  *
  * Tests for the DispatchService which combines task assignment with
- * agent notification and provides capability-based smart routing.
+ * agent notification.
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
@@ -17,13 +17,10 @@ import {
   type EntityId,
   type Task,
   type ElementId,
-  type Message,
 } from '@elemental/core';
 import {
   createDispatchService,
   type DispatchService,
-  type DispatchResult,
-  type SmartDispatchCandidatesResult,
 } from './dispatch-service.js';
 import {
   createTaskAssignmentService,
@@ -33,9 +30,6 @@ import {
   createAgentRegistry,
   type AgentRegistry,
 } from './agent-registry.js';
-import {
-  setTaskCapabilityRequirements,
-} from './capability-service.js';
 import {
   getOrchestratorTaskMeta,
 } from '../types/task-meta.js';
@@ -82,27 +76,12 @@ describe('DispatchService', () => {
     title: string,
     options?: {
       status?: typeof TaskStatus[keyof typeof TaskStatus];
-      requiredSkills?: string[];
-      preferredSkills?: string[];
-      requiredLanguages?: string[];
-      preferredLanguages?: string[];
     }
   ): Promise<Task> {
-    let metadata: Record<string, unknown> = {};
-    if (options?.requiredSkills || options?.preferredSkills || options?.requiredLanguages || options?.preferredLanguages) {
-      metadata = setTaskCapabilityRequirements(metadata, {
-        requiredSkills: options.requiredSkills,
-        preferredSkills: options.preferredSkills,
-        requiredLanguages: options.requiredLanguages,
-        preferredLanguages: options.preferredLanguages,
-      });
-    }
-
     const task = await createTask({
       title,
       createdBy: systemEntity,
       status: options?.status ?? TaskStatus.OPEN,
-      metadata,
     });
     return api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Promise<Task>;
   }
@@ -111,8 +90,6 @@ describe('DispatchService', () => {
   async function createTestWorker(
     name: string,
     options?: {
-      skills?: string[];
-      languages?: string[];
       maxConcurrentTasks?: number;
     }
   ): Promise<AgentEntity> {
@@ -120,11 +97,7 @@ describe('DispatchService', () => {
       name,
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: options?.skills ?? ['general'],
-        languages: options?.languages ?? ['typescript'],
-        maxConcurrentTasks: options?.maxConcurrentTasks ?? 1,
-      },
+      maxConcurrentTasks: options?.maxConcurrentTasks ?? 1,
     });
   }
 
@@ -255,37 +228,20 @@ describe('DispatchService', () => {
   });
 
   describe('getCandidates', () => {
-    test('returns available workers ranked by capability match', async () => {
-      // Create workers with different skills
-      const frontendDev = await createTestWorker('frontend-dev', {
-        skills: ['frontend', 'react', 'css'],
-        languages: ['typescript', 'javascript'],
-      });
-      const backendDev = await createTestWorker('backend-dev', {
-        skills: ['backend', 'api', 'database'],
-        languages: ['typescript', 'python'],
-      });
-      const fullstackDev = await createTestWorker('fullstack-dev', {
-        skills: ['frontend', 'backend', 'react', 'api'],
-        languages: ['typescript'],
-      });
+    test('returns available workers', async () => {
+      const worker1 = await createTestWorker('worker-1');
+      const worker2 = await createTestWorker('worker-2');
+      const worker3 = await createTestWorker('worker-3');
 
-      // Create task requiring frontend skills
-      const task = await createTestTask('Build login form', {
-        requiredSkills: ['frontend', 'react'],
-        preferredLanguages: ['typescript'],
-      });
+      const task = await createTestTask('Any task');
 
       const result = await dispatchService.getCandidates(task.id);
 
-      expect(result.candidates.length).toBeGreaterThan(0);
-      expect(result.hasRequirements).toBe(true);
-
-      // Frontend and fullstack devs should be eligible, backend should not
+      expect(result.candidates.length).toBe(3);
       const candidateNames = result.candidates.map(c => c.agent.name);
-      expect(candidateNames).toContain('frontend-dev');
-      expect(candidateNames).toContain('fullstack-dev');
-      expect(candidateNames).not.toContain('backend-dev');
+      expect(candidateNames).toContain('worker-1');
+      expect(candidateNames).toContain('worker-2');
+      expect(candidateNames).toContain('worker-3');
     });
 
     test('returns empty candidates when no workers are available', async () => {
@@ -297,31 +253,9 @@ describe('DispatchService', () => {
       expect(result.bestCandidate).toBeUndefined();
     });
 
-    test('respects eligibleOnly option', async () => {
-      const worker = await createTestWorker('limited-worker', {
-        skills: ['frontend'],
-        languages: ['javascript'],
-      });
-
-      const task = await createTestTask('Backend task', {
-        requiredSkills: ['backend'], // Worker doesn't have this
-        preferredSkills: ['frontend'],
-      });
-
-      // With eligibleOnly true (default), worker should not be returned
-      const eligibleResult = await dispatchService.getCandidates(task.id, { eligibleOnly: true });
-      expect(eligibleResult.candidates.length).toBe(0);
-
-      // With eligibleOnly false, worker should be returned (but with low score)
-      const allResult = await dispatchService.getCandidates(task.id, { eligibleOnly: false });
-      expect(allResult.candidates.length).toBe(1);
-      expect(allResult.candidates[0].matchResult.isEligible).toBe(false);
-    });
-
     test('filters out workers without capacity', async () => {
       // Create worker with max 1 concurrent task
       const worker = await createTestWorker('busy-worker', {
-        skills: ['general'],
         maxConcurrentTasks: 1,
       });
 
@@ -344,34 +278,21 @@ describe('DispatchService', () => {
   });
 
   describe('getBestAgent', () => {
-    test('returns the best matching agent', async () => {
-      // Create workers with different capability scores
-      const perfectMatch = await createTestWorker('perfect', {
-        skills: ['frontend', 'react', 'testing'],
-        languages: ['typescript', 'javascript'],
-      });
-      const goodMatch = await createTestWorker('good', {
-        skills: ['frontend', 'react'],
-        languages: ['typescript'],
-      });
+    test('returns first available agent', async () => {
+      const worker1 = await createTestWorker('worker-1');
+      const worker2 = await createTestWorker('worker-2');
 
-      const task = await createTestTask('Build component', {
-        requiredSkills: ['frontend', 'react'],
-        preferredSkills: ['testing'],
-        preferredLanguages: ['typescript', 'javascript'],
-      });
+      const task = await createTestTask('Any task');
 
       const bestAgent = await dispatchService.getBestAgent(task.id);
 
       expect(bestAgent).toBeDefined();
-      // Perfect match has all preferred skills and languages
-      expect(bestAgent?.agent.name).toBe('perfect');
+      // Should return one of the available workers
+      expect(['worker-1', 'worker-2']).toContain(bestAgent?.agent.name);
     });
 
-    test('returns undefined when no eligible agents', async () => {
-      const task = await createTestTask('Impossible task', {
-        requiredSkills: ['alien-technology'],
-      });
+    test('returns undefined when no agents available', async () => {
+      const task = await createTestTask('Orphan task');
 
       const bestAgent = await dispatchService.getBestAgent(task.id);
       expect(bestAgent).toBeUndefined();
@@ -379,41 +300,29 @@ describe('DispatchService', () => {
   });
 
   describe('smartDispatch', () => {
-    test('automatically dispatches to the best agent', async () => {
-      const worker1 = await createTestWorker('worker-1', {
-        skills: ['frontend'],
-        languages: ['typescript'],
-      });
-      const worker2 = await createTestWorker('worker-2', {
-        skills: ['frontend', 'react', 'css'],
-        languages: ['typescript'],
-      });
+    test('automatically dispatches to an available agent', async () => {
+      const worker1 = await createTestWorker('worker-1');
+      const worker2 = await createTestWorker('worker-2');
 
-      const task = await createTestTask('React component', {
-        requiredSkills: ['frontend', 'react'],
-      });
+      const task = await createTestTask('Any task');
 
       const result = await dispatchService.smartDispatch(task.id);
 
-      // Should dispatch to worker-2 (has react skill)
-      expect(result.agent.name).toBe('worker-2');
-      expect(result.task.assignee).toBe(worker2.id as unknown as EntityId);
+      // Should dispatch to one of the workers
+      expect(['worker-1', 'worker-2']).toContain(result.agent.name);
+      expect(result.task.assignee).toBeDefined();
     });
 
-    test('throws error when no eligible agents found', async () => {
-      const task = await createTestTask('Impossible task', {
-        requiredSkills: ['nonexistent-skill'],
-      });
+    test('throws error when no agents available', async () => {
+      const task = await createTestTask('Orphan task');
 
       await expect(dispatchService.smartDispatch(task.id)).rejects.toThrow(
-        'No eligible agents found'
+        'No available agents found'
       );
     });
 
     test('passes options through to dispatch', async () => {
-      const worker = await createTestWorker('single-worker', {
-        skills: ['general'],
-      });
+      const worker = await createTestWorker('single-worker');
 
       const task = await createTestTask('General task');
 

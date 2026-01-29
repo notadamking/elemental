@@ -29,9 +29,6 @@ import type {
   RegisterWorkerInput,
   RegisterStewardInput,
 } from '../types/index.js';
-import {
-  createAgentCapabilities,
-} from '../types/index.js';
 // Import shared agent entity types from the API module to avoid duplication
 import {
   type AgentEntity,
@@ -263,7 +260,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     const agentMetadata: DirectorMetadata = {
       agentRole: 'director',
       sessionStatus: 'idle',
-      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
     };
 
@@ -299,7 +296,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       agentRole: 'worker',
       workerMode: input.workerMode,
       sessionStatus: 'idle',
-      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
     };
 
@@ -337,7 +334,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       stewardFocus: input.stewardFocus,
       triggers: input.triggers,
       sessionStatus: 'idle',
-      capabilities: input.capabilities ? createAgentCapabilities(input.capabilities) : undefined,
+      maxConcurrentTasks: input.maxConcurrentTasks,
       roleDefinitionRef: input.roleDefinitionRef,
     };
 
@@ -629,39 +626,6 @@ export class AgentRegistryImpl implements AgentRegistry {
       result = result.filter((a) => {
         const meta = getAgentMetadata(a);
         return (meta?.sessionId !== undefined) === filter.hasSession;
-      });
-    }
-
-    if (filter.requiredSkills !== undefined && filter.requiredSkills.length > 0) {
-      result = result.filter((a) => {
-        const meta = getAgentMetadata(a);
-        const skills = meta?.capabilities?.skills ?? [];
-        const normalizedSkills = skills.map((s) => s.toLowerCase().trim());
-        return filter.requiredSkills!.every((skill) =>
-          normalizedSkills.includes(skill.toLowerCase().trim())
-        );
-      });
-    }
-
-    if (filter.requiredLanguages !== undefined && filter.requiredLanguages.length > 0) {
-      result = result.filter((a) => {
-        const meta = getAgentMetadata(a);
-        const languages = meta?.capabilities?.languages ?? [];
-        const normalizedLanguages = languages.map((l) => l.toLowerCase().trim());
-        return filter.requiredLanguages!.every((lang) =>
-          normalizedLanguages.includes(lang.toLowerCase().trim())
-        );
-      });
-    }
-
-    if (filter.hasCapacity === true) {
-      // Note: This filter requires knowing the current task count per agent.
-      // For now, we treat agents with maxConcurrentTasks > 0 as having capacity.
-      // The actual task count check should be done at a higher level with task data.
-      result = result.filter((a) => {
-        const meta = getAgentMetadata(a);
-        const maxTasks = meta?.capabilities?.maxConcurrentTasks ?? 1;
-        return maxTasks > 0;
       });
     }
 
