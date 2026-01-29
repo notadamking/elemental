@@ -15,6 +15,7 @@ import {
   Plus,
   ChevronDown,
   ListTodo,
+  ExternalLink,
 } from 'lucide-react';
 import { useTasks, useCreateTask } from '../../api/hooks/useTasks';
 import type { Task, Priority } from '../../api/types';
@@ -24,6 +25,8 @@ export interface StartAgentDialogProps {
   onClose: () => void;
   agent: { id: string; name: string };
   onStart: (agentId: string, taskId: string, initialMessage?: string) => Promise<void>;
+  /** Called when user clicks "Start & Open" - should start agent and navigate to workspace */
+  onStartAndOpen?: (agentId: string, taskId: string, initialMessage?: string) => Promise<void>;
   isStarting?: boolean;
 }
 
@@ -42,6 +45,7 @@ export function StartAgentDialog({
   onClose,
   agent,
   onStart,
+  onStartAndOpen,
   isStarting = false,
 }: StartAgentDialogProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
@@ -49,6 +53,7 @@ export function StartAgentDialog({
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [newTaskForm, setNewTaskForm] = useState<NewTaskForm>(defaultNewTaskForm);
   const [error, setError] = useState<string | null>(null);
+  const [startMode, setStartMode] = useState<'start' | 'startAndOpen' | null>(null);
 
   // Fetch unassigned tasks
   const { data: tasksData, isLoading: tasksLoading } = useTasks({
@@ -72,6 +77,7 @@ export function StartAgentDialog({
       setShowNewTaskForm(false);
       setNewTaskForm(defaultNewTaskForm);
       setError(null);
+      setStartMode(null);
     }
   }, [isOpen]);
 
@@ -82,9 +88,10 @@ export function StartAgentDialog({
     onClose();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, mode: 'start' | 'startAndOpen' = 'start') => {
     e.preventDefault();
     setError(null);
+    setStartMode(mode);
 
     let taskId = selectedTaskId;
 
@@ -93,6 +100,7 @@ export function StartAgentDialog({
       const trimmedTitle = newTaskForm.title.trim();
       if (!trimmedTitle) {
         setError('Task title is required');
+        setStartMode(null);
         return;
       }
 
@@ -105,20 +113,24 @@ export function StartAgentDialog({
         taskId = result.task.id;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create task');
+        setStartMode(null);
         return;
       }
     }
 
     if (!taskId) {
       setError('Please select or create a task');
+      setStartMode(null);
       return;
     }
 
     try {
-      await onStart(agent.id, taskId, initialMessage.trim() || undefined);
+      const handler = mode === 'startAndOpen' && onStartAndOpen ? onStartAndOpen : onStart;
+      await handler(agent.id, taskId, initialMessage.trim() || undefined);
       handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start agent');
+      setStartMode(null);
     }
   };
 
@@ -134,7 +146,7 @@ export function StartAgentDialog({
   };
 
   const isValid = showNewTaskForm ? newTaskForm.title.trim().length > 0 : selectedTaskId.length > 0;
-  const isSubmitting = isStarting || createTask.isPending;
+  const isSubmitting = isStarting || createTask.isPending || startMode !== null;
 
   return (
     <>
@@ -358,16 +370,16 @@ export function StartAgentDialog({
                   flex items-center gap-2
                   px-4 py-2
                   text-sm font-medium
-                  text-white
-                  bg-green-600
-                  hover:bg-green-500
+                  text-[var(--color-text-secondary)]
+                  border border-[var(--color-border)]
+                  hover:bg-[var(--color-surface-hover)]
                   disabled:opacity-50 disabled:cursor-not-allowed
                   rounded-lg
                   transition-colors
                 "
                 data-testid="start-agent-submit"
               >
-                {isSubmitting ? (
+                {isSubmitting && startMode === 'start' ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     {createTask.isPending ? 'Creating task...' : 'Starting...'}
@@ -375,10 +387,41 @@ export function StartAgentDialog({
                 ) : (
                   <>
                     <Play className="w-4 h-4" />
-                    Start Agent
+                    Start
                   </>
                 )}
               </button>
+              {onStartAndOpen && (
+                <button
+                  type="button"
+                  onClick={(e) => handleSubmit(e, 'startAndOpen')}
+                  disabled={isSubmitting || !isValid}
+                  className="
+                    flex items-center gap-2
+                    px-4 py-2
+                    text-sm font-medium
+                    text-white
+                    bg-green-600
+                    hover:bg-green-500
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    rounded-lg
+                    transition-colors
+                  "
+                  data-testid="start-agent-submit-and-open"
+                >
+                  {isSubmitting && startMode === 'startAndOpen' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {createTask.isPending ? 'Creating task...' : 'Starting...'}
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="w-4 h-4" />
+                      Start & Open
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </form>
         </div>

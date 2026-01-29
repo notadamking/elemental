@@ -144,6 +144,13 @@ export function AgentsPage() {
     }
   };
 
+  // Handle starting an ephemeral agent with task assignment and opening in workspace
+  const handleStartAgentWithTaskAndOpen = async (agentId: string, taskId: string, initialMessage?: string) => {
+    await handleStartAgentWithTask(agentId, taskId, initialMessage);
+    // Navigate to workspaces page with agent selected
+    navigate({ to: '/workspaces', search: { layout: 'single', agent: agentId } });
+  };
+
   // Determine if an agent is ephemeral
   const isEphemeralWorker = (agentId: string): boolean => {
     return ephemeralWorkers.some((a) => a.id === agentId);
@@ -399,6 +406,7 @@ export function AgentsPage() {
           onClose={closeStartDialog}
           agent={startDialogAgent}
           onStart={handleStartAgentWithTask}
+          onStartAndOpen={handleStartAgentWithTaskAndOpen}
           isStarting={pendingStart.has(startDialogAgent.id)}
         />
       )}

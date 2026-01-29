@@ -87,7 +87,9 @@ function StreamEventCard({
   event: StreamEvent;
   isLast: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Tool events are minimized by default, other events are expanded
+  const isToolEvent = event.type === 'tool_use' || event.type === 'tool_result';
+  const [isExpanded, setIsExpanded] = useState(!isToolEvent);
   const colors = eventColors[event.type] || eventColors.system;
   const Icon = eventIcons[event.type] || Info;
 
@@ -298,21 +300,12 @@ export function StreamViewer({
         try {
           const data = JSON.parse(e.data);
 
-          // Debug logging for received SSE event
-          console.log('[StreamViewer] SSE event type:', e.type);
-          console.log('[StreamViewer] Raw SSE data:', e.data.slice(0, 500));
-          console.log('[StreamViewer] Parsed data keys:', Object.keys(data));
-          console.log('[StreamViewer] data.type:', data.type);
-          console.log('[StreamViewer] data.tool:', data.tool);
-          console.log('[StreamViewer] data.raw:', data.raw ? Object.keys(data.raw) : 'undefined');
-
           // Extract the actual event data (may be wrapped)
           const eventData = data.event || data;
           let eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
 
           // Skip system messages (internal info) and result messages (duplicate of assistant)
           if (eventType === 'system' || eventType === 'result') {
-            console.log('[StreamViewer] Skipping event type:', eventType);
             return;
           }
 
@@ -329,18 +322,9 @@ export function StreamViewer({
             eventData.message?.content ||
             eventData.content;
 
-          console.log('[StreamViewer] Content array path check:', {
-            'raw.message.content': eventData.raw?.message?.content ? 'exists' : 'no',
-            'raw.content': eventData.raw?.content ? 'exists' : 'no',
-            'message.content': eventData.message?.content ? 'exists' : 'no',
-            'content': eventData.content ? 'exists' : 'no',
-            isArray: Array.isArray(rawContentArray),
-          });
-
           if (Array.isArray(rawContentArray)) {
             for (const block of rawContentArray) {
               if (typeof block === 'object' && block !== null && 'type' in block) {
-                console.log('[StreamViewer] Processing content block:', block.type, block);
                 if (block.type === 'tool_use' && block.name) {
                   toolName = toolName || block.name;
                   toolInput = toolInput || block.input;
@@ -396,15 +380,6 @@ export function StreamViewer({
             toolOutput,
             isError: eventType === 'error',
           };
-
-          // Debug logging for final event
-          console.log('[StreamViewer] Final event:', {
-            type: newEvent.type,
-            content: newEvent.content?.slice(0, 100),
-            toolName: newEvent.toolName,
-            toolInput: newEvent.toolInput ? JSON.stringify(newEvent.toolInput).slice(0, 100) : undefined,
-            toolOutput: newEvent.toolOutput?.slice(0, 100),
-          });
 
           setEvents(prev => [...prev.slice(-200), newEvent]); // Keep last 200 events
         } catch (err) {
