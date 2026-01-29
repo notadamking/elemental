@@ -298,6 +298,14 @@ export function StreamViewer({
         try {
           const data = JSON.parse(e.data);
 
+          // Debug logging for received SSE event
+          console.log('[StreamViewer] SSE event type:', e.type);
+          console.log('[StreamViewer] Raw SSE data:', e.data.slice(0, 500));
+          console.log('[StreamViewer] Parsed data keys:', Object.keys(data));
+          console.log('[StreamViewer] data.type:', data.type);
+          console.log('[StreamViewer] data.tool:', data.tool);
+          console.log('[StreamViewer] data.raw:', data.raw ? Object.keys(data.raw) : 'undefined');
+
           // Extract the actual event data (may be wrapped)
           const eventData = data.event || data;
           let eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
@@ -363,6 +371,15 @@ export function StreamViewer({
             toolOutput,
             isError: eventType === 'error',
           };
+
+          // Debug logging for final event
+          console.log('[StreamViewer] Final event:', {
+            type: newEvent.type,
+            content: newEvent.content?.slice(0, 100),
+            toolName: newEvent.toolName,
+            toolInput: newEvent.toolInput ? JSON.stringify(newEvent.toolInput).slice(0, 100) : undefined,
+            toolOutput: newEvent.toolOutput?.slice(0, 100),
+          });
 
           setEvents(prev => [...prev.slice(-200), newEvent]); // Keep last 200 events
         } catch (err) {

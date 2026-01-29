@@ -1107,6 +1107,12 @@ export class SpawnerServiceImpl implements SpawnerService {
       const parsed = JSON.parse(line) as Record<string, unknown>;
       const rawEvent = parsed as StreamJsonEvent;
 
+      // Debug logging for event parsing
+      console.log('[Spawner] Raw JSON line:', line.slice(0, 500));
+      console.log('[Spawner] Parsed event type:', rawEvent.type, 'subtype:', rawEvent.subtype);
+      console.log('[Spawner] Has tool field:', !!rawEvent.tool, 'tool:', rawEvent.tool);
+      console.log('[Spawner] Content type:', typeof parsed.content, Array.isArray(parsed.content) ? 'array' : '');
+
       // Extract string content from potentially complex structures
       // Claude CLI can output content as string, array of content blocks, or nested objects
       // For result events, content is in the 'result' field
@@ -1174,6 +1180,16 @@ export class SpawnerServiceImpl implements SpawnerService {
         message,
         tool,
       };
+
+      // Debug logging for emitted event
+      console.log('[Spawner] Emitting event:', {
+        type: event.type,
+        subtype: event.subtype,
+        message: event.message?.slice(0, 100),
+        hasTool: !!event.tool,
+        toolName: event.tool?.name,
+        toolInput: event.tool?.input ? JSON.stringify(event.tool.input).slice(0, 100) : undefined,
+      });
 
       session.events.emit('event', event);
     } catch (error) {
