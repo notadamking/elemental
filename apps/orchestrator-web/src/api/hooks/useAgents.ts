@@ -198,17 +198,28 @@ export function useCreateAgent() {
 export function useStartAgentSession() {
   const queryClient = useQueryClient();
 
-  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; initialPrompt?: string; interactive?: boolean }>({
-    mutationFn: async ({ agentId, initialPrompt, interactive }) => {
+  return useMutation<
+    { success: boolean; session: unknown },
+    Error,
+    {
+      agentId: string;
+      taskId?: string;
+      initialPrompt?: string;
+      initialMessage?: string;
+      interactive?: boolean;
+    }
+  >({
+    mutationFn: async ({ agentId, taskId, initialPrompt, initialMessage, interactive }) => {
       return fetchApi(`/agents/${agentId}/start`, {
         method: 'POST',
-        body: JSON.stringify({ initialPrompt, interactive }),
+        body: JSON.stringify({ taskId, initialPrompt, initialMessage, interactive }),
       });
     },
     onSuccess: (_, { agentId }) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent-status', agentId] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 }
@@ -228,6 +239,25 @@ export function useStopAgentSession() {
     },
     onSuccess: (_, { agentId }) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-status', agentId] });
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    },
+  });
+}
+
+/**
+ * Hook to interrupt a running agent session
+ */
+export function useInterruptAgentSession() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { agentId: string }>({
+    mutationFn: async ({ agentId }) => {
+      return fetchApi(`/agents/${agentId}/interrupt`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: (_, { agentId }) => {
       queryClient.invalidateQueries({ queryKey: ['agent-status', agentId] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },

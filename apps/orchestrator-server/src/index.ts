@@ -1327,11 +1327,21 @@ app.get('/api/agents/:id/status', async (c) => {
 /**
  * POST /api/agents/:id/start
  * Start a new agent session
+ *
+ * Body:
+ * - taskId?: string - Task to assign to the agent (for ephemeral workers)
+ * - initialMessage?: string - Additional message context
+ * - initialPrompt?: string - Initial prompt (merged with task context if taskId provided)
+ * - workingDirectory?: string - Working directory
+ * - worktree?: string - Git worktree path
+ * - interactive?: boolean - Use interactive PTY mode
  */
 app.post('/api/agents/:id/start', async (c) => {
   try {
     const agentId = c.req.param('id') as EntityId;
     const body = await c.req.json().catch(() => ({})) as {
+      taskId?: string;
+      initialMessage?: string;
       workingDirectory?: string;
       worktree?: string;
       initialPrompt?: string;
@@ -1352,10 +1362,49 @@ app.post('/api/agents/:id/start', async (c) => {
       }, 409);
     }
 
+    // Build initial prompt with task context if taskId provided
+    let effectivePrompt = body.initialPrompt;
+    let assignedTask: { id: string; title: string } | undefined;
+
+    if (body.taskId) {
+      // Fetch task details
+      const taskResult = await api.get<Task>(body.taskId as ElementId);
+      if (!taskResult || taskResult.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      // Assign task to agent using orchestrator API
+      await orchestratorApi.assignTaskToAgent(body.taskId as ElementId, agentId);
+
+      // Build task context prompt
+      const taskPrompt = `You have been assigned the following task:
+
+**Task ID**: ${taskResult.id}
+**Title**: ${taskResult.title}
+**Priority**: ${taskResult.priority ?? 'Not set'}
+${taskResult.acceptanceCriteria ? `**Acceptance Criteria**: ${taskResult.acceptanceCriteria}` : ''}
+
+Please begin working on this task. Use \`el task get ${taskResult.id}\` to see full details if needed.`;
+
+      // Combine prompts
+      effectivePrompt = body.initialMessage
+        ? `${taskPrompt}\n\n**Additional Instructions**:\n${body.initialMessage}${body.initialPrompt ? `\n\n${body.initialPrompt}` : ''}`
+        : body.initialPrompt
+          ? `${taskPrompt}\n\n${body.initialPrompt}`
+          : taskPrompt;
+
+      assignedTask = { id: taskResult.id, title: taskResult.title };
+    } else if (body.initialMessage) {
+      // Use initial message as prompt if no task
+      effectivePrompt = body.initialPrompt
+        ? `${body.initialMessage}\n\n${body.initialPrompt}`
+        : body.initialMessage;
+    }
+
     const { session, events } = await sessionManager.startSession(agentId, {
       workingDirectory: body.workingDirectory,
       worktree: body.worktree,
-      initialPrompt: body.initialPrompt,
+      initialPrompt: effectivePrompt,
       interactive: body.interactive,
     });
 
@@ -1366,6 +1415,7 @@ app.post('/api/agents/:id/start', async (c) => {
     return c.json({
       success: true,
       session: formatSessionRecord(session),
+      ...(assignedTask && { assignedTask }),
     }, 201);
   } catch (error) {
     console.error('[orchestrator] Failed to start session:', error);
@@ -1415,6 +1465,34 @@ app.post('/api/agents/:id/stop', async (c) => {
     });
   } catch (error) {
     console.error('[orchestrator] Failed to stop session:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+  }
+});
+
+/**
+ * POST /api/agents/:id/interrupt
+ * Interrupt a running agent session (sends SIGINT-like signal to stop current operation)
+ */
+app.post('/api/agents/:id/interrupt', async (c) => {
+  try {
+    const agentId = c.req.param('id') as EntityId;
+
+    const activeSession = sessionManager.getActiveSession(agentId);
+    if (!activeSession) {
+      return c.json({
+        error: { code: 'NO_SESSION', message: 'No active session to interrupt' },
+      }, 404);
+    }
+
+    // Interrupt the session via session manager
+    await sessionManager.interruptSession(activeSession.id);
+
+    return c.json({
+      success: true,
+      sessionId: activeSession.id,
+    });
+  } catch (error) {
+    console.error('[orchestrator] Failed to interrupt session:', error);
     return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
   }
 });

@@ -10,7 +10,7 @@ import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw, Network } from 'lucide-react';
 import { useAgentsByRole, useStartAgentSession, useStopAgentSession, useDirector, useSessions } from '../../api/hooks/useAgents';
 import { useTasks } from '../../api/hooks/useTasks';
-import { AgentCard, CreateAgentDialog, RenameAgentDialog } from '../../components/agent';
+import { AgentCard, CreateAgentDialog, RenameAgentDialog, StartAgentDialog } from '../../components/agent';
 import { AgentWorkspaceGraph } from '../../components/agent-graph';
 import type { Agent, SessionStatus, AgentRole, StewardFocus } from '../../api/types';
 
@@ -31,6 +31,10 @@ export function AgentsPage() {
   // Rename Agent Dialog state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameAgent, setRenameAgent] = useState<{ id: string; name: string } | null>(null);
+
+  // Start Agent Dialog state (for ephemeral workers)
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [startDialogAgent, setStartDialogAgent] = useState<{ id: string; name: string } | null>(null);
 
   // Track which agents have pending actions
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
@@ -108,6 +112,52 @@ export function AgentsPage() {
         next.delete(agentId);
         return next;
       });
+    }
+  };
+
+  // Open start dialog for ephemeral workers
+  const openStartDialog = (agent: { id: string; name: string }) => {
+    setStartDialogAgent(agent);
+    setStartDialogOpen(true);
+  };
+
+  const closeStartDialog = () => {
+    setStartDialogOpen(false);
+    setStartDialogAgent(null);
+  };
+
+  // Handle starting an ephemeral agent with task assignment
+  const handleStartAgentWithTask = async (agentId: string, taskId: string, initialMessage?: string) => {
+    setPendingStart((prev) => new Set(prev).add(agentId));
+    try {
+      await startSession.mutateAsync({
+        agentId,
+        taskId,
+        initialMessage,
+      });
+    } finally {
+      setPendingStart((prev) => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
+    }
+  };
+
+  // Determine if an agent is ephemeral
+  const isEphemeralWorker = (agentId: string): boolean => {
+    return ephemeralWorkers.some((a) => a.id === agentId);
+  };
+
+  // Start handler that routes ephemeral workers to the dialog
+  const handleStartAgentOrDialog = (agentId: string) => {
+    const agent = [...ephemeralWorkers, ...persistentWorkers, director].find((a) => a?.id === agentId);
+    if (!agent) return;
+
+    if (isEphemeralWorker(agentId)) {
+      openStartDialog({ id: agent.id, name: agent.name });
+    } else {
+      handleStartAgent(agentId);
     }
   };
 
@@ -299,7 +349,7 @@ export function AgentsPage() {
           onOpenDirectorPanel={handleOpenDirectorPanel}
           ephemeralWorkers={filteredAgents.ephemeralWorkers}
           persistentWorkers={filteredAgents.persistentWorkers}
-          onStart={handleStartAgent}
+          onStart={handleStartAgentOrDialog}
           onStop={handleStopAgent}
           onOpenTerminal={handleOpenTerminal}
           onRename={openRenameDialog}
@@ -339,6 +389,17 @@ export function AgentsPage() {
           agentId={renameAgent.id}
           currentName={renameAgent.name}
           onSuccess={() => refetch()}
+        />
+      )}
+
+      {/* Start Agent Dialog (for ephemeral workers) */}
+      {startDialogAgent && (
+        <StartAgentDialog
+          isOpen={startDialogOpen}
+          onClose={closeStartDialog}
+          agent={startDialogAgent}
+          onStart={handleStartAgentWithTask}
+          isStarting={pendingStart.has(startDialogAgent.id)}
         />
       )}
     </div>

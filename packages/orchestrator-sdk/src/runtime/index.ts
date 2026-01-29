@@ -119,3 +119,31 @@ export {
   // Factory
   createHandoffService,
 } from './handoff.js';
+
+// SDK Adapter (for future Claude Agent SDK integration)
+export {
+  // Types
+  type SDKUserMessage,
+  type SDKSessionOptions,
+  type SDKSession,
+  // Classes
+  MessageQueue,
+  // Factory
+  createSDKSession,
+} from './sdk-adapter.js';
+
+// Message Mapper (SDK to SpawnedSessionEvent conversion)
+export {
+  // Types
+  type SDKMessage,
+  type SDKAssistantMessage,
+  type SDKSystemMessage,
+  type SDKResultMessage,
+  type SDKErrorMessage,
+  type SDKContentBlock,
+  type AnySDKMessage,
+  // Functions
+  mapSDKMessageToEvent,
+  mapToolResultToEvent,
+  mapSDKMessagesToEvents,
+} from './message-mapper.js';

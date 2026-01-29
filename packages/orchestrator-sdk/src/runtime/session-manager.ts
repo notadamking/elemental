@@ -282,6 +282,15 @@ export interface SessionManager {
    */
   suspendSession(sessionId: string, reason?: string): Promise<void>;
 
+  /**
+   * Interrupts a running session (sends interrupt signal to stop current operation).
+   * This is like pressing Escape in the Claude Code CLI - it stops the current
+   * operation but keeps the session running.
+   *
+   * @param sessionId - The internal session ID
+   */
+  interruptSession(sessionId: string): Promise<void>;
+
   // ----------------------------------------
   // Session Queries
   // ----------------------------------------
@@ -644,6 +653,23 @@ export class SessionManagerImpl implements SessionManager {
 
     // Emit status change
     session.events.emit('status', 'terminated');
+  }
+
+  async interruptSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    if (session.status !== 'running') {
+      throw new Error(`Cannot interrupt session in status: ${session.status}`);
+    }
+
+    // Interrupt via spawner
+    await this.spawner.interrupt(sessionId);
+
+    // Emit interrupt event
+    session.events.emit('interrupt');
   }
 
   async suspendSession(sessionId: string, reason?: string): Promise<void> {

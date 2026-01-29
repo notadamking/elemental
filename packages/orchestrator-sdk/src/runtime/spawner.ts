@@ -274,6 +274,15 @@ export interface SpawnerService {
    */
   suspend(sessionId: string): Promise<void>;
 
+  /**
+   * Interrupts a running session.
+   * For headless sessions, this sends an interrupt signal.
+   * For interactive sessions, this sends Escape key.
+   *
+   * @param sessionId - The internal session ID
+   */
+  interrupt(sessionId: string): Promise<void>;
+
   // ----------------------------------------
   // Session Queries
   // ----------------------------------------
@@ -616,6 +625,30 @@ export class SpawnerServiceImpl implements SpawnerService {
     }
 
     this.transitionStatus(session, 'suspended');
+    session.lastActivityAt = createTimestamp();
+  }
+
+  async interrupt(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    if (session.status !== 'running') {
+      throw new Error(`Cannot interrupt session in status: ${session.status}`);
+    }
+
+    // For headless sessions, send SIGINT to interrupt current operation
+    if (session.process) {
+      session.process.kill('SIGINT');
+    }
+
+    // For interactive PTY sessions, send Escape key
+    if (session.pty) {
+      // Send Escape key (ASCII 27)
+      session.pty.write('\x1b');
+    }
+
     session.lastActivityAt = createTimestamp();
   }
 

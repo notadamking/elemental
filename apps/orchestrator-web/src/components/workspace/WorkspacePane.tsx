@@ -6,12 +6,13 @@
  */
 
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle, ArrowLeftRight, RotateCw } from 'lucide-react';
+import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle, ArrowLeftRight, RotateCw, MessageSquare, MessageSquareOff } from 'lucide-react';
 import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
 import { XTerminal, type XTerminalHandle } from '../terminal/XTerminal';
 import { StreamViewer } from './StreamViewer';
+import { TerminalInput } from './TerminalInput';
 import { Tooltip } from '../ui/Tooltip';
-import { useAgentStatus, useStartAgentSession, useStopAgentSession } from '../../api/hooks/useAgents';
+import { useAgentStatus, useStartAgentSession, useStopAgentSession, useInterruptAgentSession } from '../../api/hooks/useAgents';
 
 export interface WorkspacePaneProps {
   pane: WorkspacePaneType;
@@ -67,12 +68,16 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   onStatusChange,
 }, ref) {
   const [showMenu, setShowMenu] = useState(false);
+  const [showTextbox, setShowTextbox] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const terminalRef = useRef<XTerminalHandle>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
 
   // Session status and controls for workers (not director - that has its own panel)
   const { data: statusData } = useAgentStatus(pane.agentRole !== 'director' ? pane.agentId : undefined);
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
+  const interruptSession = useInterruptAgentSession();
 
   const hasActiveSession = statusData?.hasActiveSession ?? false;
 
@@ -102,6 +107,22 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
     onStatusChangeRef.current = onStatusChange;
   }, [onStatusChange]);
 
+  // Escape key handler for interrupting active sessions
+  useEffect(() => {
+    if (!isFocused || !hasActiveSession || pane.agentRole === 'director') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !interruptSession.isPending) {
+        e.preventDefault();
+        e.stopPropagation();
+        interruptSession.mutate({ agentId: pane.agentId });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFocused, hasActiveSession, pane.agentId, pane.agentRole, interruptSession]);
+
   const handleStatusChange = useCallback((status: 'disconnected' | 'connecting' | 'connected' | 'error') => {
     onStatusChangeRef.current(status);
   }, []);
@@ -109,6 +130,19 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   // Refresh the terminal (re-fits to current dimensions)
   const handleRefresh = useCallback(() => {
     terminalRef.current?.refresh();
+  }, []);
+
+  // Send input to the terminal (for persistent worker textbox)
+  const handleSendTerminalInput = useCallback((message: string) => {
+    // Send the message, then send carriage return as a separate message to execute
+    terminalRef.current?.sendInput(message);
+    terminalRef.current?.sendInput('\r');
+  }, []);
+
+  // Toggle textbox visibility
+  const handleToggleTextbox = useCallback(() => {
+    setShowTextbox(prev => !prev);
+    setShowMenu(false);
   }, []);
 
   // Expose methods via ref
@@ -121,6 +155,8 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
 
   return (
     <div
+      ref={paneRef}
+      tabIndex={0}
       className={`
         flex flex-col h-full
         rounded-lg border overflow-hidden
@@ -130,8 +166,11 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
           : 'border-[var(--color-border)]'
         }
         bg-[var(--color-bg-secondary)]
+        focus:outline-none
       `}
       onClick={onFocus}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
       data-testid={`workspace-pane-${pane.id}`}
       data-pane-id={pane.id}
       data-agent-id={pane.agentId}
@@ -341,6 +380,33 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
                       Refresh
                     </button>
                   )}
+                  {/* Show/Hide textbox - for persistent workers */}
+                  {pane.paneType === 'terminal' && pane.agentRole !== 'director' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleTextbox();
+                      }}
+                      className="
+                        w-full px-3 py-1.5 text-left text-sm flex items-center gap-2
+                        text-[var(--color-text-secondary)]
+                        hover:bg-[var(--color-surface-hover)]
+                      "
+                      data-testid="pane-toggle-textbox"
+                    >
+                      {showTextbox ? (
+                        <>
+                          <MessageSquareOff className="w-4 h-4" />
+                          Hide textbox
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare className="w-4 h-4" />
+                          Show textbox
+                        </>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -399,10 +465,10 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
       </div>
 
       {/* Pane Content */}
-      <div className="flex-1 min-h-0 overflow-hidden relative" data-testid="pane-content">
+      <div className="flex-1 min-h-0 overflow-hidden relative flex flex-col" data-testid="pane-content">
         {pane.agentRole === 'director' ? (
           // Director has a dedicated panel - show message instead of terminal
-          <div className="flex flex-col items-center justify-center h-full p-6 text-center bg-[#1a1a1a]">
+          <div className="flex flex-col items-center justify-center flex-1 p-6 text-center bg-[#1a1a1a]">
             <Terminal className="w-12 h-12 text-[var(--color-text-muted)] mb-4" />
             <p className="text-sm text-[var(--color-text-secondary)] mb-2">
               Director Terminal
@@ -412,15 +478,29 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
             </p>
           </div>
         ) : pane.paneType === 'terminal' ? (
-          <XTerminal
-            ref={terminalRef}
-            agentId={pane.agentId}
-            onStatusChange={handleStatusChange}
-            interactive={true}
-            autoFocus={true}
-            controlsResize={true}
-            data-testid={`terminal-${pane.id}`}
-          />
+          <>
+            <div className="flex-1 min-h-0">
+              <XTerminal
+                ref={terminalRef}
+                agentId={pane.agentId}
+                onStatusChange={handleStatusChange}
+                interactive={true}
+                autoFocus={true}
+                controlsResize={true}
+                data-testid={`terminal-${pane.id}`}
+              />
+            </div>
+            {/* Textbox for persistent workers */}
+            {showTextbox && (
+              <TerminalInput
+                isConnected={pane.status === 'connected' && hasActiveSession}
+                onSend={handleSendTerminalInput}
+                connectedPlaceholder="Type a command..."
+                disconnectedPlaceholder="Start session to send commands"
+                data-testid={`textbox-${pane.id}`}
+              />
+            )}
+          </>
         ) : (
           <StreamViewer
             agentId={pane.agentId}
