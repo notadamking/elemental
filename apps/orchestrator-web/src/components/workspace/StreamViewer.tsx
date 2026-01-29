@@ -310,6 +310,12 @@ export function StreamViewer({
           const eventData = data.event || data;
           let eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
 
+          // Skip system messages (internal info) and result messages (duplicate of assistant)
+          if (eventType === 'system' || eventType === 'result') {
+            console.log('[StreamViewer] Skipping event type:', eventType);
+            return;
+          }
+
           // Extract tool info from various locations
           let toolName = eventData.tool?.name || eventData.data?.name || eventData.toolName || eventData.raw?.tool;
           let toolInput = eventData.tool?.input || eventData.data?.input || eventData.toolInput || eventData.raw?.tool_input;
