@@ -109,6 +109,21 @@ function extractTaskTitle(text: string): string | null {
   return null;
 }
 
+/** Extract task ID from a prompt that contains task assignment text */
+function extractTaskId(text: string): string | null {
+  // Look for "**Task ID**: {id}" pattern in the prompt
+  const idMatch = text.match(/\*\*Task ID\*\*:\s*(.+?)(?:\n|$)/);
+  if (idMatch?.[1]) {
+    return idMatch[1].trim();
+  }
+  // Also try without markdown: "Task ID: {id}"
+  const plainIdMatch = text.match(/Task ID:\s*(.+?)(?:\n|$)/);
+  if (plainIdMatch?.[1]) {
+    return plainIdMatch[1].trim();
+  }
+  return null;
+}
+
 /** Get the first meaningful text content from an event */
 function getEventText(event: StreamEvent): string | undefined {
   // Check content field first
@@ -209,6 +224,15 @@ function SessionItem({ session, transcript, isSelected, onClick, onDelete }: Ses
   const sessionName = extractSessionName(session, transcript);
   const formattedDate = formatSessionDate(session.startedAt || session.createdAt);
 
+  // Extract task ID from the first user message if it contains task assignment
+  const taskId = useMemo(() => {
+    const firstUserMessage = transcript.find(e => e.type === 'user' && e.content);
+    if (firstUserMessage?.content?.includes('You have been assigned the following task')) {
+      return extractTaskId(firstUserMessage.content);
+    }
+    return null;
+  }, [transcript]);
+
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowDeleteConfirm(true);
@@ -248,6 +272,11 @@ function SessionItem({ session, transcript, isSelected, onClick, onDelete }: Ses
         <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
           <Clock className="w-3 h-3" />
           <span>{formattedDate}</span>
+          {taskId && (
+            <span className="px-1.5 py-0.5 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-[10px] font-mono">
+              {taskId}
+            </span>
+          )}
         </div>
       </div>
 
