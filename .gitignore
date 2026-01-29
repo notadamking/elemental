@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 
+**/debug/
+
 # Build output
 dist/
 
