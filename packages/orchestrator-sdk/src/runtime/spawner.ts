@@ -1111,18 +1111,42 @@ export class SpawnerServiceImpl implements SpawnerService {
       // Claude CLI can output content as string, array of content blocks, or nested objects
       // For result events, content is in the 'result' field
       let message: string | undefined;
+      let toolFromContent: { name?: string; id?: string; input?: unknown } | undefined;
+      let effectiveType = rawEvent.type as StreamJsonEventType;
       const rawContent = parsed.message ?? parsed.content ?? parsed.result;
 
       if (typeof rawContent === 'string') {
         message = rawContent;
       } else if (Array.isArray(rawContent)) {
-        // Handle Claude API content array: [{type: "text", text: "..."}]
-        message = rawContent
-          .filter((item): item is { type: string; text: string } =>
-            typeof item === 'object' && item !== null && 'type' in item && item.type === 'text' && 'text' in item && typeof item.text === 'string'
-          )
-          .map((item) => item.text)
-          .join('\n') || undefined;
+        // Handle Claude API content array: [{type: "text", text: "..."}, {type: "tool_use", ...}]
+        const textBlocks: string[] = [];
+        for (const item of rawContent) {
+          if (typeof item === 'object' && item !== null && 'type' in item) {
+            const block = item as { type: string; text?: string; name?: string; id?: string; input?: unknown; tool_use_id?: string; content?: string };
+            if (block.type === 'text' && typeof block.text === 'string') {
+              textBlocks.push(block.text);
+            } else if (block.type === 'tool_use' && block.name) {
+              // Extract tool_use block info
+              toolFromContent = {
+                name: block.name,
+                id: block.id,
+                input: block.input,
+              };
+              // Override type to tool_use if we found a tool_use block
+              effectiveType = 'tool_use';
+            } else if (block.type === 'tool_result') {
+              // Extract tool_result block info
+              toolFromContent = {
+                id: block.tool_use_id,
+              };
+              message = typeof block.content === 'string' ? block.content : undefined;
+              effectiveType = 'tool_result';
+            }
+          }
+        }
+        if (textBlocks.length > 0 && !message) {
+          message = textBlocks.join('\n');
+        }
       } else if (typeof rawContent === 'object' && rawContent !== null) {
         const contentObj = rawContent as Record<string, unknown>;
         // Handle object with content or text field
@@ -1133,19 +1157,22 @@ export class SpawnerServiceImpl implements SpawnerService {
         }
       }
 
+      // Build tool info from direct fields or extracted from content array
+      const tool = rawEvent.tool
+        ? {
+            name: rawEvent.tool,
+            id: rawEvent.tool_use_id,
+            input: rawEvent.tool_input,
+          }
+        : toolFromContent;
+
       const event: SpawnedSessionEvent = {
-        type: rawEvent.type as StreamJsonEventType,
+        type: effectiveType,
         subtype: rawEvent.subtype,
         receivedAt: createTimestamp(),
         raw: rawEvent,
         message,
-        tool: rawEvent.tool
-          ? {
-              name: rawEvent.tool,
-              id: rawEvent.tool_use_id,
-              input: rawEvent.tool_input,
-            }
-          : undefined,
+        tool,
       };
 
       session.events.emit('event', event);

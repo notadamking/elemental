@@ -300,38 +300,66 @@ export function StreamViewer({
 
           // Extract the actual event data (may be wrapped)
           const eventData = data.event || data;
-          const eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
+          let eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
+
+          // Extract tool info from various locations
+          let toolName = eventData.tool?.name || eventData.data?.name || eventData.toolName || eventData.raw?.tool;
+          let toolInput = eventData.tool?.input || eventData.data?.input || eventData.toolInput || eventData.raw?.tool_input;
+          let toolOutput: string | undefined;
+
+          // Check for tool_use/tool_result blocks in content arrays (Claude API format)
+          const rawContentArray = eventData.raw?.content || eventData.content;
+          if (Array.isArray(rawContentArray)) {
+            for (const block of rawContentArray) {
+              if (typeof block === 'object' && block !== null && 'type' in block) {
+                if (block.type === 'tool_use' && block.name) {
+                  toolName = toolName || block.name;
+                  toolInput = toolInput || block.input;
+                  // Override type if we found tool info but type was 'assistant'
+                  if (eventType === 'assistant') {
+                    eventType = 'tool_use';
+                  }
+                } else if (block.type === 'tool_result') {
+                  toolOutput = typeof block.content === 'string' ? block.content : undefined;
+                  if (eventType === 'user') {
+                    eventType = 'tool_result';
+                  }
+                }
+              }
+            }
+          }
 
           // Extract content from multiple possible locations:
           // - eventData.message: parsed message from SpawnedSessionEvent
-          // - eventData.content: direct content field
+          // - eventData.content: direct content field (if string)
           // - eventData.raw?.message: raw event message
-          // - eventData.raw?.content: raw event content
+          // - eventData.raw?.content: raw event content (if string)
           // - eventData.raw?.result: for result-type events
           // - eventData.data?.content: nested data structure
           const rawContent =
             eventData.message ||
-            eventData.content ||
+            (typeof eventData.content === 'string' ? eventData.content : undefined) ||
             eventData.raw?.message ||
-            eventData.raw?.content ||
+            (typeof eventData.raw?.content === 'string' ? eventData.raw?.content : undefined) ||
             eventData.raw?.result ||
             eventData.data?.content;
           const content = extractStringContent(rawContent);
 
           // For tool_result events, also extract output from raw
-          const toolOutput =
-            eventData.output ||
-            eventData.data?.output ||
-            eventData.raw?.content ||
-            (eventType === 'tool_result' ? extractStringContent(eventData.raw?.content) : undefined);
+          if (!toolOutput) {
+            toolOutput =
+              eventData.output ||
+              eventData.data?.output ||
+              (eventType === 'tool_result' && typeof eventData.raw?.content === 'string' ? eventData.raw?.content : undefined);
+          }
 
           const newEvent: StreamEvent = {
             id: e.lastEventId || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: eventType,
             timestamp: Date.now(),
             content,
-            toolName: eventData.tool?.name || eventData.data?.name || eventData.toolName || eventData.raw?.tool,
-            toolInput: eventData.tool?.input || eventData.data?.input || eventData.toolInput || eventData.raw?.tool_input,
+            toolName,
+            toolInput,
             toolOutput,
             isError: eventType === 'error',
           };
