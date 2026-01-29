@@ -1111,15 +1111,17 @@ export class SpawnerServiceImpl implements SpawnerService {
       console.log('[Spawner] Raw JSON line:', line.slice(0, 500));
       console.log('[Spawner] Parsed event type:', rawEvent.type, 'subtype:', rawEvent.subtype);
       console.log('[Spawner] Has tool field:', !!rawEvent.tool, 'tool:', rawEvent.tool);
-      console.log('[Spawner] Content type:', typeof parsed.content, Array.isArray(parsed.content) ? 'array' : '');
+      const parsedMessage = parsed.message as Record<string, unknown> | undefined;
+      console.log('[Spawner] message.content exists:', !!parsedMessage?.content, 'isArray:', Array.isArray(parsedMessage?.content));
 
       // Extract string content from potentially complex structures
       // Claude CLI can output content as string, array of content blocks, or nested objects
       // For result events, content is in the 'result' field
+      // Claude SDK format has content at message.content
       let message: string | undefined;
       let toolFromContent: { name?: string; id?: string; input?: unknown } | undefined;
       let effectiveType = rawEvent.type as StreamJsonEventType;
-      const rawContent = parsed.message ?? parsed.content ?? parsed.result;
+      const rawContent = parsedMessage?.content ?? parsed.message ?? parsed.content ?? parsed.result;
 
       if (typeof rawContent === 'string') {
         message = rawContent;

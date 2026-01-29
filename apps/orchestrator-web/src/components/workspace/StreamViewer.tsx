@@ -316,10 +316,25 @@ export function StreamViewer({
           let toolOutput: string | undefined;
 
           // Check for tool_use/tool_result blocks in content arrays (Claude API format)
-          const rawContentArray = eventData.raw?.content || eventData.content;
+          // The content array can be at: raw.message.content, raw.content, or content
+          const rawContentArray =
+            eventData.raw?.message?.content ||
+            eventData.raw?.content ||
+            eventData.message?.content ||
+            eventData.content;
+
+          console.log('[StreamViewer] Content array path check:', {
+            'raw.message.content': eventData.raw?.message?.content ? 'exists' : 'no',
+            'raw.content': eventData.raw?.content ? 'exists' : 'no',
+            'message.content': eventData.message?.content ? 'exists' : 'no',
+            'content': eventData.content ? 'exists' : 'no',
+            isArray: Array.isArray(rawContentArray),
+          });
+
           if (Array.isArray(rawContentArray)) {
             for (const block of rawContentArray) {
               if (typeof block === 'object' && block !== null && 'type' in block) {
+                console.log('[StreamViewer] Processing content block:', block.type, block);
                 if (block.type === 'tool_use' && block.name) {
                   toolName = toolName || block.name;
                   toolInput = toolInput || block.input;
