@@ -1109,8 +1109,9 @@ export class SpawnerServiceImpl implements SpawnerService {
 
       // Extract string content from potentially complex structures
       // Claude CLI can output content as string, array of content blocks, or nested objects
+      // For result events, content is in the 'result' field
       let message: string | undefined;
-      const rawContent = parsed.message ?? parsed.content;
+      const rawContent = parsed.message ?? parsed.content ?? parsed.result;
 
       if (typeof rawContent === 'string') {
         message = rawContent;

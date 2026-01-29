@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Bot, Wrench, AlertCircle, User, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Bot, Wrench, AlertCircle, User, Info, CheckCircle } from 'lucide-react';
 import type { StreamEvent } from './types';
 import type { PaneStatus } from './types';
 import { TerminalInput } from './TerminalInput';
@@ -57,6 +57,11 @@ const eventColors: Record<string, { bg: string; text: string; border: string }> 
     text: 'text-red-700 dark:text-red-300',
     border: 'border-red-200 dark:border-red-800',
   },
+  result: {
+    bg: 'bg-cyan-50 dark:bg-cyan-900/20',
+    text: 'text-cyan-700 dark:text-cyan-300',
+    border: 'border-cyan-200 dark:border-cyan-800',
+  },
 };
 
 /** Event type icons */
@@ -67,6 +72,7 @@ const eventIcons: Record<string, typeof Bot> = {
   user: User,
   system: Info,
   error: AlertCircle,
+  result: CheckCircle,
 };
 
 /** Check if event has any displayable content */
@@ -296,18 +302,37 @@ export function StreamViewer({
           const eventData = data.event || data;
           const eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
 
-          // Extract content, ensuring we always get a string
-          const rawContent = eventData.message || eventData.content || eventData.data?.content;
+          // Extract content from multiple possible locations:
+          // - eventData.message: parsed message from SpawnedSessionEvent
+          // - eventData.content: direct content field
+          // - eventData.raw?.message: raw event message
+          // - eventData.raw?.content: raw event content
+          // - eventData.raw?.result: for result-type events
+          // - eventData.data?.content: nested data structure
+          const rawContent =
+            eventData.message ||
+            eventData.content ||
+            eventData.raw?.message ||
+            eventData.raw?.content ||
+            eventData.raw?.result ||
+            eventData.data?.content;
           const content = extractStringContent(rawContent);
+
+          // For tool_result events, also extract output from raw
+          const toolOutput =
+            eventData.output ||
+            eventData.data?.output ||
+            eventData.raw?.content ||
+            (eventType === 'tool_result' ? extractStringContent(eventData.raw?.content) : undefined);
 
           const newEvent: StreamEvent = {
             id: e.lastEventId || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: eventType,
             timestamp: Date.now(),
             content,
-            toolName: eventData.tool?.name || eventData.data?.name || eventData.toolName,
-            toolInput: eventData.tool?.input || eventData.data?.input || eventData.toolInput,
-            toolOutput: eventData.output || eventData.data?.output,
+            toolName: eventData.tool?.name || eventData.data?.name || eventData.toolName || eventData.raw?.tool,
+            toolInput: eventData.tool?.input || eventData.data?.input || eventData.toolInput || eventData.raw?.tool_input,
+            toolOutput,
             isError: eventType === 'error',
           };
 

@@ -130,7 +130,7 @@ export interface WorkspaceActions {
  */
 export interface StreamEvent {
   id: string;
-  type: 'assistant' | 'tool_use' | 'tool_result' | 'system' | 'error' | 'user';
+  type: 'assistant' | 'tool_use' | 'tool_result' | 'system' | 'error' | 'user' | 'result';
   timestamp: number;
   content?: string;
   toolName?: string;
