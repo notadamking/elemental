@@ -6,9 +6,10 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, ChevronDown, ChevronRight, Bot, Wrench, AlertCircle, User, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Bot, Wrench, AlertCircle, User, Info } from 'lucide-react';
 import type { StreamEvent } from './types';
 import type { PaneStatus } from './types';
+import { TerminalInput } from './TerminalInput';
 
 export interface StreamViewerProps {
   agentId: string;
@@ -197,8 +198,6 @@ export function StreamViewer({
 }: StreamViewerProps) {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [status, setStatus] = useState<PaneStatus>('disconnected');
-  const [input, setInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -240,32 +239,22 @@ export function StreamViewer({
         updateStatus('connected');
       };
 
-      eventSource.onmessage = (e) => {
+      // Handler for agent events
+      const handleAgentEvent = (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data);
 
-          // Handle different event types
-          if (data.type === 'connected') {
-            // Initial connection event
-            return;
-          }
-
-          if (data.type === 'heartbeat') {
-            // Ignore heartbeats
-            return;
-          }
-
-          // Extract event from wrapper if present
+          // Extract the actual event data (may be wrapped)
           const eventData = data.event || data;
-          const eventType = eventData.type?.replace('agent_', '') || 'system';
+          const eventType = (eventData.type?.replace('agent_', '') || 'system') as StreamEvent['type'];
 
           const newEvent: StreamEvent = {
             id: e.lastEventId || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            type: eventType as StreamEvent['type'],
+            type: eventType,
             timestamp: Date.now(),
-            content: eventData.content || eventData.data?.content,
-            toolName: eventData.data?.name || eventData.toolName,
-            toolInput: eventData.data?.input || eventData.toolInput,
+            content: eventData.message || eventData.content || eventData.data?.content,
+            toolName: eventData.tool?.name || eventData.data?.name || eventData.toolName,
+            toolInput: eventData.tool?.input || eventData.data?.input || eventData.toolInput,
             toolOutput: eventData.output || eventData.data?.output,
             isError: eventType === 'error',
           };
@@ -273,6 +262,56 @@ export function StreamViewer({
           setEvents(prev => [...prev.slice(-200), newEvent]); // Keep last 200 events
         } catch (err) {
           console.error('[StreamViewer] Error parsing event:', err);
+        }
+      };
+
+      // Listen for named SSE events from the server
+      // The server sends: connected, heartbeat, agent_assistant, agent_tool_use, agent_tool_result, agent_error, agent_exit
+      eventSource.addEventListener('connected', () => {
+        // Connection confirmed by server
+      });
+
+      eventSource.addEventListener('heartbeat', () => {
+        // Heartbeat received, connection is alive
+      });
+
+      eventSource.addEventListener('agent_system', handleAgentEvent);
+      eventSource.addEventListener('agent_assistant', handleAgentEvent);
+      eventSource.addEventListener('agent_user', handleAgentEvent);
+      eventSource.addEventListener('agent_tool_use', handleAgentEvent);
+      eventSource.addEventListener('agent_tool_result', handleAgentEvent);
+      eventSource.addEventListener('agent_error', handleAgentEvent);
+      eventSource.addEventListener('agent_result', handleAgentEvent);
+
+      eventSource.addEventListener('agent_exit', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          const exitEvent: StreamEvent = {
+            id: `exit-${Date.now()}`,
+            type: 'system',
+            timestamp: Date.now(),
+            content: `Session exited with code ${data.code}${data.signal ? ` (signal: ${data.signal})` : ''}`,
+          };
+          setEvents(prev => [...prev, exitEvent]);
+        } catch (err) {
+          console.error('[StreamViewer] Error parsing exit event:', err);
+        }
+      });
+
+      // Fallback for unnamed events (compatibility)
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+
+          // Handle different event types
+          if (data.type === 'connected' || data.type === 'heartbeat') {
+            return;
+          }
+
+          // Process as agent event
+          handleAgentEvent(e);
+        } catch (err) {
+          console.error('[StreamViewer] Error parsing message:', err);
         }
       };
 
@@ -302,24 +341,25 @@ export function StreamViewer({
       if (eventSourceRef.current) {
         // Mark as intentional close to prevent reconnection attempts
         isIntentionalCloseRef.current = true;
-        eventSourceRef.current.close();
+        // Remove all event listeners before closing
+        const es = eventSourceRef.current;
+        es.onopen = null;
+        es.onmessage = null;
+        es.onerror = null;
+        es.close();
         eventSourceRef.current = null;
       }
     };
   }, [agentId, updateStatus]);
 
   // Send input to agent
-  const sendInput = async () => {
-    if (!input.trim() || isSending) return;
-
-    setIsSending(true);
-
+  const sendInput = useCallback(async (message: string) => {
     // Add user message to events
     const userEvent: StreamEvent = {
       id: `user-${Date.now()}`,
       type: 'user',
       timestamp: Date.now(),
-      content: input.trim(),
+      content: message,
     };
     setEvents(prev => [...prev, userEvent]);
 
@@ -328,7 +368,7 @@ export function StreamViewer({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          input: input.trim(),
+          input: message,
           isUserMessage: true,
         }),
       });
@@ -336,8 +376,6 @@ export function StreamViewer({
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-
-      setInput('');
     } catch (err) {
       console.error('[StreamViewer] Error sending input:', err);
       // Add error event
@@ -349,10 +387,9 @@ export function StreamViewer({
         isError: true,
       };
       setEvents(prev => [...prev, errorEvent]);
-    } finally {
-      setIsSending(false);
+      throw err; // Re-throw so TerminalInput can restore input
     }
-  };
+  }, [agentId]);
 
   // File upload function - uses base64 encoding to avoid Bun's multipart binary corruption
   const uploadFile = useCallback(async (file: File): Promise<string | null> => {
@@ -429,20 +466,22 @@ export function StreamViewer({
     setIsUploading(false);
 
     if (paths.length > 0) {
-      // Set the paths as input for the user to send
+      // Store paths for potential use, then send them directly
       const pathsText = paths.join(' ');
-      setInput(prev => prev ? `${prev} ${pathsText}` : pathsText);
 
-      // Add success notification
+      // Add success notification with paths
       const successEvent: StreamEvent = {
         id: `system-${Date.now() + 1}`,
         type: 'system',
         timestamp: Date.now(),
-        content: `${paths.length} file(s) uploaded. Paths added to input.`,
+        content: `${paths.length} file(s) uploaded:\n${pathsText}`,
       };
       setEvents(prev => [...prev, successEvent]);
+
+      // Automatically send the file paths as a message
+      await sendInput(pathsText);
     }
-  }, [enableFileDrop, status, uploadFile]);
+  }, [enableFileDrop, status, uploadFile, sendInput]);
 
   // Handle drag over
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -583,51 +622,11 @@ export function StreamViewer({
       </div>
 
       {/* Input area */}
-      <div className="
-        flex items-center gap-2 p-3
-        border-t border-[var(--color-border)]
-        bg-[var(--color-surface)]
-      ">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              sendInput();
-            }
-          }}
-          placeholder={status === 'connected' ? 'Type a message...' : 'Connect to send messages'}
-          disabled={status !== 'connected' || isSending}
-          className="
-            flex-1 px-3 py-2
-            text-sm
-            bg-[var(--color-bg)]
-            border border-[var(--color-border)]
-            rounded-md
-            placeholder:text-[var(--color-text-tertiary)]
-            focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]
-            disabled:opacity-50 disabled:cursor-not-allowed
-          "
-          data-testid="stream-input"
-        />
-        <button
-          onClick={sendInput}
-          disabled={!input.trim() || status !== 'connected' || isSending}
-          className="
-            p-2 rounded-md
-            text-white bg-[var(--color-primary)]
-            hover:bg-[var(--color-primary-hover)]
-            disabled:opacity-50 disabled:cursor-not-allowed
-            transition-colors
-          "
-          title="Send message"
-          data-testid="stream-send-btn"
-        >
-          <Send className="w-4 h-4" />
-        </button>
-      </div>
+      <TerminalInput
+        isConnected={status === 'connected'}
+        onSend={sendInput}
+        data-testid="stream-input"
+      />
     </div>
   );
 }
