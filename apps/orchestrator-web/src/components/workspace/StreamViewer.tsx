@@ -10,6 +10,7 @@ import { ChevronDown, ChevronRight, Bot, Wrench, AlertCircle, User, Info, CheckC
 import type { StreamEvent } from './types';
 import type { PaneStatus } from './types';
 import { TerminalInput } from './TerminalInput';
+import { MarkdownContent } from '../shared/MarkdownContent';
 
 export interface StreamViewerProps {
   agentId: string;
@@ -150,9 +151,16 @@ function StreamEventCard({
         <div className="px-3 py-2 border-t border-[var(--color-border)]/30">
           {/* Assistant/User message content */}
           {event.content != null && event.content !== '' && (
-            <div className="text-sm whitespace-pre-wrap break-words text-[var(--color-text)]">
-              {event.content}
-            </div>
+            (event.type === 'assistant' || event.type === 'user') ? (
+              <MarkdownContent
+                content={event.content}
+                className="text-sm text-[var(--color-text)]"
+              />
+            ) : (
+              <div className="text-sm whitespace-pre-wrap break-words text-[var(--color-text)]">
+                {event.content}
+              </div>
+            )
           )}
 
           {/* Tool input */}

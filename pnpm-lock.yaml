@@ -93,12 +93,18 @@ importers:
       lucide-react:
         specifier: ^0.563.0
         version: 0.563.0(react@19.2.4)
+      marked:
+        specifier: ^17.0.1
+        version: 17.0.1
       react:
         specifier: ^19.1.0
         version: 19.2.4
       react-dom:
         specifier: ^19.1.0
         version: 19.2.4(react@19.2.4)
+      react-resizable-panels:
+        specifier: ^4.5.3
+        version: 4.5.3(react-dom@19.2.4)(react@19.2.4)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4)(react@19.2.4)
@@ -138,7 +144,7 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^6.2.0
-        version: 6.4.1(@types/node@20.19.30)(yaml@2.8.2)
+        version: 6.4.1
 
   apps/server:
     dependencies:
@@ -2902,7 +2908,7 @@ packages:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 6.4.1(@types/node@20.19.30)(yaml@2.8.2)
+      vite: 6.4.1
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -4194,6 +4200,16 @@ packages:
       use-sidecar: 1.1.3(@types/react@19.2.9)(react@19.2.4)
     dev: false
 
+  /react-resizable-panels@4.5.3(react-dom@19.2.4)(react@19.2.4):
+    resolution: {integrity: sha512-N4Uc13yM1S9nfmwH25WIpxlp4/cwh2rqj9bDSxyZJ3S6gOJ9kFsZnPalfqIeBrbUv2SoGVLAbQUaTFceUY7A5Q==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+    dev: false
+
   /react-style-singleton@2.2.3(@types/react@19.2.9)(react@19.2.4):
     resolution: {integrity: sha512-b6jSvxvVnyptAiLjbkWLE/lOnR4lfTtDAl+eUC7RZy+QQWc6wRzIV2CE6xBuMmDxc2qIihtDCZD5NPOFl7fRBQ==}
     engines: {node: '>=10'}
@@ -4663,6 +4679,56 @@ packages:
       d3-time: 3.1.0
       d3-timer: 3.0.1
     dev: false
+
+  /vite@6.4.1:
+    resolution: {integrity: sha512-+Oxm7q9hDoLMyJOYfUYBuHQo+dkAloi33apOPP56pzj+vsdJDzr+j1NISE5pyaAuKL4A3UD34qd0lx5+kfKp2g==}
+    engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
+    hasBin: true
+    peerDependencies:
+      '@types/node': ^18.0.0 || ^20.0.0 || >=22.0.0
+      jiti: '>=1.21.0'
+      less: '*'
+      lightningcss: ^1.21.0
+      sass: '*'
+      sass-embedded: '*'
+      stylus: '*'
+      sugarss: '*'
+      terser: ^5.16.0
+      tsx: ^4.8.1
+      yaml: ^2.4.2
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      jiti:
+        optional: true
+      less:
+        optional: true
+      lightningcss:
+        optional: true
+      sass:
+        optional: true
+      sass-embedded:
+        optional: true
+      stylus:
+        optional: true
+      sugarss:
+        optional: true
+      terser:
+        optional: true
+      tsx:
+        optional: true
+      yaml:
+        optional: true
+    dependencies:
+      esbuild: 0.25.12
+      fdir: 6.5.0(picomatch@4.0.3)
+      picomatch: 4.0.3
+      postcss: 8.5.6
+      rollup: 4.57.0
+      tinyglobby: 0.2.15
+    optionalDependencies:
+      fsevents: 2.3.3
+    dev: true
 
   /vite@6.4.1(@types/node@20.19.30)(yaml@2.8.2):
     resolution: {integrity: sha512-+Oxm7q9hDoLMyJOYfUYBuHQo+dkAloi33apOPP56pzj+vsdJDzr+j1NISE5pyaAuKL4A3UD34qd0lx5+kfKp2g==}
