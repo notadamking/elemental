@@ -126,7 +126,22 @@ function extractSessionName(session: SessionRecord, transcript: StreamEvent[]): 
     if (firstLine.length > 100) {
       return firstLine.slice(0, 100) + '...';
     }
-    return firstLine;
+    if (firstLine.length > 0) {
+      return firstLine;
+    }
+  }
+
+  // Try any event with content as a last resort before falling back to date
+  const anyWithContent = transcript.find(e => e.content?.trim() && e.type !== 'system' && e.type !== 'error');
+  if (anyWithContent?.content) {
+    const content = anyWithContent.content.trim();
+    const firstLine = content.split('\n')[0];
+    if (firstLine.length > 100) {
+      return firstLine.slice(0, 100) + '...';
+    }
+    if (firstLine.length > 0) {
+      return firstLine;
+    }
   }
 
   // Last fallback to formatted date
