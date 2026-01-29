@@ -191,12 +191,6 @@ export function PopoutTerminalPage() {
             </span>
           )}
 
-          {/* Pane type indicator */}
-          {paneType === 'stream' && (
-            <span className="text-xs text-[var(--color-text-tertiary)]">
-              (stream)
-            </span>
-          )}
         </div>
 
         {/* Right: Controls */}
