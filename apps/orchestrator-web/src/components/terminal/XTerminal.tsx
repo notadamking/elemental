@@ -28,6 +28,8 @@ export interface XTerminalHandle {
   focus: () => void;
   /** Fit terminal to container */
   fit: () => void;
+  /** Send input to the PTY terminal (as if user typed it) */
+  sendInput: (data: string) => void;
 }
 
 export interface XTerminalProps {
@@ -605,6 +607,11 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
     }, 100);
   }, [controlsResize]);
 
+  // Send input to the PTY terminal (as if user typed it)
+  const sendInput = useCallback((data: string) => {
+    sendToServer(data);
+  }, [sendToServer]);
+
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
     refresh,
@@ -613,7 +620,8 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
     clear,
     focus,
     fit,
-  }), [refresh, write, writeln, clear, focus, fit]);
+    sendInput,
+  }), [refresh, write, writeln, clear, focus, fit, sendInput]);
 
   // Expose methods through window for testing
   useEffect(() => {
@@ -623,12 +631,13 @@ export const XTerminal = forwardRef<XTerminalHandle, XTerminalProps>(function XT
       clear,
       focus,
       fit,
+      sendInput,
       getStatus: () => status,
     };
     return () => {
       delete (window as unknown as Record<string, unknown>).__xterminal;
     };
-  }, [write, writeln, clear, focus, fit, status]);
+  }, [write, writeln, clear, focus, fit, sendInput, status]);
 
   // Handle click to focus terminal
   const handleClick = useCallback(() => {

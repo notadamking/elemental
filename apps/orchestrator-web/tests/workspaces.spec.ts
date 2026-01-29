@@ -370,8 +370,8 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       // Input should be visible
       await expect(page.getByTestId('stream-input')).toBeVisible();
 
-      // Send button should be visible
-      await expect(page.getByTestId('stream-send-btn')).toBeVisible();
+      // Send button should be visible (uses TerminalInput component)
+      await expect(page.getByTestId('stream-input-send-btn')).toBeVisible();
     });
 
     test('stream viewer shows events container', async ({ page }) => {
@@ -424,6 +424,39 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
     test('terminal pane shows xterm container', async ({ page }) => {
       // XTerminal component should render
       await expect(page.getByTestId('terminal-pane-terminal')).toBeVisible();
+    });
+
+    test('terminal pane has show/hide textbox option in menu', async ({ page }) => {
+      // Open the more options menu
+      const menuBtn = page.getByTestId('pane-menu-btn');
+      await menuBtn.click();
+
+      // Textbox toggle button should be visible
+      const toggleBtn = page.getByTestId('pane-toggle-textbox');
+      await expect(toggleBtn).toBeVisible();
+      await expect(toggleBtn).toContainText('Show textbox');
+    });
+
+    test('can toggle textbox visibility for terminal pane', async ({ page }) => {
+      // Initially textbox should not be visible
+      await expect(page.getByTestId('textbox-pane-terminal')).not.toBeVisible();
+
+      // Open menu and click show textbox
+      await page.getByTestId('pane-menu-btn').click();
+      await page.getByTestId('pane-toggle-textbox').click();
+
+      // Textbox should now be visible
+      await expect(page.getByTestId('textbox-pane-terminal')).toBeVisible();
+
+      // Open menu again - should now say "Hide textbox"
+      await page.getByTestId('pane-menu-btn').click();
+      await expect(page.getByTestId('pane-toggle-textbox')).toContainText('Hide textbox');
+
+      // Click to hide
+      await page.getByTestId('pane-toggle-textbox').click();
+
+      // Textbox should be hidden
+      await expect(page.getByTestId('textbox-pane-terminal')).not.toBeVisible();
     });
   });
 
