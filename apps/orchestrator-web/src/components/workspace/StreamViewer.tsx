@@ -11,6 +11,7 @@ import type { StreamEvent } from './types';
 import type { PaneStatus } from './types';
 import { TerminalInput } from './TerminalInput';
 import { MarkdownContent } from '../shared/MarkdownContent';
+import { saveSessionTranscript } from './SessionHistoryModal';
 
 /** Timeout for "working" indicator - 3 minutes */
 const WORKING_TIMEOUT_MS = 3 * 60 * 1000;
@@ -18,6 +19,8 @@ const WORKING_TIMEOUT_MS = 3 * 60 * 1000;
 export interface StreamViewerProps {
   agentId: string;
   agentName: string;
+  /** Current session ID for transcript storage */
+  sessionId?: string;
   /** API URL for file uploads (defaults to orchestrator server) */
   apiUrl?: string;
   onStatusChange?: (status: PaneStatus) => void;
@@ -210,6 +213,7 @@ function StreamEventCard({
 export function StreamViewer({
   agentId,
   agentName,
+  sessionId,
   apiUrl = DEFAULT_API_URL,
   onStatusChange,
   enableFileDrop = true,
@@ -230,6 +234,13 @@ export function StreamViewer({
   // Track last activity time for working timeout
   const lastActivityRef = useRef<number>(0);
   const workingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Save transcript when events change (if we have a session ID)
+  useEffect(() => {
+    if (sessionId && events.length > 0) {
+      saveSessionTranscript(sessionId, events);
+    }
+  }, [sessionId, events]);
 
   // Update status and notify parent
   const updateStatus = useCallback((newStatus: PaneStatus) => {

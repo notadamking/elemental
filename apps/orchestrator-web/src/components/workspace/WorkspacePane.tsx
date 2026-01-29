@@ -6,12 +6,13 @@
  */
 
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle, ArrowLeftRight, RotateCw, MessageSquare, MessageSquareOff } from 'lucide-react';
+import { X, Maximize2, Minimize2, MoreVertical, Terminal, Radio, Play, Square, RefreshCw, CirclePause, AlertCircle, ArrowLeftRight, RotateCw, MessageSquare, MessageSquareOff, History } from 'lucide-react';
 import type { WorkspacePane as WorkspacePaneType, PaneStatus } from './types';
 import { XTerminal, type XTerminalHandle } from '../terminal/XTerminal';
 import { StreamViewer } from './StreamViewer';
 import { TerminalInput } from './TerminalInput';
 import { Tooltip } from '../ui/Tooltip';
+import { SessionHistoryModal } from './SessionHistoryModal';
 import { useAgentStatus, useStartAgentSession, useStopAgentSession, useInterruptAgentSession } from '../../api/hooks/useAgents';
 
 export interface WorkspacePaneProps {
@@ -69,6 +70,7 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
 }, ref) {
   const [showMenu, setShowMenu] = useState(false);
   const [showTextbox, setShowTextbox] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const terminalRef = useRef<XTerminalHandle>(null);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -235,12 +237,6 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
             </span>
           )}
 
-          {/* Pane type indicator */}
-          {pane.paneType === 'stream' && (
-            <span className="text-xs text-[var(--color-text-tertiary)] flex-shrink-0">
-              (stream)
-            </span>
-          )}
         </div>
 
         {/* Right: Window controls */}
@@ -407,6 +403,25 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
                       )}
                     </button>
                   )}
+                  {/* View history - for ephemeral workers */}
+                  {pane.workerMode === 'ephemeral' && pane.agentRole !== 'director' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMenu(false);
+                        setShowHistory(true);
+                      }}
+                      className="
+                        w-full px-3 py-1.5 text-left text-sm flex items-center gap-2
+                        text-[var(--color-text-secondary)]
+                        hover:bg-[var(--color-surface-hover)]
+                      "
+                      data-testid="pane-view-history"
+                    >
+                      <History className="w-4 h-4" />
+                      View history
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -505,6 +520,7 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
           <StreamViewer
             agentId={pane.agentId}
             agentName={pane.agentName}
+            sessionId={statusData?.activeSession?.id}
             onStatusChange={handleStatusChange}
             data-testid={`stream-${pane.id}`}
           />
@@ -629,6 +645,17 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
           </div>
         )}
       </div>
+
+      {/* Session History Modal - for ephemeral workers */}
+      {pane.workerMode === 'ephemeral' && (
+        <SessionHistoryModal
+          isOpen={showHistory}
+          onClose={() => setShowHistory(false)}
+          agentId={pane.agentId}
+          agentName={pane.agentName}
+          sessions={statusData?.recentHistory ?? []}
+        />
+      )}
     </div>
   );
 });
