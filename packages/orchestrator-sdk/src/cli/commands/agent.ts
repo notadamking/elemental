@@ -603,6 +603,156 @@ Examples:
 };
 
 // ============================================================================
+// Agent Spawn Command
+// ============================================================================
+
+interface AgentSpawnOptions {
+  prompt?: string;
+  mode?: string;
+  resume?: string;
+  workdir?: string;
+}
+
+const agentSpawnOptions: CommandOption[] = [
+  {
+    name: 'prompt',
+    short: 'p',
+    description: 'Initial prompt to send to the agent',
+    hasValue: true,
+  },
+  {
+    name: 'mode',
+    short: 'm',
+    description: 'Spawn mode (headless, interactive)',
+    hasValue: true,
+  },
+  {
+    name: 'resume',
+    short: 'r',
+    description: 'Claude session ID to resume',
+    hasValue: true,
+  },
+  {
+    name: 'workdir',
+    short: 'w',
+    description: 'Working directory for the agent',
+    hasValue: true,
+  },
+];
+
+async function agentSpawnHandler(
+  args: string[],
+  options: GlobalOptions & AgentSpawnOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el agent spawn <id> [options]', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = await createOrchestratorClient(options);
+  if (error || !api) {
+    return failure(error ?? 'Failed to create API', ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Get the agent to verify it exists and get its role
+    const agent = await api.getAgent(id as EntityId);
+    if (!agent) {
+      return failure(`Agent not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    const meta = getAgentMeta(agent);
+    const agentRole = (meta.agentRole as AgentRole) ?? 'worker';
+
+    // Import the spawner service
+    const { createSpawnerService } = await import('../../runtime/index.js');
+    const { findElementalDir } = await import('@elemental/sdk');
+
+    const elementalDir = findElementalDir(process.cwd());
+    const spawner = createSpawnerService({
+      workingDirectory: options.workdir ?? process.cwd(),
+      elementalRoot: elementalDir ?? undefined,
+    });
+
+    // Determine spawn mode
+    let spawnMode: 'headless' | 'interactive' | undefined;
+    if (options.mode) {
+      if (options.mode !== 'headless' && options.mode !== 'interactive') {
+        return failure(
+          `Invalid mode: ${options.mode}. Must be 'headless' or 'interactive'`,
+          ExitCode.VALIDATION
+        );
+      }
+      spawnMode = options.mode as 'headless' | 'interactive';
+    }
+
+    // Spawn the agent
+    const result = await spawner.spawn(id as EntityId, agentRole, {
+      initialPrompt: options.prompt,
+      mode: spawnMode,
+      resumeSessionId: options.resume,
+      workingDirectory: options.workdir,
+    });
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success({
+        sessionId: result.session.id,
+        claudeSessionId: result.session.claudeSessionId,
+        agentId: id,
+        status: result.session.status,
+        mode: result.session.mode,
+        pid: result.session.pid,
+      });
+    }
+
+    if (mode === 'quiet') {
+      return success(result.session.id);
+    }
+
+    const lines = [
+      `Spawned agent ${id}`,
+      `  Session ID:  ${result.session.id}`,
+      `  Claude ID:   ${result.session.claudeSessionId ?? '-'}`,
+      `  Status:      ${result.session.status}`,
+      `  Mode:        ${result.session.mode}`,
+      `  PID:         ${result.session.pid ?? '-'}`,
+    ];
+
+    return success(result.session, lines.join('\n'));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to spawn agent: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const agentSpawnCommand: Command = {
+  name: 'spawn',
+  description: 'Spawn a Claude Code process for an agent',
+  usage: 'el agent spawn <id> [options]',
+  help: `Spawn a new Claude Code process for an agent.
+
+Arguments:
+  id    Agent identifier
+
+Options:
+  -p, --prompt <text>    Initial prompt to send to the agent
+  -m, --mode <mode>      Spawn mode: headless, interactive
+  -r, --resume <id>      Resume a previous Claude session
+  -w, --workdir <path>   Working directory for the agent
+
+Examples:
+  el agent spawn el-abc123
+  el agent spawn el-abc123 --mode interactive
+  el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
+  el agent spawn el-abc123 --resume prev-session-id`,
+  options: agentSpawnOptions,
+  handler: agentSpawnHandler as Command['handler'],
+};
+
+// ============================================================================
 // Main Agent Command
 // ============================================================================
 
@@ -616,18 +766,21 @@ Subcommands:
   list      List all registered agents
   show      Show agent details
   register  Register a new agent
-  start     Start an agent session
-  stop      Stop an agent session
+  spawn     Spawn a Claude Code process for an agent
+  start     Start an agent session (metadata only)
+  stop      Stop an agent session (metadata only)
   stream    Get agent channel for streaming
 
 Examples:
   el agent list
   el agent register MyWorker --role worker
-  el agent start el-abc123`,
+  el agent spawn el-abc123
+  el agent spawn el-abc123 --mode interactive`,
   subcommands: {
     list: agentListCommand,
     show: agentShowCommand,
     register: agentRegisterCommand,
+    spawn: agentSpawnCommand,
     start: agentStartCommand,
     stop: agentStopCommand,
     stream: agentStreamCommand,

@@ -349,8 +349,9 @@ These commands are provided by `@elemental/orchestrator-sdk`:
 | `el agent list` | List registered agents |
 | `el agent show <id>` | Show agent details |
 | `el agent register <name>` | Register a new agent |
-| `el agent start <id>` | Start an agent session |
-| `el agent stop <id>` | Stop an agent session |
+| `el agent spawn <id>` | Spawn a Claude Code process for an agent |
+| `el agent start <id>` | Start an agent session (metadata only) |
+| `el agent stop <id>` | Stop an agent session (metadata only) |
 | `el agent stream <id>` | Get agent channel for streaming |
 
 ```bash
@@ -369,10 +370,20 @@ el agent register MainDirector --role director
 # Register a steward
 el agent register HealthChecker --role steward --focus health
 
-# Start an agent session
-el agent start el-abc123
+# Spawn an agent (actually starts a Claude Code process)
+el agent spawn el-abc123
 
-# Stop an agent session
+# Spawn with interactive mode (PTY)
+el agent spawn el-abc123 --mode interactive
+
+# Spawn with initial prompt
+el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
+
+# Resume a previous Claude session
+el agent spawn el-abc123 --resume previous-session-id
+
+# Start/stop session metadata (doesn't spawn process)
+el agent start el-abc123
 el agent stop el-abc123
 
 # Get channel for agent messages
