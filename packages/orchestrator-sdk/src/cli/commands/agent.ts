@@ -5,9 +5,9 @@
  * - agent list: List all registered agents
  * - agent show <id>: Show agent details
  * - agent register <name>: Register a new agent
- * - agent start <id>: Start an agent session
+ * - agent start <id>: Start (spawn) a Claude Code process for an agent
  * - agent stop <id>: Stop an agent session
- * - agent stream <id>: Stream agent channel messages
+ * - agent stream <id>: Get agent channel for streaming
  */
 
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elemental/sdk/cli';
@@ -56,31 +56,6 @@ async function createOrchestratorClient(options: GlobalOptions): Promise<{
  */
 function getAgentMeta(agent: AgentEntity): Record<string, unknown> {
   return (agent.metadata?.agent ?? {}) as unknown as Record<string, unknown>;
-}
-
-/**
- * Streams messages from a channel to stdout
- * This is a long-running operation that continues until interrupted
- */
-async function streamChannelMessages(
-  _api: OrchestratorAPI,
-  channelId: string
-): Promise<void> {
-  // For now, this is a placeholder that polls for new messages
-  // In a full implementation, this would use websockets or SSE
-  console.log(`[Streaming from channel ${channelId}]`);
-  console.log('[Note: Channel streaming requires the orchestrator server]');
-  console.log('[Press Ctrl+C to exit]\n');
-
-  // Wait indefinitely until interrupted
-  return new Promise((resolve) => {
-    const onInterrupt = () => {
-      console.log('\n[Stream interrupted]');
-      process.off('SIGINT', onInterrupt);
-      resolve();
-    };
-    process.on('SIGINT', onInterrupt);
-  });
 }
 
 /**
@@ -621,145 +596,6 @@ Examples:
 };
 
 // ============================================================================
-// Agent Start Command
-// ============================================================================
-
-interface AgentStartOptions {
-  session?: string;
-  taskId?: string;
-  interactive?: boolean;
-  stream?: boolean;
-}
-
-const agentStartOptions: CommandOption[] = [
-  {
-    name: 'session',
-    short: 's',
-    description: 'Session ID to associate',
-    hasValue: true,
-  },
-  {
-    name: 'taskId',
-    short: 't',
-    description: 'Task ID to assign to this session',
-    hasValue: true,
-  },
-  {
-    name: 'interactive',
-    short: 'i',
-    description: 'Start in interactive mode',
-  },
-  {
-    name: 'stream',
-    description: 'Stream agent output after starting',
-  },
-];
-
-async function agentStartHandler(
-  args: string[],
-  options: GlobalOptions & AgentStartOptions
-): Promise<CommandResult> {
-  const [id] = args;
-
-  if (!id) {
-    return failure('Usage: el agent start <id> [options]', ExitCode.INVALID_ARGUMENTS);
-  }
-
-  const { api, error } = await createOrchestratorClient(options);
-  if (error || !api) {
-    return failure(error ?? 'Failed to create API', ExitCode.GENERAL_ERROR);
-  }
-
-  try {
-    const sessionId = options.session ?? `session-${Date.now()}`;
-    const agent = await api.updateAgentSession(
-      id as EntityId,
-      sessionId,
-      'running'
-    );
-
-    // If task ID is provided, assign the task to this agent
-    if (options.taskId) {
-      await api.assignTaskToAgent(
-        options.taskId as ElementId,
-        id as EntityId,
-        { sessionId }
-      );
-    }
-
-    const mode = getOutputMode(options);
-
-    // If --stream is set, get the channel and stream messages
-    if (options.stream) {
-      const channelId = await api.getAgentChannel(id as EntityId);
-      if (!channelId) {
-        return failure(`No channel found for agent: ${id}`, ExitCode.NOT_FOUND);
-      }
-
-      console.log(`Started agent ${id} with session ${sessionId}`);
-      console.log(`Streaming from channel: ${channelId}`);
-      console.log('Press Ctrl+C to stop streaming.\n');
-
-      // Stream messages from the channel
-      // This is a long-running operation - we don't return until interrupted
-      await streamChannelMessages(api, channelId);
-
-      return success(agent, 'Stream ended');
-    }
-
-    if (mode === 'json') {
-      return success({
-        ...agent,
-        taskId: options.taskId,
-        interactive: options.interactive ?? false,
-      });
-    }
-
-    if (mode === 'quiet') {
-      return success(agent.id);
-    }
-
-    let message = `Started agent ${id} with session ${sessionId}`;
-    if (options.taskId) {
-      message += ` (task: ${options.taskId})`;
-    }
-    if (options.interactive) {
-      message += ' [interactive mode]';
-    }
-
-    return success(agent, message);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return failure(`Failed to start agent: ${message}`, ExitCode.GENERAL_ERROR);
-  }
-}
-
-export const agentStartCommand: Command = {
-  name: 'start',
-  description: 'Start an agent session',
-  usage: 'el agent start <id> [options]',
-  help: `Start an agent session.
-
-Arguments:
-  id    Agent identifier
-
-Options:
-  -s, --session <id>    Session ID to associate
-  -t, --taskId <id>     Task ID to assign to this session
-  -i, --interactive     Start in interactive mode
-  --stream              Stream agent output after starting
-
-Examples:
-  el agent start el-abc123
-  el agent start el-abc123 --session my-session
-  el agent start el-abc123 --taskId el-task456
-  el agent start el-abc123 --interactive
-  el agent start el-abc123 --stream`,
-  options: agentStartOptions,
-  handler: agentStartHandler as Command['handler'],
-};
-
-// ============================================================================
 // Agent Stop Command
 // ============================================================================
 
@@ -919,10 +755,10 @@ Examples:
 };
 
 // ============================================================================
-// Agent Spawn Command
+// Agent Start Command
 // ============================================================================
 
-interface AgentSpawnOptions {
+interface AgentStartOptions {
   prompt?: string;
   mode?: string;
   resume?: string;
@@ -935,7 +771,7 @@ interface AgentSpawnOptions {
   stream?: boolean;
 }
 
-const agentSpawnOptions: CommandOption[] = [
+const agentStartOptions: CommandOption[] = [
   {
     name: 'prompt',
     short: 'p',
@@ -993,14 +829,14 @@ const agentSpawnOptions: CommandOption[] = [
   },
 ];
 
-async function agentSpawnHandler(
+async function agentStartHandler(
   args: string[],
-  options: GlobalOptions & AgentSpawnOptions
+  options: GlobalOptions & AgentStartOptions
 ): Promise<CommandResult> {
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el agent spawn <id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent start <id> [options]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);
@@ -1117,22 +953,22 @@ async function agentSpawnHandler(
     return success(result.session, lines.join('\n'));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return failure(`Failed to spawn agent: ${message}`, ExitCode.GENERAL_ERROR);
+    return failure(`Failed to start agent: ${message}`, ExitCode.GENERAL_ERROR);
   }
 }
 
-export const agentSpawnCommand: Command = {
-  name: 'spawn',
-  description: 'Spawn a Claude Code process for an agent',
-  usage: 'el agent spawn <id> [options]',
-  help: `Spawn a new Claude Code process for an agent.
+export const agentStartCommand: Command = {
+  name: 'start',
+  description: 'Start a Claude Code process for an agent',
+  usage: 'el agent start <id> [options]',
+  help: `Start a new Claude Code process for an agent.
 
 Arguments:
   id    Agent identifier
 
 Options:
   -p, --prompt <text>      Initial prompt to send to the agent
-  -m, --mode <mode>        Spawn mode: headless, interactive
+  -m, --mode <mode>        Start mode: headless, interactive
   -r, --resume <id>        Resume a previous Claude session
   -w, --workdir <path>     Working directory for the agent
   --cols <n>               Terminal columns for interactive mode (default: 120)
@@ -1140,19 +976,19 @@ Options:
   --timeout <ms>           Timeout in milliseconds (default: 120000)
   -e, --env <KEY=VALUE>    Environment variable to set
   -t, --taskId <id>        Task ID to assign to this agent
-  --stream                 Stream agent output after spawning
+  --stream                 Stream agent output after starting
 
 Examples:
-  el agent spawn el-abc123
-  el agent spawn el-abc123 --mode interactive
-  el agent spawn el-abc123 --mode interactive --cols 160 --rows 40
-  el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
-  el agent spawn el-abc123 --resume prev-session-id
-  el agent spawn el-abc123 --env MY_VAR=value
-  el agent spawn el-abc123 --taskId el-task456
-  el agent spawn el-abc123 --stream`,
-  options: agentSpawnOptions,
-  handler: agentSpawnHandler as Command['handler'],
+  el agent start el-abc123
+  el agent start el-abc123 --mode interactive
+  el agent start el-abc123 --mode interactive --cols 160 --rows 40
+  el agent start el-abc123 --prompt "Start working on your assigned tasks"
+  el agent start el-abc123 --resume prev-session-id
+  el agent start el-abc123 --env MY_VAR=value
+  el agent start el-abc123 --taskId el-task456
+  el agent start el-abc123 --stream`,
+  options: agentStartOptions,
+  handler: agentStartHandler as Command['handler'],
 };
 
 // ============================================================================
@@ -1169,21 +1005,19 @@ Subcommands:
   list      List all registered agents
   show      Show agent details
   register  Register a new agent
-  spawn     Spawn a Claude Code process for an agent
-  start     Start an agent session (metadata only)
-  stop      Stop an agent session (metadata only)
+  start     Start a Claude Code process for an agent
+  stop      Stop an agent session
   stream    Get agent channel for streaming
 
 Examples:
   el agent list
   el agent register MyWorker --role worker
-  el agent spawn el-abc123
-  el agent spawn el-abc123 --mode interactive`,
+  el agent start el-abc123
+  el agent start el-abc123 --mode interactive`,
   subcommands: {
     list: agentListCommand,
     show: agentShowCommand,
     register: agentRegisterCommand,
-    spawn: agentSpawnCommand,
     start: agentStartCommand,
     stop: agentStopCommand,
     stream: agentStreamCommand,

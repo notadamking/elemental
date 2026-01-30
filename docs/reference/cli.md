@@ -349,9 +349,8 @@ These commands are provided by `@elemental/orchestrator-sdk`:
 | `el agent list` | List registered agents |
 | `el agent show <id>` | Show agent details |
 | `el agent register <name>` | Register a new agent |
-| `el agent spawn <id>` | Spawn a Claude Code process for an agent |
-| `el agent start <id>` | Start an agent session (metadata only) |
-| `el agent stop <id>` | Stop an agent session (metadata only) |
+| `el agent start <id>` | Start a Claude Code process for an agent |
+| `el agent stop <id>` | Stop an agent session |
 | `el agent stream <id>` | Get agent channel for streaming |
 
 #### agent list
@@ -400,14 +399,14 @@ el agent register TeamWorker --role worker --reportsTo el-director123
 el agent register DailyChecker --role steward --focus health --trigger "0 9 * * *"
 ```
 
-#### agent spawn
+#### agent start
 
-Spawn a Claude Code process for an agent.
+Start a Claude Code process for an agent.
 
 | Option | Description |
 |--------|-------------|
 | `-p, --prompt <text>` | Initial prompt to send to the agent |
-| `-m, --mode <mode>` | Spawn mode: headless, interactive |
+| `-m, --mode <mode>` | Start mode: headless, interactive |
 | `-r, --resume <id>` | Resume a previous Claude session |
 | `-w, --workdir <path>` | Working directory for the agent |
 | `--cols <n>` | Terminal columns for interactive mode (default: 120) |
@@ -415,42 +414,23 @@ Spawn a Claude Code process for an agent.
 | `--timeout <ms>` | Timeout in milliseconds (default: 120000) |
 | `-e, --env <KEY=VALUE>` | Environment variable to set |
 | `-t, --taskId <id>` | Task ID to assign to this agent |
-| `--stream` | Stream agent output after spawning |
-
-```bash
-el agent spawn el-abc123
-el agent spawn el-abc123 --mode interactive
-el agent spawn el-abc123 --mode interactive --cols 160 --rows 40
-el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
-el agent spawn el-abc123 --resume previous-session-id
-el agent spawn el-abc123 --workdir /path/to/project
-el agent spawn el-abc123 --env MY_VAR=value
-el agent spawn el-abc123 --taskId el-task456
-el agent spawn el-abc123 --stream
-```
-
-#### agent start
-
-Start an agent session (metadata only, does not spawn a process).
-
-| Option | Description |
-|--------|-------------|
-| `-s, --session <id>` | Session ID to associate |
-| `-t, --taskId <id>` | Task ID to assign to this session |
-| `-i, --interactive` | Start in interactive mode |
 | `--stream` | Stream agent output after starting |
 
 ```bash
 el agent start el-abc123
-el agent start el-abc123 --session my-session-id
+el agent start el-abc123 --mode interactive
+el agent start el-abc123 --mode interactive --cols 160 --rows 40
+el agent start el-abc123 --prompt "Start working on your assigned tasks"
+el agent start el-abc123 --resume previous-session-id
+el agent start el-abc123 --workdir /path/to/project
+el agent start el-abc123 --env MY_VAR=value
 el agent start el-abc123 --taskId el-task456
-el agent start el-abc123 --interactive
 el agent start el-abc123 --stream
 ```
 
 #### agent stop
 
-Stop an agent session (metadata only).
+Stop an agent session.
 
 | Option | Description |
 |--------|-------------|

@@ -11,7 +11,6 @@ import {
   agentListCommand,
   agentShowCommand,
   agentRegisterCommand,
-  agentSpawnCommand,
   agentStartCommand,
   agentStopCommand,
   agentStreamCommand,
@@ -29,7 +28,6 @@ describe('Agent Command Structure', () => {
       expect(agentCommand.subcommands!.list).toBe(agentListCommand);
       expect(agentCommand.subcommands!.show).toBe(agentShowCommand);
       expect(agentCommand.subcommands!.register).toBe(agentRegisterCommand);
-      expect(agentCommand.subcommands!.spawn).toBe(agentSpawnCommand);
       expect(agentCommand.subcommands!.start).toBe(agentStartCommand);
       expect(agentCommand.subcommands!.stop).toBe(agentStopCommand);
       expect(agentCommand.subcommands!.stream).toBe(agentStreamCommand);
@@ -123,47 +121,27 @@ describe('Agent Command Structure', () => {
     });
   });
 
-  describe('agentSpawnCommand', () => {
-    it('should have correct structure', () => {
-      expect(agentSpawnCommand.name).toBe('spawn');
-      expect(agentSpawnCommand.description).toBe('Spawn a Claude Code process for an agent');
-      expect(agentSpawnCommand.usage).toBe('el agent spawn <id> [options]');
-      expect(typeof agentSpawnCommand.handler).toBe('function');
-    });
-
-    it('should have all spawn options', () => {
-      expect(agentSpawnCommand.options).toBeDefined();
-      expect(agentSpawnCommand.options!.length).toBe(10);
-      expect(agentSpawnCommand.options![0].name).toBe('prompt');
-      expect(agentSpawnCommand.options![1].name).toBe('mode');
-      expect(agentSpawnCommand.options![2].name).toBe('resume');
-      expect(agentSpawnCommand.options![3].name).toBe('workdir');
-      expect(agentSpawnCommand.options![4].name).toBe('cols');
-      expect(agentSpawnCommand.options![5].name).toBe('rows');
-      expect(agentSpawnCommand.options![6].name).toBe('timeout');
-      expect(agentSpawnCommand.options![7].name).toBe('env');
-      expect(agentSpawnCommand.options![8].name).toBe('taskId');
-      expect(agentSpawnCommand.options![9].name).toBe('stream');
-    });
-  });
-
   describe('agentStartCommand', () => {
     it('should have correct structure', () => {
       expect(agentStartCommand.name).toBe('start');
-      expect(agentStartCommand.description).toBe('Start an agent session');
+      expect(agentStartCommand.description).toBe('Start a Claude Code process for an agent');
       expect(agentStartCommand.usage).toBe('el agent start <id> [options]');
       expect(typeof agentStartCommand.handler).toBe('function');
     });
 
     it('should have all start options', () => {
       expect(agentStartCommand.options).toBeDefined();
-      expect(agentStartCommand.options!.length).toBe(4);
-      expect(agentStartCommand.options![0].name).toBe('session');
-      expect(agentStartCommand.options![0].hasValue).toBe(true);
-      expect(agentStartCommand.options![1].name).toBe('taskId');
-      expect(agentStartCommand.options![1].hasValue).toBe(true);
-      expect(agentStartCommand.options![2].name).toBe('interactive');
-      expect(agentStartCommand.options![3].name).toBe('stream');
+      expect(agentStartCommand.options!.length).toBe(10);
+      expect(agentStartCommand.options![0].name).toBe('prompt');
+      expect(agentStartCommand.options![1].name).toBe('mode');
+      expect(agentStartCommand.options![2].name).toBe('resume');
+      expect(agentStartCommand.options![3].name).toBe('workdir');
+      expect(agentStartCommand.options![4].name).toBe('cols');
+      expect(agentStartCommand.options![5].name).toBe('rows');
+      expect(agentStartCommand.options![6].name).toBe('timeout');
+      expect(agentStartCommand.options![7].name).toBe('env');
+      expect(agentStartCommand.options![8].name).toBe('taskId');
+      expect(agentStartCommand.options![9].name).toBe('stream');
     });
   });
 
@@ -221,14 +199,6 @@ describe('Agent Command Validation', () => {
       const result = await agentRegisterCommand.handler(['TestAgent'], { role: 'invalid' });
       expect(result.exitCode).not.toBe(0);
       expect(result.error).toContain('Invalid role');
-    });
-  });
-
-  describe('agentSpawnCommand', () => {
-    it('should fail without id argument', async () => {
-      const result = await agentSpawnCommand.handler([], {});
-      expect(result.exitCode).not.toBe(0);
-      expect(result.error).toContain('Usage');
     });
   });
 
