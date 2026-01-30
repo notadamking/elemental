@@ -213,6 +213,23 @@ API call (get/list/query)
 | Configure identity | `packages/sdk/src/systems/identity.ts` |
 | Load configuration | `packages/sdk/src/config/config.ts` |
 
+### Orchestrator Server Entry Points
+
+| Task | Entry Point |
+|------|-------------|
+| Server startup | `apps/orchestrator-server/src/index.ts` |
+| Configuration (ports, CORS) | `apps/orchestrator-server/src/config.ts` |
+| Service initialization | `apps/orchestrator-server/src/services.ts` |
+| Cross-runtime server (Bun/Node) | `apps/orchestrator-server/src/server.ts` |
+| WebSocket handling | `apps/orchestrator-server/src/websocket.ts` |
+| Task API endpoints | `apps/orchestrator-server/src/routes/tasks.ts` |
+| Agent API endpoints | `apps/orchestrator-server/src/routes/agents.ts` |
+| Session API endpoints | `apps/orchestrator-server/src/routes/sessions.ts` |
+| Scheduler API endpoints | `apps/orchestrator-server/src/routes/scheduler.ts` |
+| Plugin API endpoints | `apps/orchestrator-server/src/routes/plugins.ts` |
+| Event/Activity endpoints | `apps/orchestrator-server/src/routes/events.ts` |
+| Worktree endpoints | `apps/orchestrator-server/src/routes/worktrees.ts` |
+
 ## Module Boundaries
 
 ### @elemental/core

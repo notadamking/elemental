@@ -29,7 +29,7 @@
 | Use the CLI | [reference/cli.md](reference/cli.md) | `packages/sdk/src/cli/commands/` |
 | Work with platform apps | [reference/platform.md](reference/platform.md) | `apps/server/`, `apps/web/`, etc. |
 | **How-To Guides** |
-| Add an API endpoint | [how-to/add-api-endpoint.md](how-to/add-api-endpoint.md) | `apps/server/src/index.ts` |
+| Add an API endpoint | [how-to/add-api-endpoint.md](how-to/add-api-endpoint.md) | `apps/server/src/index.ts`, `apps/orchestrator-server/src/routes/` |
 | Add a React component | [how-to/add-react-component.md](how-to/add-react-component.md) | `apps/web/src/components/` |
 | Add a new core type | [how-to/add-core-type.md](how-to/add-core-type.md) | `packages/core/src/types/` |
 | Add an orchestrator service | [how-to/add-orchestrator-service.md](how-to/add-orchestrator-service.md) | `packages/orchestrator-sdk/src/services/` |
@@ -132,7 +132,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 |-----|-------|-----------------|
 | `apps/server/` | `src/index.ts` | `src/ws/` (WebSocket) |
 | `apps/web/` | `src/main.tsx` | `src/components/`, `src/routes/`, `src/api/hooks/` |
-| `apps/orchestrator-server/` | `src/index.ts` | - |
+| `apps/orchestrator-server/` | `src/index.ts` | `src/routes/` (route modules), `src/config.ts`, `src/services.ts` |
 | `apps/orchestrator-web/` | `src/main.tsx` | `src/components/`, `src/routes/` |
 
 ## Critical Gotchas

@@ -92,17 +92,12 @@ describe('AgentRegistry Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['typescript', 'testing'],
-        languages: ['typescript', 'javascript'],
-        maxConcurrentTasks: 2,
-      },
+      maxConcurrentTasks: 2,
     });
 
     expect(agent).toBeDefined();
     expect(agent.name).toBe('test-worker');
 
-    // Verify capabilities stored in metadata
     const agentEntityId = agent.id as unknown as EntityId;
     const retrieved = await agentRegistry.getAgent(agentEntityId);
     expect(retrieved).toBeDefined();
@@ -216,11 +211,7 @@ describe('Task Assignment Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['typescript', 'testing'],
-        languages: ['typescript'],
-        maxConcurrentTasks: 3,
-      },
+      maxConcurrentTasks: 3,
     });
 
     // Create a task
@@ -271,11 +262,7 @@ describe('Task Assignment Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['backend'],
-        languages: ['typescript'],
-        maxConcurrentTasks: 2,
-      },
+      maxConcurrentTasks: 2,
     });
 
     const workerId = worker.id as unknown as EntityId;
@@ -307,11 +294,7 @@ describe('Dispatch Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['frontend'],
-        languages: ['typescript', 'javascript'],
-        maxConcurrentTasks: 3,
-      },
+      maxConcurrentTasks: 3,
     });
 
     // Create a task
@@ -343,11 +326,7 @@ describe('Dispatch Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['frontend', 'react'],
-        languages: ['typescript', 'javascript'],
-        maxConcurrentTasks: 3,
-      },
+      maxConcurrentTasks: 3,
     });
 
     await agentRegistry.registerAgent({
@@ -355,11 +334,7 @@ describe('Dispatch Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['backend', 'database'],
-        languages: ['typescript', 'python'],
-        maxConcurrentTasks: 3,
-      },
+      maxConcurrentTasks: 3,
     });
 
     // Create a task with capability requirements
@@ -376,9 +351,7 @@ describe('Dispatch Service Integration', () => {
     const savedTask = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId });
 
     // Get candidates
-    const candidates = await dispatchService.getCandidates(savedTask.id, {
-      eligibleOnly: true,
-    });
+    const candidates = await dispatchService.getCandidates(savedTask.id);
 
     // Should find the frontend worker
     expect(candidates.candidates.length).toBeGreaterThanOrEqual(1);
@@ -386,16 +359,12 @@ describe('Dispatch Service Integration', () => {
 
   test('should smart dispatch to best agent', async () => {
     // Register workers
-    const frontendWorker = await agentRegistry.registerAgent({
+    await agentRegistry.registerAgent({
       name: 'smart-dispatch-frontend',
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['frontend', 'react', 'css'],
-        languages: ['typescript', 'javascript'],
-        maxConcurrentTasks: 3,
-      },
+      maxConcurrentTasks: 3,
     });
 
     await agentRegistry.registerAgent({
@@ -403,31 +372,21 @@ describe('Dispatch Service Integration', () => {
       role: 'worker',
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: {
-        skills: ['backend', 'api'],
-        languages: ['typescript', 'python'],
-        maxConcurrentTasks: 3,
-      },
+      maxConcurrentTasks: 3,
     });
 
-    // Create a frontend task
+    // Create a task
     const task = await createTask({
-      title: 'Smart dispatch frontend task',
+      title: 'Smart dispatch task',
       createdBy: systemEntity,
-      metadata: {
-        capabilityRequirements: {
-          requiredSkills: ['frontend'],
-          preferredSkills: ['react'],
-        },
-      },
     });
     const savedTask = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId });
 
-    // Smart dispatch should pick frontend worker
+    // Smart dispatch should assign to an available worker
     const result = await dispatchService.smartDispatch(savedTask.id);
 
-    // Should be dispatched to frontend worker
+    // Should be dispatched to a worker
     expect(result.task.assignee).toBeDefined();
-    expect(result.agent.id).toBe(frontendWorker.id);
+    expect(result.agent).toBeDefined();
   });
 });
