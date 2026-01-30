@@ -6,7 +6,7 @@
  */
 
 import { IdentityMode } from '../systems/identity.js';
-import type { Configuration, SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection } from './types.js';
+import type { Configuration, SyncConfig, PlaybookConfig, TombstoneConfig, IdentityConfigSection, PluginsConfig } from './types.js';
 
 // ============================================================================
 // Time Constants (in milliseconds)
@@ -65,6 +65,13 @@ export const DEFAULT_IDENTITY_CONFIG: IdentityConfigSection = {
 };
 
 /**
+ * Default plugins configuration
+ */
+export const DEFAULT_PLUGINS_CONFIG: PluginsConfig = {
+  packages: [],
+};
+
+/**
  * Complete default configuration
  */
 export const DEFAULT_CONFIG: Configuration = {
@@ -74,6 +81,7 @@ export const DEFAULT_CONFIG: Configuration = {
   playbooks: DEFAULT_PLAYBOOK_CONFIG,
   tombstone: DEFAULT_TOMBSTONE_CONFIG,
   identity: DEFAULT_IDENTITY_CONFIG,
+  plugins: DEFAULT_PLUGINS_CONFIG,
 };
 
 // ============================================================================
@@ -122,5 +130,6 @@ export function getDefaultConfig(): Configuration {
     playbooks: { paths: [...DEFAULT_PLAYBOOK_CONFIG.paths] },
     tombstone: { ...DEFAULT_TOMBSTONE_CONFIG },
     identity: { ...DEFAULT_IDENTITY_CONFIG },
+    plugins: { packages: [...DEFAULT_PLUGINS_CONFIG.packages] },
   };
 }

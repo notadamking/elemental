@@ -5,6 +5,12 @@
 // Types
 export * from './types.js';
 
+// Plugin types
+export type { CLIPlugin, PluginsConfig as CLIPluginsConfig, PluginDiscoveryResult, PluginRegistrationResult } from './plugin-types.js';
+export { isValidCLIPlugin, isValidPluginsConfig } from './plugin-types.js';
+export { discoverPlugins, getKnownPluginPackages } from './plugin-loader.js';
+export { registerPluginCommands, registerAllPlugins, getPluginCommandSummary } from './plugin-registry.js';
+
 // Parser
 export { parseArgs, validateRequiredOptions, getGlobalOptionsHelp, getCommandOptionsHelp } from './parser.js';
 

@@ -239,6 +239,13 @@ export function convertYamlToConfig(yamlConfig: YamlConfigFile): PartialConfigur
     }
   }
 
+  // Plugins section
+  if (yamlConfig.plugins?.packages) {
+    result.plugins = {
+      packages: yamlConfig.plugins.packages,
+    };
+  }
+
   return result;
 }
 
@@ -334,6 +341,13 @@ export function convertConfigToYaml(config: Configuration | PartialConfiguration
     if (config.identity.timeTolerance !== undefined) {
       result.identity.time_tolerance = config.identity.timeTolerance;
     }
+  }
+
+  // Plugins section
+  if (config.plugins?.packages && config.plugins.packages.length > 0) {
+    result.plugins = {
+      packages: config.plugins.packages,
+    };
   }
 
   return result;

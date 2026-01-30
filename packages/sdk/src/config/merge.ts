@@ -93,6 +93,9 @@ export function mergeConfiguration(
       mode: partial.identity?.mode !== undefined ? partial.identity.mode : base.identity.mode,
       timeTolerance: partial.identity?.timeTolerance !== undefined ? partial.identity.timeTolerance : base.identity.timeTolerance,
     },
+    plugins: {
+      packages: partial.plugins?.packages !== undefined ? partial.plugins.packages : [...base.plugins.packages],
+    },
   };
   return result;
 }
@@ -157,6 +160,9 @@ export function cloneConfiguration(config: Configuration): Configuration {
     identity: {
       mode: config.identity.mode,
       timeTolerance: config.identity.timeTolerance,
+    },
+    plugins: {
+      packages: [...config.plugins.packages],
     },
   };
 }
@@ -228,6 +234,11 @@ export function diffConfigurations(
     diff.identity = identityDiff;
   }
 
+  // Plugins diff
+  if (JSON.stringify(a.plugins.packages) !== JSON.stringify(b.plugins.packages)) {
+    diff.plugins = { packages: b.plugins.packages };
+  }
+
   return diff;
 }
 
@@ -246,6 +257,7 @@ export function configurationsEqual(a: Configuration, b: Configuration): boolean
     a.tombstone.ttl === b.tombstone.ttl &&
     a.tombstone.minTtl === b.tombstone.minTtl &&
     a.identity.mode === b.identity.mode &&
-    a.identity.timeTolerance === b.identity.timeTolerance
+    a.identity.timeTolerance === b.identity.timeTolerance &&
+    JSON.stringify(a.plugins.packages) === JSON.stringify(b.plugins.packages)
   );
 }

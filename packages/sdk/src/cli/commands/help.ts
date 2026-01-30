@@ -5,6 +5,7 @@
 import type { Command, CommandResult } from '../types.js';
 import { success } from '../types.js';
 import { getGlobalOptionsHelp } from '../parser.js';
+import { getAllCommands } from '../runner.js';
 
 // ============================================================================
 // Version Info
@@ -16,51 +17,82 @@ const VERSION = '0.1.0';
 // Help Text
 // ============================================================================
 
-const MAIN_HELP = `Elemental - Agent coordination system
+// Built-in command categories for display
+const COMMAND_CATEGORIES: Record<string, string[]> = {
+  'Element Operations': ['create', 'list', 'show', 'update', 'delete'],
+  'Task Operations': ['ready', 'blocked', 'close', 'reopen', 'assign', 'defer', 'undefer'],
+  'Dependency Operations': ['dep'],
+  'Sync Operations': ['sync', 'export', 'import', 'status'],
+  'Identity Operations': ['identity', 'whoami'],
+  'Collection Operations': ['plan', 'workflow', 'playbook', 'channel', 'library', 'team', 'document', 'message', 'inbox'],
+  'Entity Operations': ['entity'],
+  'Admin Operations': ['init', 'config', 'stats', 'doctor', 'migrate', 'gc', 'history'],
+  'Shell': ['completion', 'alias', 'help', 'version'],
+};
 
-Usage: elemental <command> [options]
-       el <command> [options]
+// Commands that are built-in
+const BUILTIN_COMMANDS = new Set(
+  Object.values(COMMAND_CATEGORIES).flat()
+);
 
-Commands:
-  Element Operations:
-    create <type>       Create a new element
-    list [type]         List elements
-    show <id>           Show element details
-    update <id>         Update an element
-    delete <id>         Delete an element
-    search <query>      Search elements
+/**
+ * Generates the main help text dynamically
+ */
+function generateMainHelp(): string {
+  const lines: string[] = [
+    'Elemental - Agent coordination system',
+    '',
+    'Usage: elemental <command> [options]',
+    '       el <command> [options]',
+    '',
+    'Commands:',
+  ];
 
-  Task Operations:
-    ready               List ready tasks
-    blocked             List blocked tasks
-    close <id>          Close a task
-    reopen <id>         Reopen a closed task
-    assign <id>         Assign a task
-    defer <id>          Defer a task
-    undefer <id>        Remove defer
+  const allCommands = getAllCommands();
+  const commandMap = new Map(allCommands.map(cmd => [cmd.name, cmd]));
 
-  Dependency Operations:
-    dep add <src> <tgt> Add a dependency
-    dep remove <src> <tgt> Remove a dependency
-    dep list <id>       List dependencies
-    dep tree <id>       Show dependency tree
+  // Add categorized built-in commands
+  for (const [category, commands] of Object.entries(COMMAND_CATEGORIES)) {
+    const availableCommands = commands.filter(cmd => commandMap.has(cmd));
 
-  Admin Operations:
-    init                Initialize workspace
-    config              Manage configuration
-    stats               Show statistics
-    doctor              Check system health
+    if (availableCommands.length === 0) continue;
 
-${getGlobalOptionsHelp()}
+    lines.push(`  ${category}:`);
+    for (const cmdName of availableCommands) {
+      const cmd = commandMap.get(cmdName);
+      if (cmd) {
+        lines.push(`    ${cmdName.padEnd(16)} ${cmd.description}`);
+      }
+    }
+    lines.push('');
+  }
 
-Use "el <command> --help" for more information about a command.`;
+  // Add plugin commands (commands not in built-in set)
+  const pluginCommands = allCommands
+    .filter(cmd => !BUILTIN_COMMANDS.has(cmd.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (pluginCommands.length > 0) {
+    lines.push('  Plugin Commands:');
+    for (const cmd of pluginCommands) {
+      lines.push(`    ${cmd.name.padEnd(16)} ${cmd.description}`);
+    }
+    lines.push('');
+  }
+
+  lines.push(getGlobalOptionsHelp());
+  lines.push('');
+  lines.push('Use "el <command> --help" for more information about a command.');
+
+  return lines.join('\n');
+}
 
 // ============================================================================
 // Handler
 // ============================================================================
 
 function helpHandler(): CommandResult {
-  return success(undefined, MAIN_HELP);
+  return success(undefined, generateMainHelp());
 }
 
 function versionHandler(): CommandResult {

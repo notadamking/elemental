@@ -74,6 +74,9 @@
     "@elemental/core": "workspace:*",
     "@elemental/storage": "workspace:*"
   },
+  "optionalDependencies": {
+    "@elemental/orchestrator-sdk": "workspace:*"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.0.0",

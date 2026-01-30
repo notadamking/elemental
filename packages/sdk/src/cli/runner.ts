@@ -9,6 +9,9 @@ import { failure, ExitCode } from './types.js';
 import { parseArgs, validateRequiredOptions } from './parser.js';
 import { getFormatter, getOutputMode } from './formatter.js';
 import { getCommandHelp } from './commands/help.js';
+import type { PluginsConfig } from './plugin-types.js';
+import { discoverPlugins, logPluginWarnings } from './plugin-loader.js';
+import { registerAllPlugins, logConflictWarnings } from './plugin-registry.js';
 
 // ============================================================================
 // Command Registry
@@ -332,6 +335,40 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerAlias('done', 'close');    // User-friendly alias
   registerAlias('complete', 'close'); // Alternative close alias
   registerAlias('st', 'status');     // Short form for sync status
+
+  // ============================================================================
+  // Plugin Loading
+  // ============================================================================
+
+  const isVerbose = argv.includes('--verbose') || argv.includes('-v');
+
+  // Load config for plugin settings (Strategy 2)
+  let pluginsConfig: PluginsConfig | undefined;
+  try {
+    const { loadConfig } = await import('../config/index.js');
+    const config = loadConfig();
+    pluginsConfig = config.plugins;
+  } catch {
+    // Continue without config-based plugins
+  }
+
+  // Discover plugins (Strategy 1 + 2)
+  const discoveryResult = await discoverPlugins(pluginsConfig, { verbose: isVerbose });
+  logPluginWarnings(discoveryResult, { verbose: isVerbose });
+
+  // Register plugin commands AFTER built-ins (built-ins take precedence)
+  const registrationResults = await registerAllPlugins(discoveryResult.plugins, { verbose: isVerbose });
+
+  // Log conflict warnings in non-verbose mode
+  if (!isVerbose) {
+    // Only log if there were actual conflicts (not just skipped for not being plugins)
+    const hasConflicts = registrationResults.some(
+      r => r.skippedCommands.length > 0 || r.skippedAliases.length > 0
+    );
+    if (hasConflicts) {
+      logConflictWarnings(registrationResults);
+    }
+  }
 
   const exitCode = await run(argv);
   process.exit(exitCode);

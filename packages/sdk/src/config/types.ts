@@ -61,6 +61,14 @@ export interface TombstoneConfig {
 }
 
 /**
+ * CLI plugins configuration
+ */
+export interface PluginsConfig {
+  /** Package names that export CLI plugins */
+  packages: string[];
+}
+
+/**
  * Identity system configuration
  */
 export interface IdentityConfigSection {
@@ -86,6 +94,8 @@ export interface Configuration {
   tombstone: TombstoneConfig;
   /** Identity settings */
   identity: IdentityConfigSection;
+  /** CLI plugins settings */
+  plugins: PluginsConfig;
 }
 
 /**
@@ -98,6 +108,7 @@ export type PartialConfiguration = {
   playbooks?: Partial<PlaybookConfig>;
   tombstone?: Partial<TombstoneConfig>;
   identity?: Partial<IdentityConfigSection>;
+  plugins?: Partial<PluginsConfig>;
 };
 
 // ============================================================================
@@ -153,6 +164,9 @@ export interface TrackedConfiguration {
     mode: TrackedValue<IdentityMode>;
     timeTolerance: TrackedValue<Duration>;
   };
+  plugins: {
+    packages: TrackedValue<string[]>;
+  };
 }
 
 // ============================================================================
@@ -182,6 +196,9 @@ export interface YamlConfigFile {
   identity?: {
     mode?: string;
     time_tolerance?: string | number;
+  };
+  plugins?: {
+    packages?: string[];
   };
 }
 
@@ -272,6 +289,7 @@ export const VALID_CONFIG_PATHS = [
   'tombstone.minTtl',
   'identity.mode',
   'identity.timeTolerance',
+  'plugins.packages',
 ] as const;
 
 /**
@@ -301,4 +319,5 @@ export interface ConfigPathTypes {
   'tombstone.minTtl': Duration;
   'identity.mode': IdentityMode;
   'identity.timeTolerance': Duration;
+  'plugins.packages': string[];
 }

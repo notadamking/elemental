@@ -326,6 +326,9 @@ function createTrackedDefaults(): TrackedConfiguration {
       mode: { value: DEFAULT_CONFIG.identity.mode, source: ConfigSourceEnum.DEFAULT },
       timeTolerance: { value: DEFAULT_CONFIG.identity.timeTolerance, source: ConfigSourceEnum.DEFAULT },
     },
+    plugins: {
+      packages: { value: [...DEFAULT_CONFIG.plugins.packages], source: ConfigSourceEnum.DEFAULT },
+    },
   };
 }
 
@@ -371,6 +374,9 @@ function mergeTrackedConfig(
   }
   if (partial.identity?.timeTolerance !== undefined) {
     result.identity = { ...result.identity, timeTolerance: { value: partial.identity.timeTolerance, source } };
+  }
+  if (partial.plugins?.packages !== undefined) {
+    result.plugins = { packages: { value: partial.plugins.packages, source } };
   }
 
   return result;
