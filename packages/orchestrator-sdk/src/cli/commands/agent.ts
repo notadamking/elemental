@@ -12,7 +12,7 @@
 
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elemental/sdk/cli';
 import { success, failure, ExitCode, getFormatter, getOutputMode } from '@elemental/sdk/cli';
-import type { EntityId } from '@elemental/core';
+import type { EntityId, ElementId } from '@elemental/core';
 import type { AgentRole, WorkerMode, StewardFocus } from '../../types/index.js';
 import type { OrchestratorAPI, AgentEntity } from '../../api/index.js';
 
@@ -65,6 +65,10 @@ function getAgentMeta(agent: AgentEntity): Record<string, unknown> {
 interface AgentListOptions {
   role?: string;
   status?: string;
+  workerMode?: string;
+  focus?: string;
+  reportsTo?: string;
+  hasSession?: boolean;
 }
 
 const agentListOptions: CommandOption[] = [
@@ -79,6 +83,27 @@ const agentListOptions: CommandOption[] = [
     short: 's',
     description: 'Filter by session status (idle, running, suspended, terminated)',
     hasValue: true,
+  },
+  {
+    name: 'workerMode',
+    short: 'm',
+    description: 'Filter by worker mode (ephemeral, persistent)',
+    hasValue: true,
+  },
+  {
+    name: 'focus',
+    short: 'f',
+    description: 'Filter by steward focus (merge, health, reminder, ops)',
+    hasValue: true,
+  },
+  {
+    name: 'reportsTo',
+    description: 'Filter by manager entity ID',
+    hasValue: true,
+  },
+  {
+    name: 'hasSession',
+    description: 'Filter to agents with active sessions',
   },
 ];
 
@@ -120,6 +145,49 @@ async function agentListHandler(
       agents = agents.filter((a) => {
         const meta = getAgentMeta(a);
         return meta.sessionStatus === options.status;
+      });
+    }
+
+    // Filter by worker mode
+    if (options.workerMode) {
+      const validModes = ['ephemeral', 'persistent'];
+      if (!validModes.includes(options.workerMode)) {
+        return failure(
+          `Invalid workerMode: ${options.workerMode}. Must be one of: ${validModes.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
+      agents = agents.filter((a) => {
+        const meta = getAgentMeta(a);
+        return meta.workerMode === options.workerMode;
+      });
+    }
+
+    // Filter by steward focus
+    if (options.focus) {
+      const validFocuses = ['merge', 'health', 'reminder', 'ops'];
+      if (!validFocuses.includes(options.focus)) {
+        return failure(
+          `Invalid focus: ${options.focus}. Must be one of: ${validFocuses.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
+      agents = agents.filter((a) => {
+        const meta = getAgentMeta(a);
+        return meta.stewardFocus === options.focus;
+      });
+    }
+
+    // Filter by manager
+    if (options.reportsTo) {
+      agents = agents.filter((a) => a.reportsTo === options.reportsTo);
+    }
+
+    // Filter by has session
+    if (options.hasSession) {
+      agents = agents.filter((a) => {
+        const meta = getAgentMeta(a);
+        return meta.sessionId !== undefined;
       });
     }
 
@@ -165,13 +233,20 @@ export const agentListCommand: Command = {
   help: `List all registered orchestrator agents.
 
 Options:
-  -r, --role <role>      Filter by role (director, worker, steward)
-  -s, --status <status>  Filter by session status
+  -r, --role <role>        Filter by role (director, worker, steward)
+  -s, --status <status>    Filter by session status (idle, running, suspended, terminated)
+  -m, --workerMode <mode>  Filter by worker mode (ephemeral, persistent)
+  -f, --focus <focus>      Filter by steward focus (merge, health, reminder, ops)
+  --reportsTo <id>         Filter by manager entity ID
+  --hasSession             Filter to agents with active sessions
 
 Examples:
   el agent list
   el agent list --role worker
-  el agent list --status running`,
+  el agent list --role worker --workerMode ephemeral
+  el agent list --status running
+  el agent list --role steward --focus health
+  el agent list --hasSession`,
   options: agentListOptions,
   handler: agentListHandler as Command['handler'],
 };
@@ -260,6 +335,10 @@ interface AgentRegisterOptions {
   mode?: string;
   focus?: string;
   maxTasks?: string;
+  tags?: string;
+  reportsTo?: string;
+  roleDef?: string;
+  trigger?: string;
 }
 
 const agentRegisterOptions: CommandOption[] = [
@@ -279,13 +358,33 @@ const agentRegisterOptions: CommandOption[] = [
   {
     name: 'focus',
     short: 'f',
-    description: 'Steward focus (merge, health, dependency)',
+    description: 'Steward focus (merge, health, reminder, ops)',
     hasValue: true,
   },
   {
     name: 'maxTasks',
     short: 't',
     description: 'Maximum concurrent tasks (default: 1)',
+    hasValue: true,
+  },
+  {
+    name: 'tags',
+    description: 'Comma-separated tags',
+    hasValue: true,
+  },
+  {
+    name: 'reportsTo',
+    description: 'Manager entity ID',
+    hasValue: true,
+  },
+  {
+    name: 'roleDef',
+    description: 'Role definition document ID',
+    hasValue: true,
+  },
+  {
+    name: 'trigger',
+    description: 'Steward cron trigger (e.g., "0 2 * * *")',
     hasValue: true,
   },
 ];
@@ -320,6 +419,9 @@ async function agentRegisterHandler(
   try {
     const createdBy = (options.actor ?? 'cli') as EntityId;
     const maxConcurrentTasks = options.maxTasks ? parseInt(options.maxTasks, 10) : 1;
+    const tags = options.tags ? options.tags.split(',').map(t => t.trim()) : undefined;
+    const reportsTo = options.reportsTo as EntityId | undefined;
+    const roleDefinitionRef = options.roleDef as ElementId | undefined;
 
     let agent: AgentEntity;
 
@@ -329,6 +431,8 @@ async function agentRegisterHandler(
           name,
           createdBy,
           maxConcurrentTasks,
+          tags,
+          roleDefinitionRef,
         });
         break;
 
@@ -346,24 +450,36 @@ async function agentRegisterHandler(
           createdBy,
           workerMode,
           maxConcurrentTasks,
+          tags,
+          reportsTo,
+          roleDefinitionRef,
         });
         break;
       }
 
       case 'steward': {
         const stewardFocus = (options.focus as StewardFocus) ?? 'health';
-        const validFocuses = ['merge', 'health', 'dependency'];
+        const validFocuses = ['merge', 'health', 'reminder', 'ops'];
         if (!validFocuses.includes(stewardFocus)) {
           return failure(
             `Invalid focus: ${stewardFocus}. Must be one of: ${validFocuses.join(', ')}`,
             ExitCode.VALIDATION
           );
         }
+        // Parse trigger if provided
+        const triggers: Array<{ type: 'cron'; schedule: string }> = [];
+        if (options.trigger) {
+          triggers.push({ type: 'cron', schedule: options.trigger });
+        }
         agent = await api.registerSteward({
           name,
           createdBy,
           stewardFocus,
-          triggers: [],
+          triggers,
+          maxConcurrentTasks,
+          tags,
+          reportsTo,
+          roleDefinitionRef,
         });
         break;
       }
@@ -401,13 +517,20 @@ Arguments:
 Options:
   -r, --role <role>       Agent role: director, worker, steward (required)
   -m, --mode <mode>       Worker mode: ephemeral, persistent (default: ephemeral)
-  -f, --focus <focus>     Steward focus: merge, health, dependency
+  -f, --focus <focus>     Steward focus: merge, health, reminder, ops
   -t, --maxTasks <n>      Maximum concurrent tasks (default: 1)
+  --tags <tags>           Comma-separated tags (e.g., "frontend,urgent")
+  --reportsTo <id>        Manager entity ID (for workers/stewards)
+  --roleDef <id>          Role definition document ID
+  --trigger <cron>        Steward cron trigger (e.g., "0 2 * * *")
 
 Examples:
   el agent register MyWorker --role worker --mode ephemeral
   el agent register MainDirector --role director
-  el agent register HealthChecker --role steward --focus health`,
+  el agent register HealthChecker --role steward --focus health
+  el agent register MyWorker --role worker --tags "frontend,urgent"
+  el agent register TeamWorker --role worker --reportsTo el-director123
+  el agent register DailyChecker --role steward --focus health --trigger "0 9 * * *"`,
   options: agentRegisterOptions,
   handler: agentRegisterHandler as Command['handler'],
 };
@@ -611,6 +734,10 @@ interface AgentSpawnOptions {
   mode?: string;
   resume?: string;
   workdir?: string;
+  cols?: string;
+  rows?: string;
+  timeout?: string;
+  env?: string;
 }
 
 const agentSpawnOptions: CommandOption[] = [
@@ -636,6 +763,28 @@ const agentSpawnOptions: CommandOption[] = [
     name: 'workdir',
     short: 'w',
     description: 'Working directory for the agent',
+    hasValue: true,
+  },
+  {
+    name: 'cols',
+    description: 'Terminal columns for interactive mode (default: 120)',
+    hasValue: true,
+  },
+  {
+    name: 'rows',
+    description: 'Terminal rows for interactive mode (default: 30)',
+    hasValue: true,
+  },
+  {
+    name: 'timeout',
+    short: 't',
+    description: 'Timeout in milliseconds (default: 120000)',
+    hasValue: true,
+  },
+  {
+    name: 'env',
+    short: 'e',
+    description: 'Environment variables (KEY=VALUE, can repeat)',
     hasValue: true,
   },
 ];
@@ -669,10 +818,23 @@ async function agentSpawnHandler(
     const { createSpawnerService } = await import('../../runtime/index.js');
     const { findElementalDir } = await import('@elemental/sdk');
 
+    // Parse environment variables
+    const environmentVariables: Record<string, string> = {};
+    if (options.env) {
+      const parts = options.env.split('=');
+      if (parts.length >= 2) {
+        const key = parts[0];
+        const value = parts.slice(1).join('=');
+        environmentVariables[key] = value;
+      }
+    }
+
     const elementalDir = findElementalDir(process.cwd());
     const spawner = createSpawnerService({
       workingDirectory: options.workdir ?? process.cwd(),
       elementalRoot: elementalDir ?? undefined,
+      timeout: options.timeout ? parseInt(options.timeout, 10) : undefined,
+      environmentVariables: Object.keys(environmentVariables).length > 0 ? environmentVariables : undefined,
     });
 
     // Determine spawn mode
@@ -693,6 +855,8 @@ async function agentSpawnHandler(
       mode: spawnMode,
       resumeSessionId: options.resume,
       workingDirectory: options.workdir,
+      cols: options.cols ? parseInt(options.cols, 10) : undefined,
+      rows: options.rows ? parseInt(options.rows, 10) : undefined,
     });
 
     const mode = getOutputMode(options);
@@ -738,16 +902,22 @@ Arguments:
   id    Agent identifier
 
 Options:
-  -p, --prompt <text>    Initial prompt to send to the agent
-  -m, --mode <mode>      Spawn mode: headless, interactive
-  -r, --resume <id>      Resume a previous Claude session
-  -w, --workdir <path>   Working directory for the agent
+  -p, --prompt <text>      Initial prompt to send to the agent
+  -m, --mode <mode>        Spawn mode: headless, interactive
+  -r, --resume <id>        Resume a previous Claude session
+  -w, --workdir <path>     Working directory for the agent
+  --cols <n>               Terminal columns for interactive mode (default: 120)
+  --rows <n>               Terminal rows for interactive mode (default: 30)
+  -t, --timeout <ms>       Timeout in milliseconds (default: 120000)
+  -e, --env <KEY=VALUE>    Environment variable to set
 
 Examples:
   el agent spawn el-abc123
   el agent spawn el-abc123 --mode interactive
+  el agent spawn el-abc123 --mode interactive --cols 160 --rows 40
   el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
-  el agent spawn el-abc123 --resume prev-session-id`,
+  el agent spawn el-abc123 --resume prev-session-id
+  el agent spawn el-abc123 --env MY_VAR=value`,
   options: agentSpawnOptions,
   handler: agentSpawnHandler as Command['handler'],
 };

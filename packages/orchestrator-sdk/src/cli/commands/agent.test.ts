@@ -48,11 +48,15 @@ describe('Agent Command Structure', () => {
       expect(typeof agentListCommand.handler).toBe('function');
     });
 
-    it('should have role and status options', () => {
+    it('should have all filter options', () => {
       expect(agentListCommand.options).toBeDefined();
-      expect(agentListCommand.options!.length).toBe(2);
+      expect(agentListCommand.options!.length).toBe(6);
       expect(agentListCommand.options![0].name).toBe('role');
       expect(agentListCommand.options![1].name).toBe('status');
+      expect(agentListCommand.options![2].name).toBe('workerMode');
+      expect(agentListCommand.options![3].name).toBe('focus');
+      expect(agentListCommand.options![4].name).toBe('reportsTo');
+      expect(agentListCommand.options![5].name).toBe('hasSession');
     });
   });
 
@@ -73,30 +77,49 @@ describe('Agent Command Structure', () => {
       expect(typeof agentRegisterCommand.handler).toBe('function');
     });
 
-    it('should have required role option', () => {
+    it('should have all registration options', () => {
       expect(agentRegisterCommand.options).toBeDefined();
-      expect(agentRegisterCommand.options!.length).toBeGreaterThanOrEqual(1);
+      expect(agentRegisterCommand.options!.length).toBe(8);
+
+      // Required role option
       const roleOption = agentRegisterCommand.options![0];
       expect(roleOption.name).toBe('role');
       expect(roleOption.required).toBe(true);
-    });
 
-    it('should have mode option for workers', () => {
+      // Mode option for workers
       const modeOption = agentRegisterCommand.options![1];
       expect(modeOption.name).toBe('mode');
       expect(modeOption.hasValue).toBe(true);
-    });
 
-    it('should have focus option for stewards', () => {
+      // Focus option for stewards
       const focusOption = agentRegisterCommand.options![2];
       expect(focusOption.name).toBe('focus');
       expect(focusOption.hasValue).toBe(true);
-    });
 
-    it('should have maxTasks option', () => {
+      // MaxTasks option
       const maxTasksOption = agentRegisterCommand.options![3];
       expect(maxTasksOption.name).toBe('maxTasks');
       expect(maxTasksOption.hasValue).toBe(true);
+
+      // Tags option
+      const tagsOption = agentRegisterCommand.options![4];
+      expect(tagsOption.name).toBe('tags');
+      expect(tagsOption.hasValue).toBe(true);
+
+      // ReportsTo option
+      const reportsToOption = agentRegisterCommand.options![5];
+      expect(reportsToOption.name).toBe('reportsTo');
+      expect(reportsToOption.hasValue).toBe(true);
+
+      // RoleDef option
+      const roleDefOption = agentRegisterCommand.options![6];
+      expect(roleDefOption.name).toBe('roleDef');
+      expect(roleDefOption.hasValue).toBe(true);
+
+      // Trigger option
+      const triggerOption = agentRegisterCommand.options![7];
+      expect(triggerOption.name).toBe('trigger');
+      expect(triggerOption.hasValue).toBe(true);
     });
   });
 
@@ -108,13 +131,17 @@ describe('Agent Command Structure', () => {
       expect(typeof agentSpawnCommand.handler).toBe('function');
     });
 
-    it('should have spawn options', () => {
+    it('should have all spawn options', () => {
       expect(agentSpawnCommand.options).toBeDefined();
-      expect(agentSpawnCommand.options!.length).toBe(4);
+      expect(agentSpawnCommand.options!.length).toBe(8);
       expect(agentSpawnCommand.options![0].name).toBe('prompt');
       expect(agentSpawnCommand.options![1].name).toBe('mode');
       expect(agentSpawnCommand.options![2].name).toBe('resume');
       expect(agentSpawnCommand.options![3].name).toBe('workdir');
+      expect(agentSpawnCommand.options![4].name).toBe('cols');
+      expect(agentSpawnCommand.options![5].name).toBe('rows');
+      expect(agentSpawnCommand.options![6].name).toBe('timeout');
+      expect(agentSpawnCommand.options![7].name).toBe('env');
     });
   });
 

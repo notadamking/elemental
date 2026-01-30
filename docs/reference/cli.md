@@ -354,39 +354,92 @@ These commands are provided by `@elemental/orchestrator-sdk`:
 | `el agent stop <id>` | Stop an agent session (metadata only) |
 | `el agent stream <id>` | Get agent channel for streaming |
 
+#### agent list
+
+List registered agents with optional filters.
+
+| Option | Description |
+|--------|-------------|
+| `-r, --role <role>` | Filter by role: director, worker, steward |
+| `-s, --status <status>` | Filter by session status: idle, running, suspended, terminated |
+| `-m, --workerMode <mode>` | Filter by worker mode: ephemeral, persistent |
+| `-f, --focus <focus>` | Filter by steward focus: merge, health, reminder, ops |
+| `--reportsTo <id>` | Filter by manager entity ID |
+| `--hasSession` | Filter to agents with active sessions |
+
 ```bash
-# List all agents
 el agent list
-
-# List workers only
 el agent list --role worker
+el agent list --role worker --workerMode ephemeral
+el agent list --status running
+el agent list --role steward --focus health
+el agent list --hasSession
+```
 
-# Register a worker agent
+#### agent register
+
+Register a new orchestrator agent.
+
+| Option | Description |
+|--------|-------------|
+| `-r, --role <role>` | Agent role: director, worker, steward (required) |
+| `-m, --mode <mode>` | Worker mode: ephemeral, persistent (default: ephemeral) |
+| `-f, --focus <focus>` | Steward focus: merge, health, reminder, ops |
+| `-t, --maxTasks <n>` | Maximum concurrent tasks (default: 1) |
+| `--tags <tags>` | Comma-separated tags |
+| `--reportsTo <id>` | Manager entity ID (for workers/stewards) |
+| `--roleDef <id>` | Role definition document ID |
+| `--trigger <cron>` | Steward cron trigger (e.g., "0 2 * * *") |
+
+```bash
 el agent register MyWorker --role worker --mode ephemeral
-
-# Register a director
 el agent register MainDirector --role director
-
-# Register a steward
 el agent register HealthChecker --role steward --focus health
+el agent register MyWorker --role worker --tags "frontend,urgent"
+el agent register TeamWorker --role worker --reportsTo el-director123
+el agent register DailyChecker --role steward --focus health --trigger "0 9 * * *"
+```
 
-# Spawn an agent (actually starts a Claude Code process)
+#### agent spawn
+
+Spawn a Claude Code process for an agent.
+
+| Option | Description |
+|--------|-------------|
+| `-p, --prompt <text>` | Initial prompt to send to the agent |
+| `-m, --mode <mode>` | Spawn mode: headless, interactive |
+| `-r, --resume <id>` | Resume a previous Claude session |
+| `-w, --workdir <path>` | Working directory for the agent |
+| `--cols <n>` | Terminal columns for interactive mode (default: 120) |
+| `--rows <n>` | Terminal rows for interactive mode (default: 30) |
+| `-t, --timeout <ms>` | Timeout in milliseconds (default: 120000) |
+| `-e, --env <KEY=VALUE>` | Environment variable to set |
+
+```bash
 el agent spawn el-abc123
-
-# Spawn with interactive mode (PTY)
 el agent spawn el-abc123 --mode interactive
-
-# Spawn with initial prompt
+el agent spawn el-abc123 --mode interactive --cols 160 --rows 40
 el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
-
-# Resume a previous Claude session
 el agent spawn el-abc123 --resume previous-session-id
+el agent spawn el-abc123 --workdir /path/to/project
+el agent spawn el-abc123 --env MY_VAR=value
+```
 
-# Start/stop session metadata (doesn't spawn process)
+#### agent start/stop
+
+Start or stop an agent session (metadata only, does not spawn a process).
+
+```bash
 el agent start el-abc123
+el agent start el-abc123 --session my-session-id
 el agent stop el-abc123
+```
 
-# Get channel for agent messages
+#### agent stream
+
+Get the channel ID for an agent to stream messages.
+
+```bash
 el agent stream el-abc123
 ```
 
@@ -396,6 +449,12 @@ el agent stream el-abc123
 |---------|-------------|
 | `el dispatch <task> <agent>` | Dispatch task to specific agent |
 | `el dispatch smart <task>` | Smart dispatch to best available agent |
+
+| Option | Description |
+|--------|-------------|
+| `--branch <name>` | Git branch to assign |
+| `--worktree <path>` | Git worktree path |
+| `--session <id>` | Session ID (for dispatch) |
 
 ```bash
 # Dispatch task to specific agent
