@@ -1,5 +1,7 @@
 # Critical Gotchas
 
+Common pitfalls and their solutions, organized by severity and category.
+
 ## Task Status
 
 - **`blocked` status is computed** from dependencies, not set directly
@@ -15,7 +17,7 @@
 ## Dependencies
 
 - Self-referential dependencies rejected with `CYCLE_DETECTED` error
-- **Cycle detection NOT implemented in `api.addDependency()`** - TODO in code; API callers must check cycles via `DependencyService.detectCycle()` manually
+- **Cycle detection NOT implemented in `api.addDependency()`** - API callers must check cycles via `DependencyService.detectCycle()` manually
 - `relates-to` is bidirectional but stored normalized (smaller ID is always source)
   - **Gotcha**: Query both directions: `getDependencies(id, ['relates-to'])` + `getDependents(id, ['relates-to'])`
 - Cycle detection depth limit: 100 levels (may pass with "no cycle" if cycle exists beyond limit)
@@ -123,3 +125,33 @@
 - Metadata has reserved key prefix `_el_` that cannot be used
 - Metadata size limited to 64KB when serialized
 - Document content size limited to 10MB (checked in UTF-8 bytes)
+
+## Orchestrator
+
+- Agent channels are created atomically during registration with format `agent-{agentId}`
+- Each agent can only have one active session at a time
+- Session history is limited to 20 entries per agent
+- **Headless mode** uses `child_process.spawn()` with stream-json I/O
+- **Interactive mode** uses PTY (node-pty) for terminal emulation
+- `ELEMENTAL_ROOT` env var is set for worktree root-finding
+- Built-in prompts are loaded from `packages/orchestrator-sdk/src/prompts/`
+- Project-level prompt overrides go in `.elemental/prompts/`
+
+## Identity
+
+- **Default mode is `soft`** (name-based, no verification)
+- Ed25519 public keys are 44-character base64 strings
+- Ed25519 signatures are 88-character base64 strings
+- Signature format: `actor|signedAt|requestHash`
+- Default time tolerance: 5 minutes
+- `signedAt` must be ISO 8601 timestamp
+- Request hash is SHA256 hex (64 characters)
+
+## Configuration
+
+- Config precedence: CLI > Environment > File > Defaults
+- Environment variables use `ELEMENTAL_` prefix
+- Config file is `.elemental/config.yaml`
+- `ELEMENTAL_CONFIG_PATH` overrides config file location
+- Duration strings supported: `5m`, `1h`, `7d`
+- Config cache invalidated on `setValue()` or `unsetValue()`

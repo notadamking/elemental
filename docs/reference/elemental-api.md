@@ -1,15 +1,13 @@
-# ElementalAPI
+# ElementalAPI Reference
 
-## Files
-- **Main API**: `src/api/elemental-api.ts`
-- **Types**: `src/api/types.ts`
-- **Tests**: `src/api/*.integration.test.ts`
-- **Spec (historical)**: `specs/api/query-api.md`
+**File:** `packages/sdk/src/api/elemental-api.ts`
+
+The main API for working with Elemental elements.
 
 ## Initialization
 
 ```typescript
-import { ElementalAPI } from '@elemental/core';
+import { ElementalAPI } from '@elemental/sdk';
 
 const api = await ElementalAPI.create({
   rootDir: '.elemental',  // Optional, defaults to .elemental
@@ -19,6 +17,7 @@ const api = await ElementalAPI.create({
 ## CRUD Operations
 
 ### Create
+
 ```typescript
 const task = await api.create({
   type: 'task',
@@ -29,17 +28,31 @@ const task = await api.create({
 });
 ```
 
-**Note:** `type` and `createdBy` are required. Use factory functions (`createTask`, `createEntity`, etc.) for validation.
+**Required fields:** `type`, `createdBy`
 
 ### Read
+
 ```typescript
 const task = await api.get(taskId);
-const hydratedTask = await api.get(taskId, { hydrate: { description: true, content: true } });
+
+// With hydration (resolve document references)
+const hydratedTask = await api.get(taskId, {
+  hydrate: { description: true, content: true }
+});
 ```
 
-**HydrationOptions:** `{ description?: boolean, design?: boolean, content?: boolean, attachments?: boolean }`
+**HydrationOptions:**
+```typescript
+interface HydrationOptions {
+  description?: boolean;  // Resolve descriptionRef
+  design?: boolean;       // Resolve designRef
+  content?: boolean;      // Resolve contentRef
+  attachments?: boolean;  // Resolve attachmentRefs
+}
+```
 
 ### Update
+
 ```typescript
 const updated = await api.update(taskId, {
   status: 'in_progress',
@@ -48,26 +61,39 @@ const updated = await api.update(taskId, {
 ```
 
 ### Delete
+
 ```typescript
 await api.delete(taskId);
 ```
 
+---
+
 ## Query Operations
 
 ### List with filters
+
 ```typescript
 const tasks = await api.list({
   type: 'task',
   status: 'open',
-  priority: { lte: 2 },
-  tags: ['urgent'],        // AND logic (all tags required)
-  tagsAny: ['a', 'b'],     // OR logic (any tag matches)
+  priority: { lte: 2 },       // Comparison operators
+  tags: ['urgent'],           // AND logic (all required)
+  tagsAny: ['a', 'b'],        // OR logic (any matches)
 });
 ```
 
-**Note:** Pass `type` inside the filter object, not as a separate parameter.
+**Filter operators:**
+- `{ eq: value }` - Equal
+- `{ neq: value }` - Not equal
+- `{ lt: value }` - Less than
+- `{ lte: value }` - Less than or equal
+- `{ gt: value }` - Greater than
+- `{ gte: value }` - Greater than or equal
+- `{ in: [values] }` - In list
+- `{ nin: [values] }` - Not in list
 
 ### List with pagination
+
 ```typescript
 const result = await api.listPaginated({
   type: 'task',
@@ -79,73 +105,101 @@ const result = await api.listPaginated({
 ```
 
 ### Search
+
 ```typescript
 const results = await api.search('keyword', {
   types: ['task', 'document'],
 });
+```
 
-// Search channels specifically
+**Note:** Search has **100 result hard limit**. Searches title, content, and tags only.
+
+### Search channels
+
+```typescript
 const channels = await api.searchChannels('channel-name');
 ```
 
-**Note:** Search has a **100 result hard limit**. Searches title, content, and tags fields only.
+---
 
 ## Task-Specific Operations
 
 ### Ready tasks (unblocked, open)
+
 ```typescript
 const ready = await api.ready();
 const readyIncludingEphemeral = await api.ready({ includeEphemeral: true });
 ```
 
 ### Blocked tasks
+
 ```typescript
 const blocked = await api.blocked();
+// Returns tasks with block reasons
 ```
 
-### Close/Assign/Defer tasks
+### Status changes
+
 Use `update()` - there are no dedicated `close()`, `assign()`, or `defer()` methods:
+
 ```typescript
-await api.update(taskId, { status: 'closed' });
-await api.update(taskId, { assignee: entityId });
-await api.update(taskId, { scheduledFor: '2024-01-15' });
+await api.update(taskId, { status: 'closed', closeReason: 'Done' });
+await api.update(taskId, { assigneeId: entityId });
+await api.update(taskId, { status: 'deferred', scheduledFor: '2024-01-15' });
 ```
+
+---
 
 ## Dependency Operations
 
 ### Add dependency
+
 ```typescript
 await api.addDependency({
   sourceId: taskA,
   targetId: taskB,
   type: 'blocks',
+  createdBy: actorId,
 });
 ```
 
 ### Remove dependency
+
 ```typescript
 await api.removeDependency(taskA, taskB, 'blocks');
 ```
 
 ### Get dependencies
+
 ```typescript
-// Outgoing dependencies (what this element depends on)
+// Outgoing (what this element depends on)
 const deps = await api.getDependencies(elementId, types?);
 
-// Incoming dependencies (what depends on this element)
+// Incoming (what depends on this element)
 const dependents = await api.getDependents(elementId, types?);
 ```
 
 ### Dependency tree
+
 ```typescript
 const tree = await api.getDependencyTree(elementId);
 ```
 
+### Gate satisfaction
+
+```typescript
+const satisfied = await api.satisfyGate(sourceId, targetId, actor);
+await api.recordApproval(sourceId, targetId, approverId);
+await api.removeApproval(sourceId, targetId, approverId);
+```
+
+---
+
 ## Plan Operations
 
 ```typescript
-await api.addTaskToPlan(taskId, planId, options?);  // Note: taskId first
-await api.removeTaskFromPlan(taskId, planId, actor?);  // Note: taskId first (same as addTaskToPlan)
+await api.addTaskToPlan(taskId, planId, options?);     // taskId first!
+await api.removeTaskFromPlan(taskId, planId, actor?);
 await api.createTaskInPlan(planId, { title: 'Task', priority: 2 });
 const tasks = await api.getTasksInPlan(planId);
 const progress = await api.getPlanProgress(planId);
@@ -157,16 +211,24 @@ await api.bulkReassignPlanTasks(planId, newAssigneeId);
 await api.bulkTagPlanTasks(planId, { addTags: ['tag1'], removeTags: ['tag2'] });
 ```
 
+**Note:** Bulk operations use `closeReason`, `addTags`/`removeTags` - not `reason`, `add`/`remove`.
+
+---
+
 ## Workflow Operations
 
 ```typescript
 const tasks = await api.getTasksInWorkflow(workflowId);
 const ready = await api.getReadyTasksInWorkflow(workflowId);
-const ordered = await api.getOrderedTasksInWorkflow(workflowId); // Topological sort
+const ordered = await api.getOrderedTasksInWorkflow(workflowId);  // Topological sort
 const progress = await api.getWorkflowProgress(workflowId);
-await api.burnWorkflow(workflowId);  // Hard delete workflow + tasks
+await api.burnWorkflow(workflowId);  // Hard delete
 await api.garbageCollectWorkflows({ maxAgeMs: 7 * 24 * 60 * 60 * 1000 });  // 7 days
 ```
+
+**Note:** `garbageCollectWorkflows()` uses `maxAgeMs` (milliseconds), not string like `'7d'`.
+
+---
 
 ## Channel Operations
 
@@ -175,14 +237,26 @@ const { channel, created } = await api.findOrCreateDirectChannel(entityA, entity
 await api.addChannelMember(channelId, entityId, options?);
 await api.removeChannelMember(channelId, entityId, options?);
 await api.leaveChannel(channelId, actor);
+```
 
-// Send direct message (content must be a Document)
-const contentDoc = await api.create('document', { content: 'message text' });
-const result = await api.sendDirectMessage(sender, {
-  recipient: entityB,       // Note: 'recipient' not 'recipientId'
-  contentRef: contentDoc.id // Note: DocumentId, not raw text
+### Send direct message
+
+```typescript
+// Content must be a Document - create it first!
+const contentDoc = await api.create({
+  type: 'document',
+  createdBy: senderId,
+  content: 'message text',
+  contentType: 'text',
+});
+
+const result = await api.sendDirectMessage(senderId, {
+  recipient: entityB,        // Note: 'recipient' not 'recipientId'
+  contentRef: contentDoc.id, // Note: DocumentId, not raw text
 });
 ```
+
+---
 
 ## Team Operations
 
@@ -193,6 +267,8 @@ const tasks = await api.getTasksForTeam(teamId);
 await api.claimTaskFromTeam(taskId, entityId, options?);
 const metrics = await api.getTeamMetrics(teamId);
 ```
+
+---
 
 ## Entity Operations
 
@@ -205,13 +281,7 @@ const chain = await api.getManagementChain(entityId);
 const chart = await api.getOrgChart();
 ```
 
-## Gate Satisfaction (Awaits Dependencies)
-
-```typescript
-const satisfied = await api.satisfyGate(sourceId, targetId, actor);  // Returns boolean
-await api.recordApproval(sourceId, targetId, approverId);
-await api.removeApproval(sourceId, targetId, approverId);
-```
+---
 
 ## History/Timeline
 
@@ -224,15 +294,20 @@ const snapshot = await api.reconstructAtTime(elementId, timestamp);
 const timeline = await api.getElementTimeline(elementId);
 ```
 
+---
+
 ## Sync Operations
 
 ```typescript
 await api.export();                    // Export dirty elements
 await api.export({ full: true });      // Full export
 await api.import(jsonlPath);
+await api.import(jsonlPath, { force: true });  // Remote always wins
 ```
 
-**Note:** `syncStatus()` is not exposed on the public API. Use `el status` CLI command instead.
+**Note:** `syncStatus()` is not exposed. Use `el status` CLI command.
+
+---
 
 ## System
 
@@ -241,5 +316,56 @@ const stats = await api.stats();
 
 // Rebuild blocked cache from scratch
 const result = await api.rebuildBlockedCache();
-// result: { elementsChecked: number, elementsBlocked: number, durationMs: number }
+// { elementsChecked: number, elementsBlocked: number, durationMs: number }
+```
+
+---
+
+## Common Patterns
+
+### Creating a task with description
+
+```typescript
+// Create description document first
+const descDoc = await api.create({
+  type: 'document',
+  createdBy: actorId,
+  title: 'Task Description',
+  content: '# Requirements\n\n...',
+  contentType: 'markdown',
+});
+
+// Create task with description reference
+const task = await api.create({
+  type: 'task',
+  createdBy: actorId,
+  title: 'Implement feature',
+  descriptionRef: descDoc.id,
+  priority: 2,
+  taskType: 'feature',
+});
+```
+
+### Querying with multiple filters
+
+```typescript
+const tasks = await api.list({
+  type: 'task',
+  status: { in: ['open', 'in_progress'] },
+  priority: { lte: 2 },
+  assigneeId: agentId,
+  tags: ['urgent'],
+});
+```
+
+### Checking if task is blocked
+
+```typescript
+const blockedTasks = await api.blocked();
+const isBlocked = blockedTasks.some(t => t.id === taskId);
+
+// Or check via BlockedCacheService directly
+import { createBlockedCacheService } from '@elemental/sdk/services/blocked-cache';
+const blockedCache = createBlockedCacheService(storage);
+const isBlocked = blockedCache.isBlocked(taskId);
 ```

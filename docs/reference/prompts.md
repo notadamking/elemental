@@ -1,0 +1,282 @@
+# Prompts System Reference
+
+**Directory:** `packages/orchestrator-sdk/src/prompts/`
+
+Built-in role definition prompts and customization system.
+
+## Overview
+
+The prompts system provides:
+- Built-in role prompts for director, worker, and steward agents
+- Project-level override support
+- Prompt composition with task context
+- Steward focus-specific addenda
+
+## Prompt Files
+
+```
+packages/orchestrator-sdk/src/prompts/
+├── index.ts           # Loading and composition API
+├── director.md        # Director role prompt
+├── worker.md          # Worker role prompt
+├── steward-base.md    # Base steward prompt
+├── steward-merge.md   # Merge focus addendum
+├── steward-health.md  # Health focus addendum
+├── steward-ops.md     # Ops focus addendum
+└── steward-reminder.md # Reminder focus addendum
+```
+
+## Loading Prompts
+
+### Basic Loading
+
+```typescript
+import {
+  loadRolePrompt,
+  loadBuiltInPrompt,
+  hasBuiltInPrompt,
+  listBuiltInPrompts,
+} from '@elemental/orchestrator-sdk';
+
+// Load prompt (checks project overrides first)
+const result = loadRolePrompt('worker', undefined, {
+  projectRoot: '/my/project',
+});
+console.log(result?.prompt);   // The prompt content
+console.log(result?.source);   // 'built-in' or path to override
+
+// Load built-in only (skip overrides)
+const builtIn = loadBuiltInPrompt('director');
+
+// For stewards, specify focus
+const mergePrompt = loadRolePrompt('steward', 'merge');
+// Returns: steward-base.md + steward-merge.md combined
+
+// Check existence
+hasBuiltInPrompt('worker');              // true
+hasBuiltInPrompt('steward', 'merge');    // true
+
+// List all prompts
+const files = listBuiltInPrompts();
+// ['director.md', 'worker.md', 'steward-base.md', ...]
+```
+
+### RolePromptResult
+
+```typescript
+interface RolePromptResult {
+  prompt: string;                    // Combined prompt content
+  source: 'built-in' | string;       // Source path or 'built-in'
+  baseSource?: 'built-in' | string;  // For stewards: base source
+  focusSource?: 'built-in' | string; // For stewards: focus source
+}
+```
+
+## Building Agent Prompts
+
+Compose complete startup prompts with task context:
+
+```typescript
+import { buildAgentPrompt } from '@elemental/orchestrator-sdk';
+
+// Basic prompt
+const prompt = buildAgentPrompt({
+  role: 'worker',
+  projectRoot: '/my/project',
+});
+
+// With task context
+const prompt = buildAgentPrompt({
+  role: 'worker',
+  taskContext: 'Implement user login with OAuth.',
+  projectRoot: '/my/project',
+});
+
+// With additional instructions
+const prompt = buildAgentPrompt({
+  role: 'worker',
+  taskContext: 'Implement feature X',
+  additionalInstructions: 'Focus on test coverage.',
+  projectRoot: '/my/project',
+});
+
+// Steward with focus
+const prompt = buildAgentPrompt({
+  role: 'steward',
+  stewardFocus: 'merge',
+  projectRoot: '/my/project',
+});
+
+// Skip project overrides
+const prompt = buildAgentPrompt({
+  role: 'worker',
+  builtInOnly: true,
+});
+```
+
+### BuildAgentPromptOptions
+
+```typescript
+interface BuildAgentPromptOptions {
+  role: AgentRole;
+  stewardFocus?: StewardFocus;
+  taskContext?: string;
+  additionalInstructions?: string;
+  projectRoot?: string;
+  builtInOnly?: boolean;
+}
+```
+
+## Project-Level Overrides
+
+Override built-in prompts by placing files in `.elemental/prompts/`:
+
+```
+my-project/
+├── .elemental/
+│   └── prompts/
+│       ├── worker.md           # Custom worker prompt
+│       └── steward-merge.md    # Custom merge steward addendum
+└── src/
+```
+
+The loader checks for project overrides first, then falls back to built-in.
+
+**Steward overrides are independent:** You can override just the base, just the focus, or both.
+
+## Prompt Structure
+
+Built-in prompts follow a consistent structure:
+
+### 1. Identity Section
+```markdown
+# Your Role: {Role}
+
+You are a {role} agent in the Elemental system.
+- You own: {responsibilities}
+- You report to: {supervisor}
+```
+
+### 2. System Overview
+```markdown
+## System Overview
+
+| Role | Owns | Reports To |
+|------|------|------------|
+| Director | Plans, priorities | Human |
+| Worker | Task execution | Director |
+| Steward | Maintenance | Director |
+```
+
+### 3. Core Workflows
+```markdown
+## Core Workflows
+
+### Starting a Task
+1. Check inbox for assigned tasks
+2. Read task description and requirements
+3. Create implementation plan
+...
+```
+
+### 4. Judgment Scenarios
+```markdown
+## Decision Making
+
+### When stuck on a task
+- Break down into smaller subtasks
+- Check for related completed tasks
+- Request help from director if blocked > 30 min
+```
+
+### 5. CLI Quick Reference
+```markdown
+## CLI Commands
+
+| Command | Purpose |
+|---------|---------|
+| `el ready` | List ready tasks |
+| `el close <id>` | Close task |
+```
+
+## Integration with Spawner
+
+Use `buildAgentPrompt` when spawning agents:
+
+```typescript
+import { buildAgentPrompt } from '@elemental/orchestrator-sdk';
+
+const prompt = buildAgentPrompt({
+  role: 'worker',
+  taskContext: taskDescription,
+  projectRoot: workspace,
+});
+
+const result = await spawner.spawn(agentId, 'worker', {
+  initialPrompt: prompt,
+  workingDirectory: worktreePath,
+});
+```
+
+## Steward Focus Types
+
+| Focus | File | Purpose |
+|-------|------|---------|
+| `merge` | `steward-merge.md` | Merge completed branches |
+| `health` | `steward-health.md` | Monitor agent health |
+| `ops` | `steward-ops.md` | Operational tasks |
+| `reminder` | `steward-reminder.md` | Send reminders |
+
+Steward prompts are combined: `steward-base.md` + `steward-{focus}.md`
+
+## Best Practices
+
+1. **Keep prompts concise:** Built-in prompts are additive to Claude Code's system prompt. Focus on role-specific guidance.
+
+2. **Use behaviors for context:** Use `AgentBehaviors` in role definitions for event-specific instructions rather than bloating the main prompt.
+
+3. **Override sparingly:** Only override built-in prompts when you need different behavior. Partial overrides (just focus, not base) work well.
+
+4. **Include CLI commands:** Prompts should remind agents of key CLI commands they'll use.
+
+5. **Test with real agents:** Verify prompt effectiveness by running agents and observing behavior.
+
+## Loading Options
+
+```typescript
+interface LoadPromptOptions {
+  projectRoot?: string;   // Project root for override lookup
+  builtInOnly?: boolean;  // Skip project overrides
+}
+```
+
+## API Reference
+
+```typescript
+// Load prompt with override support
+loadRolePrompt(
+  role: AgentRole,
+  stewardFocus?: StewardFocus,
+  options?: LoadPromptOptions
+): RolePromptResult | undefined
+
+// Load built-in only
+loadBuiltInPrompt(
+  role: AgentRole,
+  stewardFocus?: StewardFocus
+): string | undefined
+
+// Check existence
+hasBuiltInPrompt(
+  role: AgentRole,
+  stewardFocus?: StewardFocus
+): boolean
+
+// List all prompt files
+listBuiltInPrompts(): string[]
+
+// Build complete prompt
+buildAgentPrompt(
+  options: BuildAgentPromptOptions
+): string | undefined
+```
