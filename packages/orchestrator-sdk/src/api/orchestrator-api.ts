@@ -217,6 +217,7 @@ export interface OrchestratorAPI extends ElementalAPI {
       branch?: string;
       worktree?: string;
       sessionId?: string;
+      markAsStarted?: boolean;
     }
   ): Promise<Task>;
 }
@@ -509,6 +510,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       branch?: string;
       worktree?: string;
       sessionId?: string;
+      markAsStarted?: boolean;
     }
   ): Promise<Task> {
     const task = await this.get<Task>(taskId);
@@ -526,8 +528,12 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
     const branch = options?.branch ?? generateBranchName(agent.name, taskId, slug);
     const worktree = options?.worktree ?? generateWorktreePath(agent.name, slug);
 
-    // Update task with assignee
-    await this.update<Task>(taskId, { assignee: agentId });
+    // Update task with assignee (and status if markAsStarted)
+    const updates: Partial<Task> = { assignee: agentId };
+    if (options?.markAsStarted) {
+      updates.status = 'in_progress';
+    }
+    await this.update<Task>(taskId, updates);
 
     // Set orchestrator metadata
     return this.setTaskOrchestratorMeta(taskId, {

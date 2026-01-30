@@ -133,7 +133,7 @@ describe('Agent Command Structure', () => {
 
     it('should have all spawn options', () => {
       expect(agentSpawnCommand.options).toBeDefined();
-      expect(agentSpawnCommand.options!.length).toBe(8);
+      expect(agentSpawnCommand.options!.length).toBe(9);
       expect(agentSpawnCommand.options![0].name).toBe('prompt');
       expect(agentSpawnCommand.options![1].name).toBe('mode');
       expect(agentSpawnCommand.options![2].name).toBe('resume');
@@ -142,6 +142,7 @@ describe('Agent Command Structure', () => {
       expect(agentSpawnCommand.options![5].name).toBe('rows');
       expect(agentSpawnCommand.options![6].name).toBe('timeout');
       expect(agentSpawnCommand.options![7].name).toBe('env');
+      expect(agentSpawnCommand.options![8].name).toBe('taskId');
     });
   });
 
@@ -153,12 +154,14 @@ describe('Agent Command Structure', () => {
       expect(typeof agentStartCommand.handler).toBe('function');
     });
 
-    it('should have session option', () => {
+    it('should have all start options', () => {
       expect(agentStartCommand.options).toBeDefined();
-      expect(agentStartCommand.options!.length).toBeGreaterThanOrEqual(1);
-      const sessionOption = agentStartCommand.options![0];
-      expect(sessionOption.name).toBe('session');
-      expect(sessionOption.hasValue).toBe(true);
+      expect(agentStartCommand.options!.length).toBe(3);
+      expect(agentStartCommand.options![0].name).toBe('session');
+      expect(agentStartCommand.options![0].hasValue).toBe(true);
+      expect(agentStartCommand.options![1].name).toBe('taskId');
+      expect(agentStartCommand.options![1].hasValue).toBe(true);
+      expect(agentStartCommand.options![2].name).toBe('interactive');
     });
   });
 
@@ -166,8 +169,17 @@ describe('Agent Command Structure', () => {
     it('should have correct structure', () => {
       expect(agentStopCommand.name).toBe('stop');
       expect(agentStopCommand.description).toBe('Stop an agent session');
-      expect(agentStopCommand.usage).toBe('el agent stop <id>');
+      expect(agentStopCommand.usage).toBe('el agent stop <id> [options]');
       expect(typeof agentStopCommand.handler).toBe('function');
+    });
+
+    it('should have all stop options', () => {
+      expect(agentStopCommand.options).toBeDefined();
+      expect(agentStopCommand.options!.length).toBe(3);
+      expect(agentStopCommand.options![0].name).toBe('graceful');
+      expect(agentStopCommand.options![1].name).toBe('no-graceful');
+      expect(agentStopCommand.options![2].name).toBe('reason');
+      expect(agentStopCommand.options![2].hasValue).toBe(true);
     });
   });
 

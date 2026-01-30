@@ -26,10 +26,11 @@ describe('Dispatch Command Structure', () => {
 
     it('should have options', () => {
       expect(dispatchCommand.options).toBeDefined();
-      expect(dispatchCommand.options!.length).toBe(3);
+      expect(dispatchCommand.options!.length).toBe(4);
       expect(dispatchCommand.options![0].name).toBe('branch');
       expect(dispatchCommand.options![1].name).toBe('worktree');
       expect(dispatchCommand.options![2].name).toBe('session');
+      expect(dispatchCommand.options![3].name).toBe('markAsStarted');
     });
   });
 

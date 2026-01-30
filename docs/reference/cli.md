@@ -412,8 +412,9 @@ Spawn a Claude Code process for an agent.
 | `-w, --workdir <path>` | Working directory for the agent |
 | `--cols <n>` | Terminal columns for interactive mode (default: 120) |
 | `--rows <n>` | Terminal rows for interactive mode (default: 30) |
-| `-t, --timeout <ms>` | Timeout in milliseconds (default: 120000) |
+| `--timeout <ms>` | Timeout in milliseconds (default: 120000) |
 | `-e, --env <KEY=VALUE>` | Environment variable to set |
+| `-t, --taskId <id>` | Task ID to assign to this agent |
 
 ```bash
 el agent spawn el-abc123
@@ -423,16 +424,40 @@ el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
 el agent spawn el-abc123 --resume previous-session-id
 el agent spawn el-abc123 --workdir /path/to/project
 el agent spawn el-abc123 --env MY_VAR=value
+el agent spawn el-abc123 --taskId el-task456
 ```
 
-#### agent start/stop
+#### agent start
 
-Start or stop an agent session (metadata only, does not spawn a process).
+Start an agent session (metadata only, does not spawn a process).
+
+| Option | Description |
+|--------|-------------|
+| `-s, --session <id>` | Session ID to associate |
+| `-t, --taskId <id>` | Task ID to assign to this session |
+| `-i, --interactive` | Start in interactive mode |
 
 ```bash
 el agent start el-abc123
 el agent start el-abc123 --session my-session-id
+el agent start el-abc123 --taskId el-task456
+el agent start el-abc123 --interactive
+```
+
+#### agent stop
+
+Stop an agent session (metadata only).
+
+| Option | Description |
+|--------|-------------|
+| `-g, --graceful` | Graceful shutdown (default: true) |
+| `--no-graceful` | Force immediate shutdown |
+| `-r, --reason <text>` | Reason for stopping the agent |
+
+```bash
 el agent stop el-abc123
+el agent stop el-abc123 --reason "Task completed"
+el agent stop el-abc123 --no-graceful
 ```
 
 #### agent stream
@@ -452,9 +477,10 @@ el agent stream el-abc123
 
 | Option | Description |
 |--------|-------------|
-| `--branch <name>` | Git branch to assign |
-| `--worktree <path>` | Git worktree path |
-| `--session <id>` | Session ID (for dispatch) |
+| `-b, --branch <name>` | Git branch to assign |
+| `-w, --worktree <path>` | Git worktree path |
+| `-s, --session <id>` | Session ID (for dispatch) |
+| `-m, --markAsStarted` | Mark the task as started after dispatch |
 
 ```bash
 # Dispatch task to specific agent
@@ -462,6 +488,9 @@ el dispatch el-task123 el-agent1
 
 # Dispatch with branch assignment
 el dispatch el-task123 el-agent1 --branch feature/my-task
+
+# Dispatch and mark as started
+el dispatch el-task123 el-agent1 --markAsStarted
 
 # Smart dispatch (auto-select best agent)
 el dispatch smart el-task123

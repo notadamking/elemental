@@ -541,6 +541,8 @@ Examples:
 
 interface AgentStartOptions {
   session?: string;
+  taskId?: string;
+  interactive?: boolean;
 }
 
 const agentStartOptions: CommandOption[] = [
@@ -549,6 +551,17 @@ const agentStartOptions: CommandOption[] = [
     short: 's',
     description: 'Session ID to associate',
     hasValue: true,
+  },
+  {
+    name: 'taskId',
+    short: 't',
+    description: 'Task ID to assign to this session',
+    hasValue: true,
+  },
+  {
+    name: 'interactive',
+    short: 'i',
+    description: 'Start in interactive mode',
   },
 ];
 
@@ -559,7 +572,7 @@ async function agentStartHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el agent start <id> [--session <session-id>]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent start <id> [options]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);
@@ -575,17 +588,38 @@ async function agentStartHandler(
       'running'
     );
 
+    // If task ID is provided, assign the task to this agent
+    if (options.taskId) {
+      await api.assignTaskToAgent(
+        options.taskId as ElementId,
+        id as EntityId,
+        { sessionId }
+      );
+    }
+
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
-      return success(agent);
+      return success({
+        ...agent,
+        taskId: options.taskId,
+        interactive: options.interactive ?? false,
+      });
     }
 
     if (mode === 'quiet') {
       return success(agent.id);
     }
 
-    return success(agent, `Started agent ${id} with session ${sessionId}`);
+    let message = `Started agent ${id} with session ${sessionId}`;
+    if (options.taskId) {
+      message += ` (task: ${options.taskId})`;
+    }
+    if (options.interactive) {
+      message += ' [interactive mode]';
+    }
+
+    return success(agent, message);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to start agent: ${message}`, ExitCode.GENERAL_ERROR);
@@ -603,10 +637,14 @@ Arguments:
 
 Options:
   -s, --session <id>    Session ID to associate
+  -t, --taskId <id>     Task ID to assign to this session
+  -i, --interactive     Start in interactive mode
 
 Examples:
   el agent start el-abc123
-  el agent start el-abc123 --session my-session`,
+  el agent start el-abc123 --session my-session
+  el agent start el-abc123 --taskId el-task456
+  el agent start el-abc123 --interactive`,
   options: agentStartOptions,
   handler: agentStartHandler as Command['handler'],
 };
@@ -615,14 +653,37 @@ Examples:
 // Agent Stop Command
 // ============================================================================
 
+interface AgentStopOptions {
+  graceful?: boolean;
+  reason?: string;
+}
+
+const agentStopOptions: CommandOption[] = [
+  {
+    name: 'graceful',
+    short: 'g',
+    description: 'Graceful shutdown (default: true)',
+  },
+  {
+    name: 'no-graceful',
+    description: 'Force immediate shutdown',
+  },
+  {
+    name: 'reason',
+    short: 'r',
+    description: 'Reason for stopping the agent',
+    hasValue: true,
+  },
+];
+
 async function agentStopHandler(
   args: string[],
-  options: GlobalOptions
+  options: GlobalOptions & AgentStopOptions & { 'no-graceful'?: boolean }
 ): Promise<CommandResult> {
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el agent stop <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent stop <id> [options]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);
@@ -631,6 +692,9 @@ async function agentStopHandler(
   }
 
   try {
+    // Determine graceful mode (default true unless --no-graceful is set)
+    const graceful = options['no-graceful'] !== true;
+
     const agent = await api.updateAgentSession(
       id as EntityId,
       undefined,
@@ -640,14 +704,26 @@ async function agentStopHandler(
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
-      return success(agent);
+      return success({
+        ...agent,
+        graceful,
+        reason: options.reason,
+      });
     }
 
     if (mode === 'quiet') {
       return success(agent.id);
     }
 
-    return success(agent, `Stopped agent ${id}`);
+    let message = `Stopped agent ${id}`;
+    if (!graceful) {
+      message += ' (forced)';
+    }
+    if (options.reason) {
+      message += `: ${options.reason}`;
+    }
+
+    return success(agent, message);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to stop agent: ${message}`, ExitCode.GENERAL_ERROR);
@@ -657,15 +733,22 @@ async function agentStopHandler(
 export const agentStopCommand: Command = {
   name: 'stop',
   description: 'Stop an agent session',
-  usage: 'el agent stop <id>',
+  usage: 'el agent stop <id> [options]',
   help: `Stop an agent session.
 
 Arguments:
   id    Agent identifier
 
+Options:
+  -g, --graceful        Graceful shutdown (default: true)
+  --no-graceful         Force immediate shutdown
+  -r, --reason <text>   Reason for stopping the agent
+
 Examples:
-  el agent stop el-abc123`,
-  options: [],
+  el agent stop el-abc123
+  el agent stop el-abc123 --reason "Task completed"
+  el agent stop el-abc123 --no-graceful`,
+  options: agentStopOptions,
   handler: agentStopHandler as Command['handler'],
 };
 
@@ -738,6 +821,7 @@ interface AgentSpawnOptions {
   rows?: string;
   timeout?: string;
   env?: string;
+  taskId?: string;
 }
 
 const agentSpawnOptions: CommandOption[] = [
@@ -777,7 +861,6 @@ const agentSpawnOptions: CommandOption[] = [
   },
   {
     name: 'timeout',
-    short: 't',
     description: 'Timeout in milliseconds (default: 120000)',
     hasValue: true,
   },
@@ -785,6 +868,12 @@ const agentSpawnOptions: CommandOption[] = [
     name: 'env',
     short: 'e',
     description: 'Environment variables (KEY=VALUE, can repeat)',
+    hasValue: true,
+  },
+  {
+    name: 'taskId',
+    short: 't',
+    description: 'Task ID to assign to this agent',
     hasValue: true,
   },
 ];
@@ -859,6 +948,15 @@ async function agentSpawnHandler(
       rows: options.rows ? parseInt(options.rows, 10) : undefined,
     });
 
+    // If task ID is provided, assign the task to this agent
+    if (options.taskId) {
+      await api.assignTaskToAgent(
+        options.taskId as ElementId,
+        id as EntityId,
+        { sessionId: result.session.id }
+      );
+    }
+
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
@@ -869,6 +967,7 @@ async function agentSpawnHandler(
         status: result.session.status,
         mode: result.session.mode,
         pid: result.session.pid,
+        taskId: options.taskId,
       });
     }
 
@@ -884,6 +983,9 @@ async function agentSpawnHandler(
       `  Mode:        ${result.session.mode}`,
       `  PID:         ${result.session.pid ?? '-'}`,
     ];
+    if (options.taskId) {
+      lines.push(`  Task ID:     ${options.taskId}`);
+    }
 
     return success(result.session, lines.join('\n'));
   } catch (err) {
@@ -908,8 +1010,9 @@ Options:
   -w, --workdir <path>     Working directory for the agent
   --cols <n>               Terminal columns for interactive mode (default: 120)
   --rows <n>               Terminal rows for interactive mode (default: 30)
-  -t, --timeout <ms>       Timeout in milliseconds (default: 120000)
+  --timeout <ms>           Timeout in milliseconds (default: 120000)
   -e, --env <KEY=VALUE>    Environment variable to set
+  -t, --taskId <id>        Task ID to assign to this agent
 
 Examples:
   el agent spawn el-abc123
@@ -917,7 +1020,8 @@ Examples:
   el agent spawn el-abc123 --mode interactive --cols 160 --rows 40
   el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
   el agent spawn el-abc123 --resume prev-session-id
-  el agent spawn el-abc123 --env MY_VAR=value`,
+  el agent spawn el-abc123 --env MY_VAR=value
+  el agent spawn el-abc123 --taskId el-task456`,
   options: agentSpawnOptions,
   handler: agentSpawnHandler as Command['handler'],
 };

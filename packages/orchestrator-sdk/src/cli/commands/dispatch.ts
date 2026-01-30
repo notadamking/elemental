@@ -54,6 +54,7 @@ interface DispatchOptions {
   branch?: string;
   worktree?: string;
   session?: string;
+  markAsStarted?: boolean;
 }
 
 const dispatchOptions: CommandOption[] = [
@@ -74,6 +75,11 @@ const dispatchOptions: CommandOption[] = [
     short: 's',
     description: 'Session ID to associate',
     hasValue: true,
+  },
+  {
+    name: 'markAsStarted',
+    short: 'm',
+    description: 'Mark the task as started after dispatch',
   },
 ];
 
@@ -101,6 +107,7 @@ async function dispatchHandler(
         branch: options.branch,
         worktree: options.worktree,
         sessionId: options.session,
+        markAsStarted: options.markAsStarted,
       }
     );
 
@@ -112,6 +119,7 @@ async function dispatchHandler(
         agentId,
         branch: options.branch,
         worktree: options.worktree,
+        markAsStarted: options.markAsStarted ?? false,
       });
     }
 
@@ -119,7 +127,12 @@ async function dispatchHandler(
       return success(task.id);
     }
 
-    return success(task, `Dispatched task ${taskId} to agent ${agentId}`);
+    let message = `Dispatched task ${taskId} to agent ${agentId}`;
+    if (options.markAsStarted) {
+      message += ' (marked as started)';
+    }
+
+    return success(task, message);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to dispatch: ${message}`, ExitCode.GENERAL_ERROR);
@@ -251,6 +264,7 @@ Options:
   -b, --branch <branch>      Git branch for the task
   -w, --worktree <path>      Worktree path for the task
   -s, --session <id>         Session ID to associate
+  -m, --markAsStarted        Mark the task as started after dispatch
 
 Subcommands:
   smart    Smart dispatch to best available agent
@@ -258,6 +272,7 @@ Subcommands:
 Examples:
   el dispatch el-abc123 el-agent1
   el dispatch el-abc123 el-agent1 --branch feature/my-task
+  el dispatch el-abc123 el-agent1 --markAsStarted
   el dispatch smart el-abc123`,
   subcommands: {
     smart: smartDispatchCommand,
