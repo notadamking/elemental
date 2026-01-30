@@ -133,7 +133,7 @@ describe('Agent Command Structure', () => {
 
     it('should have all spawn options', () => {
       expect(agentSpawnCommand.options).toBeDefined();
-      expect(agentSpawnCommand.options!.length).toBe(9);
+      expect(agentSpawnCommand.options!.length).toBe(10);
       expect(agentSpawnCommand.options![0].name).toBe('prompt');
       expect(agentSpawnCommand.options![1].name).toBe('mode');
       expect(agentSpawnCommand.options![2].name).toBe('resume');
@@ -143,6 +143,7 @@ describe('Agent Command Structure', () => {
       expect(agentSpawnCommand.options![6].name).toBe('timeout');
       expect(agentSpawnCommand.options![7].name).toBe('env');
       expect(agentSpawnCommand.options![8].name).toBe('taskId');
+      expect(agentSpawnCommand.options![9].name).toBe('stream');
     });
   });
 
@@ -156,12 +157,13 @@ describe('Agent Command Structure', () => {
 
     it('should have all start options', () => {
       expect(agentStartCommand.options).toBeDefined();
-      expect(agentStartCommand.options!.length).toBe(3);
+      expect(agentStartCommand.options!.length).toBe(4);
       expect(agentStartCommand.options![0].name).toBe('session');
       expect(agentStartCommand.options![0].hasValue).toBe(true);
       expect(agentStartCommand.options![1].name).toBe('taskId');
       expect(agentStartCommand.options![1].hasValue).toBe(true);
       expect(agentStartCommand.options![2].name).toBe('interactive');
+      expect(agentStartCommand.options![3].name).toBe('stream');
     });
   });
 

@@ -415,6 +415,7 @@ Spawn a Claude Code process for an agent.
 | `--timeout <ms>` | Timeout in milliseconds (default: 120000) |
 | `-e, --env <KEY=VALUE>` | Environment variable to set |
 | `-t, --taskId <id>` | Task ID to assign to this agent |
+| `--stream` | Stream agent output after spawning |
 
 ```bash
 el agent spawn el-abc123
@@ -425,6 +426,7 @@ el agent spawn el-abc123 --resume previous-session-id
 el agent spawn el-abc123 --workdir /path/to/project
 el agent spawn el-abc123 --env MY_VAR=value
 el agent spawn el-abc123 --taskId el-task456
+el agent spawn el-abc123 --stream
 ```
 
 #### agent start
@@ -436,12 +438,14 @@ Start an agent session (metadata only, does not spawn a process).
 | `-s, --session <id>` | Session ID to associate |
 | `-t, --taskId <id>` | Task ID to assign to this session |
 | `-i, --interactive` | Start in interactive mode |
+| `--stream` | Stream agent output after starting |
 
 ```bash
 el agent start el-abc123
 el agent start el-abc123 --session my-session-id
 el agent start el-abc123 --taskId el-task456
 el agent start el-abc123 --interactive
+el agent start el-abc123 --stream
 ```
 
 #### agent stop

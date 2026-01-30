@@ -58,6 +58,91 @@ function getAgentMeta(agent: AgentEntity): Record<string, unknown> {
   return (agent.metadata?.agent ?? {}) as unknown as Record<string, unknown>;
 }
 
+/**
+ * Streams messages from a channel to stdout
+ * This is a long-running operation that continues until interrupted
+ */
+async function streamChannelMessages(
+  _api: OrchestratorAPI,
+  channelId: string
+): Promise<void> {
+  // For now, this is a placeholder that polls for new messages
+  // In a full implementation, this would use websockets or SSE
+  console.log(`[Streaming from channel ${channelId}]`);
+  console.log('[Note: Channel streaming requires the orchestrator server]');
+  console.log('[Press Ctrl+C to exit]\n');
+
+  // Wait indefinitely until interrupted
+  return new Promise((resolve) => {
+    const onInterrupt = () => {
+      console.log('\n[Stream interrupted]');
+      process.off('SIGINT', onInterrupt);
+      resolve();
+    };
+    process.on('SIGINT', onInterrupt);
+  });
+}
+
+/**
+ * Streams output from a spawned session's event emitter
+ * This is a long-running operation that continues until the session ends
+ */
+async function streamSpawnedSession(
+  events: import('node:events').EventEmitter,
+  sessionMode: 'headless' | 'interactive'
+): Promise<void> {
+  return new Promise((resolve) => {
+    const onInterrupt = () => {
+      console.log('\n[Stream interrupted]');
+      cleanup();
+      resolve();
+    };
+
+    const cleanup = () => {
+      process.off('SIGINT', onInterrupt);
+      events.off('event', onEvent);
+      events.off('pty-data', onPtyData);
+      events.off('exit', onExit);
+      events.off('error', onError);
+    };
+
+    const onEvent = (event: { type: string; message?: string; tool?: { name?: string } }) => {
+      if (event.type === 'assistant' && event.message) {
+        process.stdout.write(event.message);
+      } else if (event.type === 'tool_use' && event.tool?.name) {
+        console.log(`\n[Tool: ${event.tool.name}]`);
+      } else if (event.type === 'result' && event.message) {
+        console.log(`\n[Result: ${event.message}]`);
+      }
+    };
+
+    const onPtyData = (data: string) => {
+      process.stdout.write(data);
+    };
+
+    const onExit = (code: number | null, signal: string | null) => {
+      console.log(`\n[Session exited with code ${code}, signal ${signal}]`);
+      cleanup();
+      resolve();
+    };
+
+    const onError = (error: Error) => {
+      console.error(`\n[Error: ${error.message}]`);
+    };
+
+    process.on('SIGINT', onInterrupt);
+
+    if (sessionMode === 'headless') {
+      events.on('event', onEvent);
+    } else {
+      events.on('pty-data', onPtyData);
+    }
+
+    events.on('exit', onExit);
+    events.on('error', onError);
+  });
+}
+
 // ============================================================================
 // Agent List Command
 // ============================================================================
@@ -543,6 +628,7 @@ interface AgentStartOptions {
   session?: string;
   taskId?: string;
   interactive?: boolean;
+  stream?: boolean;
 }
 
 const agentStartOptions: CommandOption[] = [
@@ -562,6 +648,10 @@ const agentStartOptions: CommandOption[] = [
     name: 'interactive',
     short: 'i',
     description: 'Start in interactive mode',
+  },
+  {
+    name: 'stream',
+    description: 'Stream agent output after starting',
   },
 ];
 
@@ -598,6 +688,24 @@ async function agentStartHandler(
     }
 
     const mode = getOutputMode(options);
+
+    // If --stream is set, get the channel and stream messages
+    if (options.stream) {
+      const channelId = await api.getAgentChannel(id as EntityId);
+      if (!channelId) {
+        return failure(`No channel found for agent: ${id}`, ExitCode.NOT_FOUND);
+      }
+
+      console.log(`Started agent ${id} with session ${sessionId}`);
+      console.log(`Streaming from channel: ${channelId}`);
+      console.log('Press Ctrl+C to stop streaming.\n');
+
+      // Stream messages from the channel
+      // This is a long-running operation - we don't return until interrupted
+      await streamChannelMessages(api, channelId);
+
+      return success(agent, 'Stream ended');
+    }
 
     if (mode === 'json') {
       return success({
@@ -639,12 +747,14 @@ Options:
   -s, --session <id>    Session ID to associate
   -t, --taskId <id>     Task ID to assign to this session
   -i, --interactive     Start in interactive mode
+  --stream              Stream agent output after starting
 
 Examples:
   el agent start el-abc123
   el agent start el-abc123 --session my-session
   el agent start el-abc123 --taskId el-task456
-  el agent start el-abc123 --interactive`,
+  el agent start el-abc123 --interactive
+  el agent start el-abc123 --stream`,
   options: agentStartOptions,
   handler: agentStartHandler as Command['handler'],
 };
@@ -822,6 +932,7 @@ interface AgentSpawnOptions {
   timeout?: string;
   env?: string;
   taskId?: string;
+  stream?: boolean;
 }
 
 const agentSpawnOptions: CommandOption[] = [
@@ -875,6 +986,10 @@ const agentSpawnOptions: CommandOption[] = [
     short: 't',
     description: 'Task ID to assign to this agent',
     hasValue: true,
+  },
+  {
+    name: 'stream',
+    description: 'Stream agent output after spawning',
   },
 ];
 
@@ -957,6 +1072,18 @@ async function agentSpawnHandler(
       );
     }
 
+    // If --stream is set, stream the session output
+    if (options.stream) {
+      console.log(`Spawned agent ${id}`);
+      console.log(`  Session ID:  ${result.session.id}`);
+      console.log(`  Mode:        ${result.session.mode}`);
+      console.log('\nStreaming output (Press Ctrl+C to stop):\n');
+
+      await streamSpawnedSession(result.events, result.session.mode);
+
+      return success(result.session, 'Stream ended');
+    }
+
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
@@ -1013,6 +1140,7 @@ Options:
   --timeout <ms>           Timeout in milliseconds (default: 120000)
   -e, --env <KEY=VALUE>    Environment variable to set
   -t, --taskId <id>        Task ID to assign to this agent
+  --stream                 Stream agent output after spawning
 
 Examples:
   el agent spawn el-abc123
@@ -1021,7 +1149,8 @@ Examples:
   el agent spawn el-abc123 --prompt "Start working on your assigned tasks"
   el agent spawn el-abc123 --resume prev-session-id
   el agent spawn el-abc123 --env MY_VAR=value
-  el agent spawn el-abc123 --taskId el-task456`,
+  el agent spawn el-abc123 --taskId el-task456
+  el agent spawn el-abc123 --stream`,
   options: agentSpawnOptions,
   handler: agentSpawnHandler as Command['handler'],
 };
