@@ -84,11 +84,7 @@ describe('TaskAssignmentService', () => {
       name,
       workerMode: 'ephemeral',
       createdBy: systemEntity,
-      capabilities: maxConcurrentTasks !== undefined ? {
-        skills: ['general'],
-        languages: ['typescript'],
-        maxConcurrentTasks,
-      } : undefined,
+      maxConcurrentTasks,
     });
   }
 

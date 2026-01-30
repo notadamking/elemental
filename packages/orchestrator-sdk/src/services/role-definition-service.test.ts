@@ -56,11 +56,7 @@ describe('RoleDefinitionService', () => {
         name: 'Default Director',
         description: 'The main orchestrator',
         systemPrompt: 'You are a director agent responsible for coordinating work.',
-        capabilities: {
-          skills: ['coordination', 'planning'],
-          languages: ['english'],
-          maxConcurrentTasks: 5,
-        },
+        maxConcurrentTasks: 5,
         behaviors: {
           onStartup: 'Check for pending tasks',
           onTaskAssigned: 'Delegate to workers',
@@ -74,8 +70,7 @@ describe('RoleDefinitionService', () => {
       expect(stored.definition.role).toBe('director');
       expect(stored.definition.name).toBe('Default Director');
       expect(stored.definition.description).toBe('The main orchestrator');
-      expect(stored.definition.capabilities.skills).toContain('coordination');
-      expect(stored.definition.capabilities.skills).toContain('planning');
+      expect(stored.definition.maxConcurrentTasks).toBe(5);
       expect(stored.definition.behaviors?.onStartup).toBe('Check for pending tasks');
     });
 
@@ -84,11 +79,7 @@ describe('RoleDefinitionService', () => {
         role: 'worker',
         name: 'Frontend Worker',
         systemPrompt: 'You are a frontend developer specializing in React.',
-        capabilities: {
-          skills: ['frontend', 'react', 'css'],
-          languages: ['typescript', 'javascript'],
-          maxConcurrentTasks: 1,
-        },
+        maxConcurrentTasks: 1,
         workerMode: 'ephemeral',
         createdBy: systemEntityId,
       });
@@ -105,11 +96,7 @@ describe('RoleDefinitionService', () => {
         role: 'steward',
         name: 'Merge Steward',
         systemPrompt: 'You handle branch merges and test validation.',
-        capabilities: {
-          skills: ['git', 'testing'],
-          languages: [],
-          maxConcurrentTasks: 3,
-        },
+        maxConcurrentTasks: 3,
         stewardFocus: 'merge',
         behaviors: {
           onError: 'Create fix task and assign to worker',
@@ -124,7 +111,7 @@ describe('RoleDefinitionService', () => {
       }
     });
 
-    test('creates role definition with default capabilities', async () => {
+    test('creates role definition with default maxConcurrentTasks', async () => {
       const stored = await service.createRoleDefinition({
         role: 'director',
         name: 'Minimal Director',
@@ -132,10 +119,8 @@ describe('RoleDefinitionService', () => {
         createdBy: systemEntityId,
       });
 
-      expect(stored.definition.capabilities).toBeDefined();
-      expect(stored.definition.capabilities.skills).toEqual([]);
-      expect(stored.definition.capabilities.languages).toEqual([]);
-      expect(stored.definition.capabilities.maxConcurrentTasks).toBe(1);
+      // Default maxConcurrentTasks is 1 when not specified
+      expect(stored.definition.maxConcurrentTasks).toBe(1);
     });
   });
 
@@ -234,28 +219,20 @@ describe('RoleDefinitionService', () => {
       expect(prompt).toBe('Version 2 - improved instructions');
     });
 
-    test('merges capabilities', async () => {
+    test('updates maxConcurrentTasks', async () => {
       const created = await service.createRoleDefinition({
         role: 'worker',
-        name: 'Capability Merge Test',
+        name: 'MaxTasks Update Test',
         systemPrompt: 'Test',
-        capabilities: {
-          skills: ['frontend'],
-          languages: ['typescript'],
-          maxConcurrentTasks: 1,
-        },
+        maxConcurrentTasks: 1,
         createdBy: systemEntityId,
       });
 
       const updated = await service.updateRoleDefinition(created.id, {
-        capabilities: {
-          maxConcurrentTasks: 3,
-        },
+        maxConcurrentTasks: 3,
       });
 
-      expect(updated.definition.capabilities.maxConcurrentTasks).toBe(3);
-      // Other capabilities should be preserved
-      expect(updated.definition.capabilities.skills).toContain('frontend');
+      expect(updated.definition.maxConcurrentTasks).toBe(3);
     });
 
     test('merges behaviors', async () => {
@@ -513,11 +490,7 @@ describe('RoleDefinitionService', () => {
 - Following best practices
 - Writing tests for your code
 - Documenting your changes`,
-        capabilities: {
-          skills: ['frontend', 'backend', 'database', 'testing', 'devops'],
-          languages: ['typescript', 'python', 'sql'],
-          maxConcurrentTasks: 2,
-        },
+        maxConcurrentTasks: 2,
         behaviors: {
           onStartup: 'Review the task list and prioritize',
           onTaskAssigned: 'Analyze requirements and create a plan',
@@ -533,9 +506,7 @@ describe('RoleDefinitionService', () => {
       // Verify all fields are stored correctly
       expect(stored.definition.name).toBe('Full-Stack Developer');
       expect(stored.definition.description).toBe('A versatile developer capable of frontend and backend work');
-      expect(stored.definition.capabilities.skills).toHaveLength(5);
-      expect(stored.definition.capabilities.languages).toHaveLength(3);
-      expect(stored.definition.capabilities.maxConcurrentTasks).toBe(2);
+      expect(stored.definition.maxConcurrentTasks).toBe(2);
       expect(stored.definition.behaviors?.onStartup).toBe('Review the task list and prioritize');
       expect(stored.definition.behaviors?.onTaskAssigned).toBe('Analyze requirements and create a plan');
       expect(stored.definition.behaviors?.onStuck).toBe('Break down the problem and seek help if needed');

@@ -144,24 +144,18 @@ describe('AgentRegistry', () => {
       expect(meta?.sessionStatus).toBe('idle');
     });
 
-    test('registerWorker creates a worker with capabilities', async () => {
+    test('registerWorker creates a worker with maxConcurrentTasks', async () => {
       const worker = await registry.registerWorker({
         name: 'CapableWorker',
         workerMode: 'persistent',
         createdBy: systemEntity,
-        capabilities: {
-          skills: ['frontend', 'testing'],
-          languages: ['typescript', 'javascript'],
-          maxConcurrentTasks: 3,
-        },
+        maxConcurrentTasks: 3,
       });
 
       const meta = getAgentMetadata(worker);
       expect(meta?.agentRole).toBe('worker');
       expect((meta as WorkerMetadata).workerMode).toBe('persistent');
-      expect(meta?.capabilities?.skills).toEqual(['frontend', 'testing']);
-      expect(meta?.capabilities?.languages).toEqual(['typescript', 'javascript']);
-      expect(meta?.capabilities?.maxConcurrentTasks).toBe(3);
+      expect(meta?.maxConcurrentTasks).toBe(3);
     });
 
     test('registerSteward creates a steward with triggers', async () => {
@@ -444,94 +438,6 @@ describe('AgentRegistry', () => {
           { sessionStatus: 'running' }
         )
       ).rejects.toThrow('Agent not found');
-    });
-  });
-
-  describe('Filter by Capabilities', () => {
-    beforeEach(async () => {
-      await registry.registerWorker({
-        name: 'FrontendWorker',
-        workerMode: 'ephemeral',
-        createdBy: systemEntity,
-        capabilities: {
-          skills: ['frontend', 'testing'],
-          languages: ['typescript', 'javascript'],
-        },
-      });
-
-      await registry.registerWorker({
-        name: 'BackendWorker',
-        workerMode: 'ephemeral',
-        createdBy: systemEntity,
-        capabilities: {
-          skills: ['backend', 'database'],
-          languages: ['go', 'python'],
-        },
-      });
-
-      await registry.registerWorker({
-        name: 'FullstackWorker',
-        workerMode: 'ephemeral',
-        createdBy: systemEntity,
-        capabilities: {
-          skills: ['frontend', 'backend'],
-          languages: ['typescript', 'python'],
-        },
-      });
-    });
-
-    test('listAgents filters by requiredSkills', async () => {
-      const frontendAgents = await registry.listAgents({
-        requiredSkills: ['frontend'],
-      });
-
-      const names = frontendAgents.map((a) => a.name);
-      expect(names).toContain('FrontendWorker');
-      expect(names).toContain('FullstackWorker');
-      expect(names).not.toContain('BackendWorker');
-    });
-
-    test('listAgents filters by multiple requiredSkills (AND)', async () => {
-      const fullstackAgents = await registry.listAgents({
-        requiredSkills: ['frontend', 'backend'],
-      });
-
-      const names = fullstackAgents.map((a) => a.name);
-      expect(names).toContain('FullstackWorker');
-      expect(names).not.toContain('FrontendWorker');
-      expect(names).not.toContain('BackendWorker');
-    });
-
-    test('listAgents filters by requiredLanguages', async () => {
-      const pythonAgents = await registry.listAgents({
-        requiredLanguages: ['python'],
-      });
-
-      const names = pythonAgents.map((a) => a.name);
-      expect(names).toContain('BackendWorker');
-      expect(names).toContain('FullstackWorker');
-      expect(names).not.toContain('FrontendWorker');
-    });
-
-    test('listAgents filters by both skills and languages', async () => {
-      const matchingAgents = await registry.listAgents({
-        requiredSkills: ['frontend'],
-        requiredLanguages: ['typescript'],
-      });
-
-      const names = matchingAgents.map((a) => a.name);
-      expect(names).toContain('FrontendWorker');
-      expect(names).toContain('FullstackWorker');
-      expect(names).not.toContain('BackendWorker');
-    });
-
-    test('listAgents with hasCapacity filter includes agents', async () => {
-      const agentsWithCapacity = await registry.listAgents({
-        hasCapacity: true,
-      });
-
-      // All agents have default maxConcurrentTasks of 1
-      expect(agentsWithCapacity.length).toBeGreaterThan(0);
     });
   });
 

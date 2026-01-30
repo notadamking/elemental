@@ -29,11 +29,7 @@ const createValidBaseDefinition = () => ({
   name: 'Test Role',
   description: 'A test role definition',
   systemPromptRef: mockDocumentId,
-  capabilities: {
-    skills: ['testing'],
-    languages: ['typescript'],
-    maxConcurrentTasks: 1,
-  },
+  maxConcurrentTasks: 1,
   behaviors: {
     onStartup: 'Initialize workspace',
     onTaskAssigned: 'Read task carefully',
@@ -252,11 +248,6 @@ describe('Role Definition Validation Edge Cases', () => {
       role: 'director',
       name: 'Minimal Director',
       systemPromptRef: mockDocumentId,
-      capabilities: {
-        skills: [],
-        languages: [],
-        maxConcurrentTasks: 1,
-      },
       createdAt: mockTimestamp,
       createdBy: mockEntityId,
       updatedAt: mockTimestamp,
@@ -264,41 +255,20 @@ describe('Role Definition Validation Edge Cases', () => {
     expect(isDirectorRoleDefinition(minimalDefinition)).toBe(true);
   });
 
-  test('definition with empty capabilities arrays is valid', () => {
+  test('definition with zero maxConcurrentTasks is valid', () => {
     const definition: WorkerRoleDefinition = {
       ...createValidBaseDefinition(),
       role: 'worker',
-      capabilities: {
-        skills: [],
-        languages: [],
-        maxConcurrentTasks: 0,
-      },
+      maxConcurrentTasks: 0,
     };
     expect(isWorkerRoleDefinition(definition)).toBe(true);
   });
 
-  test('definition with invalid capabilities is invalid', () => {
+  test('definition with invalid maxConcurrentTasks is invalid', () => {
     const definition = {
       ...createValidBaseDefinition(),
       role: 'director',
-      capabilities: {
-        skills: 'not an array',
-        languages: [],
-        maxConcurrentTasks: 1,
-      },
-    };
-    expect(isDirectorRoleDefinition(definition)).toBe(false);
-  });
-
-  test('definition with missing capabilities is invalid', () => {
-    const definition = {
-      role: 'director',
-      name: 'Test',
-      systemPromptRef: mockDocumentId,
-      createdAt: mockTimestamp,
-      createdBy: mockEntityId,
-      updatedAt: mockTimestamp,
-      // Missing capabilities
+      maxConcurrentTasks: 'not a number',
     };
     expect(isDirectorRoleDefinition(definition)).toBe(false);
   });

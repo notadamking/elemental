@@ -1,78 +1,80 @@
 # Elemental Agent Docs
 
+> LLM-optimized documentation for the Elemental codebase. Start here to find the right files quickly.
+
 ## Quick Navigation
 
 | I want to... | Read | Key Files |
-|-------------|------|-----------|
-| Work with tasks | [core/types.md#task](core/types.md#task) | `packages/core/src/types/task.ts` |
-| Work with entities | [core/types.md#entity](core/types.md#entity) | `packages/core/src/types/entity.ts` |
-| Work with messages | [core/types.md#message](core/types.md#message) | `packages/core/src/types/message.ts` |
-| Work with documents | [core/types.md#document](core/types.md#document) | `packages/core/src/types/document.ts` |
-| Work with collections | [core/collections.md](core/collections.md) | `packages/core/src/types/plan.ts`, etc. |
-| Add dependencies | [core/dependencies.md](core/dependencies.md) | `packages/sdk/src/services/dependency.ts` |
-| Understand storage | [core/storage.md](core/storage.md) | `packages/storage/src/bun-backend.ts` |
-| Export/import data | [core/storage.md#sync-system](core/storage.md#sync-system) | `packages/sdk/src/sync/service.ts` |
-| Add API endpoint | [platform/server.md](platform/server.md) | `apps/server/src/index.ts` |
-| Add React component | [platform/web.md](platform/web.md) | `apps/web/src/components/` |
-| Add React hook | [platform/web.md](platform/web.md) | `apps/web/src/api/hooks/` |
-| Use WebSocket | [platform/websocket.md](platform/websocket.md) | `apps/server/src/ws/` |
-| Use the TypeScript API | [api/elemental-api.md](api/elemental-api.md) | `packages/sdk/src/api/elemental-api.ts` |
-| Use the Orchestrator API | [api/orchestrator-api.md](api/orchestrator-api.md) | `packages/orchestrator-sdk/src/api/orchestrator-api.ts` |
-| Work with agent capabilities | [api/orchestrator-api.md#agent-capabilities](api/orchestrator-api.md#agent-capabilities) | `packages/orchestrator-sdk/src/services/capability-service.ts` |
-| Work with agent channels | [api/orchestrator-api.md#agent-channels](api/orchestrator-api.md#agent-channels) | `packages/orchestrator-sdk/src/services/agent-registry.ts` |
-| Define agent role definitions | [orchestrator/role-definitions.md](orchestrator/role-definitions.md) | `packages/orchestrator-sdk/src/services/role-definition-service.ts` |
-| Assign tasks to agents | [api/orchestrator-api.md#taskassignmentservice-tb-o8](api/orchestrator-api.md#taskassignmentservice-tb-o8) | `packages/orchestrator-sdk/src/services/task-assignment-service.ts` |
-| Dispatch tasks to agents | [api/orchestrator-api.md#dispatchservice-tb-o8a](api/orchestrator-api.md#dispatchservice-tb-o8a) | `packages/orchestrator-sdk/src/services/dispatch-service.ts` |
-| Spawn agent processes | [api/orchestrator-api.md#spawnerservice-tb-o9](api/orchestrator-api.md#spawnerservice-tb-o9) | `packages/orchestrator-sdk/src/runtime/spawner.ts` |
-| Manage agent sessions | [api/orchestrator-api.md#sessionmanager-tb-o10](api/orchestrator-api.md#sessionmanager-tb-o10) | `packages/orchestrator-sdk/src/runtime/session-manager.ts` |
-| Manage git worktrees | [api/orchestrator-api.md#worktreemanager-tb-o11](api/orchestrator-api.md#worktreemanager-tb-o11) | `packages/orchestrator-sdk/src/git/worktree-manager.ts` |
-| Work with agent messages | [api/orchestrator-api.md#message-types-tb-o14a](api/orchestrator-api.md#message-types-tb-o14a) | `packages/orchestrator-sdk/src/types/message-types.ts` |
-| Schedule steward execution | [api/orchestrator-api.md#stewardscheduler-tb-o23](api/orchestrator-api.md#stewardscheduler-tb-o23) | `packages/orchestrator-sdk/src/services/steward-scheduler.ts` |
-| Execute steward plugins | [api/orchestrator-api.md#pluginexecutor-tb-o23a](api/orchestrator-api.md#pluginexecutor-tb-o23a) | `packages/orchestrator-sdk/src/services/plugin-executor.ts` |
-| Monitor agent health | [api/orchestrator-api.md#healthstewardservice-tb-o24](api/orchestrator-api.md#healthstewardservice-tb-o24) | `packages/orchestrator-sdk/src/services/health-steward-service.ts` |
-| Use the Orchestrator Server | [platform/orchestrator-server.md](platform/orchestrator-server.md) | `apps/orchestrator-server/src/index.ts` |
-| Use the Orchestrator Web UI | [apps/orchestrator-web.md](apps/orchestrator-web.md) | `apps/orchestrator-web/src/` |
-| Use the CLI | [api/cli.md](api/cli.md) | `packages/sdk/src/cli/commands/` |
-| Debug issues | [gotchas.md](gotchas.md) | - |
+|--------------|------|-----------|
+| **Core Types & Collections** |
+| Work with tasks | [reference/core-types.md#task](reference/core-types.md#task) | `packages/core/src/types/task.ts` |
+| Work with entities | [reference/core-types.md#entity](reference/core-types.md#entity) | `packages/core/src/types/entity.ts` |
+| Work with messages | [reference/core-types.md#message](reference/core-types.md#message) | `packages/core/src/types/message.ts` |
+| Work with documents | [reference/core-types.md#document](reference/core-types.md#document) | `packages/core/src/types/document.ts` |
+| Work with plans, workflows, channels | [reference/core-types.md#collections](reference/core-types.md#collections) | `packages/core/src/types/plan.ts`, etc. |
+| Add dependencies | [reference/core-types.md#dependency](reference/core-types.md#dependency) | `packages/sdk/src/services/dependency.ts` |
+| **SDK & Services** |
+| Use the TypeScript API | [reference/elemental-api.md](reference/elemental-api.md) | `packages/sdk/src/api/elemental-api.ts` |
+| Use SDK services | [reference/sdk-services.md](reference/sdk-services.md) | `packages/sdk/src/services/` |
+| Understand storage | [reference/storage.md](reference/storage.md) | `packages/storage/src/bun-backend.ts` |
+| Configure identity/signing | [reference/identity.md](reference/identity.md) | `packages/sdk/src/systems/identity.ts` |
+| Configure the system | [reference/config.md](reference/config.md) | `packages/sdk/src/config/` |
+| **Orchestrator** |
+| Use the Orchestrator API | [reference/orchestrator-api.md](reference/orchestrator-api.md) | `packages/orchestrator-sdk/src/api/orchestrator-api.ts` |
+| Work with orchestrator services | [reference/orchestrator-services.md](reference/orchestrator-services.md) | `packages/orchestrator-sdk/src/services/` |
+| Use runtime components | [reference/orchestrator-runtime.md](reference/orchestrator-runtime.md) | `packages/orchestrator-sdk/src/runtime/` |
+| Define agent role prompts | [reference/prompts.md](reference/prompts.md) | `packages/orchestrator-sdk/src/prompts/` |
+| Define agent role definitions | [reference/orchestrator-services.md#roledefinitionservice](reference/orchestrator-services.md#roledefinitionservice) | `packages/orchestrator-sdk/src/services/role-definition-service.ts` |
+| **Platform** |
+| Use the CLI | [reference/cli.md](reference/cli.md) | `packages/sdk/src/cli/commands/` |
+| Work with platform apps | [reference/platform.md](reference/platform.md) | `apps/server/`, `apps/web/`, etc. |
+| **How-To Guides** |
+| Add an API endpoint | [how-to/add-api-endpoint.md](how-to/add-api-endpoint.md) | `apps/server/src/index.ts` |
+| Add a React component | [how-to/add-react-component.md](how-to/add-react-component.md) | `apps/web/src/components/` |
+| Add a new core type | [how-to/add-core-type.md](how-to/add-core-type.md) | `packages/core/src/types/` |
+| Add an orchestrator service | [how-to/add-orchestrator-service.md](how-to/add-orchestrator-service.md) | `packages/orchestrator-sdk/src/services/` |
+| Work with dependencies | [how-to/work-with-dependencies.md](how-to/work-with-dependencies.md) | `packages/sdk/src/services/dependency.ts` |
+| Customize agent prompts | [how-to/customize-agent-prompts.md](how-to/customize-agent-prompts.md) | `.elemental/prompts/` |
+| Configure identity | [how-to/configure-identity.md](how-to/configure-identity.md) | `packages/sdk/src/systems/identity.ts` |
+| **Understanding** |
+| Understand event sourcing | [explanation/event-sourcing.md](explanation/event-sourcing.md) | `packages/core/src/types/event.ts` |
+| Understand dependencies | [explanation/dependency-system.md](explanation/dependency-system.md) | `packages/sdk/src/services/` |
+| Understand agent roles | [explanation/agent-roles.md](explanation/agent-roles.md) | `packages/orchestrator-sdk/src/types/agent.ts` |
+| Understand sync/merge | [explanation/sync-and-merge.md](explanation/sync-and-merge.md) | `packages/sdk/src/sync/` |
+| Debug issues | [GOTCHAS.md](GOTCHAS.md) | - |
 
-## Architecture at a Glance
+## Architecture Overview
 
-The project is a TurboRepo monorepo with the following structure:
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 
+**Package Dependency Graph:**
 ```
-┌─────────────────┐     ┌─────────────────┐
-│   apps/web/     │────→│  apps/server/   │
-│   (React SPA)   │ HTTP│   (Hono API)    │
-└─────────────────┘     └────────┬────────┘
-                                 │
-                        ┌────────▼────────┐
-                        │  @elemental/sdk │
-                        │  (packages/sdk/)│
-                        └────────┬────────┘
-                                 │
-              ┌──────────────────┼──────────────────┐
-              │                  │                  │
-     ┌────────▼────────┐ ┌──────▼───────┐ ┌───────▼───────┐
-     │ @elemental/core │ │@elemental/   │ │   SQLite      │
-     │ (packages/core/)│ │   storage    │ │ (.elemental/) │
-     └─────────────────┘ └──────────────┘ └───────────────┘
+@elemental/core        (shared types, no dependencies)
+       ↓
+@elemental/storage     (SQLite backends)
+       ↓
+@elemental/sdk         (API, services, sync, CLI)
+       ↓
+@elemental/orchestrator-sdk  (agent orchestration)
 ```
+
+**Dual Storage Model:**
+- **SQLite**: Fast cache, queries, indexes
+- **JSONL**: Git-tracked source of truth
 
 ## File Map (Packages)
 
 | Package | Purpose | Key Exports |
 |---------|---------|-------------|
-| `packages/core/` | Shared types, errors, ID generation, utilities | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId`, factory functions |
-| `packages/storage/` | SQLite storage layer with Bun, Node.js, and Browser backends | `createStorage`, `initializeSchema`, `StorageBackend` |
-| `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService`, CLI commands |
-| `packages/orchestrator-sdk/` | Agent orchestration, task metadata, worktree naming | `OrchestratorAPI`, `AgentRole`, `AgentMetadata`, `OrchestratorTaskMeta` |
+| `packages/core/` | Shared types, errors, ID generation | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId` |
+| `packages/storage/` | SQLite storage backends | `createStorage`, `initializeSchema`, `StorageBackend` |
+| `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService` |
+| `packages/orchestrator-sdk/` | Agent orchestration | `OrchestratorAPI`, `AgentRole`, `SpawnerService`, `SessionManager` |
 
-## File Map (@elemental/core - packages/core/src/)
+## File Map (@elemental/core)
 
 | Concept | Source | Tests |
 |---------|--------|-------|
-| Package entry | `index.ts` | - |
-| Type exports | `types/index.ts` | - |
 | Task type | `types/task.ts` | `types/task.test.ts` |
 | Entity type | `types/entity.ts` | `types/entity.test.ts` |
 | Message type | `types/message.ts` | `types/message.test.ts` |
@@ -80,206 +82,81 @@ The project is a TurboRepo monorepo with the following structure:
 | Plan type | `types/plan.ts` | `types/plan.test.ts` |
 | Workflow type | `types/workflow.ts` | `types/workflow.test.ts` |
 | Channel type | `types/channel.ts` | `types/channel.test.ts` |
-| Library type | `types/library.ts` | `types/library.test.ts` |
-| Team type | `types/team.ts` | `types/team.test.ts` |
 | Dependency type | `types/dependency.ts` | `types/dependency.test.ts` |
-| Element base | `types/element.ts` | `types/element.test.ts` |
-| Inbox type | `types/inbox.ts` | `types/inbox.test.ts` |
 | Event type | `types/event.ts` | `types/event.test.ts` |
-| Playbook type | `types/playbook.ts` | `types/playbook.test.ts` |
-| Playbook YAML | `types/playbook-yaml.ts` | `types/playbook-yaml.test.ts` |
-| Workflow ops | `types/workflow-ops.ts` | `types/workflow-ops.test.ts` |
-| Workflow pour | `types/workflow-pour.ts` | `types/workflow-pour.test.ts` |
+| Inbox type | `types/inbox.ts` | `types/inbox.test.ts` |
 | ID generator | `id/generator.ts` | `id/generator.test.ts` |
 | Error codes | `errors/codes.ts` | `errors/codes.test.ts` |
-| Error base class | `errors/error.ts` | `errors/error.test.ts` |
-| Error factories | `errors/factories.ts` | `errors/factories.test.ts` |
-| Mention parsing | `utils/mentions.ts` | - |
 
-## File Map (@elemental/storage - packages/storage/src/)
+## File Map (@elemental/sdk)
 
 | Concept | Source | Tests |
 |---------|--------|-------|
-| Package entry | `index.ts` | - |
-| Storage backend interface | `backend.ts` | `backend.test.ts` |
-| Storage factory | `create-backend.ts` | - |
-| Storage errors | `errors.ts` | `errors.test.ts` |
-| Storage types | `types.ts` | `types.test.ts` |
-| Schema & migrations | `schema.ts` | `schema.test.ts` |
-| Bun backend | `bun-backend.ts` | `bun-backend.test.ts` |
-| Node backend | `node-backend.ts` | - |
-| Browser backend | `browser-backend.ts` | `browser-backend.test.ts` |
-
-## File Map (@elemental/sdk - packages/sdk/src/)
-
-| Concept | Source | Tests |
-|---------|--------|-------|
-| Package entry | `index.ts` | - |
 | ElementalAPI | `api/elemental-api.ts` | `api/*.integration.test.ts` |
-| API types | `api/types.ts` | `api/types.test.ts` |
 | Dependency service | `services/dependency.ts` | `services/dependency.test.ts` |
 | Blocked cache | `services/blocked-cache.ts` | `services/blocked-cache.test.ts` |
 | Inbox service | `services/inbox.ts` | `services/inbox.test.ts` |
 | Priority service | `services/priority-service.ts` | `services/priority-service.test.ts` |
 | ID length cache | `services/id-length-cache.ts` | `services/id-length-cache.test.ts` |
 | Sync service | `sync/service.ts` | `sync/service.test.ts` |
-| Sync types | `sync/types.ts` | - |
-| Sync serialization | `sync/serialization.ts` | - |
 | Sync merge | `sync/merge.ts` | - |
-| Sync hashing | `sync/hash.ts` | - |
-| CLI runner | `cli/runner.ts` | `cli/runner.test.ts` |
-| CLI parser | `cli/parser.ts` | `cli/parser.test.ts` |
-| CLI formatter | `cli/formatter.ts` | `cli/formatter.test.ts` |
-| CLI types | `cli/types.ts` | `cli/types.test.ts` |
-| CLI commands | `cli/commands/*.ts` | `cli/commands/*.test.ts` |
-| CLI entry point | `bin/el.ts` | - |
+| Sync hash | `sync/hash.ts` | - |
 | Config loader | `config/config.ts` | `config/config.test.ts` |
-| Config types | `config/types.ts` | - |
-| Config defaults | `config/defaults.ts` | - |
-| Config validation | `config/validation.ts` | - |
-| Config merge | `config/merge.ts` | - |
-| Config file I/O | `config/file.ts` | `config/file.test.ts` |
-| Config env vars | `config/env.ts` | - |
-| Duration parsing | `config/duration.ts` | - |
-| HTTP sync handlers | `http/sync-handlers.ts` | - |
 | Identity system | `systems/identity.ts` | `systems/identity.test.ts` |
+| CLI commands | `cli/commands/*.ts` | `cli/commands/*.test.ts` |
 
-## File Map (@elemental/orchestrator-sdk - packages/orchestrator-sdk/src/)
+## File Map (@elemental/orchestrator-sdk)
 
 | Concept | Source | Tests |
 |---------|--------|-------|
-| Package entry | `index.ts` | - |
-| Type exports | `types/index.ts` | - |
-| Agent types | `types/agent.ts` | `types/agent.test.ts` |
-| Task metadata | `types/task-meta.ts` | `types/task-meta.test.ts` |
-| Role definition types | `types/role-definition.ts` | `types/role-definition.test.ts` |
-| Message types | `types/message-types.ts` | `types/message-types.test.ts` |
-| OrchestratorAPI | `api/orchestrator-api.ts` | `api/orchestrator-api.integration.test.ts` |
+| OrchestratorAPI | `api/orchestrator-api.ts` | `api/*.integration.test.ts` |
 | Agent registry | `services/agent-registry.ts` | `services/agent-registry.test.ts` |
-| Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
 | Role definition service | `services/role-definition-service.ts` | `services/role-definition-service.test.ts` |
+| Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
 | Task assignment service | `services/task-assignment-service.ts` | `services/task-assignment-service.test.ts` |
 | Dispatch service | `services/dispatch-service.ts` | `services/dispatch-service.test.ts` |
-| Worker task service | `services/worker-task-service.ts` | `services/worker-task-service.test.ts` |
-| Steward scheduler service | `services/steward-scheduler.ts` | `services/steward-scheduler.test.ts` |
-| Plugin executor service | `services/plugin-executor.ts` | `services/plugin-executor.test.ts` |
 | Health steward service | `services/health-steward-service.ts` | `services/health-steward-service.test.ts` |
-| Spawner service | `runtime/spawner.ts` | `runtime/spawner.test.ts`, `runtime/spawner.integration.test.ts` |
+| Steward scheduler | `services/steward-scheduler.ts` | `services/steward-scheduler.test.ts` |
+| Plugin executor | `services/plugin-executor.ts` | `services/plugin-executor.test.ts` |
+| Spawner service | `runtime/spawner.ts` | `runtime/spawner.test.ts` |
 | Session manager | `runtime/session-manager.ts` | `runtime/session-manager.test.ts` |
 | Inbox polling | `runtime/inbox-polling.ts` | `runtime/inbox-polling.test.ts` |
-| Predecessor query | `runtime/predecessor-query.ts` | `runtime/predecessor-query.test.ts` |
 | Handoff service | `runtime/handoff.ts` | `runtime/handoff.test.ts` |
+| Message mapper | `runtime/message-mapper.ts` | - |
+| Prompts | `prompts/index.ts` | - |
 | Worktree manager | `git/worktree-manager.ts` | `git/worktree-manager.test.ts` |
-
-## File Map (@elemental/orchestrator-server - apps/orchestrator-server/src/)
-
-| Concept | Source | Tests |
-|---------|--------|-------|
-| Server entry | `index.ts` | - |
-| Plugin API integration | - | `plugins.integration.test.ts` |
-
-## File Map (@elemental/orchestrator-web - apps/orchestrator-web/src/)
-
-| Concept | Source | Tests |
-|---------|--------|-------|
-| React entry | `main.tsx` | - |
-| Router config | `router.tsx` | `tests/scaffold.spec.ts` |
-| App shell layout | `components/layout/AppShell.tsx` | - |
-| Sidebar navigation | `components/layout/Sidebar.tsx` | - |
-| Director panel | `components/layout/DirectorPanel.tsx` | `tests/director-terminal.spec.ts` |
-| Mobile drawer | `components/layout/MobileDrawer.tsx` | - |
-| Activity page | `routes/activity/index.tsx` | `tests/activity.spec.ts` |
-| Activity hooks | `api/hooks/useActivity.ts` | - |
-| ActivityCard component | `components/activity/ActivityCard.tsx` | - |
-| ActivityList component | `components/activity/ActivityList.tsx` | - |
-| SessionActivityCard | `components/activity/SessionActivityCard.tsx` | - |
-| Tasks page | `routes/tasks/index.tsx` | `tests/tasks.spec.ts` |
-| Task hooks | `api/hooks/useTasks.ts` | - |
-| TaskCard component | `components/task/TaskCard.tsx` | - |
-| TaskRow component | `components/task/TaskRow.tsx` | - |
-| TaskStatusBadge | `components/task/TaskStatusBadge.tsx` | - |
-| TaskPriorityBadge | `components/task/TaskPriorityBadge.tsx` | - |
-| TaskTypeBadge | `components/task/TaskTypeBadge.tsx` | - |
-| Agents page | `routes/agents/index.tsx` | `tests/agents.spec.ts` |
-| Workspaces page | `routes/workspaces/index.tsx` | `tests/workspaces.spec.ts` |
-| Workspace pane manager | `components/workspace/usePaneManager.ts` | - |
-| Workspace pane component | `components/workspace/WorkspacePane.tsx` | - |
-| Workspace grid layout | `components/workspace/WorkspaceGrid.tsx` | - |
-| Stream viewer | `components/workspace/StreamViewer.tsx` | - |
-| Add pane dialog | `components/workspace/AddPaneDialog.tsx` | - |
-| Workspace types | `components/workspace/types.ts` | - |
-| Workflows page | `routes/workflows/index.tsx` | - |
-| Metrics page | `routes/metrics/index.tsx` | - |
-| Settings page | `routes/settings/index.tsx` | - |
-| API types | `api/types.ts` | - |
-| Agent hooks | `api/hooks/useAgents.ts` | - |
-| AgentCard component | `components/agent/AgentCard.tsx` | - |
-| AgentStatusBadge | `components/agent/AgentStatusBadge.tsx` | - |
-| AgentRoleBadge | `components/agent/AgentRoleBadge.tsx` | - |
-| CreateAgentDialog | `components/agent/CreateAgentDialog.tsx` | `tests/agents.spec.ts` |
-| XTerminal component | `components/terminal/XTerminal.tsx` | `tests/director-terminal.spec.ts` |
-| Terminal exports | `components/terminal/index.ts` | - |
-| NotificationCenter | `components/notification/NotificationCenter.tsx` | `tests/notifications.spec.ts` |
-| Notification hooks | `api/hooks/useNotifications.ts` | - |
-| Settings hooks | `api/hooks/useSettings.ts` | `tests/settings.spec.ts` |
-| Settings page | `routes/settings/index.tsx` | `tests/settings.spec.ts` |
-| CommandPalette | `components/command/CommandPalette.tsx` | `tests/command-palette.spec.ts` |
-| Command palette hook | `components/command/CommandPalette.tsx` | - |
-| UI components | `components/ui/*.tsx` | - |
-| Design tokens | `styles/tokens.css` | - |
 
 ## File Map (Platform)
 
-| Concept | Server | Web |
-|---------|--------|-----|
-| Server entry | `apps/server/src/index.ts` | - |
-| WebSocket server | `apps/server/src/ws/broadcaster.ts`, `handler.ts`, `types.ts` | - |
-| WebSocket client | - | `apps/web/src/api/websocket.ts` |
-| API hooks | - | `apps/web/src/api/hooks/useAllElements.ts`, `useRealtimeEvents.ts` |
-| React entry | - | `apps/web/src/main.tsx` |
-| Router | - | `apps/web/src/router.tsx` |
-| Routes | - | `apps/web/src/routes/*.tsx` |
-| Layout | - | `apps/web/src/components/layout/` |
-| Dashboard | - | `apps/web/src/components/dashboard/` |
-| Editor | - | `apps/web/src/components/editor/` |
-| Task UI | - | `apps/web/src/components/task/` |
-| Entity UI | - | `apps/web/src/components/entity/` |
-| Document UI | - | `apps/web/src/components/document/` |
-| Message UI | - | `apps/web/src/components/message/` |
-| Workflow UI | - | `apps/web/src/components/workflow/` |
-| Navigation | - | `apps/web/src/components/navigation/` |
-| Shared | - | `apps/web/src/components/shared/` |
-| UI primitives | - | `apps/web/src/components/ui/` |
-| Custom hooks | - | `apps/web/src/hooks/` |
-| Lib utilities | - | `apps/web/src/lib/` |
+| App | Entry | Key Directories |
+|-----|-------|-----------------|
+| `apps/server/` | `src/index.ts` | `src/ws/` (WebSocket) |
+| `apps/web/` | `src/main.tsx` | `src/components/`, `src/routes/`, `src/api/hooks/` |
+| `apps/orchestrator-server/` | `src/index.ts` | - |
+| `apps/orchestrator-web/` | `src/main.tsx` | `src/components/`, `src/routes/` |
 
 ## Critical Gotchas
 
-See [gotchas.md](gotchas.md) for critical pitfalls.
+See [GOTCHAS.md](GOTCHAS.md) for full list.
 
-**Top 3:**
-1. Task `blocked` status is computed from dependencies, never set directly
+**Top 5:**
+1. Task `blocked` status is **computed** from dependencies, never set directly
 2. `sendDirectMessage()` needs `contentRef` (DocumentId), not raw text
-3. `blocks` direction is opposite to `parent-child`/`awaits` (see gotchas.md)
+3. `blocks` direction is **opposite** to `parent-child`/`awaits`
+4. SQLite is cache, JSONL is source of truth
+5. `sortByEffectivePriority()` mutates array in place
 
 ---
 
-## Keeping Docs Updated (MANDATORY)
-
-**When you modify code, you MUST update these docs in the same commit:**
+## Keeping Docs Updated
 
 | If you... | Update |
 |-----------|--------|
 | Add/rename/move a source file | File Map tables in this README |
-| Add a new type/interface | `core/types.md` or `core/collections.md` |
-| Add a new API method | `api/elemental-api.md` |
-| Add a CLI command | `api/cli.md` |
-| Add platform feature | `platform/README.md` + relevant platform doc |
-| Discover a critical bug/gotcha | `gotchas.md` |
+| Add a new type/interface | `reference/core-types.md` |
+| Add a new API method | `reference/elemental-api.md` or `reference/orchestrator-api.md` |
+| Add a CLI command | `reference/cli.md` |
+| Add platform feature | `reference/platform.md` |
+| Discover a gotcha | `GOTCHAS.md` |
 
-**Enforcement:**
-- PRs that add/modify source files without updating docs should be rejected
-- If you find stale docs, fix them immediately (don't leave for "later")
-- When in doubt, update the doc - small updates are cheap, stale docs are expensive
-
-**File paths are the source of truth.** If a file path in docs doesn't exist, the doc is wrong and must be fixed.
+**File paths are the source of truth.** If a file path in docs doesn't exist, the doc is wrong.

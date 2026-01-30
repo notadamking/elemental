@@ -67,11 +67,7 @@ function createMockAgent(overrides: Partial<Entity> = {}): AgentEntity {
       agent: {
         agentRole: 'worker',
         workerMode: 'ephemeral',
-        capabilities: {
-          skills: ['typescript', 'testing'],
-          languages: ['typescript', 'javascript'],
-          maxConcurrentTasks: 3,
-        },
+        maxConcurrentTasks: 3,
       },
     },
     ...overrides,

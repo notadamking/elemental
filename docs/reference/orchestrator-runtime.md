@@ -1,0 +1,438 @@
+# Orchestrator Runtime Reference
+
+Runtime components from `@elemental/orchestrator-sdk` (`packages/orchestrator-sdk/src/runtime/`).
+
+## SpawnerService
+
+**File:** `runtime/spawner.ts`
+
+Manages Claude Code process spawning and lifecycle.
+
+```typescript
+import { createSpawnerService } from '@elemental/orchestrator-sdk';
+
+const spawner = createSpawnerService({
+  claudePath: 'claude',           // Path to Claude Code binary
+  workingDirectory: '/workspace', // Default working directory
+  timeout: 30000,                 // Timeout for init (30s)
+  elementalRoot: '/workspace',    // Sets ELEMENTAL_ROOT env var
+  environmentVariables: {},       // Additional env vars
+});
+```
+
+### Spawn Modes
+
+| Mode | Use Case | Communication |
+|------|----------|---------------|
+| `headless` | Ephemeral workers, stewards | Stream-JSON over stdin/stdout |
+| `interactive` | Directors, persistent workers | PTY (node-pty) for terminal |
+
+**Defaults:**
+- Directors → `interactive`
+- Workers → `headless` (override with `mode: 'interactive'` for persistent)
+- Stewards → `headless`
+
+### Spawning Headless Agents
+
+```typescript
+const result = await spawner.spawn(agentId, 'worker', {
+  mode: 'headless',
+  workingDirectory: '/path/to/worktree',
+  resumeSessionId: 'previous-session',
+  initialPrompt: 'Implement the feature',
+});
+
+// Access session info
+console.log(result.session.id);              // Internal session ID
+console.log(result.session.claudeSessionId); // Claude Code session ID (for resume)
+console.log(result.session.status);          // 'running'
+console.log(result.session.mode);            // 'headless'
+
+// Listen for events
+result.events.on('event', (event) => {
+  console.log(`Event type: ${event.type}`);
+  if (event.message) console.log(event.message);
+});
+
+result.events.on('exit', (code, signal) => {
+  console.log(`Process exited with code ${code}`);
+});
+```
+
+### Spawning Interactive Agents (PTY)
+
+```typescript
+const result = await spawner.spawn(agentId, 'director', {
+  mode: 'interactive',
+  workingDirectory: '/path/to/project',
+  resumeSessionId: 'previous-session',
+  initialPrompt: 'Hello',
+  cols: 120,  // Terminal columns
+  rows: 30,   // Terminal rows
+});
+
+// Listen for PTY data
+result.events.on('pty-data', (data: string) => {
+  terminalEmulator.write(data);
+});
+```
+
+### Session Operations
+
+```typescript
+// Write to PTY (interactive only)
+await spawner.writeToPty(sessionId, 'ls -la\r');
+
+// Resize PTY
+await spawner.resize(sessionId, 80, 24);
+
+// Terminate session
+await spawner.terminate(sessionId, true);   // graceful (SIGTERM then SIGKILL)
+await spawner.terminate(sessionId, false);  // force (SIGKILL)
+
+// Suspend session
+await spawner.suspend(sessionId);
+
+// Send input (headless)
+await spawner.sendInput(sessionId, 'Please continue');
+```
+
+### Session Queries
+
+```typescript
+const session = spawner.getSession(sessionId);
+const active = spawner.listActiveSessions();
+const forAgent = spawner.listActiveSessions(agentId);
+const all = spawner.listAllSessions();
+const recent = spawner.getMostRecentSession(agentId);
+const events = spawner.getEventEmitter(sessionId);
+```
+
+### Session States
+
+| State | Description | Valid Transitions |
+|-------|-------------|-------------------|
+| `starting` | Process starting | running, terminated |
+| `running` | Agent active | suspended, terminating, terminated |
+| `suspended` | Paused for resume | running, terminated |
+| `terminating` | Shutting down | terminated |
+| `terminated` | Process ended | (none) |
+
+### Stream-JSON Events (Headless)
+
+```typescript
+interface SpawnedSessionEvent {
+  type: StreamJsonEventType;    // 'system' | 'assistant' | 'user' | 'tool_use' | 'tool_result' | 'result' | 'error'
+  subtype?: string;             // e.g., 'init', 'text'
+  receivedAt: Timestamp;
+  raw: StreamJsonEvent;
+  message?: string;
+  tool?: { name?: string; id?: string; input?: unknown };
+}
+```
+
+### UWP (Universal Work Principle)
+
+Check for pending work on agent startup:
+
+```typescript
+const getReadyTasks = async (agentId, limit) => {
+  const assignments = await assignmentService.getAgentTasks(agentId, {
+    taskStatus: ['open', 'in_progress'],
+  });
+  return assignments.slice(0, limit).map(a => ({
+    id: a.task.id,
+    title: a.task.title,
+    priority: a.task.priority,
+    status: a.task.status,
+  }));
+};
+
+const result = await spawner.checkReadyQueue(agentId, {
+  getReadyTasks,
+  limit: 1,
+  autoStart: true,
+});
+
+if (result.hasReadyTask) {
+  console.log(`Found task: ${result.taskTitle}`);
+}
+```
+
+---
+
+## SessionManager
+
+**File:** `runtime/session-manager.ts`
+
+Higher-level session lifecycle management with resume support.
+
+```typescript
+import { createSessionManager } from '@elemental/orchestrator-sdk';
+
+const sessionManager = createSessionManager(spawner, api, agentRegistry);
+```
+
+### Starting Sessions
+
+```typescript
+const { session, events } = await sessionManager.startSession(agentId, {
+  workingDirectory: '/path/to/worktree',
+  worktree: '/worktrees/worker-1',
+  initialPrompt: 'Please implement the feature',
+  interactive: false,
+});
+
+events.on('event', (event) => console.log(event));
+events.on('status', (status) => console.log(`Status: ${status}`));
+events.on('exit', (code, signal) => console.log(`Exited: ${code}`));
+```
+
+### Resuming Sessions
+
+```typescript
+const { session, events, uwpCheck } = await sessionManager.resumeSession(agentId, {
+  claudeSessionId: 'previous-claude-session-id',
+  workingDirectory: '/path/to/worktree',
+  resumePrompt: 'Continue where you left off',
+  checkReadyQueue: true,   // Enable UWP check (default)
+  getReadyTasks,           // Callback for UWP
+});
+
+if (uwpCheck?.hasReadyTask) {
+  console.log(`Task found: ${uwpCheck.taskTitle}`);
+}
+```
+
+### Stopping and Suspending
+
+```typescript
+// Stop (terminate)
+await sessionManager.stopSession(sessionId, {
+  graceful: true,
+  reason: 'Task completed',
+});
+
+// Suspend (can resume later)
+await sessionManager.suspendSession(sessionId, 'Context overflow');
+```
+
+### Session Queries
+
+```typescript
+const session = sessionManager.getSession(sessionId);
+const activeSession = sessionManager.getActiveSession(agentId);
+const sessions = sessionManager.listSessions({
+  agentId,
+  role: 'worker',
+  status: ['running', 'suspended'],
+  resumable: true,
+});
+const resumable = sessionManager.getMostRecentResumableSession(agentId);
+```
+
+### Session History
+
+```typescript
+// Per-agent history
+const history = await sessionManager.getSessionHistory(agentId, 10);
+
+// Role-based history
+const workerHistory = await sessionManager.getSessionHistoryByRole('worker', 20);
+
+// Get previous session for role
+const previousWorker = await sessionManager.getPreviousSession('worker');
+```
+
+### Session Communication
+
+```typescript
+const result = await sessionManager.messageSession(sessionId, {
+  content: 'Please provide a status update',
+  senderId: directorAgentId,
+  metadata: { urgent: true },
+});
+```
+
+---
+
+## InboxPollingService
+
+**File:** `runtime/inbox-polling.ts`
+
+Periodic inbox checking for agent sessions.
+
+```typescript
+import { createInboxPollingService } from '@elemental/orchestrator-sdk';
+
+const pollingService = createInboxPollingService(inboxService, agentRegistry, {
+  pollIntervalMs: 30000,
+  autoStart: true,
+  autoMarkAsRead: true,
+  maxMessagesPerPoll: 10,
+  processOldestFirst: true,
+});
+```
+
+### Polling Control
+
+```typescript
+// Start polling
+const events = pollingService.startPolling(agentId, { pollIntervalMs: 5000 });
+
+events.on('poll', (result) => {
+  console.log(`Processed ${result.processed} messages`);
+});
+
+// Stop polling
+pollingService.stopPolling(agentId);
+
+// Check status
+pollingService.isPolling(agentId);
+const agents = pollingService.getPollingAgents();
+
+// Immediate poll
+const result = await pollingService.pollNow(agentId);
+```
+
+### Message Handlers
+
+```typescript
+import { OrchestratorMessageType } from '@elemental/orchestrator-sdk';
+
+// Handler for specific type
+pollingService.onMessageType(
+  OrchestratorMessageType.TASK_ASSIGNMENT,
+  async (message, agentId) => {
+    console.log(`Task assigned to ${agentId}`);
+  }
+);
+
+// Handler for all messages
+pollingService.onAnyMessage(async (message, agentId) => {
+  console.log(`Message received by ${agentId}`);
+});
+
+// Remove handlers
+pollingService.offMessageType(OrchestratorMessageType.TASK_ASSIGNMENT, handler);
+pollingService.offAnyMessage(anyHandler);
+```
+
+### Message Types
+
+| Type | Description |
+|------|-------------|
+| `task-assignment` | New task assigned |
+| `status-update` | Status update from another agent |
+| `help-request` | Agent requesting assistance |
+| `handoff` | Session handoff request |
+| `health-check` | Health check ping from steward |
+| `generic` | Generic message |
+
+---
+
+## HandoffService
+
+**File:** `runtime/handoff.ts`
+
+Session handoffs for context preservation.
+
+```typescript
+import { createHandoffService } from '@elemental/orchestrator-sdk';
+
+const handoffService = createHandoffService(sessionManager, api);
+```
+
+### Self-Handoff
+
+```typescript
+const result = await handoffService.selfHandoff(agentId, {
+  reason: 'Context overflow',
+  preserveContext: true,
+  summaryPrompt: 'Summarize current progress',
+});
+```
+
+### Agent-to-Agent Handoff
+
+```typescript
+const result = await handoffService.handoffTo(fromAgentId, toAgentId, {
+  reason: 'Specialization required',
+  taskId: taskId,
+  context: 'Current state and progress...',
+});
+```
+
+---
+
+## PredecessorQueryService
+
+**File:** `runtime/predecessor-query.ts`
+
+Query previous sessions for context.
+
+```typescript
+import { createPredecessorQueryService } from '@elemental/orchestrator-sdk';
+
+const predecessorService = createPredecessorQueryService(sessionManager);
+```
+
+### Query Predecessor
+
+```typescript
+// Check for predecessor
+const hasPredecessor = await predecessorService.hasPredecessor('director');
+const predecessorInfo = await predecessorService.getPredecessorInfo('director');
+
+// Consult predecessor
+const result = await predecessorService.consultPredecessor(
+  currentAgentId,
+  'director',
+  'What was your approach to the authentication feature?',
+  {
+    timeout: 60000,
+    context: 'Working on auth feature',
+    suspendAfterResponse: true,
+  }
+);
+
+if (result.success) {
+  console.log('Response:', result.response);
+}
+```
+
+### Manage Active Queries
+
+```typescript
+const activeQueries = predecessorService.listActiveQueries();
+const query = predecessorService.getActiveQuery(queryId);
+await predecessorService.cancelQuery(queryId);
+```
+
+---
+
+## MessageMapper
+
+**File:** `runtime/message-mapper.ts`
+
+Maps between SDK message types and Elemental events.
+
+```typescript
+import { mapSDKMessageToEvent, mapEventToSDKMessage } from '@elemental/orchestrator-sdk';
+
+// SDK → Elemental
+const event = mapSDKMessageToEvent(sdkMessage);
+
+// Elemental → SDK
+const sdkMessage = mapEventToSDKMessage(event);
+```
+
+### Event Type Mapping
+
+| SDK Message Type | Elemental EventType |
+|------------------|---------------------|
+| `assistant` | `assistant_message` |
+| `tool_use` | `tool_use` |
+| `tool_result` | `tool_result` |
+| `system` | `system_message` |
+| `error` | `error` |
