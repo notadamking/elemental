@@ -364,17 +364,23 @@ export function StreamViewer({
   }, [events]);
 
   // Connect to SSE stream
+  // Re-runs when sessionId changes (e.g., after resume) to reconnect to the new session
   useEffect(() => {
     if (!agentId) {
       updateStatus('disconnected');
       return;
     }
 
+    // Reset state when session changes
+    reconnectAttempts.current = 0;
+    setEvents([]);
+    setIsWorking(false);
+
     const connect = () => {
       updateStatus('connecting');
 
       const sseUrl = `${DEFAULT_SSE_URL}/${agentId}/stream`;
-      console.log('[StreamViewer] Connecting to SSE:', sseUrl);
+      console.log('[StreamViewer] Connecting to SSE:', sseUrl, 'sessionId:', sessionId);
 
       const eventSource = new EventSource(sseUrl);
       eventSourceRef.current = eventSource;
@@ -638,7 +644,7 @@ export function StreamViewer({
         eventSourceRef.current = null;
       }
     };
-  }, [agentId, updateStatus]);
+  }, [agentId, sessionId, updateStatus]);
 
   // Send input to agent
   const sendInput = useCallback(async (message: string) => {
