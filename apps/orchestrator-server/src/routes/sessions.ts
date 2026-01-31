@@ -333,15 +333,30 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
           }
 
           // Extract tool info from event
-          // Tool info is in event.tool (parsed) or event.raw.tool (raw)
-          let toolName = event.tool?.name;
-          let toolInput = event.tool?.input;
+          // Check multiple locations to match client-side extraction in StreamViewer.tsx
+          const eventAny = event as unknown as Record<string, unknown>;
+          const eventData = eventAny.data as Record<string, unknown> | undefined;
+          const rawTool = (event.raw as Record<string, unknown>)?.tool as string | undefined;
+          const rawToolInput = (event.raw as Record<string, unknown>)?.tool_input as unknown;
+          let toolName = event.tool?.name || eventData?.name as string | undefined || eventAny.toolName as string | undefined || rawTool;
+          let toolInput = event.tool?.input || eventData?.input || eventAny.toolInput || rawToolInput;
           let toolOutput: string | undefined;
           let actualType = event.type;
 
           // Check for tool_use/tool_result blocks in content arrays (Claude API format)
+          // Content array can be in multiple locations depending on event source
+          // Must match the same locations the client checks in StreamViewer.tsx
           const raw = event.raw as Record<string, unknown>;
-          const rawContentArray = raw?.content;
+          const rawMessage = raw?.message as Record<string, unknown> | undefined;
+          const eventMessage = (event as unknown as Record<string, unknown>).message;
+          const eventContent = (event as unknown as Record<string, unknown>).content;
+          const rawContentArray =
+            rawMessage?.content ||    // raw.message.content
+            raw?.content ||           // raw.content
+            (typeof eventMessage === 'object' && eventMessage !== null
+              ? (eventMessage as Record<string, unknown>).content
+              : undefined) ||         // event.message.content
+            eventContent;             // event.content
           if (Array.isArray(rawContentArray)) {
             for (const block of rawContentArray) {
               if (typeof block === 'object' && block !== null && 'type' in block) {
@@ -363,9 +378,12 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
             }
           }
 
-          // For tool_result, use raw content as output if not found
-          if (actualType === 'tool_result' && !toolOutput && typeof raw?.content === 'string') {
-            toolOutput = raw.content as string;
+          // For tool_result, check additional fallback locations (match client-side logic)
+          if (!toolOutput) {
+            toolOutput =
+              eventAny.output as string | undefined ||
+              eventData?.output as string | undefined ||
+              (actualType === 'tool_result' && typeof raw?.content === 'string' ? raw.content as string : undefined);
           }
 
           // For tool_result events, content should be empty (output is in toolOutput)
