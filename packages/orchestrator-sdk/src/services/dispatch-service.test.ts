@@ -137,7 +137,7 @@ describe('DispatchService', () => {
         restart: true,
         markAsStarted: true,
         branch: 'custom/branch',
-        worktree: '.worktrees/custom',
+        worktree: '.elemental/.worktrees/custom',
       });
 
       // Check notification metadata includes priority and restart
@@ -149,7 +149,7 @@ describe('DispatchService', () => {
       // Check task metadata
       const taskMeta = getOrchestratorTaskMeta(result.task.metadata as Record<string, unknown>);
       expect(taskMeta?.branch).toBe('custom/branch');
-      expect(taskMeta?.worktree).toBe('.worktrees/custom');
+      expect(taskMeta?.worktree).toBe('.elemental/.worktrees/custom');
 
       // Check task was marked as started
       expect(result.task.status).toBe(TaskStatus.IN_PROGRESS);
@@ -224,115 +224,6 @@ describe('DispatchService', () => {
         expect(result.task.assignee).toBe(agentId);
         expect(result.agent.id).toBe(worker.id);
       }
-    });
-  });
-
-  describe('getCandidates', () => {
-    test('returns available workers', async () => {
-      const worker1 = await createTestWorker('worker-1');
-      const worker2 = await createTestWorker('worker-2');
-      const worker3 = await createTestWorker('worker-3');
-
-      const task = await createTestTask('Any task');
-
-      const result = await dispatchService.getCandidates(task.id);
-
-      expect(result.candidates.length).toBe(3);
-      const candidateNames = result.candidates.map(c => c.agent.name);
-      expect(candidateNames).toContain('worker-1');
-      expect(candidateNames).toContain('worker-2');
-      expect(candidateNames).toContain('worker-3');
-    });
-
-    test('returns empty candidates when no workers are available', async () => {
-      const task = await createTestTask('Orphan task');
-
-      const result = await dispatchService.getCandidates(task.id);
-
-      expect(result.candidates.length).toBe(0);
-      expect(result.bestCandidate).toBeUndefined();
-    });
-
-    test('filters out workers without capacity', async () => {
-      // Create worker with max 1 concurrent task
-      const worker = await createTestWorker('busy-worker', {
-        maxConcurrentTasks: 1,
-      });
-
-      // Assign a task to the worker (fills capacity)
-      const existingTask = await createTestTask('Existing task');
-      await taskAssignment.assignToAgent(
-        existingTask.id,
-        worker.id as unknown as EntityId,
-        { markAsStarted: true }
-      );
-
-      // Create new task
-      const newTask = await createTestTask('New task');
-
-      // Worker should not be in candidates (no capacity)
-      const result = await dispatchService.getCandidates(newTask.id);
-      const candidateIds = result.candidates.map(c => c.agent.id);
-      expect(candidateIds).not.toContain(worker.id);
-    });
-  });
-
-  describe('getBestAgent', () => {
-    test('returns first available agent', async () => {
-      const worker1 = await createTestWorker('worker-1');
-      const worker2 = await createTestWorker('worker-2');
-
-      const task = await createTestTask('Any task');
-
-      const bestAgent = await dispatchService.getBestAgent(task.id);
-
-      expect(bestAgent).toBeDefined();
-      // Should return one of the available workers
-      expect(['worker-1', 'worker-2']).toContain(bestAgent?.agent.name);
-    });
-
-    test('returns undefined when no agents available', async () => {
-      const task = await createTestTask('Orphan task');
-
-      const bestAgent = await dispatchService.getBestAgent(task.id);
-      expect(bestAgent).toBeUndefined();
-    });
-  });
-
-  describe('smartDispatch', () => {
-    test('automatically dispatches to an available agent', async () => {
-      const worker1 = await createTestWorker('worker-1');
-      const worker2 = await createTestWorker('worker-2');
-
-      const task = await createTestTask('Any task');
-
-      const result = await dispatchService.smartDispatch(task.id);
-
-      // Should dispatch to one of the workers
-      expect(['worker-1', 'worker-2']).toContain(result.agent.name);
-      expect(result.task.assignee).toBeDefined();
-    });
-
-    test('throws error when no agents available', async () => {
-      const task = await createTestTask('Orphan task');
-
-      await expect(dispatchService.smartDispatch(task.id)).rejects.toThrow(
-        'No available agents found'
-      );
-    });
-
-    test('passes options through to dispatch', async () => {
-      const worker = await createTestWorker('single-worker');
-
-      const task = await createTestTask('General task');
-
-      const result = await dispatchService.smartDispatch(task.id, {
-        priority: 5,
-        markAsStarted: true,
-      });
-
-      expect((result.notification.metadata as Record<string, unknown>).priority).toBe(5);
-      expect(result.task.status).toBe(TaskStatus.IN_PROGRESS);
     });
   });
 

@@ -6,7 +6,6 @@
  *
  * Key features:
  * - Dispatch tasks to specific agents (assigns task + sends notification)
- * - Find available agents for a task
  * - Support for priority and restart options
  *
  * @module
@@ -82,31 +81,6 @@ export interface DispatchResult {
 }
 
 /**
- * Options for finding the best agent and dispatching a task
- */
-export interface SmartDispatchOptions extends DispatchOptions {
-  // All workers have the same capabilities - no filtering options needed
-}
-
-/**
- * Agent candidate entry for dispatch
- */
-export interface AgentCandidate {
-  /** The agent */
-  agent: AgentEntity;
-}
-
-/**
- * Result of smart dispatch candidate search
- */
-export interface SmartDispatchCandidatesResult {
-  /** List of available candidate agents */
-  candidates: AgentCandidate[];
-  /** The best candidate (first available) */
-  bestCandidate: AgentCandidate | undefined;
-}
-
-/**
  * Message types for agent notifications
  */
 export type DispatchMessageType =
@@ -139,7 +113,6 @@ export interface DispatchNotificationMetadata {
  *
  * The service provides methods for:
  * - Dispatching tasks to specific agents
- * - Smart routing based on capabilities
  * - Sending notifications to agents
  */
 export interface DispatchService {
@@ -182,52 +155,6 @@ export interface DispatchService {
     agentId: EntityId,
     options?: DispatchOptions
   ): Promise<DispatchResult[]>;
-
-  // ----------------------------------------
-  // Smart Dispatch
-  // ----------------------------------------
-
-  /**
-   * Finds an available agent for a task and dispatches to them.
-   *
-   * This method:
-   * 1. Gets available workers from the registry
-   * 2. Checks which have capacity
-   * 3. Dispatches to the first available
-   *
-   * @param taskId - The task to find an agent for
-   * @param options - Smart dispatch options
-   * @returns The dispatch result
-   * @throws Error if no available agents found
-   */
-  smartDispatch(
-    taskId: ElementId,
-    options?: SmartDispatchOptions
-  ): Promise<DispatchResult>;
-
-  /**
-   * Gets candidate agents for a task.
-   *
-   * @param taskId - The task to find agents for
-   * @param options - Options for filtering candidates
-   * @returns The candidates result
-   */
-  getCandidates(
-    taskId: ElementId,
-    options?: Omit<SmartDispatchOptions, 'autoDispatch'>
-  ): Promise<SmartDispatchCandidatesResult>;
-
-  /**
-   * Gets an available agent for a task.
-   *
-   * @param taskId - The task to find an agent for
-   * @param options - Options for filtering candidates
-   * @returns An available agent or undefined if none found
-   */
-  getBestAgent(
-    taskId: ElementId,
-    options?: Omit<SmartDispatchOptions, 'autoDispatch'>
-  ): Promise<AgentCandidate | undefined>;
 
   // ----------------------------------------
   // Notification
@@ -369,71 +296,6 @@ export class DispatchServiceImpl implements DispatchService {
       results.push(result);
     }
     return results;
-  }
-
-  // ----------------------------------------
-  // Smart Dispatch
-  // ----------------------------------------
-
-  async smartDispatch(
-    taskId: ElementId,
-    options?: SmartDispatchOptions
-  ): Promise<DispatchResult> {
-    const candidates = await this.getCandidates(taskId, options);
-
-    if (candidates.candidates.length === 0) {
-      throw new Error(`No available agents found for task: ${taskId}`);
-    }
-
-    const bestAgent = candidates.candidates[0].agent;
-    return this.dispatch(
-      taskId,
-      bestAgent.id as unknown as EntityId,
-      options
-    );
-  }
-
-  async getCandidates(
-    taskId: ElementId,
-    _options?: Omit<SmartDispatchOptions, 'autoDispatch'>
-  ): Promise<SmartDispatchCandidatesResult> {
-    // Get the task
-    const task = await this.api.get<Task>(taskId);
-    if (!task || task.type !== ElementType.TASK) {
-      throw new Error(`Task not found: ${taskId}`);
-    }
-
-    // Get available workers
-    const availableWorkers = await this.agentRegistry.getAvailableWorkers();
-
-    // Check capacity for each worker
-    const workersWithCapacity: AgentEntity[] = [];
-    for (const worker of availableWorkers) {
-      const hasCapacity = await this.taskAssignment.agentHasCapacity(
-        worker.id as unknown as EntityId
-      );
-      if (hasCapacity) {
-        workersWithCapacity.push(worker);
-      }
-    }
-
-    // All workers have the same capabilities - just return available ones
-    const candidates: AgentCandidate[] = workersWithCapacity.map((agent) => ({
-      agent,
-    }));
-
-    return {
-      candidates,
-      bestCandidate: candidates[0],
-    };
-  }
-
-  async getBestAgent(
-    taskId: ElementId,
-    options?: Omit<SmartDispatchOptions, 'autoDispatch'>
-  ): Promise<AgentCandidate | undefined> {
-    const result = await this.getCandidates(taskId, options);
-    return result.bestCandidate;
   }
 
   // ----------------------------------------
