@@ -6,18 +6,13 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { dispatchCommand, smartDispatchCommand } from './dispatch.js';
+import { dispatchCommand } from './dispatch.js';
 
 describe('Dispatch Command Structure', () => {
-  describe('dispatchCommand (parent)', () => {
+  describe('dispatchCommand', () => {
     it('should have correct name and description', () => {
       expect(dispatchCommand.name).toBe('dispatch');
       expect(dispatchCommand.description).toBe('Dispatch a task to an agent');
-    });
-
-    it('should have smart subcommand', () => {
-      expect(dispatchCommand.subcommands).toBeDefined();
-      expect(dispatchCommand.subcommands!.smart).toBe(smartDispatchCommand);
     });
 
     it('should have handler', () => {
@@ -33,22 +28,6 @@ describe('Dispatch Command Structure', () => {
       expect(dispatchCommand.options![3].name).toBe('markAsStarted');
     });
   });
-
-  describe('smartDispatchCommand', () => {
-    it('should have correct structure', () => {
-      expect(smartDispatchCommand.name).toBe('smart');
-      expect(smartDispatchCommand.description).toBe('Smart dispatch to best available agent');
-      expect(smartDispatchCommand.usage).toBe('el dispatch smart <task-id> [options]');
-      expect(typeof smartDispatchCommand.handler).toBe('function');
-    });
-
-    it('should have branch and worktree options', () => {
-      expect(smartDispatchCommand.options).toBeDefined();
-      expect(smartDispatchCommand.options!.length).toBe(2);
-      expect(smartDispatchCommand.options![0].name).toBe('branch');
-      expect(smartDispatchCommand.options![1].name).toBe('worktree');
-    });
-  });
 });
 
 describe('Dispatch Command Validation', () => {
@@ -61,14 +40,6 @@ describe('Dispatch Command Validation', () => {
 
     it('should fail with only task-id', async () => {
       const result = await dispatchCommand.handler(['el-task123'], {});
-      expect(result.exitCode).not.toBe(0);
-      expect(result.error).toContain('Usage');
-    });
-  });
-
-  describe('smartDispatchCommand', () => {
-    it('should fail without task-id argument', async () => {
-      const result = await smartDispatchCommand.handler([], {});
       expect(result.exitCode).not.toBe(0);
       expect(result.error).toContain('Usage');
     });
