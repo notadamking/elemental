@@ -383,13 +383,12 @@ importers:
       '@elemental/core':
         specifier: workspace:*
         version: link:../core
-      '@elemental/storage':
-        specifier: workspace:*
-        version: link:../storage
-    optionalDependencies:
       '@elemental/orchestrator-sdk':
         specifier: workspace:*
         version: link:../orchestrator-sdk
+      '@elemental/storage':
+        specifier: workspace:*
+        version: link:../storage
     devDependencies:
       '@types/bun':
         specifier: latest

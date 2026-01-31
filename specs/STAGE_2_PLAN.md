@@ -181,14 +181,15 @@ Each Worker gets a dedicated **git worktree** for true parallel development.
 workspace/
 ├── .git/                          # Existing repo (REQUIRED)
 ├── src/                           # Main branch (working directory)
-└── .worktrees/
-    ├── worker-alice-feat-123/     # Worker Alice's isolated worktree
-    ├── worker-bob-bugfix-456/     # Worker Bob's isolated worktree
-    └── worker-carol-refactor-789/ # Worker Carol's isolated worktree
+└── .elemental/
+    └── .worktrees/
+        ├── worker-alice-feat-123/     # Worker Alice's isolated worktree
+        ├── worker-bob-bugfix-456/     # Worker Bob's isolated worktree
+        └── worker-carol-refactor-789/ # Worker Carol's isolated worktree
 ```
 
 **Branch naming**: `agent/{worker-name}/{task-id}-{slug}`
-**Worktree path**: `.worktrees/{worker-name}-{task-slug}/`
+**Worktree path**: `.elemental/.worktrees/{worker-name}-{task-slug}/`
 
 **Worktree Root-Finding**: Workers in worktrees need the root database. The spawner sets `ELEMENTAL_ROOT` env var pointing to workspace root. Config loader checks this env var first, then falls back to walk-up search.
 
@@ -882,7 +883,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [x] Methods: `initWorkspace()`, `createWorktree()`, `removeWorktree()`, `listWorktrees()`, `getWorktreePath()`
 - [x] Additional methods: `suspendWorktree()`, `resumeWorktree()`, `getWorktree()`, `getWorktreesForAgent()`, `worktreeExists()`, `getCurrentBranch()`, `getDefaultBranch()`, `branchExists()`
 - [x] Branch naming: `agent/{worker-name}/{task-id}-{slug}`
-- [x] Worktree path: `.worktrees/{worker-name}-{task-slug}/`
+- [x] Worktree path: `.elemental/.worktrees/{worker-name}-{task-slug}/`
 - [x] Auto-add worktree directory to `.gitignore`
 - [x] Handle filesystem symlinks (like `/tmp` → `/private/tmp` on macOS)
 - [x] Worktree state machine: creating → active → suspended/merging → cleaning → archived
