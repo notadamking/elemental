@@ -13,7 +13,7 @@ import { StreamViewer } from './StreamViewer';
 import { TerminalInput } from './TerminalInput';
 import { Tooltip } from '../ui/Tooltip';
 import { SessionHistoryModal } from './SessionHistoryModal';
-import { useAgentStatus, useStartAgentSession, useStopAgentSession, useInterruptAgentSession } from '../../api/hooks/useAgents';
+import { useAgentStatus, useStartAgentSession, useStopAgentSession, useInterruptAgentSession, useResumeAgentSession } from '../../api/hooks/useAgents';
 
 export interface WorkspacePaneProps {
   pane: WorkspacePaneType;
@@ -92,6 +92,7 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
   const interruptSession = useInterruptAgentSession();
+  const resumeSession = useResumeAgentSession();
 
   const hasActiveSession = statusData?.hasActiveSession ?? false;
 
@@ -113,6 +114,16 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
       console.error('Failed to stop session:', err);
     }
   }, [pane.agentId, stopSession]);
+
+  const handleResumeSession = useCallback(async (claudeSessionId: string) => {
+    try {
+      await resumeSession.mutateAsync({ agentId: pane.agentId, claudeSessionId });
+      // Close the history modal after successful resume
+      setShowHistory(false);
+    } catch (err) {
+      console.error('Failed to resume session:', err);
+    }
+  }, [pane.agentId, resumeSession]);
 
   // Use ref to avoid recreating callback when onStatusChange prop changes
   // This prevents WebSocket reconnection loops caused by inline arrow functions in parent
@@ -671,6 +682,9 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
           agentId={pane.agentId}
           agentName={pane.agentName}
           sessions={statusData?.recentHistory ?? []}
+          hasActiveSession={hasActiveSession}
+          onResumeSession={handleResumeSession}
+          isResuming={resumeSession.isPending}
         />
       )}
     </div>

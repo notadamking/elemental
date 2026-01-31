@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { X, History, Clock, ChevronRight, MessageSquare, Trash2 } from 'lucide-react';
+import { X, History, Clock, ChevronRight, MessageSquare, Trash2, Play } from 'lucide-react';
 import type { SessionRecord, SessionMessage } from '../../api/types';
 import type { StreamEvent } from './types';
 import { MarkdownContent } from '../shared/MarkdownContent';
@@ -35,6 +35,12 @@ export interface SessionHistoryModalProps {
   agentId: string;
   agentName: string;
   sessions: SessionRecord[];
+  /** Whether the agent currently has an active session */
+  hasActiveSession?: boolean;
+  /** Called when user wants to resume a session */
+  onResumeSession?: (claudeSessionId: string) => void;
+  /** Whether a resume is currently in progress */
+  isResuming?: boolean;
 }
 
 /** Get transcript from localStorage */
@@ -232,9 +238,12 @@ interface SessionItemProps {
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onResume?: () => void;
+  canResume?: boolean;
+  isResuming?: boolean;
 }
 
-function SessionItem({ session, transcript, isSelected, onClick, onDelete }: SessionItemProps) {
+function SessionItem({ session, transcript, isSelected, onClick, onDelete, onResume, canResume, isResuming }: SessionItemProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const sessionName = extractSessionName(session, transcript);
   const formattedDate = formatSessionDate(session.startedAt || session.createdAt);
@@ -313,6 +322,19 @@ function SessionItem({ session, transcript, isSelected, onClick, onDelete }: Ses
           </div>
         ) : (
           <>
+            {canResume && onResume && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onResume();
+                }}
+                disabled={isResuming}
+                className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50"
+                title="Resume this session"
+              >
+                <Play className={`w-3.5 h-3.5 ${isResuming ? 'animate-pulse' : ''}`} />
+              </button>
+            )}
             <button
               onClick={handleDeleteClick}
               className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
@@ -395,6 +417,9 @@ export function SessionHistoryModal({
   onClose,
   agentName,
   sessions,
+  hasActiveSession,
+  onResumeSession,
+  isResuming,
 }: SessionHistoryModalProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [transcriptCache, setTranscriptCache] = useState<Record<string, StreamEvent[]>>({});
@@ -528,34 +553,56 @@ export function SessionHistoryModal({
                     isSelected={session.id === selectedSessionId}
                     onClick={() => setSelectedSessionId(session.id)}
                     onDelete={() => handleDeleteTranscript(session.id)}
+                    onResume={session.claudeSessionId && onResumeSession ? () => onResumeSession(session.claudeSessionId!) : undefined}
+                    canResume={!hasActiveSession && !!session.claudeSessionId && !!onResumeSession}
+                    isResuming={isResuming}
                   />
                 ))}
               </div>
 
               {/* Transcript viewer - only shown when a session is selected */}
-              {hasSelectedSession && (
-                <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)] flex flex-col">
-                  {/* Transcript header with close button */}
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-                    <span className="text-sm font-medium text-[var(--color-text)] truncate">
-                      {extractSessionName(
-                        sessionsWithTranscripts.find(s => s.id === selectedSessionId)!,
-                        selectedTranscript
-                      )}
-                    </span>
-                    <button
-                      onClick={() => setSelectedSessionId(null)}
-                      className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors flex-shrink-0"
-                      title="Close transcript"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+              {hasSelectedSession && (() => {
+                const selectedSession = sessionsWithTranscripts.find(s => s.id === selectedSessionId);
+                const canResumeSelected = !hasActiveSession && selectedSession?.claudeSessionId && onResumeSession;
+                return (
+                  <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)] flex flex-col">
+                    {/* Transcript header with close button */}
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+                      <span className="text-sm font-medium text-[var(--color-text)] truncate">
+                        {extractSessionName(selectedSession!, selectedTranscript)}
+                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {canResumeSelected && (
+                          <button
+                            onClick={() => onResumeSession(selectedSession!.claudeSessionId!)}
+                            disabled={isResuming}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            title="Resume this session"
+                          >
+                            <Play className={`w-3.5 h-3.5 ${isResuming ? 'animate-pulse' : ''}`} />
+                            {isResuming ? 'Resuming...' : 'Resume'}
+                          </button>
+                        )}
+                        {hasActiveSession && selectedSession?.claudeSessionId && (
+                          <span className="text-xs text-[var(--color-text-muted)] italic">
+                            Stop current session to resume
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setSelectedSessionId(null)}
+                          className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
+                          title="Close transcript"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      <TranscriptViewer events={selectedTranscript} />
+                    </div>
                   </div>
-                  <div className="flex-1 min-h-0">
-                    <TranscriptViewer events={selectedTranscript} />
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </>
           )}
         </div>
