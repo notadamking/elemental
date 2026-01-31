@@ -11,7 +11,8 @@ import type { StreamEvent } from './types';
 import type { PaneStatus } from './types';
 import { TerminalInput } from './TerminalInput';
 import { MarkdownContent } from '../shared/MarkdownContent';
-import { saveSessionTranscript } from './SessionHistoryModal';
+// Note: Session messages are now persisted to SQLite on the server
+// localStorage functions are no longer used for transcript storage
 
 /** Timeout for "working" indicator - 3 minutes */
 const WORKING_TIMEOUT_MS = 3 * 60 * 1000;
@@ -235,12 +236,75 @@ export function StreamViewer({
   const lastActivityRef = useRef<number>(0);
   const workingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Save transcript when events change (if we have a session ID)
+  // Load transcript from server when sessionId changes (to restore after remount/refresh)
   useEffect(() => {
-    if (sessionId && events.length > 0) {
-      saveSessionTranscript(sessionId, events);
-    }
-  }, [sessionId, events]);
+    if (!sessionId) return;
+
+    // Fetch messages from server (source of truth)
+    const loadMessages = async () => {
+      try {
+        const response = await fetch(`/api/sessions/${sessionId}/messages`);
+        if (!response.ok) {
+          console.warn('[StreamViewer] Failed to fetch session messages:', response.status);
+          return;
+        }
+        const data = await response.json();
+        const serverMessages = data.messages || [];
+
+        if (serverMessages.length > 0) {
+          // Convert server messages to StreamEvent format
+          const loadedEvents: StreamEvent[] = serverMessages.map((msg: {
+            id: string;
+            type: string;
+            content?: string;
+            toolName?: string;
+            toolInput?: string;
+            toolOutput?: string;
+            isError: boolean;
+            createdAt: string;
+          }) => ({
+            id: msg.id,
+            type: msg.type as StreamEvent['type'],
+            timestamp: new Date(msg.createdAt).getTime(),
+            content: msg.content,
+            toolName: msg.toolName,
+            toolInput: msg.toolInput ? JSON.parse(msg.toolInput) : undefined,
+            toolOutput: msg.toolOutput ? JSON.parse(msg.toolOutput) : undefined,
+            isError: msg.isError,
+          }));
+
+          // Merge loaded events with any events already received (preserving order)
+          setEvents(prev => {
+            if (prev.length === 0) {
+              return loadedEvents;
+            }
+            // Merge: start with loaded events, add any new events not already in it
+            const loadedIds = new Set(loadedEvents.map(e => e.id));
+            const newEvents = prev.filter(e => !loadedIds.has(e.id));
+            return [...loadedEvents, ...newEvents];
+          });
+
+          // Determine working state from loaded events:
+          // If the last significant event was a user message (not followed by assistant/result),
+          // the agent might still be working
+          const significantEvents = loadedEvents.filter(e =>
+            e.type === 'user' || e.type === 'assistant' || e.type === 'result' || e.type === 'error'
+          );
+          if (significantEvents.length > 0) {
+            const lastEvent = significantEvents[significantEvents.length - 1];
+            // Agent is NOT working if the last event was an assistant response, result, or error
+            // (these indicate the agent has finished responding)
+            const isNotWorking = lastEvent.type === 'assistant' || lastEvent.type === 'result' || lastEvent.type === 'error';
+            setIsWorking(!isNotWorking);
+          }
+        }
+      } catch (error) {
+        console.error('[StreamViewer] Error loading session messages:', error);
+      }
+    };
+
+    loadMessages();
+  }, [sessionId]);
 
   // Update status and notify parent
   const updateStatus = useCallback((newStatus: PaneStatus) => {
@@ -313,10 +377,8 @@ export function StreamViewer({
         logReadyState();
         reconnectAttempts.current = 0;
         updateStatus('connected');
-        // Assume agent is working when we connect to an active session
-        // This handles the case where we connect after the initial prompt was sent
-        setIsWorking(true);
-        resetWorkingTimeout(true);
+        // Don't assume agent is working on connection - let the actual events determine this
+        // The working state will be set when we receive user messages or restored from transcript
       };
 
       // Extract string content from potentially nested structures
@@ -439,7 +501,8 @@ export function StreamViewer({
           const finalContent = (eventType === 'tool_result' && toolOutput) ? undefined : content;
 
           const newEvent: StreamEvent = {
-            id: e.lastEventId || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            // Use msgId from data (set by server) for consistent deduplication, fallback to lastEventId
+            id: eventData.msgId || e.lastEventId || `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: eventType,
             timestamp: Date.now(),
             content: finalContent,
@@ -449,7 +512,14 @@ export function StreamViewer({
             isError: eventType === 'error',
           };
 
-          setEvents(prev => [...prev.slice(-200), newEvent]); // Keep last 200 events
+          // Add event with deduplication (prevents duplicates when transcript is loaded from localStorage)
+          setEvents(prev => {
+            // Skip if event with same ID already exists
+            if (prev.some(existing => existing.id === newEvent.id)) {
+              return prev;
+            }
+            return [...prev.slice(-200), newEvent]; // Keep last 200 events
+          });
 
           // Track activity for working indicator
           resetWorkingTimeout();

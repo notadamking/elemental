@@ -22,7 +22,7 @@ export function createSessionRoutes(
   services: Services,
   notifyClientsOfNewSession: NotifyClientsCallback
 ) {
-  const { api, orchestratorApi, agentRegistry, sessionManager, spawnerService, sessionInitialPrompts } = services;
+  const { api, orchestratorApi, agentRegistry, sessionManager, spawnerService, sessionInitialPrompts, sessionMessageService } = services;
   const app = new Hono();
 
   // POST /api/agents/:id/start
@@ -96,6 +96,16 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
 
       if (effectivePrompt) {
         sessionInitialPrompts.set(session.id, effectivePrompt);
+        // Save initial prompt to database immediately (don't wait for SSE connection)
+        const initialMsgId = `user-${session.id}-initial`;
+        sessionMessageService.saveMessage({
+          id: initialMsgId,
+          sessionId: session.id,
+          agentId,
+          type: 'user',
+          content: effectivePrompt,
+          isError: false,
+        });
       }
 
       notifyClientsOfNewSession(agentId, session, events);
@@ -137,6 +147,9 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         graceful: body.graceful,
         reason: body.reason,
       });
+
+      // Clean up initial prompt for this session
+      sessionInitialPrompts.delete(activeSession.id);
 
       return c.json({ success: true, sessionId: activeSession.id });
     } catch (error) {
@@ -208,6 +221,20 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         checkReadyQueue: body.checkReadyQueue,
       });
 
+      // Save resume prompt to database if provided
+      if (body.resumePrompt) {
+        sessionInitialPrompts.set(session.id, body.resumePrompt);
+        const resumeMsgId = `user-${session.id}-resume`;
+        sessionMessageService.saveMessage({
+          id: resumeMsgId,
+          sessionId: session.id,
+          agentId,
+          type: 'user',
+          content: body.resumePrompt,
+          isError: false,
+        });
+      }
+
       notifyClientsOfNewSession(agentId, session, events);
 
       return c.json({ success: true, session: formatSessionRecord(session), uwpCheck }, 201);
@@ -245,33 +272,144 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
           }),
         });
 
+        // Send initial prompt to every connecting client (for real-time display)
+        // Note: The initial prompt is already saved to database when session starts
+        // We keep the prompt in the map for the session duration so reconnecting clients also get it via SSE
         const initialPrompt = sessionInitialPrompts.get(activeSession.id);
         if (initialPrompt) {
+          const initialMsgId = `user-${activeSession.id}-initial`;
           await stream.writeSSE({
-            id: String(++eventId),
+            id: initialMsgId,
             event: 'agent_user',
             data: JSON.stringify({
               type: 'user',
               message: initialPrompt,
+              msgId: initialMsgId, // Include ID in data for deduplication
               raw: { type: 'user', content: initialPrompt },
             }),
           });
-          sessionInitialPrompts.delete(activeSession.id);
         }
 
         const onEvent = async (event: SpawnedSessionEvent) => {
+          const msgId = `${event.type}-${activeSession.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           await stream.writeSSE({
-            id: String(++eventId),
+            id: msgId,
             event: `agent_${event.type}`,
-            data: JSON.stringify(event),
+            data: JSON.stringify({ ...event, msgId }), // Include ID in data for deduplication
+          });
+
+          // Skip saving system and result events (not displayed in UI)
+          if (event.type === 'system' || event.type === 'result') {
+            return;
+          }
+
+          // Extract content from event (match client-side logic)
+          // Content can be in: event.message, event.raw?.message, event.raw?.content (if string)
+          // IMPORTANT: content MUST be a string or undefined, never an object (SQLite can't bind objects)
+          let content: string | undefined = typeof event.message === 'string' ? event.message : undefined;
+          if (!content && event.raw) {
+            const raw = event.raw as Record<string, unknown>;
+            // Only use raw.message if it's actually a string
+            if (typeof raw.message === 'string') {
+              content = raw.message;
+            } else if (typeof raw.content === 'string') {
+              content = raw.content;
+            }
+            // If raw.content is an array (Claude API format), extract text from text blocks
+            if (!content && Array.isArray(raw.content)) {
+              const textParts: string[] = [];
+              for (const block of raw.content) {
+                if (typeof block === 'object' && block !== null && 'type' in block) {
+                  const b = block as { type: string; text?: string };
+                  if (b.type === 'text' && typeof b.text === 'string') {
+                    textParts.push(b.text);
+                  }
+                }
+              }
+              if (textParts.length > 0) {
+                content = textParts.join('');
+              }
+            }
+          }
+
+          // Extract tool info from event
+          // Tool info is in event.tool (parsed) or event.raw.tool (raw)
+          let toolName = event.tool?.name;
+          let toolInput = event.tool?.input;
+          let toolOutput: string | undefined;
+          let actualType = event.type;
+
+          // Check for tool_use/tool_result blocks in content arrays (Claude API format)
+          const raw = event.raw as Record<string, unknown>;
+          const rawContentArray = raw?.content;
+          if (Array.isArray(rawContentArray)) {
+            for (const block of rawContentArray) {
+              if (typeof block === 'object' && block !== null && 'type' in block) {
+                const b = block as { type: string; name?: string; input?: unknown; content?: string };
+                if (b.type === 'tool_use' && b.name) {
+                  toolName = toolName || b.name;
+                  toolInput = toolInput || b.input;
+                  // Override type if we found tool info but type was 'assistant'
+                  if (actualType === 'assistant') {
+                    actualType = 'tool_use';
+                  }
+                } else if (b.type === 'tool_result') {
+                  toolOutput = typeof b.content === 'string' ? b.content : undefined;
+                  if (actualType === 'user') {
+                    actualType = 'tool_result';
+                  }
+                }
+              }
+            }
+          }
+
+          // For tool_result, use raw content as output if not found
+          if (actualType === 'tool_result' && !toolOutput && typeof raw?.content === 'string') {
+            toolOutput = raw.content as string;
+          }
+
+          // For tool_result events, content should be empty (output is in toolOutput)
+          const finalContent = (actualType === 'tool_result' && toolOutput) ? undefined : content;
+
+          // Safely stringify tool input (JSON.stringify can return undefined for functions)
+          let toolInputStr: string | undefined;
+          if (toolInput !== undefined && toolInput !== null) {
+            try {
+              const str = JSON.stringify(toolInput);
+              toolInputStr = typeof str === 'string' ? str : undefined;
+            } catch {
+              toolInputStr = String(toolInput);
+            }
+          }
+
+          sessionMessageService.saveMessage({
+            id: msgId,
+            sessionId: activeSession.id,
+            agentId,
+            type: actualType as 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'error',
+            content: finalContent,
+            toolName: toolName,
+            toolInput: toolInputStr,
+            toolOutput: toolOutput,
+            isError: actualType === 'error',
           });
         };
 
         const onError = async (error: Error) => {
+          const msgId = `error-${activeSession.id}-${Date.now()}`;
           await stream.writeSSE({
-            id: String(++eventId),
+            id: msgId,
             event: 'agent_error',
             data: JSON.stringify({ error: error.message }),
+          });
+          // Save error to database
+          sessionMessageService.saveMessage({
+            id: msgId,
+            sessionId: activeSession.id,
+            agentId,
+            type: 'error',
+            content: error.message,
+            isError: true,
           });
         };
 
@@ -335,6 +473,19 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         isUserMessage: body.isUserMessage,
       });
 
+      // Save user input to database if it's a user message
+      if (body.isUserMessage) {
+        const inputMsgId = `user-${activeSession.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        sessionMessageService.saveMessage({
+          id: inputMsgId,
+          sessionId: activeSession.id,
+          agentId,
+          type: 'user',
+          content: body.input,
+          isError: false,
+        });
+      }
+
       return c.json({ success: true, sessionId: activeSession.id }, 202);
     } catch (error) {
       console.error('[orchestrator] Failed to send input:', error);
@@ -381,6 +532,25 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       return c.json({ session: formatSessionRecord(session) });
     } catch (error) {
       console.error('[orchestrator] Failed to get session:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // GET /api/sessions/:id/messages
+  // Retrieve all messages for a session (for transcript restoration)
+  app.get('/api/sessions/:id/messages', async (c) => {
+    try {
+      const sessionId = c.req.param('id');
+      const url = new URL(c.req.url);
+      const afterId = url.searchParams.get('after');
+
+      const messages = afterId
+        ? sessionMessageService.getSessionMessagesAfter(sessionId, afterId)
+        : sessionMessageService.getSessionMessages(sessionId);
+
+      return c.json({ messages });
+    } catch (error) {
+      console.error('[orchestrator] Failed to get session messages:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
     }
   });
