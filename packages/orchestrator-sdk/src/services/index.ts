@@ -6,7 +6,9 @@
  * - RoleDefinitionService (TB-O7b) - Agent role definition storage and management
  * - TaskAssignmentService (TB-O8) - Task assignment with orchestrator metadata
  * - DispatchService (TB-O8a) - Task dispatch with assignment + notification
- * - StewardScheduler (TB-O23) - TODO
+ * - DispatchDaemon - Continuous polling for task assignment and message delivery
+ * - StewardScheduler (TB-O23) - Scheduled steward execution
+ * - HealthStewardService (TB-O24) - Agent health monitoring
  */
 
 // Agent registry (TB-O7, TB-O7a)
@@ -40,6 +42,8 @@ export {
   // Types
   type AssignTaskOptions,
   type CompleteTaskOptions,
+  type HandoffTaskOptions,
+  type TaskCompletionResult,
   type TaskAssignment,
   type AssignmentFilter,
   type AssignmentStatus,
@@ -58,8 +62,6 @@ export {
   // Types
   type DispatchOptions,
   type DispatchResult,
-  type SmartDispatchOptions,
-  type SmartDispatchCandidatesResult,
   type DispatchMessageType,
   type DispatchNotificationMetadata,
   type DispatchService,
@@ -186,3 +188,19 @@ export {
   // Factory
   createHealthStewardService,
 } from './health-steward-service.js';
+
+// Dispatch daemon service
+export {
+  // Constants
+  DISPATCH_DAEMON_DEFAULT_POLL_INTERVAL_MS,
+  DISPATCH_DAEMON_MIN_POLL_INTERVAL_MS,
+  DISPATCH_DAEMON_MAX_POLL_INTERVAL_MS,
+  // Types
+  type DispatchDaemonConfig,
+  type PollResult,
+  type DispatchDaemon,
+  // Implementation
+  DispatchDaemonImpl,
+  // Factory
+  createDispatchDaemon,
+} from './dispatch-daemon.js';
