@@ -93,8 +93,8 @@ function createMockSessionRecord(overrides: Partial<SessionRecord> = {}): Sessio
 function createMockWorktreeResult(): CreateWorktreeResult {
   return {
     worktree: {
-      path: '/project/.worktrees/worker-alice-test-task',
-      relativePath: '.worktrees/worker-alice-test-task',
+      path: '/project/.elemental/.worktrees/worker-alice-test-task',
+      relativePath: '.elemental/.worktrees/worker-alice-test-task',
       branch: 'agent/worker-alice/task-001-test-task',
       head: 'abc123',
       isMain: false,
@@ -104,7 +104,7 @@ function createMockWorktreeResult(): CreateWorktreeResult {
       createdAt: createTimestamp(),
     },
     branch: 'agent/worker-alice/task-001-test-task',
-    path: '/project/.worktrees/worker-alice-test-task',
+    path: '/project/.elemental/.worktrees/worker-alice-test-task',
     branchCreated: true,
   };
 }
@@ -194,9 +194,6 @@ function createMockDispatchService(): DispatchService {
   return {
     dispatch: vi.fn(),
     dispatchBatch: vi.fn(),
-    smartDispatch: vi.fn(),
-    getCandidates: vi.fn(),
-    getBestAgent: vi.fn(),
     notifyAgent: vi.fn(),
   } as unknown as DispatchService;
 }
@@ -497,14 +494,14 @@ describe('WorkerTaskService', () => {
         description: 'Test task',
         orchestrator: {
           branch: 'agent/worker/task-001-test',
-          worktree: '/project/.worktrees/worker-test',
+          worktree: '/project/.elemental/.worktrees/worker-test',
         },
       },
     });
 
     const mockWorktree: WorktreeInfo = {
-      path: '/project/.worktrees/worker-test',
-      relativePath: '.worktrees/worker-test',
+      path: '/project/.elemental/.worktrees/worker-test',
+      relativePath: '.elemental/.worktrees/worker-test',
       branch: 'agent/worker/task-001-test',
       head: 'abc123',
       isMain: false,
@@ -513,9 +510,9 @@ describe('WorkerTaskService', () => {
 
     beforeEach(() => {
       (mockApi.get as MockInstance).mockResolvedValue(mockTask);
+      // completeTask now returns TaskCompletionResult with task nested under 'task' property
       (mockTaskAssignment.completeTask as MockInstance).mockResolvedValue({
-        ...mockTask,
-        status: 'closed',
+        task: { ...mockTask, status: 'closed' },
       });
       (mockWorktreeManager.getWorktree as MockInstance).mockResolvedValue(mockWorktree);
     });
@@ -569,7 +566,7 @@ describe('WorkerTaskService', () => {
         description: 'Implement the user authentication feature',
         orchestrator: {
           branch: 'agent/worker/task-001-test',
-          worktree: '/project/.worktrees/worker-test',
+          worktree: '/project/.elemental/.worktrees/worker-test',
         },
       },
     });
@@ -592,7 +589,7 @@ describe('WorkerTaskService', () => {
 
       expect(prompt).toContain('## Git Information');
       expect(prompt).toContain('agent/worker/task-001-test');
-      expect(prompt).toContain('.worktrees/worker-test');
+      expect(prompt).toContain('.elemental/.worktrees/worker-test');
     });
 
     it('should include additional instructions if provided', async () => {
@@ -683,7 +680,7 @@ describe('WorkerTaskService', () => {
     const mockTask = createMockTask({
       metadata: {
         orchestrator: {
-          worktree: '/project/.worktrees/worker-test',
+          worktree: '/project/.elemental/.worktrees/worker-test',
         },
       },
     });
@@ -698,7 +695,7 @@ describe('WorkerTaskService', () => {
 
       expect(result).toBe(true);
       expect(mockWorktreeManager.removeWorktree).toHaveBeenCalledWith(
-        '/project/.worktrees/worker-test',
+        '/project/.elemental/.worktrees/worker-test',
         {
           deleteBranch: false,
           force: false,

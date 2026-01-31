@@ -6,7 +6,7 @@
  * querying agents by various criteria.
  *
  * Key features:
- * - Register agents with specific roles and capabilities
+ * - Register agents with specific roles
  * - Query agents by role, status, and other filters
  * - Track agent session status
  * - Manage agent metadata

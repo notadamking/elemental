@@ -49,7 +49,7 @@ function createMockTask(overrides: Partial<Task> = {}): Task {
       description: 'A test task',
       orchestrator: {
         branch: 'agent/worker-alice/task-001-implement-feature-x',
-        worktree: '.worktrees/worker-alice-implement-feature-x',
+        worktree: '.elemental/.worktrees/worker-alice-implement-feature-x',
         assignedAgent: 'agent-worker-001' as EntityId,
         mergeStatus: 'pending',
         completedAt: createTimestamp(),
@@ -118,9 +118,6 @@ function createMockDispatchService(): DispatchService {
   return {
     dispatch: vi.fn(),
     dispatchBatch: vi.fn(),
-    smartDispatch: vi.fn(),
-    getCandidates: vi.fn(),
-    getBestAgent: vi.fn(),
     notifyAgent: vi.fn(),
   } as unknown as DispatchService;
 }
@@ -406,7 +403,7 @@ describe('MergeStewardService', () => {
 
       expect(result).toBe(true);
       expect(worktreeManager.removeWorktree).toHaveBeenCalledWith(
-        '.worktrees/worker-alice-implement-feature-x',
+        '.elemental/.worktrees/worker-alice-implement-feature-x',
         { deleteBranch: true, force: false }
       );
     });

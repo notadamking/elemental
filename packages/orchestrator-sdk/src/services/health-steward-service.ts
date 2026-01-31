@@ -1062,26 +1062,14 @@ export class HealthStewardServiceImpl implements HealthStewardService {
         });
       }
 
-      // Unassign the task
+      // Unassign the task - it will be picked up by the dispatch daemon
       await this.taskAssignment.unassignTask(taskId);
 
-      // Find a new agent using smart dispatch
-      // Note: smartDispatch doesn't support excludeAgents, we rely on the agent
-      // being stopped above to make it ineligible
-      const result = await this.dispatchService.smartDispatch(taskId);
-
-      // smartDispatch returns DispatchResult with task, agent, notification, channel
-      // If it succeeds, we have an agent assigned
-      if (result.agent) {
-        return {
-          success: true,
-          newAgentId: result.agent.id as unknown as EntityId,
-        };
-      }
-
+      // Task reassignment is now handled by the dispatch daemon polling for
+      // unassigned tasks, rather than immediately dispatching here
       return {
-        success: false,
-        error: 'No suitable agent found for reassignment',
+        success: true,
+        // Note: newAgentId is undefined since dispatch daemon handles assignment
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

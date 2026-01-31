@@ -163,9 +163,6 @@ function createMockDispatchService(): DispatchService {
   return {
     dispatch: mock(() => Promise.resolve({})),
     dispatchBatch: mock(() => Promise.resolve([])),
-    smartDispatch: mock(() => Promise.resolve({})),
-    getCandidates: mock(() => Promise.resolve({})),
-    getBestAgent: mock(() => Promise.resolve(undefined)),
     notifyAgent: mock(() => Promise.resolve({
       id: 'msg-001' as ElementId,
       type: 'message',
@@ -698,20 +695,10 @@ describe.skip('HealthStewardService', () => {
   });
 
   describe('reassignTask', () => {
-    test('stops agent and reassigns task', async () => {
+    test('stops agent and unassigns task for dispatch daemon pickup', async () => {
       (sessionManager.getActiveSession).mockReturnValue(createMockSession());
       (sessionManager.stopSession).mockResolvedValue(undefined);
       (taskAssignment.unassignTask).mockResolvedValue(createMockTask());
-
-      const newAgent = createMockAgent({ id: 'agent-002' as ElementId });
-      (dispatchService.smartDispatch).mockResolvedValue({
-        task: createMockTask(),
-        agent: newAgent,
-        notification: {} as Message,
-        channel: createMockChannel(),
-        isNewAssignment: true,
-        dispatchedAt: createTimestamp(),
-      } as DispatchResult);
 
       const result = await service.reassignTask(
         'agent-001' as EntityId,
@@ -719,21 +706,16 @@ describe.skip('HealthStewardService', () => {
       );
 
       expect(result.success).toBe(true);
-      expect(result.newAgentId).toBe('agent-002');
+      // newAgentId is undefined since dispatch daemon handles assignment
+      expect(result.newAgentId).toBeUndefined();
+      expect(sessionManager.stopSession).toHaveBeenCalled();
+      expect(taskAssignment.unassignTask).toHaveBeenCalledWith('task-001');
     });
 
-    test('returns error when no suitable agent found', async () => {
+    test('returns error when unassign fails', async () => {
       (sessionManager.getActiveSession).mockReturnValue(createMockSession());
       (sessionManager.stopSession).mockResolvedValue(undefined);
-      (taskAssignment.unassignTask).mockResolvedValue(createMockTask());
-      (dispatchService.smartDispatch).mockResolvedValue({
-        task: createMockTask(),
-        agent: null as unknown as AgentEntity,
-        notification: {} as Message,
-        channel: createMockChannel(),
-        isNewAssignment: false,
-        dispatchedAt: createTimestamp(),
-      } as DispatchResult);
+      (taskAssignment.unassignTask).mockRejectedValue(new Error('Failed to unassign'));
 
       const result = await service.reassignTask(
         'agent-001' as EntityId,
@@ -741,7 +723,7 @@ describe.skip('HealthStewardService', () => {
       );
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('No suitable agent');
+      expect(result.error).toContain('Failed to unassign');
     });
   });
 

@@ -16,11 +16,13 @@ import {
   type Entity,
   type EntityId,
   type Task,
+  type Channel,
   type ChannelId,
   type ElementId,
   ElementType,
   EntityTypeValue,
   createEntity,
+  createGroupChannel,
   createTimestamp,
 } from '@elemental/core';
 import {
@@ -57,6 +59,13 @@ import {
  * Key used to store agent metadata in Entity.metadata
  */
 const AGENT_META_KEY = 'agent';
+
+/**
+ * Generates a unique channel name for an agent
+ */
+function generateAgentChannelName(agentId: EntityId): string {
+  return `agent-channel-${agentId}`;
+}
 
 // ============================================================================
 // Agent Entity Type (Entity with Agent Metadata)
@@ -258,11 +267,18 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
     // Save the entity using the generic create method
     // Cast the entity to satisfy the create method's signature
     const saved = await this.create<Entity>(entity as unknown as Record<string, unknown> & { type: typeof ElementType.ENTITY; createdBy: EntityId });
+    const agentEntity = saved as AgentEntity;
+    const agentEntityId = agentEntity.id as unknown as EntityId;
 
-    // Note: Agent channel setup is handled separately in TB-O7a
-    // The channelId will be set when the channel is created later
+    // Create dedicated channel for the agent
+    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
 
-    return saved as AgentEntity;
+    // Update agent metadata with channel ID
+    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
+      channelId: channel.id as unknown as ChannelId,
+    });
+
+    return updatedAgent;
   }
 
   async registerWorker(input: RegisterWorkerInput): Promise<AgentEntity> {
@@ -286,11 +302,18 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
 
     // Save the entity using the generic create method
     const saved = await this.create<Entity>(entity as unknown as Record<string, unknown> & { type: typeof ElementType.ENTITY; createdBy: EntityId });
+    const agentEntity = saved as AgentEntity;
+    const agentEntityId = agentEntity.id as unknown as EntityId;
 
-    // Note: Agent channel setup is handled separately in TB-O7a
-    // The channelId will be set when the channel is created later
+    // Create dedicated channel for the agent
+    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
 
-    return saved as AgentEntity;
+    // Update agent metadata with channel ID
+    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
+      channelId: channel.id as unknown as ChannelId,
+    });
+
+    return updatedAgent;
   }
 
   async registerSteward(input: RegisterStewardInput): Promise<AgentEntity> {
@@ -315,11 +338,18 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
 
     // Save the entity using the generic create method
     const saved = await this.create<Entity>(entity as unknown as Record<string, unknown> & { type: typeof ElementType.ENTITY; createdBy: EntityId });
+    const agentEntity = saved as AgentEntity;
+    const agentEntityId = agentEntity.id as unknown as EntityId;
 
-    // Note: Agent channel setup is handled separately in TB-O7a
-    // The channelId will be set when the channel is created later
+    // Create dedicated channel for the agent
+    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
 
-    return saved as AgentEntity;
+    // Update agent metadata with channel ID
+    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
+      channelId: channel.id as unknown as ChannelId,
+    });
+
+    return updatedAgent;
   }
 
   // ----------------------------------------
@@ -543,6 +573,61 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       sessionId: options?.sessionId,
       startedAt: createTimestamp(),
     });
+  }
+
+  // ----------------------------------------
+  // Private Helpers
+  // ----------------------------------------
+
+  /**
+   * Creates a dedicated channel for an agent
+   */
+  private async createAgentChannel(agentId: EntityId, createdBy: EntityId): Promise<Channel> {
+    const channelName = generateAgentChannelName(agentId);
+
+    // Create a group channel with the agent and creator as members
+    const channel = await createGroupChannel({
+      name: channelName,
+      createdBy: createdBy,
+      members: [agentId], // Creator is automatically added
+      visibility: 'private',
+      joinPolicy: 'invite-only',
+      tags: ['agent-channel'],
+      metadata: {
+        agentId,
+        purpose: 'Agent direct messaging channel',
+      },
+    });
+
+    // Save the channel
+    const savedChannel = await this.create<Channel>(
+      channel as unknown as Record<string, unknown> & { type: 'channel'; createdBy: EntityId }
+    );
+
+    return savedChannel;
+  }
+
+  /**
+   * Updates an agent's metadata
+   */
+  private async updateAgentMetadata(
+    agentId: EntityId,
+    updates: Partial<AgentMetadata>
+  ): Promise<AgentEntity> {
+    const agent = await this.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`Agent not found: ${agentId}`);
+    }
+
+    const currentMeta = getAgentMetadata(agent) ?? {};
+    const updatedMeta = { ...currentMeta, ...updates };
+
+    const updated = await this.update<Entity>(
+      agentId as unknown as ElementId,
+      { metadata: { ...agent.metadata, [AGENT_META_KEY]: updatedMeta } }
+    );
+
+    return updated as AgentEntity;
   }
 }
 

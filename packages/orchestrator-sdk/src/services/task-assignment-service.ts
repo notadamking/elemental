@@ -21,7 +21,7 @@ import { createTimestamp, TaskStatus, ElementType } from '@elemental/core';
 // Use type alias for TaskStatus values
 type TaskStatusValue = typeof TaskStatus[keyof typeof TaskStatus];
 import type { ElementalAPI } from '@elemental/sdk';
-import type { OrchestratorTaskMeta, MergeStatus } from '../types/index.js';
+import type { OrchestratorTaskMeta, MergeStatus, HandoffHistoryEntry } from '../types/index.js';
 import {
   getOrchestratorTaskMeta,
   setOrchestratorTaskMeta,
@@ -62,6 +62,40 @@ export interface CompleteTaskOptions {
   summary?: string;
   /** Commit hash for the final commit */
   commitHash?: string;
+  /** Whether to create a pull request (default: true if branch exists) */
+  createPR?: boolean;
+  /** Custom PR title (defaults to task title) */
+  prTitle?: string;
+  /** Custom PR body (defaults to task description + summary) */
+  prBody?: string;
+  /** Base branch for PR (defaults to 'main' or 'master') */
+  baseBranch?: string;
+}
+
+/**
+ * Options for handing off a task
+ */
+export interface HandoffTaskOptions {
+  /** Session ID of the agent handing off */
+  sessionId: string;
+  /** Handoff message explaining why and providing context */
+  message?: string;
+  /** Override branch (defaults to current task branch) */
+  branch?: string;
+  /** Override worktree path (defaults to current task worktree) */
+  worktree?: string;
+}
+
+/**
+ * Result of a task completion with optional PR info
+ */
+export interface TaskCompletionResult {
+  /** The updated task */
+  task: Task;
+  /** URL of the created PR, if applicable */
+  prUrl?: string;
+  /** PR number, if applicable */
+  prNumber?: number;
 }
 
 /**
@@ -193,12 +227,30 @@ export interface TaskAssignmentService {
    *
    * Sets the task status to 'done' and records completion time.
    * The task remains assigned for merge tracking.
+   * Optionally creates a pull request for the task branch.
    *
    * @param taskId - The task to complete
    * @param options - Optional completion options
+   * @returns The updated task and optional PR info
+   */
+  completeTask(taskId: ElementId, options?: CompleteTaskOptions): Promise<TaskCompletionResult>;
+
+  /**
+   * Hands off a task to be picked up by another agent.
+   *
+   * This method:
+   * 1. Preserves branch/worktree reference in task metadata
+   * 2. Appends a handoff note to the task description
+   * 3. Unassigns the task so it returns to the pool
+   *
+   * The next agent assigned to this task can continue from the
+   * existing branch/worktree state.
+   *
+   * @param taskId - The task to hand off
+   * @param options - Handoff options including session ID and message
    * @returns The updated task
    */
-  completeTask(taskId: ElementId, options?: CompleteTaskOptions): Promise<Task>;
+  handoffTask(taskId: ElementId, options: HandoffTaskOptions): Promise<Task>;
 
   /**
    * Updates the session ID for a task.
@@ -326,22 +378,27 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     // Update task assignee
     await this.api.update<Task>(taskId, { assignee: agentId });
 
-    // Set orchestrator metadata
-    const orchestratorMeta: OrchestratorTaskMeta = {
+    // Get existing orchestrator metadata to preserve handoff history
+    const existingMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
+
+    // Build new orchestrator metadata, preserving handoff context if this is a reassignment
+    const orchestratorMeta: Record<string, unknown> = {
       assignedAgent: agentId,
-      branch,
-      worktree,
+      branch: options?.branch ?? existingMeta?.handoffBranch ?? branch,
+      worktree: options?.worktree ?? existingMeta?.handoffWorktree ?? worktree,
       sessionId: options?.sessionId,
-      mergeStatus: 'pending',
+      mergeStatus: 'pending' as MergeStatus,
+      // Preserve handoff history from previous assignments
+      handoffHistory: existingMeta?.handoffHistory,
     };
 
     // If marking as started, add start time
     if (options?.markAsStarted) {
-      (orchestratorMeta as { startedAt?: Timestamp }).startedAt = createTimestamp();
+      orchestratorMeta.startedAt = createTimestamp();
     }
 
     const currentMeta = task.metadata as Record<string, unknown> | undefined;
-    const newMetadata = setOrchestratorTaskMeta(currentMeta, orchestratorMeta);
+    const newMetadata = setOrchestratorTaskMeta(currentMeta, orchestratorMeta as OrchestratorTaskMeta);
 
     // Update status to active if marking as started
     const updates: Partial<Task> = { metadata: newMetadata };
@@ -403,33 +460,185 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     });
   }
 
-  async completeTask(taskId: ElementId, options?: CompleteTaskOptions): Promise<Task> {
+  async completeTask(taskId: ElementId, options?: CompleteTaskOptions): Promise<TaskCompletionResult> {
     const task = await this.api.get<Task>(taskId);
     if (!task || task.type !== ElementType.TASK) {
       throw new Error(`Task not found: ${taskId}`);
     }
 
-    const metaUpdates: Partial<OrchestratorTaskMeta> = {
+    const currentMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
+    const branch = currentMeta?.branch;
+
+    // Build the base metadata updates
+    const metaUpdates: Record<string, unknown> = {
       completedAt: createTimestamp(),
-      mergeStatus: 'pending',
+      mergeStatus: 'pending' as MergeStatus,
     };
 
     // Add optional completion info
     if (options?.summary) {
-      (metaUpdates as Record<string, unknown>).completionSummary = options.summary;
+      metaUpdates.completionSummary = options.summary;
     }
     if (options?.commitHash) {
-      (metaUpdates as Record<string, unknown>).lastCommitHash = options.commitHash;
+      metaUpdates.lastCommitHash = options.commitHash;
+    }
+
+    // Try to create a PR if we have a branch and createPR is not explicitly false
+    let prUrl: string | undefined;
+    let prNumber: number | undefined;
+
+    if (branch && options?.createPR !== false) {
+      try {
+        const prResult = await this.createPullRequest(task, branch, {
+          title: options?.prTitle,
+          body: options?.prBody,
+          summary: options?.summary,
+          baseBranch: options?.baseBranch,
+        });
+        prUrl = prResult.url;
+        prNumber = prResult.number;
+        metaUpdates.prUrl = prUrl;
+        metaUpdates.prNumber = prNumber;
+      } catch (err) {
+        // Log but don't fail completion if PR creation fails
+        console.warn(`Failed to create PR for task ${taskId}:`, err);
+      }
     }
 
     const newMeta = updateOrchestratorTaskMeta(
       task.metadata as Record<string, unknown> | undefined,
-      metaUpdates
+      metaUpdates as Partial<OrchestratorTaskMeta>
     );
 
-    return this.api.update<Task>(taskId, {
+    const updatedTask = await this.api.update<Task>(taskId, {
       status: TaskStatus.CLOSED,
       metadata: newMeta,
+    });
+
+    return {
+      task: updatedTask,
+      prUrl,
+      prNumber,
+    };
+  }
+
+  async handoffTask(taskId: ElementId, options: HandoffTaskOptions): Promise<Task> {
+    const task = await this.api.get<Task>(taskId);
+    if (!task || task.type !== ElementType.TASK) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    const currentMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
+    const { sessionId, message, branch, worktree } = options;
+
+    // Determine the branch and worktree to preserve
+    const handoffBranch = branch || currentMeta?.branch;
+    const handoffWorktree = worktree || currentMeta?.worktree;
+
+    // Build handoff history (append to existing history)
+    const existingHistory = (currentMeta as Record<string, unknown> | undefined)?.handoffHistory as HandoffHistoryEntry[] | undefined;
+    const handoffEntry: HandoffHistoryEntry = {
+      sessionId,
+      message,
+      branch: handoffBranch,
+      worktree: handoffWorktree,
+      handoffAt: createTimestamp(),
+    };
+    const handoffHistory = [...(existingHistory || []), handoffEntry];
+
+    // Update orchestrator metadata with handoff info
+    const metaUpdates: Record<string, unknown> = {
+      // Clear assignment but preserve branch/worktree for continuation
+      assignedAgent: undefined,
+      sessionId: undefined,
+      startedAt: undefined,
+      // Store handoff context
+      handoffBranch,
+      handoffWorktree,
+      lastSessionId: sessionId,
+      handoffAt: createTimestamp(),
+      handoffMessage: message,
+      handoffHistory,
+    };
+
+    const newMeta = updateOrchestratorTaskMeta(
+      task.metadata as Record<string, unknown> | undefined,
+      metaUpdates as Partial<OrchestratorTaskMeta>
+    );
+
+    // Update task: clear assignee, update metadata
+    // Note: We store the handoff note in metadata since tasks use descriptionRef
+    return this.api.update<Task>(taskId, {
+      assignee: undefined,
+      metadata: newMeta,
+    });
+  }
+
+  /**
+   * Creates a pull request for a completed task using the gh CLI
+   */
+  private async createPullRequest(
+    task: Task,
+    branch: string,
+    options: {
+      title?: string;
+      body?: string;
+      summary?: string;
+      baseBranch?: string;
+    }
+  ): Promise<{ url: string; number: number }> {
+    const { spawn } = await import('node:child_process');
+
+    const title = options.title || task.title;
+    const baseBranch = options.baseBranch || 'main';
+
+    // Build PR body
+    let body = `## Task\n\n**ID:** ${task.id}\n**Title:** ${task.title}\n\n`;
+    if (options.summary) {
+      body += `## Summary\n\n${options.summary}\n\n`;
+    }
+    body += `---\n_Created by Elemental Orchestrator_`;
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        'pr', 'create',
+        '--title', title,
+        '--body', body,
+        '--head', branch,
+        '--base', baseBranch,
+      ];
+
+      const proc = spawn('gh', args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('close', (code: number | null) => {
+        if (code === 0) {
+          // The output is typically a URL like https://github.com/owner/repo/pull/123
+          const trimmedOutput = stdout.trim();
+          // Try to extract PR number from the URL
+          const match = trimmedOutput.match(/\/pull\/(\d+)$/);
+          const prNumber = match ? parseInt(match[1], 10) : 0;
+          resolve({ url: trimmedOutput, number: prNumber });
+        } else {
+          reject(new Error(`gh pr create failed (code ${code}): ${stderr}`));
+        }
+      });
+
+      proc.on('error', (err: Error) => {
+        reject(new Error(`Failed to spawn gh: ${err.message}`));
+      });
     });
   }
 

@@ -115,7 +115,7 @@ describe('TaskAssignmentService', () => {
       expect(meta).toBeDefined();
       expect(meta?.assignedAgent).toBe(agentId);
       expect(meta?.branch).toContain('agent/alice/');
-      expect(meta?.worktree).toContain('.worktrees/alice-');
+      expect(meta?.worktree).toContain('.elemental/.worktrees/alice-');
       expect(meta?.mergeStatus).toBe('pending');
     });
 
@@ -126,13 +126,13 @@ describe('TaskAssignmentService', () => {
       const agentId = worker.id as unknown as EntityId;
       const assigned = await service.assignToAgent(task.id, agentId, {
         branch: 'custom/branch-name',
-        worktree: '.worktrees/custom-worktree',
+        worktree: '.elemental/.worktrees/custom-worktree',
         sessionId: 'session-123',
       });
 
       const meta = getOrchestratorTaskMeta(assigned.metadata as Record<string, unknown>);
       expect(meta?.branch).toBe('custom/branch-name');
-      expect(meta?.worktree).toBe('.worktrees/custom-worktree');
+      expect(meta?.worktree).toBe('.elemental/.worktrees/custom-worktree');
       expect(meta?.sessionId).toBe('session-123');
     });
 
@@ -246,8 +246,9 @@ describe('TaskAssignmentService', () => {
       // Assign and start
       await service.assignToAgent(task.id, agentId, { markAsStarted: true });
 
-      // Complete
-      const completed = await service.completeTask(task.id);
+      // Complete - returns { task, prUrl?, prNumber? }
+      const result = await service.completeTask(task.id);
+      const completed = result.task;
 
       expect(completed.status).toBe(TaskStatus.CLOSED);
 
@@ -259,6 +260,83 @@ describe('TaskAssignmentService', () => {
     test('throws error when task does not exist', async () => {
       expect(
         service.completeTask('el-nonexistent' as ElementId)
+      ).rejects.toThrow('Task not found');
+    });
+  });
+
+  describe('handoffTask', () => {
+    test('hands off a task with message and preserves branch/worktree', async () => {
+      const task = await createTestTask('Task to handoff', TaskStatus.IN_PROGRESS);
+      const worker = await createTestWorker('hannah');
+      const agentId = worker.id as unknown as EntityId;
+
+      // Assign with branch and worktree
+      await service.assignToAgent(task.id, agentId, {
+        branch: 'feature/my-task',
+        worktree: '.elemental/.worktrees/my-task',
+        markAsStarted: true,
+      });
+
+      // Hand off the task
+      const handedOff = await service.handoffTask(task.id, {
+        sessionId: 'sess-123',
+        message: 'Completed backend, need frontend help',
+      });
+
+      // Task should be unassigned
+      expect(handedOff.assignee).toBeUndefined();
+
+      // Metadata should preserve handoff context
+      const meta = getOrchestratorTaskMeta(handedOff.metadata as Record<string, unknown>);
+      expect(meta?.handoffBranch).toBe('feature/my-task');
+      expect(meta?.handoffWorktree).toBe('.elemental/.worktrees/my-task');
+      expect(meta?.lastSessionId).toBe('sess-123');
+      expect(meta?.handoffAt).toBeDefined();
+      expect((meta as Record<string, unknown>)?.handoffMessage).toBe('Completed backend, need frontend help');
+    });
+
+    test('builds handoff history across multiple handoffs', async () => {
+      const task = await createTestTask('Multi-handoff task', TaskStatus.IN_PROGRESS);
+      const worker1 = await createTestWorker('worker1');
+      const worker2 = await createTestWorker('worker2');
+
+      // First agent works on it
+      await service.assignToAgent(task.id, worker1.id as unknown as EntityId, {
+        branch: 'feature/task-1',
+        markAsStarted: true,
+      });
+
+      // First handoff
+      await service.handoffTask(task.id, {
+        sessionId: 'sess-1',
+        message: 'First handoff note',
+      });
+
+      // Second agent picks it up
+      await service.assignToAgent(task.id, worker2.id as unknown as EntityId, {
+        markAsStarted: true,
+      });
+
+      // Second handoff
+      const result = await service.handoffTask(task.id, {
+        sessionId: 'sess-2',
+        message: 'Second handoff note',
+      });
+
+      const meta = getOrchestratorTaskMeta(result.metadata as Record<string, unknown>);
+      const history = (meta as Record<string, unknown>)?.handoffHistory as Array<{sessionId: string; message?: string}>;
+
+      expect(history).toBeDefined();
+      expect(history.length).toBe(2);
+      expect(history[0].sessionId).toBe('sess-1');
+      expect(history[0].message).toBe('First handoff note');
+      expect(history[1].sessionId).toBe('sess-2');
+      expect(history[1].message).toBe('Second handoff note');
+    });
+
+    test('throws error when task does not exist', async () => {
+      expect(
+        service.handoffTask('el-nonexistent' as ElementId, { sessionId: 'sess-1' })
       ).rejects.toThrow('Task not found');
     });
   });
@@ -515,7 +593,7 @@ describe('Branch and Worktree Generation Integration', () => {
 
   test('generateWorktreePath creates expected format', () => {
     const worktree = generateWorktreePath('worker-bob', 'fix-bug');
-    expect(worktree).toBe('.worktrees/worker-bob-fix-bug');
+    expect(worktree).toBe('.elemental/.worktrees/worker-bob-fix-bug');
   });
 
   test('createSlugFromTitle handles special characters', () => {

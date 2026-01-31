@@ -372,14 +372,14 @@ export class WorkerTaskServiceImpl implements WorkerTaskService {
     }
 
     // 2. Mark the task as completed using TaskAssignmentService
-    const completedTask = await this.taskAssignment.completeTask(taskId, {
+    const completeResult = await this.taskAssignment.completeTask(taskId, {
       summary: options.summary,
       commitHash: options.commitHash,
     });
 
     // 3. Get worktree info if applicable
     let worktree: WorktreeInfo | undefined;
-    const orchestratorMeta = (completedTask.metadata as {
+    const orchestratorMeta = (completeResult.task.metadata as {
       orchestrator?: { worktree?: string };
     })?.orchestrator;
 
@@ -389,7 +389,7 @@ export class WorkerTaskServiceImpl implements WorkerTaskService {
 
     // 4. The task is now ready for merge (merge status set to 'pending' by completeTask)
     return {
-      task: completedTask,
+      task: completeResult.task,
       worktree,
       readyForMerge: true,
       completedAt,

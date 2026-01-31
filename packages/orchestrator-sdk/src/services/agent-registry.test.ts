@@ -421,11 +421,11 @@ describe('AgentRegistry', () => {
       // Update with branch info (simulating task assignment)
       const updated = await registry.updateAgentMetadata(
         worker.id as unknown as EntityId,
-        { worktree: '.worktrees/meta-worker-task' } as any
+        { worktree: '.elemental/.worktrees/meta-worker-task' } as any
       );
 
       const meta = getAgentMetadata(updated) as WorkerMetadata;
-      expect(meta.worktree).toBe('.worktrees/meta-worker-task');
+      expect(meta.worktree).toBe('.elemental/.worktrees/meta-worker-task');
       // Original fields preserved
       expect(meta.agentRole).toBe('worker');
       expect(meta.workerMode).toBe('ephemeral');
