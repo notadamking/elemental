@@ -81,6 +81,18 @@ export async function initializeServices(): Promise<Services> {
 
   const sessionManager = createSessionManager(spawnerService, api, agentRegistry);
   const sessionInitialPrompts = new Map<string, string>();
+
+  // Load session state for all agents to restore session history after restart
+  const agents = await agentRegistry.listAgents();
+  for (const agent of agents) {
+    try {
+      await sessionManager.loadSessionState(agent.id as unknown as EntityId);
+    } catch (err) {
+      console.warn(`[orchestrator] Failed to load session state for agent ${agent.name}:`, err);
+    }
+  }
+  console.log(`[orchestrator] Loaded session state for ${agents.length} agents`);
+
   const taskAssignmentService = createTaskAssignmentService(api);
   const dispatchService = createDispatchService(api, taskAssignmentService, agentRegistry);
   const roleDefinitionService = createRoleDefinitionService(api);
