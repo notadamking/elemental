@@ -173,17 +173,17 @@ describe('Branch and Path Generation', () => {
   describe('generateWorktreePath', () => {
     test('generates path with slug', () => {
       const wtPath = generateWorktreePath('alice', 'feature');
-      expect(wtPath).toBe('.worktrees/alice-feature');
+      expect(wtPath).toBe('.elemental/.worktrees/alice-feature');
     });
 
     test('generates path without slug', () => {
       const wtPath = generateWorktreePath('alice');
-      expect(wtPath).toBe('.worktrees/alice');
+      expect(wtPath).toBe('.elemental/.worktrees/alice');
     });
 
     test('sanitizes worker name', () => {
       const wtPath = generateWorktreePath('Alice Smith', 'feature');
-      expect(wtPath).toBe('.worktrees/alice-smith-feature');
+      expect(wtPath).toBe('.elemental/.worktrees/alice-smith-feature');
     });
   });
 
@@ -231,19 +231,19 @@ describe('WorktreeManager Initialization', () => {
     expect(manager.getWorkspaceRoot()).toBe(tempDir);
   });
 
-  test('creates .worktrees directory on init', async () => {
+  test('creates .elemental/.worktrees directory on init', async () => {
     const manager = createWorktreeManager({ workspaceRoot: tempDir });
     await manager.initWorkspace();
 
-    expect(fs.existsSync(path.join(tempDir, '.worktrees'))).toBe(true);
+    expect(fs.existsSync(path.join(tempDir, '.elemental/.worktrees'))).toBe(true);
   });
 
-  test('adds .worktrees to .gitignore', async () => {
+  test('adds .elemental/.worktrees to .gitignore', async () => {
     const manager = createWorktreeManager({ workspaceRoot: tempDir });
     await manager.initWorkspace();
 
     const gitignore = fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8');
-    expect(gitignore).toContain('/.worktrees/');
+    expect(gitignore).toContain('/.elemental/.worktrees/');
   });
 
   test('throws GitRepositoryNotFoundError for non-git directory', async () => {
@@ -308,11 +308,11 @@ describe('WorktreeManager Operations', () => {
         agentName: 'bob',
         taskId: 'task-456' as ElementId,
         customBranch: 'feature/custom-branch',
-        customPath: '.worktrees/custom-path',
+        customPath: '.elemental/.worktrees/custom-path',
       });
 
       expect(result.branch).toBe('feature/custom-branch');
-      expect(result.worktree.relativePath).toBe('.worktrees/custom-path');
+      expect(result.worktree.relativePath).toBe('.elemental/.worktrees/custom-path');
       expect(fs.existsSync(result.path)).toBe(true);
     });
 
@@ -376,7 +376,7 @@ describe('WorktreeManager Operations', () => {
 
     test('throws error for non-existent worktree', async () => {
       await expect(
-        manager.removeWorktree('.worktrees/nonexistent')
+        manager.removeWorktree('.elemental/.worktrees/nonexistent')
       ).rejects.toThrow('Worktree not found');
     });
 
@@ -406,7 +406,7 @@ describe('WorktreeManager Operations', () => {
 
     test('throws error when suspending non-existent worktree', async () => {
       await expect(
-        manager.suspendWorktree('.worktrees/nonexistent')
+        manager.suspendWorktree('.elemental/.worktrees/nonexistent')
       ).rejects.toThrow('Worktree not found');
     });
 
@@ -475,7 +475,7 @@ describe('WorktreeManager Operations', () => {
     });
 
     test('returns undefined for non-existent worktree', async () => {
-      const worktree = await manager.getWorktree('.worktrees/nonexistent');
+      const worktree = await manager.getWorktree('.elemental/.worktrees/nonexistent');
       expect(worktree).toBeUndefined();
     });
   });
@@ -483,12 +483,12 @@ describe('WorktreeManager Operations', () => {
   describe('getWorktreePath', () => {
     test('generates worktree path', () => {
       const wtPath = manager.getWorktreePath('alice', 'Feature Task');
-      expect(wtPath).toBe(path.join(tempDir, '.worktrees/alice-feature-task'));
+      expect(wtPath).toBe(path.join(tempDir, '.elemental/.worktrees/alice-feature-task'));
     });
 
     test('generates worktree path without title', () => {
       const wtPath = manager.getWorktreePath('alice');
-      expect(wtPath).toBe(path.join(tempDir, '.worktrees/alice'));
+      expect(wtPath).toBe(path.join(tempDir, '.elemental/.worktrees/alice'));
     });
   });
 

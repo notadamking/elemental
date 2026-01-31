@@ -8,7 +8,7 @@
  * - Verify git repo exists before operations
  * - Create isolated worktrees for workers
  * - Branch naming: agent/{worker-name}/{task-id}-{slug}
- * - Worktree path: .worktrees/{worker-name}-{task-slug}/
+ * - Worktree path: .elemental/.worktrees/{worker-name}-{task-slug}/
  * - Clean up worktrees after merge
  *
  * @module
@@ -73,7 +73,7 @@ export const WorktreeStateTransitions: Record<WorktreeState, WorktreeState[]> = 
 export interface WorktreeInfo {
   /** Full path to the worktree directory */
   readonly path: string;
-  /** Relative path from workspace root (e.g., ".worktrees/alice-feature") */
+  /** Relative path from workspace root (e.g., ".elemental/.worktrees/alice-feature") */
   readonly relativePath: string;
   /** Branch checked out in this worktree */
   readonly branch: string;
@@ -143,7 +143,7 @@ export interface CreateWorktreeResult {
 export interface WorktreeManagerConfig {
   /** Workspace root directory (must be a git repo) */
   readonly workspaceRoot: string;
-  /** Directory for worktrees relative to workspace root (default: ".worktrees") */
+  /** Directory for worktrees relative to workspace root (default: ".elemental/.worktrees") */
   readonly worktreeDir?: string;
   /** Default base branch (default: auto-detect from git) */
   readonly defaultBaseBranch?: string;
@@ -330,7 +330,7 @@ export class WorktreeManagerImpl implements WorktreeManager {
   constructor(config: WorktreeManagerConfig) {
     this.config = {
       workspaceRoot: path.resolve(config.workspaceRoot),
-      worktreeDir: config.worktreeDir ?? '.worktrees',
+      worktreeDir: config.worktreeDir ?? '.elemental/.worktrees',
       defaultBaseBranch: config.defaultBaseBranch ?? '',
     };
   }
@@ -659,8 +659,10 @@ export class WorktreeManagerImpl implements WorktreeManager {
 
     return worktrees.filter((w) => {
       // Check if the relative path starts with the agent's prefix
-      // Match either exact name (.worktrees/bob) or name with slug (.worktrees/bob-feature)
-      const pathPattern = new RegExp(`^${this.config.worktreeDir}/${safeName}($|-)`);
+      // Match either exact name (.elemental/.worktrees/bob) or name with slug (.elemental/.worktrees/bob-feature)
+      // Escape special regex characters in the worktreeDir path (like .)
+      const escapedDir = this.config.worktreeDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pathPattern = new RegExp(`^${escapedDir}/${safeName}($|-)`);
       return pathPattern.test(w.relativePath);
     });
   }
@@ -811,7 +813,9 @@ export class WorktreeManagerImpl implements WorktreeManager {
     let agentName: string | undefined;
     let taskId: string | undefined;
 
-    const match = relativePath.match(/^\.worktrees\/([^-]+)-/);
+    // Escape special regex characters in the worktreeDir path and match agent name
+    const escapedDir = this.config.worktreeDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = relativePath.match(new RegExp(`^${escapedDir}/([^-]+)-`));
     if (match) {
       agentName = match[1];
       // Task ID might be in the branch name

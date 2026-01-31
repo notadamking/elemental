@@ -481,7 +481,7 @@ test.describe('TB-O25c: Settings Page', () => {
       await page.getByTestId('settings-reset-confirm').click();
 
       // Should be back to default
-      await expect(worktreeInput).toHaveValue('.worktrees/');
+      await expect(worktreeInput).toHaveValue('.elemental/.worktrees/');
     });
   });
 

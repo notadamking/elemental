@@ -246,13 +246,13 @@ describe('OrchestratorAPI', () => {
     test('setTaskOrchestratorMeta sets orchestrator metadata', async () => {
       const updated = await api.setTaskOrchestratorMeta(task.id, {
         branch: 'agent/taskworker/task-1-implement-auth',
-        worktree: '.worktrees/taskworker-implement-auth',
+        worktree: '.elemental/.worktrees/taskworker-implement-auth',
       });
 
       const meta = await api.getTaskOrchestratorMeta(task.id);
       expect(meta).toBeDefined();
       expect(meta?.branch).toBe('agent/taskworker/task-1-implement-auth');
-      expect(meta?.worktree).toBe('.worktrees/taskworker-implement-auth');
+      expect(meta?.worktree).toBe('.elemental/.worktrees/taskworker-implement-auth');
     });
 
     test('updateTaskOrchestratorMeta updates existing metadata', async () => {
@@ -278,7 +278,7 @@ describe('OrchestratorAPI', () => {
       expect(meta).toBeDefined();
       expect(meta?.assignedAgent).toBe(worker.id);
       expect(meta?.branch).toContain('agent/taskworker/');
-      expect(meta?.worktree).toContain('.worktrees/taskworker');
+      expect(meta?.worktree).toContain('.elemental/.worktrees/taskworker');
       expect(meta?.startedAt).toBeDefined();
     });
   });

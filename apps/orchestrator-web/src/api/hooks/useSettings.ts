@@ -70,7 +70,7 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 };
 
 const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
-  worktreeDirectory: '.worktrees/',
+  worktreeDirectory: '.elemental/.worktrees/',
   ephemeralRetention: '24h',
   defaultBranch: 'main',
   autoMerge: false,

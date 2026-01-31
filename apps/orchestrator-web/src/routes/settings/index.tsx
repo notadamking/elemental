@@ -269,7 +269,7 @@ function WorkspaceTab() {
               value={workspace.settings.worktreeDirectory}
               onChange={(e) => workspace.setSettings({ worktreeDirectory: e.target.value })}
               className="w-full px-3 py-2 rounded-md border border-[var(--color-border)] bg-[var(--color-input-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-              placeholder=".worktrees/"
+              placeholder=".elemental/.worktrees/"
               data-testid="settings-worktree-dir"
             />
             <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">

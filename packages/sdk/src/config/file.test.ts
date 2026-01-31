@@ -160,8 +160,8 @@ describe('findElementalDir', () => {
     const workspaceElemental = path.join(workspaceRoot, ELEMENTAL_DIR);
     fs.mkdirSync(workspaceElemental);
 
-    // Simulate worktree (no .elemental)
-    const worktree = path.join(tempDir, '.worktrees', 'worker-alice-task-123');
+    // Simulate worktree inside .elemental directory (no separate .elemental folder in worktree)
+    const worktree = path.join(tempDir, '.elemental', '.worktrees', 'worker-alice-task-123');
     fs.mkdirSync(worktree, { recursive: true });
 
     try {

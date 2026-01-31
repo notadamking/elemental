@@ -115,7 +115,7 @@ const task = await api.assignTaskToAgent(taskId, workerId);
 // With explicit options
 const task = await api.assignTaskToAgent(taskId, workerId, {
   branch: 'agent/worker-1/task-feat-auth',
-  worktree: '.worktrees/worker-1-feat-auth',
+  worktree: '.elemental/.worktrees/worker-1-feat-auth',
   sessionId: 'claude-session-123',
 });
 

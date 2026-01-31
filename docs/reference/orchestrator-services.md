@@ -124,7 +124,7 @@ const assignmentService = createTaskAssignmentService(api);
 // Assign task
 const task = await assignmentService.assignToAgent(taskId, agentId, {
   branch: 'custom/branch',
-  worktree: '.worktrees/custom',
+  worktree: '.elemental/.worktrees/custom',
   sessionId: 'session-123',
   markAsStarted: true,
 });
@@ -205,7 +205,7 @@ const dispatchService = createDispatchService(api, assignmentService, registry);
 ```typescript
 const result = await dispatchService.dispatch(taskId, agentId, {
   branch: 'custom/branch',
-  worktree: '.worktrees/custom',
+  worktree: '.elemental/.worktrees/custom',
   priority: 10,
   restart: true,
   markAsStarted: true,
@@ -232,25 +232,6 @@ const results = await dispatchService.dispatchBatch(
 );
 ```
 
-### Smart Dispatch
-
-Auto-dispatch to first available agent with capacity.
-
-```typescript
-// Auto-dispatch to available agent
-const result = await dispatchService.smartDispatch(taskId, {
-  priority: 5,
-});
-
-// Get candidates without dispatching
-const candidates = await dispatchService.getCandidates(taskId);
-// candidates.candidates - available agents with capacity
-// candidates.bestCandidate - first available
-
-// Get just best agent
-const best = await dispatchService.getBestAgent(taskId);
-```
-
 ### Agent Notification (without assignment)
 
 ```typescript
@@ -261,6 +242,63 @@ await dispatchService.notifyAgent(
   { reason: 'configuration change' }
 );
 ```
+
+---
+
+## DispatchDaemon
+
+**File:** `services/dispatch-daemon.ts`
+
+Continuously running process that coordinates task assignment and message delivery across all agents.
+
+```typescript
+import { createDispatchDaemon } from '@elemental/orchestrator-sdk';
+
+const daemon = createDispatchDaemon(api, spawner, sessionManager, {
+  pollIntervalMs: 5000,
+});
+```
+
+### Starting the Daemon
+
+```typescript
+// Start the daemon
+await daemon.start();
+
+// Stop the daemon
+await daemon.stop();
+```
+
+### Polling Loops
+
+The daemon runs four concurrent polling loops:
+
+| Loop | Purpose |
+|------|---------|
+| **Worker Availability** | Find available ephemeral workers and assign highest priority unassigned tasks |
+| **Inbox Polling** | Deliver messages to agents and spawn sessions when needed |
+| **Steward Triggers** | Check for triggered conditions and create workflows from playbooks |
+| **Workflow Tasks** | Assign workflow tasks to available stewards |
+
+### Worker Dispatch Behavior
+
+1. Find ephemeral workers without an active session
+2. For each available worker:
+   - Query for highest priority unassigned task
+   - Assign task to worker
+   - Send dispatch message to worker's inbox
+   - Spawn worker in task worktree
+
+### Inbox Dispatch Behavior
+
+For ephemeral workers and stewards:
+- Dispatch message + no active session = spawn agent
+- Non-dispatch message + active session = forward to session
+- Non-dispatch message + no active session = silently drop
+
+For persistent workers and directors:
+- Active session = forward message as user input
+- No active session = message waits
 
 ---
 
