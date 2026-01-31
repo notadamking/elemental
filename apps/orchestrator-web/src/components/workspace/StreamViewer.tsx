@@ -371,9 +371,11 @@ export function StreamViewer({
       return;
     }
 
-    // Reset state when session changes
+    // Reset reconnect attempts when session changes, but DON'T clear events
+    // The message loading effect will populate events from the database
+    // Clearing here would cause a race condition where events are cleared
+    // before the message loading completes
     reconnectAttempts.current = 0;
-    setEvents([]);
     setIsWorking(false);
 
     const connect = () => {

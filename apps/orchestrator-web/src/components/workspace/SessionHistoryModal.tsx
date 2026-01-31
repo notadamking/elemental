@@ -37,8 +37,8 @@ export interface SessionHistoryModalProps {
   sessions: SessionRecord[];
   /** Whether the agent currently has an active session */
   hasActiveSession?: boolean;
-  /** Called when user wants to resume a session */
-  onResumeSession?: (claudeSessionId: string) => void;
+  /** Called when user wants to resume a session. Pass both claudeSessionId and sessionId for transcript loading. */
+  onResumeSession?: (claudeSessionId: string, sessionId: string) => void;
   /** Whether a resume is currently in progress */
   isResuming?: boolean;
 }
@@ -553,7 +553,7 @@ export function SessionHistoryModal({
                     isSelected={session.id === selectedSessionId}
                     onClick={() => setSelectedSessionId(session.id)}
                     onDelete={() => handleDeleteTranscript(session.id)}
-                    onResume={session.claudeSessionId && onResumeSession ? () => onResumeSession(session.claudeSessionId!) : undefined}
+                    onResume={session.claudeSessionId && onResumeSession ? () => onResumeSession(session.claudeSessionId!, session.id) : undefined}
                     canResume={!hasActiveSession && !!session.claudeSessionId && !!onResumeSession}
                     isResuming={isResuming}
                   />
@@ -574,7 +574,7 @@ export function SessionHistoryModal({
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {canResumeSelected && (
                           <button
-                            onClick={() => onResumeSession(selectedSession!.claudeSessionId!)}
+                            onClick={() => onResumeSession(selectedSession!.claudeSessionId!, selectedSession!.id)}
                             disabled={isResuming}
                             className="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             title="Resume this session"

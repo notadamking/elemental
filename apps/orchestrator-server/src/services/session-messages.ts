@@ -34,6 +34,11 @@ export interface SessionMessageService {
   getSessionMessages(sessionId: string): SessionMessage[];
 
   /**
+   * Get messages for multiple sessions (for loading related/resumed sessions)
+   */
+  getMessagesForSessions(sessionIds: string[]): SessionMessage[];
+
+  /**
    * Get messages for a session after a specific message ID (for incremental loading)
    */
   getSessionMessagesAfter(sessionId: string, afterId: string): SessionMessage[];
@@ -106,6 +111,19 @@ export function createSessionMessageService(storage: StorageBackend): SessionMes
       const rows = storage.query<DbSessionMessage>(
         `SELECT * FROM session_messages WHERE session_id = ? ORDER BY created_at ASC`,
         [sessionId]
+      );
+      return rows.map(dbToMessage);
+    },
+
+    getMessagesForSessions(sessionIds) {
+      if (sessionIds.length === 0) {
+        return [];
+      }
+      // Build placeholders for IN clause
+      const placeholders = sessionIds.map(() => '?').join(', ');
+      const rows = storage.query<DbSessionMessage>(
+        `SELECT * FROM session_messages WHERE session_id IN (${placeholders}) ORDER BY created_at ASC`,
+        sessionIds
       );
       return rows.map(dbToMessage);
     },

@@ -84,6 +84,10 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   const [showTextbox, setShowTextbox] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  // Track the current session ID, persisting even after session ends for transcript display
+  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined);
+  // Track if we're viewing a session that has ended (for showing transcript without overlay)
+  const [viewingEndedSession, setViewingEndedSession] = useState(false);
   const terminalRef = useRef<XTerminalHandle>(null);
   const paneRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +99,17 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
   const resumeSession = useResumeAgentSession();
 
   const hasActiveSession = statusData?.hasActiveSession ?? false;
+
+  // Update currentSessionId when active session changes
+  useEffect(() => {
+    if (statusData?.activeSession?.id) {
+      setCurrentSessionId(statusData.activeSession.id);
+      setViewingEndedSession(false);
+    } else if (currentSessionId && !hasActiveSession) {
+      // Session just ended, keep the ID for transcript display
+      setViewingEndedSession(true);
+    }
+  }, [statusData?.activeSession?.id, hasActiveSession, currentSessionId]);
 
   const handleStartSession = useCallback(async () => {
     try {
@@ -115,13 +130,23 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
     }
   }, [pane.agentId, stopSession]);
 
-  const handleResumeSession = useCallback(async (claudeSessionId: string) => {
+  const handleResumeSession = useCallback(async (claudeSessionId: string, historySessionId?: string) => {
     try {
+      // If we have a history session ID, set it immediately so transcript loads
+      // This ensures the transcript is visible even if the session exits immediately
+      if (historySessionId) {
+        setCurrentSessionId(historySessionId);
+        setViewingEndedSession(false);
+      }
       await resumeSession.mutateAsync({ agentId: pane.agentId, claudeSessionId });
       // Close the history modal after successful resume
       setShowHistory(false);
     } catch (err) {
       console.error('Failed to resume session:', err);
+      // If resume failed but we set a history session ID, keep it for viewing
+      if (historySessionId) {
+        setViewingEndedSession(true);
+      }
     }
   }, [pane.agentId, resumeSession]);
 
@@ -548,14 +573,15 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
           <StreamViewer
             agentId={pane.agentId}
             agentName={pane.agentName}
-            sessionId={statusData?.activeSession?.id}
+            sessionId={currentSessionId}
             onStatusChange={handleStatusChange}
             data-testid={`stream-${pane.id}`}
           />
         )}
 
         {/* Idle/Stopped/Shutting down overlay for non-director agents */}
-        {pane.agentRole !== 'director' && (!hasActiveSession || stopSession.isPending) && (
+        {/* Don't show overlay when viewing an ended session (so transcript remains visible) */}
+        {pane.agentRole !== 'director' && (!hasActiveSession || stopSession.isPending) && !viewingEndedSession && (
           <div
             className="
               absolute inset-0 z-10

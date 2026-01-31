@@ -627,12 +627,32 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
 
   // GET /api/sessions/:id/messages
   // Retrieve all messages for a session (for transcript restoration)
+  // Also loads messages from related sessions (those with the same claudeSessionId)
+  // to support viewing full history of resumed sessions
   app.get('/api/sessions/:id/messages', async (c) => {
     try {
       const sessionId = c.req.param('id');
       const url = new URL(c.req.url);
       const afterId = url.searchParams.get('after');
 
+      // Get the session to check for claudeSessionId
+      const session = sessionManager.getSession(sessionId);
+
+      // If session has a claudeSessionId, find all related sessions and load their messages too
+      // This is needed for resumed sessions which share a claudeSessionId
+      if (session?.claudeSessionId) {
+        // Find all sessions with the same claudeSessionId
+        const allSessions = sessionManager.listSessions({});
+        const relatedSessionIds = allSessions
+          .filter(s => s.claudeSessionId === session.claudeSessionId)
+          .map(s => s.id);
+
+        // Load messages from all related sessions
+        const messages = sessionMessageService.getMessagesForSessions(relatedSessionIds);
+        return c.json({ messages });
+      }
+
+      // Fallback to just loading messages for this session
       const messages = afterId
         ? sessionMessageService.getSessionMessagesAfter(sessionId, afterId)
         : sessionMessageService.getSessionMessages(sessionId);
