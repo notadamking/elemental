@@ -18,6 +18,176 @@ type NotifyClientsCallback = (
   events: import('events').EventEmitter
 ) => void;
 
+/**
+ * Extract and save a session event to the database.
+ * This is called immediately when events are emitted to ensure all messages
+ * are persisted, even before any SSE client connects.
+ */
+function saveSessionEvent(
+  event: SpawnedSessionEvent,
+  sessionId: string,
+  agentId: EntityId,
+  sessionMessageService: Services['sessionMessageService']
+): string {
+  const msgId = `${event.type}-${sessionId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Skip saving system and result events (not displayed in UI)
+  if (event.type === 'system' || event.type === 'result') {
+    return msgId;
+  }
+
+  // Extract content from event (match client-side logic)
+  // Content can be in: event.message, event.raw?.message, event.raw?.content (if string)
+  // IMPORTANT: content MUST be a string or undefined, never an object (SQLite can't bind objects)
+  let content: string | undefined = typeof event.message === 'string' ? event.message : undefined;
+  if (!content && event.raw) {
+    const raw = event.raw as Record<string, unknown>;
+    // Only use raw.message if it's actually a string
+    if (typeof raw.message === 'string') {
+      content = raw.message;
+    } else if (typeof raw.content === 'string') {
+      content = raw.content;
+    }
+    // If raw.content is an array (Claude API format), extract text from text blocks
+    if (!content && Array.isArray(raw.content)) {
+      const textParts: string[] = [];
+      for (const block of raw.content) {
+        if (typeof block === 'object' && block !== null && 'type' in block) {
+          const b = block as { type: string; text?: string };
+          if (b.type === 'text' && typeof b.text === 'string') {
+            textParts.push(b.text);
+          }
+        }
+      }
+      if (textParts.length > 0) {
+        content = textParts.join('');
+      }
+    }
+  }
+
+  // Extract tool info from event
+  // Check multiple locations to match client-side extraction in StreamViewer.tsx
+  const eventAny = event as unknown as Record<string, unknown>;
+  const eventData = eventAny.data as Record<string, unknown> | undefined;
+  const rawTool = (event.raw as Record<string, unknown>)?.tool as string | undefined;
+  const rawToolInput = (event.raw as Record<string, unknown>)?.tool_input as unknown;
+  let toolName = event.tool?.name || eventData?.name as string | undefined || eventAny.toolName as string | undefined || rawTool;
+  let toolInput = event.tool?.input || eventData?.input || eventAny.toolInput || rawToolInput;
+  let toolOutput: string | undefined;
+  let actualType = event.type;
+
+  // Check for tool_use/tool_result blocks in content arrays (Claude API format)
+  // Content array can be in multiple locations depending on event source
+  // Must match the same locations the client checks in StreamViewer.tsx
+  const raw = event.raw as Record<string, unknown>;
+  const rawMessage = raw?.message as Record<string, unknown> | undefined;
+  const eventMessage = (event as unknown as Record<string, unknown>).message;
+  const eventContent = (event as unknown as Record<string, unknown>).content;
+  const rawContentArray =
+    rawMessage?.content ||    // raw.message.content
+    raw?.content ||           // raw.content
+    (typeof eventMessage === 'object' && eventMessage !== null
+      ? (eventMessage as Record<string, unknown>).content
+      : undefined) ||         // event.message.content
+    eventContent;             // event.content
+  if (Array.isArray(rawContentArray)) {
+    for (const block of rawContentArray) {
+      if (typeof block === 'object' && block !== null && 'type' in block) {
+        const b = block as { type: string; name?: string; input?: unknown; content?: string };
+        if (b.type === 'tool_use' && b.name) {
+          toolName = toolName || b.name;
+          toolInput = toolInput || b.input;
+          // Override type if we found tool info but type was 'assistant'
+          if (actualType === 'assistant') {
+            actualType = 'tool_use';
+          }
+        } else if (b.type === 'tool_result') {
+          toolOutput = typeof b.content === 'string' ? b.content : undefined;
+          if (actualType === 'user') {
+            actualType = 'tool_result';
+          }
+        }
+      }
+    }
+  }
+
+  // For tool_result, check additional fallback locations (match client-side logic)
+  if (!toolOutput) {
+    toolOutput =
+      eventAny.output as string | undefined ||
+      eventData?.output as string | undefined ||
+      (actualType === 'tool_result' && typeof raw?.content === 'string' ? raw.content as string : undefined);
+  }
+
+  // For tool_result events, content should be empty (output is in toolOutput)
+  const finalContent = (actualType === 'tool_result' && toolOutput) ? undefined : content;
+
+  // Safely stringify tool input (JSON.stringify can return undefined for functions)
+  let toolInputStr: string | undefined;
+  if (toolInput !== undefined && toolInput !== null) {
+    try {
+      const str = JSON.stringify(toolInput);
+      toolInputStr = typeof str === 'string' ? str : undefined;
+    } catch {
+      toolInputStr = String(toolInput);
+    }
+  }
+
+  sessionMessageService.saveMessage({
+    id: msgId,
+    sessionId: sessionId,
+    agentId,
+    type: actualType as 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'error',
+    content: finalContent,
+    toolName: toolName,
+    toolInput: toolInputStr,
+    toolOutput: toolOutput,
+    isError: actualType === 'error',
+  });
+
+  return msgId;
+}
+
+// Track sessions that already have the event saver attached to avoid duplicate listeners
+const sessionsWithEventSaver = new Set<string>();
+
+/**
+ * Attach an event listener to save session events immediately.
+ * This ensures all events are persisted even before any SSE client connects.
+ * Uses a Set to track attached sessions and avoid duplicate listeners.
+ */
+function attachSessionEventSaver(
+  events: import('events').EventEmitter,
+  sessionId: string,
+  agentId: EntityId,
+  sessionMessageService: Services['sessionMessageService']
+): void {
+  // Skip if already attached for this session
+  if (sessionsWithEventSaver.has(sessionId)) {
+    return;
+  }
+  sessionsWithEventSaver.add(sessionId);
+
+  const onEvent = (event: SpawnedSessionEvent) => {
+    saveSessionEvent(event, sessionId, agentId, sessionMessageService);
+  };
+
+  const onError = (error: Error) => {
+    const msgId = `error-${sessionId}-${Date.now()}`;
+    sessionMessageService.saveMessage({
+      id: msgId,
+      sessionId: sessionId,
+      agentId,
+      type: 'error',
+      content: error.message,
+      isError: true,
+    });
+  };
+
+  events.on('event', onEvent);
+  events.on('error', onError);
+}
+
 export function createSessionRoutes(
   services: Services,
   notifyClientsOfNewSession: NotifyClientsCallback
@@ -94,6 +264,10 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         interactive: body.interactive,
       });
 
+      // Attach event saver immediately to capture all events, including the first assistant response
+      // This must happen before any events are emitted to avoid missing early messages
+      attachSessionEventSaver(events, session.id, agentId, sessionMessageService);
+
       if (effectivePrompt) {
         sessionInitialPrompts.set(session.id, effectivePrompt);
         // Save initial prompt to database immediately (don't wait for SSE connection)
@@ -148,8 +322,9 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         reason: body.reason,
       });
 
-      // Clean up initial prompt for this session
+      // Clean up initial prompt and event saver tracking for this session
       sessionInitialPrompts.delete(activeSession.id);
+      sessionsWithEventSaver.delete(activeSession.id);
 
       return c.json({ success: true, sessionId: activeSession.id });
     } catch (error) {
@@ -221,6 +396,9 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         checkReadyQueue: body.checkReadyQueue,
       });
 
+      // Attach event saver immediately to capture all events, including the first assistant response
+      attachSessionEventSaver(events, session.id, agentId, sessionMessageService);
+
       // Save resume prompt to database if provided
       if (body.resumePrompt) {
         sessionInitialPrompts.set(session.id, body.resumePrompt);
@@ -258,6 +436,10 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       return c.json({ error: { code: 'NO_EVENTS', message: 'Session event emitter not available' } }, 404);
     }
 
+    // Ensure event saver is attached for this session (handles existing sessions
+    // that were started before this code change, or if the saver wasn't attached)
+    attachSessionEventSaver(events, activeSession.id, agentId, sessionMessageService);
+
     return streamSSE(c, async (stream) => {
       let eventId = 0;
 
@@ -290,126 +472,15 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
           });
         }
 
+        // Note: Events are already being saved to the database by the attachSessionEventSaver
+        // listener that was attached when the session started. The SSE handler only needs to
+        // stream events to connected clients for real-time display.
         const onEvent = async (event: SpawnedSessionEvent) => {
           const msgId = `${event.type}-${activeSession.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           await stream.writeSSE({
             id: msgId,
             event: `agent_${event.type}`,
             data: JSON.stringify({ ...event, msgId }), // Include ID in data for deduplication
-          });
-
-          // Skip saving system and result events (not displayed in UI)
-          if (event.type === 'system' || event.type === 'result') {
-            return;
-          }
-
-          // Extract content from event (match client-side logic)
-          // Content can be in: event.message, event.raw?.message, event.raw?.content (if string)
-          // IMPORTANT: content MUST be a string or undefined, never an object (SQLite can't bind objects)
-          let content: string | undefined = typeof event.message === 'string' ? event.message : undefined;
-          if (!content && event.raw) {
-            const raw = event.raw as Record<string, unknown>;
-            // Only use raw.message if it's actually a string
-            if (typeof raw.message === 'string') {
-              content = raw.message;
-            } else if (typeof raw.content === 'string') {
-              content = raw.content;
-            }
-            // If raw.content is an array (Claude API format), extract text from text blocks
-            if (!content && Array.isArray(raw.content)) {
-              const textParts: string[] = [];
-              for (const block of raw.content) {
-                if (typeof block === 'object' && block !== null && 'type' in block) {
-                  const b = block as { type: string; text?: string };
-                  if (b.type === 'text' && typeof b.text === 'string') {
-                    textParts.push(b.text);
-                  }
-                }
-              }
-              if (textParts.length > 0) {
-                content = textParts.join('');
-              }
-            }
-          }
-
-          // Extract tool info from event
-          // Check multiple locations to match client-side extraction in StreamViewer.tsx
-          const eventAny = event as unknown as Record<string, unknown>;
-          const eventData = eventAny.data as Record<string, unknown> | undefined;
-          const rawTool = (event.raw as Record<string, unknown>)?.tool as string | undefined;
-          const rawToolInput = (event.raw as Record<string, unknown>)?.tool_input as unknown;
-          let toolName = event.tool?.name || eventData?.name as string | undefined || eventAny.toolName as string | undefined || rawTool;
-          let toolInput = event.tool?.input || eventData?.input || eventAny.toolInput || rawToolInput;
-          let toolOutput: string | undefined;
-          let actualType = event.type;
-
-          // Check for tool_use/tool_result blocks in content arrays (Claude API format)
-          // Content array can be in multiple locations depending on event source
-          // Must match the same locations the client checks in StreamViewer.tsx
-          const raw = event.raw as Record<string, unknown>;
-          const rawMessage = raw?.message as Record<string, unknown> | undefined;
-          const eventMessage = (event as unknown as Record<string, unknown>).message;
-          const eventContent = (event as unknown as Record<string, unknown>).content;
-          const rawContentArray =
-            rawMessage?.content ||    // raw.message.content
-            raw?.content ||           // raw.content
-            (typeof eventMessage === 'object' && eventMessage !== null
-              ? (eventMessage as Record<string, unknown>).content
-              : undefined) ||         // event.message.content
-            eventContent;             // event.content
-          if (Array.isArray(rawContentArray)) {
-            for (const block of rawContentArray) {
-              if (typeof block === 'object' && block !== null && 'type' in block) {
-                const b = block as { type: string; name?: string; input?: unknown; content?: string };
-                if (b.type === 'tool_use' && b.name) {
-                  toolName = toolName || b.name;
-                  toolInput = toolInput || b.input;
-                  // Override type if we found tool info but type was 'assistant'
-                  if (actualType === 'assistant') {
-                    actualType = 'tool_use';
-                  }
-                } else if (b.type === 'tool_result') {
-                  toolOutput = typeof b.content === 'string' ? b.content : undefined;
-                  if (actualType === 'user') {
-                    actualType = 'tool_result';
-                  }
-                }
-              }
-            }
-          }
-
-          // For tool_result, check additional fallback locations (match client-side logic)
-          if (!toolOutput) {
-            toolOutput =
-              eventAny.output as string | undefined ||
-              eventData?.output as string | undefined ||
-              (actualType === 'tool_result' && typeof raw?.content === 'string' ? raw.content as string : undefined);
-          }
-
-          // For tool_result events, content should be empty (output is in toolOutput)
-          const finalContent = (actualType === 'tool_result' && toolOutput) ? undefined : content;
-
-          // Safely stringify tool input (JSON.stringify can return undefined for functions)
-          let toolInputStr: string | undefined;
-          if (toolInput !== undefined && toolInput !== null) {
-            try {
-              const str = JSON.stringify(toolInput);
-              toolInputStr = typeof str === 'string' ? str : undefined;
-            } catch {
-              toolInputStr = String(toolInput);
-            }
-          }
-
-          sessionMessageService.saveMessage({
-            id: msgId,
-            sessionId: activeSession.id,
-            agentId,
-            type: actualType as 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'error',
-            content: finalContent,
-            toolName: toolName,
-            toolInput: toolInputStr,
-            toolOutput: toolOutput,
-            isError: actualType === 'error',
           });
         };
 
@@ -419,15 +490,6 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
             id: msgId,
             event: 'agent_error',
             data: JSON.stringify({ error: error.message }),
-          });
-          // Save error to database
-          sessionMessageService.saveMessage({
-            id: msgId,
-            sessionId: activeSession.id,
-            agentId,
-            type: 'error',
-            content: error.message,
-            isError: true,
           });
         };
 
