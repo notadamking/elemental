@@ -24,6 +24,11 @@ export function createHealthRoutes(services: Services) {
         roleDefinition: 'ready',
         workerTask: 'ready',
         stewardScheduler: services.stewardScheduler.isRunning() ? 'running' : 'stopped',
+        dispatchDaemon: services.dispatchDaemon
+          ? services.dispatchDaemon.isRunning()
+            ? 'running'
+            : 'stopped'
+          : 'disabled',
       },
     });
   });

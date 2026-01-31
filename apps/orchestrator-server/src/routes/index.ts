@@ -13,3 +13,4 @@ export { createSchedulerRoutes } from './scheduler.js';
 export { createPluginRoutes } from './plugins.js';
 export { createEventRoutes } from './events.js';
 export { createUploadRoutes } from './upload.js';
+export { createDaemonRoutes, markDaemonAsServerManaged } from './daemon.js';

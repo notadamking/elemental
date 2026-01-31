@@ -5,8 +5,10 @@
  */
 
 import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '@elemental/sdk';
-import type { ElementalAPI } from '@elemental/sdk';
+import type { StorageBackend } from '@elemental/storage';
+import { createElementalAPI, createInboxService } from '@elemental/sdk';
+import type { ElementalAPI, InboxService } from '@elemental/sdk';
+import { createSessionMessageService, type SessionMessageService } from './services/session-messages.js';
 import {
   createOrchestratorAPI,
   createAgentRegistry,
@@ -20,6 +22,7 @@ import {
   createStewardScheduler,
   createDefaultStewardExecutor,
   createPluginExecutor,
+  createDispatchDaemon,
   GitRepositoryNotFoundError,
   type OrchestratorAPI,
   type AgentRegistry,
@@ -32,6 +35,7 @@ import {
   type WorkerTaskService,
   type StewardScheduler,
   type PluginExecutor,
+  type DispatchDaemon,
 } from '@elemental/orchestrator-sdk';
 import { DB_PATH, PROJECT_ROOT, getClaudePath } from './config.js';
 
@@ -48,10 +52,14 @@ export interface Services {
   workerTaskService: WorkerTaskService;
   stewardScheduler: StewardScheduler;
   pluginExecutor: PluginExecutor;
+  inboxService: InboxService;
+  dispatchDaemon: DispatchDaemon | undefined;
   sessionInitialPrompts: Map<string, string>;
+  sessionMessageService: SessionMessageService;
+  storageBackend: StorageBackend;
 }
 
-export function initializeServices(): Services {
+export async function initializeServices(): Promise<Services> {
   const storageBackend = createStorage({ path: DB_PATH });
   initializeSchema(storageBackend);
 
@@ -77,9 +85,13 @@ export function initializeServices(): Services {
   let worktreeManager: WorktreeManager | undefined;
   try {
     worktreeManager = createWorktreeManager({ workspaceRoot: PROJECT_ROOT });
+    // Initialize the worktree manager (creates .elemental/.worktrees directory, validates git repo)
+    // This is synchronous initialization - consider making services async if this becomes slow
+    await worktreeManager.initWorkspace();
   } catch (err) {
     if (err instanceof GitRepositoryNotFoundError) {
       console.warn('[orchestrator] Git repository not found - worktree features disabled');
+      worktreeManager = undefined;
     } else {
       throw err;
     }
@@ -107,6 +119,27 @@ export function initializeServices(): Services {
     workspaceRoot: PROJECT_ROOT,
   });
 
+  const inboxService = createInboxService(storageBackend);
+  const sessionMessageService = createSessionMessageService(storageBackend);
+
+  // DispatchDaemon requires worktreeManager, so only create if available
+  let dispatchDaemon: DispatchDaemon | undefined;
+  if (worktreeManager) {
+    dispatchDaemon = createDispatchDaemon(
+      api,
+      agentRegistry,
+      sessionManager,
+      dispatchService,
+      worktreeManager,
+      taskAssignmentService,
+      stewardScheduler,
+      inboxService,
+      { pollIntervalMs: 5000 }
+    );
+  } else {
+    console.warn('[orchestrator] DispatchDaemon disabled - no git repository');
+  }
+
   console.log(`[orchestrator] Connected to database: ${DB_PATH}`);
 
   return {
@@ -122,6 +155,10 @@ export function initializeServices(): Services {
     workerTaskService,
     stewardScheduler,
     pluginExecutor,
+    inboxService,
+    dispatchDaemon,
     sessionInitialPrompts,
+    sessionMessageService,
+    storageBackend,
   };
 }
