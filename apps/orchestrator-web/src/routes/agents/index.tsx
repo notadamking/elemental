@@ -80,12 +80,7 @@ export function AgentsPage() {
     if (!query) return { director, ephemeralWorkers, persistentWorkers, stewards };
 
     const filter = (agents: Agent[]) =>
-      agents.filter(
-        (a) =>
-          a.name.toLowerCase().includes(query) ||
-          a.metadata?.agent?.capabilities?.skills?.some((s) => s.toLowerCase().includes(query)) ||
-          a.metadata?.agent?.capabilities?.languages?.some((l) => l.toLowerCase().includes(query))
-      );
+      agents.filter((a) => a.name.toLowerCase().includes(query));
 
     return {
       director: director?.name.toLowerCase().includes(query) ? director : undefined,

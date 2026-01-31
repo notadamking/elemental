@@ -24,12 +24,6 @@ export type AgentSessionStatus = 'idle' | 'running' | 'suspended' | 'terminated'
 /** Full session status including transitional states */
 export type SessionStatus = 'starting' | 'running' | 'suspended' | 'terminating' | 'terminated';
 
-export interface AgentCapabilities {
-  skills: string[];
-  languages: string[];
-  maxConcurrentTasks: number;
-}
-
 export interface CronTrigger {
   type: 'cron';
   schedule: string;
@@ -50,7 +44,7 @@ export interface BaseAgentMetadata {
   worktree?: string;
   sessionStatus?: SessionStatus;
   lastActivityAt?: Timestamp;
-  capabilities?: AgentCapabilities;
+  maxConcurrentTasks?: number;
   roleDefinitionRef?: ElementId;
 }
 
@@ -169,7 +163,7 @@ export interface CreateAgentInput {
   name: string;
   role: AgentRole;
   tags?: string[];
-  capabilities?: Partial<AgentCapabilities>;
+  maxConcurrentTasks?: number;
   // Worker-specific
   workerMode?: WorkerMode;
   // Steward-specific

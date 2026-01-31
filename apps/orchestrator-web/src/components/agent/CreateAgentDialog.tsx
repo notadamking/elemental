@@ -100,9 +100,7 @@ interface FormState {
   // Steward fields
   stewardFocus: StewardFocus;
   triggers: StewardTrigger[];
-  // Capabilities
-  skills: string;
-  languages: string;
+  // Settings
   maxConcurrentTasks: number;
   // Tags
   tags: string;
@@ -114,8 +112,6 @@ const defaultState: FormState = {
   workerMode: 'ephemeral',
   stewardFocus: 'merge',
   triggers: [],
-  skills: '',
-  languages: '',
   maxConcurrentTasks: 1,
   tags: '',
 };
@@ -165,11 +161,7 @@ export function CreateAgentDialog({
       name: form.name.trim(),
       role: form.role,
       tags: form.tags.trim() ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
-      capabilities: {
-        skills: form.skills.trim() ? form.skills.split(',').map(s => s.trim()).filter(Boolean) : [],
-        languages: form.languages.trim() ? form.languages.split(',').map(l => l.trim()).filter(Boolean) : [],
-        maxConcurrentTasks: form.maxConcurrentTasks,
-      },
+      maxConcurrentTasks: form.maxConcurrentTasks,
     };
 
     // Add role-specific fields
@@ -547,7 +539,7 @@ export function CreateAgentDialog({
               </div>
             )}
 
-            {/* Capabilities (collapsible) */}
+            {/* Settings (collapsible) */}
             <div className="space-y-2">
               <button
                 type="button"
@@ -556,54 +548,10 @@ export function CreateAgentDialog({
                 data-testid="toggle-capabilities"
               >
                 <ChevronDown className={`w-4 h-4 transition-transform ${showCapabilities ? 'rotate-180' : ''}`} />
-                Capabilities & Tags
+                Settings & Tags
               </button>
               {showCapabilities && (
                 <div className="space-y-3 pl-6">
-                  <div className="space-y-1">
-                    <label htmlFor="agent-skills" className="text-xs font-medium text-[var(--color-text-secondary)]">
-                      Skills (comma-separated)
-                    </label>
-                    <input
-                      id="agent-skills"
-                      type="text"
-                      value={form.skills}
-                      onChange={e => setForm(prev => ({ ...prev, skills: e.target.value }))}
-                      placeholder="e.g., frontend, testing, database"
-                      className="
-                        w-full px-3 py-1.5
-                        text-sm
-                        bg-[var(--color-surface)]
-                        border border-[var(--color-border)]
-                        rounded-lg
-                        placeholder:text-[var(--color-text-tertiary)]
-                        focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30
-                      "
-                      data-testid="agent-skills"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label htmlFor="agent-languages" className="text-xs font-medium text-[var(--color-text-secondary)]">
-                      Languages (comma-separated)
-                    </label>
-                    <input
-                      id="agent-languages"
-                      type="text"
-                      value={form.languages}
-                      onChange={e => setForm(prev => ({ ...prev, languages: e.target.value }))}
-                      placeholder="e.g., typescript, python, rust"
-                      className="
-                        w-full px-3 py-1.5
-                        text-sm
-                        bg-[var(--color-surface)]
-                        border border-[var(--color-border)]
-                        rounded-lg
-                        placeholder:text-[var(--color-text-tertiary)]
-                        focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30
-                      "
-                      data-testid="agent-languages"
-                    />
-                  </div>
                   <div className="space-y-1">
                     <label htmlFor="agent-max-tasks" className="text-xs font-medium text-[var(--color-text-secondary)]">
                       Max Concurrent Tasks

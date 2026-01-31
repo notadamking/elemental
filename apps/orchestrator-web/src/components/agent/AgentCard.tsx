@@ -60,11 +60,6 @@ export function AgentCard({
   const workerMeta = agentMeta?.agentRole === 'worker' ? (agentMeta as WorkerMetadata) : null;
   const stewardMeta = agentMeta?.agentRole === 'steward' ? (agentMeta as StewardMetadata) : null;
 
-  // Get capabilities
-  const capabilities = agentMeta?.capabilities;
-  const skills = capabilities?.skills ?? [];
-  const languages = capabilities?.languages ?? [];
-
   return (
     <div
       className="p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface)] hover:border-[var(--color-border-hover)] transition-colors duration-150"
@@ -148,33 +143,6 @@ export function AgentCard({
         <div className="mt-3 flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)]">
           <Clock className="w-3.5 h-3.5" />
           <span>Last run: {formatRelativeTime(stewardMeta.lastExecutedAt)}</span>
-        </div>
-      )}
-
-      {/* Capabilities */}
-      {(skills.length > 0 || languages.length > 0) && (
-        <div className="mt-3 flex flex-wrap gap-1">
-          {skills.slice(0, 3).map((skill) => (
-            <span
-              key={skill}
-              className="px-1.5 py-0.5 text-xs rounded bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)]"
-            >
-              {skill}
-            </span>
-          ))}
-          {languages.slice(0, 2).map((lang) => (
-            <span
-              key={lang}
-              className="px-1.5 py-0.5 text-xs rounded bg-[var(--color-primary-muted)] text-[var(--color-primary)]"
-            >
-              {lang}
-            </span>
-          ))}
-          {(skills.length > 3 || languages.length > 2) && (
-            <span className="px-1.5 py-0.5 text-xs text-[var(--color-text-tertiary)]">
-              +{skills.length - 3 + languages.length - 2} more
-            </span>
-          )}
         </div>
       )}
 
