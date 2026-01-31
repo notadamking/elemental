@@ -22,6 +22,7 @@ export { registerCommand, registerAlias, getCommand, getAllCommands, getAllAlias
 
 // Commands
 export { initCommand } from './commands/init.js';
+export { resetCommand } from './commands/reset.js';
 export { configCommand } from './commands/config.js';
 export { helpCommand, versionCommand, getCommandHelp } from './commands/help.js';
 export { createCommand, listCommand, showCommand } from './commands/crud.js';

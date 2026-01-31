@@ -8,6 +8,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCommand, listCommand, showCommand, updateCommand, deleteCommand } from './crud.js';
+import { planCommand } from './plan.js';
 import type { GlobalOptions } from '../types.js';
 import { ExitCode } from '../types.js';
 
@@ -970,5 +971,105 @@ describe('show command events', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     // Should show events section even if there are some
     expect(result.message).toContain('Recent Events');
+  });
+});
+
+// ============================================================================
+// Create with --plan Option Tests
+// ============================================================================
+
+describe('create command with --plan option', () => {
+  test('creates task and attaches to plan by ID', async () => {
+    // First create a plan
+    const planOpts = createTestOptions({ title: 'Test Plan' } as GlobalOptions & { title: string });
+    const planResult = await planCommand.subcommands!.create.handler([], planOpts);
+    expect(planResult.exitCode).toBe(ExitCode.SUCCESS);
+    const planId = (planResult.data as { id: string }).id;
+
+    // Create task with --plan option
+    const taskOpts = createTestOptions({
+      title: 'Task in Plan',
+      plan: planId,
+    } as GlobalOptions & { title: string; plan: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+
+    expect(taskResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(taskResult.message).toBe(`Created task ${(taskResult.data as { id: string }).id}`);
+    expect(taskResult.message).not.toContain('Warning');
+  });
+
+  test('creates task and attaches to plan by name', async () => {
+    // First create a plan
+    const planOpts = createTestOptions({ title: 'Named Test Plan' } as GlobalOptions & { title: string });
+    const planResult = await planCommand.subcommands!.create.handler([], planOpts);
+    expect(planResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Create task with --plan option using plan name
+    const taskOpts = createTestOptions({
+      title: 'Task by Plan Name',
+      plan: 'Named Test Plan',
+    } as GlobalOptions & { title: string; plan: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+
+    expect(taskResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(taskResult.message).toBe(`Created task ${(taskResult.data as { id: string }).id}`);
+    expect(taskResult.message).not.toContain('Warning');
+  });
+
+  test('shows warning when plan not found', async () => {
+    const taskOpts = createTestOptions({
+      title: 'Task with Missing Plan',
+      plan: 'nonexistent-plan',
+    } as GlobalOptions & { title: string; plan: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+
+    // Task should still be created
+    expect(taskResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(taskResult.data).toBeDefined();
+    expect((taskResult.data as { id: string }).id).toMatch(/^el-/);
+
+    // But should show warning
+    expect(taskResult.message).toContain('Warning');
+    expect(taskResult.message).toContain('Plan not found');
+    expect(taskResult.message).toContain('nonexistent-plan');
+  });
+
+  test('shows warning when plan ID not found', async () => {
+    const taskOpts = createTestOptions({
+      title: 'Task with Invalid Plan ID',
+      plan: 'el-nonexistent123',
+    } as GlobalOptions & { title: string; plan: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+
+    // Task should still be created
+    expect(taskResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(taskResult.data).toBeDefined();
+
+    // But should show warning
+    expect(taskResult.message).toContain('Warning');
+    expect(taskResult.message).toContain('Plan not found');
+  });
+
+  test('verifies task is actually in plan after creation', async () => {
+    // Create a plan
+    const planOpts = createTestOptions({ title: 'Verify Plan' } as GlobalOptions & { title: string });
+    const planResult = await planCommand.subcommands!.create.handler([], planOpts);
+    const planId = (planResult.data as { id: string }).id;
+
+    // Create task in plan
+    const taskOpts = createTestOptions({
+      title: 'Task to Verify',
+      plan: planId,
+    } as GlobalOptions & { title: string; plan: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+    const taskId = (taskResult.data as { id: string }).id;
+
+    // Check plan tasks
+    const tasksOpts = createTestOptions();
+    const tasksResult = await planCommand.subcommands!.tasks.handler([planId], tasksOpts);
+
+    expect(tasksResult.exitCode).toBe(ExitCode.SUCCESS);
+    const tasks = tasksResult.data as { id: string }[];
+    expect(tasks.some((t) => t.id === taskId)).toBe(true);
   });
 });

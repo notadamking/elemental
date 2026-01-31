@@ -14,7 +14,7 @@ import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode, getStatusIcon, formatEventsTable, type EventData } from '../formatter.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import { createElementalAPI } from '../../api/elemental-api.js';
-import { createTask, TaskStatus, TaskTypeValue, type CreateTaskInput, type Priority, type Complexity } from '@elemental/core';
+import { createTask, TaskStatus, TaskTypeValue, PlanStatus, type CreateTaskInput, type Priority, type Complexity, type Plan } from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI, TaskFilter } from '../../api/types.js';
 import type { PlanProgress } from '@elemental/core';
@@ -107,11 +107,13 @@ function createAPI(options: GlobalOptions, createDb: boolean = false): { api: El
 
 interface CreateOptions {
   title?: string;
+  name?: string; // Alias for title
   priority?: string;
   complexity?: string;
   type?: string;
   assignee?: string;
   tag?: string[];
+  plan?: string;
 }
 
 const createOptions: CommandOption[] = [
@@ -119,6 +121,12 @@ const createOptions: CommandOption[] = [
     name: 'title',
     short: 't',
     description: 'Title for the element (required for tasks)',
+    hasValue: true,
+  },
+  {
+    name: 'name',
+    short: 'n',
+    description: 'Alias for --title',
     hasValue: true,
   },
   {
@@ -150,6 +158,11 @@ const createOptions: CommandOption[] = [
     hasValue: true,
     array: true,
   },
+  {
+    name: 'plan',
+    description: 'Plan ID or name to attach this task to',
+    hasValue: true,
+  },
 ];
 
 async function createHandler(
@@ -171,9 +184,12 @@ async function createHandler(
     );
   }
 
+  // Use --name as alias for --title
+  const title = options.title ?? options.name;
+
   // Validate required options for task
-  if (!options.title) {
-    return failure('--title is required for creating a task', ExitCode.INVALID_ARGUMENTS);
+  if (!title) {
+    return failure('--title (or --name) is required for creating a task', ExitCode.INVALID_ARGUMENTS);
   }
 
   // Create command should create the database if it doesn't exist
@@ -225,9 +241,9 @@ async function createHandler(
       tags = Array.isArray(options.tag) ? options.tag : [options.tag];
     }
 
-    // Create task input
+    // Create task input (title is guaranteed non-null from validation above)
     const input: CreateTaskInput = {
-      title: options.title,
+      title: title!,
       createdBy: actor,
       ...(priority !== undefined && { priority }),
       ...(complexity !== undefined && { complexity }),
@@ -241,7 +257,41 @@ async function createHandler(
     // The API's create method expects ElementInput which Task satisfies
     const created = await api.create(task as unknown as Element & Record<string, unknown>);
 
-    return success(created, `Created task ${created.id}`);
+    // If --plan is provided, attach the task to the plan
+    let planWarning: string | undefined;
+    if (options.plan) {
+      try {
+        // First try to find by ID (if it looks like an element ID)
+        let plan: Plan | null = null;
+        if (options.plan.startsWith('el-') || options.plan.match(/^el[a-z0-9]+$/i)) {
+          plan = await api.get<Plan>(options.plan as ElementId);
+        }
+
+        // If not found by ID, search by title
+        if (!plan) {
+          const plans = await api.list<Plan>({ type: 'plan' });
+          plan = plans.find((p) => p.title === options.plan) ?? null;
+        }
+
+        if (!plan) {
+          planWarning = `Warning: Plan not found: ${options.plan}. Task was created but not attached to a plan.`;
+        } else if (plan.type !== 'plan') {
+          planWarning = `Warning: ${options.plan} is not a plan (type: ${plan.type}). Task was created but not attached.`;
+        } else if (plan.status === PlanStatus.CANCELLED) {
+          planWarning = `Warning: Plan ${plan.id} is cancelled. Task was created but not attached.`;
+        } else {
+          await api.addTaskToPlan(created.id, plan.id, { actor });
+        }
+      } catch (attachErr) {
+        const attachMessage = attachErr instanceof Error ? attachErr.message : String(attachErr);
+        planWarning = `Warning: Failed to attach task to plan: ${attachMessage}. Task was created successfully.`;
+      }
+    }
+
+    const message = planWarning
+      ? `Created task ${created.id}\n${planWarning}`
+      : `Created task ${created.id}`;
+    return success(created, message);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to create task: ${message}`, ExitCode.GENERAL_ERROR);
@@ -264,10 +314,13 @@ Task options:
       --type <type>       Task type: bug, feature, task, chore
   -a, --assignee <id>     Assignee entity ID
       --tag <tag>         Add a tag (can be repeated)
+      --plan <id|name>    Plan ID or name to attach this task to
 
 Examples:
   el create task --title "Fix login bug" --priority 1 --type bug
-  el create task -t "Add dark mode" --tag ui --tag feature`,
+  el create task -t "Add dark mode" --tag ui --tag feature
+  el create task -t "Implement feature X" --plan el-plan123
+  el create task -t "Implement feature X" --plan "My Plan Name"`,
   options: createOptions,
   handler: createHandler as Command['handler'],
 };

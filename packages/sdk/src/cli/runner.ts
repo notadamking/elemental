@@ -229,6 +229,7 @@ function outputResult(result: CommandResult, options: GlobalOptions): number {
 export async function main(argv: string[] = process.argv.slice(2)): Promise<never> {
   // Register all commands
   const { initCommand } = await import('./commands/init.js');
+  const { resetCommand } = await import('./commands/reset.js');
   const { configCommand } = await import('./commands/config.js');
   const { helpCommand, versionCommand } = await import('./commands/help.js');
   const { createCommand, listCommand, showCommand, updateCommand, deleteCommand } = await import('./commands/crud.js');
@@ -262,6 +263,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { aliasCommand } = await import('./commands/alias.js');
 
   registerCommand(initCommand);
+  registerCommand(resetCommand);
   registerCommand(configCommand);
   registerCommand(helpCommand);
   registerCommand(versionCommand);
