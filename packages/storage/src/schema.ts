@@ -14,7 +14,7 @@ import type { Migration, MigrationResult, StorageBackend } from './index.js';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 // ============================================================================
 // Migrations
@@ -281,9 +281,55 @@ DROP TABLE IF EXISTS comments;
 };
 
 /**
+ * Migration 6: Add session_messages table for persistent session event storage
+ *
+ * Stores all messages/events from agent sessions for:
+ * - Transcript restoration after page refresh or reconnection
+ * - Session history viewing
+ * - Audit trail of agent interactions
+ */
+const migration006: Migration = {
+  version: 6,
+  description: 'Add session_messages table for persistent session event storage',
+  up: `
+-- Session messages/events for agent sessions
+CREATE TABLE session_messages (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('user', 'assistant', 'tool_use', 'tool_result', 'system', 'error', 'result')),
+    content TEXT,
+    tool_name TEXT,
+    tool_input TEXT,
+    tool_output TEXT,
+    is_error INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+-- Index for querying messages by session (primary use case)
+CREATE INDEX idx_session_messages_session ON session_messages(session_id);
+
+-- Index for querying messages by agent
+CREATE INDEX idx_session_messages_agent ON session_messages(agent_id);
+
+-- Index for querying messages by session ordered by creation time
+CREATE INDEX idx_session_messages_session_time ON session_messages(session_id, created_at);
+`,
+  down: `
+-- Drop indexes first
+DROP INDEX IF EXISTS idx_session_messages_session_time;
+DROP INDEX IF EXISTS idx_session_messages_agent;
+DROP INDEX IF EXISTS idx_session_messages_session;
+
+-- Drop table
+DROP TABLE IF EXISTS session_messages;
+`,
+};
+
+/**
  * All migrations in order
  */
-export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003, migration004, migration005];
+export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006];
 
 // ============================================================================
 // Schema Functions
@@ -370,6 +416,7 @@ export const EXPECTED_TABLES = [
   'blocked_cache',
   'inbox_items',
   'comments',
+  'session_messages',
 ] as const;
 
 /**

@@ -243,7 +243,9 @@ export class NodeStorageBackend implements StorageBackend {
     try {
       const db = this.ensureOpen();
       const stmt = db.prepare(sql);
-      const result = (params ? stmt.run(...params) : stmt.run()) as RunResult;
+      // Convert undefined values to null (SQLite doesn't accept undefined)
+      const safeParams = params?.map((p) => (p === undefined ? null : p));
+      const result = (safeParams ? stmt.run(...safeParams) : stmt.run()) as RunResult;
       return {
         changes: result.changes,
         lastInsertRowid: result.lastInsertRowid,

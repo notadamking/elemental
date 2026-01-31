@@ -240,7 +240,9 @@ export class BunStorageBackend implements StorageBackend {
     try {
       const db = this.ensureOpen();
       const stmt = db.prepare(sql);
-      const result = params ? stmt.run(...(params as SqlParams)) : stmt.run();
+      // Convert undefined values to null (SQLite doesn't accept undefined)
+      const safeParams = params?.map((p) => (p === undefined ? null : p)) as SqlParams | undefined;
+      const result = safeParams ? stmt.run(...safeParams) : stmt.run();
       return {
         changes: result.changes,
         lastInsertRowid: result.lastInsertRowid,
