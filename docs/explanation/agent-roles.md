@@ -56,10 +56,9 @@ You are the director agent in the Elemental orchestration system.
 
 ## Your Responsibilities
 - Break down high-level goals into actionable tasks
-- Prioritize work based on urgency and dependencies
-- Assign tasks to workers based on capabilities
-- Monitor progress and unblock stuck workers
-- Report status to humans
+- Create tasks or plans with tasks
+- Set priorities and dependencies
+- Report status to Human only when requested
 
 ## Who You Report To
 - Human operator (final authority)
@@ -73,11 +72,19 @@ You are the director agent in the Elemental orchestration system.
 
 Workers are the implementers. Multiple Workers operate in parallel.
 
+### Worker Types
+
+| Type | Session | Spawning | Use Case |
+|------|---------|----------|----------|
+| **Ephemeral** | Task-scoped | Spawned by Dispatch Daemon | Automated task execution |
+| **Persistent** | Session-scoped | Started by Human | Interactive work with human |
+
 ### Responsibilities
 - **Execution** - Complete assigned tasks
 - **Progress Reporting** - Update task status
 - **Blocker Escalation** - Alert Director when stuck
 - **Quality** - Ensure work meets requirements
+- **Git Workflow** - Commit and push work with meaningful messages
 
 ### Authority
 - Update tasks assigned to them
@@ -134,8 +141,8 @@ Stewards handle maintenance and system health. There are specialized Steward typ
 
 | Focus | Responsibility |
 |-------|---------------|
-| `merge` | Resolve sync conflicts, handle merge issues |
-| `health` | Monitor agent activity, detect stale tasks |
+| `merge` | Review and process pull requests from completed tasks |
+| `health` | Monitor worker health and intervene when stuck |
 | `ops` | System operations, cleanup, archival |
 | `reminder` | Time-based notifications, due date alerts |
 
@@ -173,8 +180,8 @@ const roleDef = await roleDefService.createRoleDefinition({
   role: 'worker',
   name: 'Frontend Developer',
   systemPrompt: 'You specialize in React and TypeScript...',
-  capabilities: ['frontend', 'testing', 'ui'],
-  constraints: ['backend', 'infrastructure'],
+  workerMode: 'ephemeral',
+  tags: ['frontend', 'senior'],
   behaviors: {
     onStartup: 'Pull latest from main branch',
     onTaskAssigned: 'Read the full spec before coding',
@@ -191,8 +198,8 @@ const roleDef = await roleDefService.createRoleDefinition({
 | `role` | Base role (director, worker, steward) |
 | `name` | Display name |
 | `systemPrompt` | Custom system prompt |
-| `capabilities` | What this agent can do (tags) |
-| `constraints` | What this agent should avoid |
+| `workerMode` | Worker type (`ephemeral` or `persistent`) |
+| `tags` | Classification tags for the role |
 | `behaviors` | Event-driven instructions |
 
 ## Prompts System
@@ -273,23 +280,27 @@ const available = workers.filter(a => a.status === 'active');
 
 ## Task Assignment
 
-Tasks are matched to Workers based on capabilities:
+Tasks are assigned through the Dispatch Daemon, which handles all task dispatch logic:
+
+1. **Director creates tasks** with priorities and dependencies
+2. **Dispatch Daemon polls** for unassigned tasks and available workers
+3. **Daemon assigns** highest priority task to next available ephemeral worker
+4. **Worker spawns** in isolated worktree and receives task via dispatch message
 
 ```typescript
-import { createCapabilityService } from '@elemental/orchestrator-sdk';
+import { createTaskAssignmentService } from '@elemental/orchestrator-sdk';
 
-const capService = createCapabilityService(api, roleDefService);
+const assignmentService = createTaskAssignmentService(api);
 
-// Find best agent for a task
-const matches = await capService.findMatchingAgents(task);
-// Returns agents ranked by capability match score
+// Assign task directly (used by dispatch daemon)
+await assignmentService.assignToAgent(taskId, agentId, {
+  branch: 'task/abc123-feature',
+  worktree: 'agent/worker-1/abc123-feature',
+});
+
+// Get unassigned tasks
+const unassigned = await assignmentService.getUnassignedTasks();
 ```
-
-The matching algorithm:
-1. Extract task tags/requirements
-2. Compare against agent capabilities
-3. Check agent constraints (negative matches)
-4. Rank by match score
 
 ## Communication
 
@@ -348,9 +359,9 @@ Each agent has a dedicated channel for receiving messages. The `InboxPollingServ
 
 ### For Directors
 - Keep plans focused (5-10 tasks max)
-- Assign based on capabilities, not availability
-- Check on Workers regularly
-- Unblock before Workers ask
+- Set clear priorities and dependencies
+- Report status only when Human requests it
+- Create tasks with sufficient detail for workers
 
 ### For Workers
 - Read task specs fully before starting

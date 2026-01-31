@@ -40,6 +40,7 @@
 | Understand event sourcing | [explanation/event-sourcing.md](explanation/event-sourcing.md) | `packages/core/src/types/event.ts` |
 | Understand dependencies | [explanation/dependency-system.md](explanation/dependency-system.md) | `packages/sdk/src/services/` |
 | Understand agent roles | [explanation/agent-roles.md](explanation/agent-roles.md) | `packages/orchestrator-sdk/src/types/agent.ts` |
+| Understand orchestration architecture | [ORCHESTRATION_PLAN.md](ORCHESTRATION_PLAN.md) | - |
 | Understand sync/merge | [explanation/sync-and-merge.md](explanation/sync-and-merge.md) | `packages/sdk/src/sync/` |
 | Debug issues | [GOTCHAS.md](GOTCHAS.md) | - |
 
@@ -112,9 +113,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | OrchestratorAPI | `api/orchestrator-api.ts` | `api/*.integration.test.ts` |
 | Agent registry | `services/agent-registry.ts` | `services/agent-registry.test.ts` |
 | Role definition service | `services/role-definition-service.ts` | `services/role-definition-service.test.ts` |
-| Capability service | `services/capability-service.ts` | `services/capability-service.test.ts` |
 | Task assignment service | `services/task-assignment-service.ts` | `services/task-assignment-service.test.ts` |
 | Dispatch service | `services/dispatch-service.ts` | `services/dispatch-service.test.ts` |
+| Dispatch daemon | `services/dispatch-daemon.ts` | `services/dispatch-daemon.test.ts` |
+| Worker task service | `services/worker-task-service.ts` | `services/worker-task-service.test.ts` |
+| Merge steward service | `services/merge-steward-service.ts` | `services/merge-steward-service.test.ts` |
 | Health steward service | `services/health-steward-service.ts` | `services/health-steward-service.test.ts` |
 | Steward scheduler | `services/steward-scheduler.ts` | `services/steward-scheduler.test.ts` |
 | Plugin executor | `services/plugin-executor.ts` | `services/plugin-executor.test.ts` |

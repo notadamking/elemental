@@ -133,31 +133,14 @@ interface SpawnedSessionEvent {
 
 ### UWP (Universal Work Principle)
 
-Check for pending work on agent startup:
+Workers do NOT check their own queue for tasks. The Dispatch Daemon handles all task assignment and worker spawning:
 
-```typescript
-const getReadyTasks = async (agentId, limit) => {
-  const assignments = await assignmentService.getAgentTasks(agentId, {
-    taskStatus: ['open', 'in_progress'],
-  });
-  return assignments.slice(0, limit).map(a => ({
-    id: a.task.id,
-    title: a.task.title,
-    priority: a.task.priority,
-    status: a.task.status,
-  }));
-};
+1. **Daemon polls** for available ephemeral workers (no active session)
+2. **Daemon assigns** highest priority unassigned task to worker
+3. **Daemon spawns** worker INSIDE the task worktree directory
+4. **Worker receives** dispatch message with task details as initial prompt
 
-const result = await spawner.checkReadyQueue(agentId, {
-  getReadyTasks,
-  limit: 1,
-  autoStart: true,
-});
-
-if (result.hasReadyTask) {
-  console.log(`Found task: ${result.taskTitle}`);
-}
-```
+This separation ensures workers focus solely on execution while the daemon coordinates all dispatch logic.
 
 ---
 
