@@ -9,6 +9,7 @@ import type { StorageBackend } from '@elemental/storage';
 import { createElementalAPI, createInboxService } from '@elemental/sdk';
 import type { ElementalAPI, InboxService } from '@elemental/sdk';
 import { createSessionMessageService, type SessionMessageService } from './services/session-messages.js';
+import type { EntityId } from '@elemental/core';
 import {
   createOrchestratorAPI,
   createAgentRegistry,
@@ -36,7 +37,9 @@ import {
   type StewardScheduler,
   type PluginExecutor,
   type DispatchDaemon,
+  type OnSessionStartedCallback,
 } from '@elemental/orchestrator-sdk';
+import { attachSessionEventSaver } from './routes/sessions.js';
 import { DB_PATH, PROJECT_ROOT, getClaudePath } from './config.js';
 
 export interface Services {
@@ -125,6 +128,26 @@ export async function initializeServices(): Promise<Services> {
   // DispatchDaemon requires worktreeManager, so only create if available
   let dispatchDaemon: DispatchDaemon | undefined;
   if (worktreeManager) {
+    // Callback to attach event saver and save initial prompt when daemon starts a session
+    const onSessionStarted: OnSessionStartedCallback = (session, events, agentId, initialPrompt) => {
+      // Attach event saver to capture all agent events
+      attachSessionEventSaver(events, session.id, agentId, sessionMessageService);
+
+      // Store initial prompt for SSE clients
+      sessionInitialPrompts.set(session.id, initialPrompt);
+
+      // Save initial prompt to database
+      const initialMsgId = `user-${session.id}-initial`;
+      sessionMessageService.saveMessage({
+        id: initialMsgId,
+        sessionId: session.id,
+        agentId: agentId as EntityId,
+        type: 'user',
+        content: initialPrompt,
+        isError: false,
+      });
+    };
+
     dispatchDaemon = createDispatchDaemon(
       api,
       agentRegistry,
@@ -134,7 +157,7 @@ export async function initializeServices(): Promise<Services> {
       taskAssignmentService,
       stewardScheduler,
       inboxService,
-      { pollIntervalMs: 5000 }
+      { pollIntervalMs: 5000, onSessionStarted }
     );
   } else {
     console.warn('[orchestrator] DispatchDaemon disabled - no git repository');

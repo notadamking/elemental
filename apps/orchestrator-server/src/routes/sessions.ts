@@ -152,11 +152,20 @@ function saveSessionEvent(
 const sessionsWithEventSaver = new Set<string>();
 
 /**
+ * Clean up the session event saver tracking for a session.
+ * Call this when a session ends to allow re-attachment if the session restarts.
+ */
+export function cleanupSessionEventSaver(sessionId: string): void {
+  sessionsWithEventSaver.delete(sessionId);
+}
+
+/**
  * Attach an event listener to save session events immediately.
  * This ensures all events are persisted even before any SSE client connects.
  * Uses a Set to track attached sessions and avoid duplicate listeners.
+ * Exported for use by the dispatch daemon callback.
  */
-function attachSessionEventSaver(
+export function attachSessionEventSaver(
   events: import('events').EventEmitter,
   sessionId: string,
   agentId: EntityId,

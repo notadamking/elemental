@@ -199,6 +199,7 @@ export {
   type DispatchDaemonConfig,
   type PollResult,
   type DispatchDaemon,
+  type OnSessionStartedCallback,
   // Implementation
   DispatchDaemonImpl,
   // Factory

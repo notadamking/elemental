@@ -63,6 +63,17 @@ export const DISPATCH_DAEMON_MAX_POLL_INTERVAL_MS = 60000;
 // ============================================================================
 
 /**
+ * Callback fired when a session is started by the dispatch daemon.
+ * This allows the server to attach event listeners and save the initial prompt.
+ */
+export type OnSessionStartedCallback = (
+  session: SessionRecord,
+  events: import('events').EventEmitter,
+  agentId: EntityId,
+  initialPrompt: string
+) => void;
+
+/**
  * Configuration for the Dispatch Daemon
  */
 export interface DispatchDaemonConfig {
@@ -95,6 +106,12 @@ export interface DispatchDaemonConfig {
    * Default: true
    */
   readonly workflowTaskPollEnabled?: boolean;
+
+  /**
+   * Callback fired when a session is started by the daemon.
+   * Allows the server to attach event savers and save the initial prompt.
+   */
+  readonly onSessionStarted?: OnSessionStartedCallback;
 }
 
 /**
@@ -124,6 +141,7 @@ interface NormalizedConfig {
   inboxPollEnabled: boolean;
   stewardTriggerPollEnabled: boolean;
   workflowTaskPollEnabled: boolean;
+  onSessionStarted?: OnSessionStartedCallback;
 }
 
 // ============================================================================
@@ -193,7 +211,7 @@ export interface DispatchDaemon {
   /**
    * Gets the current configuration.
    */
-  getConfig(): Required<DispatchDaemonConfig>;
+  getConfig(): Omit<Required<DispatchDaemonConfig>, 'onSessionStarted'> & { onSessionStarted?: OnSessionStartedCallback };
 
   /**
    * Updates the configuration.
@@ -570,7 +588,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   // Configuration
   // ----------------------------------------
 
-  getConfig(): Required<DispatchDaemonConfig> {
+  getConfig(): Omit<Required<DispatchDaemonConfig>, 'onSessionStarted'> & { onSessionStarted?: OnSessionStartedCallback } {
     return { ...this.config };
   }
 
@@ -611,6 +629,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       inboxPollEnabled: config?.inboxPollEnabled ?? true,
       stewardTriggerPollEnabled: config?.stewardTriggerPollEnabled ?? true,
       workflowTaskPollEnabled: config?.workflowTaskPollEnabled ?? true,
+      onSessionStarted: config?.onSessionStarted,
     };
   }
 
@@ -716,11 +735,16 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const initialPrompt = this.buildTaskPrompt(task);
 
     // Spawn worker INSIDE the worktree
-    await this.sessionManager.startSession(workerId, {
+    const { session, events } = await this.sessionManager.startSession(workerId, {
       workingDirectory: worktreePath,
       worktree: worktreePath,
       initialPrompt,
     });
+
+    // Call the onSessionStarted callback if provided (for event saver and initial prompt saving)
+    if (this.config.onSessionStarted) {
+      this.config.onSessionStarted(session, events, workerId, initialPrompt);
+    }
 
     this.emitter.emit('agent:spawned', workerId, worktreePath);
 
