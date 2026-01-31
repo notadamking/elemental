@@ -74,13 +74,18 @@
     "@elemental/core": "workspace:*",
     "@elemental/storage": "workspace:*"
   },
-  "optionalDependencies": {
-    "@elemental/orchestrator-sdk": "workspace:*"
-  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "@elemental/orchestrator-sdk": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@elemental/orchestrator-sdk": {
+      "optional": true
+    }
   }
 }
