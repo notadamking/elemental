@@ -12,6 +12,7 @@ import type {
   AgentResponse,
   AgentStatusResponse,
   SessionsResponse,
+  SessionMessagesResponse,
   CreateAgentInput,
 } from '../types';
 
@@ -92,6 +93,13 @@ export function useSessions(filters?: { agentId?: string; role?: AgentRole; stat
     queryFn: () => fetchApi<SessionsResponse>(path),
     refetchInterval: 10000, // Poll every 10 seconds
   });
+}
+
+/**
+ * Fetch messages for a session (non-hook version for direct calls)
+ */
+export async function fetchSessionMessages(sessionId: string): Promise<SessionMessagesResponse> {
+  return fetchApi<SessionMessagesResponse>(`/sessions/${sessionId}/messages`);
 }
 
 // ============================================================================

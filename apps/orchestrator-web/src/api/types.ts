@@ -151,6 +151,26 @@ export interface SessionsResponse {
   sessions: SessionRecord[];
 }
 
+/**
+ * Session message from the server (persisted transcript)
+ */
+export interface SessionMessage {
+  id: string;
+  sessionId: string;
+  agentId: EntityId;
+  type: 'user' | 'assistant' | 'tool_use' | 'tool_result' | 'system' | 'error' | 'result';
+  content?: string;
+  toolName?: string;
+  toolInput?: string;
+  toolOutput?: string;
+  isError: boolean;
+  createdAt: Timestamp;
+}
+
+export interface SessionMessagesResponse {
+  messages: SessionMessage[];
+}
+
 export interface WorktreesResponse {
   worktrees: WorktreeInfo[];
 }

@@ -6,13 +6,28 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { X, History, Clock, ChevronRight, MessageSquare, Trash2 } from 'lucide-react';
-import type { SessionRecord } from '../../api/types';
+import type { SessionRecord, SessionMessage } from '../../api/types';
 import type { StreamEvent } from './types';
 import { MarkdownContent } from '../shared/MarkdownContent';
+import { fetchSessionMessages } from '../../api/hooks/useAgents';
 
 // Storage key prefix for session transcripts
 const SESSION_STORAGE_PREFIX = 'elemental-session-transcript-';
 const MAX_STORED_SESSIONS = 50;
+
+/** Convert server SessionMessage to StreamEvent format */
+function messageToStreamEvent(msg: SessionMessage): StreamEvent {
+  return {
+    id: msg.id,
+    type: msg.type,
+    timestamp: typeof msg.createdAt === 'number' ? msg.createdAt : Date.parse(msg.createdAt as unknown as string),
+    content: msg.content,
+    toolName: msg.toolName,
+    toolInput: msg.toolInput ? JSON.parse(msg.toolInput) : undefined,
+    toolOutput: msg.toolOutput,
+    isError: msg.isError,
+  };
+}
 
 export interface SessionHistoryModalProps {
   isOpen: boolean;
@@ -383,18 +398,53 @@ export function SessionHistoryModal({
 }: SessionHistoryModalProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [transcriptCache, setTranscriptCache] = useState<Record<string, StreamEvent[]>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Load transcripts for all sessions on mount
+  // Load transcripts for all sessions on mount - fetch from server first, fallback to localStorage
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    setIsLoading(true);
+
+    async function loadTranscripts() {
       const cache: Record<string, StreamEvent[]> = {};
-      sessions.forEach(session => {
-        cache[session.id] = getSessionTranscript(session.id);
-      });
-      setTranscriptCache(cache);
-      // Don't auto-select a session - start with full-width list
-      setSelectedSessionId(null);
+
+      // Load transcripts for all sessions in parallel
+      await Promise.all(
+        sessions.map(async (session) => {
+          try {
+            // First try to fetch from server
+            const response = await fetchSessionMessages(session.id);
+            if (!cancelled && response.messages && response.messages.length > 0) {
+              cache[session.id] = response.messages.map(messageToStreamEvent);
+              return;
+            }
+          } catch (err) {
+            // Server fetch failed, try localStorage fallback
+            console.debug('[SessionHistory] Server fetch failed, trying localStorage:', err);
+          }
+
+          // Fall back to localStorage (for backwards compatibility)
+          if (!cancelled) {
+            cache[session.id] = getSessionTranscript(session.id);
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setTranscriptCache(cache);
+        // Don't auto-select a session - start with full-width list
+        setSelectedSessionId(null);
+        setIsLoading(false);
+      }
     }
+
+    loadTranscripts();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, sessions]);
 
   // Filter to only sessions with transcripts
@@ -455,7 +505,12 @@ export function SessionHistoryModal({
 
         {/* Content */}
         <div className="flex-1 flex min-h-0">
-          {sessionsWithTranscripts.length === 0 ? (
+          {isLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-[var(--color-text-muted)] p-6">
+              <History className="w-12 h-12 mb-3 opacity-50 animate-pulse" />
+              <p className="text-sm">Loading session history...</p>
+            </div>
+          ) : sessionsWithTranscripts.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-[var(--color-text-muted)] p-6">
               <History className="w-12 h-12 mb-3 opacity-50" />
               <p className="text-sm">No session history available</p>
