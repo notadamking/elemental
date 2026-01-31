@@ -952,6 +952,9 @@ export class SpawnerServiceImpl implements SpawnerService {
       // Resume if we have a session ID
       if (options?.resumeSessionId) {
         sdkOptions.resume = options.resumeSessionId;
+        // For resumed sessions, set the session ID on the queue immediately
+        // so the first message includes the correct session_id
+        inputQueue.setSessionId(options.resumeSessionId);
       }
 
       // Create the SDK query with streaming input (enables interrupt support)
@@ -971,8 +974,8 @@ export class SpawnerServiceImpl implements SpawnerService {
       // Wait for the init event to get the Claude session ID
       await this.waitForInit(session, options?.timeout ?? this.defaultConfig.timeout!);
 
-      // Update the queue with the session ID for future messages
-      if (session.claudeSessionId) {
+      // Update the queue with the session ID for future messages (for new sessions)
+      if (session.claudeSessionId && !options?.resumeSessionId) {
         inputQueue.setSessionId(session.claudeSessionId);
       }
     } catch (error) {
@@ -985,10 +988,34 @@ export class SpawnerServiceImpl implements SpawnerService {
   /**
    * Process SDK messages and emit them as session events
    */
-  private async processSDKMessages(session: InternalSession, queryResult: SDKQuery): Promise<void> {
+  private async processSDKMessages(
+    session: InternalSession,
+    queryResult: SDKQuery
+  ): Promise<void> {
+    let resumeErrorDetected = false;
     try {
       for await (const message of queryResult) {
-        if (session.status === 'terminated') break;
+        const subtype = 'subtype' in message ? (message as { subtype?: string }).subtype : undefined;
+
+        // Check for resume failure (session not found)
+        if (message.type === 'result' && subtype === 'error_during_execution') {
+          const resultMsg = message as { errors?: string[] };
+          const errors = resultMsg.errors || [];
+          const sessionNotFoundError = errors.find(e => e.includes('No conversation found with session ID'));
+
+          if (sessionNotFoundError) {
+            resumeErrorDetected = true;
+            // Emit a specific event so the session manager can handle this
+            session.events.emit('resume_failed', {
+              reason: 'session_not_found',
+              message: sessionNotFoundError,
+            });
+          }
+        }
+
+        if (session.status === 'terminated') {
+          break;
+        }
 
         // Convert SDK message to SpawnedSessionEvent
         const event = this.convertSDKMessageToEvent(message);
@@ -1007,7 +1034,10 @@ export class SpawnerServiceImpl implements SpawnerService {
         session.events.emit('interrupt');
         return;
       }
-      session.events.emit('error', error);
+      // Don't emit error event if this was a resume failure (already handled above)
+      if (!resumeErrorDetected) {
+        session.events.emit('error', error);
+      }
     } finally {
       // Session has ended
       if (session.status !== 'suspended' && session.status !== 'terminated') {
@@ -1016,7 +1046,8 @@ export class SpawnerServiceImpl implements SpawnerService {
       if (!session.endedAt) {
         session.endedAt = createTimestamp();
       }
-      session.events.emit('exit', 0, null);
+      // Emit exit with code 1 if resume failed, otherwise 0
+      session.events.emit('exit', resumeErrorDetected ? 1 : 0, null);
     }
   }
 

@@ -582,9 +582,19 @@ export class SessionManagerImpl implements SessionManager {
         : taskInstructions;
     }
 
+    // Look up the original session's working directory from history if not provided
+    let workingDirectory = options.workingDirectory;
+    if (!workingDirectory) {
+      const history = await this.getSessionHistory(agentId, 20);
+      const previousSession = history.find(h => h.claudeSessionId === options.claudeSessionId);
+      if (previousSession?.workingDirectory) {
+        workingDirectory = previousSession.workingDirectory;
+      }
+    }
+
     // Build spawn options with resume
     const spawnOptions: SpawnOptions = {
-      workingDirectory: options.workingDirectory,
+      workingDirectory,
       resumeSessionId: options.claudeSessionId,
       initialPrompt: effectivePrompt,
     };

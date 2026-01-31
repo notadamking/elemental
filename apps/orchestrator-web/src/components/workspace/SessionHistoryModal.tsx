@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { X, History, Clock, ChevronRight, MessageSquare, Trash2, Play } from 'lucide-react';
+import { X, History, Clock, ChevronRight, MessageSquare, Trash2, Eye } from 'lucide-react';
 import type { SessionRecord, SessionMessage } from '../../api/types';
 import type { StreamEvent } from './types';
 import { MarkdownContent } from '../shared/MarkdownContent';
@@ -35,12 +35,8 @@ export interface SessionHistoryModalProps {
   agentId: string;
   agentName: string;
   sessions: SessionRecord[];
-  /** Whether the agent currently has an active session */
-  hasActiveSession?: boolean;
-  /** Called when user wants to resume a session. Pass both claudeSessionId and sessionId for transcript loading. */
-  onResumeSession?: (claudeSessionId: string, sessionId: string) => void;
-  /** Whether a resume is currently in progress */
-  isResuming?: boolean;
+  /** Called when user wants to view a session's transcript (can be resumed by sending a message) */
+  onViewSession?: (sessionId: string, claudeSessionId?: string) => void;
 }
 
 /** Get transcript from localStorage */
@@ -238,12 +234,10 @@ interface SessionItemProps {
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
-  onResume?: () => void;
-  canResume?: boolean;
-  isResuming?: boolean;
+  onOpen?: () => void;
 }
 
-function SessionItem({ session, transcript, isSelected, onClick, onDelete, onResume, canResume, isResuming }: SessionItemProps) {
+function SessionItem({ session, transcript, isSelected, onClick, onDelete, onOpen }: SessionItemProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const sessionName = extractSessionName(session, transcript);
   const formattedDate = formatSessionDate(session.startedAt || session.createdAt);
@@ -322,17 +316,16 @@ function SessionItem({ session, transcript, isSelected, onClick, onDelete, onRes
           </div>
         ) : (
           <>
-            {canResume && onResume && (
+            {onOpen && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onResume();
+                  onOpen();
                 }}
-                disabled={isResuming}
-                className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50"
-                title="Resume this session"
+                className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                title="Open session"
               >
-                <Play className={`w-3.5 h-3.5 ${isResuming ? 'animate-pulse' : ''}`} />
+                <Eye className="w-3.5 h-3.5" />
               </button>
             )}
             <button
@@ -417,9 +410,7 @@ export function SessionHistoryModal({
   onClose,
   agentName,
   sessions,
-  hasActiveSession,
-  onResumeSession,
-  isResuming,
+  onViewSession,
 }: SessionHistoryModalProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [transcriptCache, setTranscriptCache] = useState<Record<string, StreamEvent[]>>({});
@@ -472,9 +463,31 @@ export function SessionHistoryModal({
     };
   }, [isOpen, sessions]);
 
-  // Filter to only sessions with transcripts
+  // Filter to only sessions with transcripts, and group by claudeSessionId
+  // When multiple sessions share the same claudeSessionId (from resume), show only the most recent one
   const sessionsWithTranscripts = useMemo(() => {
-    return sessions.filter(s => (transcriptCache[s.id]?.length || 0) > 0);
+    const withTranscripts = sessions.filter(s => (transcriptCache[s.id]?.length || 0) > 0);
+
+    // Group by claudeSessionId - sessions with same claudeSessionId are the same conversation
+    const grouped = new Map<string, SessionRecord>();
+    for (const session of withTranscripts) {
+      const key = session.claudeSessionId || session.id; // Use id as fallback if no claudeSessionId
+      const existing = grouped.get(key);
+      if (!existing) {
+        grouped.set(key, session);
+      } else {
+        // Keep the most recent session (by startedAt or createdAt)
+        const existingTime = existing.startedAt || existing.createdAt;
+        const sessionTime = session.startedAt || session.createdAt;
+        const existingMs = typeof existingTime === 'number' ? existingTime : new Date(existingTime).getTime();
+        const sessionMs = typeof sessionTime === 'number' ? sessionTime : new Date(sessionTime).getTime();
+        if (sessionMs > existingMs) {
+          grouped.set(key, session);
+        }
+      }
+    }
+
+    return Array.from(grouped.values());
   }, [sessions, transcriptCache]);
 
   const selectedTranscript = useMemo(() => {
@@ -553,9 +566,7 @@ export function SessionHistoryModal({
                     isSelected={session.id === selectedSessionId}
                     onClick={() => setSelectedSessionId(session.id)}
                     onDelete={() => handleDeleteTranscript(session.id)}
-                    onResume={session.claudeSessionId && onResumeSession ? () => onResumeSession(session.claudeSessionId!, session.id) : undefined}
-                    canResume={!hasActiveSession && !!session.claudeSessionId && !!onResumeSession}
-                    isResuming={isResuming}
+                    onOpen={onViewSession ? () => onViewSession(session.id, session.claudeSessionId) : undefined}
                   />
                 ))}
               </div>
@@ -563,7 +574,6 @@ export function SessionHistoryModal({
               {/* Transcript viewer - only shown when a session is selected */}
               {hasSelectedSession && (() => {
                 const selectedSession = sessionsWithTranscripts.find(s => s.id === selectedSessionId);
-                const canResumeSelected = !hasActiveSession && selectedSession?.claudeSessionId && onResumeSession;
                 return (
                   <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)] flex flex-col">
                     {/* Transcript header with close button */}
@@ -572,21 +582,18 @@ export function SessionHistoryModal({
                         {extractSessionName(selectedSession!, selectedTranscript)}
                       </span>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {canResumeSelected && (
+                        {onViewSession && (
                           <button
-                            onClick={() => onResumeSession(selectedSession!.claudeSessionId!, selectedSession!.id)}
-                            disabled={isResuming}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            title="Resume this session"
+                            onClick={() => {
+                              onViewSession(selectedSession!.id, selectedSession!.claudeSessionId);
+                              onClose();
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                            title="Open this session (send a message to resume)"
                           >
-                            <Play className={`w-3.5 h-3.5 ${isResuming ? 'animate-pulse' : ''}`} />
-                            {isResuming ? 'Resuming...' : 'Resume'}
+                            <Eye className="w-3.5 h-3.5" />
+                            Open
                           </button>
-                        )}
-                        {hasActiveSession && selectedSession?.claudeSessionId && (
-                          <span className="text-xs text-[var(--color-text-muted)] italic">
-                            Stop current session to resume
-                          </span>
                         )}
                         <button
                           onClick={() => setSelectedSessionId(null)}

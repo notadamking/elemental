@@ -278,11 +278,11 @@ export function useInterruptAgentSession() {
 export function useResumeAgentSession() {
   const queryClient = useQueryClient();
 
-  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; claudeSessionId?: string }>({
-    mutationFn: async ({ agentId, claudeSessionId }) => {
+  return useMutation<{ success: boolean; session: unknown }, Error, { agentId: string; claudeSessionId?: string; resumePrompt?: string }>({
+    mutationFn: async ({ agentId, claudeSessionId, resumePrompt }) => {
       return fetchApi(`/agents/${agentId}/resume`, {
         method: 'POST',
-        body: JSON.stringify({ claudeSessionId }),
+        body: JSON.stringify({ claudeSessionId, resumePrompt }),
       });
     },
     onSuccess: (_, { agentId }) => {

@@ -178,10 +178,12 @@ export function attachSessionEventSaver(
   sessionsWithEventSaver.add(sessionId);
 
   const onEvent = (event: SpawnedSessionEvent) => {
-    saveSessionEvent(event, sessionId, agentId, sessionMessageService);
+    const msgId = saveSessionEvent(event, sessionId, agentId, sessionMessageService);
+    // Attach the msgId to the event so SSE handlers can use the same ID for deduplication
+    (event as SpawnedSessionEvent & { msgId?: string }).msgId = msgId;
   };
 
-  const onError = (error: Error) => {
+  const onError = (error: Error & { msgId?: string }) => {
     const msgId = `error-${sessionId}-${Date.now()}`;
     sessionMessageService.saveMessage({
       id: msgId,
@@ -191,6 +193,8 @@ export function attachSessionEventSaver(
       content: error.message,
       isError: true,
     });
+    // Attach msgId for SSE deduplication
+    error.msgId = msgId;
   };
 
   events.on('event', onEvent);
@@ -409,11 +413,12 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       attachSessionEventSaver(events, session.id, agentId, sessionMessageService);
 
       // Save resume prompt to database if provided
+      // Use same ID pattern as start session so SSE deduplication works
       if (body.resumePrompt) {
         sessionInitialPrompts.set(session.id, body.resumePrompt);
-        const resumeMsgId = `user-${session.id}-resume`;
+        const initialMsgId = `user-${session.id}-initial`;
         sessionMessageService.saveMessage({
-          id: resumeMsgId,
+          id: initialMsgId,
           sessionId: session.id,
           agentId,
           type: 'user',
@@ -485,7 +490,9 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         // listener that was attached when the session started. The SSE handler only needs to
         // stream events to connected clients for real-time display.
         const onEvent = async (event: SpawnedSessionEvent) => {
-          const msgId = `${event.type}-${activeSession.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          // Use the msgId attached by saveSessionEvent if available, otherwise generate one
+          const eventWithMsgId = event as SpawnedSessionEvent & { msgId?: string };
+          const msgId = eventWithMsgId.msgId || `${event.type}-${activeSession.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           await stream.writeSSE({
             id: msgId,
             event: `agent_${event.type}`,
@@ -494,11 +501,13 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         };
 
         const onError = async (error: Error) => {
-          const msgId = `error-${activeSession.id}-${Date.now()}`;
+          // Use msgId from error if attached by saveSessionEvent, otherwise generate one
+          const errorWithMsgId = error as Error & { msgId?: string };
+          const msgId = errorWithMsgId.msgId || `error-${activeSession.id}-${Date.now()}`;
           await stream.writeSSE({
             id: msgId,
             event: 'agent_error',
-            data: JSON.stringify({ error: error.message }),
+            data: JSON.stringify({ error: error.message, msgId }),
           });
         };
 
@@ -636,19 +645,53 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       const afterId = url.searchParams.get('after');
 
       // Get the session to check for claudeSessionId
-      const session = sessionManager.getSession(sessionId);
+      // First check in-memory sessions, then check persisted session history
+      let claudeSessionId: string | undefined;
 
-      // If session has a claudeSessionId, find all related sessions and load their messages too
-      // This is needed for resumed sessions which share a claudeSessionId
-      if (session?.claudeSessionId) {
-        // Find all sessions with the same claudeSessionId
+      const inMemorySession = sessionManager.getSession(sessionId);
+      if (inMemorySession?.claudeSessionId) {
+        claudeSessionId = inMemorySession.claudeSessionId;
+      } else {
+        // Session not in memory - check persisted session history for all agents
+        // This is needed when viewing historical sessions after server restart
+        const agents = await agentRegistry.listAgents();
+        for (const agent of agents) {
+          const history = await sessionManager.getSessionHistory(agent.id as unknown as EntityId, 50);
+          const historyEntry = history.find(h => h.id === sessionId);
+          if (historyEntry?.claudeSessionId) {
+            claudeSessionId = historyEntry.claudeSessionId;
+            break;
+          }
+        }
+      }
+
+      // If we found a claudeSessionId, find all related sessions and load their messages
+      if (claudeSessionId) {
+        // Collect all session IDs with the same claudeSessionId
+        const relatedSessionIds = new Set<string>();
+        relatedSessionIds.add(sessionId); // Always include the requested session
+
+        // Check in-memory sessions
         const allSessions = sessionManager.listSessions({});
-        const relatedSessionIds = allSessions
-          .filter(s => s.claudeSessionId === session.claudeSessionId)
-          .map(s => s.id);
+        for (const s of allSessions) {
+          if (s.claudeSessionId === claudeSessionId) {
+            relatedSessionIds.add(s.id);
+          }
+        }
+
+        // Also check persisted session history
+        const agents = await agentRegistry.listAgents();
+        for (const agent of agents) {
+          const history = await sessionManager.getSessionHistory(agent.id as unknown as EntityId, 50);
+          for (const entry of history) {
+            if (entry.claudeSessionId === claudeSessionId) {
+              relatedSessionIds.add(entry.id);
+            }
+          }
+        }
 
         // Load messages from all related sessions
-        const messages = sessionMessageService.getMessagesForSessions(relatedSessionIds);
+        const messages = sessionMessageService.getMessagesForSessions(Array.from(relatedSessionIds));
         return c.json({ messages });
       }
 

@@ -22,6 +22,12 @@ export interface StreamViewerProps {
   agentName: string;
   /** Current session ID for transcript storage */
   sessionId?: string;
+  /** Claude session ID for resuming a previous session */
+  claudeSessionId?: string;
+  /** Whether there's an active running session */
+  hasActiveSession?: boolean;
+  /** Callback to resume a session with a user message */
+  onResumeWithMessage?: (claudeSessionId: string, message: string) => Promise<void>;
   /** API URL for file uploads (defaults to orchestrator server) */
   apiUrl?: string;
   onStatusChange?: (status: PaneStatus) => void;
@@ -215,6 +221,9 @@ export function StreamViewer({
   agentId,
   agentName,
   sessionId,
+  claudeSessionId,
+  hasActiveSession = false,
+  onResumeWithMessage,
   apiUrl = DEFAULT_API_URL,
   onStatusChange,
   enableFileDrop = true,
@@ -365,8 +374,16 @@ export function StreamViewer({
 
   // Connect to SSE stream
   // Re-runs when sessionId changes (e.g., after resume) to reconnect to the new session
+  // Only connects when there's an active session - historical sessions just load from DB
   useEffect(() => {
     if (!agentId) {
+      updateStatus('disconnected');
+      return;
+    }
+
+    // Don't connect SSE for historical sessions (no active session)
+    // Messages will be loaded from the database instead
+    if (!hasActiveSession) {
       updateStatus('disconnected');
       return;
     }
@@ -646,20 +663,30 @@ export function StreamViewer({
         eventSourceRef.current = null;
       }
     };
-  }, [agentId, sessionId, updateStatus]);
+  }, [agentId, sessionId, hasActiveSession, updateStatus]);
 
-  // Send input to agent
+  // Send input to agent (or resume session if viewing historical session)
   const sendInput = useCallback(async (message: string) => {
-    // Add user message to events
-    const userEvent: StreamEvent = {
-      id: `user-${Date.now()}`,
-      type: 'user',
-      timestamp: Date.now(),
-      content: message,
-    };
-    setEvents(prev => [...prev, userEvent]);
-
     try {
+      // If no active session but we have a claudeSessionId, resume the session with this message
+      // Don't add user message locally - it will be saved to DB and loaded when session starts
+      if (!hasActiveSession && claudeSessionId && onResumeWithMessage) {
+        setIsWorking(true);
+        resetWorkingTimeout(true);
+        await onResumeWithMessage(claudeSessionId, message);
+        return;
+      }
+
+      // Add user message to events (only for active sessions, not resume)
+      const userEvent: StreamEvent = {
+        id: `user-${Date.now()}`,
+        type: 'user',
+        timestamp: Date.now(),
+        content: message,
+      };
+      setEvents(prev => [...prev, userEvent]);
+
+      // Otherwise send to the active session
       const response = await fetch(`${DEFAULT_SSE_URL}/${agentId}/input`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -690,7 +717,7 @@ export function StreamViewer({
       setIsWorking(false);
       throw err; // Re-throw so TerminalInput can restore input
     }
-  }, [agentId, resetWorkingTimeout]);
+  }, [agentId, hasActiveSession, claudeSessionId, onResumeWithMessage, resetWorkingTimeout]);
 
   // File upload function - uses base64 encoding to avoid Bun's multipart binary corruption
   const uploadFile = useCallback(async (file: File): Promise<string | null> => {
@@ -934,10 +961,11 @@ export function StreamViewer({
         )}
       </div>
 
-      {/* Input area */}
+      {/* Input area - enabled when connected OR when viewing a historical session that can be resumed */}
       <TerminalInput
-        isConnected={status === 'connected'}
+        isConnected={status === 'connected' || (!hasActiveSession && !!claudeSessionId && !!onResumeWithMessage)}
         onSend={sendInput}
+        connectedPlaceholder={hasActiveSession ? undefined : 'Send a message to resume this session...'}
         data-testid="stream-input"
       />
     </div>
