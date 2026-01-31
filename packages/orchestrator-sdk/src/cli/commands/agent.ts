@@ -477,7 +477,9 @@ async function agentRegisterHandler(
   }
 
   try {
-    const createdBy = (options.actor ?? 'cli') as EntityId;
+    // Use a proper EntityId format for CLI operations
+    // 'el-cli' follows the el-xxxx pattern expected by EntityId
+    const createdBy = (options.actor ?? 'el-cli') as EntityId;
     const maxConcurrentTasks = options.maxTasks ? parseInt(options.maxTasks, 10) : 1;
     const tags = options.tags ? options.tags.split(',').map(t => t.trim()) : undefined;
     const reportsTo = options.reportsTo as EntityId | undefined;

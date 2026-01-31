@@ -9,4 +9,6 @@ export { cliPlugin } from './plugin.js';
 
 // Command exports
 export { agentCommand, agentListCommand, agentShowCommand, agentRegisterCommand, agentStartCommand, agentStopCommand, agentStreamCommand } from './commands/agent.js';
-export { dispatchCommand, smartDispatchCommand } from './commands/dispatch.js';
+export { daemonCommand, daemonStartCommand, daemonStopCommand, daemonStatusCommand } from './commands/daemon.js';
+export { dispatchCommand } from './commands/dispatch.js';
+export { taskCommand, taskHandoffCommand, taskCompleteCommand } from './commands/task.js';
