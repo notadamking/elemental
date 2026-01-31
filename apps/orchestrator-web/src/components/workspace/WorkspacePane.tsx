@@ -591,8 +591,8 @@ export const WorkspacePane = forwardRef<WorkspacePaneHandle, WorkspacePaneProps>
         )}
 
         {/* Idle/Stopped/Shutting down overlay for non-director agents */}
-        {/* Don't show overlay when viewing an ended session (so transcript remains visible) */}
-        {pane.agentRole !== 'director' && (!hasActiveSession || stopSession.isPending) && !viewingEndedSession && (
+        {/* Don't show overlay when viewing an ended session or resuming (so transcript remains visible during transitions) */}
+        {pane.agentRole !== 'director' && (!hasActiveSession || stopSession.isPending) && !viewingEndedSession && !resumeSession.isPending && (
           <div
             className="
               absolute inset-0 z-10
