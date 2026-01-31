@@ -253,6 +253,17 @@ export function StreamViewer({
 
         if (serverMessages.length > 0) {
           // Convert server messages to StreamEvent format
+          // Helper to safely parse toolInput (JSON.stringify'd on save)
+          const parseToolInput = (input: string | undefined): unknown => {
+            if (!input) return undefined;
+            try {
+              return JSON.parse(input);
+            } catch {
+              // If parsing fails (e.g., server fallback to String()), return as-is
+              return input;
+            }
+          };
+
           const loadedEvents: StreamEvent[] = serverMessages.map((msg: {
             id: string;
             type: string;
@@ -268,8 +279,10 @@ export function StreamViewer({
             timestamp: new Date(msg.createdAt).getTime(),
             content: msg.content,
             toolName: msg.toolName,
-            toolInput: msg.toolInput ? JSON.parse(msg.toolInput) : undefined,
-            toolOutput: msg.toolOutput ? JSON.parse(msg.toolOutput) : undefined,
+            // toolInput is JSON.stringify'd on save, so we parse it back
+            toolInput: parseToolInput(msg.toolInput),
+            // toolOutput is stored as a raw string, no parsing needed
+            toolOutput: msg.toolOutput,
             isError: msg.isError,
           }));
 
