@@ -6,7 +6,6 @@
  *
  * Role definitions allow agents to be configured with:
  * - System prompts stored as Documents
- * - Default capabilities
  * - Behavioral hooks for startup, task assignment, and stuck scenarios
  *
  * The system prompt is stored as a Document element, allowing versioning

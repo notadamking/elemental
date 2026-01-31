@@ -32,7 +32,7 @@ export interface OrchestratorTaskMeta {
   /** Git branch created for this task (e.g., "agent/alice/task-123-implement-feature") */
   readonly branch?: string;
 
-  /** Path to the worktree where the agent is working (e.g., ".worktrees/alice-implement-feature/") */
+  /** Path to the worktree where the agent is working (e.g., ".elemental/.worktrees/alice-implement-feature/") */
   readonly worktree?: string;
 
   /** Claude Code session ID for this task, enabling session resumption */
@@ -61,6 +61,70 @@ export interface OrchestratorTaskMeta {
 
   /** Last test result */
   readonly lastTestResult?: TestResult;
+
+  // ----------------------------------------
+  // Handoff Context (for task continuation)
+  // ----------------------------------------
+
+  /** Branch preserved from handoff (may differ from current branch if not yet continued) */
+  readonly handoffBranch?: string;
+
+  /** Worktree path preserved from handoff */
+  readonly handoffWorktree?: string;
+
+  /** Session ID of the last agent that worked on this task before handoff */
+  readonly lastSessionId?: string;
+
+  /** Timestamp when the task was handed off */
+  readonly handoffAt?: Timestamp;
+
+  /** Note from the previous agent about the handoff context */
+  readonly handoffNote?: string;
+
+  /** Entity ID of the agent who handed off the task */
+  readonly handoffFrom?: EntityId;
+
+  // ----------------------------------------
+  // PR Information (for completed tasks)
+  // ----------------------------------------
+
+  /** URL of the pull request created for this task */
+  readonly prUrl?: string;
+
+  /** PR number for this task */
+  readonly prNumber?: number;
+
+  /** Completion summary provided by the agent */
+  readonly completionSummary?: string;
+
+  /** Last commit hash before completion */
+  readonly lastCommitHash?: string;
+
+  /** Message explaining the handoff context */
+  readonly handoffMessage?: string;
+
+  /** History of all handoffs for this task */
+  readonly handoffHistory?: HandoffHistoryEntry[];
+}
+
+// ============================================================================
+// Handoff History Entry
+// ============================================================================
+
+/**
+ * An entry in the handoff history for a task
+ */
+export interface HandoffHistoryEntry {
+  /** Session ID of the agent that handed off */
+  readonly sessionId: string;
+  /** Message explaining why the handoff occurred */
+  readonly message?: string;
+  /** Branch at time of handoff */
+  readonly branch?: string;
+  /** Worktree at time of handoff */
+  readonly worktree?: string;
+  /** When the handoff occurred */
+  readonly handoffAt: Timestamp;
 }
 
 // ============================================================================
@@ -239,7 +303,7 @@ export function generateBranchName(
 /**
  * Generates a worktree path for an agent working on a task
  *
- * Format: .worktrees/{worker-name}-{task-slug}/
+ * Format: .elemental/.worktrees/{worker-name}-{task-slug}/
  *
  * @param workerName - The agent's name
  * @param slug - URL-friendly slug derived from task title (optional)
@@ -251,9 +315,9 @@ export function generateWorktreePath(
   const safeName = workerName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
   if (slug) {
     const safeSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 30);
-    return `.worktrees/${safeName}-${safeSlug}`;
+    return `.elemental/.worktrees/${safeName}-${safeSlug}`;
   }
-  return `.worktrees/${safeName}`;
+  return `.elemental/.worktrees/${safeName}`;
 }
 
 /**

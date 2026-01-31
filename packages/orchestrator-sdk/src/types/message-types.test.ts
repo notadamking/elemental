@@ -149,7 +149,7 @@ describe('TaskAssignmentMessage', () => {
       priority: 2,
       assignedBy: testAgentId,
       branch: 'feature/test',
-      worktree: '.worktrees/test',
+      worktree: '.elemental/.worktrees/test',
       isReassignment: true,
       previousAssignee: testAgentId2,
       correlationId: 'corr-123',
@@ -158,7 +158,7 @@ describe('TaskAssignmentMessage', () => {
     expect(message.priority).toBe(2);
     expect(message.assignedBy).toBe(testAgentId);
     expect(message.branch).toBe('feature/test');
-    expect(message.worktree).toBe('.worktrees/test');
+    expect(message.worktree).toBe('.elemental/.worktrees/test');
     expect(message.isReassignment).toBe(true);
     expect(message.previousAssignee).toBe(testAgentId2);
     expect(message.correlationId).toBe('corr-123');

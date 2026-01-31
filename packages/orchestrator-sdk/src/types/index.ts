@@ -52,6 +52,7 @@ export {
   isMergeStatus,
   type TestResult,
   isTestResult,
+  type HandoffHistoryEntry,
   // Utilities
   getOrchestratorTaskMeta,
   setOrchestratorTaskMeta,

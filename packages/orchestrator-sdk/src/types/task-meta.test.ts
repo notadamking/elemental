@@ -71,14 +71,14 @@ describe('OrchestratorTaskMeta utilities', () => {
       const taskMeta = {
         orchestrator: {
           branch: 'agent/alice/task-1-feature',
-          worktree: '.worktrees/alice-feature',
+          worktree: '.elemental/.worktrees/alice-feature',
         },
       };
 
       const result = getOrchestratorTaskMeta(taskMeta);
       expect(result).toEqual({
         branch: 'agent/alice/task-1-feature',
-        worktree: '.worktrees/alice-feature',
+        worktree: '.elemental/.worktrees/alice-feature',
       });
     });
 
@@ -94,7 +94,7 @@ describe('OrchestratorTaskMeta utilities', () => {
       const existingMeta = { customField: 'value' };
       const orchMeta: OrchestratorTaskMeta = {
         branch: 'agent/alice/task-1',
-        worktree: '.worktrees/alice-task-1',
+        worktree: '.elemental/.worktrees/alice-task-1',
       };
 
       const result = setOrchestratorTaskMeta(existingMeta, orchMeta);
@@ -103,7 +103,7 @@ describe('OrchestratorTaskMeta utilities', () => {
         customField: 'value',
         orchestrator: {
           branch: 'agent/alice/task-1',
-          worktree: '.worktrees/alice-task-1',
+          worktree: '.elemental/.worktrees/alice-task-1',
         },
       });
     });
@@ -127,7 +127,7 @@ describe('OrchestratorTaskMeta utilities', () => {
       const existingMeta = {
         orchestrator: {
           branch: 'agent/alice/task-1',
-          worktree: '.worktrees/alice-task-1',
+          worktree: '.elemental/.worktrees/alice-task-1',
         },
       };
 
@@ -137,7 +137,7 @@ describe('OrchestratorTaskMeta utilities', () => {
 
       expect(result.orchestrator).toEqual({
         branch: 'agent/alice/task-1',
-        worktree: '.worktrees/alice-task-1',
+        worktree: '.elemental/.worktrees/alice-task-1',
         mergeStatus: 'pending',
       });
     });
@@ -158,12 +158,12 @@ describe('isOrchestratorTaskMeta', () => {
   test('validates valid orchestrator task metadata', () => {
     expect(isOrchestratorTaskMeta({})).toBe(true); // All fields optional
     expect(isOrchestratorTaskMeta({ branch: 'agent/alice/task-1' })).toBe(true);
-    expect(isOrchestratorTaskMeta({ worktree: '.worktrees/alice' })).toBe(true);
+    expect(isOrchestratorTaskMeta({ worktree: '.elemental/.worktrees/alice' })).toBe(true);
     expect(isOrchestratorTaskMeta({ sessionId: 'session-123' })).toBe(true);
     expect(isOrchestratorTaskMeta({ mergeStatus: 'pending' })).toBe(true);
     expect(isOrchestratorTaskMeta({
       branch: 'agent/alice/task-1',
-      worktree: '.worktrees/alice',
+      worktree: '.elemental/.worktrees/alice',
       sessionId: 'session-123',
       mergeStatus: 'testing',
     })).toBe(true);
@@ -228,17 +228,17 @@ describe('Branch and Worktree naming utilities', () => {
   describe('generateWorktreePath', () => {
     test('generates worktree path with slug', () => {
       const result = generateWorktreePath('alice', 'implement-feature');
-      expect(result).toBe('.worktrees/alice-implement-feature');
+      expect(result).toBe('.elemental/.worktrees/alice-implement-feature');
     });
 
     test('generates worktree path without slug', () => {
       const result = generateWorktreePath('alice');
-      expect(result).toBe('.worktrees/alice');
+      expect(result).toBe('.elemental/.worktrees/alice');
     });
 
     test('sanitizes worker name', () => {
       const result = generateWorktreePath('Bob_Worker', 'feature');
-      expect(result).toBe('.worktrees/bob-worker-feature');
+      expect(result).toBe('.elemental/.worktrees/bob-worker-feature');
     });
   });
 });
