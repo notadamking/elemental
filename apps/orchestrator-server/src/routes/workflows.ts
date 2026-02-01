@@ -1,0 +1,573 @@
+/**
+ * Workflow and Playbook Routes
+ *
+ * REST API endpoints for managing workflows and playbooks.
+ */
+
+import { Hono } from 'hono';
+import type { Services } from '../services.js';
+import {
+  createWorkflow,
+  updateWorkflowStatus,
+  WorkflowStatus,
+  type Workflow,
+  type WorkflowId,
+  createPlaybook,
+  updatePlaybook,
+  type Playbook,
+  type PlaybookId,
+  type ElementId,
+  type EntityId,
+  resolveVariables,
+  substituteVariables,
+  filterStepsByConditions,
+} from '@elemental/core';
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+interface WorkflowResponse {
+  workflow: Workflow;
+}
+
+interface WorkflowsResponse {
+  workflows: Workflow[];
+  total: number;
+}
+
+interface PlaybookResponse {
+  playbook: Playbook;
+}
+
+interface PlaybooksResponse {
+  playbooks: Playbook[];
+  total: number;
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function formatWorkflowResponse(workflow: Workflow): Workflow {
+  return {
+    ...workflow,
+    createdAt: workflow.createdAt,
+    updatedAt: workflow.updatedAt,
+    startedAt: workflow.startedAt,
+    finishedAt: workflow.finishedAt,
+  };
+}
+
+function formatPlaybookResponse(playbook: Playbook): Playbook {
+  return {
+    ...playbook,
+    createdAt: playbook.createdAt,
+    updatedAt: playbook.updatedAt,
+  };
+}
+
+// ============================================================================
+// Route Factory
+// ============================================================================
+
+export function createWorkflowRoutes(services: Services) {
+  const { api } = services;
+  const app = new Hono();
+
+  // ==========================================================================
+  // Workflow Routes
+  // ==========================================================================
+
+  /**
+   * GET /api/workflows - List all workflows
+   */
+  app.get('/api/workflows', async (c) => {
+    try {
+      const status = c.req.query('status');
+      const playbookId = c.req.query('playbookId');
+      const ephemeralParam = c.req.query('ephemeral');
+      const limitParam = c.req.query('limit');
+
+      // Get all workflows using generic list
+      const allWorkflows = await api.list<Workflow>({ type: 'workflow' });
+
+      // Apply filters
+      let workflows = allWorkflows;
+
+      if (status) {
+        if (status === 'active') {
+          workflows = workflows.filter((w: Workflow) => w.status === 'pending' || w.status === 'running');
+        } else if (status === 'terminal') {
+          workflows = workflows.filter((w: Workflow) => ['completed', 'failed', 'cancelled'].includes(w.status));
+        } else {
+          workflows = workflows.filter((w: Workflow) => w.status === status);
+        }
+      }
+
+      if (playbookId) {
+        workflows = workflows.filter((w: Workflow) => w.playbookId === playbookId);
+      }
+
+      if (ephemeralParam !== undefined) {
+        const isEphemeral = ephemeralParam === 'true';
+        workflows = workflows.filter((w: Workflow) => w.ephemeral === isEphemeral);
+      }
+
+      // Sort by createdAt descending (newest first)
+      workflows = [...workflows].sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      // Apply limit
+      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+      if (limit && limit > 0) {
+        workflows = workflows.slice(0, limit);
+      }
+
+      const response: WorkflowsResponse = {
+        workflows: workflows.map(formatWorkflowResponse),
+        total: allWorkflows.length,
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error listing workflows:', error);
+      return c.json({ error: { code: 'LIST_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * GET /api/workflows/:id - Get a single workflow
+   */
+  app.get('/api/workflows/:id', async (c) => {
+    try {
+      const workflowId = c.req.param('id') as WorkflowId;
+      const workflow = await api.get<Workflow>(workflowId as ElementId);
+
+      if (!workflow) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+      }
+
+      const response: WorkflowResponse = {
+        workflow: formatWorkflowResponse(workflow),
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error getting workflow:', error);
+      return c.json({ error: { code: 'GET_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * POST /api/workflows - Create a new workflow
+   */
+  app.post('/api/workflows', async (c) => {
+    try {
+      const body = await c.req.json();
+      const { title, descriptionRef, playbookId, ephemeral, variables, tags } = body;
+
+      if (!title) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Title is required' } }, 400);
+      }
+
+      // Get system entity for createdBy
+      const systemEntity = await api.lookupEntityByName('system');
+      const createdBy = (systemEntity?.id ?? 'system') as EntityId;
+
+      const workflow = await createWorkflow({
+        title,
+        descriptionRef,
+        playbookId: playbookId as PlaybookId | undefined,
+        ephemeral: ephemeral ?? false,
+        variables: variables ?? {},
+        tags: tags ?? [],
+        createdBy,
+      });
+
+      // Save the workflow using create
+      const savedWorkflow = await api.create<Workflow>({
+        ...workflow,
+      });
+
+      const response: WorkflowResponse = {
+        workflow: formatWorkflowResponse(savedWorkflow),
+      };
+
+      return c.json(response, 201);
+    } catch (error) {
+      console.error('[workflows] Error creating workflow:', error);
+      return c.json({ error: { code: 'CREATE_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * PATCH /api/workflows/:id - Update a workflow
+   */
+  app.patch('/api/workflows/:id', async (c) => {
+    try {
+      const workflowId = c.req.param('id') as WorkflowId;
+      const body = await c.req.json();
+      const { status, failureReason, cancelReason } = body;
+
+      const workflow = await api.get<Workflow>(workflowId as ElementId);
+      if (!workflow) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+      }
+
+      let updatedWorkflow = workflow;
+
+      if (status) {
+        updatedWorkflow = updateWorkflowStatus(updatedWorkflow, {
+          status: status as WorkflowStatus,
+          failureReason,
+          cancelReason,
+        });
+      }
+
+      // Save the updated workflow
+      const savedWorkflow = await api.update<Workflow>(workflowId as ElementId, updatedWorkflow);
+
+      const response: WorkflowResponse = {
+        workflow: formatWorkflowResponse(savedWorkflow),
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error updating workflow:', error);
+      return c.json({ error: { code: 'UPDATE_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * POST /api/workflows/:id/start - Start a workflow (transition to running)
+   */
+  app.post('/api/workflows/:id/start', async (c) => {
+    try {
+      const workflowId = c.req.param('id') as WorkflowId;
+
+      const workflow = await api.get<Workflow>(workflowId as ElementId);
+      if (!workflow) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+      }
+
+      if (workflow.status !== 'pending') {
+        return c.json({
+          error: { code: 'INVALID_STATUS', message: `Cannot start workflow in status '${workflow.status}'` }
+        }, 400);
+      }
+
+      const updatedWorkflow = updateWorkflowStatus(workflow, { status: WorkflowStatus.RUNNING });
+      const savedWorkflow = await api.update<Workflow>(workflowId as ElementId, updatedWorkflow);
+
+      const response: WorkflowResponse = {
+        workflow: formatWorkflowResponse(savedWorkflow),
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error starting workflow:', error);
+      return c.json({ error: { code: 'START_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * POST /api/workflows/:id/cancel - Cancel a workflow
+   */
+  app.post('/api/workflows/:id/cancel', async (c) => {
+    try {
+      const workflowId = c.req.param('id') as WorkflowId;
+      const body = await c.req.json().catch(() => ({}));
+      const { reason } = body;
+
+      const workflow = await api.get<Workflow>(workflowId as ElementId);
+      if (!workflow) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+      }
+
+      if (['completed', 'failed', 'cancelled'].includes(workflow.status)) {
+        return c.json({
+          error: { code: 'INVALID_STATUS', message: `Cannot cancel workflow in status '${workflow.status}'` }
+        }, 400);
+      }
+
+      const updatedWorkflow = updateWorkflowStatus(workflow, {
+        status: WorkflowStatus.CANCELLED,
+        cancelReason: reason,
+      });
+      const savedWorkflow = await api.update<Workflow>(workflowId as ElementId, updatedWorkflow);
+
+      const response: WorkflowResponse = {
+        workflow: formatWorkflowResponse(savedWorkflow),
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error cancelling workflow:', error);
+      return c.json({ error: { code: 'CANCEL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * DELETE /api/workflows/:id - Delete a workflow
+   */
+  app.delete('/api/workflows/:id', async (c) => {
+    try {
+      const workflowId = c.req.param('id') as WorkflowId;
+
+      const workflow = await api.get<Workflow>(workflowId as ElementId);
+      if (!workflow) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+      }
+
+      await api.delete(workflowId as ElementId);
+
+      return c.json({ success: true });
+    } catch (error) {
+      console.error('[workflows] Error deleting workflow:', error);
+      return c.json({ error: { code: 'DELETE_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // ==========================================================================
+  // Playbook Routes
+  // ==========================================================================
+
+  /**
+   * GET /api/playbooks - List all playbooks
+   */
+  app.get('/api/playbooks', async (c) => {
+    try {
+      const nameFilter = c.req.query('name');
+      const limitParam = c.req.query('limit');
+
+      // Get all playbooks using generic list
+      let playbooks = await api.list<Playbook>({ type: 'playbook' });
+
+      // Apply name filter (case-insensitive partial match)
+      if (nameFilter) {
+        const lowerFilter = nameFilter.toLowerCase();
+        playbooks = playbooks.filter((p: Playbook) =>
+          p.name.toLowerCase().includes(lowerFilter) ||
+          p.title.toLowerCase().includes(lowerFilter)
+        );
+      }
+
+      // Sort by name ascending
+      playbooks = [...playbooks].sort((a, b) => a.name.localeCompare(b.name));
+
+      // Apply limit
+      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+      if (limit && limit > 0) {
+        playbooks = playbooks.slice(0, limit);
+      }
+
+      const response: PlaybooksResponse = {
+        playbooks: playbooks.map(formatPlaybookResponse),
+        total: playbooks.length,
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error listing playbooks:', error);
+      return c.json({ error: { code: 'LIST_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * GET /api/playbooks/:id - Get a single playbook
+   */
+  app.get('/api/playbooks/:id', async (c) => {
+    try {
+      const playbookId = c.req.param('id') as PlaybookId;
+      const playbook = await api.get<Playbook>(playbookId as ElementId);
+
+      if (!playbook) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Playbook not found' } }, 404);
+      }
+
+      const response: PlaybookResponse = {
+        playbook: formatPlaybookResponse(playbook),
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error getting playbook:', error);
+      return c.json({ error: { code: 'GET_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * POST /api/playbooks - Create a new playbook
+   */
+  app.post('/api/playbooks', async (c) => {
+    try {
+      const body = await c.req.json();
+      const { name, title, descriptionRef, steps, variables, extends: extendsArr, tags } = body;
+
+      if (!name) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Name is required' } }, 400);
+      }
+
+      if (!title) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Title is required' } }, 400);
+      }
+
+      // Get system entity for createdBy
+      const systemEntity = await api.lookupEntityByName('system');
+      const createdBy = (systemEntity?.id ?? 'system') as EntityId;
+
+      const playbook = await createPlaybook({
+        name,
+        title,
+        descriptionRef,
+        steps: steps ?? [],
+        variables: variables ?? [],
+        extends: extendsArr,
+        tags: tags ?? [],
+        createdBy,
+      });
+
+      // Save the playbook using create
+      const savedPlaybook = await api.create<Playbook>({
+        ...playbook,
+      });
+
+      const response: PlaybookResponse = {
+        playbook: formatPlaybookResponse(savedPlaybook),
+      };
+
+      return c.json(response, 201);
+    } catch (error) {
+      console.error('[workflows] Error creating playbook:', error);
+      return c.json({ error: { code: 'CREATE_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * PATCH /api/playbooks/:id - Update a playbook
+   */
+  app.patch('/api/playbooks/:id', async (c) => {
+    try {
+      const playbookId = c.req.param('id') as PlaybookId;
+      const body = await c.req.json();
+      const { title, steps, variables, extends: extendsArr, descriptionRef, tags } = body;
+
+      const playbook = await api.get<Playbook>(playbookId as ElementId);
+      if (!playbook) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Playbook not found' } }, 404);
+      }
+
+      const updatedPlaybook = updatePlaybook(playbook, {
+        title,
+        steps,
+        variables,
+        extends: extendsArr,
+        descriptionRef,
+        tags,
+      });
+
+      // Save the updated playbook
+      const savedPlaybook = await api.update<Playbook>(playbookId as ElementId, updatedPlaybook);
+
+      const response: PlaybookResponse = {
+        playbook: formatPlaybookResponse(savedPlaybook),
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error updating playbook:', error);
+      return c.json({ error: { code: 'UPDATE_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * DELETE /api/playbooks/:id - Delete a playbook
+   */
+  app.delete('/api/playbooks/:id', async (c) => {
+    try {
+      const playbookId = c.req.param('id') as PlaybookId;
+
+      const playbook = await api.get<Playbook>(playbookId as ElementId);
+      if (!playbook) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Playbook not found' } }, 404);
+      }
+
+      await api.delete(playbookId as ElementId);
+
+      return c.json({ success: true });
+    } catch (error) {
+      console.error('[workflows] Error deleting playbook:', error);
+      return c.json({ error: { code: 'DELETE_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * POST /api/playbooks/:id/pour - Instantiate a playbook as a workflow
+   * Creates a new workflow and its associated tasks from the playbook template
+   */
+  app.post('/api/playbooks/:id/pour', async (c) => {
+    try {
+      const playbookId = c.req.param('id') as PlaybookId;
+      const body = await c.req.json().catch(() => ({}));
+      const { title: customTitle, variables: providedVariables, ephemeral } = body;
+
+      const playbook = await api.get<Playbook>(playbookId as ElementId);
+      if (!playbook) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Playbook not found' } }, 404);
+      }
+
+      // Resolve variables with provided values and defaults
+      const resolvedVariables = resolveVariables(
+        playbook.variables,
+        providedVariables ?? {}
+      );
+
+      // Filter steps by conditions (will be used in TB-O34 for task creation)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _filteredSteps = filterStepsByConditions(playbook.steps, resolvedVariables);
+
+      // Create workflow title
+      const workflowTitle = customTitle || substituteVariables(
+        `${playbook.title} - Run`,
+        resolvedVariables,
+        true // allowMissing
+      );
+
+      // Get system entity for createdBy
+      const systemEntity = await api.lookupEntityByName('system');
+      const createdBy = (systemEntity?.id ?? 'system') as EntityId;
+
+      // Create the workflow
+      const workflow = await createWorkflow({
+        title: workflowTitle,
+        playbookId: playbook.id as PlaybookId,
+        ephemeral: ephemeral ?? false,
+        variables: resolvedVariables,
+        tags: [...playbook.tags, 'poured'],
+        createdBy,
+      });
+
+      // Save the workflow
+      const savedWorkflow = await api.create<Workflow>({
+        ...workflow,
+      });
+
+      // TODO: Create tasks from playbook steps
+      // This would create tasks with dependencies based on filteredSteps
+      // For now, we just create the workflow - task creation will be in TB-O34
+
+      const response: WorkflowResponse = {
+        workflow: formatWorkflowResponse(savedWorkflow),
+      };
+
+      return c.json(response, 201);
+    } catch (error) {
+      console.error('[workflows] Error pouring playbook:', error);
+      return c.json({ error: { code: 'POUR_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  return app;
+}

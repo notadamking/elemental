@@ -382,3 +382,111 @@ export interface SessionEvent {
   timestamp: string;
   data?: Record<string, unknown>;
 }
+
+// ============================================================================
+// Workflow Types
+// ============================================================================
+
+export type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/**
+ * Workflow entity as returned by the API
+ */
+export interface Workflow {
+  id: ElementId;
+  type: 'workflow';
+  title: string;
+  descriptionRef?: string;
+  status: WorkflowStatus;
+  playbookId?: string;
+  ephemeral: boolean;
+  variables: Record<string, unknown>;
+  startedAt?: string;
+  finishedAt?: string;
+  failureReason?: string;
+  cancelReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: EntityId;
+  tags: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface WorkflowsResponse {
+  workflows: Workflow[];
+  total?: number;
+}
+
+export interface WorkflowResponse {
+  workflow: Workflow;
+}
+
+export type WorkflowFilterStatus = 'all' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'active' | 'terminal';
+
+export interface WorkflowFilter {
+  status?: WorkflowFilterStatus;
+  playbookId?: string;
+  ephemeral?: boolean;
+  limit?: number;
+}
+
+// ============================================================================
+// Playbook Types
+// ============================================================================
+
+export type VariableType = 'string' | 'number' | 'boolean';
+
+export interface PlaybookVariable {
+  name: string;
+  description?: string;
+  type: VariableType;
+  required: boolean;
+  default?: unknown;
+  enum?: unknown[];
+}
+
+export interface PlaybookStep {
+  id: string;
+  title: string;
+  description?: string;
+  taskType?: TaskTypeValue;
+  priority?: Priority;
+  complexity?: Complexity;
+  assignee?: string;
+  dependsOn?: string[];
+  condition?: string;
+}
+
+/**
+ * Playbook entity as returned by the API
+ */
+export interface Playbook {
+  id: ElementId;
+  type: 'playbook';
+  name: string;
+  title: string;
+  descriptionRef?: string;
+  version: number;
+  steps: PlaybookStep[];
+  variables: PlaybookVariable[];
+  extends?: string[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy: EntityId;
+  tags: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface PlaybooksResponse {
+  playbooks: Playbook[];
+  total?: number;
+}
+
+export interface PlaybookResponse {
+  playbook: Playbook;
+}
+
+export interface PlaybookFilter {
+  name?: string;
+  limit?: number;
+}

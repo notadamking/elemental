@@ -19,6 +19,7 @@ import {
   createEventRoutes,
   createUploadRoutes,
   createDaemonRoutes,
+  createWorkflowRoutes,
   markDaemonAsServerManaged,
 } from './routes/index.js';
 import { notifyClientsOfNewSession } from './websocket.js';
@@ -50,6 +51,7 @@ async function main() {
   app.route('/', createEventRoutes(services));
   app.route('/', createUploadRoutes());
   app.route('/', createDaemonRoutes(services));
+  app.route('/', createWorkflowRoutes(services));
 
   startServer(app, services);
 

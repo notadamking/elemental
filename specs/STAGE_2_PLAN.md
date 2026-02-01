@@ -1756,18 +1756,29 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ### Phase 8: Workflows UI & Workflow Creation
 
-#### - [ ] TB-O32: Workflows Page
+#### - [x] TB-O32: Workflows Page
 
 **Goal**: View and manage workflow templates (playbooks)
 
 **Changes**:
 
-- [ ] Create `/workflows` route with tabs: Templates, Active
-- [ ] **Templates tab**: List playbooks, actions: [Pour] [Edit] [Export]
-- [ ] **Active tab**: Running workflows with progress bars
-- [ ] Import existing YAML playbooks
+- [x] Create `/workflows` route with tabs: Templates, Active
+- [x] **Templates tab**: List playbooks, actions: [Pour] [Edit] [Export]
+- [x] **Active tab**: Running workflows with progress bars
+- [ ] Import existing YAML playbooks (deferred to TB-O33)
 
 **Verification**: Load playbooks, see them in Templates tab; pour one, see in Active tab
+
+**Implementation Notes** (added 2026-01-31):
+- Implemented REST API endpoints: GET/POST /api/workflows, GET/POST /api/playbooks
+- Added workflow status transitions: pending -> running -> completed/failed/cancelled
+- PlaybookCard component with Pour button (TB-O34 will complete Pour functionality)
+- WorkflowCard component with status display, cancel, and delete actions
+- 24 Playwright tests in tests/workflows.spec.ts covering:
+  - Page layout, tabs, search functionality
+  - Templates tab with empty state and playbook cards
+  - Active tab with workflow cards and status display
+  - Tab URL persistence, error handling, loading states
 
 ---
 
