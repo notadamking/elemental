@@ -70,7 +70,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | `packages/core/` | Shared types, errors, ID generation | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId` |
 | `packages/storage/` | SQLite storage backends | `createStorage`, `initializeSchema`, `StorageBackend` |
 | `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService` |
-| `packages/ui/` | Shared React UI components, layout, domain, hooks, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `TaskCard`, `EntityCard`, `TaskStatusBadge`, `useTheme`, `useIsMobile` |
+| `packages/ui/` | Shared React UI components, layout, domain, visualizations, hooks, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `TaskCard`, `EntityCard`, `TaskStatusBadge`, `StatusPieChart`, `TrendLineChart`, `HorizontalBarChart`, `useTheme`, `useIsMobile` |
 | `packages/orchestrator-sdk/` | Agent orchestration | `OrchestratorAPI`, `AgentRole`, `SpawnerService`, `SessionManager` |
 
 ## File Map (@elemental/core)
@@ -120,6 +120,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | WorkflowCard | `domain/WorkflowCard.tsx` | `domain/domain.test.tsx` |
 | TeamCard | `domain/TeamCard.tsx` | `domain/domain.test.tsx` |
 | Task badges | `domain/TaskBadges.tsx` | `domain/domain.test.tsx` |
+| Visualization types | `visualizations/types.ts` | `visualizations/visualizations.test.tsx` |
+| StatusPieChart | `visualizations/StatusPieChart.tsx` | `visualizations/visualizations.test.tsx` |
+| TrendLineChart | `visualizations/TrendLineChart.tsx` | `visualizations/visualizations.test.tsx` |
+| HorizontalBarChart | `visualizations/HorizontalBarChart.tsx` | `visualizations/visualizations.test.tsx` |
 | Theme hook | `hooks/useTheme.ts` | `hooks/useTheme.test.ts` |
 | Breakpoint hooks | `hooks/useBreakpoint.ts` | `hooks/useBreakpoint.test.ts` |
 | Design tokens | `styles/tokens.css` | - |

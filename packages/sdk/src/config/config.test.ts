@@ -106,6 +106,9 @@ function createTestConfig(): Configuration {
       mode: IdentityMode.CRYPTOGRAPHIC,
       timeTolerance: 10 * ONE_MINUTE,
     },
+    plugins: {
+      packages: [],
+    },
   };
 }
 

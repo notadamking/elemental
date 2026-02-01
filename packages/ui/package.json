@@ -26,6 +26,10 @@
       "types": "./dist/hooks/index.d.ts",
       "import": "./dist/hooks/index.js"
     },
+    "./visualizations": {
+      "types": "./dist/visualizations/index.d.ts",
+      "import": "./dist/visualizations/index.js"
+    },
     "./styles/tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {
@@ -66,7 +70,8 @@
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "lucide-react": "^0.563.0"
+    "lucide-react": "^0.563.0",
+    "recharts": "^2.15.3"
   },
   "devDependencies": {
     "@types/bun": "latest",

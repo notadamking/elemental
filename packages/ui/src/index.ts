@@ -20,5 +20,8 @@ export * from './layout';
 // Domain Components (also available via '@elemental/ui/domain')
 export * from './domain';
 
+// Visualization Components (also available via '@elemental/ui/visualizations')
+export * from './visualizations';
+
 // Hooks
 export * from './hooks';

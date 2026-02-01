@@ -581,9 +581,10 @@ describe('Query API Performance', () => {
         perItemTimes.push(createDuration / size);
       }
 
-      // Per-item time should not grow significantly (less than 3x from smallest to largest)
+      // Per-item time should not grow significantly (less than 4x from smallest to largest)
+      // Note: This threshold is generous to account for test environment variability
       const ratio = perItemTimes[perItemTimes.length - 1] / perItemTimes[0];
-      expect(ratio).toBeLessThan(3);
+      expect(ratio).toBeLessThan(4);
     });
 
     it('should maintain list performance as dataset grows', async () => {

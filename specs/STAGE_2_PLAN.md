@@ -1677,16 +1677,28 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O30: Extract @elemental/ui - Visualization Components
+#### - [x] TB-O30: Extract @elemental/ui - Visualization Components
 
 **Goal**: Shared graph, timeline, and dashboard components
 
 **Changes**:
 
-- [ ] Extract: `DependencyGraph`, `Timeline`, `HierarchyView`, `StatusDashboard`
-- [ ] Pass data and config via props
+- [x] Create `packages/ui/src/visualizations/` directory
+- [x] Add `recharts` dependency to `@elemental/ui`
+- [x] Create visualization types: `PieChartDataPoint`, `LineChartDataPoint`, `BarChartDataPoint`, `ChartColors`, `BaseChartProps`
+- [x] Extract: `StatusPieChart` (data-driven pie/donut chart for status distributions)
+- [x] Extract: `TrendLineChart` (data-driven line chart for trends over time)
+- [x] Extract: `HorizontalBarChart` (data-driven horizontal bar chart for distributions)
+- [x] Add `./visualizations` export path to package.json
+- [x] 29 unit tests for visualization components and types
+- [ ] `DependencyGraph`, `Timeline`, `HierarchyView` (deferred - require @xyflow/react and more complex extraction)
 
-**Verification**: Orchestrator-web uses Timeline for activity
+**Verification**: UI package builds with visualization components; 114 tests pass
+
+**Notes**:
+- Chart components are data-driven (accept data via props, no internal fetching)
+- Components support mobile/touch device modes with responsive behavior
+- DependencyGraph, Timeline, and HierarchyView are more complex extractions requiring @xyflow/react and significant refactoring - deferred to future iteration
 
 ---
 

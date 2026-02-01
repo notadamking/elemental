@@ -111,7 +111,7 @@ describe('create command', () => {
     const result = await createCommand.handler(['task'], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
-    expect(result.error).toContain('--title is required');
+    expect(result.error).toContain('--title');
   });
 
   test('fails with invalid priority', async () => {

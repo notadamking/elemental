@@ -94,7 +94,7 @@ export function mergeConfiguration(
       timeTolerance: partial.identity?.timeTolerance !== undefined ? partial.identity.timeTolerance : base.identity.timeTolerance,
     },
     plugins: {
-      packages: partial.plugins?.packages !== undefined ? partial.plugins.packages : [...base.plugins.packages],
+      packages: partial.plugins?.packages !== undefined ? partial.plugins.packages : [...(base.plugins?.packages ?? [])],
     },
   };
   return result;
@@ -162,7 +162,7 @@ export function cloneConfiguration(config: Configuration): Configuration {
       timeTolerance: config.identity.timeTolerance,
     },
     plugins: {
-      packages: [...config.plugins.packages],
+      packages: [...(config.plugins?.packages ?? [])],
     },
   };
 }
@@ -235,8 +235,10 @@ export function diffConfigurations(
   }
 
   // Plugins diff
-  if (JSON.stringify(a.plugins.packages) !== JSON.stringify(b.plugins.packages)) {
-    diff.plugins = { packages: b.plugins.packages };
+  const aPackages = a.plugins?.packages ?? [];
+  const bPackages = b.plugins?.packages ?? [];
+  if (JSON.stringify(aPackages) !== JSON.stringify(bPackages)) {
+    diff.plugins = { packages: bPackages };
   }
 
   return diff;
@@ -246,6 +248,8 @@ export function diffConfigurations(
  * Checks if two configurations are equal
  */
 export function configurationsEqual(a: Configuration, b: Configuration): boolean {
+  const aPackages = a.plugins?.packages ?? [];
+  const bPackages = b.plugins?.packages ?? [];
   return (
     a.actor === b.actor &&
     a.database === b.database &&
@@ -258,6 +262,6 @@ export function configurationsEqual(a: Configuration, b: Configuration): boolean
     a.tombstone.minTtl === b.tombstone.minTtl &&
     a.identity.mode === b.identity.mode &&
     a.identity.timeTolerance === b.identity.timeTolerance &&
-    JSON.stringify(a.plugins.packages) === JSON.stringify(b.plugins.packages)
+    JSON.stringify(aPackages) === JSON.stringify(bPackages)
   );
 }

@@ -82,7 +82,9 @@ describe('Schema Management', () => {
       expect(result.success).toBe(true);
       expect(result.fromVersion).toBe(0);
       expect(result.toVersion).toBe(CURRENT_SCHEMA_VERSION);
-      expect(result.applied).toEqual([1, 2, 3, 4, 5]);
+      // Applied versions should be 1 through CURRENT_SCHEMA_VERSION
+      const expectedVersions = Array.from({ length: CURRENT_SCHEMA_VERSION }, (_, i) => i + 1);
+      expect(result.applied).toEqual(expectedVersions);
     });
 
     it('should set schema version after initialization', () => {
@@ -104,7 +106,9 @@ describe('Schema Management', () => {
       const result2 = initializeSchema(backend);
 
       expect(result1.success).toBe(true);
-      expect(result1.applied).toEqual([1, 2, 3, 4, 5]);
+      // Applied versions should be 1 through CURRENT_SCHEMA_VERSION
+      const expectedVersions = Array.from({ length: CURRENT_SCHEMA_VERSION }, (_, i) => i + 1);
+      expect(result1.applied).toEqual(expectedVersions);
 
       expect(result2.success).toBe(true);
       expect(result2.applied).toEqual([]);
@@ -605,7 +609,9 @@ describe('Schema Management', () => {
 
       const result = initializeSchema(backend);
       expect(result.success).toBe(true);
-      expect(result.applied).toEqual([1, 2, 3, 4, 5]);
+      // Applied versions should be 1 through CURRENT_SCHEMA_VERSION
+      const expectedVersions = Array.from({ length: CURRENT_SCHEMA_VERSION }, (_, i) => i + 1);
+      expect(result.applied).toEqual(expectedVersions);
     });
   });
 
