@@ -13,8 +13,9 @@ export {
   useGlobalQuickActions,
 } from './useGlobalQuickActions';
 
-export { useTheme } from './useTheme';
-export type { Theme } from './useTheme';
+// Re-export useTheme from @elemental/ui
+export { useTheme } from '@elemental/ui';
+export type { Theme } from '@elemental/ui';
 
 export { useDebounce } from './useDebounce';
 

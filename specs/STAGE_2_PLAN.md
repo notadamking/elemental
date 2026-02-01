@@ -1605,18 +1605,26 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ### Phase 7: UI Package Extraction (Should Run Early/Parallel)
 
-#### - [ ] TB-O27: Extract @elemental/ui Package - Core Components
+#### - [x] TB-O27: Extract @elemental/ui Package - Core Components
 
 **Goal**: ALL reusable UI components in shared package
 
 **Changes**:
 
-- [ ] Create `packages/ui/` with package.json
-- [ ] Extract from `apps/web/src/components/`: `ui/`, `shared/`
-- [ ] Export all components from `packages/ui/src/index.ts`
-- [ ] Update `apps/web/` to import from `@elemental/ui`
+- [x] Create `packages/ui/` with package.json
+- [x] Extract from `apps/web/src/components/`: `ui/` (core components: Badge, Button, Card, Dialog, Input, Select, Skeleton, TagInput, Tooltip, ThemeToggle)
+- [x] Extract hooks: `useTheme` to `packages/ui/src/hooks/`
+- [x] Export all components from `packages/ui/src/index.ts`
+- [x] Update `apps/web/` to import from `@elemental/ui`
+- [x] Update `apps/orchestrator-web/` to import from `@elemental/ui`
+- [x] Copy design tokens (tokens.css) to `packages/ui/src/styles/`
 
-**Verification**: `apps/web` builds and runs using imported components
+**Verification**: `apps/web` and `apps/orchestrator-web` build and run using imported components
+
+**Notes**:
+- 16 unit tests validate component and hook exports
+- Both apps re-export from @elemental/ui via their local `components/ui/index.ts`
+- Design tokens exported via `@elemental/ui/styles/tokens.css`
 
 ---
 
