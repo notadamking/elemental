@@ -724,6 +724,7 @@ export function TasksPage() {
                   sort={{ field: sortField, direction: sortDirection }}
                   onSort={handleSort}
                   searchQuery={debouncedSearch}
+                  entities={entities.data ?? []}
                 />
               ) : (
                 <GroupedListView
@@ -735,6 +736,7 @@ export function TasksPage() {
                   sort={{ field: sortField, direction: sortDirection }}
                   onSort={handleSort}
                   searchQuery={debouncedSearch}
+                  entities={entities.data ?? []}
                 />
               )}
               <Pagination

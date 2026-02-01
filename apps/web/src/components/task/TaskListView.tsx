@@ -11,10 +11,11 @@
 
 import { useState, useMemo } from 'react';
 import { CheckSquare, Square, ArrowUp, ArrowDown, ArrowUpDown, ChevronRight } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 import { VirtualizedList } from '../shared/VirtualizedList';
 import { formatRelativeTime } from '../../lib/time';
 import { fuzzySearch, highlightMatches, formatStatus } from '../../lib/task-utils';
-import type { Task, TaskGroup, SortConfig, SortField } from '../../lib/task-constants';
+import type { Task, TaskGroup, SortConfig, SortField, Entity } from '../../lib/task-constants';
 import { TASK_ROW_HEIGHT, PRIORITY_LABELS, STATUS_COLORS } from '../../lib/task-constants';
 
 // ============================================================================
@@ -29,6 +30,7 @@ interface TaskRowProps {
   onClick: () => void;
   isOdd: boolean;
   searchQuery?: string;
+  entities?: Entity[];
 }
 
 export function TaskRow({
@@ -39,6 +41,7 @@ export function TaskRow({
   onClick,
   isOdd,
   searchQuery,
+  entities = [],
 }: TaskRowProps) {
   const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS[3];
   const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.open;
@@ -103,7 +106,19 @@ export function TaskRow({
         {task.taskType}
       </div>
       <div className="w-32 px-4 py-3 text-sm text-gray-600 dark:text-gray-400 truncate">
-        {task.assignee || '-'}
+        {task.assignee ? (
+          <Link
+            to="/entities"
+            search={{ selected: task.assignee, name: undefined, page: 1, limit: 25 }}
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+            data-testid={`task-assignee-link-${task.id}`}
+          >
+            {entities.find((e) => e.id === task.assignee)?.name || task.assignee}
+          </Link>
+        ) : (
+          '-'
+        )}
       </div>
       <div className="w-32 px-4 py-3">
         <div className="flex gap-1">
@@ -277,6 +292,7 @@ interface ListViewProps {
   onSort: (field: SortField) => void;
   containerHeight?: number;
   searchQuery?: string;
+  entities?: Entity[];
 }
 
 export function ListView({
@@ -290,6 +306,7 @@ export function ListView({
   onSort,
   containerHeight,
   searchQuery,
+  entities = [],
 }: ListViewProps) {
   const allSelected = tasks.length > 0 && tasks.every(t => selectedIds.has(t.id));
   const someSelected = selectedIds.size > 0;
@@ -341,6 +358,7 @@ export function ListView({
               onClick={() => onTaskClick(task.id)}
               isOdd={index % 2 === 1}
               searchQuery={searchQuery}
+              entities={entities}
             />
           )}
         />
@@ -369,6 +387,7 @@ export function ListView({
             onClick={() => onTaskClick(task.id)}
             isOdd={index % 2 === 1}
             searchQuery={searchQuery}
+            entities={entities}
           />
         ))}
       </div>
@@ -389,6 +408,7 @@ interface GroupedListViewProps {
   sort: SortConfig;
   onSort: (field: SortField) => void;
   searchQuery?: string;
+  entities?: Entity[];
 }
 
 export function GroupedListView({
@@ -400,6 +420,7 @@ export function GroupedListView({
   sort,
   searchQuery,
   onSort,
+  entities = [],
 }: GroupedListViewProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -471,6 +492,7 @@ export function GroupedListView({
                       onClick={() => onTaskClick(task.id)}
                       isOdd={index % 2 === 1}
                       searchQuery={searchQuery}
+                      entities={entities}
                     />
                   ))}
                 </div>
