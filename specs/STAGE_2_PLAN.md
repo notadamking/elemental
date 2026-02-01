@@ -1637,6 +1637,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: `apps/web` and `apps/orchestrator-web` build and run using imported components
 
 **Notes**:
+
 - 16 unit tests validate component and hook exports
 - Both apps re-export from @elemental/ui via their local `components/ui/index.ts`
 - Design tokens exported via `@elemental/ui/styles/tokens.css`
@@ -1661,6 +1662,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Both apps build successfully; `@elemental/ui` provides configurable layout components
 
 **Notes**:
+
 - Layout components are fully configurable via props (nav items, branding, path matching function)
 - Apps can use shared components with their own nav configuration
 - Apps currently use their own implementations which have app-specific features (inbox badges, notification center, etc.)
@@ -1686,6 +1688,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: 89 unit tests in `packages/ui/src/domain/domain.test.tsx`; both apps build successfully
 
 **Notes**:
+
 - Document and message components contain API calls and require abstraction (deferred)
 - Orchestrator-web TaskCard/TaskRow are app-specific (have action buttons, orchestrator metadata)
 - Type utilities and constants exported for use without components
@@ -1706,13 +1709,17 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 - [x] Extract: `HorizontalBarChart` (data-driven horizontal bar chart for distributions)
 - [x] Add `./visualizations` export path to package.json
 - [x] 29 unit tests for visualization components and types
-- [ ] `DependencyGraph`, `Timeline`, `HierarchyView` (deferred - require @xyflow/react and more complex extraction)
+- [x] Updated metrics page to use shared visualization components
+- [x] 14 Playwright tests for visualization components in metrics page
+- [ ] `DependencyGraph`, `Timeline`, `HierarchyView` (deferred to future iteration)
 
-**Verification**: UI package builds with visualization components; 114 tests pass
+**Verification**: UI package builds with visualization components; 184 tests pass in @elemental/ui; 14 Playwright tests pass in orchestrator-web
 
 **Notes**:
+
 - Chart components are data-driven (accept data via props, no internal fetching)
 - Components support mobile/touch device modes with responsive behavior
+- Metrics page demonstrates usage of all three chart types (StatusPieChart, TrendLineChart, HorizontalBarChart)
 - DependencyGraph, Timeline, and HierarchyView are more complex extractions requiring @xyflow/react and significant refactoring - deferred to future iteration
 
 ---
@@ -1737,6 +1744,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Verification**: Both apps build successfully; shared hooks and clients available in `@elemental/ui`
 
 **Notes**:
+
 - WebSocket client supports channel subscriptions, automatic reconnection with exponential backoff, ping/heartbeat
 - SSE client supports multiple event types, connection state tracking, query parameters
 - API client supports typed responses, request/response interceptors, timeout handling
