@@ -18,8 +18,38 @@ export default defineConfig({
   server: {
     port: 5174, // Different port from main web app (5173)
     proxy: {
+      // Collaborate routes - proxy to main server (port 3456)
+      '/api/channels': {
+        target: 'http://localhost:3456',
+        changeOrigin: true,
+      },
+      '/api/libraries': {
+        target: 'http://localhost:3456',
+        changeOrigin: true,
+      },
+      '/api/documents': {
+        target: 'http://localhost:3456',
+        changeOrigin: true,
+      },
+      '/api/messages': {
+        target: 'http://localhost:3456',
+        changeOrigin: true,
+      },
+      '/api/elements': {
+        target: 'http://localhost:3456',
+        changeOrigin: true,
+      },
+      '/api/entities': {
+        target: 'http://localhost:3456',
+        changeOrigin: true,
+      },
+      '/api/notifications': {
+        target: 'http://localhost:3456',
+        changeOrigin: true,
+      },
+      // Orchestrator routes - proxy to orchestrator server (port 3457)
       '/api': {
-        target: 'http://localhost:3457', // Orchestrator server port
+        target: 'http://localhost:3457',
         changeOrigin: true,
       },
       '/ws': {
