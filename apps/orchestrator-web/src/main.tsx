@@ -5,6 +5,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { Toaster } from 'sonner';
 import { router } from './router';
 import { TooltipProvider } from './components/ui/Tooltip';
+import { CurrentUserProvider } from './contexts';
 import './index.css';
 
 // Initialize theme before React renders to prevent flash of wrong theme
@@ -41,15 +42,17 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <RouterProvider router={router} />
-        <Toaster
-          position="bottom-right"
-          duration={5000}
-          richColors
-          closeButton
-        />
-      </TooltipProvider>
+      <CurrentUserProvider>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+          <Toaster
+            position="bottom-right"
+            duration={5000}
+            richColors
+            closeButton
+          />
+        </TooltipProvider>
+      </CurrentUserProvider>
     </QueryClientProvider>
   </StrictMode>
 );

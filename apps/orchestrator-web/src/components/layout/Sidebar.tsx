@@ -16,6 +16,9 @@ import {
   ChevronLeft,
   ChevronDown,
   PanelLeftOpen,
+  Inbox,
+  MessageSquare,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
@@ -62,6 +65,16 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/agents', icon: Users, label: 'Agents', testId: 'nav-agents' },
       { to: '/workspaces', icon: LayoutGrid, label: 'Workspaces', testId: 'nav-workspaces' },
+    ],
+  },
+  {
+    id: 'collaborate',
+    label: 'Collaborate',
+    defaultExpanded: true,
+    items: [
+      { to: '/inbox', icon: Inbox, label: 'Inbox', testId: 'nav-inbox', search: { message: undefined } },
+      { to: '/messages', icon: MessageSquare, label: 'Messages', testId: 'nav-messages', search: { channel: undefined, message: undefined } },
+      { to: '/documents', icon: FileText, label: 'Documents', testId: 'nav-documents', search: { selected: undefined, library: undefined } },
     ],
   },
   {

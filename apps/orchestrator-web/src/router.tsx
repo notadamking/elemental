@@ -13,6 +13,9 @@ import { WorkflowsPage } from './routes/workflows';
 import { MetricsPage } from './routes/metrics';
 import { SettingsPage } from './routes/settings';
 import { PopoutTerminalPage } from './routes/popout';
+import { InboxPage } from './routes/inbox';
+import { MessagesPage } from './routes/messages';
+import { DocumentsPage } from './routes/documents';
 
 /**
  * Root layout component that conditionally renders AppShell or plain Outlet
@@ -134,6 +137,44 @@ const settingsRoute = createRoute({
   },
 });
 
+// Inbox route
+const inboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/inbox',
+  component: InboxPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      message: typeof search.message === 'string' ? search.message : undefined,
+    };
+  },
+});
+
+// Messages route
+const messagesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/messages',
+  component: MessagesPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      channel: typeof search.channel === 'string' ? search.channel : undefined,
+      message: typeof search.message === 'string' ? search.message : undefined,
+    };
+  },
+});
+
+// Documents route
+const documentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/documents',
+  component: DocumentsPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+      library: typeof search.library === 'string' ? search.library : undefined,
+    };
+  },
+});
+
 // Popout routes - these render without AppShell via the RootLayout conditional
 const popoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -166,6 +207,9 @@ const routeTree = rootRoute.addChildren([
   workflowsRoute,
   metricsRoute,
   settingsRoute,
+  inboxRoute,
+  messagesRoute,
+  documentsRoute,
   popoutRoute.addChildren([
     popoutTerminalRoute,
   ]),
