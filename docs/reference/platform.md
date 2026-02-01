@@ -488,6 +488,7 @@ app.route('/', createMyFeatureRoutes(services));
 | `XTerminal.tsx` | Terminal emulator |
 | `WorkspacePane.tsx` | Workspace panes |
 | `StreamViewer.tsx` | Agent output viewer |
+| `AgentWorkspaceGraph.tsx` | Agent hierarchy graph visualization |
 
 ### Routes
 
@@ -495,7 +496,7 @@ app.route('/', createMyFeatureRoutes(services));
 |------|-----------|---------|
 | `/activity` | `ActivityPage` | Recent activity |
 | `/tasks` | `TasksPage` | Task management |
-| `/agents` | `AgentsPage` | Agent management |
+| `/agents` | `AgentsPage` | Agent management (Agents, Stewards, Graph tabs) |
 | `/workspaces` | `WorkspacesPage` | Workspace panes |
 | `/workflows` | `WorkflowsPage` | Workflow view |
 | `/metrics` | `MetricsPage` | System metrics |
@@ -513,6 +514,44 @@ addPane({
   agentId: 'agent-123',
   title: 'Worker Terminal',
 });
+```
+
+### Agent Workspace Graph
+
+The `/agents?tab=graph` route displays a graph visualization of the agent hierarchy using `@xyflow/react`.
+
+**Components:**
+
+| File | Purpose |
+|------|---------|
+| `agent-graph/AgentWorkspaceGraph.tsx` | Main graph container with ReactFlow |
+| `agent-graph/AgentNode.tsx` | Custom node renderer for agents |
+| `agent-graph/useAgentGraph.ts` | Hook to transform agent data to nodes/edges |
+| `agent-graph/types.ts` | TypeScript types for graph data |
+
+**Features:**
+
+- Displays hierarchy: Human → Director → (Workers + Stewards)
+- Shows agent status (running, idle, suspended, terminated)
+- Displays current task assignment and git branch
+- Health indicators for stewards
+- Click any agent node to open in Workspaces terminal multiplexer
+- Interactive: zoom, pan, fit view, minimap, draggable nodes
+
+**Usage:**
+
+```typescript
+import { AgentWorkspaceGraph } from '@/components/agent-graph';
+
+<AgentWorkspaceGraph
+  director={director}
+  workers={workers}
+  stewards={stewards}
+  tasks={tasks}
+  sessionStatuses={statusMap}
+  isLoading={false}
+  onRefresh={() => refetch()}
+/>
 ```
 
 ---

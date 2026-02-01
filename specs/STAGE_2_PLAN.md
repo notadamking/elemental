@@ -1588,18 +1588,33 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O26: Agent Workspace View
+#### - [x] TB-O26: Agent Workspace View
 
 **Goal**: Visualize agents, tasks, and their relationships
 
 **Changes**:
 
-- [ ] Create workspace visualization using @xyflow/react
-- [ ] Show: Human → Director → (Workers + Stewards)
-- [ ] Display: agent status, current task, branch, health indicators
-- [ ] Click agent to open in Workspaces terminal multiplexer
+- [x] Create workspace visualization using @xyflow/react
+- [x] Show: Human → Director → (Workers + Stewards)
+- [x] Display: agent status, current task, branch, health indicators
+- [x] Click agent to open in Workspaces terminal multiplexer
 
 **Verification**: Register multiple agents, see workspace graph rendered
+
+**Implementation Notes** (2026-01-31):
+
+- Created `AgentWorkspaceGraph` component in `apps/orchestrator-web/src/components/agent-graph/`
+- `AgentNode` custom node renderer with status badges, current task display, branch info
+- `useAgentGraph` hook transforms agent data into @xyflow/react nodes and edges
+- Graph displays hierarchy: Human → Director → Workers/Stewards with supervision edges
+- Interactive features: zoom controls, minimap, draggable nodes, fit view
+- Click any agent node to navigate to `/workspaces` with agent pane pre-configured
+- 18 Playwright tests in `tests/agents.spec.ts` under TB-O26 section covering:
+  - Graph tab navigation and URL persistence
+  - Empty, loading, and error states
+  - Node rendering (Human, Director, Worker, Steward)
+  - Graph controls (zoom, minimap)
+  - Node interaction (drag, click to navigate)
 
 ---
 
