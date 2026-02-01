@@ -10,6 +10,7 @@ import type {
   WorkflowResponse,
   WorkflowFilter,
   WorkflowStatus,
+  WorkflowTasksResponse,
   PlaybooksResponse,
   PlaybookResponse,
   PlaybookFilter,
@@ -76,6 +77,50 @@ export function useWorkflow(workflowId: string | undefined) {
     queryFn: () => fetchApi<WorkflowResponse>(`/workflows/${workflowId}`),
     enabled: !!workflowId,
   });
+}
+
+/**
+ * Hook to fetch tasks belonging to a workflow with progress metrics
+ *
+ * TB-O35: Workflow Progress Dashboard
+ */
+export function useWorkflowTasks(workflowId: string | undefined) {
+  return useQuery<WorkflowTasksResponse, Error>({
+    queryKey: ['workflow-tasks', workflowId],
+    queryFn: () => fetchApi<WorkflowTasksResponse>(`/workflows/${workflowId}/tasks`),
+    enabled: !!workflowId,
+    refetchInterval: 5000, // Poll every 5 seconds for real-time progress updates
+  });
+}
+
+/**
+ * Hook to get workflow detail with tasks and progress (combined)
+ *
+ * TB-O35: Workflow Progress Dashboard
+ */
+export function useWorkflowDetail(workflowId: string | undefined) {
+  const workflowQuery = useWorkflow(workflowId);
+  const tasksQuery = useWorkflowTasks(workflowId);
+
+  return {
+    workflow: workflowQuery.data?.workflow,
+    tasks: tasksQuery.data?.tasks ?? [],
+    progress: tasksQuery.data?.progress ?? {
+      total: 0,
+      completed: 0,
+      inProgress: 0,
+      blocked: 0,
+      open: 0,
+      percentage: 0,
+    },
+    dependencies: tasksQuery.data?.dependencies ?? [],
+    isLoading: workflowQuery.isLoading || tasksQuery.isLoading,
+    error: workflowQuery.error || tasksQuery.error,
+    refetch: async () => {
+      await workflowQuery.refetch();
+      await tasksQuery.refetch();
+    },
+  };
 }
 
 /**

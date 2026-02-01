@@ -3,11 +3,13 @@
  * Templates tab shows playbooks, Active tab shows running workflows
  *
  * TB-O34: Pour Workflow Template
+ * TB-O35: Workflow Progress Dashboard
  */
 
 import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { PourWorkflowModal } from '../../components/workflow/PourWorkflowModal';
+import { WorkflowProgressDashboard } from '../../components/workflow/WorkflowProgressDashboard';
 import {
   Workflow,
   Plus,
@@ -25,12 +27,15 @@ import {
   Trash2,
   BookOpen,
   Settings,
+  ArrowLeft,
+  Eye,
 } from 'lucide-react';
 import {
   useWorkflows,
   usePlaybooks,
   useCancelWorkflow,
   useDeleteWorkflow,
+  useWorkflowDetail,
   getWorkflowStatusDisplayName,
   getWorkflowStatusColor,
   formatWorkflowDuration,
@@ -164,10 +169,12 @@ function WorkflowCard({
   workflow,
   onCancel,
   onDelete,
+  onViewDetails,
 }: {
   workflow: WorkflowType;
   onCancel: (workflowId: string) => void;
   onDelete: (workflowId: string) => void;
+  onViewDetails: (workflowId: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const canCancel = workflow.status === 'pending' || workflow.status === 'running';
@@ -176,8 +183,9 @@ function WorkflowCard({
 
   return (
     <div
-      className="flex flex-col p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors duration-150"
+      className="flex flex-col p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors duration-150 cursor-pointer"
       data-testid={`workflow-card-${workflow.id}`}
+      onClick={() => onViewDetails(workflow.id)}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -191,16 +199,31 @@ function WorkflowCard({
         </div>
         <div className="relative">
           <button
-            onClick={() => setShowMenu(!showMenu)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
             className="p-1 rounded hover:bg-[var(--color-surface-hover)] transition-colors"
           >
             <MoreVertical className="w-4 h-4 text-[var(--color-text-secondary)]" />
           </button>
           {showMenu && (
             <div className="absolute right-0 mt-1 w-40 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg z-10">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewDetails(workflow.id);
+                  setShowMenu(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+              >
+                <Eye className="w-4 h-4" />
+                View Details
+              </button>
               {canCancel && (
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     onCancel(workflow.id);
                     setShowMenu(false);
                   }}
@@ -212,7 +235,8 @@ function WorkflowCard({
               )}
               {isTerminal && (
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     onDelete(workflow.id);
                     setShowMenu(false);
                   }}
@@ -254,6 +278,7 @@ export function WorkflowsPage() {
   const navigate = useNavigate();
 
   const currentTab = (search.tab as TabValue) || 'templates';
+  const selectedWorkflowId = search.selected;
   const [searchQuery, setSearchQuery] = useState('');
 
   // Pour modal state
@@ -267,6 +292,16 @@ export function WorkflowsPage() {
   // Fetch workflows for active tab
   const { data: workflowsData, isLoading: workflowsLoading, error: workflowsError, refetch: refetchWorkflows } = useWorkflows();
   const allWorkflows = workflowsData?.workflows ?? [];
+
+  // Fetch workflow detail when a workflow is selected (TB-O35)
+  const {
+    workflow: selectedWorkflow,
+    tasks: workflowTasks,
+    progress: workflowProgress,
+    dependencies: workflowDependencies,
+    isLoading: workflowDetailLoading,
+    error: workflowDetailError,
+  } = useWorkflowDetail(selectedWorkflowId);
 
   // Split workflows into active and terminal
   const activeWorkflows = useMemo(() =>
@@ -335,9 +370,67 @@ export function WorkflowsPage() {
     }
   };
 
+  // Handle viewing workflow details (TB-O35)
+  const handleViewDetails = (workflowId: string) => {
+    navigate({ to: '/workflows', search: { tab: search.tab ?? 'active', selected: workflowId } });
+  };
+
+  // Handle going back from detail view
+  const handleBackToList = () => {
+    navigate({ to: '/workflows', search: { tab: search.tab ?? 'active', selected: undefined } });
+  };
+
   const isLoading = currentTab === 'templates' ? playbooksLoading : workflowsLoading;
   const error = currentTab === 'templates' ? playbooksError : workflowsError;
   const refetch = currentTab === 'templates' ? refetchPlaybooks : refetchWorkflows;
+
+  // If a workflow is selected, show the detail/progress view (TB-O35)
+  if (selectedWorkflowId && selectedWorkflow) {
+    return (
+      <div className="space-y-6 animate-fade-in" data-testid="workflow-detail-page">
+        {/* Back button */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleBackToList}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors"
+            data-testid="workflow-back-button"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Workflows
+          </button>
+        </div>
+
+        {/* Error state */}
+        {workflowDetailError && (
+          <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <div>
+              <p className="text-sm font-medium text-red-800 dark:text-red-200">Error loading workflow</p>
+              <p className="text-sm text-red-600 dark:text-red-400">{workflowDetailError.message}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Workflow Progress Dashboard */}
+        <WorkflowProgressDashboard
+          workflow={selectedWorkflow}
+          tasks={workflowTasks}
+          progress={workflowProgress}
+          dependencies={workflowDependencies}
+          isLoading={workflowDetailLoading}
+        />
+      </div>
+    );
+  }
+
+  // Loading state for detail view
+  if (selectedWorkflowId && workflowDetailLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-8 h-8 text-[var(--color-primary)] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="workflows-page">
@@ -530,6 +623,7 @@ export function WorkflowsPage() {
                         workflow={workflow}
                         onCancel={handleCancelWorkflow}
                         onDelete={handleDeleteWorkflow}
+                        onViewDetails={handleViewDetails}
                       />
                     ))}
                   </div>
@@ -549,6 +643,7 @@ export function WorkflowsPage() {
                         workflow={workflow}
                         onCancel={handleCancelWorkflow}
                         onDelete={handleDeleteWorkflow}
+                        onViewDetails={handleViewDetails}
                       />
                     ))}
                   </div>

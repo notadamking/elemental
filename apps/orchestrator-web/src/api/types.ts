@@ -421,6 +421,37 @@ export interface WorkflowResponse {
   workflow: Workflow;
 }
 
+/**
+ * Progress metrics for a workflow
+ */
+export interface WorkflowProgress {
+  total: number;
+  completed: number;
+  inProgress: number;
+  blocked: number;
+  open: number;
+  percentage: number;
+}
+
+/**
+ * Internal dependency between workflow tasks
+ */
+export interface WorkflowDependency {
+  sourceId: ElementId;
+  targetId: ElementId;
+  type: string;
+}
+
+/**
+ * Response for workflow tasks endpoint
+ */
+export interface WorkflowTasksResponse {
+  tasks: Task[];
+  total: number;
+  progress: WorkflowProgress;
+  dependencies: WorkflowDependency[];
+}
+
 export type WorkflowFilterStatus = 'all' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'active' | 'terminal';
 
 export interface WorkflowFilter {

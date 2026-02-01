@@ -1469,4 +1469,607 @@ test.describe('TB-O32: Workflows Page', () => {
       });
     });
   });
+
+  test.describe('TB-O35: Workflow Progress Dashboard', () => {
+    test.describe('Navigating to workflow detail', () => {
+      test('clicking a workflow card navigates to detail view', async ({ page }) => {
+        // Mock workflows
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [
+                {
+                  id: 'wf-1',
+                  type: 'workflow',
+                  title: 'Test Workflow',
+                  status: 'running',
+                  ephemeral: false,
+                  variables: {},
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  startedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1/tasks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              tasks: [],
+              total: 0,
+              progress: { total: 0, completed: 0, inProgress: 0, blocked: 0, open: 0, percentage: 0 },
+              dependencies: [],
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows?tab=active');
+        await page.waitForTimeout(500);
+
+        // Click the workflow card
+        await page.getByTestId('workflow-card-wf-1').click();
+
+        // URL should include selected parameter
+        await expect(page).toHaveURL(/selected=wf-1/);
+
+        // Detail page should be visible
+        await expect(page.getByTestId('workflow-detail-page')).toBeVisible();
+        await expect(page.getByTestId('workflow-back-button')).toBeVisible();
+      });
+
+      test('back button returns to workflow list', async ({ page }) => {
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [
+                {
+                  id: 'wf-1',
+                  type: 'workflow',
+                  title: 'Test Workflow',
+                  status: 'running',
+                  ephemeral: false,
+                  variables: {},
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  startedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1/tasks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              tasks: [],
+              total: 0,
+              progress: { total: 0, completed: 0, inProgress: 0, blocked: 0, open: 0, percentage: 0 },
+              dependencies: [],
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        // Go directly to detail view
+        await page.goto('/workflows?tab=active&selected=wf-1');
+        await page.waitForTimeout(500);
+
+        await expect(page.getByTestId('workflow-detail-page')).toBeVisible();
+
+        // Click back button
+        await page.getByTestId('workflow-back-button').click();
+
+        // Should be back on list view
+        await expect(page).not.toHaveURL(/selected=/);
+        await expect(page.getByTestId('workflows-page')).toBeVisible();
+      });
+    });
+
+    test.describe('Progress Dashboard display', () => {
+      test('displays workflow progress bar and stats', async ({ page }) => {
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [{
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              }],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1/tasks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              tasks: [
+                { id: 't-1', type: 'task', title: 'Task 1', status: 'closed', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+                { id: 't-2', type: 'task', title: 'Task 2', status: 'in_progress', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+                { id: 't-3', type: 'task', title: 'Task 3', status: 'open', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+                { id: 't-4', type: 'task', title: 'Task 4', status: 'blocked', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+              ],
+              total: 4,
+              progress: { total: 4, completed: 1, inProgress: 1, blocked: 1, open: 1, percentage: 25 },
+              dependencies: [],
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows?tab=active&selected=wf-1');
+        await page.waitForTimeout(500);
+
+        // Progress dashboard should be visible
+        await expect(page.getByTestId('workflow-progress-dashboard')).toBeVisible();
+
+        // Progress bar should be visible
+        await expect(page.getByTestId('workflow-progress-bar')).toBeVisible();
+        await expect(page.getByText('25% complete')).toBeVisible();
+
+        // Stats cards should be visible
+        await expect(page.getByTestId('workflow-stats-cards')).toBeVisible();
+        await expect(page.getByTestId('stat-card-total-tasks')).toBeVisible();
+        await expect(page.getByTestId('stat-card-completed')).toBeVisible();
+        await expect(page.getByTestId('stat-card-in-progress')).toBeVisible();
+        await expect(page.getByTestId('stat-card-blocked')).toBeVisible();
+      });
+
+      test('displays task list with correct statuses', async ({ page }) => {
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [{
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              }],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1/tasks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              tasks: [
+                { id: 't-1', type: 'task', title: 'Build Application', status: 'closed', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+                { id: 't-2', type: 'task', title: 'Run Tests', status: 'in_progress', priority: 2, complexity: 2, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+                { id: 't-3', type: 'task', title: 'Deploy', status: 'blocked', priority: 3, complexity: 4, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+              ],
+              total: 3,
+              progress: { total: 3, completed: 1, inProgress: 1, blocked: 1, open: 0, percentage: 33 },
+              dependencies: [
+                { sourceId: 't-1', targetId: 't-2', type: 'blocks' },
+                { sourceId: 't-2', targetId: 't-3', type: 'blocks' },
+              ],
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows?tab=active&selected=wf-1');
+        await page.waitForTimeout(500);
+
+        // Task list should be visible
+        await expect(page.getByTestId('workflow-task-list')).toBeVisible();
+
+        // Individual tasks should be visible
+        await expect(page.getByTestId('workflow-task-t-1')).toBeVisible();
+        await expect(page.getByTestId('workflow-task-t-2')).toBeVisible();
+        await expect(page.getByTestId('workflow-task-t-3')).toBeVisible();
+
+        // Task titles should be visible (in task list)
+        await expect(page.getByTestId('workflow-task-t-1').getByText('Build Application')).toBeVisible();
+        await expect(page.getByTestId('workflow-task-t-2').getByText('Run Tests')).toBeVisible();
+        await expect(page.getByTestId('workflow-task-t-3').getByText('Deploy')).toBeVisible();
+      });
+
+      test('displays dependency graph when dependencies exist', async ({ page }) => {
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [{
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              }],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1/tasks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              tasks: [
+                { id: 't-1', type: 'task', title: 'Task A', status: 'closed', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+                { id: 't-2', type: 'task', title: 'Task B', status: 'in_progress', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+              ],
+              total: 2,
+              progress: { total: 2, completed: 1, inProgress: 1, blocked: 0, open: 0, percentage: 50 },
+              dependencies: [
+                { sourceId: 't-1', targetId: 't-2', type: 'blocks' },
+              ],
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows?tab=active&selected=wf-1');
+        await page.waitForTimeout(500);
+
+        // Dependency graph should be visible
+        await expect(page.getByTestId('workflow-dependency-graph')).toBeVisible();
+        await expect(page.getByText('1 connection')).toBeVisible();
+      });
+
+      test('shows empty message when no dependencies', async ({ page }) => {
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [{
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              }],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Test Workflow',
+                status: 'running',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1/tasks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              tasks: [
+                { id: 't-1', type: 'task', title: 'Independent Task', status: 'open', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+              ],
+              total: 1,
+              progress: { total: 1, completed: 0, inProgress: 0, blocked: 0, open: 1, percentage: 0 },
+              dependencies: [],
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows?tab=active&selected=wf-1');
+        await page.waitForTimeout(500);
+
+        // Should show no dependencies message
+        await expect(page.getByText('No dependencies between tasks')).toBeVisible();
+      });
+
+      test('displays workflow status correctly', async ({ page }) => {
+        await page.route('**/api/workflows', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [{
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Completed Workflow',
+                status: 'completed',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date(Date.now() - 3600000).toISOString(),
+                finishedAt: new Date().toISOString(),
+                createdBy: 'system',
+              }],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1', async (route) => {
+          if (route.request().url().includes('/tasks')) return;
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-1',
+                type: 'workflow',
+                title: 'Completed Workflow',
+                status: 'completed',
+                ephemeral: false,
+                variables: {},
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                startedAt: new Date(Date.now() - 3600000).toISOString(),
+                finishedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows/wf-1/tasks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              tasks: [
+                { id: 't-1', type: 'task', title: 'Done Task', status: 'closed', priority: 3, complexity: 3, taskType: 'task', tags: [], ephemeral: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: 'system' },
+              ],
+              total: 1,
+              progress: { total: 1, completed: 1, inProgress: 0, blocked: 0, open: 0, percentage: 100 },
+              dependencies: [],
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows?tab=active&selected=wf-1');
+        await page.waitForTimeout(500);
+
+        // Workflow status badge should show Completed (specific to the badge)
+        await expect(page.locator('div').filter({ hasText: /^Completed$/ }).first()).toBeVisible();
+        await expect(page.getByText('100% complete')).toBeVisible();
+      });
+    });
+  });
 });

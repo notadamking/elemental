@@ -19,7 +19,11 @@ import {
   type ElementId,
   type EntityId,
   type Task,
+  type Dependency,
   pourWorkflow,
+  getTaskIdsInWorkflow,
+  getDependenciesInWorkflow,
+  DependencyType,
 } from '@elemental/core';
 
 // ============================================================================
@@ -42,6 +46,24 @@ interface PlaybookResponse {
 interface PlaybooksResponse {
   playbooks: Playbook[];
   total: number;
+}
+
+interface WorkflowTasksResponse {
+  tasks: Task[];
+  total: number;
+  progress: {
+    total: number;
+    completed: number;
+    inProgress: number;
+    blocked: number;
+    open: number;
+    percentage: number;
+  };
+  dependencies: {
+    sourceId: ElementId;
+    targetId: ElementId;
+    type: string;
+  }[];
 }
 
 // ============================================================================
@@ -155,6 +177,85 @@ export function createWorkflowRoutes(services: Services) {
       return c.json(response);
     } catch (error) {
       console.error('[workflows] Error getting workflow:', error);
+      return c.json({ error: { code: 'GET_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  /**
+   * GET /api/workflows/:id/tasks - Get tasks in a workflow with progress stats
+   * Returns all tasks belonging to the workflow along with progress metrics
+   *
+   * TB-O35: Workflow Progress Dashboard
+   */
+  app.get('/api/workflows/:id/tasks', async (c) => {
+    try {
+      const workflowId = c.req.param('id') as WorkflowId;
+
+      // Verify workflow exists
+      const workflow = await api.get<Workflow>(workflowId as ElementId);
+      if (!workflow) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
+      }
+
+      // Get all dependencies to find tasks in workflow
+      // Tasks are linked to workflows via parent-child dependencies
+      const allDependencies = await api.getDependents(workflowId as ElementId, [DependencyType.PARENT_CHILD]);
+
+      // Task IDs are the sourceIds of parent-child deps pointing to workflow
+      const taskIds = allDependencies.map(d => d.sourceId);
+
+      // Fetch all tasks
+      const tasks: Task[] = [];
+      for (const taskId of taskIds) {
+        const task = await api.get<Task>(taskId);
+        if (task && task.type === 'task') {
+          tasks.push(task);
+        }
+      }
+
+      // Get inter-task dependencies (blocks relationships)
+      const taskIdSet = new Set(taskIds);
+      const internalDependencies: { sourceId: ElementId; targetId: ElementId; type: string }[] = [];
+
+      for (const taskId of taskIds) {
+        const taskDeps = await api.getDependencies(taskId, [DependencyType.BLOCKS]);
+        for (const dep of taskDeps) {
+          // Only include if both source and target are in the workflow
+          if (taskIdSet.has(dep.targetId)) {
+            internalDependencies.push({
+              sourceId: dep.sourceId,
+              targetId: dep.targetId,
+              type: dep.type,
+            });
+          }
+        }
+      }
+
+      // Calculate progress stats
+      const completed = tasks.filter(t => t.status === 'closed').length;
+      const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+      const blocked = tasks.filter(t => t.status === 'blocked').length;
+      const open = tasks.filter(t => t.status === 'open').length;
+      const total = tasks.length;
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      const response: WorkflowTasksResponse = {
+        tasks,
+        total,
+        progress: {
+          total,
+          completed,
+          inProgress,
+          blocked,
+          open,
+          percentage,
+        },
+        dependencies: internalDependencies,
+      };
+
+      return c.json(response);
+    } catch (error) {
+      console.error('[workflows] Error getting workflow tasks:', error);
       return c.json({ error: { code: 'GET_ERROR', message: String(error) } }, 500);
     }
   });

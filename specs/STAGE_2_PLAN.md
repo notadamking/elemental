@@ -1813,15 +1813,23 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O35: Workflow Progress Dashboard
+#### - [x] TB-O35: Workflow Progress Dashboard ✅
 
 **Goal**: Track workflow execution progress
 
 **Changes**:
 
-- [ ] Progress bar, task list with status, dependency graph, scoped activity feed
+- [x] Progress bar, task list with status, dependency graph, scoped activity feed
+
+**Implementation Notes**:
+- Added `GET /api/workflows/:id/tasks` endpoint returning tasks, progress stats, and dependencies
+- Created `WorkflowProgressDashboard` component with progress bar, stats cards, task list, and dependency graph
+- Added `useWorkflowTasks` and `useWorkflowDetail` hooks for data fetching
+- Integrated into workflows page with click-to-view detail and back navigation
+- Added Playwright tests for all dashboard functionality
 
 **Verification**: Create workflow, assign tasks, see progress update in real-time
+- Tested via Playwright with 7 passing tests covering navigation, progress display, task list, and dependencies
 
 ---
 
