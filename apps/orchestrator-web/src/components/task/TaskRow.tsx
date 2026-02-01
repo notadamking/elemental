@@ -1,13 +1,13 @@
 /**
  * TaskRow - Table row component for displaying task information
  * Used in the list view of the tasks page
+ *
+ * Badge components are from @elemental/ui/domain.
  */
 
 import { GitBranch, User, MoreHorizontal, Play, CheckCircle2 } from 'lucide-react';
 import type { Task, Agent } from '../../api/types';
-import { TaskStatusBadge } from './TaskStatusBadge';
-import { TaskPriorityBadge } from './TaskPriorityBadge';
-import { TaskTypeBadge } from './TaskTypeBadge';
+import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge } from '@elemental/ui/domain';
 
 interface TaskRowProps {
   task: Task;

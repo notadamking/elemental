@@ -70,7 +70,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | `packages/core/` | Shared types, errors, ID generation | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId` |
 | `packages/storage/` | SQLite storage backends | `createStorage`, `initializeSchema`, `StorageBackend` |
 | `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService` |
-| `packages/ui/` | Shared React UI components, layout, hooks, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `useTheme`, `useIsMobile` |
+| `packages/ui/` | Shared React UI components, layout, domain, hooks, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `TaskCard`, `EntityCard`, `TaskStatusBadge`, `useTheme`, `useIsMobile` |
 | `packages/orchestrator-sdk/` | Agent orchestration | `OrchestratorAPI`, `AgentRole`, `SpawnerService`, `SessionManager` |
 
 ## File Map (@elemental/core)
@@ -106,6 +106,23 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | Config loader | `config/config.ts` | `config/config.test.ts` |
 | Identity system | `systems/identity.ts` | `systems/identity.test.ts` |
 | CLI commands | `cli/commands/*.ts` | `cli/commands/*.test.ts` |
+
+## File Map (@elemental/ui)
+
+| Concept | Source | Tests |
+|---------|--------|-------|
+| Core components | `components/*.tsx` | `components/*.test.tsx` |
+| Layout components | `layout/*.tsx` | `layout/layout.test.tsx` |
+| Domain types | `domain/types.ts` | `domain/domain.test.tsx` |
+| TaskCard | `domain/TaskCard.tsx` | `domain/domain.test.tsx` |
+| EntityCard | `domain/EntityCard.tsx` | `domain/domain.test.tsx` |
+| PlanCard | `domain/PlanCard.tsx` | `domain/domain.test.tsx` |
+| WorkflowCard | `domain/WorkflowCard.tsx` | `domain/domain.test.tsx` |
+| TeamCard | `domain/TeamCard.tsx` | `domain/domain.test.tsx` |
+| Task badges | `domain/TaskBadges.tsx` | `domain/domain.test.tsx` |
+| Theme hook | `hooks/useTheme.ts` | `hooks/useTheme.test.ts` |
+| Breakpoint hooks | `hooks/useBreakpoint.ts` | `hooks/useBreakpoint.test.ts` |
+| Design tokens | `styles/tokens.css` | - |
 
 ## File Map (@elemental/orchestrator-sdk)
 

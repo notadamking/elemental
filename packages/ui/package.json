@@ -18,6 +18,10 @@
       "types": "./dist/layout/index.d.ts",
       "import": "./dist/layout/index.js"
     },
+    "./domain": {
+      "types": "./dist/domain/index.d.ts",
+      "import": "./dist/domain/index.js"
+    },
     "./hooks": {
       "types": "./dist/hooks/index.d.ts",
       "import": "./dist/hooks/index.js"
