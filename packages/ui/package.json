@@ -30,6 +30,10 @@
       "types": "./dist/visualizations/index.d.ts",
       "import": "./dist/visualizations/index.js"
     },
+    "./api": {
+      "types": "./dist/api/index.d.ts",
+      "import": "./dist/api/index.js"
+    },
     "./styles/tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {

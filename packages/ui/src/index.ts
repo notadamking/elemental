@@ -7,7 +7,8 @@
  * - Import components: import { Button, Dialog, Card } from '@elemental/ui'
  * - Import layout: import { AppShell, Sidebar, MobileDrawer } from '@elemental/ui'
  * - Import domain: import { TaskCard, EntityCard, TaskStatusBadge } from '@elemental/ui/domain'
- * - Import hooks: import { useTheme, useIsMobile } from '@elemental/ui'
+ * - Import hooks: import { useTheme, useIsMobile, useWebSocket, useSSEStream } from '@elemental/ui'
+ * - Import API clients: import { WebSocketClient, SSEClient, ApiClient } from '@elemental/ui/api'
  * - Import design tokens CSS: import '@elemental/ui/styles/tokens.css'
  */
 
@@ -25,3 +26,6 @@ export * from './visualizations';
 
 // Hooks
 export * from './hooks';
+
+// API Clients (also available via '@elemental/ui/api')
+export * from './api';

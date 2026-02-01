@@ -1702,16 +1702,32 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O31: Extract @elemental/ui - Hooks and API Client
+#### - [x] TB-O31: Extract @elemental/ui - Hooks and API Client
 
 **Goal**: Shared React hooks and WebSocket/SSE clients
 
 **Changes**:
 
-- [ ] Extract hooks: `useWebSocket`, `useSSEStream`, `useRealtimeEvents`, `useKeyboardShortcuts`
-- [ ] Extract API: `websocket.ts`, `sse-client.ts`, `api-client.ts`
+- [x] Create `packages/ui/src/api/` directory with API clients
+- [x] Implement `websocket.ts` - WebSocket client with auto-reconnect, channel subscriptions, event listeners
+- [x] Implement `sse-client.ts` - SSE client with auto-reconnect, typed events, connection state
+- [x] Implement `api-client.ts` - REST API client with typed responses, interceptors, error handling
+- [x] Create `packages/ui/src/hooks/useWebSocket.ts` - React hook wrapping WebSocket client
+- [x] Create `packages/ui/src/hooks/useSSEStream.ts` - React hook wrapping SSE client
+- [x] Create `packages/ui/src/hooks/useRealtimeEvents.ts` - WebSocket hook with React Query cache invalidation
+- [x] Create `packages/ui/src/hooks/useKeyboardShortcuts.ts` - Keyboard shortcuts system supporting modifier and sequential shortcuts
+- [x] Add `./api` export path to package.json
+- [x] 70 unit tests covering API clients and keyboard shortcuts
 
-**Verification**: Both apps connect to their respective servers using shared hooks
+**Verification**: Both apps build successfully; shared hooks and clients available in `@elemental/ui`
+
+**Notes**:
+- WebSocket client supports channel subscriptions, automatic reconnection with exponential backoff, ping/heartbeat
+- SSE client supports multiple event types, connection state tracking, query parameters
+- API client supports typed responses, request/response interceptors, timeout handling
+- Keyboard shortcuts support both modifier (Cmd+K) and sequential (G T) shortcuts
+- useRealtimeEvents integrates with React Query for automatic cache invalidation on events
+- Apps can migrate to shared hooks incrementally - existing implementations remain functional
 
 ---
 

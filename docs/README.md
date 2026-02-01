@@ -70,7 +70,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | `packages/core/` | Shared types, errors, ID generation | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId` |
 | `packages/storage/` | SQLite storage backends | `createStorage`, `initializeSchema`, `StorageBackend` |
 | `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService` |
-| `packages/ui/` | Shared React UI components, layout, domain, visualizations, hooks, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `TaskCard`, `EntityCard`, `TaskStatusBadge`, `StatusPieChart`, `TrendLineChart`, `HorizontalBarChart`, `useTheme`, `useIsMobile` |
+| `packages/ui/` | Shared React UI components, layout, domain, visualizations, hooks, API clients, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `TaskCard`, `EntityCard`, `TaskStatusBadge`, `StatusPieChart`, `TrendLineChart`, `HorizontalBarChart`, `useTheme`, `useIsMobile`, `useWebSocket`, `useSSEStream`, `useRealtimeEvents`, `useKeyboardShortcut`, `WebSocketClient`, `SSEClient`, `ApiClient` |
 | `packages/orchestrator-sdk/` | Agent orchestration | `OrchestratorAPI`, `AgentRole`, `SpawnerService`, `SessionManager` |
 
 ## File Map (@elemental/core)
@@ -126,6 +126,13 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | HorizontalBarChart | `visualizations/HorizontalBarChart.tsx` | `visualizations/visualizations.test.tsx` |
 | Theme hook | `hooks/useTheme.ts` | `hooks/useTheme.test.ts` |
 | Breakpoint hooks | `hooks/useBreakpoint.ts` | `hooks/useBreakpoint.test.ts` |
+| WebSocket hook | `hooks/useWebSocket.ts` | - |
+| SSE stream hook | `hooks/useSSEStream.ts` | - |
+| Real-time events hook | `hooks/useRealtimeEvents.ts` | - |
+| Keyboard shortcuts | `hooks/useKeyboardShortcuts.ts` | `hooks/useKeyboardShortcuts.test.ts` |
+| WebSocket client | `api/websocket.ts` | `api/websocket.test.ts` |
+| SSE client | `api/sse-client.ts` | `api/sse-client.test.ts` |
+| API client | `api/api-client.ts` | `api/api-client.test.ts` |
 | Design tokens | `styles/tokens.css` | - |
 
 ## File Map (@elemental/orchestrator-sdk)

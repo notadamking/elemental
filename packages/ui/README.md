@@ -78,17 +78,75 @@ import {
 ### Hooks
 
 ```tsx
-import { useTheme } from '@elemental/ui';
+import { useTheme, useWebSocket, useSSEStream, useRealtimeEvents, useKeyboardShortcut } from '@elemental/ui';
 
-function MyComponent() {
+// Theme hook
+function ThemeToggle() {
   const { theme, resolvedTheme, setTheme, toggleDarkMode, isDark } = useTheme();
-
   return (
     <button onClick={toggleDarkMode}>
       {isDark ? 'Light Mode' : 'Dark Mode'}
     </button>
   );
 }
+
+// WebSocket hook for real-time updates
+function RealtimeComponent() {
+  const { connectionState, lastEvent, subscribe, unsubscribe } = useWebSocket({
+    url: 'ws://localhost:3456/ws',
+    channels: ['tasks', 'messages'],
+    onEvent: (event) => console.log('Received:', event),
+  });
+
+  return <div>Status: {connectionState}</div>;
+}
+
+// SSE stream hook for server-sent events
+function ActivityStream() {
+  const { isConnected, events } = useSSEStream({
+    url: 'http://localhost:3457/api/events/stream',
+    onEvent: (type, data) => console.log(type, data),
+  });
+
+  return <div>Connected: {isConnected ? 'Yes' : 'No'}</div>;
+}
+
+// Real-time events with React Query integration
+function TaskList() {
+  const { connectionState, lastEvent } = useRealtimeEvents({
+    url: 'ws://localhost:3456/ws',
+    channels: ['tasks'],
+    queryClient, // Pass React Query client for auto cache invalidation
+  });
+}
+
+// Keyboard shortcuts
+function App() {
+  useKeyboardShortcut('Cmd+K', () => openCommandPalette(), 'Open command palette');
+  return <div>...</div>;
+}
+```
+
+### API Clients
+
+```tsx
+import { WebSocketClient, SSEClient, ApiClient } from '@elemental/ui/api';
+
+// WebSocket client
+const ws = new WebSocketClient({ url: 'ws://localhost:3456/ws' });
+ws.addEventListener((event) => console.log(event));
+ws.connect();
+ws.subscribe(['tasks', 'messages']);
+
+// SSE client
+const sse = new SSEClient({ url: 'http://localhost:3457/api/events/stream' });
+sse.addEventListener('session_event', (data) => console.log(data));
+sse.connect();
+
+// API client for REST calls
+const api = new ApiClient({ baseUrl: 'http://localhost:3456' });
+const tasks = await api.get('/api/tasks');
+await api.post('/api/tasks', { title: 'New Task' });
 ```
 
 ### Design Tokens
@@ -130,6 +188,50 @@ import '@elemental/ui/styles/tokens.css';
 - `SkeletonMessageBubble` - Chat message skeleton
 - `SkeletonDocumentCard` - Document card skeleton
 - `SkeletonEntityCard` - Entity/team card skeleton
+
+## Available Hooks
+
+### Theme & UI
+- `useTheme` - Theme management (light/dark/system with high-contrast support)
+- `useBreakpoint`, `useIsMobile`, `useIsTablet`, `useIsDesktop` - Responsive breakpoint detection
+- `useMediaQuery` - Custom media query matching
+- `useWindowSize` - Window dimensions tracking
+
+### Real-time Communication
+- `useWebSocket` - WebSocket connection with auto-reconnect and channel subscriptions
+- `useSSEStream` - Server-Sent Events streaming with event history
+- `useRealtimeEvents` - WebSocket events with React Query cache invalidation
+- `useWebSocketState` - Get connection state from existing WebSocket client
+- `useSSEState` - Get connection state from existing SSE client
+
+### Keyboard Shortcuts
+- `useKeyboardShortcut` - Register individual keyboard shortcuts
+- `useGlobalKeyboardShortcuts` - Set up global navigation shortcuts
+- `useDisableKeyboardShortcuts` - Temporarily disable shortcuts (for modals)
+- `useShortcutVersion` - Track shortcut binding changes for hot-reload
+
+## Available API Clients
+
+### WebSocketClient
+Full-featured WebSocket client with:
+- Automatic reconnection with exponential backoff
+- Channel subscription management
+- Event listeners and state listeners
+- Ping/heartbeat support
+
+### SSEClient
+Server-Sent Events client with:
+- Automatic reconnection
+- Multiple event type listeners
+- Connection state tracking
+- Query parameter support
+
+### ApiClient
+HTTP REST client with:
+- Typed responses
+- Request/response interceptors
+- Error handling with ApiError class
+- Timeout support
 
 ## Design Tokens
 
