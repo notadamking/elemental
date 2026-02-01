@@ -5,34 +5,56 @@
  * bulk actions, and task detail panel.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearch, useNavigate } from '@tanstack/react-router';
-import { Plus, CheckSquare, X, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearch, useNavigate } from "@tanstack/react-router";
+import {
+  Plus,
+  CheckSquare,
+  X,
+  Sparkles,
+  SlidersHorizontal,
+} from "lucide-react";
 
 // Hooks
-import { useDebounce, useIsMobile, useIsTablet, useGlobalQuickActions, useShortcutVersion } from '../../hooks';
-import { usePaginatedData, createTaskFilter, type SortConfig as PaginatedSortConfig } from '../../hooks/usePaginatedData';
-import { useDeepLink } from '../../hooks/useDeepLink';
-import { useAllTasks, useReadyTaskIds, useEntities, useBulkUpdate, useBulkDelete } from './hooks';
+import {
+  useDebounce,
+  useIsMobile,
+  useIsTablet,
+  useGlobalQuickActions,
+  useShortcutVersion,
+} from "../../hooks";
+import {
+  usePaginatedData,
+  createTaskFilter,
+  type SortConfig as PaginatedSortConfig,
+} from "../../hooks/usePaginatedData";
+import { useDeepLink } from "../../hooks/useDeepLink";
+import {
+  useAllTasks,
+  useReadyTaskIds,
+  useEntities,
+  useBulkUpdate,
+  useBulkDelete,
+} from "./hooks";
 
 // Components
-import { PageHeader, Pagination } from '../../components/shared';
-import { ElementNotFound } from '../../components/shared/ElementNotFound';
-import { MobileDetailSheet } from '../../components/shared/MobileDetailSheet';
-import { TaskDetailPanel } from '../../components/task/TaskDetailPanel';
-import { KanbanBoard } from '../../components/task/KanbanBoard';
-import { MobileTaskCard } from '../../components/task/MobileTaskCard';
-import { ViewToggle } from '../../components/task/ViewToggle';
-import { TaskSearchBar } from '../../components/task/TaskSearchBar';
-import { SortByDropdown } from '../../components/task/SortByDropdown';
-import { GroupByDropdown } from '../../components/task/GroupByDropdown';
-import { BulkActionMenu } from '../../components/task/BulkActionMenu';
-import { FilterBar } from '../../components/task/FilterBar';
-import { ListView, GroupedListView } from '../../components/task/TaskListView';
-import { MobileFilterSheet } from './components';
+import { PageHeader, Pagination } from "../../components/shared";
+import { ElementNotFound } from "../../components/shared/ElementNotFound";
+import { MobileDetailSheet } from "../../components/shared/MobileDetailSheet";
+import { TaskDetailPanel } from "../../components/task/TaskDetailPanel";
+import { KanbanBoard } from "../../components/task/KanbanBoard";
+import { MobileTaskCard } from "../../components/task/MobileTaskCard";
+import { ViewToggle } from "../../components/task/ViewToggle";
+import { TaskSearchBar } from "../../components/task/TaskSearchBar";
+import { SortByDropdown } from "../../components/task/SortByDropdown";
+import { GroupByDropdown } from "../../components/task/GroupByDropdown";
+import { BulkActionMenu } from "../../components/task/BulkActionMenu";
+import { FilterBar } from "../../components/task/FilterBar";
+import { ListView, GroupedListView } from "../../components/task/TaskListView";
+import { MobileFilterSheet } from "./components";
 
 // Utils & Constants
-import { getCurrentBinding } from '../../lib/keyboard';
+import { getCurrentBinding } from "../../lib/keyboard";
 import {
   fuzzySearch,
   groupTasks,
@@ -50,7 +72,7 @@ import {
   setStoredSortDirection,
   getStoredSecondarySort,
   setStoredSecondarySort,
-} from './utils';
+} from "./utils";
 import type {
   Task,
   ViewMode,
@@ -58,24 +80,32 @@ import type {
   SortDirection,
   GroupByField,
   FilterConfig,
-} from './types';
-import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_DELAY, EMPTY_FILTER } from './constants';
+} from "./types";
+import {
+  DEFAULT_PAGE_SIZE,
+  SEARCH_DEBOUNCE_DELAY,
+  EMPTY_FILTER,
+} from "./constants";
 
 export function TasksPage() {
   const navigate = useNavigate();
-  const search = useSearch({ from: '/tasks' });
+  const search = useSearch({ from: "/tasks" });
 
   // Pagination state from URL
   const currentPage = search.page ?? 1;
   const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
   const selectedFromUrl = search.selected ?? null;
   const readyOnly = search.readyOnly ?? false;
-  const assigneeFromUrl = search.assignee ?? '';
+  const assigneeFromUrl = search.assignee ?? "";
 
   // Sort configuration - use internal field names and localStorage
   const [sortField, setSortField] = useState<SortField>(getStoredSortField);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(getStoredSortDirection);
-  const [secondarySort, setSecondarySort] = useState<SortField | null>(getStoredSecondarySort);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    getStoredSortDirection,
+  );
+  const [secondarySort, setSecondarySort] = useState<SortField | null>(
+    getStoredSecondarySort,
+  );
 
   // Initialize filters from URL if assignee is provided
   const [filters, setFilters] = useState<FilterConfig>(() => ({
@@ -93,10 +123,13 @@ export function TasksPage() {
   const bulkUpdate = useBulkUpdate();
   const bulkDelete = useBulkDelete();
   const entities = useEntities();
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(selectedFromUrl);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
+    selectedFromUrl,
+  );
 
   // Fetch ready task IDs when readyOnly filter is active
-  const { data: readyTaskIds, isLoading: isReadyTasksLoading } = useReadyTaskIds();
+  const { data: readyTaskIds, isLoading: isReadyTasksLoading } =
+    useReadyTaskIds();
 
   // Create filter function for client-side filtering (includes search)
   const filterFn = useMemo(() => {
@@ -123,30 +156,43 @@ export function TasksPage() {
 
       return true;
     };
-  }, [filters.status, filters.priority, filters.assignee, readyOnly, readyTaskIds, debouncedSearch]);
+  }, [
+    filters.status,
+    filters.priority,
+    filters.assignee,
+    readyOnly,
+    readyTaskIds,
+    debouncedSearch,
+  ]);
 
   // Create sort config using internal field names
-  const sortConfig = useMemo((): PaginatedSortConfig<Task> => ({
-    field: getTaskSortField(sortField),
-    direction: sortDirection,
-  }), [sortField, sortDirection]);
+  const sortConfig = useMemo(
+    (): PaginatedSortConfig<Task> => ({
+      field: getTaskSortField(sortField),
+      direction: sortDirection,
+    }),
+    [sortField, sortDirection],
+  );
 
   // Create a combined sort function that handles secondary sorting
-  const combinedSortCompareFn = useCallback((
-    a: Task,
-    b: Task,
-    field: keyof Task | string,
-    direction: 'asc' | 'desc'
-  ): number => {
-    const primaryResult = taskSortCompareFn(a, b, field, direction);
+  const combinedSortCompareFn = useCallback(
+    (
+      a: Task,
+      b: Task,
+      field: keyof Task | string,
+      direction: "asc" | "desc",
+    ): number => {
+      const primaryResult = taskSortCompareFn(a, b, field, direction);
 
-    if (primaryResult === 0 && secondarySort) {
-      const secondaryField = getTaskSortField(secondarySort);
-      return taskSortCompareFn(a, b, secondaryField, direction);
-    }
+      if (primaryResult === 0 && secondarySort) {
+        const secondaryField = getTaskSortField(secondarySort);
+        return taskSortCompareFn(a, b, secondaryField, direction);
+      }
 
-    return primaryResult;
-  }, [secondarySort]);
+      return primaryResult;
+    },
+    [secondarySort],
+  );
 
   // Client-side pagination with filtering and sorting
   const paginatedData = usePaginatedData<Task>({
@@ -165,8 +211,8 @@ export function TasksPage() {
     currentPage,
     pageSize,
     getId: (task) => task.id,
-    routePath: '/tasks',
-    rowTestIdPrefix: 'task-row-',
+    routePath: "/tasks",
+    rowTestIdPrefix: "task-row-",
     autoNavigate: true,
     highlightDelay: 200,
   });
@@ -181,7 +227,7 @@ export function TasksPage() {
   // Sync assignee filter with URL parameter
   useEffect(() => {
     if (assigneeFromUrl !== filters.assignee) {
-      setFilters(prev => ({ ...prev, assignee: assigneeFromUrl }));
+      setFilters((prev) => ({ ...prev, assignee: assigneeFromUrl }));
     }
   }, [assigneeFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -204,88 +250,151 @@ export function TasksPage() {
   }, []);
 
   // Handle group by changes and persist to localStorage
-  const handleGroupByChange = useCallback((newGroupBy: GroupByField) => {
-    setGroupBy(newGroupBy);
-    setStoredGroupBy(newGroupBy);
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
-  }, [navigate, pageSize, readyOnly]);
+  const handleGroupByChange = useCallback(
+    (newGroupBy: GroupByField) => {
+      setGroupBy(newGroupBy);
+      setStoredGroupBy(newGroupBy);
+      navigate({
+        to: "/tasks",
+        search: {
+          page: 1,
+          limit: pageSize,
+          readyOnly: readyOnly ? true : undefined,
+        },
+      });
+    },
+    [navigate, pageSize, readyOnly],
+  );
 
   // Handle sort field changes and persist to localStorage
-  const handleSortFieldChange = useCallback((field: SortField) => {
-    setSortField(field);
-    setStoredSortField(field);
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
-  }, [navigate, pageSize, readyOnly]);
+  const handleSortFieldChange = useCallback(
+    (field: SortField) => {
+      setSortField(field);
+      setStoredSortField(field);
+      navigate({
+        to: "/tasks",
+        search: {
+          page: 1,
+          limit: pageSize,
+          readyOnly: readyOnly ? true : undefined,
+        },
+      });
+    },
+    [navigate, pageSize, readyOnly],
+  );
 
   // Handle sort direction changes and persist to localStorage
-  const handleSortDirectionChange = useCallback((direction: SortDirection) => {
-    setSortDirection(direction);
-    setStoredSortDirection(direction);
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
-  }, [navigate, pageSize, readyOnly]);
+  const handleSortDirectionChange = useCallback(
+    (direction: SortDirection) => {
+      setSortDirection(direction);
+      setStoredSortDirection(direction);
+      navigate({
+        to: "/tasks",
+        search: {
+          page: 1,
+          limit: pageSize,
+          readyOnly: readyOnly ? true : undefined,
+        },
+      });
+    },
+    [navigate, pageSize, readyOnly],
+  );
 
   // Handle secondary sort changes and persist to localStorage
-  const handleSecondarySortChange = useCallback((field: SortField | null) => {
-    setSecondarySort(field);
-    setStoredSecondarySort(field);
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
-  }, [navigate, pageSize, readyOnly]);
+  const handleSecondarySortChange = useCallback(
+    (field: SortField | null) => {
+      setSecondarySort(field);
+      setStoredSecondarySort(field);
+      navigate({
+        to: "/tasks",
+        search: {
+          page: 1,
+          limit: pageSize,
+          readyOnly: readyOnly ? true : undefined,
+        },
+      });
+    },
+    [navigate, pageSize, readyOnly],
+  );
 
   // Handle search changes and persist to localStorage
-  const handleSearchChange = useCallback((query: string) => {
-    setSearchQuery(query);
-    setStoredSearch(query);
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
-  }, [navigate, pageSize, readyOnly]);
+  const handleSearchChange = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      setStoredSearch(query);
+      navigate({
+        to: "/tasks",
+        search: {
+          page: 1,
+          limit: pageSize,
+          readyOnly: readyOnly ? true : undefined,
+        },
+      });
+    },
+    [navigate, pageSize, readyOnly],
+  );
 
   // Handle clear search
   const handleClearSearch = useCallback(() => {
-    setSearchQuery('');
-    setStoredSearch('');
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+    setSearchQuery("");
+    setStoredSearch("");
+    navigate({
+      to: "/tasks",
+      search: {
+        page: 1,
+        limit: pageSize,
+        readyOnly: readyOnly ? true : undefined,
+      },
+    });
   }, [navigate, pageSize, readyOnly]);
 
   // Keyboard shortcuts for view toggle (V L = list, V K = kanban)
   useEffect(() => {
-    let lastKey = '';
+    let lastKey = "";
     let lastKeyTime = 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
         return;
       }
 
       const now = Date.now();
       const key = e.key.toLowerCase();
 
-      if (key === 'v') {
-        lastKey = 'v';
+      if (key === "v") {
+        lastKey = "v";
         lastKeyTime = now;
         return;
       }
 
-      if (lastKey === 'v' && now - lastKeyTime < 500) {
-        if (key === 'l') {
+      if (lastKey === "v" && now - lastKeyTime < 500) {
+        if (key === "l") {
           e.preventDefault();
-          handleViewModeChange('list');
-        } else if (key === 'k') {
+          handleViewModeChange("list");
+        } else if (key === "k") {
           e.preventDefault();
-          handleViewModeChange('kanban');
+          handleViewModeChange("kanban");
         }
       }
 
-      lastKey = '';
+      lastKey = "";
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleViewModeChange]);
 
   // Extract task items from client-side paginated data
   const taskItems = paginatedData.items;
   const totalItems = paginatedData.filteredTotal;
   const totalPages = paginatedData.totalPages;
-  const isLoading = isTasksLoading || paginatedData.isLoading || (readyOnly && isReadyTasksLoading);
+  const isLoading =
+    isTasksLoading ||
+    paginatedData.isLoading ||
+    (readyOnly && isReadyTasksLoading);
 
   // Group tasks if grouping is enabled
   const taskGroups = useMemo(() => {
@@ -295,16 +404,19 @@ export function TasksPage() {
   // Handle task click - update URL with selected task
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
-    navigate({ to: '/tasks', search: { page: currentPage, limit: pageSize, selected: taskId } });
+    navigate({
+      to: "/tasks",
+      search: { page: currentPage, limit: pageSize, selected: taskId },
+    });
   };
 
   const handleCloseDetail = () => {
     setSelectedTaskId(null);
-    navigate({ to: '/tasks', search: { page: currentPage, limit: pageSize } });
+    navigate({ to: "/tasks", search: { page: currentPage, limit: pageSize } });
   };
 
   const handleTaskCheck = (taskId: string, checked: boolean) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (checked) {
         next.add(taskId);
@@ -318,42 +430,63 @@ export function TasksPage() {
   const handleSelectAll = () => {
     if (taskItems.length === 0) return;
 
-    const allSelected = taskItems.every(t => selectedIds.has(t.id));
+    const allSelected = taskItems.every((t) => selectedIds.has(t.id));
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(taskItems.map(t => t.id)));
+      setSelectedIds(new Set(taskItems.map((t) => t.id)));
     }
   };
 
   const handlePageChange = (page: number) => {
-    navigate({ to: '/tasks', search: { page, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+    navigate({
+      to: "/tasks",
+      search: {
+        page,
+        limit: pageSize,
+        readyOnly: readyOnly ? true : undefined,
+      },
+    });
     setSelectedIds(new Set());
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
-    navigate({ to: '/tasks', search: { page: 1, limit: newPageSize, readyOnly: readyOnly ? true : undefined } });
+    navigate({
+      to: "/tasks",
+      search: {
+        page: 1,
+        limit: newPageSize,
+        readyOnly: readyOnly ? true : undefined,
+      },
+    });
     setSelectedIds(new Set());
   };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      const newDirection = sortDirection === 'desc' ? 'asc' : 'desc';
+      const newDirection = sortDirection === "desc" ? "asc" : "desc";
       setSortDirection(newDirection);
       setStoredSortDirection(newDirection);
     } else {
       setSortField(field);
       setStoredSortField(field);
-      setSortDirection('desc');
-      setStoredSortDirection('desc');
+      setSortDirection("desc");
+      setStoredSortDirection("desc");
     }
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+    navigate({
+      to: "/tasks",
+      search: {
+        page: 1,
+        limit: pageSize,
+        readyOnly: readyOnly ? true : undefined,
+      },
+    });
   };
 
   const handleFilterChange = (newFilters: FilterConfig) => {
     setFilters(newFilters);
     navigate({
-      to: '/tasks',
+      to: "/tasks",
       search: {
         page: 1,
         limit: pageSize,
@@ -365,24 +498,31 @@ export function TasksPage() {
 
   const handleClearFilters = () => {
     setFilters(EMPTY_FILTER);
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize, readyOnly: readyOnly ? true : undefined } });
+    navigate({
+      to: "/tasks",
+      search: {
+        page: 1,
+        limit: pageSize,
+        readyOnly: readyOnly ? true : undefined,
+      },
+    });
   };
 
   const handleClearReadyOnly = () => {
-    navigate({ to: '/tasks', search: { page: 1, limit: pageSize } });
+    navigate({ to: "/tasks", search: { page: 1, limit: pageSize } });
   };
 
   const handleBulkStatusChange = (status: string) => {
     bulkUpdate.mutate(
       { ids: Array.from(selectedIds), updates: { status } },
-      { onSuccess: () => setSelectedIds(new Set()) }
+      { onSuccess: () => setSelectedIds(new Set()) },
     );
   };
 
   const handleBulkPriorityChange = (priority: number) => {
     bulkUpdate.mutate(
       { ids: Array.from(selectedIds), updates: { priority } },
-      { onSuccess: () => setSelectedIds(new Set()) }
+      { onSuccess: () => setSelectedIds(new Set()) },
     );
   };
 
@@ -400,7 +540,10 @@ export function TasksPage() {
     setSelectedIds(new Set());
   };
 
-  const activeFilterCount = filters.status.length + filters.priority.length + (filters.assignee ? 1 : 0);
+  const activeFilterCount =
+    filters.status.length +
+    filters.priority.length +
+    (filters.assignee ? 1 : 0);
 
   return (
     <div className="flex h-full" data-testid="tasks-page">
@@ -417,7 +560,9 @@ export function TasksPage() {
       )}
 
       {/* Task List */}
-      <div className={`flex flex-col ${selectedTaskId && !isMobile ? 'w-1/2' : 'w-full'} transition-all duration-200 ${selectedTaskId && isMobile ? 'hidden' : ''}`}>
+      <div
+        className={`flex flex-col ${selectedTaskId && !isMobile ? "w-1/2" : "w-full"} transition-all duration-200 ${selectedTaskId && isMobile ? "hidden" : ""}`}
+      >
         {/* Header */}
         <PageHeader
           title="Tasks"
@@ -426,12 +571,12 @@ export function TasksPage() {
           bordered
           actions={[
             {
-              label: 'Create Task',
-              shortLabel: 'Create',
+              label: "Create Task",
+              shortLabel: "Create",
               icon: Plus,
               onClick: openCreateTaskModal,
-              shortcut: getCurrentBinding('action.createTask'),
-              testId: 'create-task-button',
+              shortcut: getCurrentBinding("action.createTask"),
+              testId: "create-task-button",
             },
           ]}
           testId="tasks-header"
@@ -445,7 +590,7 @@ export function TasksPage() {
               compact={isMobile}
             />
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full">
                 {!isMobile && !isTablet && (
                   <SortByDropdown
                     sortField={sortField}
@@ -456,18 +601,27 @@ export function TasksPage() {
                     onSecondarySortChange={handleSecondarySortChange}
                   />
                 )}
-                {viewMode === 'list' && !isMobile && !isTablet && (
-                  <GroupByDropdown groupBy={groupBy} onGroupByChange={handleGroupByChange} />
+                {viewMode === "list" && !isMobile && !isTablet && (
+                  <GroupByDropdown
+                    groupBy={groupBy}
+                    onGroupByChange={handleGroupByChange}
+                  />
                 )}
-                <ViewToggle view={viewMode} onViewChange={handleViewModeChange} />
+
+                <div className="ml-auto">
+                  <ViewToggle
+                    view={viewMode}
+                    onViewChange={handleViewModeChange}
+                  />
+                </div>
               </div>
               {isMobile && (
                 <button
                   onClick={() => setMobileFilterOpen(true)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors touch-target ${
                     activeFilterCount > 0
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                   }`}
                   data-testid="mobile-filter-button"
                 >
@@ -485,7 +639,7 @@ export function TasksPage() {
         </PageHeader>
 
         {/* Bulk Action Menu */}
-        {selectedIds.size > 0 && viewMode === 'list' && !isMobile && (
+        {selectedIds.size > 0 && viewMode === "list" && !isMobile && (
           <BulkActionMenu
             selectedCount={selectedIds.size}
             onChangeStatus={handleBulkStatusChange}
@@ -498,7 +652,7 @@ export function TasksPage() {
         )}
 
         {/* Filter Bar */}
-        {!isMobile && viewMode === 'list' && (
+        {!isMobile && viewMode === "list" && (
           <FilterBar
             filters={filters}
             onFilterChange={handleFilterChange}
@@ -509,10 +663,15 @@ export function TasksPage() {
 
         {/* Ready Tasks Filter Chip */}
         {readyOnly && (
-          <div className="px-4 py-2 border-b border-gray-200 bg-blue-50" data-testid="ready-filter-chip">
+          <div
+            className="px-4 py-2 border-b border-gray-200 bg-blue-50"
+            data-testid="ready-filter-chip"
+          >
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800">Ready tasks only</span>
+              <span className="text-sm font-medium text-blue-800">
+                Ready tasks only
+              </span>
               <button
                 onClick={handleClearReadyOnly}
                 className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded transition-colors"
@@ -525,12 +684,15 @@ export function TasksPage() {
           </div>
         )}
 
-        <div className="flex-1 overflow-auto" data-testid="tasks-view-container">
+        <div
+          className="flex-1 overflow-auto"
+          data-testid="tasks-view-container"
+        >
           {isLoading && (
             <div className="p-4 text-gray-500">Loading tasks...</div>
           )}
 
-          {!isLoading && viewMode === 'list' && (
+          {!isLoading && viewMode === "list" && (
             <div className="animate-fade-in" data-testid="list-view-content">
               {isMobile ? (
                 <div data-testid="mobile-list-view">
@@ -551,7 +713,7 @@ export function TasksPage() {
                     </div>
                   )}
                 </div>
-              ) : groupBy === 'none' ? (
+              ) : groupBy === "none" ? (
                 <ListView
                   tasks={taskItems}
                   selectedTaskId={selectedTaskId}
@@ -586,8 +748,11 @@ export function TasksPage() {
             </div>
           )}
 
-          {!isLoading && viewMode === 'kanban' && (
-            <div className="animate-fade-in h-full" data-testid="kanban-view-content">
+          {!isLoading && viewMode === "kanban" && (
+            <div
+              className="animate-fade-in h-full"
+              data-testid="kanban-view-content"
+            >
               <KanbanBoard
                 entities={entities.data ?? []}
                 selectedTaskId={selectedTaskId}
@@ -602,7 +767,10 @@ export function TasksPage() {
 
       {/* Task Detail Panel - Desktop */}
       {selectedTaskId && !isMobile && (
-        <div className="w-1/2 border-l border-gray-200 dark:border-gray-700" data-testid="task-detail-container">
+        <div
+          className="w-1/2 border-l border-gray-200 dark:border-gray-700"
+          data-testid="task-detail-container"
+        >
           {deepLink.notFound ? (
             <ElementNotFound
               elementType="Task"
@@ -612,7 +780,10 @@ export function TasksPage() {
               onDismiss={handleCloseDetail}
             />
           ) : (
-            <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
+            <TaskDetailPanel
+              taskId={selectedTaskId}
+              onClose={handleCloseDetail}
+            />
           )}
         </div>
       )}
@@ -634,7 +805,10 @@ export function TasksPage() {
               onDismiss={handleCloseDetail}
             />
           ) : (
-            <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
+            <TaskDetailPanel
+              taskId={selectedTaskId}
+              onClose={handleCloseDetail}
+            />
           )}
         </MobileDetailSheet>
       )}
