@@ -1054,6 +1054,18 @@ test.describe('TB-O26: Agent Workspace View', () => {
           body: JSON.stringify({ tasks: [] }),
         });
       });
+      // Mock running session for the director
+      await page.route('**/api/sessions*', (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            sessions: [
+              { id: 'sess-1', agentId: 'el-director-1', status: 'running' },
+            ],
+          }),
+        });
+      });
 
       await page.goto('/agents?tab=graph');
 

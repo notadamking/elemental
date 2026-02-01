@@ -65,6 +65,29 @@ export function AgentsPage() {
   const { data: sessionsData } = useSessions({ status: 'running' });
   const activeSessions = sessionsData?.sessions ?? [];
 
+  // Build a map of agent IDs to their live session status
+  // This is used by the graph to show accurate real-time status
+  // Graph only supports: 'running' | 'idle' | 'suspended' | 'terminated' | 'starting'
+  type GraphSessionStatus = 'running' | 'idle' | 'suspended' | 'terminated' | 'starting';
+  const sessionStatuses = useMemo(() => {
+    const statusMap = new Map<string, GraphSessionStatus>();
+
+    // Mark all known agents as idle by default
+    if (director) statusMap.set(director.id, 'idle');
+    for (const worker of workers) statusMap.set(worker.id, 'idle');
+    for (const steward of stewards) statusMap.set(steward.id, 'idle');
+
+    // Override with actual session status for running sessions
+    for (const session of activeSessions) {
+      // Map transitional states to their closest stable state
+      const status: GraphSessionStatus =
+        session.status === 'terminating' ? 'terminated' : session.status;
+      statusMap.set(session.agentId, status);
+    }
+
+    return statusMap;
+  }, [director, workers, stewards, activeSessions]);
+
   // Helper to check if an agent has an active session
   const getActiveSessionStatus = (agentId: string): SessionStatus | undefined => {
     const session = activeSessions.find(s => s.agentId === agentId);
@@ -319,6 +342,7 @@ export function AgentsPage() {
             workers={workers}
             stewards={stewards}
             tasks={tasks}
+            sessionStatuses={sessionStatuses}
             isLoading={isLoading}
             error={error}
             onRefresh={refetch}
