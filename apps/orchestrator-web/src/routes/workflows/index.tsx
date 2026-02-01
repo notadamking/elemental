@@ -2,6 +2,7 @@
  * Workflows Page - View and manage workflow templates and active workflows
  * Templates tab shows playbooks, Active tab shows running workflows
  *
+ * TB-O33: Visual Workflow Editor
  * TB-O34: Pour Workflow Template
  * TB-O35: Workflow Progress Dashboard
  */
@@ -9,6 +10,7 @@
 import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { PourWorkflowModal } from '../../components/workflow/PourWorkflowModal';
+import { WorkflowEditorModal } from '../../components/workflow/WorkflowEditorModal';
 import { WorkflowProgressDashboard } from '../../components/workflow/WorkflowProgressDashboard';
 import {
   Workflow,
@@ -80,9 +82,11 @@ function getStatusIcon(status: WorkflowStatus) {
 function PlaybookCard({
   playbook,
   onPour,
+  onEdit,
 }: {
   playbook: Playbook;
   onPour: (playbookId: string) => void;
+  onEdit: (playbookId: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -121,8 +125,12 @@ function PlaybookCard({
                 Pour Workflow
               </button>
               <button
-                onClick={() => setShowMenu(false)}
+                onClick={() => {
+                  onEdit(playbook.id);
+                  setShowMenu(false);
+                }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+                data-testid={`playbook-edit-${playbook.id}`}
               >
                 <Settings className="w-4 h-4" />
                 Edit
@@ -285,6 +293,10 @@ export function WorkflowsPage() {
   const [pourModalOpen, setPourModalOpen] = useState(false);
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null);
 
+  // Editor modal state (TB-O33)
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [editingPlaybookId, setEditingPlaybookId] = useState<string | null>(null);
+
   // Fetch playbooks for templates tab
   const { data: playbooksData, isLoading: playbooksLoading, error: playbooksError, refetch: refetchPlaybooks } = usePlaybooks();
   const playbooks = playbooksData?.playbooks ?? [];
@@ -352,6 +364,22 @@ export function WorkflowsPage() {
     console.log('Workflow created:', workflow.id, workflow.title);
     // Switch to Active tab to show the new workflow
     setTab('active');
+  };
+
+  // Workflow editor handlers (TB-O33)
+  const handleCreatePlaybook = () => {
+    setEditingPlaybookId(null);
+    setEditorModalOpen(true);
+  };
+
+  const handleEditPlaybook = (playbookId: string) => {
+    setEditingPlaybookId(playbookId);
+    setEditorModalOpen(true);
+  };
+
+  const handleEditorSuccess = () => {
+    // Refetch playbooks to show the new/updated one
+    refetchPlaybooks();
   };
 
   const handleCancelWorkflow = async (workflowId: string) => {
@@ -457,6 +485,7 @@ export function WorkflowsPage() {
           </button>
           {currentTab === 'templates' && (
             <button
+              onClick={handleCreatePlaybook}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
               data-testid="workflows-create"
             >
@@ -559,6 +588,7 @@ export function WorkflowsPage() {
               {!searchQuery && (
                 <div className="mt-4">
                   <button
+                    onClick={handleCreatePlaybook}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
                     data-testid="workflows-create-empty"
                   >
@@ -575,6 +605,7 @@ export function WorkflowsPage() {
                   key={playbook.id}
                   playbook={playbook}
                   onPour={handlePourPlaybook}
+                  onEdit={handleEditPlaybook}
                 />
               ))}
             </div>
@@ -668,6 +699,17 @@ export function WorkflowsPage() {
         }}
         playbookId={selectedPlaybookId}
         onSuccess={handlePourSuccess}
+      />
+
+      {/* Workflow Editor Modal (TB-O33) */}
+      <WorkflowEditorModal
+        isOpen={editorModalOpen}
+        onClose={() => {
+          setEditorModalOpen(false);
+          setEditingPlaybookId(null);
+        }}
+        playbookId={editingPlaybookId}
+        onSuccess={handleEditorSuccess}
       />
     </div>
   );

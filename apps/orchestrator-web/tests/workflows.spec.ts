@@ -2072,4 +2072,718 @@ test.describe('TB-O32: Workflows Page', () => {
       });
     });
   });
+
+  test.describe('TB-O33: Visual Workflow Editor', () => {
+    test.describe('Opening the editor', () => {
+      test('clicking Create Template button opens editor modal', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        // Click Create Template button
+        await page.getByTestId('workflows-create').click();
+
+        // Editor modal should be visible
+        await expect(page.getByTestId('workflow-editor-dialog')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Create Playbook' })).toBeVisible();
+      });
+
+      test('clicking Create Template in empty state opens editor modal', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        // Click Create Template button in empty state
+        await page.getByTestId('workflows-create-empty').click();
+
+        // Editor modal should be visible
+        await expect(page.getByTestId('workflow-editor-dialog')).toBeVisible();
+      });
+
+      test('clicking Edit on a playbook opens editor modal with playbook data', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'existing_playbook',
+                  title: 'Existing Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [{ name: 'env', type: 'string', required: true }],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'existing_playbook',
+                title: 'Existing Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [{ name: 'env', type: 'string', required: true }],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        // Open menu and click Edit
+        await page.locator('[data-testid="playbook-card-pb-1"]').locator('button').first().click();
+        await page.getByTestId('playbook-edit-pb-1').click();
+
+        // Editor modal should be visible with Edit title
+        await expect(page.getByTestId('workflow-editor-dialog')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Edit Playbook' })).toBeVisible();
+
+        // Name field should be disabled (can't change name)
+        const nameInput = page.getByTestId('playbook-name-input');
+        await expect(nameInput).toBeDisabled();
+        await expect(nameInput).toHaveValue('existing_playbook');
+      });
+    });
+
+    test.describe('Editor layout', () => {
+      test('displays name and title inputs', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await expect(page.getByTestId('playbook-name-input')).toBeVisible();
+        await expect(page.getByTestId('playbook-title-input')).toBeVisible();
+      });
+
+      test('displays Steps, Variables, and YAML tabs', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await expect(page.getByTestId('tab-steps')).toBeVisible();
+        await expect(page.getByTestId('tab-variables')).toBeVisible();
+        await expect(page.getByTestId('tab-yaml')).toBeVisible();
+      });
+
+      test('can switch between tabs', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Should start on Steps tab
+        await expect(page.getByTestId('step-list')).toBeVisible();
+
+        // Switch to Variables tab
+        await page.getByTestId('tab-variables').click();
+        await expect(page.getByTestId('variable-list')).toBeVisible();
+
+        // Switch to YAML tab
+        await page.getByTestId('tab-yaml').click();
+        await expect(page.getByTestId('yaml-preview')).toBeVisible();
+      });
+    });
+
+    test.describe('Steps management', () => {
+      test('shows empty state when no steps exist', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await expect(page.getByText('No steps yet')).toBeVisible();
+        await expect(page.getByTestId('add-step-button')).toBeVisible();
+      });
+
+      test('can add a step', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Click add step button
+        await page.getByTestId('add-step-button').click();
+
+        // Step list should now have one item
+        const stepList = page.getByTestId('step-list');
+        await expect(stepList.locator('[data-testid^="step-item-"]')).toHaveCount(1);
+
+        // Step form should be visible on the right
+        await expect(page.getByTestId('step-form')).toBeVisible();
+      });
+
+      test('can edit step properties', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('add-step-button').click();
+
+        // Fill in step details
+        await page.getByTestId('step-title-input').fill('Build Application');
+        await page.getByTestId('step-description-input').fill('Build the application for deployment');
+
+        // Select task type
+        await page.getByTestId('step-tasktype-select').selectOption('task');
+
+        // Select priority
+        await page.getByTestId('step-priority-select').selectOption('3');
+
+        // The step item should show the title
+        await expect(page.getByText('Build Application')).toBeVisible();
+      });
+
+      test('can reorder steps using up/down buttons', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Add two steps
+        await page.getByTestId('add-step-button').click();
+        await page.getByTestId('step-title-input').fill('Step A');
+        await page.getByTestId('add-step-button').click();
+        await page.getByTestId('step-title-input').fill('Step B');
+
+        // First step should have disabled up button
+        const stepItems = page.locator('[data-testid^="step-item-"]');
+        await expect(stepItems).toHaveCount(2);
+
+        // Click first step to select it
+        await stepItems.first().click();
+
+        // Move it down
+        const moveDownButton = stepItems.first().locator('button[title="Move down"]');
+        await moveDownButton.click();
+
+        // Now "Step A" should be second
+        const updatedItems = page.locator('[data-testid^="step-item-"]');
+        await expect(updatedItems.nth(1)).toContainText('Step A');
+      });
+
+      test('can delete a step', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Add a step
+        await page.getByTestId('add-step-button').click();
+
+        // Delete the step
+        const stepItem = page.locator('[data-testid^="step-item-"]').first();
+        const deleteButton = stepItem.locator('button[title="Delete step"]');
+        await deleteButton.click();
+
+        // Should be back to empty state
+        await expect(page.getByText('No steps yet')).toBeVisible();
+      });
+    });
+
+    test.describe('Variables management', () => {
+      test('shows empty state when no variables exist', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Switch to variables tab
+        await page.getByTestId('tab-variables').click();
+
+        await expect(page.getByText('No variables yet')).toBeVisible();
+        await expect(page.getByTestId('add-variable-button')).toBeVisible();
+      });
+
+      test('can add a variable', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('tab-variables').click();
+        await page.getByTestId('add-variable-button').click();
+
+        // Variable form should be visible
+        await expect(page.getByTestId('variable-form')).toBeVisible();
+
+        // Fill in variable details
+        await page.getByTestId('variable-name-input').fill('environment');
+        await page.getByTestId('variable-type-select').selectOption('string');
+        await page.getByTestId('variable-required-checkbox').check();
+
+        // Variable list should show the variable
+        await expect(page.getByTestId('variable-item-environment')).toBeVisible();
+        await expect(
+          page.getByTestId('variable-item-environment').getByText('required')
+        ).toBeVisible();
+      });
+
+      test('can delete a variable', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('tab-variables').click();
+        await page.getByTestId('add-variable-button').click();
+        await page.getByTestId('variable-name-input').fill('test_var');
+
+        // Delete the variable
+        const variableItem = page.locator('[data-testid^="variable-item-"]').first();
+        const deleteButton = variableItem.locator('button[title="Delete variable"]');
+        await deleteButton.click();
+
+        // Should be back to empty state
+        await expect(page.getByText('No variables yet')).toBeVisible();
+      });
+    });
+
+    test.describe('YAML preview and export', () => {
+      test('displays generated YAML', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Fill in name and title
+        await page.getByTestId('playbook-name-input').fill('my_playbook');
+        await page.getByTestId('playbook-title-input').fill('My Playbook');
+
+        // Add a step
+        await page.getByTestId('add-step-button').click();
+        await page.getByTestId('step-title-input').fill('Step 1');
+
+        // Switch to YAML tab
+        await page.getByTestId('tab-yaml').click();
+
+        // YAML should show the playbook content
+        const yamlContent = page.getByTestId('yaml-content');
+        await expect(yamlContent).toBeVisible();
+        await expect(yamlContent).toContainText('name: my_playbook');
+        await expect(yamlContent).toContainText('title: "My Playbook"');
+        await expect(yamlContent).toContainText('Step 1');
+      });
+
+      test('has copy and download buttons', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('tab-yaml').click();
+
+        await expect(page.getByTestId('yaml-copy')).toBeVisible();
+        await expect(page.getByTestId('yaml-download')).toBeVisible();
+      });
+
+      test('has import functionality', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('tab-yaml').click();
+
+        // Click import toggle
+        await page.getByTestId('yaml-import-toggle').click();
+
+        // Import UI should be visible
+        await expect(page.getByTestId('yaml-import-textarea')).toBeVisible();
+        await expect(page.getByTestId('yaml-import-confirm')).toBeVisible();
+      });
+
+      test('can import YAML content', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('tab-yaml').click();
+        await page.getByTestId('yaml-import-toggle').click();
+
+        // Paste YAML content
+        const yamlContent = `name: imported_playbook
+title: "Imported Playbook"
+version: 1
+steps:
+  - id: step_1
+    title: "Imported Step"`;
+
+        await page.getByTestId('yaml-import-textarea').fill(yamlContent);
+        await page.getByTestId('yaml-import-confirm').click();
+
+        // Should switch to steps tab and show imported content
+        await expect(page.getByTestId('playbook-name-input')).toHaveValue('imported_playbook');
+        await expect(page.getByTestId('playbook-title-input')).toHaveValue('Imported Playbook');
+      });
+    });
+
+    test.describe('Saving playbook', () => {
+      test('save button is disabled when name is empty', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Save button should be disabled
+        await expect(page.getByTestId('save-button')).toBeDisabled();
+      });
+
+      test('save button is enabled when name and title are provided', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('playbook-name-input').fill('my_playbook');
+        await page.getByTestId('playbook-title-input').fill('My Playbook');
+
+        // Save button should be enabled
+        await expect(page.getByTestId('save-button')).toBeEnabled();
+      });
+
+      test('successfully creates a new playbook', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          if (route.request().method() === 'GET') {
+            route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ playbooks: [], total: 0 }),
+            });
+          } else if (route.request().method() === 'POST') {
+            route.fulfill({
+              status: 201,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                playbook: {
+                  id: 'pb-new',
+                  type: 'playbook',
+                  name: 'new_playbook',
+                  title: 'New Playbook',
+                  version: 1,
+                  steps: [],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              }),
+            });
+          }
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('playbook-name-input').fill('new_playbook');
+        await page.getByTestId('playbook-title-input').fill('New Playbook');
+
+        await page.getByTestId('save-button').click();
+
+        // Modal should close
+        await page.waitForTimeout(500);
+        await expect(page.getByTestId('workflow-editor-dialog')).not.toBeVisible();
+      });
+
+      test('shows error when save fails', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          if (route.request().method() === 'GET') {
+            route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ playbooks: [], total: 0 }),
+            });
+          } else if (route.request().method() === 'POST') {
+            route.fulfill({
+              status: 500,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                error: { code: 'CREATE_ERROR', message: 'Database error' },
+              }),
+            });
+          }
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('playbook-name-input').fill('new_playbook');
+        await page.getByTestId('playbook-title-input').fill('New Playbook');
+
+        await page.getByTestId('save-button').click();
+
+        // Error message should be visible
+        await page.waitForTimeout(500);
+        await expect(page.getByText('Database error')).toBeVisible();
+
+        // Modal should still be open
+        await expect(page.getByTestId('workflow-editor-dialog')).toBeVisible();
+      });
+    });
+
+    test.describe('Modal interactions', () => {
+      test('can close modal with close button', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await expect(page.getByTestId('workflow-editor-dialog')).toBeVisible();
+
+        await page.getByTestId('workflow-editor-close').click();
+
+        await expect(page.getByTestId('workflow-editor-dialog')).not.toBeVisible();
+      });
+
+      test('can close modal with cancel button', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        await page.getByTestId('cancel-button').click();
+
+        await expect(page.getByTestId('workflow-editor-dialog')).not.toBeVisible();
+      });
+
+      test('can close modal by clicking backdrop', async ({ page }) => {
+        await page.route('**/api/playbooks*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ playbooks: [], total: 0 }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('workflows-create').click();
+        await page.waitForTimeout(300);
+
+        // Click the backdrop at a position outside the dialog (top-left corner)
+        await page.getByTestId('workflow-editor-backdrop').click({
+          position: { x: 10, y: 10 },
+        });
+
+        await expect(page.getByTestId('workflow-editor-dialog')).not.toBeVisible();
+      });
+    });
+  });
 });
