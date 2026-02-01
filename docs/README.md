@@ -70,7 +70,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | `packages/core/` | Shared types, errors, ID generation | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId` |
 | `packages/storage/` | SQLite storage backends | `createStorage`, `initializeSchema`, `StorageBackend` |
 | `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService` |
-| `packages/ui/` | Shared React UI components, hooks, design tokens | `Button`, `Card`, `Dialog`, `Input`, `Select`, `Badge`, `useTheme` |
+| `packages/ui/` | Shared React UI components, layout, hooks, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `useTheme`, `useIsMobile` |
 | `packages/orchestrator-sdk/` | Agent orchestration | `OrchestratorAPI`, `AgentRole`, `SpawnerService`, `SessionManager` |
 
 ## File Map (@elemental/core)

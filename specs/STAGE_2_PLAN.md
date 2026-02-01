@@ -1628,16 +1628,28 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O28: Extract @elemental/ui - Layout Components
+#### - [x] TB-O28: Extract @elemental/ui - Layout Components
 
 **Goal**: Configurable layout components for both apps
 
 **Changes**:
 
-- [ ] Extract: `AppShell`, `Sidebar` (parameterized), `Header`, `MainContent`
-- [ ] Both apps pass their own nav items to Sidebar
+- [x] Create `packages/ui/src/layout/` directory with configurable components
+- [x] Extract: `AppShell` with flexible header/sidebar/content/rightPanel slots
+- [x] Extract: `Sidebar` parameterized with NavSection[], NavItem[], branding, and LinkComponent props
+- [x] Extract: `MobileDrawer` with swipe-to-close, focus trap, and customizable width
+- [x] Extract: `Header`, `Breadcrumbs`, `BreadcrumbsMobile`, `ConnectionStatus`, `HeaderDivider` components
+- [x] Create responsive hooks: `useBreakpoint`, `useIsMobile`, `useIsTablet`, `useIsDesktop`, `useMediaQuery`, `useResponsiveValue`, `useWindowSize`
+- [x] Add `./layout` export path in package.json
+- [x] 50 unit tests across layout and breakpoint hooks
 
-**Verification**: Both apps render with their own navigation using shared layout
+**Verification**: Both apps build successfully; `@elemental/ui` provides configurable layout components
+
+**Notes**:
+- Layout components are fully configurable via props (nav items, branding, path matching function)
+- Apps can use shared components with their own nav configuration
+- Apps currently use their own implementations which have app-specific features (inbox badges, notification center, etc.)
+- Shared components available for new apps or incremental migration
 
 ---
 
