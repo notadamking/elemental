@@ -18,9 +18,8 @@ import {
   type PlaybookId,
   type ElementId,
   type EntityId,
-  resolveVariables,
-  substituteVariables,
-  filterStepsByConditions,
+  type Task,
+  pourWorkflow,
 } from '@elemental/core';
 
 // ============================================================================
@@ -506,6 +505,8 @@ export function createWorkflowRoutes(services: Services) {
   /**
    * POST /api/playbooks/:id/pour - Instantiate a playbook as a workflow
    * Creates a new workflow and its associated tasks from the playbook template
+   *
+   * TB-O34: Pour Workflow Template
    */
   app.post('/api/playbooks/:id/pour', async (c) => {
     try {
@@ -518,45 +519,52 @@ export function createWorkflowRoutes(services: Services) {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Playbook not found' } }, 404);
       }
 
-      // Resolve variables with provided values and defaults
-      const resolvedVariables = resolveVariables(
-        playbook.variables,
-        providedVariables ?? {}
-      );
-
-      // Filter steps by conditions (will be used in TB-O34 for task creation)
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _filteredSteps = filterStepsByConditions(playbook.steps, resolvedVariables);
-
-      // Create workflow title
-      const workflowTitle = customTitle || substituteVariables(
-        `${playbook.title} - Run`,
-        resolvedVariables,
-        true // allowMissing
-      );
-
       // Get system entity for createdBy
       const systemEntity = await api.lookupEntityByName('system');
       const createdBy = (systemEntity?.id ?? 'system') as EntityId;
 
-      // Create the workflow
-      const workflow = await createWorkflow({
-        title: workflowTitle,
-        playbookId: playbook.id as PlaybookId,
-        ephemeral: ephemeral ?? false,
-        variables: resolvedVariables,
-        tags: [...playbook.tags, 'poured'],
+      // Use the pourWorkflow function from @elemental/core to create
+      // workflow, tasks, and dependencies
+      const pourResult = await pourWorkflow({
+        playbook,
+        variables: providedVariables ?? {},
         createdBy,
+        title: customTitle,
+        ephemeral: ephemeral ?? false,
+        tags: [...playbook.tags, 'poured'],
       });
 
       // Save the workflow
       const savedWorkflow = await api.create<Workflow>({
-        ...workflow,
+        ...pourResult.workflow,
       });
 
-      // TODO: Create tasks from playbook steps
-      // This would create tasks with dependencies based on filteredSteps
-      // For now, we just create the workflow - task creation will be in TB-O34
+      // Save all tasks
+      const savedTasks: Task[] = [];
+      for (const createdTask of pourResult.tasks) {
+        const savedTask = await api.create<Task>({
+          ...createdTask.task,
+        });
+        savedTasks.push(savedTask);
+      }
+
+      // Save all dependencies (both blocks and parent-child)
+      const allDependencies = [
+        ...pourResult.blocksDependencies,
+        ...pourResult.parentChildDependencies,
+      ];
+      for (const dep of allDependencies) {
+        await api.addDependency({
+          sourceId: dep.sourceId,
+          targetId: dep.targetId,
+          type: dep.type,
+          actor: createdBy,
+        });
+      }
+
+      console.log(
+        `[workflows] Poured playbook ${playbook.name}: workflow=${savedWorkflow.id}, tasks=${savedTasks.length}, dependencies=${allDependencies.length}, skipped=${pourResult.skippedSteps.length}`
+      );
 
       const response: WorkflowResponse = {
         workflow: formatWorkflowResponse(savedWorkflow),

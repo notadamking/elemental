@@ -1,10 +1,13 @@
 /**
  * Workflows Page - View and manage workflow templates and active workflows
  * Templates tab shows playbooks, Active tab shows running workflows
+ *
+ * TB-O34: Pour Workflow Template
  */
 
 import { useState, useMemo } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
+import { PourWorkflowModal } from '../../components/workflow/PourWorkflowModal';
 import {
   Workflow,
   Plus,
@@ -253,6 +256,10 @@ export function WorkflowsPage() {
   const currentTab = (search.tab as TabValue) || 'templates';
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Pour modal state
+  const [pourModalOpen, setPourModalOpen] = useState(false);
+  const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null);
+
   // Fetch playbooks for templates tab
   const { data: playbooksData, isLoading: playbooksLoading, error: playbooksError, refetch: refetchPlaybooks } = usePlaybooks();
   const playbooks = playbooksData?.playbooks ?? [];
@@ -302,9 +309,14 @@ export function WorkflowsPage() {
   };
 
   const handlePourPlaybook = (playbookId: string) => {
-    // TODO: Open a dialog to configure variables and pour the playbook
-    console.log('Pour playbook:', playbookId);
-    alert('Pour Playbook functionality will be implemented in TB-O34');
+    setSelectedPlaybookId(playbookId);
+    setPourModalOpen(true);
+  };
+
+  const handlePourSuccess = (workflow: { id: string; title: string }) => {
+    console.log('Workflow created:', workflow.id, workflow.title);
+    // Switch to Active tab to show the new workflow
+    setTab('active');
   };
 
   const handleCancelWorkflow = async (workflowId: string) => {
@@ -551,6 +563,17 @@ export function WorkflowsPage() {
           )}
         </>
       )}
+
+      {/* Pour Workflow Modal */}
+      <PourWorkflowModal
+        isOpen={pourModalOpen}
+        onClose={() => {
+          setPourModalOpen(false);
+          setSelectedPlaybookId(null);
+        }}
+        playbookId={selectedPlaybookId}
+        onSuccess={handlePourSuccess}
+      />
     </div>
   );
 }

@@ -685,4 +685,788 @@ test.describe('TB-O32: Workflows Page', () => {
       await expect(activeTab).toContainText('2');
     });
   });
+
+  test.describe('TB-O34: Pour Workflow Template', () => {
+    test.describe('Pour Modal', () => {
+      test('clicking Pour button opens the modal', async ({ page }) => {
+        // Mock playbook response
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        // Mock single playbook response (for modal)
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'deploy_playbook',
+                title: 'Deploy Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        // Click Pour button
+        await page.getByTestId('playbook-pour-pb-1').click();
+
+        // Modal should be visible
+        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Pour Workflow' })).toBeVisible();
+      });
+
+      test('modal displays playbook info', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 2,
+                  steps: [
+                    { id: 'step-1', title: 'Build' },
+                    { id: 'step-2', title: 'Test' },
+                    { id: 'step-3', title: 'Deploy' },
+                  ],
+                  variables: [
+                    { name: 'env', type: 'string', required: true },
+                  ],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'deploy_playbook',
+                title: 'Deploy Playbook',
+                version: 2,
+                steps: [
+                  { id: 'step-1', title: 'Build' },
+                  { id: 'step-2', title: 'Test' },
+                  { id: 'step-3', title: 'Deploy' },
+                ],
+                variables: [
+                  { name: 'env', type: 'string', required: true },
+                ],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Check playbook info is displayed in the modal
+        const modal = page.getByTestId('pour-workflow-dialog');
+        await expect(modal.getByText('Deploy Playbook')).toBeVisible();
+        await expect(modal.getByText('deploy_playbook')).toBeVisible();
+        await expect(modal.getByText('v2')).toBeVisible();
+        await expect(modal.getByText('3 steps')).toBeVisible();
+        await expect(modal.getByText('1 variables')).toBeVisible();
+      });
+
+      test('modal displays workflow title input', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'test_playbook',
+                  title: 'Test Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'test_playbook',
+                title: 'Test Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Check workflow title input
+        const titleInput = page.getByTestId('workflow-title');
+        await expect(titleInput).toBeVisible();
+        await expect(titleInput).toHaveAttribute('placeholder', /Test Playbook - Run/);
+      });
+
+      test('modal displays variable inputs when playbook has variables', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [
+                    { name: 'environment', type: 'string', required: true, description: 'Target environment' },
+                    { name: 'debug', type: 'boolean', required: false, default: false },
+                    { name: 'replicas', type: 'number', required: false, default: 3 },
+                  ],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'deploy_playbook',
+                title: 'Deploy Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [
+                  { name: 'environment', type: 'string', required: true, description: 'Target environment' },
+                  { name: 'debug', type: 'boolean', required: false, default: false },
+                  { name: 'replicas', type: 'number', required: false, default: 3 },
+                ],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Check variable inputs in the modal
+        const modal = page.getByTestId('pour-workflow-dialog');
+        await expect(modal.getByRole('heading', { name: 'Variables' })).toBeVisible();
+        await expect(modal.getByText('environment').first()).toBeVisible();
+        await expect(modal.getByText('Target environment')).toBeVisible();
+        await expect(page.getByTestId('variable-environment')).toBeVisible();
+        await expect(page.getByTestId('variable-debug')).toBeVisible();
+        await expect(page.getByTestId('variable-replicas')).toBeVisible();
+      });
+
+      test('modal displays steps preview', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 1,
+                  steps: [
+                    { id: 'step-1', title: 'Build Application' },
+                    { id: 'step-2', title: 'Run Tests', dependsOn: ['step-1'] },
+                    { id: 'step-3', title: 'Deploy to Staging', dependsOn: ['step-2'] },
+                  ],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'deploy_playbook',
+                title: 'Deploy Playbook',
+                version: 1,
+                steps: [
+                  { id: 'step-1', title: 'Build Application' },
+                  { id: 'step-2', title: 'Run Tests', dependsOn: ['step-1'] },
+                  { id: 'step-3', title: 'Deploy to Staging', dependsOn: ['step-2'] },
+                ],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Check steps preview
+        await expect(page.getByText('Steps (3)')).toBeVisible();
+        await expect(page.getByTestId('steps-preview')).toBeVisible();
+        await expect(page.getByText('Build Application')).toBeVisible();
+        await expect(page.getByText('Run Tests')).toBeVisible();
+        await expect(page.getByText('Deploy to Staging')).toBeVisible();
+      });
+
+      test('modal can be closed with close button', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'test_playbook',
+                  title: 'Test Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'test_playbook',
+                title: 'Test Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
+
+        // Click close button
+        await page.getByTestId('pour-workflow-close').click();
+
+        // Modal should be hidden
+        await expect(page.getByTestId('pour-workflow-dialog')).not.toBeVisible();
+      });
+
+      test('modal can be closed with cancel button', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'test_playbook',
+                  title: 'Test Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'test_playbook',
+                title: 'Test Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Click cancel button
+        await page.getByTestId('cancel-pour').click();
+
+        // Modal should be hidden
+        await expect(page.getByTestId('pour-workflow-dialog')).not.toBeVisible();
+      });
+
+      test('submit button is enabled when no required variables', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'simple_playbook',
+                  title: 'Simple Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'simple_playbook',
+                title: 'Simple Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Submit button should be enabled
+        const submitButton = page.getByTestId('submit-pour');
+        await expect(submitButton).toBeEnabled();
+        await expect(submitButton).toContainText('Pour Workflow');
+      });
+
+      test('submitting creates workflow and switches to active tab', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          if (route.request().method() === 'GET') {
+            route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                playbook: {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              }),
+            });
+          }
+        });
+
+        await page.route('**/api/playbooks/pb-1/pour', async (route) => {
+          route.fulfill({
+            status: 201,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflow: {
+                id: 'wf-new-1',
+                type: 'workflow',
+                title: 'Deploy Playbook - Run',
+                status: 'pending',
+                playbookId: 'pb-1',
+                ephemeral: false,
+                variables: {},
+                tags: ['poured'],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.route('**/api/workflows*', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              workflows: [
+                {
+                  id: 'wf-new-1',
+                  type: 'workflow',
+                  title: 'Deploy Playbook - Run',
+                  status: 'pending',
+                  playbookId: 'pb-1',
+                  ephemeral: false,
+                  variables: {},
+                  tags: ['poured'],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Submit the form
+        await page.getByTestId('submit-pour').click();
+
+        // Wait for modal to close and tab to switch
+        await page.waitForTimeout(500);
+
+        // Modal should be closed
+        await expect(page.getByTestId('pour-workflow-dialog')).not.toBeVisible();
+
+        // Should be on active tab
+        await expect(page).toHaveURL(/tab=active/);
+      });
+
+      test('shows error message when pour fails', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          if (route.request().method() === 'GET') {
+            route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                playbook: {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'deploy_playbook',
+                  title: 'Deploy Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              }),
+            });
+          }
+        });
+
+        await page.route('**/api/playbooks/pb-1/pour', async (route) => {
+          route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: { code: 'POUR_ERROR', message: 'Database connection failed' },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Submit the form
+        await page.getByTestId('submit-pour').click();
+
+        // Wait for error
+        await page.waitForTimeout(500);
+
+        // Error message should be visible
+        await expect(page.getByText('Database connection failed')).toBeVisible();
+
+        // Modal should still be open
+        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
+      });
+
+      test('shows advanced options with ephemeral toggle', async ({ page }) => {
+        await page.route('**/api/playbooks', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbooks: [
+                {
+                  id: 'pb-1',
+                  type: 'playbook',
+                  name: 'test_playbook',
+                  title: 'Test Playbook',
+                  version: 1,
+                  steps: [{ id: 'step-1', title: 'Step 1' }],
+                  variables: [],
+                  tags: [],
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: 'system',
+                },
+              ],
+              total: 1,
+            }),
+          });
+        });
+
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'test_playbook',
+                title: 'Test Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        await page.goto('/workflows');
+        await page.waitForTimeout(500);
+
+        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.waitForTimeout(300);
+
+        // Click to expand advanced options
+        await page.getByTestId('toggle-advanced').click();
+
+        // Ephemeral checkbox should be visible
+        await expect(page.getByTestId('ephemeral-checkbox')).toBeVisible();
+        await expect(page.getByText('Ephemeral workflow', { exact: true })).toBeVisible();
+        await expect(page.getByText('Ephemeral workflows are automatically cleaned up after completion')).toBeVisible();
+      });
+    });
+  });
 });

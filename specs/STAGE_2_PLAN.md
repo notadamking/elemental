@@ -1772,7 +1772,7 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 **Implementation Notes** (added 2026-01-31):
 - Implemented REST API endpoints: GET/POST /api/workflows, GET/POST /api/playbooks
 - Added workflow status transitions: pending -> running -> completed/failed/cancelled
-- PlaybookCard component with Pour button (TB-O34 will complete Pour functionality)
+- PlaybookCard component with Pour button (Pour functionality completed in TB-O34)
 - WorkflowCard component with status display, cancel, and delete actions
 - 24 Playwright tests in tests/workflows.spec.ts covering:
   - Page layout, tabs, search functionality
@@ -1795,16 +1795,21 @@ Each tracer bullet is a small, full-stack feature verified immediately after com
 
 ---
 
-#### - [ ] TB-O34: Pour Workflow Template
+#### - [x] TB-O34: Pour Workflow Template ✅
 
 **Goal**: Convert workflow template to executable workflow via UI
 
 **Changes**:
 
-- [ ] "Pour" button, variable resolution form, preview generated tasks
-- [ ] Create workflow + tasks in one action
+- [x] "Pour" button opens PourWorkflowModal component with variable resolution form
+- [x] Modal displays playbook info, workflow title input, variable inputs, and steps preview
+- [x] Backend `/api/playbooks/:id/pour` endpoint uses `pourWorkflow()` from @elemental/core
+- [x] Creates workflow with full task creation and dependency wiring
+- [x] On success, switches to Active tab to show the new workflow
+- [x] Advanced options include ephemeral workflow toggle
+- [x] 11 Playwright tests covering modal interactions, form inputs, and workflow creation
 
-**Verification**: Pour workflow template, fill variables, see workflow and tasks created
+**Verification**: Pour workflow template, fill variables, see workflow and tasks created - DONE via Playwright tests
 
 ---
 
