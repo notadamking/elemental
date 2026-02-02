@@ -99,7 +99,8 @@ export function CreatePlanModal({
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch tasks');
       const result = await response.json();
-      const allTasks = (result.items || result.data || []) as PlanTaskType[];
+      // Handle different API response formats: orchestrator returns { tasks }, main server returns { items } or array
+      const allTasks = (result.tasks || result.items || result.data || (Array.isArray(result) ? result : [])) as PlanTaskType[];
       // Filter out tasks that are already selected
       const selectedIds = new Set(tasks.filter((t) => t.existingTaskId).map((t) => t.existingTaskId));
       return allTasks.filter((t: PlanTaskType) => !selectedIds.has(t.id));
