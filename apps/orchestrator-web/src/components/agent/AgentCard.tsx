@@ -5,11 +5,13 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Pencil } from 'lucide-react';
+import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Pencil, Inbox } from 'lucide-react';
 import type { Agent, WorkerMetadata, StewardMetadata, SessionStatus } from '../../api/types';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { AgentRoleBadge } from './AgentRoleBadge';
 import { Tooltip } from '../ui/Tooltip';
+import { useAgentInboxCount } from '../../api/hooks/useAgentInbox';
+import { AgentInboxDrawer } from './AgentInboxDrawer';
 
 interface AgentCardProps {
   agent: Agent;
@@ -35,7 +37,12 @@ export function AgentCard({
   isStopping,
 }: AgentCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch inbox count for the agent
+  const { data: inboxCountData } = useAgentInboxCount(agent.id);
+  const unreadCount = inboxCountData?.count ?? 0;
 
   const agentMeta = agent.metadata?.agent;
   const isRunning = activeSessionStatus === 'running' || activeSessionStatus === 'starting';
@@ -186,6 +193,26 @@ export function AgentCard({
             </button>
           </Tooltip>
         )}
+
+        {/* Inbox button */}
+        <Tooltip content={unreadCount > 0 ? `${unreadCount} unread messages` : 'View inbox'}>
+          <button
+            onClick={() => setInboxOpen(true)}
+            className="relative p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors"
+            data-testid={`agent-inbox-${agent.id}`}
+          >
+            <Inbox className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[10px] font-medium text-white bg-blue-500 rounded-full px-0.5"
+                data-testid={`agent-inbox-badge-${agent.id}`}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+        </Tooltip>
+
         {onRestart && (
           <Tooltip content="Restart agent">
             <button
@@ -198,6 +225,14 @@ export function AgentCard({
           </Tooltip>
         )}
       </div>
+
+      {/* Inbox Drawer */}
+      <AgentInboxDrawer
+        isOpen={inboxOpen}
+        onClose={() => setInboxOpen(false)}
+        agentId={agent.id}
+        agentName={agent.name}
+      />
     </div>
   );
 }

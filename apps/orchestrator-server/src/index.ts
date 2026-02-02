@@ -30,6 +30,7 @@ import {
   createMessageRoutes,
   createLibraryRoutes,
   createDocumentRoutes,
+  createInboxRoutes,
 } from '@elemental/shared-routes';
 import { notifyClientsOfNewSession } from './websocket.js';
 import { startServer } from './server.js';
@@ -74,6 +75,7 @@ async function main() {
   app.route('/', createMessageRoutes(collaborateServices));
   app.route('/', createLibraryRoutes(collaborateServices));
   app.route('/', createDocumentRoutes(collaborateServices));
+  app.route('/', createInboxRoutes(collaborateServices));
 
   startServer(app, services);
 
