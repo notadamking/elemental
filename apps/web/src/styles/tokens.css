@@ -153,11 +153,11 @@
   --color-input-focus-ring: rgba(59, 130, 246, 0.25);
 
   /* --- Semantic Aliases --- */
-  --color-primary: var(--color-primary-500);
-  --color-primary-hover: var(--color-primary-600);
-  --color-primary-active: var(--color-primary-700);
+  --color-primary: var(--color-primary-600);
+  --color-primary-hover: var(--color-primary-700);
+  --color-primary-active: var(--color-primary-800);
   --color-primary-text: var(--color-primary-600);
-  --color-primary-muted: rgba(59, 130, 246, 0.1);
+  --color-primary-muted: rgba(37, 99, 235, 0.1);
 
   --color-danger: var(--color-error-500);
   --color-danger-hover: var(--color-error-600);
@@ -232,11 +232,11 @@
   --color-input-focus-ring: rgba(96, 165, 250, 0.25);
 
   /* --- Semantic Aliases (Dark Mode) --- */
-  --color-primary: var(--color-primary-400);
-  --color-primary-hover: var(--color-primary-300);
-  --color-primary-active: var(--color-primary-200);
+  --color-primary: var(--color-primary-500);
+  --color-primary-hover: var(--color-primary-400);
+  --color-primary-active: var(--color-primary-300);
   --color-primary-text: var(--color-primary-400);
-  --color-primary-muted: rgba(96, 165, 250, 0.15);
+  --color-primary-muted: rgba(59, 130, 246, 0.15);
 
   --color-danger: var(--color-error-400);
   --color-danger-hover: var(--color-error-300);
