@@ -96,7 +96,7 @@ export function PageHeader({
               onClick={action.onClick}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors touch-target ${
                 isPrimary
-                  ? 'text-white bg-blue-600 hover:bg-blue-700'
+                  ? 'text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]'
                   : 'text-[var(--color-text)] bg-[var(--color-surface-hover)] hover:bg-[var(--color-border)]'
               }`}
               data-testid={action.testId}
@@ -109,7 +109,7 @@ export function PageHeader({
                 <span className="sm:hidden">{action.shortLabel}</span>
               )}
               {action.shortcut && !isMobile && (
-                <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">
+                <kbd className="ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
                   {action.shortcut}
                 </kbd>
               )}
