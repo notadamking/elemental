@@ -123,6 +123,62 @@ export function createTaskRoutes(services: Services) {
     }
   });
 
+  // PATCH /api/tasks/:id - Update task
+  app.patch('/api/tasks/:id', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+      const body = (await c.req.json()) as {
+        title?: string;
+        status?: string;
+        priority?: number;
+        complexity?: number;
+        assignee?: string | null;
+        owner?: string | null;
+        deadline?: string | null;
+        tags?: string[];
+      };
+
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      const updates: Record<string, unknown> = {};
+
+      if (body.title !== undefined) updates.title = body.title;
+      if (body.status !== undefined) {
+        const statusMap: Record<string, TaskStatus> = {
+          open: TaskStatus.OPEN,
+          in_progress: TaskStatus.IN_PROGRESS,
+          blocked: TaskStatus.BLOCKED,
+          deferred: TaskStatus.DEFERRED,
+          closed: TaskStatus.CLOSED,
+        };
+        const mappedStatus = statusMap[body.status];
+        if (!mappedStatus) {
+          return c.json({ error: { code: 'INVALID_INPUT', message: `Invalid status: ${body.status}` } }, 400);
+        }
+        updates.status = mappedStatus;
+      }
+      if (body.priority !== undefined) updates.priority = body.priority;
+      if (body.complexity !== undefined) updates.complexity = body.complexity;
+      if (body.assignee !== undefined) updates.assignee = body.assignee || null;
+      if (body.owner !== undefined) updates.owner = body.owner || null;
+      if (body.deadline !== undefined) updates.deadline = body.deadline || null;
+      if (body.tags !== undefined) updates.tags = body.tags;
+
+      if (Object.keys(updates).length === 0) {
+        return c.json({ task: formatTaskResponse(task) });
+      }
+
+      const updatedTask = await api.update(taskId, updates) as unknown as Task;
+      return c.json({ task: formatTaskResponse(updatedTask) });
+    } catch (error) {
+      console.error('[orchestrator] Failed to update task:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   // GET /api/tasks/:id
   app.get('/api/tasks/:id', async (c) => {
     try {
@@ -157,6 +213,56 @@ export function createTaskRoutes(services: Services) {
       return c.json({ task: formatTaskResponse(task), assignment: assignmentInfo });
     } catch (error) {
       console.error('[orchestrator] Failed to get task:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // DELETE /api/tasks/:id - Soft delete task
+  app.delete('/api/tasks/:id', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+      const body = (await c.req.json().catch(() => ({}))) as { reason?: string };
+
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      // Soft delete by setting status to tombstone
+      await api.update(taskId, {
+        status: TaskStatus.TOMBSTONE,
+        deletedAt: new Date().toISOString(),
+        deleteReason: body.reason,
+      } as unknown as Record<string, unknown>);
+
+      return c.json({ success: true });
+    } catch (error) {
+      console.error('[orchestrator] Failed to delete task:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // POST /api/tasks/:id/start - Start task (set to in_progress)
+  app.post('/api/tasks/:id/start', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      if (task.status !== TaskStatus.OPEN) {
+        return c.json({ error: { code: 'INVALID_STATE', message: 'Task must be in open status to start' } }, 400);
+      }
+
+      const updatedTask = await api.update(taskId, {
+        status: TaskStatus.IN_PROGRESS,
+      } as unknown as Record<string, unknown>) as unknown as Task;
+
+      return c.json({ task: formatTaskResponse(updatedTask) });
+    } catch (error) {
+      console.error('[orchestrator] Failed to start task:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
     }
   });

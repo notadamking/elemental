@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useTasksByStatus, useStartTask, useCompleteTask } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
-import { TaskCard, TaskRow } from '../../components/task';
+import { TaskCard, TaskRow, TaskDetailPanel, CreateTaskModal } from '../../components/task';
 import type { Task, Agent } from '../../api/types';
 
 type ViewMode = 'list' | 'kanban';
@@ -43,6 +43,10 @@ export function TasksPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const currentTab = (search.status as TabValue) || 'all';
+
+  // Modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const selectedTaskId = search.selected;
 
   // Track pending operations
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
@@ -125,6 +129,32 @@ export function TasksPage() {
     });
   };
 
+  const handleSelectTask = (taskId: string) => {
+    navigate({
+      to: '/tasks',
+      search: {
+        selected: taskId,
+        page: search.page ?? 1,
+        limit: search.limit ?? 25,
+        status: search.status,
+        assignee: search.assignee,
+      },
+    });
+  };
+
+  const handleCloseDetail = () => {
+    navigate({
+      to: '/tasks',
+      search: {
+        selected: undefined,
+        page: search.page ?? 1,
+        limit: search.limit ?? 25,
+        status: search.status,
+        assignee: search.assignee,
+      },
+    });
+  };
+
   const handleStartTask = async (taskId: string) => {
     setPendingStart((prev) => new Set(prev).add(taskId));
     try {
@@ -163,6 +193,28 @@ export function TasksPage() {
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="tasks-page">
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={(taskId) => handleSelectTask(taskId)}
+      />
+
+      {/* Task Detail Panel - Slide-over */}
+      {selectedTaskId && (
+        <div className="fixed inset-0 z-40" data-testid="task-detail-overlay">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={handleCloseDetail}
+          />
+          {/* Panel */}
+          <div className="absolute right-0 top-0 h-full w-full max-w-lg bg-[var(--color-surface)] shadow-xl border-l border-[var(--color-border)] animate-slide-in-right">
+            <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
@@ -220,6 +272,7 @@ export function TasksPage() {
 
           {/* Create Button */}
           <button
+            onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
             data-testid="tasks-create"
           >
@@ -306,13 +359,14 @@ export function TasksPage() {
           </button>
         </div>
       ) : filteredTasks.length === 0 ? (
-        <EmptyState searchQuery={searchQuery} currentTab={currentTab} />
+        <EmptyState searchQuery={searchQuery} currentTab={currentTab} onCreateClick={() => setIsCreateModalOpen(true)} />
       ) : viewMode === 'list' ? (
         <TaskListView
           tasks={filteredTasks}
           agentMap={agentMap}
           onStart={handleStartTask}
           onComplete={handleCompleteTask}
+          onSelectTask={handleSelectTask}
           pendingStart={pendingStart}
           pendingComplete={pendingComplete}
         />
@@ -326,6 +380,7 @@ export function TasksPage() {
           agentMap={agentMap}
           onStart={handleStartTask}
           onComplete={handleCompleteTask}
+          onSelectTask={handleSelectTask}
           pendingStart={pendingStart}
           pendingComplete={pendingComplete}
         />
@@ -381,6 +436,7 @@ interface TaskListViewProps {
   agentMap: Map<string, Agent>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
+  onSelectTask: (taskId: string) => void;
   pendingStart: Set<string>;
   pendingComplete: Set<string>;
 }
@@ -390,6 +446,7 @@ function TaskListView({
   agentMap,
   onStart,
   onComplete,
+  onSelectTask,
   pendingStart,
   pendingComplete,
 }: TaskListViewProps) {
@@ -433,6 +490,7 @@ function TaskListView({
                 assignedAgent={task.assignee ? agentMap.get(task.assignee) : undefined}
                 onStart={() => onStart(task.id)}
                 onComplete={() => onComplete(task.id)}
+                onClick={() => onSelectTask(task.id)}
                 isStarting={pendingStart.has(task.id)}
                 isCompleting={pendingComplete.has(task.id)}
               />
@@ -457,6 +515,7 @@ interface TaskKanbanViewProps {
   agentMap: Map<string, Agent>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
+  onSelectTask: (taskId: string) => void;
   pendingStart: Set<string>;
   pendingComplete: Set<string>;
 }
@@ -470,6 +529,7 @@ function TaskKanbanView({
   agentMap,
   onStart,
   onComplete,
+  onSelectTask,
   pendingStart,
   pendingComplete,
 }: TaskKanbanViewProps) {
@@ -485,6 +545,7 @@ function TaskKanbanView({
         agentMap={agentMap}
         onStart={onStart}
         onComplete={onComplete}
+        onSelectTask={onSelectTask}
         pendingStart={pendingStart}
         pendingComplete={pendingComplete}
         colorClass="border-gray-400"
@@ -496,6 +557,7 @@ function TaskKanbanView({
         agentMap={agentMap}
         onStart={onStart}
         onComplete={onComplete}
+        onSelectTask={onSelectTask}
         pendingStart={pendingStart}
         pendingComplete={pendingComplete}
         colorClass="border-blue-400"
@@ -507,6 +569,7 @@ function TaskKanbanView({
         agentMap={agentMap}
         onStart={onStart}
         onComplete={onComplete}
+        onSelectTask={onSelectTask}
         pendingStart={pendingStart}
         pendingComplete={pendingComplete}
         colorClass="border-yellow-400"
@@ -518,6 +581,7 @@ function TaskKanbanView({
         agentMap={agentMap}
         onStart={onStart}
         onComplete={onComplete}
+        onSelectTask={onSelectTask}
         pendingStart={pendingStart}
         pendingComplete={pendingComplete}
         colorClass="border-green-400"
@@ -529,6 +593,7 @@ function TaskKanbanView({
         agentMap={agentMap}
         onStart={onStart}
         onComplete={onComplete}
+        onSelectTask={onSelectTask}
         pendingStart={pendingStart}
         pendingComplete={pendingComplete}
         colorClass="border-purple-400"
@@ -544,6 +609,7 @@ interface KanbanColumnProps {
   agentMap: Map<string, Agent>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
+  onSelectTask: (taskId: string) => void;
   pendingStart: Set<string>;
   pendingComplete: Set<string>;
   colorClass: string;
@@ -556,6 +622,7 @@ function KanbanColumn({
   agentMap,
   onStart,
   onComplete,
+  onSelectTask,
   pendingStart,
   pendingComplete,
   colorClass,
@@ -585,6 +652,7 @@ function KanbanColumn({
               assignedAgent={task.assignee ? agentMap.get(task.assignee) : undefined}
               onStart={() => onStart(task.id)}
               onComplete={() => onComplete(task.id)}
+              onClick={() => onSelectTask(task.id)}
               isStarting={pendingStart.has(task.id)}
               isCompleting={pendingComplete.has(task.id)}
             />
@@ -602,9 +670,10 @@ function KanbanColumn({
 interface EmptyStateProps {
   searchQuery: string;
   currentTab: TabValue;
+  onCreateClick: () => void;
 }
 
-function EmptyState({ searchQuery, currentTab }: EmptyStateProps) {
+function EmptyState({ searchQuery, currentTab, onCreateClick }: EmptyStateProps) {
   if (searchQuery) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 border border-dashed border-[var(--color-border)] rounded-lg">
@@ -655,6 +724,7 @@ function EmptyState({ searchQuery, currentTab }: EmptyStateProps) {
       </p>
       {currentTab === 'all' && (
         <button
+          onClick={onCreateClick}
           className="mt-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
           data-testid="tasks-create-empty"
         >

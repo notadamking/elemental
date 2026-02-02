@@ -28,3 +28,5 @@ export type {
 // Orchestrator-specific components (have action buttons, orchestrator metadata)
 export { TaskCard } from './TaskCard';
 export { TaskRow } from './TaskRow';
+export { TaskDetailPanel } from './TaskDetailPanel';
+export { CreateTaskModal } from './CreateTaskModal';
