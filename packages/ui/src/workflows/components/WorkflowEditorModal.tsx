@@ -1017,7 +1017,7 @@ export function WorkflowEditorModal({
             <div className="flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-[var(--color-primary)]" />
               <h2 id="workflow-editor-title" className="text-lg font-semibold text-[var(--color-text)]">
-                {isEditing ? 'Edit Playbook' : 'Create Playbook'}
+                {isEditing ? 'Edit Template' : 'Create Template'}
               </h2>
             </div>
             <button
@@ -1086,7 +1086,7 @@ export function WorkflowEditorModal({
                 <nav className="flex gap-4" aria-label="Editor tabs">
                   <button
                     onClick={() => setActiveTab('steps')}
-                    className={`flex items-center gap-1.5 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                    className={`flex items-center gap-1.5 py-3 px-1 text-sm font-medium border-b-2 transition-colors ${
                       activeTab === 'steps'
                         ? 'text-[var(--color-primary)] border-[var(--color-primary)]'
                         : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] border-transparent'
@@ -1101,7 +1101,7 @@ export function WorkflowEditorModal({
                   </button>
                   <button
                     onClick={() => setActiveTab('variables')}
-                    className={`flex items-center gap-1.5 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                    className={`flex items-center gap-1.5 py-3 px-1 text-sm font-medium border-b-2 transition-colors ${
                       activeTab === 'variables'
                         ? 'text-[var(--color-primary)] border-[var(--color-primary)]'
                         : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] border-transparent'
@@ -1116,7 +1116,7 @@ export function WorkflowEditorModal({
                   </button>
                   <button
                     onClick={() => setActiveTab('yaml')}
-                    className={`flex items-center gap-1.5 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                    className={`flex items-center gap-1.5 py-3 px-1 text-sm font-medium border-b-2 transition-colors ${
                       activeTab === 'yaml'
                         ? 'text-[var(--color-primary)] border-[var(--color-primary)]'
                         : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] border-transparent'
@@ -1315,7 +1315,7 @@ export function WorkflowEditorModal({
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    {isEditing ? 'Save Changes' : 'Create Playbook'}
+                    {isEditing ? 'Save Changes' : 'Create Template'}
                   </>
                 )}
               </button>
