@@ -39,22 +39,21 @@ export function PlanSearchBar({ value, onChange, onClear }: PlanSearchBarProps) 
 
   return (
     <div className="relative flex-1 max-w-md" data-testid="plan-search-container">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Search className="w-4 h-4 text-gray-400" />
-      </div>
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] pointer-events-none" />
       <input
         ref={inputRef}
         type="text"
+        name="plan-search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search plans... (Press / to focus)"
-        className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+        className="w-full pl-10 pr-8 py-1.5 text-sm border border-[var(--color-border)] dark:border-[var(--color-card-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
         data-testid="plan-search-input"
       />
       {value && (
         <button
           onClick={onClear}
-          className="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-400 hover:text-gray-600"
+          className="absolute inset-y-0 right-0 pr-2 flex items-center text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
           data-testid="plan-search-clear"
           aria-label="Clear search (Escape)"
         >

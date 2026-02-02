@@ -30,6 +30,7 @@ import {
   Inbox,
   MessageSquare,
   FileText,
+  ClipboardList,
 } from 'lucide-react';
 
 // Responsive breakpoint hooks
@@ -120,6 +121,7 @@ interface RouteConfig {
 const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/activity': { label: 'Activity', icon: Activity },
   '/tasks': { label: 'Tasks', icon: CheckSquare },
+  '/plans': { label: 'Plans', icon: ClipboardList },
   '/agents': { label: 'Agents', icon: Users },
   '/workspaces': { label: 'Workspaces', icon: LayoutGrid },
   '/workflows': { label: 'Workflows', icon: Workflow },
