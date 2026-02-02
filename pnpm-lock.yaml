@@ -26,6 +26,9 @@ importers:
       '@elemental/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@elemental/shared-routes':
+        specifier: workspace:*
+        version: link:../../packages/shared-routes
       '@elemental/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -160,6 +163,9 @@ importers:
       '@elemental/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@elemental/shared-routes':
+        specifier: workspace:*
+        version: link:../../packages/shared-routes
       '@elemental/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -411,6 +417,28 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@20.19.30)(yaml@2.8.2)
+
+  packages/shared-routes:
+    dependencies:
+      '@elemental/core':
+        specifier: workspace:*
+        version: link:../core
+      '@elemental/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@elemental/storage':
+        specifier: workspace:*
+        version: link:../storage
+      hono:
+        specifier: ^4.7.0
+        version: 4.11.6
+    devDependencies:
+      '@types/bun':
+        specifier: latest
+        version: 1.3.8
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
 
   packages/storage:
     dependencies:

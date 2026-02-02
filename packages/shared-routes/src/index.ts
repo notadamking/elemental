@@ -1,0 +1,15 @@
+/**
+ * Shared Routes Package
+ *
+ * Route factories for collaborate features that can be used by multiple servers.
+ */
+
+// Types
+export type { CollaborateServices, CollaborateServicesWithBroadcast, BroadcastInboxEventFn } from './types.js';
+
+// Route factories
+export { createElementsRoutes } from './elements.js';
+export { createChannelRoutes } from './channels.js';
+export { createMessageRoutes } from './messages.js';
+export { createLibraryRoutes } from './libraries.js';
+export { createDocumentRoutes } from './documents.js';

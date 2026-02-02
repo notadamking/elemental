@@ -19,6 +19,7 @@
     "@elemental/storage": "workspace:*",
     "@elemental/sdk": "workspace:*",
     "@elemental/orchestrator-sdk": "workspace:*",
+    "@elemental/shared-routes": "workspace:*",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.7.0",
     "ws": "^8.18.0"

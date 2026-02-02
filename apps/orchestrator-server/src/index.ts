@@ -22,6 +22,14 @@ import {
   createWorkflowRoutes,
   markDaemonAsServerManaged,
 } from './routes/index.js';
+// Shared collaborate routes
+import {
+  createElementsRoutes,
+  createChannelRoutes,
+  createMessageRoutes,
+  createLibraryRoutes,
+  createDocumentRoutes,
+} from '@elemental/shared-routes';
 import { notifyClientsOfNewSession } from './websocket.js';
 import { startServer } from './server.js';
 
@@ -52,6 +60,18 @@ async function main() {
   app.route('/', createUploadRoutes());
   app.route('/', createDaemonRoutes(services));
   app.route('/', createWorkflowRoutes(services));
+
+  // Register shared collaborate routes
+  const collaborateServices = {
+    api: services.api,
+    inboxService: services.inboxService,
+    storageBackend: services.storageBackend,
+  };
+  app.route('/', createElementsRoutes(collaborateServices));
+  app.route('/', createChannelRoutes(collaborateServices));
+  app.route('/', createMessageRoutes(collaborateServices));
+  app.route('/', createLibraryRoutes(collaborateServices));
+  app.route('/', createDocumentRoutes(collaborateServices));
 
   startServer(app, services);
 
