@@ -15,3 +15,4 @@ export { createMessageRoutes } from './messages.js';
 export { createLibraryRoutes } from './libraries.js';
 export { createDocumentRoutes } from './documents.js';
 export { createInboxRoutes } from './inbox.js';
+export { createPlanRoutes } from './plans.js';
