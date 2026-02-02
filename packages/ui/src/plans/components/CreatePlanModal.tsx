@@ -54,6 +54,7 @@ export function CreatePlanModal({
   onToastSuccess,
   onToastError,
 }: CreatePlanModalProps) {
+  console.log('[CreatePlanModal] Render, isOpen:', isOpen);
   const [planTitle, setPlanTitle] = useState('');
   const [tasks, setTasks] = useState<TaskEntry[]>([
     { id: '1', mode: 'new', title: '', priority: 3 },
@@ -88,6 +89,9 @@ export function CreatePlanModal({
 
   // Get the active task entry
   const activeTask = tasks.find((t) => t.id === activeTaskId);
+
+  // Debug: Log the query enabled state
+  console.log('[CreatePlanModal] activeTask:', activeTask, 'mode:', activeTask?.mode, 'enabled:', activeTask?.mode === 'existing');
 
   // Query for existing tasks when in existing mode
   const { data: existingTasks = [], isLoading: isLoadingTasks, error: tasksError } = useQuery<PlanTaskType[]>({
