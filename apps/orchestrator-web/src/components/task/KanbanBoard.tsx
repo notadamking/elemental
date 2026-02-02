@@ -68,17 +68,17 @@ interface ColumnPreferences {
   sortOverride: ColumnSort | null;
 }
 
+interface TaskUpdate {
+  status?: string;
+  assignee?: string | null;
+}
+
 interface KanbanBoardProps {
   tasks: Task[];
-  agents: Agent[];
   agentMap: Map<string, Agent>;
   selectedTaskId: string | null;
   onTaskClick: (taskId: string) => void;
-  onStart: (taskId: string) => void;
-  onComplete: (taskId: string) => void;
-  onUpdateStatus: (taskId: string, status: string) => void;
-  pendingStart: Set<string>;
-  pendingComplete: Set<string>;
+  onUpdateTask: (taskId: string, updates: TaskUpdate) => void;
   searchQuery?: string;
   pageSort?: { field: string; direction: SortDirection };
 }
@@ -812,7 +812,7 @@ export function KanbanBoard({
   agentMap,
   selectedTaskId,
   onTaskClick,
-  onUpdateStatus,
+  onUpdateTask,
   searchQuery,
   pageSort,
 }: KanbanBoardProps) {
@@ -950,7 +950,10 @@ export function KanbanBoard({
     }
 
     if (targetColumnId) {
-      // Map column to status update
+      // Build the update based on target column
+      const updates: TaskUpdate = {};
+
+      // Map column to status
       const statusMap: Record<string, string> = {
         unassigned: 'open',
         assigned: 'open',
@@ -961,7 +964,18 @@ export function KanbanBoard({
 
       const newStatus = statusMap[targetColumnId];
       if (newStatus && newStatus !== task.status) {
-        onUpdateStatus(taskId, newStatus);
+        updates.status = newStatus;
+      }
+
+      // Handle assignee changes for unassigned column
+      if (targetColumnId === 'unassigned' && task.assignee) {
+        // Moving to unassigned - remove the assignee
+        updates.assignee = null;
+      }
+
+      // Only call update if there are changes
+      if (Object.keys(updates).length > 0) {
+        onUpdateTask(taskId, updates);
       }
     }
   };

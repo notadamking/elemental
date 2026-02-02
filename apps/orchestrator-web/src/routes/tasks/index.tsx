@@ -366,8 +366,15 @@ export function TasksPage() {
     }
   };
 
-  const handleUpdateStatus = async (taskId: string, status: string) => {
-    await updateTaskMutation.mutateAsync({ taskId, status: status as 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' });
+  const handleUpdateTask = async (taskId: string, updates: { status?: string; assignee?: string | null }) => {
+    const updatePayload: Parameters<typeof updateTaskMutation.mutateAsync>[0] = { taskId };
+    if (updates.status !== undefined) {
+      updatePayload.status = updates.status as 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
+    }
+    if (updates.assignee !== undefined) {
+      updatePayload.assignee = updates.assignee;
+    }
+    await updateTaskMutation.mutateAsync(updatePayload);
   };
 
   const handleClearFilters = () => {
@@ -594,15 +601,10 @@ export function TasksPage() {
       ) : (
         <KanbanBoard
           tasks={allTasks}
-          agents={agents}
           agentMap={agentMap}
           selectedTaskId={selectedTaskId ?? null}
           onTaskClick={handleSelectTask}
-          onStart={handleStartTask}
-          onComplete={handleCompleteTask}
-          onUpdateStatus={handleUpdateStatus}
-          pendingStart={pendingStart}
-          pendingComplete={pendingComplete}
+          onUpdateTask={handleUpdateTask}
           searchQuery={searchQuery}
           pageSort={{ field: sortField, direction: sortDirection }}
         />
