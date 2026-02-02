@@ -986,17 +986,17 @@ function EditableTags({
           </span>
         </div>
         <div className="p-2 border border-[var(--color-primary)] rounded-lg bg-[var(--color-input-bg)] focus-within:ring-2 focus-within:ring-[var(--color-primary)]">
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="flex flex-wrap gap-1.5 mb-2">
             {editTags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] rounded"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 rounded-full"
               >
                 {tag}
                 <button
                   type="button"
                   onClick={() => handleRemoveTag(tag)}
-                  className="hover:text-[var(--color-danger)]"
+                  className="hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   aria-label={`Remove ${tag}`}
                 >
                   <X className="w-3 h-3" />
@@ -1058,13 +1058,13 @@ function EditableTags({
       </div>
       {tags.length > 0 ? (
         <div
-          className="flex flex-wrap gap-1 p-2 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-primary)] transition-colors"
+          className="flex flex-wrap gap-1.5 p-2 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-primary)] transition-colors"
           onClick={() => setIsEditing(true)}
         >
           {tags.map((tag) => (
             <span
               key={tag}
-              className="px-2 py-0.5 text-xs bg-[var(--color-surface)] text-[var(--color-text-secondary)] rounded"
+              className="px-2.5 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 rounded-full"
             >
               {tag}
             </span>

@@ -148,6 +148,7 @@ export function useTaskCounts() {
 
 interface CreateTaskInput {
   title: string;
+  createdBy?: EntityId;
   description?: string;
   acceptanceCriteria?: string;
   priority?: Priority;

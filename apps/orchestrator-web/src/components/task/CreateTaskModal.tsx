@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Plus, ChevronLeft } from 'lucide-react';
 import { useCreateTask } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
+import { useCurrentUser } from '../../contexts';
 import { TagInput } from '../ui/TagInput';
 import type { Priority, Complexity, TaskTypeValue, Agent } from '../../api/types';
 
@@ -55,6 +56,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const createTask = useCreateTask();
   const { data: agentsData } = useAgents('worker');
+  const { currentUser } = useCurrentUser();
 
   // Get available worker agents for assignment
   const workers: Agent[] = agentsData?.agents ?? [];
@@ -88,6 +90,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     try {
       const result = await createTask.mutateAsync({
         title: title.trim(),
+        createdBy: currentUser?.id,
         description: description.trim() || undefined,
         priority,
         complexity,
