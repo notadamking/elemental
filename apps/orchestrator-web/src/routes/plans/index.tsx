@@ -280,6 +280,11 @@ export function PlansPage() {
               onRemoveTaskNotAllowed={() =>
                 toast.error('Cannot remove the last task. Plans must have at least one task.')
               }
+              onDeleteSuccess={() => {
+                toast.success('Plan deleted successfully');
+                handlePlanDeselect();
+              }}
+              onDeleteError={(msg) => toast.error(msg)}
             />
           </div>
         )}

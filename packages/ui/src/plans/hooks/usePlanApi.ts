@@ -206,6 +206,28 @@ export function useAvailableTasks(planId: string | null, searchQuery: string) {
 }
 
 /**
+ * Hook to delete a plan
+ */
+export function useDeletePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (planId: string) => {
+      const response = await fetch(`/api/plans/${planId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to delete plan');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+    },
+  });
+}
+
+/**
  * Hook to create a new plan
  */
 export function useCreatePlan() {
@@ -248,14 +270,19 @@ export function useCreatePlan() {
 
       // Add additional tasks to the plan if any
       if (additionalTasks && additionalTasks.length > 0) {
-        for (const task of additionalTasks) {
+        const addTaskPromises = additionalTasks.map(async (task) => {
           if ('existingTaskId' in task) {
             // Add existing task to plan
-            await fetch(`/api/plans/${plan.id}/tasks`, {
+            const response = await fetch(`/api/plans/${plan.id}/tasks`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ taskId: task.existingTaskId }),
             });
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({}));
+              console.error('Failed to add existing task to plan:', error);
+              throw new Error(error.error?.message || 'Failed to add task to plan');
+            }
           } else {
             // Create new task and add to plan
             const taskResponse = await fetch('/api/tasks', {
@@ -267,18 +294,30 @@ export function useCreatePlan() {
                 createdBy,
               }),
             });
-            if (taskResponse.ok) {
-              const taskResult = await taskResponse.json();
-              // Handle response format: { task: {...} } or direct task object
-              const newTask = taskResult.task || taskResult;
-              await fetch(`/api/plans/${plan.id}/tasks`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ taskId: newTask.id }),
-              });
+            if (!taskResponse.ok) {
+              const error = await taskResponse.json().catch(() => ({}));
+              console.error('Failed to create task:', error);
+              throw new Error(error.error?.message || 'Failed to create task');
+            }
+            const taskResult = await taskResponse.json();
+            // Handle response format: { task: {...} } or direct task object
+            const newTask = taskResult.task || taskResult;
+
+            const addResponse = await fetch(`/api/plans/${plan.id}/tasks`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ taskId: newTask.id }),
+            });
+            if (!addResponse.ok) {
+              const error = await addResponse.json().catch(() => ({}));
+              console.error('Failed to add new task to plan:', error);
+              throw new Error(error.error?.message || 'Failed to add task to plan');
             }
           }
-        }
+        });
+
+        // Wait for all additional tasks to be added
+        await Promise.all(addTaskPromises);
       }
 
       return plan;

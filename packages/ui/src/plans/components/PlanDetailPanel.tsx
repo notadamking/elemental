@@ -15,6 +15,8 @@ import {
   Play,
   Ban,
   FileEdit,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { TaskStatusSummary } from './TaskStatusSummary';
@@ -25,6 +27,7 @@ import {
   usePlanTasks,
   usePlanProgress,
   useUpdatePlan,
+  useDeletePlan,
   useAddTaskToPlan,
   useRemoveTaskFromPlan,
 } from '../hooks';
@@ -40,6 +43,10 @@ interface PlanDetailPanelProps {
   onRemoveTaskNotAllowed?: () => void;
   /** Base URL for task links. Defaults to '/tasks' */
   taskLinkBase?: string;
+  /** Called when plan is successfully deleted */
+  onDeleteSuccess?: () => void;
+  /** Called when delete fails. Default shows console error. */
+  onDeleteError?: (message: string) => void;
 }
 
 interface StatusTransition {
@@ -72,6 +79,8 @@ export function PlanDetailPanel({
   renderProgressRing,
   onRemoveTaskNotAllowed,
   taskLinkBase = '/tasks',
+  onDeleteSuccess,
+  onDeleteError,
 }: PlanDetailPanelProps) {
   const { data: plan, isLoading, isError, error } = usePlan(planId);
   const { data: tasks = [] } = usePlanTasks(planId);
@@ -82,9 +91,11 @@ export function PlanDetailPanel({
   const [editedTitle, setEditedTitle] = useState('');
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [removingTaskId, setRemovingTaskId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Mutations
   const updatePlan = useUpdatePlan();
+  const deletePlan = useDeletePlan();
   const addTaskToPlan = useAddTaskToPlan();
   const removeTaskFromPlan = useRemoveTaskFromPlan();
 
@@ -161,6 +172,24 @@ export function PlanDetailPanel({
       console.warn('Cannot remove the last task. Plans must have at least one task.');
     }
   }, [onRemoveTaskNotAllowed]);
+
+  const handleDeletePlan = useCallback(async () => {
+    try {
+      await deletePlan.mutateAsync(planId);
+      setShowDeleteConfirm(false);
+      if (onDeleteSuccess) {
+        onDeleteSuccess();
+      }
+      onClose();
+    } catch (err) {
+      const message = (err as Error).message || 'Failed to delete plan';
+      if (onDeleteError) {
+        onDeleteError(message);
+      } else {
+        console.error('Failed to delete plan:', err);
+      }
+    }
+  }, [planId, deletePlan, onDeleteSuccess, onDeleteError, onClose]);
 
   if (isLoading) {
     return (
@@ -270,14 +299,25 @@ export function PlanDetailPanel({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-            aria-label="Close panel"
-            data-testid="plan-detail-close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+              aria-label="Delete plan"
+              data-testid="plan-detail-delete"
+              title="Delete plan"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+              aria-label="Close panel"
+              data-testid="plan-detail-close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Status Actions */}
@@ -438,6 +478,50 @@ export function PlanDetailPanel({
           onAddTask={handleAddTask}
           isAdding={addTaskToPlan.isPending}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={(e) => e.target === e.currentTarget && setShowDeleteConfirm(false)}
+          data-testid="delete-plan-modal"
+        >
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Delete Plan</h3>
+                  <p className="text-sm text-gray-500">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to delete <span className="font-semibold">"{plan.title}"</span>?
+                Tasks in this plan will be unlinked but not deleted.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  data-testid="delete-plan-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeletePlan}
+                  disabled={deletePlan.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+                  data-testid="delete-plan-confirm"
+                >
+                  {deletePlan.isPending ? 'Deleting...' : 'Delete Plan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

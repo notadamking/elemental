@@ -444,6 +444,47 @@ export function createPlanRoutes(services: CollaborateServices) {
   });
 
   /**
+   * DELETE /api/plans/:id
+   * Delete a plan and remove all task associations.
+   */
+  app.delete('/api/plans/:id', async (c) => {
+    try {
+      const id = c.req.param('id') as ElementId;
+
+      // First verify plan exists
+      const plan = await api.get(id);
+      if (!plan) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+      }
+      if (plan.type !== 'plan') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+      }
+
+      // Remove all task associations from this plan
+      const tasks = await api.getTasksInPlan(id);
+      for (const task of tasks) {
+        try {
+          await api.removeTaskFromPlan(task.id as ElementId, id);
+        } catch (err) {
+          // Continue even if removal fails - task might already be removed
+          console.warn(`[elemental] Failed to remove task ${task.id} from plan ${id}:`, err);
+        }
+      }
+
+      // Delete the plan
+      await api.delete(id);
+
+      return c.json({ success: true });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'NOT_FOUND') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } }, 404);
+      }
+      console.error('[elemental] Failed to delete plan:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete plan' } }, 500);
+    }
+  });
+
+  /**
    * PATCH /api/plans/:id
    * Update a plan.
    *

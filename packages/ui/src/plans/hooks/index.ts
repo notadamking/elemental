@@ -10,6 +10,7 @@ export {
   usePlanTasks,
   usePlanProgress,
   useUpdatePlan,
+  useDeletePlan,
   useAddTaskToPlan,
   useRemoveTaskFromPlan,
   useAvailableTasks,
