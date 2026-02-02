@@ -70,7 +70,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | `packages/core/` | Shared types, errors, ID generation | `ElementType`, `Task`, `Entity`, `Document`, `ErrorCode`, `generateId` |
 | `packages/storage/` | SQLite storage backends | `createStorage`, `initializeSchema`, `StorageBackend` |
 | `packages/sdk/` | Core API, services, sync, CLI | `ElementalAPI`, `createElementalAPI`, `SyncService`, `InboxService` |
-| `packages/ui/` | Shared React UI components, layout, domain, visualizations, hooks, API clients, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `TaskCard`, `EntityCard`, `TaskStatusBadge`, `StatusPieChart`, `TrendLineChart`, `HorizontalBarChart`, `useTheme`, `useIsMobile`, `useWebSocket`, `useSSEStream`, `useRealtimeEvents`, `useKeyboardShortcut`, `WebSocketClient`, `SSEClient`, `ApiClient` |
+| `packages/ui/` | Shared React UI components, layout, domain, visualizations, hooks, API clients, design tokens | `Button`, `Card`, `Dialog`, `AppShell`, `Sidebar`, `MobileDrawer`, `TaskCard`, `EntityCard`, `ChannelHeader`, `UserSelector`, `TaskStatusBadge`, `StatusPieChart`, `TrendLineChart`, `HorizontalBarChart`, `useTheme`, `useIsMobile`, `useWebSocket`, `useSSEStream`, `useRealtimeEvents`, `useKeyboardShortcut`, `WebSocketClient`, `SSEClient`, `ApiClient` |
+| `packages/shared-routes/` | Shared route factories for server apps | `createElementsRoutes`, `createEntityRoutes`, `createChannelRoutes`, `createMessageRoutes`, `createLibraryRoutes`, `createDocumentRoutes`, `createInboxRoutes` |
 | `packages/orchestrator-sdk/` | Agent orchestration | `OrchestratorAPI`, `AgentRole`, `SpawnerService`, `SessionManager` |
 
 ## File Map (@elemental/core)
@@ -120,6 +121,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | WorkflowCard | `domain/WorkflowCard.tsx` | `domain/domain.test.tsx` |
 | TeamCard | `domain/TeamCard.tsx` | `domain/domain.test.tsx` |
 | Task badges | `domain/TaskBadges.tsx` | `domain/domain.test.tsx` |
+| UserSelector | `domain/UserSelector.tsx` | `domain/domain.test.tsx` |
+| ChannelHeader | `domain/ChannelHeader.tsx` | `domain/domain.test.tsx` |
 | Visualization types | `visualizations/types.ts` | `visualizations/visualizations.test.tsx` |
 | StatusPieChart | `visualizations/StatusPieChart.tsx` | `visualizations/visualizations.test.tsx` |
 | TrendLineChart | `visualizations/TrendLineChart.tsx` | `visualizations/visualizations.test.tsx` |
@@ -134,6 +137,19 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | SSE client | `api/sse-client.ts` | `api/sse-client.test.ts` |
 | API client | `api/api-client.ts` | `api/api-client.test.ts` |
 | Design tokens | `styles/tokens.css` | - |
+
+## File Map (@elemental/shared-routes)
+
+| Concept | Source | Tests |
+|---------|--------|-------|
+| Route types | `types.ts` | - |
+| Elements routes | `elements.ts` | - |
+| Entity routes | `entities.ts` | - |
+| Channel routes | `channels.ts` | - |
+| Message routes | `messages.ts` | - |
+| Library routes | `libraries.ts` | - |
+| Document routes | `documents.ts` | - |
+| Inbox routes | `inbox.ts` | - |
 
 ## File Map (@elemental/orchestrator-sdk)
 
