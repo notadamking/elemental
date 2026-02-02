@@ -7,16 +7,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Trash2, Loader2 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogBody,
-  DialogFooter,
-} from '@elemental/ui/components';
+import { MoreHorizontal, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import type { Task } from '../../api/types';
 import { useDeleteTask } from '../../api/hooks/useTasks';
 
@@ -43,13 +34,26 @@ export function TaskActionsDropdown({ task, onDeleted }: TaskActionsDropdownProp
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Close modal on escape
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowDeleteConfirm(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showDeleteConfirm]);
+
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsOpen(false);
     setShowDeleteConfirm(true);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await deleteTaskMutation.mutateAsync({ taskId: task.id });
       setShowDeleteConfirm(false);
@@ -60,7 +64,8 @@ export function TaskActionsDropdown({ task, onDeleted }: TaskActionsDropdownProp
     }
   };
 
-  const handleCancelDelete = () => {
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setShowDeleteConfirm(false);
   };
 
@@ -81,12 +86,12 @@ export function TaskActionsDropdown({ task, onDeleted }: TaskActionsDropdownProp
 
         {isOpen && (
           <div
-            className="absolute z-20 right-0 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-36"
+            className="absolute z-30 right-0 top-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-36"
             data-testid="task-actions-menu"
           >
             <button
               onClick={handleDeleteClick}
-              className="w-full text-left px-3 py-1.5 text-sm text-[var(--color-danger)] hover:bg-[var(--color-danger-muted)] flex items-center gap-2 transition-colors"
+              className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors"
               data-testid="task-action-delete"
             >
               <Trash2 className="w-4 h-4" />
@@ -96,46 +101,73 @@ export function TaskActionsDropdown({ task, onDeleted }: TaskActionsDropdownProp
         )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent size="sm">
-          <DialogHeader>
-            <DialogTitle>Delete Task</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this task? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <div className="p-3 bg-[var(--color-surface-elevated)] rounded-md border border-[var(--color-border)]">
-              <p className="text-sm font-medium text-[var(--color-text)] truncate" title={task.title}>
-                {task.title}
-              </p>
-              <p className="text-xs text-[var(--color-text-tertiary)] font-mono mt-1">
-                {task.id}
-              </p>
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={handleCancelDelete}
+          data-testid="delete-confirm-modal"
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+          {/* Dialog */}
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[var(--color-surface)] rounded-xl shadow-2xl border border-[var(--color-border)]">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--color-text)]">Delete Task</h2>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 py-4">
+                <div className="p-3 bg-[var(--color-surface-elevated)] rounded-md border border-[var(--color-border)]">
+                  <p className="text-sm font-medium text-[var(--color-text)] truncate" title={task.title}>
+                    {task.title}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-tertiary)] font-mono mt-1">
+                    {task.id}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)] rounded-b-xl flex items-center justify-end gap-3">
+                <button
+                  onClick={handleCancelDelete}
+                  disabled={deleteTaskMutation.isPending}
+                  className="px-4 py-2 text-sm font-medium text-[var(--color-text)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors disabled:opacity-50"
+                  data-testid="delete-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={deleteTaskMutation.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                  data-testid="delete-confirm"
+                >
+                  {deleteTaskMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Delete
+                </button>
+              </div>
             </div>
-          </DialogBody>
-          <DialogFooter>
-            <button
-              onClick={handleCancelDelete}
-              disabled={deleteTaskMutation.isPending}
-              className="px-4 py-2 text-sm font-medium text-[var(--color-text)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors disabled:opacity-50"
-              data-testid="delete-cancel"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmDelete}
-              disabled={deleteTaskMutation.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
-              data-testid="delete-confirm"
-            >
-              {deleteTaskMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Delete
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
     </>
   );
 }
