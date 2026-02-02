@@ -25,12 +25,29 @@ import {
   Bot,
   FlaskConical,
   GitMerge,
+  Paperclip,
+  FileText,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Search,
 } from 'lucide-react';
-import { useTask, useUpdateTask, useDeleteTask, useStartTask, useCompleteTask } from '../../api/hooks/useTasks';
+import {
+  useTask,
+  useUpdateTask,
+  useDeleteTask,
+  useStartTask,
+  useCompleteTask,
+  useTaskAttachments,
+  useAddAttachment,
+  useRemoveAttachment,
+  useDocumentsForAttachment,
+  type AttachedDocument,
+} from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
 import { MarkdownContent } from '../shared/MarkdownContent';
-import type { Task, Agent, Priority, TaskStatus } from '../../api/types';
+import type { Task, Agent, Priority, TaskStatus, Complexity } from '../../api/types';
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -51,6 +68,14 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'blocked', label: 'Blocked' },
   { value: 'deferred', label: 'Deferred' },
   { value: 'closed', label: 'Closed' },
+];
+
+const COMPLEXITY_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: 'Trivial' },
+  { value: 2, label: 'Simple' },
+  { value: 3, label: 'Moderate' },
+  { value: 4, label: 'Complex' },
+  { value: 5, label: 'Very Complex' },
 ];
 
 export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
@@ -253,17 +278,21 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
           {/* Complexity */}
           <MetadataField label="Complexity">
-            <span className="text-sm text-[var(--color-text)]">
-              {['Trivial', 'Simple', 'Moderate', 'Complex', 'Very Complex'][task.complexity - 1]}
-            </span>
+            <ComplexityDropdown
+              value={task.complexity}
+              onSave={(complexity) => handleUpdate({ complexity: complexity as Complexity })}
+              isUpdating={updateTask.isPending && editingField === 'complexity'}
+            />
           </MetadataField>
 
           {/* Deadline */}
-          {task.deadline && (
-            <MetadataField label="Deadline" icon={<Calendar className="w-3 h-3" />}>
-              <span className="text-sm text-[var(--color-text)]">{formatDate(task.deadline)}</span>
-            </MetadataField>
-          )}
+          <MetadataField label="Deadline" icon={<Calendar className="w-3 h-3" />}>
+            <DeadlineInput
+              value={task.deadline}
+              onSave={(deadline) => handleUpdate({ deadline: deadline ?? undefined })}
+              isUpdating={updateTask.isPending && editingField === 'deadline'}
+            />
+          </MetadataField>
         </div>
 
         {/* Tags */}
@@ -287,20 +316,15 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         )}
 
         {/* Description */}
-        {description && (
-          <div className="mb-6">
-            <h3 className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-2">
-              Description
-            </h3>
-            <div className="p-3 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)]">
-              <MarkdownContent
-                content={description}
-                className="text-sm text-[var(--color-text)] prose prose-sm dark:prose-invert max-w-none"
-                data-testid="task-description"
-              />
-            </div>
-          </div>
-        )}
+        <EditableDescription
+          value={description}
+          onSave={(newDescription) => handleUpdate({ description: newDescription ?? undefined })}
+          isUpdating={updateTask.isPending && editingField === 'description'}
+          onEdit={() => setEditingField('description')}
+        />
+
+        {/* Attachments */}
+        <AttachmentsSection taskId={task.id} />
 
         {/* Orchestrator Metadata Section */}
         {orchestratorMeta && (
@@ -743,6 +767,298 @@ function AssigneeDropdown({
   );
 }
 
+// Complexity Dropdown
+function ComplexityDropdown({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value: number;
+  onSave: (value: number) => void;
+  isUpdating: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const currentLabel = COMPLEXITY_OPTIONS.find((opt) => opt.value === value)?.label ?? 'Unknown';
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-[var(--color-surface-elevated)] hover:ring-2 hover:ring-[var(--color-primary)] transition-all"
+        disabled={isUpdating}
+        data-testid="task-complexity-dropdown"
+      >
+        <span className="text-[var(--color-text)]">{currentLabel}</span>
+        {isUpdating && <Loader2 className="w-3 h-3 animate-spin" />}
+      </button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-[120px]">
+          {COMPLEXITY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                if (opt.value !== value) onSave(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--color-surface-hover)] flex items-center gap-2 ${
+                opt.value === value ? 'bg-[var(--color-surface-elevated)]' : ''
+              }`}
+            >
+              <span className="text-[var(--color-text)]">{opt.label}</span>
+              {opt.value === value && <Check className="w-3 h-3 text-[var(--color-primary)] ml-auto" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Deadline Input
+function DeadlineInput({
+  value,
+  onSave,
+  isUpdating,
+}: {
+  value?: string;
+  onSave: (value: string | null) => void;
+  isUpdating: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value ? value.split('T')[0] : '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditValue(value ? value.split('T')[0] : '');
+  }, [value]);
+
+  const handleSave = () => {
+    const newValue = editValue ? new Date(editValue).toISOString() : null;
+    if ((newValue !== value) && (newValue || value)) {
+      onSave(newValue);
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSave();
+    else if (e.key === 'Escape') {
+      setEditValue(value ? value.split('T')[0] : '');
+      setIsEditing(false);
+    }
+  };
+
+  const handleClear = () => {
+    if (value) {
+      onSave(null);
+    }
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="date"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="text-sm text-[var(--color-text)] border border-[var(--color-primary)] rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-[var(--color-input-bg)]"
+          data-testid="task-deadline-input"
+        />
+        {value && (
+          <button
+            onClick={handleClear}
+            className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] rounded"
+            aria-label="Clear deadline"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {isUpdating && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-text-tertiary)]" />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 group">
+      <span
+        className={`text-sm cursor-pointer hover:text-[var(--color-primary)] transition-colors ${
+          value ? 'text-[var(--color-text)]' : 'text-[var(--color-text-tertiary)] italic'
+        }`}
+        onClick={() => setIsEditing(true)}
+        data-testid="task-deadline-display"
+      >
+        {value ? formatDate(value) : 'No deadline'}
+      </span>
+      <button
+        onClick={() => setIsEditing(true)}
+        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] rounded transition-opacity"
+        aria-label="Edit deadline"
+      >
+        <Pencil className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+      </button>
+      {isUpdating && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-text-tertiary)]" />}
+    </div>
+  );
+}
+
+// Editable Description
+function EditableDescription({
+  value,
+  onSave,
+  isUpdating,
+  onEdit,
+}: {
+  value?: string;
+  onSave: (value: string | null) => void;
+  isUpdating: boolean;
+  onEdit: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value ?? '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(editValue.length, editValue.length);
+    }
+  }, [isEditing, editValue.length]);
+
+  useEffect(() => {
+    setEditValue(value ?? '');
+  }, [value]);
+
+  const handleSave = () => {
+    const trimmed = editValue.trim();
+    if (trimmed !== (value ?? '')) {
+      onEdit();
+      onSave(trimmed || null);
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setEditValue(value ?? '');
+      setIsEditing(false);
+    }
+    // Ctrl/Cmd+Enter to save
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      handleSave();
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="mb-6" data-testid="description-editor">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
+            Description
+          </h3>
+          <span className="text-[10px] text-[var(--color-text-tertiary)]">
+            Ctrl+Enter to save, Esc to cancel
+          </span>
+        </div>
+        <div className="relative">
+          <textarea
+            ref={textareaRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={8}
+            placeholder="Add a description (supports markdown)..."
+            className="w-full p-3 text-sm border border-[var(--color-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-[var(--color-input-bg)] text-[var(--color-text)] resize-y min-h-[120px]"
+            data-testid="task-description-input"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 mt-2">
+          {isUpdating && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-text-tertiary)]" />}
+          <button
+            onClick={() => {
+              setEditValue(value ?? '');
+              setIsEditing(false);
+            }}
+            className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-[var(--color-primary)] hover:opacity-90 rounded transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 group" data-testid="description-section">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
+          Description
+        </h3>
+        <button
+          onClick={() => setIsEditing(true)}
+          className="p-1 opacity-0 group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] rounded transition-opacity"
+          aria-label="Edit description"
+        >
+          <Pencil className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+        </button>
+      </div>
+      {value ? (
+        <div
+          onClick={() => setIsEditing(true)}
+          className="p-3 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-primary)] transition-colors"
+        >
+          <MarkdownContent
+            content={value}
+            className="text-sm text-[var(--color-text)] prose prose-sm dark:prose-invert max-w-none"
+            data-testid="task-description"
+          />
+        </div>
+      ) : (
+        <button
+          onClick={() => setIsEditing(true)}
+          className="w-full p-3 text-sm text-[var(--color-text-tertiary)] italic bg-[var(--color-surface-elevated)] rounded-lg border border-dashed border-[var(--color-border)] hover:border-[var(--color-primary)] hover:text-[var(--color-text-secondary)] transition-colors text-left"
+          data-testid="add-description-btn"
+        >
+          Add a description...
+        </button>
+      )}
+      {isUpdating && (
+        <div className="flex items-center gap-2 mt-2 text-xs text-[var(--color-text-tertiary)]">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Saving...
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Delete Confirmation Dialog
 function DeleteConfirmDialog({
   taskTitle,
@@ -846,4 +1162,338 @@ function formatRelativeTime(dateStr: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
   return formatDate(dateStr);
+}
+
+// ============================================================================
+// Attachments Section
+// ============================================================================
+
+function AttachmentsSection({ taskId }: { taskId: string }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [showPicker, setShowPicker] = useState(false);
+  const { data: attachments, isLoading } = useTaskAttachments(taskId);
+  const addAttachment = useAddAttachment();
+  const removeAttachment = useRemoveAttachment();
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const handleAttach = (documentId: string) => {
+    addAttachment.mutate(
+      { taskId, documentId },
+      { onSuccess: () => setShowPicker(false) }
+    );
+  };
+
+  const handleRemove = (documentId: string) => {
+    setRemovingId(documentId);
+    removeAttachment.mutate(
+      { taskId, documentId },
+      { onSettled: () => setRemovingId(null) }
+    );
+  };
+
+  const alreadyAttachedIds = attachments?.map((a) => a.id) || [];
+
+  return (
+    <div className="mb-6" data-testid="attachments-section">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-2 hover:text-[var(--color-text)]"
+        data-testid="attachments-toggle"
+      >
+        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        <Paperclip className="w-3 h-3" />
+        Attachments ({attachments?.length || 0})
+      </button>
+
+      {isExpanded && (
+        <div className="space-y-2">
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading attachments...
+            </div>
+          ) : attachments && attachments.length > 0 ? (
+            attachments.map((doc) => (
+              <ExpandableDocumentCard
+                key={doc.id}
+                doc={doc}
+                onRemove={() => handleRemove(doc.id)}
+                isRemoving={removingId === doc.id}
+              />
+            ))
+          ) : (
+            <div className="text-sm text-[var(--color-text-tertiary)]" data-testid="attachments-empty">
+              No documents attached
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowPicker(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded-lg transition-colors w-full"
+            data-testid="attach-document-btn"
+          >
+            <Plus className="w-4 h-4" />
+            Attach Document
+          </button>
+        </div>
+      )}
+
+      <DocumentPickerModal
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        onSelect={handleAttach}
+        alreadyAttachedIds={alreadyAttachedIds}
+        isAttaching={addAttachment.isPending}
+      />
+    </div>
+  );
+}
+
+// ============================================================================
+// Expandable Document Card
+// ============================================================================
+
+function getContentPreview(content?: string): string {
+  if (!content) return '';
+  const firstLine = content.split('\n')[0].trim();
+  return firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
+}
+
+function renderDocumentContent(content: string, contentType: string): React.ReactNode {
+  if (contentType === 'json') {
+    try {
+      const formatted = JSON.stringify(JSON.parse(content), null, 2);
+      return (
+        <pre className="text-xs font-mono bg-[var(--color-surface)] p-3 rounded overflow-x-auto whitespace-pre-wrap text-[var(--color-text)]">
+          {formatted}
+        </pre>
+      );
+    } catch {
+      return (
+        <pre className="text-xs font-mono bg-[var(--color-surface)] p-3 rounded overflow-x-auto whitespace-pre-wrap text-[var(--color-text)]">
+          {content}
+        </pre>
+      );
+    }
+  }
+
+  if (contentType === 'markdown') {
+    return (
+      <MarkdownContent
+        content={content}
+        className="text-sm text-[var(--color-text)] prose prose-sm dark:prose-invert max-w-none"
+        data-testid="attachment-markdown-content"
+      />
+    );
+  }
+
+  // Default: plain text
+  return (
+    <pre className="whitespace-pre-wrap font-sans text-sm text-[var(--color-text)]">{content}</pre>
+  );
+}
+
+function ExpandableDocumentCard({
+  doc,
+  onRemove,
+  isRemoving,
+}: {
+  doc: AttachedDocument;
+  onRemove: () => void;
+  isRemoving: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const preview = getContentPreview(doc.content);
+
+  return (
+    <div
+      className="border border-[var(--color-border)] rounded-lg overflow-hidden"
+      data-testid={`attachment-item-${doc.id}`}
+    >
+      {/* Header - always visible */}
+      <div className="flex items-center gap-2 p-2 bg-[var(--color-surface-elevated)] group">
+        {/* Expand/Collapse button */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="p-1 hover:bg-[var(--color-surface-hover)] rounded flex-shrink-0"
+          data-testid={`attachment-expand-${doc.id}`}
+          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+          )}
+        </button>
+        <FileText className="w-4 h-4 text-[var(--color-text-tertiary)] flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-[var(--color-primary)] truncate">
+              {doc.title || 'Untitled Document'}
+            </span>
+            <span className="px-1.5 py-0.5 bg-[var(--color-surface)] text-[var(--color-text-tertiary)] rounded text-[10px] flex-shrink-0">
+              {doc.contentType}
+            </span>
+          </div>
+          {!isExpanded && preview && (
+            <div
+              className="text-xs text-[var(--color-text-tertiary)] truncate mt-0.5"
+              data-testid={`attachment-preview-${doc.id}`}
+            >
+              {preview}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onRemove}
+          disabled={isRemoving}
+          className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-muted)] rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+          aria-label="Remove attachment"
+          data-testid={`attachment-remove-${doc.id}`}
+        >
+          {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+        </button>
+      </div>
+
+      {/* Expanded content */}
+      {isExpanded && doc.content && (
+        <div
+          className="p-3 border-t border-[var(--color-border)] bg-[var(--color-surface)]"
+          data-testid={`attachment-content-${doc.id}`}
+        >
+          {renderDocumentContent(doc.content, doc.contentType)}
+        </div>
+      )}
+
+      {/* Expanded but no content */}
+      {isExpanded && !doc.content && (
+        <div
+          className="p-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-tertiary)] italic"
+          data-testid={`attachment-content-${doc.id}`}
+        >
+          No content available
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Document Picker Modal
+// ============================================================================
+
+function DocumentPickerModal({
+  isOpen,
+  onClose,
+  onSelect,
+  alreadyAttachedIds,
+  isAttaching,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (documentId: string) => void;
+  alreadyAttachedIds: string[];
+  isAttaching: boolean;
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const { data: documents, isLoading } = useDocumentsForAttachment(searchQuery);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && !isAttaching) {
+          onClose();
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, isAttaching, onClose]);
+
+  if (!isOpen) return null;
+
+  const availableDocs = documents?.filter((doc) => !alreadyAttachedIds.includes(doc.id)) || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" data-testid="document-picker-modal">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={() => !isAttaching && onClose()} />
+      {/* Dialog */}
+      <div className="relative bg-[var(--color-surface)] rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col border border-[var(--color-border)]">
+        <div className="p-4 border-b border-[var(--color-border)]">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-[var(--color-text)]">Attach Document</h3>
+            <button
+              onClick={onClose}
+              disabled={isAttaching}
+              className="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] rounded"
+              data-testid="document-picker-close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search documents..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+              data-testid="document-picker-search"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-[var(--color-text-tertiary)]" />
+            </div>
+          ) : availableDocs.length === 0 ? (
+            <div className="text-center py-8 text-[var(--color-text-tertiary)]" data-testid="document-picker-empty">
+              {documents?.length === 0
+                ? 'No documents available'
+                : searchQuery
+                  ? 'No documents match your search'
+                  : 'All documents are already attached'}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {availableDocs.map((doc) => (
+                <button
+                  key={doc.id}
+                  onClick={() => onSelect(doc.id)}
+                  disabled={isAttaching}
+                  className="w-full flex items-center gap-3 p-3 text-left bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-lg transition-colors disabled:opacity-50"
+                  data-testid={`document-picker-item-${doc.id}`}
+                >
+                  <FileText className="w-5 h-5 text-[var(--color-text-tertiary)] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-[var(--color-text)] truncate">
+                      {doc.title || 'Untitled Document'}
+                    </div>
+                    <div className="text-xs text-[var(--color-text-tertiary)] flex items-center gap-2">
+                      <span className="font-mono">{doc.id}</span>
+                      <span className="px-1.5 py-0.5 bg-[var(--color-surface)] text-[var(--color-text-tertiary)] rounded">
+                        {doc.contentType}
+                      </span>
+                    </div>
+                  </div>
+                  {isAttaching && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

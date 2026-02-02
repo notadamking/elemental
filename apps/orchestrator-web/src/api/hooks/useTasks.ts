@@ -182,6 +182,7 @@ export function useCreateTask() {
 interface UpdateTaskInput {
   taskId: string;
   title?: string;
+  description?: string | null;
   status?: TaskStatus;
   priority?: Priority;
   complexity?: number;
@@ -285,6 +286,95 @@ export function useDeleteTask() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+// ============================================================================
+// Attachment Hooks
+// ============================================================================
+
+export interface AttachedDocument {
+  id: string;
+  type: 'document';
+  title?: string;
+  content?: string;
+  contentType: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Hook to fetch task attachments
+ */
+export function useTaskAttachments(taskId: string | undefined) {
+  return useQuery<AttachedDocument[], Error>({
+    queryKey: ['tasks', taskId, 'attachments'],
+    queryFn: () => fetchApi<AttachedDocument[]>(`/tasks/${taskId}/attachments`),
+    enabled: !!taskId,
+  });
+}
+
+/**
+ * Hook to add attachment to a task
+ */
+export function useAddAttachment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AttachedDocument, Error, { taskId: string; documentId: string }>({
+    mutationFn: async ({ taskId, documentId }) => {
+      return fetchApi<AttachedDocument>(`/tasks/${taskId}/attachments`, {
+        method: 'POST',
+        body: JSON.stringify({ documentId }),
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'attachments'] });
+    },
+  });
+}
+
+/**
+ * Hook to remove attachment from a task
+ */
+export function useRemoveAttachment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { taskId: string; documentId: string }>({
+    mutationFn: async ({ taskId, documentId }) => {
+      return fetchApi(`/tasks/${taskId}/attachments/${documentId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'attachments'] });
+    },
+  });
+}
+
+interface DocumentsResponse {
+  items: AttachedDocument[];
+  total: number;
+}
+
+/**
+ * Hook to fetch all documents for the attachment picker
+ */
+export function useDocumentsForAttachment(searchQuery?: string) {
+  return useQuery<AttachedDocument[], Error>({
+    queryKey: ['documents', 'search', searchQuery],
+    queryFn: async () => {
+      const data = await fetchApi<DocumentsResponse>('/documents');
+      const docs = data.items || [];
+      // Client-side filtering by search query
+      if (searchQuery?.trim()) {
+        const query = searchQuery.toLowerCase();
+        return docs.filter(doc =>
+          (doc.title?.toLowerCase().includes(query)) ||
+          doc.id.toLowerCase().includes(query)
+        );
+      }
+      return docs;
     },
   });
 }
