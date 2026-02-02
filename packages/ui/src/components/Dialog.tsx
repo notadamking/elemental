@@ -28,16 +28,18 @@ import { X } from 'lucide-react';
  * ```
  */
 
-// Root and Trigger from Radix
-const Dialog = DialogPrimitive.Root;
-const DialogTrigger = DialogPrimitive.Trigger;
-const DialogPortal = DialogPrimitive.Portal;
-const DialogClose = DialogPrimitive.Close;
+// Root and Trigger from Radix - explicit type annotations for portability
+const Dialog: typeof DialogPrimitive.Root = DialogPrimitive.Root;
+const DialogTrigger: typeof DialogPrimitive.Trigger = DialogPrimitive.Trigger;
+const DialogPortal: typeof DialogPrimitive.Portal = DialogPrimitive.Portal;
+const DialogClose: typeof DialogPrimitive.Close = DialogPrimitive.Close;
 
 /**
  * DialogOverlay - Backdrop with blur effect
  */
-const DialogOverlay = React.forwardRef<
+const DialogOverlay: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className = '', ...props }, ref) => (
@@ -198,7 +200,9 @@ DialogFooter.displayName = 'DialogFooter';
 /**
  * DialogTitle - Title text
  */
-const DialogTitle = React.forwardRef<
+const DialogTitle: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title> & React.RefAttributes<HTMLHeadingElement>
+> = React.forwardRef<
   HTMLHeadingElement,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className = '', ...props }, ref) => (
@@ -218,7 +222,9 @@ DialogTitle.displayName = DialogPrimitive.Title.displayName;
 /**
  * DialogDescription - Description/subtitle text
  */
-const DialogDescription = React.forwardRef<
+const DialogDescription: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description> & React.RefAttributes<HTMLParagraphElement>
+> = React.forwardRef<
   HTMLParagraphElement,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className = '', ...props }, ref) => (

@@ -27,9 +27,9 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react';
  * ```
  */
 
-const Select = SelectPrimitive.Root;
-const SelectGroup = SelectPrimitive.Group;
-const SelectValue = SelectPrimitive.Value;
+const Select: typeof SelectPrimitive.Root = SelectPrimitive.Root;
+const SelectGroup: typeof SelectPrimitive.Group = SelectPrimitive.Group;
+const SelectValue: typeof SelectPrimitive.Value = SelectPrimitive.Value;
 
 /**
  * SelectTrigger - The button that opens the dropdown
@@ -97,7 +97,9 @@ SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 /**
  * SelectScrollUpButton - Scroll button at top of long lists
  */
-const SelectScrollUpButton = React.forwardRef<
+const SelectScrollUpButton: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollUpButton> & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollUpButton>
 >(({ className = '', ...props }, ref) => (
@@ -119,7 +121,9 @@ SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName;
 /**
  * SelectScrollDownButton - Scroll button at bottom of long lists
  */
-const SelectScrollDownButton = React.forwardRef<
+const SelectScrollDownButton: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollDownButton> & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollDownButton>
 >(({ className = '', ...props }, ref) => (
@@ -141,7 +145,9 @@ SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayNam
 /**
  * SelectContent - The dropdown content container
  */
-const SelectContent = React.forwardRef<
+const SelectContent: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className = '', children, position = 'popper', ...props }, ref) => (
@@ -200,7 +206,9 @@ SelectContent.displayName = SelectPrimitive.Content.displayName;
 /**
  * SelectLabel - Group label
  */
-const SelectLabel = React.forwardRef<
+const SelectLabel: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label> & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
 >(({ className = '', ...props }, ref) => (
@@ -221,7 +229,9 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName;
 /**
  * SelectItem - Individual select option
  */
-const SelectItem = React.forwardRef<
+const SelectItem: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
 >(({ className = '', children, ...props }, ref) => (
@@ -261,7 +271,9 @@ SelectItem.displayName = SelectPrimitive.Item.displayName;
 /**
  * SelectSeparator - Separator between items or groups
  */
-const SelectSeparator = React.forwardRef<
+const SelectSeparator: React.ForwardRefExoticComponent<
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator> & React.RefAttributes<HTMLDivElement>
+> = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
 >(({ className = '', ...props }, ref) => (
