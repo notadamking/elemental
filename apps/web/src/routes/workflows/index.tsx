@@ -279,7 +279,7 @@ export function WorkflowsPage() {
           placeholder={currentTab === 'templates' ? 'Search templates...' : 'Search workflows...'}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
           data-testid="workflows-search"
         />
       </div>
