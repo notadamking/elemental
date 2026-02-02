@@ -196,3 +196,6 @@ export {
   createSignedRequest,
   createIdentityConfig,
 } from './systems/index.js';
+
+// CLI Constants - Default operator entity for CLI and web apps
+export { OPERATOR_ENTITY_ID, OPERATOR_ENTITY_NAME } from './cli/commands/init.js';

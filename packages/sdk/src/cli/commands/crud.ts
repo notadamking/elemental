@@ -18,6 +18,7 @@ import { createTask, TaskStatus, TaskTypeValue, PlanStatus, type CreateTaskInput
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI, TaskFilter } from '../../api/types.js';
 import type { PlanProgress } from '@elemental/core';
+import { OPERATOR_ENTITY_ID } from './init.js';
 
 // ============================================================================
 // Constants
@@ -25,7 +26,7 @@ import type { PlanProgress } from '@elemental/core';
 
 const ELEMENTAL_DIR = '.elemental';
 const DEFAULT_DB_NAME = 'elemental.db';
-const DEFAULT_ACTOR = 'cli-user';
+const DEFAULT_ACTOR = OPERATOR_ENTITY_ID;
 
 // ============================================================================
 // Database Helper

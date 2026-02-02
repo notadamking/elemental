@@ -23,33 +23,30 @@ import {
 import type { WorkerMetadata, StewardMetadata } from '../types/agent.js';
 
 describe('Agent Channel Name Utilities (TB-O7a)', () => {
-  test('generateAgentChannelName creates correct format', () => {
-    const channelName = generateAgentChannelName('el-abc123' as EntityId);
-    expect(channelName).toBe('agent-el-abc123');
+  test('generateAgentChannelName creates correct format with agent name', () => {
+    const channelName = generateAgentChannelName('my-agent');
+    expect(channelName).toBe('agent-my-agent');
   });
 
-  test('parseAgentChannelName extracts agent ID from valid channel name', () => {
-    const agentId = parseAgentChannelName('agent-el-abc123');
-    expect(agentId).toBe('el-abc123');
+  test('parseAgentChannelName extracts agent name from valid channel name', () => {
+    const agentName = parseAgentChannelName('agent-my-agent');
+    expect(agentName).toBe('my-agent');
   });
 
   test('parseAgentChannelName returns null for non-agent channel names', () => {
     expect(parseAgentChannelName('general-chat')).toBeNull();
     expect(parseAgentChannelName('team-engineering')).toBeNull();
-    expect(parseAgentChannelName('el-abc123')).toBeNull();
   });
 
-  test('parseAgentChannelName returns null for invalid agent ID format', () => {
-    expect(parseAgentChannelName('agent-invalid')).toBeNull();
+  test('parseAgentChannelName returns null for empty agent name', () => {
     expect(parseAgentChannelName('agent-')).toBeNull();
-    expect(parseAgentChannelName('agent-el-toolonghash123')).toBeNull();
   });
 
   test('generateAgentChannelName and parseAgentChannelName are inverse operations', () => {
-    const originalId = 'el-xyz789' as EntityId;
-    const channelName = generateAgentChannelName(originalId);
-    const parsedId = parseAgentChannelName(channelName);
-    expect(parsedId).toBe(originalId);
+    const originalName = 'test-worker';
+    const channelName = generateAgentChannelName(originalName);
+    const parsedName = parseAgentChannelName(channelName);
+    expect(parsedName).toBe(originalName);
   });
 });
 
@@ -506,7 +503,8 @@ describe('AgentRegistry', () => {
       // Verify channel can be retrieved
       const channel = await registry.getAgentChannel(director.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      expect(channel?.name).toBe(`agent-${director.id}`);
+      // Channel name is based on agent name, not ID
+      expect(channel?.name).toBe(`agent-${director.name}`);
       expect(channel?.channelType).toBe('group');
       expect(channel?.members).toContain(director.id);
       expect(channel?.members).toContain(systemEntity);
@@ -524,7 +522,8 @@ describe('AgentRegistry', () => {
 
       const channel = await registry.getAgentChannel(worker.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      expect(channel?.name).toBe(`agent-${worker.id}`);
+      // Channel name is based on agent name, not ID
+      expect(channel?.name).toBe(`agent-${worker.name}`);
       expect(channel?.members).toContain(worker.id);
     });
 
@@ -540,7 +539,8 @@ describe('AgentRegistry', () => {
 
       const channel = await registry.getAgentChannel(steward.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      expect(channel?.name).toBe(`agent-${steward.id}`);
+      // Channel name is based on agent name, not ID
+      expect(channel?.name).toBe(`agent-${steward.name}`);
     });
 
     test('getAgentChannelId returns channel ID from metadata', async () => {

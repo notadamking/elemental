@@ -11,7 +11,7 @@
  */
 
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elemental/sdk/cli';
-import { success, failure, ExitCode, getFormatter, getOutputMode } from '@elemental/sdk/cli';
+import { success, failure, ExitCode, getFormatter, getOutputMode, OPERATOR_ENTITY_ID } from '@elemental/sdk/cli';
 import type { EntityId, ElementId } from '@elemental/core';
 import type { AgentRole, WorkerMode, StewardFocus } from '../../types/index.js';
 import type { OrchestratorAPI, AgentEntity } from '../../api/index.js';
@@ -477,9 +477,8 @@ async function agentRegisterHandler(
   }
 
   try {
-    // Use a proper EntityId format for CLI operations
-    // 'el-cli' follows the el-xxxx pattern expected by EntityId
-    const createdBy = (options.actor ?? 'el-cli') as EntityId;
+    // Use the default operator entity for CLI operations
+    const createdBy = (options.actor ?? OPERATOR_ENTITY_ID) as EntityId;
     const maxConcurrentTasks = options.maxTasks ? parseInt(options.maxTasks, 10) : 1;
     const tags = options.tags ? options.tags.split(',').map(t => t.trim()) : undefined;
     const reportsTo = options.reportsTo as EntityId | undefined;

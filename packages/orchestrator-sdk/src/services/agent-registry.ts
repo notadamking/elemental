@@ -55,26 +55,27 @@ const AGENT_META_KEY = 'agent';
 const AGENT_CHANNEL_PREFIX = 'agent-';
 
 /**
- * Generates the channel name for an agent
+ * Generates the channel name for an agent based on agent name
+ * Channel names follow the pattern: agent-{agentName}
  */
-export function generateAgentChannelName(agentId: EntityId): string {
-  return `${AGENT_CHANNEL_PREFIX}${agentId}`;
+export function generateAgentChannelName(agentName: string): string {
+  return `${AGENT_CHANNEL_PREFIX}${agentName}`;
 }
 
 /**
- * Parses an agent ID from a channel name
+ * Parses an agent name from a channel name
  * Returns null if the name doesn't match the agent channel pattern
  */
-export function parseAgentChannelName(channelName: string): EntityId | null {
+export function parseAgentChannelName(channelName: string): string | null {
   if (!channelName.startsWith(AGENT_CHANNEL_PREFIX)) {
     return null;
   }
-  const agentId = channelName.slice(AGENT_CHANNEL_PREFIX.length);
-  // Basic validation - agent IDs should match the element ID pattern
-  if (!/^el-[0-9a-z]{3,8}$/.test(agentId)) {
+  const agentName = channelName.slice(AGENT_CHANNEL_PREFIX.length);
+  // Basic validation - must have a non-empty name
+  if (!agentName || agentName.length === 0) {
     return null;
   }
-  return agentId as EntityId;
+  return agentName;
 }
 
 // ============================================================================
@@ -281,7 +282,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     const agentEntityId = agentEntity.id as unknown as EntityId;
 
     // Create dedicated channel for the agent (TB-O7a)
-    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
 
     // Update agent metadata with channel ID
     const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
@@ -318,7 +319,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     const agentEntityId = agentEntity.id as unknown as EntityId;
 
     // Create dedicated channel for the agent (TB-O7a)
-    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
 
     // Update agent metadata with channel ID
     const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
@@ -356,7 +357,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     const agentEntityId = agentEntity.id as unknown as EntityId;
 
     // Create dedicated channel for the agent (TB-O7a)
-    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
 
     // Update agent metadata with channel ID
     const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
@@ -523,8 +524,13 @@ export class AgentRegistryImpl implements AgentRegistry {
       }
     }
 
-    // Fallback: search for the channel by name
-    const channelName = generateAgentChannelName(agentId);
+    // Fallback: look up agent to get name, then search for the channel by name
+    const agent = await this.getAgent(agentId);
+    if (!agent) {
+      return undefined;
+    }
+
+    const channelName = generateAgentChannelName(agent.name);
     const channels = await this.api.searchChannels(channelName, {
       channelType: 'group',
     });
@@ -552,12 +558,13 @@ export class AgentRegistryImpl implements AgentRegistry {
    * Creates a dedicated channel for an agent and updates the agent's metadata
    * with the channel ID.
    *
-   * @param agentId - The ID of the agent entity
+   * @param agentName - The name of the agent (used for channel naming)
+   * @param agentId - The ID of the agent entity (used for membership)
    * @param createdBy - The entity that created the agent (will be a channel member)
    * @returns The created channel
    */
-  private async createAgentChannel(agentId: EntityId, createdBy: EntityId): Promise<Channel> {
-    const channelName = generateAgentChannelName(agentId);
+  private async createAgentChannel(agentName: string, agentId: EntityId, createdBy: EntityId): Promise<Channel> {
+    const channelName = generateAgentChannelName(agentName);
 
     // Create a group channel with the agent and creator as members
     const channel = await createGroupChannel({
@@ -569,6 +576,7 @@ export class AgentRegistryImpl implements AgentRegistry {
       tags: ['agent-channel'],
       metadata: {
         agentId,
+        agentName,
         purpose: 'Agent direct messaging channel',
       },
     });

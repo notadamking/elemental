@@ -135,7 +135,8 @@ describe('AgentRegistry Integration', () => {
     const agentEntityId = agent.id as unknown as EntityId;
     const channel = await agentRegistry.getAgentChannel(agentEntityId);
     expect(channel).toBeDefined();
-    expect(channel?.name).toBe(`agent-${agent.id}`);
+    // Channel name is based on agent name, not ID
+    expect(channel?.name).toBe(`agent-${agent.name}`);
   });
 });
 

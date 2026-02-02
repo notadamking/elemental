@@ -21,7 +21,7 @@ export { getFormatter, getOutputMode, getStatusIcon, type OutputFormatter, type 
 export { registerCommand, registerAlias, getCommand, getAllCommands, getAllAliases, run, main } from './runner.js';
 
 // Commands
-export { initCommand } from './commands/init.js';
+export { initCommand, OPERATOR_ENTITY_ID, OPERATOR_ENTITY_NAME } from './commands/init.js';
 export { resetCommand } from './commands/reset.js';
 export { configCommand } from './commands/config.js';
 export { helpCommand, versionCommand, getCommandHelp } from './commands/help.js';

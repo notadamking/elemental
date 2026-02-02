@@ -2,7 +2,7 @@
  * init command - Initialize a new Elemental workspace
  *
  * Creates the .elemental/ directory with:
- * - Empty database
+ * - Empty database with default operator entity
  * - Default configuration file
  * - gitignore file
  */
@@ -11,6 +11,16 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
+import { createStorage, initializeSchema } from '@elemental/storage';
+import { createElementalAPI } from '../../api/elemental-api.js';
+import {
+  ElementType,
+  createTimestamp,
+  type Entity,
+  type EntityId,
+  type ElementId,
+} from '@elemental/core';
+import { EntityTypeValue } from '@elemental/core';
 
 // ============================================================================
 // Constants
@@ -19,6 +29,17 @@ import { success, failure, ExitCode } from '../types.js';
 const ELEMENTAL_DIR = '.elemental';
 const CONFIG_FILENAME = 'config.yaml';
 const GITIGNORE_FILENAME = '.gitignore';
+const DEFAULT_DB_NAME = 'elemental.db';
+
+/**
+ * Default operator entity ID - used as the CLI user and default actor
+ */
+export const OPERATOR_ENTITY_ID = 'el-0000' as EntityId;
+
+/**
+ * Default operator entity name
+ */
+export const OPERATOR_ENTITY_NAME = 'operator';
 
 // ============================================================================
 // Default Content
@@ -101,11 +122,31 @@ async function initHandler(
     // Create playbooks directory
     mkdirSync(join(elementalDir, 'playbooks'), { recursive: true });
 
-    // Note: Database will be created on first use by the storage backend
+    // Create the database and operator entity
+    const dbPath = join(elementalDir, DEFAULT_DB_NAME);
+    const backend = createStorage({ path: dbPath, create: true });
+    initializeSchema(backend);
+    const api = createElementalAPI(backend);
+
+    // Create the default operator entity (el-0000)
+    const now = createTimestamp();
+    const operatorEntity: Entity = {
+      id: OPERATOR_ENTITY_ID as unknown as ElementId,
+      type: ElementType.ENTITY,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: OPERATOR_ENTITY_ID,
+      tags: [],
+      metadata: {},
+      name: OPERATOR_ENTITY_NAME,
+      entityType: EntityTypeValue.HUMAN,
+    };
+
+    await api.create(operatorEntity as unknown as Record<string, unknown> & { createdBy: EntityId });
 
     return success(
-      { path: elementalDir },
-      `Initialized Elemental workspace at ${elementalDir}`
+      { path: elementalDir, operatorId: OPERATOR_ENTITY_ID },
+      `Initialized Elemental workspace at ${elementalDir}\nCreated default operator entity: ${OPERATOR_ENTITY_ID}`
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -124,11 +165,13 @@ export const initCommand: Command = {
   help: `Initialize a new Elemental workspace in the current directory.
 
 Creates a .elemental/ directory containing:
-  - config.yaml   Default configuration file
-  - .gitignore    Git ignore patterns for database files
-  - playbooks/    Directory for playbook definitions
+  - config.yaml     Default configuration file
+  - elemental.db    SQLite database with default operator entity
+  - .gitignore      Git ignore patterns for database files
+  - playbooks/      Directory for playbook definitions
 
-The database file will be created automatically on first use.`,
+The database is created with a default "operator" entity (el-0000) that serves
+as the default actor for CLI operations and web applications.`,
   options: [
     {
       name: 'name',

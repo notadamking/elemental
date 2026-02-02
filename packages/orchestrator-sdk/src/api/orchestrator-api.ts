@@ -61,10 +61,11 @@ import {
 const AGENT_META_KEY = 'agent';
 
 /**
- * Generates a unique channel name for an agent
+ * Generates a unique channel name for an agent based on agent name
+ * Channel names follow the pattern: agent-{agentName}
  */
-function generateAgentChannelName(agentId: EntityId): string {
-  return `agent-channel-${agentId}`;
+function generateAgentChannelName(agentName: string): string {
+  return `agent-${agentName}`;
 }
 
 // ============================================================================
@@ -271,7 +272,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
     const agentEntityId = agentEntity.id as unknown as EntityId;
 
     // Create dedicated channel for the agent
-    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
 
     // Update agent metadata with channel ID
     const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
@@ -306,7 +307,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
     const agentEntityId = agentEntity.id as unknown as EntityId;
 
     // Create dedicated channel for the agent
-    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
 
     // Update agent metadata with channel ID
     const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
@@ -342,7 +343,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
     const agentEntityId = agentEntity.id as unknown as EntityId;
 
     // Create dedicated channel for the agent
-    const channel = await this.createAgentChannel(agentEntityId, input.createdBy);
+    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
 
     // Update agent metadata with channel ID
     const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
@@ -581,9 +582,14 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
 
   /**
    * Creates a dedicated channel for an agent
+   *
+   * @param agentName - The name of the agent (used for channel naming)
+   * @param agentId - The ID of the agent entity (used for membership)
+   * @param createdBy - The entity that created the agent (will be a channel member)
+   * @returns The created channel
    */
-  private async createAgentChannel(agentId: EntityId, createdBy: EntityId): Promise<Channel> {
-    const channelName = generateAgentChannelName(agentId);
+  private async createAgentChannel(agentName: string, agentId: EntityId, createdBy: EntityId): Promise<Channel> {
+    const channelName = generateAgentChannelName(agentName);
 
     // Create a group channel with the agent and creator as members
     const channel = await createGroupChannel({
@@ -595,6 +601,7 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
       tags: ['agent-channel'],
       metadata: {
         agentId,
+        agentName,
         purpose: 'Agent direct messaging channel',
       },
     });

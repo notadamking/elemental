@@ -32,6 +32,7 @@ import {
 import { validatePour } from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
+import { OPERATOR_ENTITY_ID } from './init.js';
 
 // ============================================================================
 // Constants
@@ -39,7 +40,7 @@ import type { ElementalAPI } from '../../api/types.js';
 
 const ELEMENTAL_DIR = '.elemental';
 const DEFAULT_DB_NAME = 'elemental.db';
-const DEFAULT_ACTOR = 'cli-user';
+const DEFAULT_ACTOR = OPERATOR_ENTITY_ID;
 
 // ============================================================================
 // Database Helper
