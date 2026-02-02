@@ -171,11 +171,13 @@ export function useAvailableTasks(planId: string | null, searchQuery: string) {
       if (!planId) return [];
 
       // Get all tasks not in this plan
-      const tasksResponse = await fetch('/api/tasks');
+      const tasksResponse = await fetch('/api/tasks?limit=500');
       if (!tasksResponse.ok) {
         throw new Error('Failed to fetch tasks');
       }
-      const allTasks = await tasksResponse.json() as PlanTaskType[];
+      const tasksResult = await tasksResponse.json();
+      // Handle different response formats: { tasks: [...] }, { items: [...] }, or array
+      const allTasks = (tasksResult.tasks || tasksResult.items || (Array.isArray(tasksResult) ? tasksResult : [])) as PlanTaskType[];
 
       // Get tasks already in the plan
       const planTasksResponse = await fetch(`/api/plans/${planId}/tasks`);
@@ -266,7 +268,9 @@ export function useCreatePlan() {
               }),
             });
             if (taskResponse.ok) {
-              const newTask = await taskResponse.json();
+              const taskResult = await taskResponse.json();
+              // Handle response format: { task: {...} } or direct task object
+              const newTask = taskResult.task || taskResult;
               await fetch(`/api/plans/${plan.id}/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
