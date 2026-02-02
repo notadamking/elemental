@@ -5,9 +5,10 @@
  * Badge components are from @elemental/ui/domain.
  */
 
-import { GitBranch, User, MoreHorizontal, Play, CheckCircle2 } from 'lucide-react';
+import { GitBranch, User, Play, CheckCircle2 } from 'lucide-react';
 import type { Task, Agent } from '../../api/types';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge } from '@elemental/ui/domain';
+import { TaskActionsDropdown } from './TaskActionsDropdown';
 
 interface TaskRowProps {
   task: Task;
@@ -133,16 +134,7 @@ export function TaskRow({
               <CheckCircle2 className="w-4 h-4" />
             </button>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Open menu
-            }}
-            className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-elevated)] rounded transition-colors"
-            data-testid="task-row-menu"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          <TaskActionsDropdown task={task} />
         </div>
       </td>
     </tr>
