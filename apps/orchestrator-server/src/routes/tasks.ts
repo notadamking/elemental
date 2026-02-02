@@ -22,30 +22,44 @@ export function createTaskRoutes(services: Services) {
       const statusParam = url.searchParams.get('status');
       const assigneeParam = url.searchParams.get('assignee');
       const unassignedParam = url.searchParams.get('unassigned');
+      const searchParam = url.searchParams.get('search');
       const limitParam = url.searchParams.get('limit');
       const limit = limitParam ? parseInt(limitParam, 10) : 100;
 
+      // Helper to filter tasks by search query (case-insensitive title match)
+      const filterBySearch = (taskList: Task[]): Task[] => {
+        if (!searchParam) return taskList;
+        const query = searchParam.toLowerCase();
+        return taskList.filter((t) => t.title.toLowerCase().includes(query));
+      };
+
       if (unassignedParam === 'true') {
         const unassignedTasks = await taskAssignmentService.getUnassignedTasks();
-        return c.json({ tasks: unassignedTasks.slice(0, limit).map(formatTaskResponse) });
+        const filtered = filterBySearch(unassignedTasks);
+        return c.json({ tasks: filtered.slice(0, limit).map(formatTaskResponse) });
       }
 
       if (assigneeParam) {
         const agentAssignments = await taskAssignmentService.getAgentTasks(assigneeParam as EntityId);
         const agentTasks = agentAssignments.map((a) => a.task);
-        const filtered = statusParam
+        let filtered = statusParam
           ? agentTasks.filter((t) => t.status === TaskStatus[statusParam.toUpperCase() as keyof typeof TaskStatus])
           : agentTasks;
+        filtered = filterBySearch(filtered);
         return c.json({ tasks: filtered.slice(0, limit).map(formatTaskResponse) });
       }
 
-      const allElements = await api.list({ type: ElementType.TASK, limit });
+      const allElements = await api.list({ type: ElementType.TASK, limit: 1000 }); // Fetch more for search filtering
       const tasks = allElements.filter((e): e is Task => e.type === ElementType.TASK);
-      const filtered = statusParam
-        ? tasks.filter((t) => t.status === TaskStatus[statusParam.toUpperCase() as keyof typeof TaskStatus])
-        : tasks;
+      // Filter out tombstoned (deleted) tasks
+      let filtered = tasks.filter((t) => t.status !== TaskStatus.TOMBSTONE);
+      // Apply status filter if provided
+      if (statusParam) {
+        filtered = filtered.filter((t) => t.status === TaskStatus[statusParam.toUpperCase() as keyof typeof TaskStatus]);
+      }
+      filtered = filterBySearch(filtered);
 
-      return c.json({ tasks: filtered.map(formatTaskResponse) });
+      return c.json({ tasks: filtered.slice(0, limit).map(formatTaskResponse) });
     } catch (error) {
       console.error('[orchestrator] Failed to list tasks:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
