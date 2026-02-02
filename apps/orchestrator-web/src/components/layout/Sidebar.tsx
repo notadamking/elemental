@@ -224,14 +224,14 @@ export function Sidebar({ collapsed = false, onToggle, isMobileDrawer = false }:
       <div className={`flex items-center justify-between h-14 px-4 border-b border-[var(--color-sidebar-border)] ${isMobileDrawer ? 'pr-12' : ''}`}>
         {showExpandedState && (
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent-500)] flex items-center justify-center shadow-sm">
               <span className="text-white text-sm font-bold">O</span>
             </div>
             <span className="text-base font-semibold text-[var(--color-text)]">Orchestrator</span>
           </div>
         )}
         {showCollapsedState && (
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mx-auto shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent-500)] flex items-center justify-center mx-auto shadow-sm">
             <span className="text-white text-sm font-bold">O</span>
           </div>
         )}
