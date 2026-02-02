@@ -17,6 +17,8 @@ interface TaskRowProps {
   onClick?: () => void;
   isStarting?: boolean;
   isCompleting?: boolean;
+  /** Pre-rendered title with search highlights */
+  highlightedTitle?: React.ReactNode;
 }
 
 export function TaskRow({
@@ -27,6 +29,7 @@ export function TaskRow({
   onClick,
   isStarting,
   isCompleting,
+  highlightedTitle,
 }: TaskRowProps) {
   const orchestratorMeta = task.metadata?.orchestrator;
   const canStart = task.status === 'open' && task.assignee;
@@ -42,7 +45,7 @@ export function TaskRow({
       <td className="px-4 py-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-[var(--color-text)] truncate max-w-[300px]" title={task.title}>
-            {task.title}
+            {highlightedTitle ?? task.title}
           </span>
           <span className="text-xs text-[var(--color-text-tertiary)] font-mono">
             {task.id}

@@ -30,3 +30,10 @@ export { TaskCard } from './TaskCard';
 export { TaskRow } from './TaskRow';
 export { TaskDetailPanel } from './TaskDetailPanel';
 export { CreateTaskModal } from './CreateTaskModal';
+
+// New enhanced task components
+export { SortByDropdown } from './SortByDropdown';
+export { GroupByDropdown } from './GroupByDropdown';
+export { ViewToggle } from './ViewToggle';
+export { FilterBar } from './FilterBar';
+export { KanbanBoard } from './KanbanBoard';

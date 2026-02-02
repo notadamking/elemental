@@ -1,18 +1,21 @@
 /**
- * Tasks Page - View tasks with orchestrator metadata
+ * Tasks Page - Enhanced view with sorting, grouping, filtering, and virtualization
  *
- * Shows tasks with agent assignments, branches, and worktree status.
- * Supports list view and kanban view with filter tabs.
+ * Features:
+ * - List view with sortable headers and grouping
+ * - Kanban view with drag-and-drop
+ * - Advanced filtering (status, priority, assignee)
+ * - Search with fuzzy matching
+ * - Pagination for list view
+ * - localStorage persistence for preferences
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import {
   CheckSquare,
   Plus,
   Search,
-  List,
-  LayoutGrid,
   Loader2,
   AlertCircle,
   RefreshCw,
@@ -21,13 +24,55 @@ import {
   Play,
   CheckCircle2,
   GitMerge,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
-import { useTasksByStatus, useStartTask, useCompleteTask } from '../../api/hooks/useTasks';
+import { useTasksByStatus, useStartTask, useCompleteTask, useUpdateTask } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
-import { TaskCard, TaskRow, TaskDetailPanel, CreateTaskModal } from '../../components/task';
+import {
+  TaskRow,
+  TaskDetailPanel,
+  CreateTaskModal,
+  SortByDropdown,
+  GroupByDropdown,
+  ViewToggle,
+  FilterBar,
+  KanbanBoard,
+} from '../../components/task';
+import { Pagination } from '../../components/shared/Pagination';
 import type { Task, Agent } from '../../api/types';
+import type {
+  ViewMode,
+  SortField,
+  SortDirection,
+  GroupByField,
+  FilterConfig,
+  TaskGroup,
+} from '../../lib/task-constants';
+import {
+  DEFAULT_PAGE_SIZE,
+  EMPTY_FILTER,
+} from '../../lib/task-constants';
+import {
+  fuzzySearch,
+  highlightMatches,
+  taskSortCompareFn,
+  groupTasks,
+  createTaskFilter,
+  getStoredViewMode,
+  setStoredViewMode,
+  getStoredSortField,
+  setStoredSortField,
+  getStoredSortDirection,
+  setStoredSortDirection,
+  getStoredSecondarySort,
+  setStoredSecondarySort,
+  getStoredGroupBy,
+  setStoredGroupBy,
+  getStoredSearch,
+  setStoredSearch,
+} from '../../lib/task-utils';
 
-type ViewMode = 'list' | 'kanban';
 type TabValue = 'all' | 'unassigned' | 'assigned' | 'in_progress' | 'done' | 'awaiting_merge';
 
 export function TasksPage() {
@@ -40,8 +85,20 @@ export function TasksPage() {
   };
   const navigate = useNavigate();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [searchQuery, setSearchQuery] = useState('');
+  // View and sort preferences (persisted in localStorage)
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => getStoredViewMode());
+  const [sortField, setSortFieldState] = useState<SortField>(() => getStoredSortField());
+  const [sortDirection, setSortDirectionState] = useState<SortDirection>(() => getStoredSortDirection());
+  const [secondarySort, setSecondarySortState] = useState<SortField | null>(() => getStoredSecondarySort());
+  const [groupBy, setGroupByState] = useState<GroupByField>(() => getStoredGroupBy());
+  const [searchQuery, setSearchQueryState] = useState(() => getStoredSearch());
+
+  // Filters
+  const [filters, setFilters] = useState<FilterConfig>(EMPTY_FILTER);
+
+  // Pagination
+  const currentPage = search.page ?? 1;
+  const pageSize = search.limit ?? DEFAULT_PAGE_SIZE;
   const currentTab = (search.status as TabValue) || 'all';
 
   // Modal states
@@ -51,6 +108,9 @@ export function TasksPage() {
   // Track pending operations
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
   const [pendingComplete, setPendingComplete] = useState<Set<string>>(new Set());
+
+  // Collapsed groups state
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Fetch data
   const {
@@ -78,9 +138,84 @@ export function TasksPage() {
   // Mutations
   const startTaskMutation = useStartTask();
   const completeTaskMutation = useCompleteTask();
+  const updateTaskMutation = useUpdateTask();
+
+  // Setters with persistence
+  const setViewMode = useCallback((mode: ViewMode) => {
+    setViewModeState(mode);
+    setStoredViewMode(mode);
+  }, []);
+
+  const setSortField = useCallback((field: SortField) => {
+    setSortFieldState(field);
+    setStoredSortField(field);
+  }, []);
+
+  const setSortDirection = useCallback((dir: SortDirection) => {
+    setSortDirectionState(dir);
+    setStoredSortDirection(dir);
+  }, []);
+
+  const setSecondarySort = useCallback((field: SortField | null) => {
+    setSecondarySortState(field);
+    setStoredSecondarySort(field);
+  }, []);
+
+  const setGroupBy = useCallback((field: GroupByField) => {
+    setGroupByState(field);
+    setStoredGroupBy(field);
+  }, []);
+
+  const setSearchQuery = useCallback((query: string) => {
+    setSearchQueryState(query);
+    setStoredSearch(query);
+  }, []);
+
+  // Keyboard shortcuts for view toggle
+  useEffect(() => {
+    let pendingV = false;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'v' || e.key === 'V') {
+        pendingV = true;
+        return;
+      }
+
+      if (pendingV) {
+        if (e.key === 'l' || e.key === 'L') {
+          setViewMode('list');
+          pendingV = false;
+        } else if (e.key === 'k' || e.key === 'K') {
+          setViewMode('kanban');
+          pendingV = false;
+        } else {
+          pendingV = false;
+        }
+      }
+    };
+
+    const handleKeyUp = () => {
+      // Reset pending state after a short delay
+      setTimeout(() => {
+        pendingV = false;
+      }, 500);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [setViewMode]);
 
   // Filter tasks based on current tab
-  const filteredTasks = useMemo(() => {
+  const tabFilteredTasks = useMemo(() => {
     let tasks: Task[];
     switch (currentTab) {
       case 'unassigned':
@@ -101,29 +236,79 @@ export function TasksPage() {
       default:
         tasks = allTasks.filter((t) => t.status !== 'tombstone');
     }
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      tasks = tasks.filter(
-        (t) =>
-          t.title.toLowerCase().includes(query) ||
-          t.id.toLowerCase().includes(query) ||
-          t.tags.some((tag) => tag.toLowerCase().includes(query))
-      );
-    }
-
     return tasks;
-  }, [currentTab, allTasks, unassigned, assigned, inProgress, done, awaitingMerge, searchQuery]);
+  }, [currentTab, allTasks, unassigned, assigned, inProgress, done, awaitingMerge]);
+
+  // Apply filters and search
+  const filteredTasks = useMemo(() => {
+    const filterFn = createTaskFilter(filters, searchQuery);
+    return tabFilteredTasks.filter(filterFn);
+  }, [tabFilteredTasks, filters, searchQuery]);
+
+  // Apply sorting
+  const sortedTasks = useMemo(() => {
+    const sorted = [...filteredTasks];
+    sorted.sort((a, b) => {
+      const primaryCmp = taskSortCompareFn(a, b, sortField === 'created_at' ? 'createdAt' : sortField === 'updated_at' ? 'updatedAt' : sortField, sortDirection);
+      if (primaryCmp !== 0 || !secondarySort) return primaryCmp;
+      return taskSortCompareFn(a, b, secondarySort === 'created_at' ? 'createdAt' : secondarySort === 'updated_at' ? 'updatedAt' : secondarySort, sortDirection);
+    });
+    return sorted;
+  }, [filteredTasks, sortField, sortDirection, secondarySort]);
+
+  // Pagination (list view only)
+  const totalItems = sortedTasks.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const paginatedTasks = useMemo(() => {
+    if (viewMode === 'kanban') return sortedTasks;
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return sortedTasks.slice(start, end);
+  }, [sortedTasks, currentPage, pageSize, viewMode]);
+
+  // Paginated grouped tasks
+  const paginatedGroupedTasks = useMemo(() => {
+    if (viewMode === 'kanban' || groupBy === 'none') {
+      return [{ key: 'all', label: 'All Tasks', tasks: paginatedTasks }];
+    }
+    // For grouped view, paginate within each group
+    return groupTasks(paginatedTasks, groupBy, agents);
+  }, [paginatedTasks, groupBy, agents, viewMode]);
 
   const setTab = (tab: TabValue) => {
     navigate({
       to: '/tasks',
       search: {
         selected: search.selected,
-        page: search.page ?? 1,
-        limit: search.limit ?? 25,
+        page: 1, // Reset to page 1 when changing tabs
+        limit: search.limit ?? DEFAULT_PAGE_SIZE,
         status: tab === 'all' ? undefined : tab,
+        assignee: search.assignee,
+      },
+    });
+  };
+
+  const setPage = (page: number) => {
+    navigate({
+      to: '/tasks',
+      search: {
+        selected: search.selected,
+        page,
+        limit: search.limit ?? DEFAULT_PAGE_SIZE,
+        status: search.status,
+        assignee: search.assignee,
+      },
+    });
+  };
+
+  const setPageSize = (limit: number) => {
+    navigate({
+      to: '/tasks',
+      search: {
+        selected: search.selected,
+        page: 1, // Reset to page 1 when changing page size
+        limit,
+        status: search.status,
         assignee: search.assignee,
       },
     });
@@ -135,7 +320,7 @@ export function TasksPage() {
       search: {
         selected: taskId,
         page: search.page ?? 1,
-        limit: search.limit ?? 25,
+        limit: search.limit ?? DEFAULT_PAGE_SIZE,
         status: search.status,
         assignee: search.assignee,
       },
@@ -148,7 +333,7 @@ export function TasksPage() {
       search: {
         selected: undefined,
         page: search.page ?? 1,
-        limit: search.limit ?? 25,
+        limit: search.limit ?? DEFAULT_PAGE_SIZE,
         status: search.status,
         assignee: search.assignee,
       },
@@ -181,6 +366,26 @@ export function TasksPage() {
     }
   };
 
+  const handleUpdateStatus = async (taskId: string, status: string) => {
+    await updateTaskMutation.mutateAsync({ taskId, status: status as 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' });
+  };
+
+  const handleClearFilters = () => {
+    setFilters(EMPTY_FILTER);
+  };
+
+  const toggleGroupCollapse = (groupKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+
   // Tab counts
   const counts = {
     all: allTasks.filter((t) => t.status !== 'tombstone').length,
@@ -192,7 +397,7 @@ export function TasksPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in" data-testid="tasks-page">
+    <div className="space-y-4 animate-fade-in" data-testid="tasks-page">
       {/* Create Task Modal */}
       <CreateTaskModal
         isOpen={isCreateModalOpen}
@@ -228,7 +433,7 @@ export function TasksPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
@@ -242,33 +447,26 @@ export function TasksPage() {
             />
           </div>
 
+          {/* Sort Dropdown */}
+          <SortByDropdown
+            sortField={sortField}
+            sortDirection={sortDirection}
+            secondarySort={secondarySort}
+            onSortFieldChange={setSortField}
+            onSortDirectionChange={setSortDirection}
+            onSecondarySortChange={setSecondarySort}
+          />
+
+          {/* Group By Dropdown (list view only) */}
+          {viewMode === 'list' && (
+            <GroupByDropdown
+              groupBy={groupBy}
+              onGroupByChange={setGroupBy}
+            />
+          )}
+
           {/* View Toggle */}
-          <div className="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-[var(--color-primary)] text-white'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
-              }`}
-              title="List view"
-              data-testid="tasks-view-list"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('kanban')}
-              className={`p-2 transition-colors ${
-                viewMode === 'kanban'
-                  ? 'bg-[var(--color-primary)] text-white'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
-              }`}
-              title="Kanban view"
-              data-testid="tasks-view-kanban"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-          </div>
+          <ViewToggle view={viewMode} onViewChange={setViewMode} />
 
           {/* Create Button */}
           <button
@@ -281,6 +479,16 @@ export function TasksPage() {
           </button>
         </div>
       </div>
+
+      {/* Filter Bar (list view only) */}
+      {viewMode === 'list' && (
+        <FilterBar
+          filters={filters}
+          onFilterChange={setFilters}
+          onClearFilters={handleClearFilters}
+          agents={agents}
+        />
+      )}
 
       {/* Tabs */}
       <div className="border-b border-[var(--color-border)] overflow-x-auto">
@@ -361,28 +569,42 @@ export function TasksPage() {
       ) : filteredTasks.length === 0 ? (
         <EmptyState searchQuery={searchQuery} currentTab={currentTab} onCreateClick={() => setIsCreateModalOpen(true)} />
       ) : viewMode === 'list' ? (
-        <TaskListView
-          tasks={filteredTasks}
-          agentMap={agentMap}
-          onStart={handleStartTask}
-          onComplete={handleCompleteTask}
-          onSelectTask={handleSelectTask}
-          pendingStart={pendingStart}
-          pendingComplete={pendingComplete}
-        />
+        <>
+          <TaskListView
+            groups={paginatedGroupedTasks}
+            agentMap={agentMap}
+            onStart={handleStartTask}
+            onComplete={handleCompleteTask}
+            onSelectTask={handleSelectTask}
+            pendingStart={pendingStart}
+            pendingComplete={pendingComplete}
+            collapsedGroups={collapsedGroups}
+            onToggleCollapse={toggleGroupCollapse}
+            searchQuery={searchQuery}
+          />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </>
       ) : (
-        <TaskKanbanView
-          unassigned={unassigned}
-          assigned={assigned}
-          inProgress={inProgress}
-          done={done}
-          awaitingMerge={awaitingMerge}
+        <KanbanBoard
+          tasks={allTasks}
+          agents={agents}
           agentMap={agentMap}
+          selectedTaskId={selectedTaskId ?? null}
+          onTaskClick={handleSelectTask}
           onStart={handleStartTask}
           onComplete={handleCompleteTask}
-          onSelectTask={handleSelectTask}
+          onUpdateStatus={handleUpdateStatus}
           pendingStart={pendingStart}
           pendingComplete={pendingComplete}
+          searchQuery={searchQuery}
+          pageSort={{ field: sortField, direction: sortDirection }}
         />
       )}
     </div>
@@ -428,28 +650,36 @@ function TabButton({ label, value, current, count, icon: Icon, onClick }: TabBut
 }
 
 // ============================================================================
-// List View
+// List View with Grouping
 // ============================================================================
 
 interface TaskListViewProps {
-  tasks: Task[];
+  groups: TaskGroup[];
   agentMap: Map<string, Agent>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
   pendingStart: Set<string>;
   pendingComplete: Set<string>;
+  collapsedGroups: Set<string>;
+  onToggleCollapse: (groupKey: string) => void;
+  searchQuery: string;
 }
 
 function TaskListView({
-  tasks,
+  groups,
   agentMap,
   onStart,
   onComplete,
   onSelectTask,
   pendingStart,
   pendingComplete,
+  collapsedGroups,
+  onToggleCollapse,
+  searchQuery,
 }: TaskListViewProps) {
+  const showGroups = groups.length > 1 || (groups.length === 1 && groups[0].key !== 'all');
+
   return (
     <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
@@ -483,16 +713,20 @@ function TaskListView({
             </tr>
           </thead>
           <tbody className="bg-[var(--color-surface)]">
-            {tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                assignedAgent={task.assignee ? agentMap.get(task.assignee) : undefined}
-                onStart={() => onStart(task.id)}
-                onComplete={() => onComplete(task.id)}
-                onClick={() => onSelectTask(task.id)}
-                isStarting={pendingStart.has(task.id)}
-                isCompleting={pendingComplete.has(task.id)}
+            {groups.map((group) => (
+              <GroupSection
+                key={group.key}
+                group={group}
+                agentMap={agentMap}
+                onStart={onStart}
+                onComplete={onComplete}
+                onSelectTask={onSelectTask}
+                pendingStart={pendingStart}
+                pendingComplete={pendingComplete}
+                showHeader={showGroups}
+                isCollapsed={collapsedGroups.has(group.key)}
+                onToggleCollapse={() => onToggleCollapse(group.key)}
+                searchQuery={searchQuery}
               />
             ))}
           </tbody>
@@ -502,151 +736,62 @@ function TaskListView({
   );
 }
 
-// ============================================================================
-// Kanban View
-// ============================================================================
-
-interface TaskKanbanViewProps {
-  unassigned: Task[];
-  assigned: Task[];
-  inProgress: Task[];
-  done: Task[];
-  awaitingMerge: Task[];
+interface GroupSectionProps {
+  group: TaskGroup;
   agentMap: Map<string, Agent>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
   pendingStart: Set<string>;
   pendingComplete: Set<string>;
+  showHeader: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+  searchQuery: string;
 }
 
-function TaskKanbanView({
-  unassigned,
-  assigned,
-  inProgress,
-  done,
-  awaitingMerge,
+function GroupSection({
+  group,
   agentMap,
   onStart,
   onComplete,
   onSelectTask,
   pendingStart,
   pendingComplete,
-}: TaskKanbanViewProps) {
+  showHeader,
+  isCollapsed,
+  onToggleCollapse,
+  searchQuery,
+}: GroupSectionProps) {
   return (
-    <div
-      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 overflow-x-auto pb-4"
-      data-testid="tasks-kanban"
-    >
-      <KanbanColumn
-        title="Unassigned"
-        icon={Inbox}
-        tasks={unassigned}
-        agentMap={agentMap}
-        onStart={onStart}
-        onComplete={onComplete}
-        onSelectTask={onSelectTask}
-        pendingStart={pendingStart}
-        pendingComplete={pendingComplete}
-        colorClass="border-gray-400"
-      />
-      <KanbanColumn
-        title="Assigned"
-        icon={UserCheck}
-        tasks={assigned}
-        agentMap={agentMap}
-        onStart={onStart}
-        onComplete={onComplete}
-        onSelectTask={onSelectTask}
-        pendingStart={pendingStart}
-        pendingComplete={pendingComplete}
-        colorClass="border-blue-400"
-      />
-      <KanbanColumn
-        title="In Progress"
-        icon={Play}
-        tasks={inProgress}
-        agentMap={agentMap}
-        onStart={onStart}
-        onComplete={onComplete}
-        onSelectTask={onSelectTask}
-        pendingStart={pendingStart}
-        pendingComplete={pendingComplete}
-        colorClass="border-yellow-400"
-      />
-      <KanbanColumn
-        title="Done"
-        icon={CheckCircle2}
-        tasks={done}
-        agentMap={agentMap}
-        onStart={onStart}
-        onComplete={onComplete}
-        onSelectTask={onSelectTask}
-        pendingStart={pendingStart}
-        pendingComplete={pendingComplete}
-        colorClass="border-green-400"
-      />
-      <KanbanColumn
-        title="Awaiting Merge"
-        icon={GitMerge}
-        tasks={awaitingMerge}
-        agentMap={agentMap}
-        onStart={onStart}
-        onComplete={onComplete}
-        onSelectTask={onSelectTask}
-        pendingStart={pendingStart}
-        pendingComplete={pendingComplete}
-        colorClass="border-purple-400"
-      />
-    </div>
-  );
-}
-
-interface KanbanColumnProps {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  tasks: Task[];
-  agentMap: Map<string, Agent>;
-  onStart: (taskId: string) => void;
-  onComplete: (taskId: string) => void;
-  onSelectTask: (taskId: string) => void;
-  pendingStart: Set<string>;
-  pendingComplete: Set<string>;
-  colorClass: string;
-}
-
-function KanbanColumn({
-  title,
-  icon: Icon,
-  tasks,
-  agentMap,
-  onStart,
-  onComplete,
-  onSelectTask,
-  pendingStart,
-  pendingComplete,
-  colorClass,
-}: KanbanColumnProps) {
-  return (
-    <div
-      className={`flex flex-col bg-[var(--color-surface-elevated)] rounded-lg border-t-4 ${colorClass} min-w-[280px]`}
-      data-testid={`kanban-column-${title.toLowerCase().replace(/\s+/g, '-')}`}
-    >
-      <div className="flex items-center gap-2 px-3 py-3 border-b border-[var(--color-border)]">
-        <Icon className="w-4 h-4 text-[var(--color-text-secondary)]" />
-        <h3 className="text-sm font-medium text-[var(--color-text)]">{title}</h3>
-        <span className="ml-auto px-2 py-0.5 text-xs rounded-full bg-[var(--color-surface)] text-[var(--color-text-secondary)]">
-          {tasks.length}
-        </span>
-      </div>
-      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-320px)]">
-        {tasks.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-xs text-[var(--color-text-tertiary)]">
-            No tasks
-          </div>
-        ) : (
-          tasks.map((task) => (
-            <TaskCard
+    <>
+      {showHeader && (
+        <tr className="bg-[var(--color-surface-elevated)] border-t border-b border-[var(--color-border)]">
+          <td colSpan={8}>
+            <button
+              onClick={onToggleCollapse}
+              className="w-full px-4 py-2 flex items-center gap-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+            >
+              {isCollapsed ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+              <span className={group.color ? `px-2 py-0.5 rounded text-xs ${group.color}` : ''}>
+                {group.label}
+              </span>
+              <span className="text-xs text-[var(--color-text-tertiary)]">
+                ({group.tasks.length})
+              </span>
+            </button>
+          </td>
+        </tr>
+      )}
+      {!isCollapsed &&
+        group.tasks.map((task) => {
+          const matchInfo = searchQuery ? fuzzySearch(task.title, searchQuery) : null;
+          return (
+            <TaskRow
               key={task.id}
               task={task}
               assignedAgent={task.assignee ? agentMap.get(task.assignee) : undefined}
@@ -655,11 +800,11 @@ function KanbanColumn({
               onClick={() => onSelectTask(task.id)}
               isStarting={pendingStart.has(task.id)}
               isCompleting={pendingComplete.has(task.id)}
+              highlightedTitle={matchInfo?.indices ? highlightMatches(task.title, matchInfo.indices) : undefined}
             />
-          ))
-        )}
-      </div>
-    </div>
+          );
+        })}
+    </>
   );
 }
 
