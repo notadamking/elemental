@@ -1,20 +1,20 @@
 /**
- * React Query hooks for workflow and playbook data
+ * @elemental/ui Workflows API Hooks
  *
- * Provides hooks for fetching and mutating workflow/playbook data from the orchestrator API.
+ * React Query hooks for workflow and playbook data fetching and mutations.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
+  WorkflowStatus,
+  WorkflowFilter,
   WorkflowsResponse,
   WorkflowResponse,
-  WorkflowFilter,
-  WorkflowStatus,
   WorkflowTasksResponse,
+  WorkflowProgress,
+  PlaybookFilter,
   PlaybooksResponse,
   PlaybookResponse,
-  PlaybookFilter,
-  Workflow,
   VariableType,
   TaskTypeValue,
   Priority,
@@ -71,7 +71,7 @@ export function useWorkflows(filter?: WorkflowFilter) {
 /**
  * Hook to fetch a single workflow by ID
  */
-export function useWorkflow(workflowId: string | undefined) {
+export function useWorkflow(workflowId: string | undefined | null) {
   return useQuery<WorkflowResponse, Error>({
     queryKey: ['workflow', workflowId],
     queryFn: () => fetchApi<WorkflowResponse>(`/workflows/${workflowId}`),
@@ -81,10 +81,8 @@ export function useWorkflow(workflowId: string | undefined) {
 
 /**
  * Hook to fetch tasks belonging to a workflow with progress metrics
- *
- * TB-O35: Workflow Progress Dashboard
  */
-export function useWorkflowTasks(workflowId: string | undefined) {
+export function useWorkflowTasks(workflowId: string | undefined | null) {
   return useQuery<WorkflowTasksResponse, Error>({
     queryKey: ['workflow-tasks', workflowId],
     queryFn: () => fetchApi<WorkflowTasksResponse>(`/workflows/${workflowId}/tasks`),
@@ -94,11 +92,21 @@ export function useWorkflowTasks(workflowId: string | undefined) {
 }
 
 /**
- * Hook to get workflow detail with tasks and progress (combined)
- *
- * TB-O35: Workflow Progress Dashboard
+ * Hook to fetch workflow progress metrics
  */
-export function useWorkflowDetail(workflowId: string | undefined) {
+export function useWorkflowProgress(workflowId: string | undefined | null) {
+  return useQuery<WorkflowProgress, Error>({
+    queryKey: ['workflow-progress', workflowId],
+    queryFn: () => fetchApi<WorkflowProgress>(`/workflows/${workflowId}/progress`),
+    enabled: !!workflowId,
+    refetchInterval: 5000,
+  });
+}
+
+/**
+ * Hook to get workflow detail with tasks and progress (combined)
+ */
+export function useWorkflowDetail(workflowId: string | undefined | null) {
   const workflowQuery = useWorkflow(workflowId);
   const tasksQuery = useWorkflowTasks(workflowId);
 
@@ -291,6 +299,44 @@ export function useDeleteWorkflow() {
   });
 }
 
+/**
+ * Hook to burn (delete) an ephemeral workflow and all its tasks
+ */
+export function useBurnWorkflow() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { workflowId: string; force?: boolean }>({
+    mutationFn: async ({ workflowId, force = false }) => {
+      const url = force ? `/workflows/${workflowId}/burn?force=true` : `/workflows/${workflowId}/burn`;
+      return fetchApi(url, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    },
+  });
+}
+
+/**
+ * Hook to squash an ephemeral workflow (make it durable)
+ */
+export function useSquashWorkflow() {
+  const queryClient = useQueryClient();
+
+  return useMutation<WorkflowResponse, Error, { workflowId: string }>({
+    mutationFn: async ({ workflowId }) => {
+      return fetchApi<WorkflowResponse>(`/workflows/${workflowId}/squash`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: (_, { workflowId }) => {
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+    },
+  });
+}
+
 // ============================================================================
 // Playbook Query Hooks
 // ============================================================================
@@ -316,7 +362,7 @@ export function usePlaybooks(filter?: PlaybookFilter) {
 /**
  * Hook to fetch a single playbook by ID
  */
-export function usePlaybook(playbookId: string | undefined) {
+export function usePlaybook(playbookId: string | undefined | null) {
   return useQuery<PlaybookResponse, Error>({
     queryKey: ['playbook', playbookId],
     queryFn: () => fetchApi<PlaybookResponse>(`/playbooks/${playbookId}`),
@@ -450,69 +496,4 @@ export function usePourPlaybook() {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
     },
   });
-}
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/**
- * Get display name for workflow status
- */
-export function getWorkflowStatusDisplayName(status: WorkflowStatus): string {
-  switch (status) {
-    case 'pending': return 'Pending';
-    case 'running': return 'Running';
-    case 'completed': return 'Completed';
-    case 'failed': return 'Failed';
-    case 'cancelled': return 'Cancelled';
-    default: return status;
-  }
-}
-
-/**
- * Get status color class for workflow
- */
-export function getWorkflowStatusColor(status: WorkflowStatus): string {
-  switch (status) {
-    case 'pending': return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-900/30';
-    case 'running': return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30';
-    case 'completed': return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
-    case 'failed': return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
-    case 'cancelled': return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
-    default: return 'text-gray-600 bg-gray-100';
-  }
-}
-
-/**
- * Get progress percentage for a workflow
- */
-export function getWorkflowProgress(workflow: Workflow): number {
-  switch (workflow.status) {
-    case 'pending': return 0;
-    case 'running': return 50; // Could be computed from task progress in the future
-    case 'completed': return 100;
-    case 'failed': return 100;
-    case 'cancelled': return 100;
-    default: return 0;
-  }
-}
-
-/**
- * Format workflow duration
- */
-export function formatWorkflowDuration(workflow: Workflow): string | undefined {
-  if (!workflow.startedAt) return undefined;
-
-  const start = new Date(workflow.startedAt).getTime();
-  const end = workflow.finishedAt
-    ? new Date(workflow.finishedAt).getTime()
-    : Date.now();
-
-  const durationMs = end - start;
-
-  if (durationMs < 1000) return `${durationMs}ms`;
-  if (durationMs < 60000) return `${Math.round(durationMs / 1000)}s`;
-  if (durationMs < 3600000) return `${Math.round(durationMs / 60000)}m`;
-  return `${Math.round(durationMs / 3600000)}h`;
 }

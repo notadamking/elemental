@@ -46,6 +46,10 @@
       "types": "./dist/settings/index.d.ts",
       "import": "./dist/settings/index.js"
     },
+    "./workflows": {
+      "types": "./dist/workflows/index.d.ts",
+      "import": "./dist/workflows/index.js"
+    },
     "./styles/tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {

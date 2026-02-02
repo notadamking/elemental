@@ -128,10 +128,11 @@ const workflowsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/workflows',
   component: WorkflowsPage,
-  validateSearch: (search: Record<string, unknown>): { selected?: string; status?: string } => {
+  validateSearch: (search: Record<string, unknown>): { selected?: string; tab?: string; action?: string } => {
     return {
       selected: typeof search.selected === 'string' ? search.selected : undefined,
-      status: typeof search.status === 'string' ? search.status : undefined,
+      tab: typeof search.tab === 'string' ? search.tab : undefined,
+      action: typeof search.action === 'string' ? search.action : undefined,
     };
   },
 });

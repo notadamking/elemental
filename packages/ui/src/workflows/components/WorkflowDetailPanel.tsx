@@ -1,13 +1,14 @@
 /**
- * Workflow Detail Panel with edit functionality (TB48)
- * Displays workflow details, status actions, and task list
+ * @elemental/ui Workflow Detail Panel
+ *
+ * Displays workflow details with edit functionality, status actions, and task list.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ComponentType } from 'react';
 import {
   X,
   Clock,
-  CheckCircle2,
+  CheckCircle,
   AlertTriangle,
   XCircle,
   User,
@@ -20,12 +21,10 @@ import {
   Loader2,
 } from 'lucide-react';
 
-import type { WorkflowType, StatusTransition } from '../types';
+import type { Workflow, WorkflowStatus } from '../types';
 import { formatDate, formatRelativeTime } from '../utils';
 import {
-  useWorkflow,
-  useWorkflowTasks,
-  useWorkflowProgress,
+  useWorkflowDetail,
   useUpdateWorkflow,
   useBurnWorkflow,
   useSquashWorkflow,
@@ -35,15 +34,24 @@ import { ProgressBar } from './ProgressBar';
 import { TaskStatusSummary } from './TaskStatusSummary';
 import { WorkflowTaskList } from './WorkflowTaskList';
 
+interface StatusTransition {
+  status: WorkflowStatus;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  color: string;
+}
+
 interface WorkflowDetailPanelProps {
   workflowId: string;
   onClose: () => void;
+  /** Base URL for task links (default: /tasks) */
+  taskLinkBase?: string;
 }
 
 /**
  * Get available status transitions based on current status
  */
-function getStatusTransitions(status: string): StatusTransition[] {
+function getStatusTransitions(status: WorkflowStatus): StatusTransition[] {
   switch (status) {
     case 'pending':
       return [
@@ -52,7 +60,7 @@ function getStatusTransitions(status: string): StatusTransition[] {
       ];
     case 'running':
       return [
-        { status: 'completed', label: 'Complete', icon: CheckCircle2, color: 'bg-green-500 hover:bg-green-600' },
+        { status: 'completed', label: 'Complete', icon: CheckCircle, color: 'bg-green-500 hover:bg-green-600' },
         { status: 'failed', label: 'Mark Failed', icon: AlertTriangle, color: 'bg-red-500 hover:bg-red-600' },
         { status: 'cancelled', label: 'Cancel', icon: Ban, color: 'bg-orange-500 hover:bg-orange-600' },
       ];
@@ -68,10 +76,9 @@ function getStatusTransitions(status: string): StatusTransition[] {
 export function WorkflowDetailPanel({
   workflowId,
   onClose,
+  taskLinkBase = '/tasks',
 }: WorkflowDetailPanelProps) {
-  const { data: workflow, isLoading, isError, error } = useWorkflow(workflowId);
-  const { data: tasks = [] } = useWorkflowTasks(workflowId);
-  const { data: progress } = useWorkflowProgress(workflowId);
+  const { workflow, tasks, progress, isLoading, error } = useWorkflowDetail(workflowId);
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -102,7 +109,7 @@ export function WorkflowDetailPanel({
       return;
     }
     try {
-      await updateWorkflow.mutateAsync({ workflowId, updates: { title: editedTitle.trim() } });
+      await updateWorkflow.mutateAsync({ workflowId, status: undefined });
       setIsEditMode(false);
     } catch (err) {
       console.error('Failed to update title:', err);
@@ -116,12 +123,12 @@ export function WorkflowDetailPanel({
     setIsEditMode(false);
   }, [workflow]);
 
-  const handleStatusChange = useCallback(async (newStatus: string) => {
+  const handleStatusChange = useCallback(async (newStatus: WorkflowStatus) => {
     if (!workflow || newStatus === workflow.status) return;
     try {
       await updateWorkflow.mutateAsync({
         workflowId,
-        updates: { status: newStatus as WorkflowType['status'] },
+        status: newStatus,
       });
     } catch (err) {
       console.error('Failed to update status:', err);
@@ -149,21 +156,21 @@ export function WorkflowDetailPanel({
     return (
       <div
         data-testid="workflow-detail-loading"
-        className="h-full flex items-center justify-center bg-white"
+        className="h-full flex items-center justify-center bg-white dark:bg-[var(--color-bg)]"
       >
-        <div className="text-gray-500">Loading workflow...</div>
+        <div className="text-gray-500 dark:text-gray-400">Loading workflow...</div>
       </div>
     );
   }
 
-  if (isError) {
+  if (error) {
     return (
       <div
         data-testid="workflow-detail-error"
-        className="h-full flex flex-col items-center justify-center bg-white"
+        className="h-full flex flex-col items-center justify-center bg-white dark:bg-[var(--color-bg)]"
       >
-        <div className="text-red-600 mb-2">Failed to load workflow</div>
-        <div className="text-sm text-gray-500">{(error as Error)?.message}</div>
+        <div className="text-red-600 dark:text-red-400 mb-2">Failed to load workflow</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">{error?.message}</div>
       </div>
     );
   }
@@ -172,9 +179,9 @@ export function WorkflowDetailPanel({
     return (
       <div
         data-testid="workflow-detail-not-found"
-        className="h-full flex items-center justify-center bg-white"
+        className="h-full flex items-center justify-center bg-white dark:bg-[var(--color-bg)]"
       >
-        <div className="text-gray-500">Workflow not found</div>
+        <div className="text-gray-500 dark:text-gray-400">Workflow not found</div>
       </div>
     );
   }
@@ -184,10 +191,10 @@ export function WorkflowDetailPanel({
   return (
     <div
       data-testid="workflow-detail-panel"
-      className="h-full flex flex-col bg-white border-l border-gray-200"
+      className="h-full flex flex-col bg-white dark:bg-[var(--color-bg)] border-l border-gray-200 dark:border-[var(--color-border)]"
     >
       {/* Header */}
-      <div className="flex items-start justify-between p-4 border-b border-gray-200">
+      <div className="flex items-start justify-between p-4 border-b border-gray-200 dark:border-[var(--color-border)]">
         <div className="flex-1 min-w-0">
           {/* Status badge */}
           <div className="mb-2 flex items-center gap-2">
@@ -195,7 +202,7 @@ export function WorkflowDetailPanel({
             {workflow.ephemeral && (
               <span
                 data-testid="ephemeral-badge"
-                className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded"
+                className="text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded"
               >
                 Ephemeral
               </span>
@@ -214,14 +221,14 @@ export function WorkflowDetailPanel({
                   if (e.key === 'Enter') handleSaveTitle();
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
-                className="flex-1 text-lg font-semibold text-gray-900 border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 text-lg font-semibold text-gray-900 dark:text-[var(--color-text)] border border-blue-300 dark:border-blue-600 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-[var(--color-surface)]"
                 autoFocus
               />
               <button
                 data-testid="save-title-btn"
                 onClick={handleSaveTitle}
                 disabled={updateWorkflow.isPending}
-                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
                 title="Save"
               >
                 <Check className="w-5 h-5" />
@@ -229,7 +236,7 @@ export function WorkflowDetailPanel({
               <button
                 data-testid="cancel-edit-btn"
                 onClick={handleCancelEdit}
-                className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
                 title="Cancel"
               >
                 <X className="w-5 h-5" />
@@ -239,14 +246,14 @@ export function WorkflowDetailPanel({
             <div className="flex items-center gap-2 group">
               <h2
                 data-testid="workflow-detail-title"
-                className="text-lg font-semibold text-gray-900"
+                className="text-lg font-semibold text-gray-900 dark:text-[var(--color-text)]"
               >
                 {workflow.title}
               </h2>
               <button
                 data-testid="edit-title-btn"
                 onClick={() => setIsEditMode(true)}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                 title="Edit title"
               >
                 <Pencil className="w-4 h-4" />
@@ -255,14 +262,14 @@ export function WorkflowDetailPanel({
           )}
 
           {/* ID */}
-          <div className="mt-1 text-xs text-gray-500 font-mono">
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 font-mono">
             <span data-testid="workflow-detail-id">{workflow.id}</span>
           </div>
         </div>
 
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
           aria-label="Close panel"
           data-testid="workflow-detail-close"
         >
@@ -272,7 +279,7 @@ export function WorkflowDetailPanel({
 
       {/* Status Actions */}
       {statusTransitions.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-4 border-b border-gray-200 bg-gray-50">
+        <div className="flex flex-wrap gap-2 p-4 border-b border-gray-200 dark:border-[var(--color-border)] bg-gray-50 dark:bg-[var(--color-surface)]">
           {statusTransitions.map((transition) => {
             const Icon = transition.icon;
             return (
@@ -293,10 +300,10 @@ export function WorkflowDetailPanel({
 
       {/* Ephemeral Workflow Actions */}
       {workflow.ephemeral && (
-        <div className="flex gap-2 p-4 border-b border-gray-200 bg-yellow-50">
+        <div className="flex gap-2 p-4 border-b border-gray-200 dark:border-[var(--color-border)] bg-yellow-50 dark:bg-yellow-900/20">
           {showBurnConfirm ? (
             <div className="flex-1 flex items-center gap-2">
-              <span className="text-sm text-red-600 font-medium">
+              <span className="text-sm text-red-600 dark:text-red-400 font-medium">
                 Delete this workflow and all its tasks?
               </span>
               <button
@@ -315,7 +322,7 @@ export function WorkflowDetailPanel({
               <button
                 data-testid="burn-cancel-btn"
                 onClick={() => setShowBurnConfirm(false)}
-                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
               >
                 Cancel
               </button>
@@ -338,7 +345,7 @@ export function WorkflowDetailPanel({
               <button
                 data-testid="burn-btn"
                 onClick={() => setShowBurnConfirm(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-300 hover:bg-red-50 rounded"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
               >
                 <Flame className="w-4 h-4" />
                 Burn
@@ -351,9 +358,9 @@ export function WorkflowDetailPanel({
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
         {/* Progress Section */}
-        {progress && (
+        {progress && progress.total > 0 && (
           <div className="mb-6">
-            <div className="text-sm font-medium text-gray-700 mb-2">Progress</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Progress</div>
             <ProgressBar progress={progress} />
             <div className="mt-4">
               <TaskStatusSummary progress={progress} />
@@ -363,26 +370,26 @@ export function WorkflowDetailPanel({
 
         {/* Tasks Section */}
         <div className="mb-6">
-          <div className="text-sm font-medium text-gray-700 mb-2">
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Tasks ({tasks.length})
           </div>
-          {/* TB122: Warning when workflow has only one task */}
+          {/* Warning when workflow has only one task */}
           {tasks.length === 1 && (
             <div
               data-testid="last-task-warning"
-              className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+              className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"
             >
-              <div className="flex items-center gap-2 text-amber-700">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="w-4 h-4" />
                 <span className="text-sm font-medium">Only one task remaining</span>
               </div>
-              <p className="mt-1 text-xs text-amber-600">
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
                 Workflows must have at least one task. This task cannot be deleted.
                 Use &apos;Burn&apos; to delete the entire workflow if needed.
               </p>
             </div>
           )}
-          <WorkflowTaskList tasks={tasks} />
+          <WorkflowTaskList tasks={tasks} taskLinkBase={taskLinkBase} />
         </div>
 
         {/* Metadata */}
@@ -395,10 +402,10 @@ export function WorkflowDetailPanel({
 /**
  * Workflow metadata display (dates, creator, tags, variables)
  */
-function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
+function WorkflowMetadata({ workflow }: { workflow: Workflow }) {
   return (
-    <div className="pt-4 border-t border-gray-100">
-      <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+    <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+      <div className="grid grid-cols-2 gap-4 text-xs text-gray-500 dark:text-gray-400">
         <div>
           <div className="flex items-center gap-1 mb-1">
             <Clock className="w-3 h-3" />
@@ -436,7 +443,7 @@ function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
         {workflow.finishedAt && (
           <div className="col-span-2">
             <div className="flex items-center gap-1 mb-1">
-              <CheckCircle2 className="w-3 h-3 text-green-500" />
+              <CheckCircle className="w-3 h-3 text-green-500" />
               <span className="font-medium">Finished:</span>
             </div>
             <span>{formatDate(workflow.finishedAt)}</span>
@@ -448,7 +455,7 @@ function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
               <AlertTriangle className="w-3 h-3 text-red-500" />
               <span className="font-medium">Failure reason:</span>
             </div>
-            <p className="text-red-600">{workflow.failureReason}</p>
+            <p className="text-red-600 dark:text-red-400">{workflow.failureReason}</p>
           </div>
         )}
         {workflow.cancelReason && (
@@ -457,7 +464,7 @@ function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
               <XCircle className="w-3 h-3 text-orange-500" />
               <span className="font-medium">Cancel reason:</span>
             </div>
-            <p className="text-orange-600">{workflow.cancelReason}</p>
+            <p className="text-orange-600 dark:text-orange-400">{workflow.cancelReason}</p>
           </div>
         )}
       </div>
@@ -465,7 +472,7 @@ function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
       {/* Tags */}
       {workflow.tags && workflow.tags.length > 0 && (
         <div className="mt-4">
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
             Tags
           </div>
           <div className="flex flex-wrap gap-1">
@@ -473,7 +480,7 @@ function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
               <span
                 key={tag}
                 data-testid={`workflow-tag-${tag}`}
-                className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+                className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded"
               >
                 {tag}
               </span>
@@ -485,14 +492,14 @@ function WorkflowMetadata({ workflow }: { workflow: WorkflowType }) {
       {/* Variables */}
       {workflow.variables && Object.keys(workflow.variables).length > 0 && (
         <div className="mt-4">
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
             Variables
           </div>
-          <div className="bg-gray-50 rounded p-2 text-xs font-mono">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded p-2 text-xs font-mono">
             {Object.entries(workflow.variables).map(([key, value]) => (
               <div key={key} className="flex gap-2">
-                <span className="text-gray-500">{key}:</span>
-                <span className="text-gray-900">{JSON.stringify(value)}</span>
+                <span className="text-gray-500 dark:text-gray-400">{key}:</span>
+                <span className="text-gray-900 dark:text-gray-300">{JSON.stringify(value)}</span>
               </div>
             ))}
           </div>

@@ -13,4 +13,3 @@ export { TaskPickerModal } from './TaskPickerModal';
 export { RoadmapView } from './RoadmapView';
 export { PlanDetailPanel } from './PlanDetailPanel';
 export { MobilePlanCard } from './MobilePlanCard';
-export { CreatePlanModal } from './CreatePlanModal';

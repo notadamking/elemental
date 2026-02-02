@@ -11,11 +11,11 @@ import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { keyboardManager, getCurrentBinding, SHORTCUTS_CHANGED_EVENT } from '../lib/keyboard';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
-import { PourWorkflowModal } from '../components/workflow/PourWorkflowModal';
+import { PourWorkflowModal } from '@elemental/ui/workflows';
 import { CreateEntityModal } from '../components/entity/CreateEntityModal';
 import { CreateTeamModal } from '../components/team/CreateTeamModal';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
-import { CreatePlanModal } from '../routes/plans/components/CreatePlanModal';
+import { CreatePlanModal } from '@elemental/ui/plans';
 
 interface GlobalQuickActionsContextValue {
   /** Open the create task modal */

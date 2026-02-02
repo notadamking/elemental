@@ -1,10 +1,7 @@
 /**
- * WorkflowProgressDashboard - Displays workflow execution progress
+ * @elemental/ui Workflow Progress Dashboard
  *
- * Shows progress bar, task list with status, dependency graph visualization,
- * and a scoped activity feed for the workflow.
- *
- * TB-O35: Workflow Progress Dashboard
+ * Displays workflow execution progress with stats, progress bar, task list, and dependencies.
  */
 
 import { useMemo } from 'react';
@@ -19,8 +16,8 @@ import {
   AlertTriangle,
   ListTodo,
 } from 'lucide-react';
-import type { Task, WorkflowProgress, WorkflowDependency, Workflow } from '../../api/types';
-import { TaskStatusBadge, TaskPriorityBadge } from '@elemental/ui/domain';
+import type { Workflow, WorkflowTask, WorkflowProgress, WorkflowDependency, WorkflowStatus } from '../types';
+import { WORKFLOW_STATUS_CONFIG } from '../constants';
 
 // ============================================================================
 // Types
@@ -28,7 +25,7 @@ import { TaskStatusBadge, TaskPriorityBadge } from '@elemental/ui/domain';
 
 interface WorkflowProgressDashboardProps {
   workflow: Workflow;
-  tasks: Task[];
+  tasks: WorkflowTask[];
   progress: WorkflowProgress;
   dependencies: WorkflowDependency[];
   isLoading?: boolean;
@@ -38,7 +35,7 @@ interface WorkflowProgressDashboardProps {
 // Progress Bar Component
 // ============================================================================
 
-function ProgressBar({ progress }: { progress: WorkflowProgress }) {
+function DashboardProgressBar({ progress }: { progress: WorkflowProgress }) {
   const { percentage, completed, inProgress, blocked, open, total } = progress;
 
   // Calculate segment widths
@@ -50,12 +47,8 @@ function ProgressBar({ progress }: { progress: WorkflowProgress }) {
     <div className="space-y-3" data-testid="workflow-progress-bar">
       {/* Progress header */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-[var(--color-text)]">
-          Progress
-        </span>
-        <span className="text-sm text-[var(--color-text-secondary)]">
-          {percentage}% complete
-        </span>
+        <span className="text-sm font-medium text-[var(--color-text)]">Progress</span>
+        <span className="text-sm text-[var(--color-text-secondary)]">{percentage}% complete</span>
       </div>
 
       {/* Stacked progress bar */}
@@ -87,27 +80,19 @@ function ProgressBar({ progress }: { progress: WorkflowProgress }) {
       <div className="flex flex-wrap gap-4 text-xs">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span className="text-[var(--color-text-secondary)]">
-            Completed ({completed})
-          </span>
+          <span className="text-[var(--color-text-secondary)]">Completed ({completed})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-blue-500" />
-          <span className="text-[var(--color-text-secondary)]">
-            In Progress ({inProgress})
-          </span>
+          <span className="text-[var(--color-text-secondary)]">In Progress ({inProgress})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-red-400" />
-          <span className="text-[var(--color-text-secondary)]">
-            Blocked ({blocked})
-          </span>
+          <span className="text-[var(--color-text-secondary)]">Blocked ({blocked})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600" />
-          <span className="text-[var(--color-text-secondary)]">
-            Open ({open})
-          </span>
+          <span className="text-[var(--color-text-secondary)]">Open ({open})</span>
         </div>
       </div>
     </div>
@@ -160,13 +145,9 @@ function StatsCards({ progress }: { progress: WorkflowProgress }) {
         >
           <div className="flex items-center gap-2">
             <stat.icon className={`w-4 h-4 ${stat.color}`} />
-            <span className={`text-xl font-semibold ${stat.color}`}>
-              {stat.value}
-            </span>
+            <span className={`text-xl font-semibold ${stat.color}`}>{stat.value}</span>
           </div>
-          <span className="text-xs text-[var(--color-text-secondary)]">
-            {stat.label}
-          </span>
+          <span className="text-xs text-[var(--color-text-secondary)]">{stat.label}</span>
         </div>
       ))}
     </div>
@@ -174,11 +155,11 @@ function StatsCards({ progress }: { progress: WorkflowProgress }) {
 }
 
 // ============================================================================
-// Task List Component
+// Task List Item Component
 // ============================================================================
 
 interface TaskListItemProps {
-  task: Task;
+  task: WorkflowTask;
   dependsOn: string[];
   blockedBy: string[];
 }
@@ -214,11 +195,12 @@ function TaskListItem({ task, dependsOn, blockedBy }: TaskListItemProps) {
             {task.title}
           </span>
         </div>
-        <div className="flex items-center gap-2 mt-1">
-          <TaskStatusBadge status={task.status} />
-          <TaskPriorityBadge priority={task.priority} />
+        <div className="flex items-center gap-2 mt-1 text-xs">
+          <span className={`px-1.5 py-0.5 rounded ${getTaskStatusStyle(task.status)}`}>
+            {task.status.replace('_', ' ')}
+          </span>
           {dependsOn.length > 0 && (
-            <span className="text-xs text-[var(--color-text-tertiary)]">
+            <span className="text-[var(--color-text-tertiary)]">
               Depends on {dependsOn.length} task{dependsOn.length > 1 ? 's' : ''}
             </span>
           )}
@@ -236,29 +218,41 @@ function TaskListItem({ task, dependsOn, blockedBy }: TaskListItemProps) {
   );
 }
 
+function getTaskStatusStyle(status: string): string {
+  switch (status) {
+    case 'closed':
+      return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
+    case 'blocked':
+      return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+    case 'in_progress':
+      return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+    default:
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400';
+  }
+}
+
+// ============================================================================
+// Task List Component
+// ============================================================================
+
 function TaskList({
   tasks,
   dependencies,
 }: {
-  tasks: Task[];
+  tasks: WorkflowTask[];
   dependencies: WorkflowDependency[];
 }) {
-  // Build dependency maps for display
+  // Build dependency maps
   const { dependsOnMap, blockedByMap } = useMemo(() => {
     const dependsOn = new Map<string, string[]>();
     const blockedBy = new Map<string, string[]>();
 
-    // Dependencies are: sourceId blocks targetId
-    // So if A blocks B, sourceId=A, targetId=B
-    // Task B depends on A (B cannot start until A completes)
     for (const dep of dependencies) {
-      // targetId depends on sourceId
       if (!dependsOn.has(dep.targetId)) {
         dependsOn.set(dep.targetId, []);
       }
       dependsOn.get(dep.targetId)!.push(dep.sourceId);
 
-      // sourceId blocks targetId
       if (!blockedBy.has(dep.targetId)) {
         blockedBy.set(dep.targetId, []);
       }
@@ -268,7 +262,7 @@ function TaskList({
     return { dependsOnMap: dependsOn, blockedByMap: blockedBy };
   }, [dependencies]);
 
-  // Sort tasks: in_progress first, then blocked, then open, then closed
+  // Sort tasks by status priority
   const sortedTasks = useMemo(() => {
     const statusOrder: Record<string, number> = {
       in_progress: 0,
@@ -309,18 +303,18 @@ function TaskList({
 }
 
 // ============================================================================
-// Dependency Graph Component (Simple visualization)
+// Dependency Graph Component
 // ============================================================================
 
 function DependencyGraph({
   tasks,
   dependencies,
 }: {
-  tasks: Task[];
+  tasks: WorkflowTask[];
   dependencies: WorkflowDependency[];
 }) {
   const taskMap = useMemo(() => {
-    const map = new Map<string, Task>();
+    const map = new Map<string, WorkflowTask>();
     for (const task of tasks) {
       map.set(task.id, task);
     }
@@ -406,6 +400,8 @@ export function WorkflowProgressDashboard({
     );
   }
 
+  const statusConfig = WORKFLOW_STATUS_CONFIG[workflow.status as WorkflowStatus];
+
   return (
     <div className="space-y-6" data-testid="workflow-progress-dashboard">
       {/* Workflow Status Header */}
@@ -418,10 +414,8 @@ export function WorkflowProgressDashboard({
             {progress.total} task{progress.total !== 1 ? 's' : ''} in workflow
           </p>
         </div>
-        <div
-          className={`px-3 py-1.5 rounded-full text-sm font-medium ${getWorkflowStatusStyle(workflow.status)}`}
-        >
-          {getWorkflowStatusLabel(workflow.status)}
+        <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig?.bgColor ?? ''} ${statusConfig?.color ?? ''}`}>
+          {statusConfig?.label ?? workflow.status}
         </div>
       </div>
 
@@ -429,23 +423,19 @@ export function WorkflowProgressDashboard({
       <StatsCards progress={progress} />
 
       {/* Progress Bar */}
-      <ProgressBar progress={progress} />
+      <DashboardProgressBar progress={progress} />
 
       {/* Two Column Layout: Task List and Dependencies */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Task List - 2 columns */}
         <div className="lg:col-span-2">
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">
-            Tasks
-          </h3>
+          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">Tasks</h3>
           <TaskList tasks={tasks} dependencies={dependencies} />
         </div>
 
         {/* Dependencies - 1 column */}
         <div className="lg:col-span-1">
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">
-            Dependencies
-          </h3>
+          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">Dependencies</h3>
           <div className="p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface)]">
             <DependencyGraph tasks={tasks} dependencies={dependencies} />
           </div>
@@ -453,42 +443,4 @@ export function WorkflowProgressDashboard({
       </div>
     </div>
   );
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function getWorkflowStatusStyle(status: string): string {
-  switch (status) {
-    case 'pending':
-      return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-900/30';
-    case 'running':
-      return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30';
-    case 'completed':
-      return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
-    case 'failed':
-      return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
-    case 'cancelled':
-      return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
-    default:
-      return 'text-gray-600 bg-gray-100';
-  }
-}
-
-function getWorkflowStatusLabel(status: string): string {
-  switch (status) {
-    case 'pending':
-      return 'Pending';
-    case 'running':
-      return 'Running';
-    case 'completed':
-      return 'Completed';
-    case 'failed':
-      return 'Failed';
-    case 'cancelled':
-      return 'Cancelled';
-    default:
-      return status;
-  }
 }

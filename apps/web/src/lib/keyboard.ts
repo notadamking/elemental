@@ -407,3 +407,16 @@ export class KeyboardShortcutManager {
 
 // Global singleton instance
 export const keyboardManager = new KeyboardShortcutManager();
+
+/**
+ * Format a key binding string for display.
+ * Converts modifier names to platform-appropriate symbols.
+ */
+export function formatKeyBinding(keys: string): string {
+  return keys
+    .replace(/Cmd\+/gi, '⌘')
+    .replace(/Ctrl\+/gi, '⌃')
+    .replace(/Alt\+/gi, '⌥')
+    .replace(/Shift\+/gi, '⇧')
+    .replace(/\s+/g, ' ');
+}

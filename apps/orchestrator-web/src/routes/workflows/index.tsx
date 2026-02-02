@@ -10,9 +10,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
-import { PourWorkflowModal } from '../../components/workflow/PourWorkflowModal';
-import { WorkflowEditorModal } from '../../components/workflow/WorkflowEditorModal';
-import { WorkflowProgressDashboard } from '../../components/workflow/WorkflowProgressDashboard';
 import {
   Workflow,
   Plus,
@@ -20,267 +17,25 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  Play,
-  FileText,
-  Clock,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  MoreVertical,
-  Trash2,
   BookOpen,
-  Settings,
   ArrowLeft,
-  Eye,
 } from 'lucide-react';
 import {
+  // Components
+  PourWorkflowModal,
+  WorkflowEditorModal,
+  WorkflowProgressDashboard,
+  PlaybookCard,
+  WorkflowCard,
+  // Hooks
   useWorkflows,
   usePlaybooks,
   useCancelWorkflow,
   useDeleteWorkflow,
   useWorkflowDetail,
-  getWorkflowStatusDisplayName,
-  getWorkflowStatusColor,
-  formatWorkflowDuration,
-} from '../../api/hooks/useWorkflows';
-import type { Workflow as WorkflowType, Playbook, WorkflowStatus } from '../../api/types';
+} from '@elemental/ui/workflows';
 
 type TabValue = 'templates' | 'active';
-
-function formatRelativeTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
-}
-
-function getStatusIcon(status: WorkflowStatus) {
-  switch (status) {
-    case 'pending':
-      return <Clock className="w-4 h-4" />;
-    case 'running':
-      return <Play className="w-4 h-4" />;
-    case 'completed':
-      return <CheckCircle className="w-4 h-4" />;
-    case 'failed':
-      return <XCircle className="w-4 h-4" />;
-    case 'cancelled':
-      return <AlertTriangle className="w-4 h-4" />;
-    default:
-      return <Clock className="w-4 h-4" />;
-  }
-}
-
-// Playbook Card Component
-function PlaybookCard({
-  playbook,
-  onPour,
-  onEdit,
-}: {
-  playbook: Playbook;
-  onPour: (playbookId: string) => void;
-  onEdit: (playbookId: string) => void;
-}) {
-  const [showMenu, setShowMenu] = useState(false);
-
-  return (
-    <div
-      className="flex flex-col p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors duration-150"
-      data-testid={`playbook-card-${playbook.id}`}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[var(--color-primary-muted)]">
-            <BookOpen className="w-5 h-5 text-[var(--color-primary)]" />
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-[var(--color-text)]">{playbook.title}</h3>
-            <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{playbook.name}</p>
-          </div>
-        </div>
-        <div className="relative">
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-1 rounded hover:bg-[var(--color-surface-hover)] transition-colors"
-          >
-            <MoreVertical className="w-4 h-4 text-[var(--color-text-secondary)]" />
-          </button>
-          {showMenu && (
-            <div className="absolute right-0 mt-1 w-40 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg z-10">
-              <button
-                onClick={() => {
-                  onPour(playbook.id);
-                  setShowMenu(false);
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
-              >
-                <Play className="w-4 h-4" />
-                Pour Workflow
-              </button>
-              <button
-                onClick={() => {
-                  onEdit(playbook.id);
-                  setShowMenu(false);
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
-                data-testid={`playbook-edit-${playbook.id}`}
-              >
-                <Settings className="w-4 h-4" />
-                Edit
-              </button>
-              <button
-                onClick={() => setShowMenu(false)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-3 flex items-center gap-4 text-xs text-[var(--color-text-secondary)]">
-        <span className="flex items-center gap-1">
-          <FileText className="w-3 h-3" />
-          {playbook.steps.length} steps
-        </span>
-        <span>v{playbook.version}</span>
-        {playbook.variables.length > 0 && (
-          <span>{playbook.variables.length} variables</span>
-        )}
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-        <button
-          onClick={() => onPour(playbook.id)}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
-          data-testid={`playbook-pour-${playbook.id}`}
-        >
-          <Play className="w-4 h-4" />
-          Pour Workflow
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Workflow Card Component
-function WorkflowCard({
-  workflow,
-  onCancel,
-  onDelete,
-  onViewDetails,
-}: {
-  workflow: WorkflowType;
-  onCancel: (workflowId: string) => void;
-  onDelete: (workflowId: string) => void;
-  onViewDetails: (workflowId: string) => void;
-}) {
-  const [showMenu, setShowMenu] = useState(false);
-  const canCancel = workflow.status === 'pending' || workflow.status === 'running';
-  const isTerminal = ['completed', 'failed', 'cancelled'].includes(workflow.status);
-  const duration = formatWorkflowDuration(workflow);
-
-  return (
-    <div
-      className="flex flex-col p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors duration-150 cursor-pointer"
-      data-testid={`workflow-card-${workflow.id}`}
-      onClick={() => onViewDetails(workflow.id)}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${getWorkflowStatusColor(workflow.status)}`}>
-            {getStatusIcon(workflow.status)}
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-[var(--color-text)]">{workflow.title}</h3>
-            <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{workflow.id}</p>
-          </div>
-        </div>
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowMenu(!showMenu);
-            }}
-            className="p-1 rounded hover:bg-[var(--color-surface-hover)] transition-colors"
-          >
-            <MoreVertical className="w-4 h-4 text-[var(--color-text-secondary)]" />
-          </button>
-          {showMenu && (
-            <div className="absolute right-0 mt-1 w-40 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg z-10">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onViewDetails(workflow.id);
-                  setShowMenu(false);
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
-              >
-                <Eye className="w-4 h-4" />
-                View Details
-              </button>
-              {canCancel && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCancel(workflow.id);
-                    setShowMenu(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
-                >
-                  <XCircle className="w-4 h-4" />
-                  Cancel
-                </button>
-              )}
-              {isTerminal && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(workflow.id);
-                    setShowMenu(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-3 flex items-center gap-4 text-xs text-[var(--color-text-secondary)]">
-        <span className={`px-2 py-0.5 rounded-full ${getWorkflowStatusColor(workflow.status)}`}>
-          {getWorkflowStatusDisplayName(workflow.status)}
-        </span>
-        {duration && <span>Duration: {duration}</span>}
-        {workflow.ephemeral && <span className="text-amber-600">Ephemeral</span>}
-      </div>
-
-      <div className="mt-2 flex items-center gap-4 text-xs text-[var(--color-text-tertiary)]">
-        <span>Created {formatRelativeTime(workflow.createdAt)}</span>
-        {workflow.startedAt && <span>Started {formatRelativeTime(workflow.startedAt)}</span>}
-      </div>
-
-      {(workflow.failureReason || workflow.cancelReason) && (
-        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600 dark:text-red-400">
-          {workflow.failureReason || workflow.cancelReason}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function WorkflowsPage() {
   const search = useSearch({ from: '/workflows' }) as { tab?: string; selected?: string; action?: string };

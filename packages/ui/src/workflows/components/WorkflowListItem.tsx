@@ -1,21 +1,23 @@
 /**
- * Workflow List Item component for the workflow list view
+ * @elemental/ui Workflow List Item
+ *
+ * Card component for displaying a workflow in a list view.
  */
 
 import { ChevronRight } from 'lucide-react';
-import type { WorkflowType } from '../types';
-import { formatDate, formatRelativeTime } from '../utils';
+import type { Workflow } from '../types';
+import { formatRelativeTime, formatDate } from '../utils';
 import { StatusBadge } from './StatusBadge';
 
 interface WorkflowListItemProps {
-  workflow: WorkflowType;
-  isSelected: boolean;
-  onClick: (id: string) => void;
+  workflow: Workflow;
+  isSelected?: boolean;
+  onClick?: (id: string) => void;
 }
 
 export function WorkflowListItem({
   workflow,
-  isSelected,
+  isSelected = false,
   onClick,
 }: WorkflowListItemProps) {
   return (
@@ -26,7 +28,7 @@ export function WorkflowListItem({
           ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700'
           : 'bg-white dark:bg-[var(--color-surface)] border-gray-200 dark:border-[var(--color-border)] hover:border-gray-300 dark:hover:border-[var(--color-border-hover)] hover:bg-gray-50 dark:hover:bg-[var(--color-surface-hover)]'
       }`}
-      onClick={() => onClick(workflow.id)}
+      onClick={() => onClick?.(workflow.id)}
     >
       <div className="flex items-start justify-between mb-2">
         <h3
