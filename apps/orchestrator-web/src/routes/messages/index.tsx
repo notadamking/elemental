@@ -4,9 +4,9 @@
  * Features:
  * - Channel list sidebar with virtualized rendering
  * - Channel selection
- * - Message display
- * - Message composer
- * - Threading
+ * - Message display (TB17)
+ * - Message composer (TB18)
+ * - Threading (TB19)
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -15,7 +15,7 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { CreateChannelModal } from '../../components/message/CreateChannelModal';
-import { useAllChannels, type Channel } from '../../api/hooks/useAllElements';
+import { useAllChannels } from '../../api/hooks/useAllElements';
 import { createChannelFilter } from '../../hooks/usePaginatedData';
 import { useCurrentUser } from '../../contexts';
 import { useRealtimeEvents } from '../../api/hooks/useRealtimeEvents';
@@ -23,6 +23,7 @@ import type { WebSocketEvent } from '../../api/websocket';
 
 import { ChannelList, ChannelPlaceholder } from './components/ChannelList';
 import { ChannelView } from './components/ChannelView';
+import type { Channel } from '../../api/hooks/useAllElements';
 
 // ============================================================================
 // MessagesPage
@@ -186,17 +187,13 @@ export function MessagesPage() {
 
         {/* Mobile: Show channel view when channel selected */}
         {selectedChannelId && (
-          <ChannelView
-            channelId={selectedChannelId}
-            channel={filteredChannels.find(c => c.id === selectedChannelId)}
-            onBack={handleMobileBack}
-          />
+          <ChannelView channelId={selectedChannelId} isMobile={true} onBack={handleMobileBack} />
         )}
 
         <CreateChannelModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          onChannelCreated={(channelId) => handleChannelCreated({ id: channelId })}
+          onSuccess={handleChannelCreated}
         />
       </div>
     );
@@ -226,18 +223,15 @@ export function MessagesPage() {
       )}
 
       {selectedChannelId ? (
-        <ChannelView
-          channelId={selectedChannelId}
-          channel={filteredChannels.find(c => c.id === selectedChannelId)}
-        />
+        <ChannelView channelId={selectedChannelId} isMobile={false} />
       ) : (
-        <ChannelPlaceholder />
+        <ChannelPlaceholder isMobile={false} />
       )}
 
       <CreateChannelModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onChannelCreated={(channelId) => handleChannelCreated({ id: channelId })}
+        onSuccess={handleChannelCreated}
       />
     </div>
   );
