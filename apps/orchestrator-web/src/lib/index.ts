@@ -26,3 +26,11 @@ export {
   renderMessageContent,
   highlightSearchMatch,
 } from './message-content';
+
+// Keyboard shortcuts
+export {
+  DEFAULT_SHORTCUTS,
+  getShortcutsByCategory,
+  formatKeyBinding,
+  getAllShortcuts,
+} from './keyboard';

@@ -181,7 +181,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | `apps/server/` | `src/index.ts` | `src/ws/` (WebSocket) |
 | `apps/web/` | `src/main.tsx` | `src/components/`, `src/routes/`, `src/api/hooks/` |
 | `apps/orchestrator-server/` | `src/index.ts` | `src/routes/` (route modules), `src/config.ts`, `src/services.ts` |
-| `apps/orchestrator-web/` | `src/main.tsx` | `src/components/`, `src/routes/` |
+| `apps/orchestrator-web/` | `src/main.tsx` | `src/components/`, `src/routes/`, `src/lib/keyboard.ts`, `src/hooks/useKeyboardShortcuts.ts` |
 
 ## Critical Gotchas
 

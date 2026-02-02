@@ -1,5 +1,23 @@
 export { useDebounce } from './useDebounce';
 
+// Keyboard shortcuts hooks
+export {
+  useGlobalKeyboardShortcuts,
+  useKeyboardShortcut,
+  useDisableKeyboardShortcuts,
+  useShortcutVersion,
+  getKeyboardManager,
+  getCustomShortcuts,
+  setCustomShortcuts,
+  setCustomShortcut,
+  removeCustomShortcut,
+  resetAllShortcuts,
+  checkShortcutConflict,
+  getCurrentBinding,
+  SHORTCUTS_CHANGED_EVENT,
+} from './useKeyboardShortcuts';
+export type { GlobalKeyboardShortcutsOptions } from './useKeyboardShortcuts';
+
 // Responsive breakpoint hooks
 export {
   useBreakpoint,

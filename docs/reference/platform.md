@@ -501,6 +501,75 @@ app.route('/', createMyFeatureRoutes(services));
 | `/workflows` | `WorkflowsPage` | Workflow view |
 | `/metrics` | `MetricsPage` | System metrics |
 | `/settings` | `SettingsPage` | Configuration |
+| `/inbox` | `InboxPage` | Inbox messages |
+| `/messages` | `MessagesPage` | Channel messages |
+| `/documents` | `DocumentsPage` | Document library |
+
+### Keyboard Shortcuts
+
+The orchestrator-web app supports global keyboard shortcuts for navigation and actions.
+
+**Navigation (G prefix = "Go to"):**
+
+| Shortcut | Action |
+|----------|--------|
+| `G A` | Go to Activity |
+| `G T` | Go to Tasks |
+| `G E` | Go to Agents |
+| `G W` | Go to Workspaces |
+| `G F` | Go to Workflows |
+| `G M` | Go to Metrics |
+| `G S` | Go to Settings |
+| `G I` | Go to Inbox |
+| `G C` | Go to Messages |
+| `G D` | Go to Documents |
+
+**Actions (Cmd+ for global, C prefix for create):**
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+K` | Open Command Palette |
+| `Cmd+B` | Toggle Sidebar |
+| `Cmd+D` | Toggle Director Panel |
+| `C T` | Create Task |
+| `C A` | Create Agent |
+
+**Key Files:**
+
+| File | Purpose |
+|------|---------|
+| `lib/keyboard.ts` | Default shortcut definitions |
+| `hooks/useKeyboardShortcuts.ts` | React hooks for shortcuts |
+| `components/layout/AppShell.tsx` | Global shortcuts initialization |
+
+**Adding Custom Shortcuts:**
+
+```typescript
+import { useKeyboardShortcut } from '@/hooks';
+
+function MyComponent() {
+  useKeyboardShortcut('Cmd+E', () => {
+    console.log('Custom shortcut triggered');
+  }, 'My custom action');
+
+  return <div>...</div>;
+}
+```
+
+**Customizing Shortcuts:**
+
+Shortcuts can be customized via localStorage. The `@elemental/ui` package provides utilities:
+
+```typescript
+import { setCustomShortcut, resetAllShortcuts } from '@elemental/ui';
+import { DEFAULT_SHORTCUTS } from '@/lib/keyboard';
+
+// Change "Go to Tasks" from G T to G X
+setCustomShortcut('nav.tasks', 'G X', DEFAULT_SHORTCUTS);
+
+// Reset all to defaults
+resetAllShortcuts();
+```
 
 ### Workspace Panes
 

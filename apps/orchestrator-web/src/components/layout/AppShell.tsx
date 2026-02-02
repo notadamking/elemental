@@ -14,6 +14,7 @@ import { NotificationCenter } from '../notification';
 import { CommandPalette, useCommandPalette } from '../command';
 import { useQuery } from '@tanstack/react-query';
 import { useNotifications } from '../../api/hooks/useNotifications';
+import { useGlobalKeyboardShortcuts } from '../../hooks';
 import {
   ChevronRight,
   Activity,
@@ -334,9 +335,30 @@ export function AppShell() {
   // Command palette
   const { open: commandPaletteOpen, setOpen: setCommandPaletteOpen } = useCommandPalette();
 
+  // Toggle sidebar (works for both mobile drawer and desktop sidebar)
+  const toggleSidebar = useCallback(() => {
+    if (isMobile) {
+      setMobileDrawerOpen(prev => !prev);
+    } else {
+      setDesktopCollapsed(prev => !prev);
+    }
+  }, [isMobile, setMobileDrawerOpen, setDesktopCollapsed]);
+
   const toggleDirectorPanel = useCallback(() => {
     setDirectorCollapsed(prev => !prev);
   }, [setDirectorCollapsed]);
+
+  // Open command palette
+  const openCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(true);
+  }, [setCommandPaletteOpen]);
+
+  // Initialize global keyboard shortcuts (G T, G A, Cmd+B, Cmd+D, etc.)
+  useGlobalKeyboardShortcuts({
+    onToggleSidebar: toggleSidebar,
+    onToggleDirector: toggleDirectorPanel,
+    onOpenCommandPalette: openCommandPalette,
+  });
 
   const openMobileDrawer = useCallback(() => {
     setMobileDrawerOpen(true);

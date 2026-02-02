@@ -307,18 +307,43 @@ export function useSettings() {
 // Keyboard Shortcuts Reference
 // ============================================================================
 
+import { DEFAULT_SHORTCUTS, formatKeyBinding } from '../../lib/keyboard';
+
 export interface KeyboardShortcut {
   key: string;
   label: string;
   description: string;
+  actionId?: string;
 }
 
-export const KEYBOARD_SHORTCUTS: KeyboardShortcut[] = [
-  { key: '⌘K', label: 'Command palette', description: 'Open the command palette for quick actions' },
-  { key: '⌘B', label: 'Toggle sidebar', description: 'Show or hide the navigation sidebar' },
-  { key: '⌘D', label: 'Toggle Director panel', description: 'Show or hide the Director terminal panel' },
-  { key: '⌘/', label: 'Keyboard shortcuts', description: 'Show this keyboard shortcuts reference' },
-  { key: 'Esc', label: 'Close dialog', description: 'Close any open dialog or panel' },
-  { key: '↑↓', label: 'Navigate', description: 'Navigate through lists and options' },
-  { key: 'Enter', label: 'Select', description: 'Select the current item or confirm action' },
-];
+/**
+ * Build keyboard shortcuts list from DEFAULT_SHORTCUTS for display in settings.
+ * Adds common UI shortcuts that aren't in the navigation/action system.
+ */
+function buildKeyboardShortcuts(): KeyboardShortcut[] {
+  const shortcuts: KeyboardShortcut[] = [];
+
+  // Add shortcuts from DEFAULT_SHORTCUTS
+  for (const [actionId, shortcut] of Object.entries(DEFAULT_SHORTCUTS)) {
+    shortcuts.push({
+      key: formatKeyBinding(shortcut.keys),
+      label: shortcut.description || actionId,
+      description: shortcut.path
+        ? `Navigate to ${shortcut.path.split('?')[0]}`
+        : 'Quick action',
+      actionId,
+    });
+  }
+
+  // Add common UI shortcuts not in the keyboard system
+  shortcuts.push(
+    { key: 'Esc', label: 'Close dialog', description: 'Close any open dialog or panel' },
+    { key: '↑↓', label: 'Navigate', description: 'Navigate through lists and options' },
+    { key: 'Enter', label: 'Select', description: 'Select the current item or confirm action' },
+    { key: 'J/K', label: 'Next/Previous', description: 'Navigate items in inbox (vim-style)' }
+  );
+
+  return shortcuts;
+}
+
+export const KEYBOARD_SHORTCUTS: KeyboardShortcut[] = buildKeyboardShortcuts();
