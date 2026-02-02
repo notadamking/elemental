@@ -404,6 +404,9 @@ importers:
       '@elemental/storage':
         specifier: workspace:*
         version: link:../storage
+      yaml:
+        specifier: ^2.8.2
+        version: 2.8.2
     devDependencies:
       '@types/bun':
         specifier: latest

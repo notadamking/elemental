@@ -72,7 +72,8 @@
   ],
   "dependencies": {
     "@elemental/core": "workspace:*",
-    "@elemental/storage": "workspace:*"
+    "@elemental/storage": "workspace:*",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/bun": "latest",
