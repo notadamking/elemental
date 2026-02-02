@@ -230,11 +230,18 @@ export function createPlanRoutes(services: CollaborateServices) {
 
       return c.json(dependency, 201);
     } catch (error) {
-      if ((error as { code?: string }).code === 'ALREADY_EXISTS') {
-        return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in this plan' } }, 409);
+      const errorCode = (error as { code?: string }).code;
+      const errorMessage = (error as Error).message || '';
+
+      if (errorCode === 'ALREADY_EXISTS' || errorMessage.includes('already in plan')) {
+        return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in a plan. Each task can only belong to one plan.' } }, 409);
       }
-      if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
-        return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+      if (errorCode === 'VALIDATION_ERROR') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: errorMessage } }, 400);
+      }
+      // Handle ConstraintError for task already in plan
+      if (error instanceof Error && (error.name === 'ConstraintError' || errorMessage.includes('already in plan'))) {
+        return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in a plan. Each task can only belong to one plan.' } }, 409);
       }
       console.error('[elemental] Failed to add task to plan:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to add task to plan' } }, 500);
@@ -432,11 +439,18 @@ export function createPlanRoutes(services: CollaborateServices) {
         initialTask: createdTask || { id: taskId }
       }, 201);
     } catch (error) {
-      if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
-        return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
+      const errorCode = (error as { code?: string }).code;
+      const errorMessage = (error as Error).message || '';
+
+      if (errorCode === 'VALIDATION_ERROR') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: errorMessage } }, 400);
       }
-      if ((error as { code?: string }).code === 'ALREADY_EXISTS') {
-        return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in another plan' } }, 409);
+      if (errorCode === 'ALREADY_EXISTS' || errorMessage.includes('already in plan')) {
+        return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in another plan. Each task can only belong to one plan.' } }, 409);
+      }
+      // Handle ConstraintError for task already in plan
+      if (error instanceof Error && (error.name === 'ConstraintError' || errorMessage.includes('already in plan'))) {
+        return c.json({ error: { code: 'ALREADY_EXISTS', message: 'Task is already in another plan. Each task can only belong to one plan.' } }, 409);
       }
       console.error('[elemental] Failed to create plan:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create plan' } }, 500);
