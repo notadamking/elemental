@@ -190,6 +190,7 @@ interface UpdateTaskInput {
   owner?: EntityId | null;
   deadline?: string | null;
   closeReason?: string;
+  tags?: string[];
 }
 
 /**

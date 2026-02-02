@@ -296,24 +296,12 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         </div>
 
         {/* Tags */}
-        {task.tags.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-1 text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-2">
-              <Tag className="w-3 h-3" />
-              Tags
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {task.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2 py-0.5 text-xs bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] rounded"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+        <EditableTags
+          tags={task.tags}
+          onSave={(tags) => handleUpdate({ tags })}
+          isUpdating={updateTask.isPending && editingField === 'tags'}
+          onEdit={() => setEditingField('tags')}
+        />
 
         {/* Description */}
         <EditableDescription
@@ -919,6 +907,184 @@ function DeadlineInput({
         <Pencil className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
       </button>
       {isUpdating && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-text-tertiary)]" />}
+    </div>
+  );
+}
+
+// Editable Tags
+function EditableTags({
+  tags,
+  onSave,
+  isUpdating,
+  onEdit,
+}: {
+  tags: string[];
+  onSave: (tags: string[]) => void;
+  isUpdating: boolean;
+  onEdit: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTags, setEditTags] = useState<string[]>(tags);
+  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditTags(tags);
+  }, [tags]);
+
+  const handleAddTag = () => {
+    const trimmed = inputValue.trim().toLowerCase();
+    if (trimmed && !editTags.includes(trimmed)) {
+      setEditTags([...editTags, trimmed]);
+      setInputValue('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditTags(editTags.filter((t) => t !== tagToRemove));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddTag();
+    } else if (e.key === 'Escape') {
+      setEditTags(tags);
+      setInputValue('');
+      setIsEditing(false);
+    } else if (e.key === 'Backspace' && !inputValue && editTags.length > 0) {
+      setEditTags(editTags.slice(0, -1));
+    }
+  };
+
+  const handleSave = () => {
+    const tagsChanged = JSON.stringify(editTags.sort()) !== JSON.stringify([...tags].sort());
+    if (tagsChanged) {
+      onEdit();
+      onSave(editTags);
+    }
+    setIsEditing(false);
+    setInputValue('');
+  };
+
+  if (isEditing) {
+    return (
+      <div className="mb-6" data-testid="tags-editor">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1 text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
+            <Tag className="w-3 h-3" />
+            Tags
+          </div>
+          <span className="text-[10px] text-[var(--color-text-tertiary)]">
+            Enter to add, Esc to cancel
+          </span>
+        </div>
+        <div className="p-2 border border-[var(--color-primary)] rounded-lg bg-[var(--color-input-bg)] focus-within:ring-2 focus-within:ring-[var(--color-primary)]">
+          <div className="flex flex-wrap gap-1 mb-2">
+            {editTags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] rounded"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  className="hover:text-[var(--color-danger)]"
+                  aria-label={`Remove ${tag}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => {
+              if (inputValue.trim()) handleAddTag();
+            }}
+            placeholder="Type tag and press Enter..."
+            className="w-full text-sm bg-transparent text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none"
+            data-testid="tags-input"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 mt-2">
+          {isUpdating && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-text-tertiary)]" />}
+          <button
+            onClick={() => {
+              setEditTags(tags);
+              setInputValue('');
+              setIsEditing(false);
+            }}
+            className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-[var(--color-primary)] hover:opacity-90 rounded transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 group" data-testid="tags-section">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1 text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide">
+          <Tag className="w-3 h-3" />
+          Tags
+        </div>
+        <button
+          onClick={() => setIsEditing(true)}
+          className="p-1 opacity-0 group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] rounded transition-opacity"
+          aria-label="Edit tags"
+        >
+          <Pencil className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+        </button>
+      </div>
+      {tags.length > 0 ? (
+        <div
+          className="flex flex-wrap gap-1 p-2 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-primary)] transition-colors"
+          onClick={() => setIsEditing(true)}
+        >
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="px-2 py-0.5 text-xs bg-[var(--color-surface)] text-[var(--color-text-secondary)] rounded"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <button
+          onClick={() => setIsEditing(true)}
+          className="w-full p-2 text-sm text-[var(--color-text-tertiary)] italic bg-[var(--color-surface-elevated)] rounded-lg border border-dashed border-[var(--color-border)] hover:border-[var(--color-primary)] hover:text-[var(--color-text-secondary)] transition-colors text-left"
+          data-testid="add-tags-btn"
+        >
+          Add tags...
+        </button>
+      )}
+      {isUpdating && (
+        <div className="flex items-center gap-2 mt-2 text-xs text-[var(--color-text-tertiary)]">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Saving...
+        </div>
+      )}
     </div>
   );
 }

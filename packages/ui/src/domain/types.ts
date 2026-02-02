@@ -224,6 +224,8 @@ export function getPriorityColor(priority: Priority | number): string {
  */
 export function getStatusDisplayName(status: TaskStatus | string): string {
   switch (status) {
+    case 'open':
+      return 'Open';
     case 'todo':
       return 'To Do';
     case 'in_progress':
@@ -248,20 +250,22 @@ export function getStatusDisplayName(status: TaskStatus | string): string {
  */
 export function getStatusColor(status: TaskStatus | string): string {
   switch (status) {
+    case 'open':
+      return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30';
     case 'todo':
       return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50';
     case 'in_progress':
-      return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30';
+      return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
     case 'done':
       return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
     case 'blocked':
       return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
     case 'closed':
-      return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50';
+      return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
     case 'cancelled':
       return 'text-gray-500 bg-gray-50 dark:text-gray-500 dark:bg-gray-800/30';
     case 'deferred':
-      return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
+      return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50';
     default:
       return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50';
   }
