@@ -236,6 +236,7 @@ export interface Task {
   id: ElementId;
   type: 'task';
   title: string;
+  description?: string;
   descriptionRef?: string;
   designRef?: string;
   acceptanceCriteria?: string;
@@ -257,6 +258,7 @@ export interface Task {
   tags: string[];
   metadata?: {
     orchestrator?: OrchestratorTaskMeta;
+    description?: string;
     [key: string]: unknown;
   };
 }

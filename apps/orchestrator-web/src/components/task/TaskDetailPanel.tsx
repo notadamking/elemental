@@ -29,6 +29,7 @@ import {
 import { useTask, useUpdateTask, useDeleteTask, useStartTask, useCompleteTask } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
+import { MarkdownContent } from '../shared/MarkdownContent';
 import type { Task, Agent, Priority, TaskStatus } from '../../api/types';
 
 interface TaskDetailPanelProps {
@@ -66,6 +67,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const task = data?.task;
   const workers: Agent[] = agentsData?.agents ?? [];
   const orchestratorMeta = task?.metadata?.orchestrator;
+  const description = task?.description;
 
   const canStart = task?.status === 'open' && task?.assignee;
   const canComplete = task?.status === 'in_progress';
@@ -280,6 +282,22 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                   {tag}
                 </span>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Description */}
+        {description && (
+          <div className="mb-6">
+            <h3 className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-2">
+              Description
+            </h3>
+            <div className="p-3 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)]">
+              <MarkdownContent
+                content={description}
+                className="text-sm text-[var(--color-text)] prose prose-sm dark:prose-invert max-w-none"
+                data-testid="task-description"
+              />
             </div>
           </div>
         )}

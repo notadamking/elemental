@@ -108,7 +108,6 @@ export function StartAgentDialog({
         const result = await createTask.mutateAsync({
           title: trimmedTitle,
           priority: newTaskForm.priority,
-          ephemeral: true, // Mark as ephemeral task
         });
         taskId = result.task.id;
       } catch (err) {

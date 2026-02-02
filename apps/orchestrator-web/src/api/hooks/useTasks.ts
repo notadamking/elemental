@@ -148,7 +148,7 @@ export function useTaskCounts() {
 
 interface CreateTaskInput {
   title: string;
-  descriptionRef?: string;
+  description?: string;
   acceptanceCriteria?: string;
   priority?: Priority;
   complexity?: number;
@@ -158,7 +158,6 @@ interface CreateTaskInput {
   deadline?: string;
   scheduledFor?: string;
   tags?: string[];
-  ephemeral?: boolean;
 }
 
 /**

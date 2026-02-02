@@ -3,7 +3,7 @@
  *
  * Orchestrator-specific features:
  * - Agent assignment (workers) instead of generic entity assignment
- * - Supports ephemeral flag for temporary tasks
+ * - Markdown description with preview
  * - Simpler form focused on orchestrator workflow
  */
 
@@ -45,12 +45,12 @@ const TASK_TYPE_OPTIONS: { value: TaskTypeValue; label: string }[] = [
 
 export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalProps) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>(3);
   const [complexity, setComplexity] = useState<Complexity>(3);
   const [taskType, setTaskType] = useState<TaskTypeValue>('task');
   const [assignee, setAssignee] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [ephemeral, setEphemeral] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const createTask = useCreateTask();
@@ -70,12 +70,12 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   useEffect(() => {
     if (!isOpen) {
       setTitle('');
+      setDescription('');
       setPriority(3);
       setComplexity(3);
       setTaskType('task');
       setAssignee('');
       setTags([]);
-      setEphemeral(false);
       createTask.reset();
     }
   }, [isOpen]);
@@ -88,12 +88,12 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
     try {
       const result = await createTask.mutateAsync({
         title: title.trim(),
+        description: description.trim() || undefined,
         priority,
         complexity,
         taskType,
         assignee: assignee || undefined,
         tags: tags.length > 0 ? tags : undefined,
-        ephemeral,
       });
       onSuccess?.(result.task?.id ?? '');
       onClose();
@@ -154,6 +154,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
             title={title}
             setTitle={setTitle}
             titleInputRef={titleInputRef}
+            description={description}
+            setDescription={setDescription}
             priority={priority}
             setPriority={setPriority}
             complexity={complexity}
@@ -165,8 +167,6 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
             workers={workers}
             tags={tags}
             setTags={setTags}
-            ephemeral={ephemeral}
-            setEphemeral={setEphemeral}
           />
         </form>
       </div>
@@ -214,6 +214,8 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
               title={title}
               setTitle={setTitle}
               titleInputRef={titleInputRef}
+              description={description}
+              setDescription={setDescription}
               priority={priority}
               setPriority={setPriority}
               complexity={complexity}
@@ -225,8 +227,6 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
               workers={workers}
               tags={tags}
               setTags={setTags}
-              ephemeral={ephemeral}
-              setEphemeral={setEphemeral}
             />
 
             {/* Actions */}
@@ -270,6 +270,8 @@ interface FormFieldsProps {
   title: string;
   setTitle: (value: string) => void;
   titleInputRef: React.RefObject<HTMLInputElement | null>;
+  description: string;
+  setDescription: (value: string) => void;
   priority: Priority;
   setPriority: (value: Priority) => void;
   complexity: Complexity;
@@ -281,14 +283,14 @@ interface FormFieldsProps {
   workers: Agent[];
   tags: string[];
   setTags: (value: string[]) => void;
-  ephemeral: boolean;
-  setEphemeral: (value: boolean) => void;
 }
 
 function FormFields({
   title,
   setTitle,
   titleInputRef,
+  description,
+  setDescription,
   priority,
   setPriority,
   complexity,
@@ -300,8 +302,6 @@ function FormFields({
   workers,
   tags,
   setTags,
-  ephemeral,
-  setEphemeral,
 }: FormFieldsProps) {
   return (
     <>
@@ -324,6 +324,28 @@ function FormFields({
           data-testid="create-task-title"
           required
         />
+      </div>
+
+      {/* Description */}
+      <div className="mb-4">
+        <label
+          htmlFor="task-description"
+          className="block text-sm font-medium text-[var(--color-text)] mb-1"
+        >
+          Description
+        </label>
+        <textarea
+          id="task-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Describe the task in detail... (supports Markdown)"
+          rows={4}
+          className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md bg-[var(--color-input-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent resize-y min-h-[100px]"
+          data-testid="create-task-description"
+        />
+        <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
+          Markdown formatting is supported
+        </p>
       </div>
 
       {/* Priority & Complexity */}
@@ -428,25 +450,6 @@ function FormFields({
           placeholder="Type and press comma to add tags"
           data-testid="create-task-tags"
         />
-      </div>
-
-      {/* Ephemeral toggle */}
-      <div className="mb-4">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={ephemeral}
-            onChange={(e) => setEphemeral(e.target.checked)}
-            className="w-4 h-4 text-[var(--color-primary)] border-[var(--color-border)] rounded focus:ring-[var(--color-primary)] focus:ring-offset-0"
-            data-testid="create-task-ephemeral"
-          />
-          <div>
-            <span className="text-sm font-medium text-[var(--color-text)]">Ephemeral task</span>
-            <p className="text-xs text-[var(--color-text-tertiary)]">
-              Temporary task that won't be persisted long-term
-            </p>
-          </div>
-        </label>
       </div>
     </>
   );
