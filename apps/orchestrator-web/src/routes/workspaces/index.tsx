@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
+import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 import {
   LayoutGrid,
   Plus,
@@ -37,9 +38,22 @@ const layoutPresets: { id: LayoutPreset; icon: typeof Square; label: string }[] 
 ];
 
 export function WorkspacesPage() {
-  const search = useSearch({ from: '/workspaces' }) as { layout?: string; agent?: string };
+  const search = useSearch({ from: '/workspaces' }) as { layout?: string; agent?: string; action?: string };
   const navigate = useNavigate();
   const [showAddPane, setShowAddPane] = useState(false);
+
+  // Handle ?action=addPane from global keyboard shortcuts
+  useEffect(() => {
+    if (search.action === 'addPane') {
+      setShowAddPane(true);
+      // Clear the action param
+      navigate({
+        to: '/workspaces',
+        search: { layout: search.layout ?? 'single', agent: undefined },
+        replace: true,
+      });
+    }
+  }, [search.action, search.layout, navigate]);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [layoutName, setLayoutName] = useState('');
@@ -286,6 +300,9 @@ export function WorkspacesPage() {
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Add Pane</span>
+            <kbd className="hidden sm:inline ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
+              {formatKeyBinding(getCurrentBinding('action.addPane'))}
+            </kbd>
           </button>
         </div>
       </div>

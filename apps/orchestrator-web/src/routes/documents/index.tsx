@@ -29,17 +29,34 @@ import {
 
 export function DocumentsPage() {
   const navigate = useNavigate();
-  const search = useSearch({ from: '/documents' });
+  const search = useSearch({ from: '/documents' }) as {
+    library?: string;
+    selected?: string;
+    action?: string;
+  };
   const isMobile = useIsMobile();
 
   const { data: libraries = [], isLoading, error } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
-    (search as { library?: string }).library ?? null
+    search.library ?? null
   );
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(
-    (search as { selected?: string }).selected ?? null
+    search.selected ?? null
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Handle ?action=create from global keyboard shortcuts
+  useEffect(() => {
+    if (search.action === 'create') {
+      setShowCreateModal(true);
+      // Clear the action param
+      navigate({
+        to: '/documents',
+        search: { library: search.library, selected: search.selected },
+        replace: true,
+      });
+    }
+  }, [search.action, search.library, search.selected, navigate]);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
   // Expand state - initialized from localStorage
   const [isDocumentExpanded, setIsDocumentExpandedState] = useState(false);
@@ -89,20 +106,19 @@ export function DocumentsPage() {
 
   // Sync state from URL on mount and when search changes
   useEffect(() => {
-    const searchParams = search as { selected?: string; library?: string };
-    if (searchParams.selected && searchParams.selected !== selectedDocumentId) {
-      setSelectedDocumentId(searchParams.selected);
+    if (search.selected && search.selected !== selectedDocumentId) {
+      setSelectedDocumentId(search.selected);
     }
-    if (!searchParams.selected && selectedDocumentId) {
+    if (!search.selected && selectedDocumentId) {
       setSelectedDocumentId(null);
     }
-    if (searchParams.library && searchParams.library !== selectedLibraryId) {
-      setSelectedLibraryId(searchParams.library);
+    if (search.library && search.library !== selectedLibraryId) {
+      setSelectedLibraryId(search.library);
     }
-    if (!searchParams.library && selectedLibraryId) {
+    if (!search.library && selectedLibraryId) {
       setSelectedLibraryId(null);
     }
-  }, [search]);
+  }, [search.selected, search.library, selectedDocumentId, selectedLibraryId]);
 
   // Toggle expand/collapse for a library in the tree
   const handleToggleExpand = (id: string) => {

@@ -6,6 +6,13 @@
  */
 
 import type { ShortcutCategory, ShortcutDefinition } from '@elemental/ui';
+import {
+  getCurrentBinding as getBindingFromUI,
+  checkShortcutConflict as checkConflictFromUI,
+  setCustomShortcut as setShortcutFromUI,
+  resetAllShortcuts as resetAllFromUI,
+  getCustomShortcuts,
+} from '@elemental/ui';
 
 /**
  * Default keyboard shortcuts for the orchestrator app.
@@ -104,16 +111,64 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutDefinition> = {
   },
   'action.createPlan': {
     keys: 'C P',
+    path: '/plans?action=create',
     description: 'Create Plan',
+    category: 'actions',
+  },
+  'action.createDocument': {
+    keys: 'C D',
+    path: '/documents?action=create',
+    description: 'Create Document',
+    category: 'actions',
+  },
+  'action.createWorkflow': {
+    keys: 'C W',
+    path: '/workflows?action=create',
+    description: 'Create Template',
+    category: 'actions',
+  },
+  'action.addPane': {
+    keys: 'A P',
+    path: '/workspaces?action=addPane',
+    description: 'Add Pane',
+    category: 'actions',
+  },
+  'action.refreshActivity': {
+    keys: 'R A',
+    description: 'Refresh Activity',
     category: 'actions',
   },
 };
 
+// Re-export getCustomShortcuts for use in settings
+export { getCustomShortcuts };
+
 /**
- * Get the current binding for an action (returns the default keys)
+ * Get the current binding for an action (custom or default)
  */
 export function getCurrentBinding(actionId: string): string {
-  return DEFAULT_SHORTCUTS[actionId]?.keys || '';
+  return getBindingFromUI(actionId, DEFAULT_SHORTCUTS);
+}
+
+/**
+ * Check if a key binding conflicts with existing bindings
+ */
+export function checkShortcutConflict(keys: string, excludeActionId?: string): string | null {
+  return checkConflictFromUI(keys, DEFAULT_SHORTCUTS, excludeActionId);
+}
+
+/**
+ * Update a single custom shortcut
+ */
+export function setCustomShortcut(actionId: string, keys: string): void {
+  setShortcutFromUI(actionId, keys, DEFAULT_SHORTCUTS);
+}
+
+/**
+ * Reset all shortcuts to defaults
+ */
+export function resetAllShortcuts(): void {
+  resetAllFromUI();
 }
 
 /**

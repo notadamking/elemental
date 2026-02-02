@@ -72,6 +72,7 @@ import {
   getStoredSearch,
   setStoredSearch,
 } from '../../lib/task-utils';
+import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 
 type TabValue = 'all' | 'unassigned' | 'assigned' | 'in_progress' | 'done' | 'awaiting_merge';
 
@@ -82,6 +83,7 @@ export function TasksPage() {
     limit?: number;
     status?: string;
     assignee?: string;
+    action?: string;
   };
   const navigate = useNavigate();
 
@@ -104,6 +106,25 @@ export function TasksPage() {
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const selectedTaskId = search.selected;
+
+  // Handle ?action=create from global keyboard shortcuts
+  useEffect(() => {
+    if (search.action === 'create') {
+      setIsCreateModalOpen(true);
+      // Clear the action param
+      navigate({
+        to: '/tasks',
+        search: {
+          selected: search.selected,
+          page: search.page ?? 1,
+          limit: search.limit ?? DEFAULT_PAGE_SIZE,
+          status: search.status,
+          assignee: search.assignee,
+        },
+        replace: true,
+      });
+    }
+  }, [search.action, search.selected, search.page, search.limit, search.status, search.assignee, navigate]);
 
   // Track pending operations
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
@@ -483,6 +504,9 @@ export function TasksPage() {
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Create Task</span>
+            <kbd className="hidden sm:inline ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
+              {formatKeyBinding(getCurrentBinding('action.createTask'))}
+            </kbd>
           </button>
         </div>
       </div>

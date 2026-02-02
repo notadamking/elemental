@@ -5,9 +5,10 @@
  * Organized with tabs for Agents (Director + Workers), Stewards, and Graph View.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw, Network } from 'lucide-react';
+import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 import { useAgentsByRole, useStartAgentSession, useStopAgentSession, useDirector, useSessions } from '../../api/hooks/useAgents';
 import { useTasks } from '../../api/hooks/useTasks';
 import { AgentCard, CreateAgentDialog, RenameAgentDialog, StartAgentDialog } from '../../components/agent';
@@ -17,7 +18,7 @@ import type { Agent, SessionStatus, AgentRole, StewardFocus } from '../../api/ty
 type TabValue = 'agents' | 'stewards' | 'graph';
 
 export function AgentsPage() {
-  const search = useSearch({ from: '/agents' }) as { tab?: string; selected?: string; role?: string };
+  const search = useSearch({ from: '/agents' }) as { tab?: string; selected?: string; role?: string; action?: string };
   const navigate = useNavigate();
 
   const currentTab = (search.tab as TabValue) || 'agents';
@@ -25,6 +26,19 @@ export function AgentsPage() {
 
   // Create Agent Dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Handle ?action=create from global keyboard shortcuts
+  useEffect(() => {
+    if (search.action === 'create') {
+      setCreateDialogOpen(true);
+      // Clear the action param
+      navigate({
+        to: '/agents',
+        search: { tab: search.tab ?? 'agents', selected: search.selected, role: search.role },
+        replace: true,
+      });
+    }
+  }, [search.action, search.tab, search.selected, search.role, navigate]);
   const [createDialogRole, setCreateDialogRole] = useState<AgentRole | undefined>(undefined);
   const [createDialogStewardFocus, setCreateDialogStewardFocus] = useState<StewardFocus | undefined>(undefined);
 
@@ -271,6 +285,9 @@ export function AgentsPage() {
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">{currentTab === 'stewards' ? 'Create Steward' : 'Create Agent'}</span>
+            <kbd className="hidden sm:inline ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
+              {formatKeyBinding(getCurrentBinding('action.createAgent'))}
+            </kbd>
           </button>
         </div>
       </div>

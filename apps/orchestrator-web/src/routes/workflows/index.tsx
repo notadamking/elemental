@@ -7,8 +7,9 @@
  * TB-O35: Workflow Progress Dashboard
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
+import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 import { PourWorkflowModal } from '../../components/workflow/PourWorkflowModal';
 import { WorkflowEditorModal } from '../../components/workflow/WorkflowEditorModal';
 import { WorkflowProgressDashboard } from '../../components/workflow/WorkflowProgressDashboard';
@@ -282,7 +283,7 @@ function WorkflowCard({
 }
 
 export function WorkflowsPage() {
-  const search = useSearch({ from: '/workflows' }) as { tab?: string; selected?: string };
+  const search = useSearch({ from: '/workflows' }) as { tab?: string; selected?: string; action?: string };
   const navigate = useNavigate();
 
   const currentTab = (search.tab as TabValue) || 'templates';
@@ -296,6 +297,21 @@ export function WorkflowsPage() {
   // Editor modal state (TB-O33)
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [editingPlaybookId, setEditingPlaybookId] = useState<string | null>(null);
+
+  // Handle ?action=create from global keyboard shortcuts
+  useEffect(() => {
+    if (search.action === 'create') {
+      // Switch to templates tab and open editor
+      setEditorModalOpen(true);
+      setEditingPlaybookId(null);
+      // Clear the action param and switch to templates tab
+      navigate({
+        to: '/workflows',
+        search: { tab: 'templates', selected: undefined },
+        replace: true,
+      });
+    }
+  }, [search.action, navigate]);
 
   // Fetch playbooks for templates tab
   const { data: playbooksData, isLoading: playbooksLoading, error: playbooksError, refetch: refetchPlaybooks } = usePlaybooks();
@@ -491,6 +507,9 @@ export function WorkflowsPage() {
             >
               <Plus className="w-4 h-4" />
               Create Template
+              <kbd className="ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">
+                {formatKeyBinding(getCurrentBinding('action.createWorkflow'))}
+              </kbd>
             </button>
           )}
         </div>

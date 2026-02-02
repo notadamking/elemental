@@ -22,7 +22,9 @@ import {
   FileText,
   type LucideIcon,
 } from 'lucide-react';
+import { useShortcutVersion } from '@elemental/ui';
 import { Tooltip } from '../ui/Tooltip';
+import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 
 interface NavItem {
   to: string;
@@ -30,6 +32,8 @@ interface NavItem {
   label: string;
   testId?: string;
   search?: Record<string, unknown>;
+  /** Action ID for keyboard shortcut (matches DEFAULT_SHORTCUTS keys) */
+  actionId?: string;
 }
 
 interface NavSection {
@@ -47,8 +51,8 @@ const NAV_SECTIONS: NavSection[] = [
     icon: Activity,
     defaultExpanded: true,
     items: [
-      { to: '/activity', icon: Activity, label: 'Activity', testId: 'nav-activity' },
-      { to: '/inbox', icon: Inbox, label: 'Inbox', testId: 'nav-inbox', search: { message: undefined } },
+      { to: '/activity', icon: Activity, label: 'Activity', testId: 'nav-activity', actionId: 'nav.activity' },
+      { to: '/inbox', icon: Inbox, label: 'Inbox', testId: 'nav-inbox', search: { message: undefined }, actionId: 'nav.inbox' },
     ],
   },
   {
@@ -56,9 +60,9 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Work',
     defaultExpanded: true,
     items: [
-      { to: '/tasks', icon: CheckSquare, label: 'Tasks', testId: 'nav-tasks' },
+      { to: '/tasks', icon: CheckSquare, label: 'Tasks', testId: 'nav-tasks', actionId: 'nav.tasks' },
       { to: '/plans', icon: ClipboardList, label: 'Plans', testId: 'nav-plans' },
-      { to: '/workflows', icon: Workflow, label: 'Workflows', testId: 'nav-workflows' },
+      { to: '/workflows', icon: Workflow, label: 'Workflows', testId: 'nav-workflows', actionId: 'nav.workflows' },
     ],
   },
   {
@@ -66,8 +70,8 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Orchestration',
     defaultExpanded: true,
     items: [
-      { to: '/agents', icon: Users, label: 'Agents', testId: 'nav-agents' },
-      { to: '/workspaces', icon: LayoutGrid, label: 'Workspaces', testId: 'nav-workspaces' },
+      { to: '/agents', icon: Users, label: 'Agents', testId: 'nav-agents', actionId: 'nav.agents' },
+      { to: '/workspaces', icon: LayoutGrid, label: 'Workspaces', testId: 'nav-workspaces', actionId: 'nav.workspaces' },
     ],
   },
   {
@@ -75,8 +79,8 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Collaborate',
     defaultExpanded: true,
     items: [
-      { to: '/messages', icon: MessageSquare, label: 'Messages', testId: 'nav-messages', search: { channel: undefined, message: undefined } },
-      { to: '/documents', icon: FileText, label: 'Documents', testId: 'nav-documents', search: { selected: undefined, library: undefined } },
+      { to: '/messages', icon: MessageSquare, label: 'Messages', testId: 'nav-messages', search: { channel: undefined, message: undefined }, actionId: 'nav.messages' },
+      { to: '/documents', icon: FileText, label: 'Documents', testId: 'nav-documents', search: { selected: undefined, library: undefined }, actionId: 'nav.documents' },
     ],
   },
   {
@@ -84,13 +88,13 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Analytics',
     defaultExpanded: true,
     items: [
-      { to: '/metrics', icon: BarChart3, label: 'Metrics', testId: 'nav-metrics' },
+      { to: '/metrics', icon: BarChart3, label: 'Metrics', testId: 'nav-metrics', actionId: 'nav.metrics' },
     ],
   },
 ];
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [
-  { to: '/settings', icon: Settings, label: 'Settings', testId: 'nav-settings' },
+  { to: '/settings', icon: Settings, label: 'Settings', testId: 'nav-settings', actionId: 'nav.settings' },
 ];
 
 interface SidebarProps {
@@ -102,6 +106,9 @@ interface SidebarProps {
 export function Sidebar({ collapsed = false, onToggle, isMobileDrawer = false }: SidebarProps) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+
+  // Subscribe to shortcut changes for hot-reload
+  useShortcutVersion();
 
   // Track expanded sections
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() =>
@@ -157,7 +164,14 @@ export function Sidebar({ collapsed = false, onToggle, isMobileDrawer = false }:
           <Icon className={`w-4 h-4 ${isActive ? 'text-[var(--color-sidebar-item-text-active)]' : 'text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)]'}`} />
         </div>
         {!collapsed && (
-          <span className="flex-1 truncate">{item.label}</span>
+          <>
+            <span className="flex-1 truncate">{item.label}</span>
+            {item.actionId && (
+              <span className="text-[10px] text-[var(--color-text-muted)] font-mono tracking-wide opacity-0 group-hover:opacity-100 transition-opacity">
+                {formatKeyBinding(getCurrentBinding(item.actionId))}
+              </span>
+            )}
+          </>
         )}
       </Link>
     );

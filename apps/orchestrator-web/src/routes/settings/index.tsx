@@ -27,11 +27,12 @@ import {
   Trash2,
   Calendar,
 } from 'lucide-react';
+import { useIsMobile, ShortcutsSection } from '@elemental/ui';
 import {
   useSettings,
-  KEYBOARD_SHORTCUTS,
   type Theme,
 } from '../../api/hooks/useSettings';
+import { DEFAULT_SHORTCUTS } from '../../lib/keyboard';
 
 type TabValue = 'preferences' | 'workspace';
 
@@ -109,6 +110,7 @@ export function SettingsPage() {
 
 function PreferencesTab() {
   const { theme, notifications } = useSettings();
+  const isMobile = useIsMobile();
 
   return (
     <div className="space-y-6 max-w-2xl" data-testid="settings-preferences">
@@ -221,23 +223,7 @@ function PreferencesTab() {
         title="Keyboard Shortcuts"
         description="Quick access to common actions"
       >
-        <div className="space-y-2">
-          {KEYBOARD_SHORTCUTS.map((shortcut) => (
-            <div
-              key={shortcut.key}
-              className="flex items-center justify-between py-2"
-              data-testid={`shortcut-${shortcut.label.toLowerCase().replace(/\s+/g, '-')}`}
-            >
-              <div>
-                <span className="text-sm text-[var(--color-text)]">{shortcut.label}</span>
-                <p className="text-xs text-[var(--color-text-tertiary)]">{shortcut.description}</p>
-              </div>
-              <kbd className="px-2 py-1 rounded bg-[var(--color-surface)] text-[var(--color-text-secondary)] font-mono text-xs border border-[var(--color-border)]">
-                {shortcut.key}
-              </kbd>
-            </div>
-          ))}
-        </div>
+        <ShortcutsSection defaults={DEFAULT_SHORTCUTS} isMobile={isMobile} />
       </SettingsSection>
     </div>
   );

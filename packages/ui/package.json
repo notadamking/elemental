@@ -42,6 +42,10 @@
       "types": "./dist/plans/index.d.ts",
       "import": "./dist/plans/index.js"
     },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js"
+    },
     "./styles/tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {

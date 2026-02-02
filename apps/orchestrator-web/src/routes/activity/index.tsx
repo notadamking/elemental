@@ -3,8 +3,10 @@
  * Home page showing live agent activity
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Activity as ActivityIcon, RefreshCw, Radio, WifiOff, Filter } from 'lucide-react';
+import { useKeyboardShortcut } from '@elemental/ui';
+import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 import { ActivityList, SessionActivityCard } from '../../components/activity/index.js';
 import { useInfiniteActivity, useActivityStream } from '../../api/hooks/useActivity.js';
 import type { ActivityFilterCategory, ActivityEvent } from '../../api/types.js';
@@ -43,10 +45,17 @@ export function ActivityPage() {
     return data.pages.flatMap((page) => page.events);
   }, [data]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     clearSessionEvents();
     refetch();
-  };
+  }, [clearSessionEvents, refetch]);
+
+  // Register keyboard shortcut for refresh
+  useKeyboardShortcut(
+    getCurrentBinding('action.refreshActivity'),
+    handleRefresh,
+    'Refresh Activity'
+  );
 
   const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -111,6 +120,9 @@ export function ActivityPage() {
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
+            <kbd className="ml-1 text-xs bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] px-1 py-0.5 rounded border border-[var(--color-border)]">
+              {formatKeyBinding(getCurrentBinding('action.refreshActivity'))}
+            </kbd>
           </button>
         </div>
       </div>

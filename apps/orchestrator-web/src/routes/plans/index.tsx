@@ -42,6 +42,7 @@ export function PlansPage() {
   const search = useSearch({ from: '/plans' }) as {
     selected?: string;
     status?: string;
+    action?: string;
   };
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -53,6 +54,19 @@ export function PlansPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+
+  // Handle ?action=create from global keyboard shortcuts
+  useEffect(() => {
+    if (search.action === 'create') {
+      setShowCreateModal(true);
+      // Clear the action param
+      navigate({
+        to: '/plans',
+        search: { selected: search.selected, status: search.status },
+        replace: true,
+      });
+    }
+  }, [search.action, search.selected, search.status, navigate]);
 
   // Fetch plans
   const statusFilter = search.status || null;
