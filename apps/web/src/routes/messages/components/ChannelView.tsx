@@ -8,8 +8,6 @@ import {
   Search,
   XCircle,
   ChevronLeft,
-  Users,
-  UserCog,
 } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
 import { ChannelMembersPanel } from '../../../components/message/ChannelMembersPanel';
@@ -178,41 +176,18 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
 
     if (mobile) {
       return (
-        <div className="flex items-center gap-1 ml-auto">
-          <button
-            onClick={() => setShowMobileSearch(!showMobileSearch)}
-            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
-            data-testid="mobile-search-toggle"
-            aria-label="Search messages"
-          >
-            <Search className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setShowMembersPanel(true)}
-            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
-            data-testid="channel-members-button"
-            aria-label="View members"
-          >
-            <Users className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={() => setShowMobileSearch(!showMobileSearch)}
+          className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+          data-testid="mobile-search-toggle"
+          aria-label="Search messages"
+        >
+          <Search className="w-5 h-5" />
+        </button>
       );
     }
 
-    return (
-      <>
-        <button
-          onClick={() => setShowMembersPanel(true)}
-          className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition-colors"
-          data-testid="channel-members-button"
-        >
-          <UserCog className="w-4 h-4" />
-          {channel.members.length} members
-        </button>
-        <div className="flex-1" />
-        {renderDesktopSearch()}
-      </>
-    );
+    return <>{renderDesktopSearch()}</>;
   };
 
   return (
@@ -229,6 +204,7 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
               channel={channel}
               isMobile={isMobile}
               onBack={onBack}
+              onOpenMembers={() => setShowMembersPanel(true)}
               renderIcon={(ch) => (
                 <ChannelIcon channel={ch} className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
               )}

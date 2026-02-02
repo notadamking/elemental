@@ -221,36 +221,18 @@ export function ChannelHeader({
           />
         )}
 
-        {/* Channel name and optional member count */}
-        <div className={showMemberCount ? 'flex-1 min-w-0' : ''}>
-          <h3
-            data-testid="channel-name"
-            className={`font-medium text-[var(--color-text)] truncate ${
-              isMobile ? 'text-base' : showMemberCount ? 'text-lg font-semibold' : ''
-            } ${showMemberCount ? '' : 'flex-1'}`}
-          >
-            {channel.name}
-          </h3>
-          {showMemberCount && (
-            <p
-              data-testid="channel-members-count"
-              className={`text-gray-500 dark:text-gray-400 ${
-                isMobile ? 'text-xs' : 'text-sm'
-              }`}
-            >
-              {defaultMembersLabel(memberCount)}
-            </p>
-          )}
-        </div>
+        {/* Channel name */}
+        <h3
+          data-testid="channel-name"
+          className={`font-medium text-[var(--color-text)] truncate ${
+            isMobile ? 'text-base' : showMemberCount ? 'text-lg font-semibold' : ''
+          }`}
+        >
+          {channel.name}
+        </h3>
 
-        {/* Spacer when not showing member count in title area */}
-        {!showMemberCount && <div className="flex-1" />}
-
-        {/* Custom actions (search, etc.) */}
-        {renderActions?.({ channel, isMobile })}
-
-        {/* Members/Settings button */}
-        {onOpenMembers && !isMobile && !showMemberCount && (
+        {/* Member count - inline after channel name */}
+        {onOpenMembers && !isMobile && (
           <button
             onClick={onOpenMembers}
             className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition-colors"
@@ -260,6 +242,12 @@ export function ChannelHeader({
             {(membersButtonLabel || defaultMembersLabel)(memberCount)}
           </button>
         )}
+
+        {/* Spacer pushes actions to the right */}
+        <div className="flex-1" />
+
+        {/* Custom actions (search, etc.) */}
+        {renderActions?.({ channel, isMobile })}
 
         {/* Mobile members button */}
         {onOpenMembers && isMobile && (
