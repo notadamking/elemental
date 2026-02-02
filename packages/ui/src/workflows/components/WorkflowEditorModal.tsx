@@ -1007,7 +1007,7 @@ export function WorkflowEditorModal({
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
         <div
-          className="w-full max-w-4xl max-h-[90vh] mx-auto bg-[var(--color-bg)] rounded-xl shadow-2xl border border-[var(--color-border)] animate-scale-in pointer-events-auto flex flex-col"
+          className="w-full max-w-3xl max-h-[90vh] mx-auto bg-[var(--color-bg)] rounded-xl shadow-2xl border border-[var(--color-border)] animate-scale-in pointer-events-auto flex flex-col"
           data-testid="workflow-editor-dialog"
           role="dialog"
           aria-labelledby="workflow-editor-title"
