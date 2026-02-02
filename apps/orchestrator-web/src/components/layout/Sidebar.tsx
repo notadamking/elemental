@@ -47,6 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
     defaultExpanded: true,
     items: [
       { to: '/activity', icon: Activity, label: 'Activity', testId: 'nav-activity' },
+      { to: '/inbox', icon: Inbox, label: 'Inbox', testId: 'nav-inbox', search: { message: undefined } },
     ],
   },
   {
@@ -72,7 +73,6 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Collaborate',
     defaultExpanded: true,
     items: [
-      { to: '/inbox', icon: Inbox, label: 'Inbox', testId: 'nav-inbox', search: { message: undefined } },
       { to: '/messages', icon: MessageSquare, label: 'Messages', testId: 'nav-messages', search: { channel: undefined, message: undefined } },
       { to: '/documents', icon: FileText, label: 'Documents', testId: 'nav-documents', search: { selected: undefined, library: undefined } },
     ],
