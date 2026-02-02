@@ -996,21 +996,22 @@ export function WorkflowEditorModal({
   const isPending = createPlaybook.isPending || updatePlaybook.isPending;
 
   return (
-    <>
+    <div className="fixed inset-0 z-50" data-testid="workflow-editor-container">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 animate-fade-in"
+        className="absolute inset-0 bg-black/50 animate-fade-in"
         onClick={onClose}
         data-testid="workflow-editor-backdrop"
       />
 
       {/* Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
+      <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
         <div
           className="w-full max-w-3xl max-h-[90vh] mx-auto bg-[var(--color-bg)] rounded-xl shadow-2xl border border-[var(--color-border)] animate-scale-in pointer-events-auto flex flex-col"
           data-testid="workflow-editor-dialog"
           role="dialog"
           aria-labelledby="workflow-editor-title"
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] flex-shrink-0">
@@ -1323,6 +1324,6 @@ export function WorkflowEditorModal({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

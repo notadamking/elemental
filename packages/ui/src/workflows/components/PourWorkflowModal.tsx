@@ -334,16 +334,16 @@ export function PourWorkflowModal({
   if (!isOpen) return null;
 
   return (
-    <>
+    <div className="fixed inset-0 z-50" data-testid="pour-workflow-container">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 animate-fade-in"
+        className="absolute inset-0 bg-black/50 animate-fade-in"
         onClick={onClose}
         data-testid="pour-workflow-backdrop"
       />
 
       {/* Dialog */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
+      <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
         <div
           className="
             w-full max-w-lg max-h-[90vh]
@@ -357,6 +357,7 @@ export function PourWorkflowModal({
           data-testid="pour-workflow-dialog"
           role="dialog"
           aria-labelledby="pour-workflow-title"
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] flex-shrink-0">
@@ -529,6 +530,6 @@ export function PourWorkflowModal({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
