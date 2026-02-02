@@ -270,54 +270,66 @@ export function useCreatePlan() {
 
       // Add additional tasks to the plan if any
       if (additionalTasks && additionalTasks.length > 0) {
-        const addTaskPromises = additionalTasks.map(async (task) => {
-          if ('existingTaskId' in task) {
-            // Add existing task to plan
-            const response = await fetch(`/api/plans/${plan.id}/tasks`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ taskId: task.existingTaskId }),
-            });
-            if (!response.ok) {
-              const error = await response.json().catch(() => ({}));
-              console.error('Failed to add existing task to plan:', error);
-              throw new Error(error.error?.message || 'Failed to add task to plan');
-            }
-          } else {
-            // Create new task and add to plan
-            const taskResponse = await fetch('/api/tasks', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                title: task.title,
-                priority: task.priority || 3,
-                createdBy,
-              }),
-            });
-            if (!taskResponse.ok) {
-              const error = await taskResponse.json().catch(() => ({}));
-              console.error('Failed to create task:', error);
-              throw new Error(error.error?.message || 'Failed to create task');
-            }
-            const taskResult = await taskResponse.json();
-            // Handle response format: { task: {...} } or direct task object
-            const newTask = taskResult.task || taskResult;
+        try {
+          const addTaskPromises = additionalTasks.map(async (task) => {
+            if ('existingTaskId' in task) {
+              // Add existing task to plan
+              const response = await fetch(`/api/plans/${plan.id}/tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: task.existingTaskId }),
+              });
+              if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                console.error('Failed to add existing task to plan:', error);
+                throw new Error(error.error?.message || 'Failed to add task to plan');
+              }
+            } else {
+              // Create new task and add to plan
+              const taskResponse = await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title: task.title,
+                  priority: task.priority || 3,
+                  createdBy,
+                }),
+              });
+              if (!taskResponse.ok) {
+                const error = await taskResponse.json().catch(() => ({}));
+                console.error('Failed to create task:', error);
+                throw new Error(error.error?.message || 'Failed to create task');
+              }
+              const taskResult = await taskResponse.json();
+              // Handle response format: { task: {...} } or direct task object
+              const newTask = taskResult.task || taskResult;
 
-            const addResponse = await fetch(`/api/plans/${plan.id}/tasks`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ taskId: newTask.id }),
-            });
-            if (!addResponse.ok) {
-              const error = await addResponse.json().catch(() => ({}));
-              console.error('Failed to add new task to plan:', error);
-              throw new Error(error.error?.message || 'Failed to add task to plan');
+              const addResponse = await fetch(`/api/plans/${plan.id}/tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: newTask.id }),
+              });
+              if (!addResponse.ok) {
+                const error = await addResponse.json().catch(() => ({}));
+                console.error('Failed to add new task to plan:', error);
+                throw new Error(error.error?.message || 'Failed to add task to plan');
+              }
             }
+          });
+
+          // Wait for all additional tasks to be added
+          await Promise.all(addTaskPromises);
+        } catch (taskError) {
+          // Rollback: delete the plan if adding tasks failed
+          console.error('Rolling back plan creation due to task error:', taskError);
+          try {
+            await fetch(`/api/plans/${plan.id}`, { method: 'DELETE' });
+          } catch (deleteError) {
+            console.error('Failed to rollback plan:', deleteError);
           }
-        });
-
-        // Wait for all additional tasks to be added
-        await Promise.all(addTaskPromises);
+          // Re-throw the original error
+          throw taskError;
+        }
       }
 
       return plan;
