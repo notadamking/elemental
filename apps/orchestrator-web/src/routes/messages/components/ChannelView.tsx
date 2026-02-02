@@ -3,7 +3,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Search, ChevronLeft, Settings, XCircle } from 'lucide-react';
+import { Search, ChevronLeft, Users, UserCog, XCircle } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
 import { useIsMobile } from '../../../hooks';
 import { useChannelMessages } from '../../../api/hooks/useMessages';
@@ -181,23 +181,20 @@ export function ChannelView({
         <div className="flex items-center gap-1 ml-auto">
           <button
             onClick={() => setShowMobileSearch(!showMobileSearch)}
-            className={`p-2 rounded-lg transition-colors touch-target ${
-              showMobileSearch
-                ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-            data-testid="channel-search-toggle"
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+            data-testid="mobile-search-toggle"
+            aria-label="Search messages"
           >
             <Search className="w-5 h-5" />
           </button>
           {onOpenMembers && (
             <button
               onClick={onOpenMembers}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors touch-target"
-              title="Channel settings"
-              data-testid="channel-settings-button"
+              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+              data-testid="channel-members-button"
+              aria-label="View members"
             >
-              <Settings className="w-5 h-5" />
+              <Users className="w-5 h-5" />
             </button>
           )}
         </div>
@@ -206,17 +203,18 @@ export function ChannelView({
 
     return (
       <>
-        {renderDesktopSearch()}
         {onOpenMembers && (
           <button
             onClick={onOpenMembers}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            title="Channel settings"
-            data-testid="channel-settings-button"
+            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition-colors"
+            data-testid="channel-members-button"
           >
-            <Settings className="w-5 h-5" />
+            <UserCog className="w-4 h-4" />
+            {channel.members.length} members
           </button>
         )}
+        <div className="flex-1" />
+        {renderDesktopSearch()}
       </>
     );
   };
@@ -272,7 +270,6 @@ export function ChannelView({
           channel={channel}
           isMobile={isMobile}
           onBack={onBack}
-          showMemberCount={true}
           renderIcon={(ch) => (
             <ChannelIcon channel={ch} className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
           )}
