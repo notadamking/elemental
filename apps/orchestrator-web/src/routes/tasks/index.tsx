@@ -497,59 +497,61 @@ export function TasksPage() {
         />
       )}
 
-      {/* Tabs */}
-      <div className="border-b border-[var(--color-border)] overflow-x-auto">
-        <nav className="flex gap-1 min-w-max" aria-label="Tabs">
-          <TabButton
-            label="All"
-            value="all"
-            current={currentTab}
-            count={counts.all}
-            icon={CheckSquare}
-            onClick={() => setTab('all')}
-          />
-          <TabButton
-            label="Unassigned"
-            value="unassigned"
-            current={currentTab}
-            count={counts.unassigned}
-            icon={Inbox}
-            onClick={() => setTab('unassigned')}
-          />
-          <TabButton
-            label="Assigned"
-            value="assigned"
-            current={currentTab}
-            count={counts.assigned}
-            icon={UserCheck}
-            onClick={() => setTab('assigned')}
-          />
-          <TabButton
-            label="In Progress"
-            value="in_progress"
-            current={currentTab}
-            count={counts.in_progress}
-            icon={Play}
-            onClick={() => setTab('in_progress')}
-          />
-          <TabButton
-            label="Done"
-            value="done"
-            current={currentTab}
-            count={counts.done}
-            icon={CheckCircle2}
-            onClick={() => setTab('done')}
-          />
-          <TabButton
-            label="Awaiting Merge"
-            value="awaiting_merge"
-            current={currentTab}
-            count={counts.awaiting_merge}
-            icon={GitMerge}
-            onClick={() => setTab('awaiting_merge')}
-          />
-        </nav>
-      </div>
+      {/* Tabs (list view only - kanban has columns for same purpose) */}
+      {viewMode === 'list' && (
+        <div className="border-b border-[var(--color-border)] overflow-x-auto">
+          <nav className="flex gap-1 min-w-max" aria-label="Tabs">
+            <TabButton
+              label="All"
+              value="all"
+              current={currentTab}
+              count={counts.all}
+              icon={CheckSquare}
+              onClick={() => setTab('all')}
+            />
+            <TabButton
+              label="Unassigned"
+              value="unassigned"
+              current={currentTab}
+              count={counts.unassigned}
+              icon={Inbox}
+              onClick={() => setTab('unassigned')}
+            />
+            <TabButton
+              label="Assigned"
+              value="assigned"
+              current={currentTab}
+              count={counts.assigned}
+              icon={UserCheck}
+              onClick={() => setTab('assigned')}
+            />
+            <TabButton
+              label="In Progress"
+              value="in_progress"
+              current={currentTab}
+              count={counts.in_progress}
+              icon={Play}
+              onClick={() => setTab('in_progress')}
+            />
+            <TabButton
+              label="Done"
+              value="done"
+              current={currentTab}
+              count={counts.done}
+              icon={CheckCircle2}
+              onClick={() => setTab('done')}
+            />
+            <TabButton
+              label="Awaiting Merge"
+              value="awaiting_merge"
+              current={currentTab}
+              count={counts.awaiting_merge}
+              icon={GitMerge}
+              onClick={() => setTab('awaiting_merge')}
+            />
+          </nav>
+        </div>
+      )}
 
       {/* Content */}
       {isLoading ? (
