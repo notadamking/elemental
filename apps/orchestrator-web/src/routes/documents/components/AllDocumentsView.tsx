@@ -96,7 +96,7 @@ export function AllDocumentsView({
           {!isMobile && (
             <button
               onClick={onNewDocument}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] rounded-md transition-colors"
               data-testid="new-document-button-all"
             >
               <Plus className="w-4 h-4" />
