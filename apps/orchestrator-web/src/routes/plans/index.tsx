@@ -26,6 +26,7 @@ import {
   RoadmapView,
   PlanDetailPanel,
   CreatePlanModal,
+  notifyPlanModalTaskCreated,
   fuzzySearch,
   getStoredSearch,
   setStoredSearch,
@@ -34,6 +35,7 @@ import {
   SEARCH_DEBOUNCE_DELAY,
   type ViewMode,
 } from '@elemental/ui/plans';
+import { CreateTaskModal } from '../../components/task/CreateTaskModal';
 
 export function PlansPage() {
   const search = useSearch({ from: '/plans' }) as {
@@ -49,6 +51,7 @@ export function PlansPage() {
   const [searchQuery, setSearchQueryState] = useState(() => getStoredSearch());
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
 
   // Fetch plans
   const statusFilter = search.status || null;
@@ -128,6 +131,24 @@ export function PlansPage() {
     },
     [handlePlanSelect]
   );
+
+  const handleTaskCreated = useCallback((taskId: string) => {
+    // Notify the CreatePlanModal about the new task
+    // We need to fetch the task title - for now we'll use a placeholder
+    // The modal will refetch and show the task anyway
+    fetch(`/api/tasks/${taskId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const task = data.task || data;
+        notifyPlanModalTaskCreated({ id: task.id, title: task.title });
+        toast.success('Task created and added to selection');
+      })
+      .catch(() => {
+        // Even if fetch fails, invalidate queries to refresh the list
+        notifyPlanModalTaskCreated({ id: taskId, title: 'New Task' });
+      });
+    setShowCreateTaskModal(false);
+  }, []);
 
   // Determine if detail panel should show
   const selectedPlanId = search.selected || null;
@@ -299,6 +320,14 @@ export function PlansPage() {
         isMobile={isMobile}
         onToastSuccess={(msg: string) => toast.success(msg)}
         onToastError={(msg: string) => toast.error(msg)}
+        onCreateNewTask={() => setShowCreateTaskModal(true)}
+      />
+
+      {/* Create task modal (opened from Create Plan modal) */}
+      <CreateTaskModal
+        isOpen={showCreateTaskModal}
+        onClose={() => setShowCreateTaskModal(false)}
+        onSuccess={handleTaskCreated}
       />
     </div>
   );

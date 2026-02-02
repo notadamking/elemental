@@ -51,6 +51,7 @@ export {
   usePlanTasks,
   usePlanProgress,
   useUpdatePlan,
+  useDeletePlan,
   useAddTaskToPlan,
   useRemoveTaskFromPlan,
   useAvailableTasks,
@@ -71,4 +72,5 @@ export {
   PlanDetailPanel,
   MobilePlanCard,
   CreatePlanModal,
+  notifyPlanModalTaskCreated,
 } from './components';

@@ -1,26 +1,21 @@
 /**
  * Create Plan Modal Component
  *
- * Reusable modal for creating plans with an initial task.
+ * Reusable modal for creating plans with tasks.
  * Plans must have at least one task.
- * Supports both creating a new task or selecting an existing one.
+ * Tasks are selected from existing tasks; use onCreateNewTask to open a separate task creation modal.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { X, ChevronLeft, Search, Check, Info, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { X, ChevronLeft, Search, Info, Loader2, Plus, Trash2, FilePlus } from 'lucide-react';
 import { useCreatePlan } from '../hooks';
 import type { PlanTaskType } from '../types';
 
-interface TaskEntry {
-  id: string; // Unique ID for this entry in the list
-  mode: 'new' | 'existing';
-  // For new tasks
-  title?: string;
-  priority?: number;
-  // For existing tasks
-  existingTaskId?: string;
-  existingTaskTitle?: string;
+interface SelectedTask {
+  id: string; // Unique ID for this selection entry
+  taskId: string;
+  taskTitle: string;
 }
 
 interface CreatePlanModalProps {
@@ -35,15 +30,11 @@ interface CreatePlanModalProps {
   onToastSuccess?: (message: string) => void;
   /** Called on error to show toast */
   onToastError?: (message: string) => void;
+  /** Called when user wants to create a new task. Opens external task creation modal. */
+  onCreateNewTask?: () => void;
+  /** Called by the consumer after a task is created to notify this modal */
+  onTaskCreated?: (task: { id: string; title: string }) => void;
 }
-
-const priorityLabels: Record<number, string> = {
-  1: 'Lowest',
-  2: 'Low',
-  3: 'Medium',
-  4: 'High',
-  5: 'Critical',
-};
 
 export function CreatePlanModal({
   isOpen,
@@ -53,12 +44,11 @@ export function CreatePlanModal({
   isMobile = false,
   onToastSuccess,
   onToastError,
+  onCreateNewTask,
 }: CreatePlanModalProps) {
+  const queryClient = useQueryClient();
   const [planTitle, setPlanTitle] = useState('');
-  const [tasks, setTasks] = useState<TaskEntry[]>([
-    { id: '1', mode: 'new', title: '', priority: 3 },
-  ]);
-  const [activeTaskId, setActiveTaskId] = useState<string>('1');
+  const [selectedTasks, setSelectedTasks] = useState<SelectedTask[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
@@ -68,8 +58,7 @@ export function CreatePlanModal({
   useEffect(() => {
     if (isOpen) {
       setPlanTitle('');
-      setTasks([{ id: '1', mode: 'new', title: '', priority: 3 }]);
-      setActiveTaskId('1');
+      setSelectedTasks([]);
       setSearchQuery('');
       setDebouncedQuery('');
     }
@@ -86,12 +75,9 @@ export function CreatePlanModal({
     };
   }, [searchQuery]);
 
-  // Get the active task entry
-  const activeTask = tasks.find((t) => t.id === activeTaskId);
-
-  // Query for existing tasks when in existing mode
-  const { data: existingTasks = [], isLoading: isLoadingTasks } = useQuery<PlanTaskType[]>({
-    queryKey: ['tasks', 'for-plan-creation', debouncedQuery, activeTask?.mode],
+  // Query for existing tasks
+  const { data: existingTasks = [], isLoading: isLoadingTasks, refetch: refetchTasks } = useQuery<PlanTaskType[]>({
+    queryKey: ['tasks', 'for-plan-creation', debouncedQuery],
     queryFn: async () => {
       const url = debouncedQuery
         ? `/api/tasks?limit=50&search=${encodeURIComponent(debouncedQuery)}`
@@ -99,69 +85,68 @@ export function CreatePlanModal({
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch tasks');
       const result = await response.json();
-      // Handle different API response formats: orchestrator returns { tasks }, main server returns { items } or array
+      // Handle different API response formats
       const allTasks = (result.tasks || result.items || result.data || (Array.isArray(result) ? result : [])) as PlanTaskType[];
-      // Filter out tasks that are already selected
-      const selectedIds = new Set(tasks.filter((t) => t.existingTaskId).map((t) => t.existingTaskId));
-      return allTasks.filter((t: PlanTaskType) => !selectedIds.has(t.id));
+      return allTasks;
     },
-    enabled: activeTask?.mode === 'existing',
+    enabled: isOpen,
   });
 
-  // Check if at least one valid task is defined
-  const hasValidTask = tasks.some((t) => {
-    if (t.mode === 'new') {
-      return t.title && t.title.trim().length > 0;
-    } else {
-      return t.existingTaskId !== undefined;
-    }
-  });
+  // Filter out already selected tasks from the list
+  const availableTasks = existingTasks.filter(
+    (task) => !selectedTasks.some((st) => st.taskId === task.id)
+  );
 
+  // Check if at least one task is selected
+  const hasValidTask = selectedTasks.length > 0;
   const canSubmit = planTitle.trim().length > 0 && hasValidTask && currentUserId;
 
-  const addTask = () => {
-    const newId = String(Date.now());
-    setTasks([...tasks, { id: newId, mode: 'new', title: '', priority: 3 }]);
-    setActiveTaskId(newId);
-  };
+  const selectTask = useCallback((task: PlanTaskType) => {
+    setSelectedTasks((prev) => [
+      ...prev,
+      { id: String(Date.now()), taskId: task.id, taskTitle: task.title },
+    ]);
+  }, []);
 
-  const removeTask = (taskId: string) => {
-    if (tasks.length <= 1) return; // Must have at least one task
-    const newTasks = tasks.filter((t) => t.id !== taskId);
-    setTasks(newTasks);
-    if (activeTaskId === taskId) {
-      setActiveTaskId(newTasks[0].id);
+  const removeTask = useCallback((selectionId: string) => {
+    setSelectedTasks((prev) => prev.filter((t) => t.id !== selectionId));
+  }, []);
+
+  // Handle when a new task is created externally
+  const handleTaskCreated = useCallback((task: { id: string; title: string }) => {
+    // Invalidate the tasks query to refresh the list
+    queryClient.invalidateQueries({ queryKey: ['tasks', 'for-plan-creation'] });
+    refetchTasks();
+    // Auto-select the newly created task
+    setSelectedTasks((prev) => [
+      ...prev,
+      { id: String(Date.now()), taskId: task.id, taskTitle: task.title },
+    ]);
+  }, [queryClient, refetchTasks]);
+
+  // Expose handleTaskCreated via a ref or callback pattern
+  // For now, we'll use a workaround: store it on window for the parent to call
+  useEffect(() => {
+    if (isOpen) {
+      (window as unknown as { __createPlanModalTaskCreated?: (task: { id: string; title: string }) => void }).__createPlanModalTaskCreated = handleTaskCreated;
     }
-  };
-
-  const updateTask = (taskId: string, updates: Partial<TaskEntry>) => {
-    setTasks(tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
-  };
+    return () => {
+      delete (window as unknown as { __createPlanModalTaskCreated?: unknown }).__createPlanModalTaskCreated;
+    };
+  }, [isOpen, handleTaskCreated]);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
 
     try {
-      // Find the first valid task as the initial task
-      const validTasks = tasks.filter((t) => {
-        if (t.mode === 'new') return t.title && t.title.trim().length > 0;
-        return t.existingTaskId !== undefined;
-      });
-
-      const firstTask = validTasks[0];
-      const additionalTasks = validTasks.slice(1);
+      const firstTask = selectedTasks[0];
+      const additionalTasks = selectedTasks.slice(1);
 
       const result = await createPlan.mutateAsync({
         title: planTitle.trim(),
         createdBy: currentUserId!,
-        ...(firstTask.mode === 'new'
-          ? { initialTask: { title: firstTask.title!.trim(), priority: firstTask.priority } }
-          : { initialTaskId: firstTask.existingTaskId! }),
-        additionalTasks: additionalTasks.map((t) =>
-          t.mode === 'new'
-            ? { title: t.title!.trim(), priority: t.priority }
-            : { existingTaskId: t.existingTaskId! }
-        ),
+        initialTaskId: firstTask.taskId,
+        additionalTasks: additionalTasks.map((t) => ({ existingTaskId: t.taskId })),
       });
 
       onToastSuccess?.('Plan created successfully');
@@ -219,61 +204,17 @@ export function CreatePlanModal({
           </div>
 
           {/* Tasks Section */}
-          <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Info className="w-4 h-4 text-blue-500" />
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  Tasks ({tasks.length})
-                </span>
-              </div>
-              <button
-                onClick={addTask}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
-                data-testid="add-task-btn"
-              >
-                <Plus className="w-3 h-3" />
-                Add Task
-              </button>
-            </div>
-
-            {/* Task Tabs */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {tasks.map((task, index) => (
-                <button
-                  key={task.id}
-                  onClick={() => setActiveTaskId(task.id)}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    activeTaskId === task.id
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  Task {index + 1}
-                  {task.mode === 'new' && task.title && (
-                    <Check className="w-3 h-3 text-green-400" />
-                  )}
-                  {task.mode === 'existing' && task.existingTaskId && (
-                    <Check className="w-3 h-3 text-green-400" />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Active Task Editor */}
-            {activeTask && (
-              <TaskEditor
-                task={activeTask}
-                existingTasks={existingTasks}
-                isLoadingTasks={isLoadingTasks}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                onUpdate={(updates) => updateTask(activeTask.id, updates)}
-                onRemove={tasks.length > 1 ? () => removeTask(activeTask.id) : undefined}
-                isMobile={true}
-              />
-            )}
-          </div>
+          <TasksSection
+            selectedTasks={selectedTasks}
+            availableTasks={availableTasks}
+            isLoadingTasks={isLoadingTasks}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSelectTask={selectTask}
+            onRemoveTask={removeTask}
+            onCreateNewTask={onCreateNewTask}
+            isMobile={true}
+          />
         </div>
       </div>
     );
@@ -319,64 +260,17 @@ export function CreatePlanModal({
           </div>
 
           {/* Tasks Section */}
-          <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Info className="w-4 h-4 text-blue-500" />
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  Tasks ({tasks.length})
-                </span>
-              </div>
-              <button
-                onClick={addTask}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded transition-colors"
-                data-testid="add-task-btn"
-              >
-                <Plus className="w-3 h-3" />
-                Add Task
-              </button>
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mb-4">
-              Plans must have at least one task. Add new tasks or select existing ones.
-            </p>
-
-            {/* Task Tabs */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {tasks.map((task, index) => (
-                <button
-                  key={task.id}
-                  onClick={() => setActiveTaskId(task.id)}
-                  className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    activeTaskId === task.id
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  Task {index + 1}
-                  {task.mode === 'new' && task.title && (
-                    <Check className="w-3 h-3 text-green-400" />
-                  )}
-                  {task.mode === 'existing' && task.existingTaskId && (
-                    <Check className="w-3 h-3 text-green-400" />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Active Task Editor */}
-            {activeTask && (
-              <TaskEditor
-                task={activeTask}
-                existingTasks={existingTasks}
-                isLoadingTasks={isLoadingTasks}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                onUpdate={(updates) => updateTask(activeTask.id, updates)}
-                onRemove={tasks.length > 1 ? () => removeTask(activeTask.id) : undefined}
-                isMobile={false}
-              />
-            )}
-          </div>
+          <TasksSection
+            selectedTasks={selectedTasks}
+            availableTasks={availableTasks}
+            isLoadingTasks={isLoadingTasks}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSelectTask={selectTask}
+            onRemoveTask={removeTask}
+            onCreateNewTask={onCreateNewTask}
+            isMobile={false}
+          />
         </div>
 
         {/* Footer */}
@@ -403,168 +297,149 @@ export function CreatePlanModal({
 }
 
 /**
- * Task Editor Component - handles both new and existing task selection
+ * Tasks Section Component - handles task selection and display
  */
-function TaskEditor({
-  task,
-  existingTasks,
+function TasksSection({
+  selectedTasks,
+  availableTasks,
   isLoadingTasks,
   searchQuery,
   onSearchChange,
-  onUpdate,
-  onRemove,
+  onSelectTask,
+  onRemoveTask,
+  onCreateNewTask,
   isMobile,
 }: {
-  task: TaskEntry;
-  existingTasks: PlanTaskType[];
+  selectedTasks: SelectedTask[];
+  availableTasks: PlanTaskType[];
   isLoadingTasks: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onUpdate: (updates: Partial<TaskEntry>) => void;
-  onRemove?: () => void;
+  onSelectTask: (task: PlanTaskType) => void;
+  onRemoveTask: (selectionId: string) => void;
+  onCreateNewTask?: () => void;
   isMobile: boolean;
 }) {
   return (
-    <div className="space-y-3">
-      {/* Mode Toggle */}
-      <div className="flex gap-2">
-        <button
-          data-testid="mode-new-task"
-          onClick={() => onUpdate({ mode: 'new', existingTaskId: undefined, existingTaskTitle: undefined })}
-          className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-            task.mode === 'new'
-              ? 'bg-blue-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-          }`}
-        >
-          Create New Task
-        </button>
-        <button
-          data-testid="mode-existing-task"
-          onClick={() => onUpdate({ mode: 'existing' })}
-          className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-            task.mode === 'existing'
-              ? 'bg-blue-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-          }`}
-        >
-          Use Existing Task
-        </button>
+    <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
+      {/* Header with buttons */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Info className="w-4 h-4 text-blue-500" />
+          <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+            Tasks ({selectedTasks.length})
+          </span>
+        </div>
+        {onCreateNewTask && (
+          <button
+            onClick={onCreateNewTask}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/40 rounded transition-colors"
+            data-testid="create-new-task-btn"
+          >
+            <FilePlus className="w-3 h-3" />
+            Create New Task
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-blue-600 dark:text-blue-400 mb-4">
+        Plans must have at least one task. Search and select existing tasks below.
+      </p>
+
+      {/* Selected Tasks */}
+      {selectedTasks.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
+            Selected Tasks
+          </div>
+          <div className="space-y-2">
+            {selectedTasks.map((task, index) => (
+              <div
+                key={task.id}
+                className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-gray-800 border border-green-200 dark:border-green-800 rounded-lg"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                    <span className="text-xs font-medium text-green-600 dark:text-green-400">{index + 1}</span>
+                  </div>
+                  <span className="text-sm text-gray-900 dark:text-white truncate">{task.taskTitle}</span>
+                </div>
+                <button
+                  onClick={() => onRemoveTask(task.id)}
+                  className="flex-shrink-0 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                  aria-label="Remove task"
+                  data-testid={`remove-selected-task-${task.taskId}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          data-testid="task-search-input"
+          placeholder="Search tasks by title or ID..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className={`w-full pl-10 pr-4 ${isMobile ? 'py-2.5' : 'py-2'} border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white`}
+        />
       </div>
 
-      {/* New Task Form */}
-      {task.mode === 'new' && (
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Task Title *
-            </label>
-            <input
-              type="text"
-              data-testid="task-title-input"
-              placeholder="Enter task title..."
-              value={task.title || ''}
-              onChange={(e) => onUpdate({ title: e.target.value })}
-              className={`w-full px-3 ${isMobile ? 'py-2.5' : 'py-2'} border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white`}
-            />
+      {/* Available Tasks List */}
+      <div className={`${isMobile ? 'max-h-60' : 'max-h-48'} overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800`}>
+        {isLoadingTasks ? (
+          <div className="flex items-center justify-center py-8 text-gray-500 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            Loading tasks...
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Priority
-            </label>
-            <select
-              data-testid="task-priority-select"
-              value={task.priority || 3}
-              onChange={(e) => onUpdate({ priority: Number(e.target.value) })}
-              className={`w-full px-3 ${isMobile ? 'py-2.5 touch-target' : 'py-2'} border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white`}
-              aria-label="Task priority"
-            >
-              {[1, 2, 3, 4, 5].map((p) => (
-                <option key={p} value={p}>
-                  {p} - {priorityLabels[p]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Existing Task Picker */}
-      {task.mode === 'existing' && (
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              data-testid="existing-task-search"
-              placeholder="Search tasks by title or ID..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className={`w-full pl-10 pr-4 ${isMobile ? 'py-2.5' : 'py-2'} border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white`}
-            />
-          </div>
-
-          {/* Task List */}
-          <div className={`${isMobile ? 'max-h-60' : 'max-h-48'} overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800`}>
-            {isLoadingTasks ? (
-              <div className="text-center py-4 text-gray-500 text-sm">
-                Loading tasks...
-              </div>
-            ) : existingTasks.length === 0 ? (
-              <div className="text-center py-4 text-gray-500 text-sm">
-                {searchQuery ? 'No matching tasks found' : 'No tasks available'}
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {existingTasks.map((existingTask: PlanTaskType) => (
-                  <button
-                    key={existingTask.id}
-                    data-testid={`existing-task-${existingTask.id}`}
-                    onClick={() => onUpdate({
-                      existingTaskId: existingTask.id,
-                      existingTaskTitle: existingTask.title,
-                    })}
-                    className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${isMobile ? 'touch-target' : ''} ${
-                      task.existingTaskId === existingTask.id
-                        ? 'bg-blue-100 dark:bg-blue-900/30 border-l-2 border-blue-500'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {existingTask.title}
-                      </div>
-                      <div className="text-xs text-gray-500 font-mono">{existingTask.id}</div>
-                    </div>
-                    {task.existingTaskId === existingTask.id && (
-                      <Check className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
+        ) : availableTasks.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 text-sm">
+            {searchQuery ? 'No matching tasks found' : 'No tasks available'}
+            {onCreateNewTask && (
+              <button
+                onClick={onCreateNewTask}
+                className="block mx-auto mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                Create a new task
+              </button>
             )}
           </div>
-
-          {task.existingTaskId && (
-            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-              <Check className="w-4 h-4" />
-              <span>Task selected: {task.existingTaskTitle}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Remove Task Button */}
-      {onRemove && (
-        <button
-          onClick={onRemove}
-          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-          data-testid="remove-task-btn"
-        >
-          <Trash2 className="w-3 h-3" />
-          Remove Task
-        </button>
-      )}
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {availableTasks.map((task: PlanTaskType) => (
+              <button
+                key={task.id}
+                data-testid={`available-task-${task.id}`}
+                onClick={() => onSelectTask(task)}
+                className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${isMobile ? 'touch-target' : ''} hover:bg-gray-50 dark:hover:bg-gray-700`}
+              >
+                <div className="flex-shrink-0 w-5 h-5 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                  <Plus className="w-3 h-3 text-gray-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {task.title}
+                  </div>
+                  <div className="text-xs text-gray-500 font-mono">{task.id}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+// Export the task created handler for external use
+export function notifyPlanModalTaskCreated(task: { id: string; title: string }) {
+  const handler = (window as unknown as { __createPlanModalTaskCreated?: (task: { id: string; title: string }) => void }).__createPlanModalTaskCreated;
+  if (handler) {
+    handler(task);
+  }
 }
