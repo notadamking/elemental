@@ -91,7 +91,7 @@ export function CreatePlanModal({
 
   // Query for existing tasks when in existing mode
   const { data: existingTasks = [], isLoading: isLoadingTasks } = useQuery<PlanTaskType[]>({
-    queryKey: ['tasks', 'for-plan-creation', debouncedQuery],
+    queryKey: ['tasks', 'for-plan-creation', debouncedQuery, activeTask?.mode],
     queryFn: async () => {
       const url = debouncedQuery
         ? `/api/tasks?limit=50&search=${encodeURIComponent(debouncedQuery)}`
