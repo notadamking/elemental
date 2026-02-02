@@ -38,6 +38,10 @@
       "types": "./dist/contexts/index.d.ts",
       "import": "./dist/contexts/index.js"
     },
+    "./plans": {
+      "types": "./dist/plans/index.d.ts",
+      "import": "./dist/plans/index.js"
+    },
     "./styles/tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {
@@ -73,7 +77,8 @@
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@tanstack/react-virtual": "^3.0.0"
+    "@tanstack/react-virtual": "^3.0.0",
+    "@tanstack/react-query": "^5.0.0"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -83,6 +88,7 @@
     "recharts": "^2.15.3"
   },
   "devDependencies": {
+    "@tanstack/react-query": "^5.75.5",
     "@tanstack/react-virtual": "^3.13.18",
     "@types/bun": "latest",
     "@types/node": "^20.0.0",

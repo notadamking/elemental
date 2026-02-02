@@ -29,20 +29,19 @@ import {
   MobilePlanCard,
   RoadmapView,
   PlanDetailPanel,
-} from './components';
-import { useAllPlans } from '../../api/hooks/useAllElements';
-import { usePlans } from '../../api/hooks/usePlanApi';
-import { useDeepLink } from '../../hooks/useDeepLink';
-import { ClipboardList, Plus } from 'lucide-react';
-import type { HydratedPlan, ViewMode } from './types';
-import {
   getStoredSearch,
   setStoredSearch,
   fuzzySearch,
   getStoredViewMode,
   setStoredViewMode,
-} from './utils';
-import { SEARCH_DEBOUNCE_DELAY } from './constants';
+  SEARCH_DEBOUNCE_DELAY,
+  type HydratedPlan,
+  type ViewMode,
+} from '@elemental/ui/plans';
+import { useAllPlans } from '../../api/hooks/useAllElements';
+import { usePlans } from '../../api/hooks/usePlanApi';
+import { useDeepLink } from '../../hooks/useDeepLink';
+import { ClipboardList, Plus } from 'lucide-react';
 
 /**
  * Main Plans Page Component with search and responsive design

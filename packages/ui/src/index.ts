@@ -32,3 +32,6 @@ export * from './contexts';
 
 // API Clients (also available via '@elemental/ui/api')
 export * from './api';
+
+// Plans Module (also available via '@elemental/ui/plans')
+export * from './plans';

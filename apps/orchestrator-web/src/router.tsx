@@ -7,6 +7,7 @@ import { createRouter, createRoute, createRootRoute, redirect, Outlet, useRouter
 import { AppShell } from './components/layout';
 import { ActivityPage } from './routes/activity';
 import { TasksPage } from './routes/tasks';
+import { PlansPage } from './routes/plans';
 import { AgentsPage } from './routes/agents';
 import { WorkspacesPage } from './routes/workspaces';
 import { WorkflowsPage } from './routes/workflows';
@@ -69,6 +70,19 @@ const tasksRoute = createRoute({
              typeof search.limit === 'string' ? parseInt(search.limit, 10) || 25 : 25,
       status: typeof search.status === 'string' ? search.status : undefined,
       assignee: typeof search.assignee === 'string' ? search.assignee : undefined,
+    };
+  },
+});
+
+// Plans route
+const plansRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/plans',
+  component: PlansPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+      status: typeof search.status === 'string' ? search.status : undefined,
     };
   },
 });
@@ -202,6 +216,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   activityRoute,
   tasksRoute,
+  plansRoute,
   agentsRoute,
   workspacesRoute,
   workflowsRoute,

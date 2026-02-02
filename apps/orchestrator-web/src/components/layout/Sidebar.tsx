@@ -8,6 +8,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import {
   Activity,
   CheckSquare,
+  ClipboardList,
   Users,
   LayoutGrid,
   Workflow,
@@ -56,6 +57,7 @@ const NAV_SECTIONS: NavSection[] = [
     defaultExpanded: true,
     items: [
       { to: '/tasks', icon: CheckSquare, label: 'Tasks', testId: 'nav-tasks' },
+      { to: '/plans', icon: ClipboardList, label: 'Plans', testId: 'nav-plans' },
       { to: '/workflows', icon: Workflow, label: 'Workflows', testId: 'nav-workflows' },
     ],
   },
