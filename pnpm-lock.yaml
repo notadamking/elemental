@@ -484,6 +484,9 @@ importers:
         specifier: ^2.15.3
         version: 2.15.4(react-dom@19.2.4)(react@19.2.4)
     devDependencies:
+      '@tanstack/react-virtual':
+        specifier: ^3.13.18
+        version: 3.13.18(react-dom@19.2.4)(react@19.2.4)
       '@types/bun':
         specifier: latest
         version: 1.3.8
@@ -2589,7 +2592,6 @@ packages:
       '@tanstack/virtual-core': 3.13.18
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-    dev: false
 
   /@tanstack/router-core@1.157.16:
     resolution: {integrity: sha512-eJuVgM7KZYTTr4uPorbUzUflmljMVcaX2g6VvhITLnHmg9SBx9RAgtQ1HmT+72mzyIbRSlQ1q0fY/m+of/fosA==}
@@ -2610,7 +2612,6 @@ packages:
 
   /@tanstack/virtual-core@3.13.18:
     resolution: {integrity: sha512-Mx86Hqu1k39icq2Zusq+Ey2J6dDWTjDvEv43PJtRCoEYTLyfaPnxIQ6iy7YAOK0NV/qOEmZQ/uCufrppZxTgcg==}
-    dev: false
 
   /@tiptap/core@3.17.1(@tiptap/pm@3.17.1):
     resolution: {integrity: sha512-f8hB9MzXqsuXoF9qXEDEH5Fb3VgwhEFMBMfk9EKN88l5adri6oM8mt2XOWVxVVssjpEW0177zXSLPKWzoS/vrw==}

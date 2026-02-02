@@ -27,5 +27,8 @@ export * from './visualizations';
 // Hooks
 export * from './hooks';
 
+// Contexts (also available via '@elemental/ui/contexts')
+export * from './contexts';
+
 // API Clients (also available via '@elemental/ui/api')
 export * from './api';

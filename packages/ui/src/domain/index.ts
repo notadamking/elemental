@@ -68,3 +68,6 @@ export {
   MergeStatusBadge,
   type MergeStatusBadgeProps,
 } from './TaskBadges';
+
+// User selection
+export { UserSelector } from './UserSelector';

@@ -8,6 +8,7 @@ import { Outlet, useRouterState, Link, useRouter } from '@tanstack/react-router'
 import { Sidebar } from './Sidebar';
 import { MobileDrawer } from './MobileDrawer';
 import { DirectorPanel } from './DirectorPanel';
+import { UserSelector } from './UserSelector';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationCenter } from '../notification';
 import { CommandPalette, useCommandPalette } from '../command';
@@ -451,6 +452,8 @@ export function AppShell() {
                 </kbd>
               </button>
             )}
+            {/* User selector for switching human entities */}
+            {!isMobile && <UserSelector />}
             <NotificationCenter
               notifications={notifications}
               unreadCount={unreadCount}
