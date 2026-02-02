@@ -3,10 +3,14 @@
  */
 
 import { useState, useRef } from 'react';
-import { X, Send, Loader2 } from 'lucide-react';
+import { X, Send } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
+import {
+  MessageRichComposer,
+  type MessageRichComposerRef,
+} from '../../../components/message/MessageRichComposer';
 import { useCurrentUser } from '../../../contexts';
-import { useThreadReplies, useSendMessage } from '../../../api/hooks/useMessages';
+import { useThreadReplies, useSendMessage, useEntities } from '../../../api/hooks/useMessages';
 import { MessageBubble } from './MessageBubble';
 import type { Message, Channel } from '../types';
 
@@ -27,32 +31,32 @@ export function ThreadPanel({ parentMessage, channel, onClose }: ThreadPanelProp
   return (
     <div
       data-testid="thread-panel"
-      className="w-80 border-l border-gray-200 dark:border-[var(--color-border)] flex flex-col bg-white dark:bg-[var(--color-bg)]"
+      className="w-80 border-l border-gray-200 flex flex-col bg-white"
     >
       {/* Thread Header */}
       <div
         data-testid="thread-header"
-        className="p-4 border-b border-gray-200 dark:border-[var(--color-border)] flex items-center justify-between"
+        className="p-4 border-b border-gray-200 flex items-center justify-between"
       >
-        <h3 className="font-medium text-gray-900 dark:text-[var(--color-text)]">Thread</h3>
+        <h3 className="font-medium text-gray-900">Thread</h3>
         <button
           data-testid="thread-close-button"
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+          className="p-1 text-gray-400 hover:text-gray-600 rounded"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Parent Message */}
-      <div data-testid="thread-parent-message" className="border-b border-gray-100 dark:border-gray-800">
+      <div data-testid="thread-parent-message" className="border-b border-gray-100">
         <MessageBubble message={parentMessage} isThreaded />
       </div>
 
       {/* Thread Replies - TB131: Virtualized */}
       <div data-testid="thread-replies" className="flex-1 overflow-hidden p-2">
         {isLoading ? (
-          <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">Loading replies...</div>
+          <div className="text-center py-4 text-gray-500 text-sm">Loading replies...</div>
         ) : (
           <VirtualizedChatList
             items={replies}
@@ -71,7 +75,7 @@ export function ThreadPanel({ parentMessage, channel, onClose }: ThreadPanelProp
             gap={4}
             latestMessageId={replies[replies.length - 1]?.id}
             renderEmpty={() => (
-              <div data-testid="thread-empty" className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+              <div data-testid="thread-empty" className="text-center py-4 text-gray-500 text-sm">
                 No replies yet
               </div>
             )}
@@ -98,8 +102,10 @@ interface ThreadComposerProps {
 function ThreadComposer({ parentMessage, channel }: ThreadComposerProps) {
   const [content, setContent] = useState('');
   const sendMessage = useSendMessage();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<MessageRichComposerRef>(null);
   const { currentUser } = useCurrentUser();
+  // Fetch entities for @mention autocomplete
+  const { data: entities = [] } = useEntities();
 
   const handleSubmit = async () => {
     if (!content.trim() || !channel || !currentUser) return;
@@ -114,6 +120,7 @@ function ThreadComposer({ parentMessage, channel }: ThreadComposerProps) {
         threadId: parentMessage.id,
       });
       setContent('');
+      editorRef.current?.clear();
     } catch (error) {
       console.error('Failed to send reply:', error);
     }
@@ -124,32 +131,24 @@ function ThreadComposer({ parentMessage, channel }: ThreadComposerProps) {
     handleSubmit();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
   return (
     <form
       data-testid="thread-composer"
       onSubmit={handleFormSubmit}
-      className="p-3 border-t border-gray-200 dark:border-[var(--color-border)] bg-white dark:bg-[var(--color-bg)]"
+      className="p-3 border-t border-gray-200 bg-white"
     >
       <div className="flex gap-2 items-end">
         <div className="flex-1">
-          <textarea
-            ref={inputRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={handleKeyDown}
+          <MessageRichComposer
+            ref={editorRef}
+            content={content}
+            onChange={setContent}
+            onSubmit={handleSubmit}
             placeholder="Reply in thread..."
             disabled={sendMessage.isPending}
-            className="w-full resize-none border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            rows={1}
-            style={{ minHeight: '40px', maxHeight: '120px' }}
-            data-testid="thread-input"
+            maxHeight={120}
+            minHeight={48}
+            mentionEntities={entities}
           />
         </div>
         <button
@@ -158,11 +157,7 @@ function ThreadComposer({ parentMessage, channel }: ThreadComposerProps) {
           disabled={!content.trim() || sendMessage.isPending}
           className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors self-end mb-1"
         >
-          {sendMessage.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
+          <Send className="w-4 h-4" />
         </button>
       </div>
     </form>

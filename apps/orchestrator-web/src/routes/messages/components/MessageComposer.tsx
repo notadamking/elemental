@@ -1,10 +1,8 @@
 /**
  * Message composer components for sending messages
- *
- * Simplified version for orchestrator-web without rich text editor dependencies
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Send,
   X,
@@ -15,8 +13,17 @@ import {
   ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  MessageRichComposer,
+  type MessageRichComposerRef,
+} from '../../../components/message/MessageRichComposer';
+import { MessageImageAttachment } from '../../../components/message/MessageImageAttachment';
+import { TaskPickerModal } from '../../../components/editor/TaskPickerModal';
+import { DocumentPickerModal } from '../../../components/editor/DocumentPickerModal';
+import { EmojiPickerModal } from '../../../components/editor/EmojiPickerModal';
+import type { MessageEmbedCallbacks } from '../../../components/message/MessageSlashCommands';
 import { useCurrentUser } from '../../../contexts';
-import { useSendMessage, useDocuments } from '../../../api/hooks/useMessages';
+import { useSendMessage, useDocuments, useEntities } from '../../../api/hooks/useMessages';
 import type { Channel, AttachedDocument, ImageAttachment } from '../types';
 
 // ============================================================================
@@ -68,13 +75,13 @@ export function MessageAttachmentPicker({
       data-testid="message-attachment-picker"
     >
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[60vh] flex flex-col">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[60vh] flex flex-col">
+        <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Attach Document</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Attach Document</h3>
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+              className="p-1 text-gray-400 hover:text-gray-600 rounded"
               data-testid="attachment-picker-close"
             >
               <X className="w-5 h-5" />
@@ -88,7 +95,7 @@ export function MessageAttachmentPicker({
               placeholder="Search documents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               data-testid="attachment-search"
             />
           </div>
@@ -99,7 +106,7 @@ export function MessageAttachmentPicker({
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : availableDocs.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400" data-testid="attachment-picker-empty">
+            <div className="text-center py-8 text-gray-500" data-testid="attachment-picker-empty">
               {documents?.length === 0
                 ? 'No documents available'
                 : searchQuery
@@ -112,17 +119,17 @@ export function MessageAttachmentPicker({
                 <button
                   key={doc.id}
                   onClick={() => onSelect(doc)}
-                  className="w-full flex items-center gap-3 p-3 text-left bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 p-3 text-left bg-gray-50 hover:bg-blue-50 rounded-lg transition-colors"
                   data-testid={`attachment-option-${doc.id}`}
                 >
                   <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                    <div className="font-medium text-gray-900 truncate">
                       {doc.title || 'Untitled Document'}
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                    <div className="text-xs text-gray-500 flex items-center gap-2">
                       <span className="font-mono">{doc.id}</span>
-                      <span className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                      <span className="px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">
                         {doc.contentType}
                       </span>
                     </div>
@@ -152,17 +159,58 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
   const [attachments, setAttachments] = useState<AttachedDocument[]>([]);
   const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
   const [showPicker, setShowPicker] = useState(false);
-  const [isUploadingImage, setUploadingImage] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  // TB127: Slash command picker states
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [showDocumentPicker, setShowDocumentPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const sendMessage = useSendMessage();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<MessageRichComposerRef>(null);
   const dropZoneRef = useRef<HTMLFormElement>(null);
+  const [dragOver, setDragOver] = useState(false);
   const { currentUser } = useCurrentUser();
 
-  // Focus input when channel changes
+  // Fetch entities for @mention autocomplete
+  const { data: entities = [] } = useEntities();
+
+  // Focus editor when channel changes
   useEffect(() => {
-    inputRef.current?.focus();
+    editorRef.current?.focus();
   }, [channelId]);
+
+  // TB127: Embed callbacks for slash commands
+  const embedCallbacks = useMemo<MessageEmbedCallbacks>(
+    () => ({
+      onTaskEmbed: () => setShowTaskPicker(true),
+      onDocumentEmbed: () => setShowDocumentPicker(true),
+      onEmojiInsert: () => setShowEmojiPicker(true),
+    }),
+    []
+  );
+
+  // TB127: Handle task selection from picker - insert text reference
+  const handleTaskSelect = useCallback((taskId: string) => {
+    // Insert task reference as text that will be rendered by TB128
+    setContent((prev) => prev + `#task:${taskId}`);
+    setShowTaskPicker(false);
+    editorRef.current?.focus();
+  }, []);
+
+  // TB127: Handle document selection from picker - insert text reference
+  const handleDocumentSelect = useCallback((documentId: string) => {
+    // Insert document reference as text that will be rendered by TB128
+    setContent((prev) => prev + `#doc:${documentId}`);
+    setShowDocumentPicker(false);
+    editorRef.current?.focus();
+  }, []);
+
+  // TB127: Handle emoji selection from picker
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    setContent((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+    editorRef.current?.focus();
+  }, []);
 
   const handleAddAttachment = (doc: AttachedDocument) => {
     setAttachments((prev) => [...prev, doc]);
@@ -173,17 +221,19 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
     setAttachments((prev) => prev.filter((a) => a.id !== docId));
   };
 
-  // Handle image attachment
+  // TB102: Handle image attachment
   const handleAddImageAttachment = (imageUrl: string) => {
+    // Extract filename from URL
     const filename = imageUrl.split('/').pop() || 'image';
     setImageAttachments((prev) => [...prev, { url: imageUrl, filename }]);
+    setShowImagePicker(false);
   };
 
   const handleRemoveImageAttachment = (url: string) => {
     setImageAttachments((prev) => prev.filter((a) => a.url !== url));
   };
 
-  // Upload image file
+  // TB102: Upload image file
   const uploadImageFile = async (file: File): Promise<string | null> => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
@@ -220,7 +270,16 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
     }
   };
 
-  // Handle drag and drop images
+  // TB102: Handle image paste from clipboard
+  const handleImagePaste = async (file: File) => {
+    const url = await uploadImageFile(file);
+    if (url) {
+      handleAddImageAttachment(url);
+      toast.success('Image attached');
+    }
+  };
+
+  // TB102: Handle drag and drop images
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
@@ -248,6 +307,7 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
   };
 
   const handleSubmit = async () => {
+    // Allow sending with only images (no text required if images attached)
     const hasContent = content.trim().length > 0;
     const hasImages = imageAttachments.length > 0;
     const hasAttachments = attachments.length > 0;
@@ -258,6 +318,7 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
     const sender = currentUser.id;
 
     try {
+      // Include image URLs in the message content using Markdown
       let finalContent = content.trim();
 
       // Append image URLs as markdown images
@@ -277,6 +338,7 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
       setContent('');
       setAttachments([]);
       setImageAttachments([]);
+      editorRef.current?.clear();
     } catch (error) {
       console.error('Failed to send message:', error);
     }
@@ -285,14 +347,6 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleSubmit();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter to send, Shift+Enter for newline
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
   };
 
   const hasAnyAttachments = attachments.length > 0 || imageAttachments.length > 0;
@@ -311,11 +365,6 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
           isMobile ? 'p-2' : 'p-4'
         } ${dragOver ? 'ring-2 ring-blue-500 ring-inset bg-blue-50 dark:bg-blue-900/30' : ''}`}
       >
-        {/* Uploading indicator */}
-        {isUploadingImage && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500 animate-pulse" />
-        )}
-
         {/* Drag overlay */}
         {dragOver && (
           <div className="absolute inset-0 flex items-center justify-center bg-blue-50/90 dark:bg-blue-900/80 z-10 pointer-events-none">
@@ -328,7 +377,7 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
           </div>
         )}
 
-        {/* Image attachments preview */}
+        {/* TB102: Image attachments preview */}
         {imageAttachments.length > 0 && (
           <div
             className={`flex flex-wrap mb-2 ${isMobile ? 'gap-1.5' : 'gap-2'}`}
@@ -394,7 +443,23 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
         )}
 
         <div className={`flex items-end ${isMobile ? 'gap-1' : 'gap-2'}`}>
-          {/* Attachment button */}
+          {/* TB102: Image attachment button - collapsed to icon on mobile */}
+          <button
+            type="button"
+            onClick={() => setShowImagePicker(true)}
+            disabled={uploadingImage}
+            className={`text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors self-end disabled:opacity-50 ${
+              isMobile ? 'p-2 touch-target' : 'p-2 mb-1'
+            }`}
+            data-testid="message-image-attach-button"
+            title="Attach image"
+          >
+            {uploadingImage ? (
+              <Loader2 className={isMobile ? 'w-5 h-5 animate-spin' : 'w-5 h-5 animate-spin'} />
+            ) : (
+              <ImageIcon className={isMobile ? 'w-5 h-5' : 'w-5 h-5'} />
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setShowPicker(true)}
@@ -407,19 +472,18 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
             <Paperclip className={isMobile ? 'w-5 h-5' : 'w-5 h-5'} />
           </button>
           <div className="flex-1 min-w-0">
-            <textarea
-              ref={inputRef}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={channel?.name ? `Message ${channel.name}...` : 'Message...'}
+            <MessageRichComposer
+              ref={editorRef}
+              content={content}
+              onChange={setContent}
+              onSubmit={handleSubmit}
+              onImagePaste={handleImagePaste}
+              channelName={channel?.name}
               disabled={sendMessage.isPending}
-              className={`w-full resize-none border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
-                isMobile ? 'px-3 py-2.5 text-base' : 'px-3 py-2 text-sm'
-              }`}
-              rows={1}
-              style={{ minHeight: isMobile ? '44px' : '40px', maxHeight: isMobile ? '120px' : '180px' }}
-              data-testid="message-input"
+              maxHeight={isMobile ? 120 : 180}
+              minHeight={isMobile ? 44 : 60}
+              embedCallbacks={embedCallbacks}
+              mentionEntities={entities}
             />
           </div>
           <button
@@ -430,11 +494,7 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
               isMobile ? 'p-2.5 touch-target' : 'px-4 py-2 gap-2 mb-1'
             }`}
           >
-            {sendMessage.isPending ? (
-              <Loader2 className={isMobile ? 'w-5 h-5 animate-spin' : 'w-4 h-4 animate-spin'} />
-            ) : (
-              <Send className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} />
-            )}
+            <Send className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} />
             <span className="sr-only">Send</span>
           </button>
         </div>
@@ -453,6 +513,34 @@ export function MessageComposer({ channelId, channel, isMobile = false }: Messag
         onClose={() => setShowPicker(false)}
         onSelect={handleAddAttachment}
         selectedIds={attachments.map((a) => a.id)}
+      />
+
+      {/* TB102: Image attachment modal */}
+      <MessageImageAttachment
+        isOpen={showImagePicker}
+        onClose={() => setShowImagePicker(false)}
+        onAttach={handleAddImageAttachment}
+      />
+
+      {/* TB127: Task picker modal for slash commands */}
+      <TaskPickerModal
+        isOpen={showTaskPicker}
+        onClose={() => setShowTaskPicker(false)}
+        onSelect={handleTaskSelect}
+      />
+
+      {/* TB127: Document picker modal for slash commands */}
+      <DocumentPickerModal
+        isOpen={showDocumentPicker}
+        onClose={() => setShowDocumentPicker(false)}
+        onSelect={handleDocumentSelect}
+      />
+
+      {/* TB127: Emoji picker modal for slash commands */}
+      <EmojiPickerModal
+        isOpen={showEmojiPicker}
+        onClose={() => setShowEmojiPicker(false)}
+        onSelect={handleEmojiSelect}
       />
     </>
   );

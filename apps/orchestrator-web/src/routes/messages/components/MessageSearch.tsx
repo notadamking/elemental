@@ -1,244 +1,249 @@
 /**
- * MessageSearch - TB103
- *
- * Inline search component that allows searching messages within a channel.
- * Shows search results in a dropdown panel and highlights matching terms.
+ * Message search components (TB103)
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, X, MessageSquare, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
-import { useDebounce } from '../../../hooks/useDebounce';
+import { useState, useEffect, useRef } from 'react';
+import { Loader2, Search, XCircle } from 'lucide-react';
+import { EntityLink } from '../../../components/entity/EntityLink';
 import { useMessageSearch } from '../../../api/hooks/useMessages';
-import { formatRelativeTime } from '../../../lib';
 import { highlightSearchMatch } from '../../../lib/message-content';
 import type { MessageSearchResult } from '../types';
 
 // ============================================================================
-// Types
+// MessageSearch (wrapper with input and dropdown)
 // ============================================================================
 
 interface MessageSearchProps {
-  channelId: string | null;
+  channelId: string;
   onResultClick: (result: MessageSearchResult) => void;
-  className?: string;
   isMobile?: boolean;
 }
 
-// ============================================================================
-// Component
-// ============================================================================
-
-export function MessageSearch({
-  channelId,
-  onResultClick,
-  className = '',
-  isMobile = false,
-}: MessageSearchProps) {
+export function MessageSearch({ channelId, onResultClick, isMobile = false }: MessageSearchProps) {
+  const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Use debounced query for search
-  const debouncedQuery = useDebounce(query, 300);
-  const {
-    data: searchResponse,
-    isLoading,
-    error,
-  } = useMessageSearch(debouncedQuery, channelId);
-  const results = searchResponse?.results || [];
-
-  // Open dropdown when query is entered
-  useEffect(() => {
-    if (query.trim()) {
-      setIsOpen(true);
-      setSelectedIndex(-1);
-    } else {
-      setIsOpen(false);
-    }
-  }, [query]);
-
-  // Click outside to close
+  // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen]);
-
-  // Keyboard navigation
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (!isOpen || results.length === 0) return;
-
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev < results.length - 1 ? prev + 1 : prev));
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
-          break;
-        case 'Enter':
-          e.preventDefault();
-          if (selectedIndex >= 0 && results[selectedIndex]) {
-            handleResultSelect(results[selectedIndex]);
-          }
-          break;
-        case 'Escape':
-          e.preventDefault();
-          setIsOpen(false);
-          inputRef.current?.blur();
-          break;
-      }
-    },
-    [isOpen, results, selectedIndex]
-  );
-
-  const handleResultSelect = (result: MessageSearchResult) => {
+  const handleSelectResult = (messageId: string) => {
+    // Find the full result from the dropdown
+    const result: MessageSearchResult = {
+      id: messageId,
+      channelId,
+      sender: '',
+      content: '',
+      snippet: '',
+      createdAt: '',
+      threadId: null,
+    };
     onResultClick(result);
+    setSearchQuery('');
     setIsOpen(false);
-    // Keep query visible for context
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setIsOpen(e.target.value.trim().length > 0);
   };
 
   const handleClear = () => {
-    setQuery('');
+    setSearchQuery('');
     setIsOpen(false);
     inputRef.current?.focus();
   };
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative ${className}`}
-      data-testid="message-search"
-    >
-      {/* Search Input */}
+    <div ref={containerRef} className="relative">
       <div className="relative">
-        <Search
-          className={`absolute top-1/2 -translate-y-1/2 text-gray-400 ${
-            isMobile ? 'left-3 w-5 h-5' : 'left-3 w-4 h-4'
-          }`}
-        />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           ref={inputRef}
           type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => query.trim() && setIsOpen(true)}
-          placeholder={isMobile ? 'Search...' : 'Search messages...'}
-          className={`w-full border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)] ${
-            isMobile ? 'pl-10 pr-10 py-2.5 text-base' : 'pl-9 pr-8 py-1.5 text-sm'
+          value={searchQuery}
+          onChange={handleInputChange}
+          onFocus={() => setIsOpen(searchQuery.trim().length > 0)}
+          placeholder="Search messages..."
+          className={`w-full pl-9 pr-8 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            isMobile ? 'touch-target' : ''
           }`}
           data-testid="message-search-input"
         />
-        {query && (
+        {searchQuery && (
           <button
             onClick={handleClear}
-            className={`absolute top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 ${
-              isMobile ? 'right-3' : 'right-2'
-            }`}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             data-testid="message-search-clear"
           >
-            <X className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} />
+            <XCircle className="w-4 h-4" />
           </button>
         )}
       </div>
-
-      {/* Results Dropdown */}
       {isOpen && (
-        <div
-          className={`absolute top-full mt-1 w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 ${
-            isMobile ? 'max-h-[50vh]' : 'max-h-80'
-          } overflow-y-auto`}
-          data-testid="message-search-results"
-          role="listbox"
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center py-6 text-gray-500 dark:text-gray-400">
-              <Loader2 className={`animate-spin mr-2 ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
-              <span className={isMobile ? 'text-base' : 'text-sm'}>Searching...</span>
-            </div>
-          ) : error ? (
-            <div
-              className={`py-4 px-4 text-center text-red-500 ${isMobile ? 'text-base' : 'text-sm'}`}
-              data-testid="message-search-error"
-            >
-              Search failed. Please try again.
-            </div>
-          ) : results.length === 0 ? (
-            <div
-              className={`py-6 px-4 text-center text-gray-500 dark:text-gray-400 ${
-                isMobile ? 'text-base' : 'text-sm'
-              }`}
-              data-testid="message-search-empty"
-            >
-              <MessageSquare className={`mx-auto mb-2 ${isMobile ? 'w-8 h-8' : 'w-6 h-6'}`} />
-              <p>No messages found for "{query}"</p>
-            </div>
-          ) : (
-            <>
-              {/* Results header */}
-              <div
-                className={`px-3 py-1.5 text-gray-500 dark:text-gray-400 border-b border-[var(--color-border)] flex items-center justify-between ${
-                  isMobile ? 'text-sm' : 'text-xs'
-                }`}
-              >
-                <span>{results.length} result{results.length !== 1 ? 's' : ''}</span>
-                <span className="flex items-center gap-1 text-gray-400">
-                  <ArrowUp className="w-3 h-3" />
-                  <ArrowDown className="w-3 h-3" />
-                  to navigate
-                </span>
-              </div>
-              {/* Results list */}
-              {results.map((result, index) => (
-                <button
-                  key={result.id}
-                  onClick={() => handleResultSelect(result)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  className={`w-full text-left px-3 py-2 transition-colors ${
-                    selectedIndex === index
-                      ? 'bg-blue-50 dark:bg-blue-900/30'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }`}
-                  role="option"
-                  aria-selected={selectedIndex === index}
-                  data-testid={`message-search-result-${result.id}`}
-                >
-                  <div className={`flex items-center gap-2 ${isMobile ? 'mb-1' : 'mb-0.5'}`}>
-                    <span
-                      className={`font-medium text-[var(--color-text)] ${
-                        isMobile ? 'text-sm' : 'text-xs'
-                      }`}
-                    >
-                      {result.sender}
-                    </span>
-                    <span className={`text-gray-400 ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
-                      {formatRelativeTime(result.createdAt)}
-                    </span>
-                  </div>
-                  <div
-                    className={`text-gray-600 dark:text-gray-400 truncate ${
-                      isMobile ? 'text-sm' : 'text-xs'
-                    }`}
-                  >
-                    {highlightSearchMatch(result.snippet || result.content, query)}
-                  </div>
-                </button>
-              ))}
-            </>
-          )}
+        <MessageSearchDropdown
+          searchQuery={searchQuery}
+          channelId={channelId}
+          onSelectResult={handleSelectResult}
+          onClose={() => setIsOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// MessageSearchDropdown
+// ============================================================================
+
+interface MessageSearchDropdownProps {
+  searchQuery: string;
+  channelId: string;
+  onSelectResult: (messageId: string) => void;
+  onClose: () => void;
+}
+
+export function MessageSearchDropdown({
+  searchQuery,
+  channelId,
+  onSelectResult,
+  onClose,
+}: MessageSearchDropdownProps) {
+  const { data: searchResponse, isLoading } = useMessageSearch(searchQuery, channelId);
+  const results = searchResponse?.results || [];
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Reset selection when results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [results.length]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (results[selectedIndex]) {
+          onSelectResult(results[selectedIndex].id);
+          onClose();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [results, selectedIndex, onSelectResult, onClose]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (resultsRef.current) {
+      const selectedElement = resultsRef.current.children[selectedIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex]);
+
+  if (!searchQuery.trim()) {
+    return null;
+  }
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div
+      data-testid="message-search-dropdown"
+      className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-hidden"
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6" data-testid="message-search-loading">
+          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          <span className="ml-2 text-sm text-gray-500">Searching...</span>
         </div>
+      ) : results.length === 0 ? (
+        <div className="py-6 text-center" data-testid="message-search-empty">
+          <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500">No messages found</p>
+          <p className="text-xs text-gray-400 mt-1">Try a different search term</p>
+        </div>
+      ) : (
+        <>
+          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+            {results.length} result{results.length !== 1 ? 's' : ''} found
+          </div>
+          <div
+            ref={resultsRef}
+            className="overflow-y-auto max-h-64"
+            data-testid="message-search-results"
+          >
+            {results.map((result, index) => (
+              <button
+                key={result.id}
+                onClick={() => {
+                  onSelectResult(result.id);
+                  onClose();
+                }}
+                className={`w-full text-left px-3 py-2 flex items-start gap-3 transition-colors ${
+                  index === selectedIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
+                }`}
+                data-testid={`message-search-result-${result.id}`}
+              >
+                {/* Avatar */}
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-blue-600 font-medium text-xs">
+                    {result.sender.slice(-2).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <EntityLink
+                      entityRef={result.sender}
+                      className="font-medium text-sm"
+                      showPreview={false}
+                    />
+                    <span className="text-xs text-gray-400">{formatTime(result.createdAt)}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 truncate mt-0.5">
+                    {highlightSearchMatch(result.snippet, searchQuery)}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="px-3 py-2 text-xs text-gray-400 border-t border-gray-100">
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">↑</kbd>{' '}
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">↓</kbd> navigate{' '}
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">Enter</kbd> select{' '}
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[10px]">Esc</kbd> close
+          </div>
+        </>
       )}
     </div>
   );
