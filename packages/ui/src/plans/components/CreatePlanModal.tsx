@@ -90,14 +90,18 @@ export function CreatePlanModal({
   const activeTask = tasks.find((t) => t.id === activeTaskId);
 
   // Query for existing tasks when in existing mode
-  const { data: existingTasks = [], isLoading: isLoadingTasks } = useQuery<PlanTaskType[]>({
+  const { data: existingTasks = [], isLoading: isLoadingTasks, error: tasksError } = useQuery<PlanTaskType[]>({
     queryKey: ['tasks', 'for-plan-creation', debouncedQuery, activeTask?.mode],
     queryFn: async () => {
       const url = debouncedQuery
         ? `/api/tasks?limit=50&search=${encodeURIComponent(debouncedQuery)}`
         : '/api/tasks?limit=50';
       const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch tasks');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[CreatePlanModal] Failed to fetch tasks:', response.status, errorText);
+        throw new Error(`Failed to fetch tasks: ${response.status}`);
+      }
       const result = await response.json();
       // Handle different API response formats: orchestrator returns { tasks }, main server returns { items } or array
       const allTasks = (result.tasks || result.items || result.data || (Array.isArray(result) ? result : [])) as PlanTaskType[];
@@ -106,7 +110,13 @@ export function CreatePlanModal({
       return allTasks.filter((t: PlanTaskType) => !selectedIds.has(t.id));
     },
     enabled: activeTask?.mode === 'existing',
+    retry: false, // Don't retry on failure so we see errors immediately
   });
+
+  // Log error if task fetch fails
+  if (tasksError) {
+    console.error('[CreatePlanModal] Task query error:', tasksError);
+  }
 
   // Check if at least one valid task is defined
   const hasValidTask = tasks.some((t) => {
