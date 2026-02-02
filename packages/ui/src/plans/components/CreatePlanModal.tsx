@@ -103,11 +103,15 @@ export function CreatePlanModal({
         throw new Error(`Failed to fetch tasks: ${response.status}`);
       }
       const result = await response.json();
+      console.log('[CreatePlanModal] API response:', result);
       // Handle different API response formats: orchestrator returns { tasks }, main server returns { items } or array
       const allTasks = (result.tasks || result.items || result.data || (Array.isArray(result) ? result : [])) as PlanTaskType[];
+      console.log('[CreatePlanModal] Parsed tasks count:', allTasks.length);
       // Filter out tasks that are already selected
       const selectedIds = new Set(tasks.filter((t) => t.existingTaskId).map((t) => t.existingTaskId));
-      return allTasks.filter((t: PlanTaskType) => !selectedIds.has(t.id));
+      const filteredTasks = allTasks.filter((t: PlanTaskType) => !selectedIds.has(t.id));
+      console.log('[CreatePlanModal] After filtering selected:', filteredTasks.length);
+      return filteredTasks;
     },
     enabled: activeTask?.mode === 'existing',
     retry: false, // Don't retry on failure so we see errors immediately
