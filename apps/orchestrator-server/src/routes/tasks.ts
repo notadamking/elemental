@@ -73,8 +73,10 @@ export function createTaskRoutes(services: Services) {
       const body = (await c.req.json()) as {
         title: string;
         description?: string;
-        priority?: 'critical' | 'high' | 'medium' | 'low';
-        complexity?: 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex';
+        priority?: number | 'critical' | 'high' | 'medium' | 'low';
+        complexity?: number | 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex';
+        taskType?: 'bug' | 'feature' | 'task' | 'chore';
+        assignee?: string;
         tags?: string[];
         ephemeral?: boolean;
         createdBy?: string;
@@ -84,19 +86,34 @@ export function createTaskRoutes(services: Services) {
         return c.json({ error: { code: 'INVALID_INPUT', message: 'title is required' } }, 400);
       }
 
-      const priorityMap: Record<string, Priority> = {
+      // Handle priority as either number (1-5) or string
+      const priorityStringMap: Record<string, Priority> = {
         critical: Priority.CRITICAL,
         high: Priority.HIGH,
         medium: Priority.MEDIUM,
         low: Priority.LOW,
       };
-      const complexityMap: Record<string, Complexity> = {
+      let priority: Priority | undefined;
+      if (typeof body.priority === 'number') {
+        priority = body.priority as Priority;
+      } else if (body.priority) {
+        priority = priorityStringMap[body.priority];
+      }
+
+      // Handle complexity as either number (1-5) or string
+      const complexityStringMap: Record<string, Complexity> = {
         trivial: Complexity.TRIVIAL,
         simple: Complexity.SIMPLE,
         medium: Complexity.MEDIUM,
         complex: Complexity.COMPLEX,
         very_complex: Complexity.VERY_COMPLEX,
       };
+      let complexity: Complexity | undefined;
+      if (typeof body.complexity === 'number') {
+        complexity = body.complexity as Complexity;
+      } else if (body.complexity) {
+        complexity = complexityStringMap[body.complexity];
+      }
 
       const metadata: Record<string, unknown> = {};
       if (body.description) {
@@ -107,8 +124,10 @@ export function createTaskRoutes(services: Services) {
 
       const taskData = await createTask({
         title: body.title,
-        priority: body.priority ? priorityMap[body.priority] : undefined,
-        complexity: body.complexity ? complexityMap[body.complexity] : undefined,
+        priority,
+        complexity,
+        taskType: body.taskType,
+        assignee: body.assignee ? (body.assignee as EntityId) : undefined,
         tags: body.tags,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         ephemeral: body.ephemeral,
