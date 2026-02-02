@@ -1008,6 +1008,7 @@ export function WorkflowEditorModal({
       <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none overflow-y-auto">
         <div
           className="w-full max-w-3xl max-h-[90vh] mx-auto bg-[var(--color-bg)] rounded-xl shadow-2xl border border-[var(--color-border)] animate-scale-in pointer-events-auto flex flex-col"
+          style={{ pointerEvents: 'auto' }}
           data-testid="workflow-editor-dialog"
           role="dialog"
           aria-labelledby="workflow-editor-title"

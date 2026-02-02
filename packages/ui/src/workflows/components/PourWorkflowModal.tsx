@@ -354,6 +354,7 @@ export function PourWorkflowModal({
             pointer-events-auto
             flex flex-col
           "
+          style={{ pointerEvents: 'auto' }}
           data-testid="pour-workflow-dialog"
           role="dialog"
           aria-labelledby="pour-workflow-title"
