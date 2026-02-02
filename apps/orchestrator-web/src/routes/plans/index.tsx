@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '../../hooks';
 import { useCurrentUser } from '../../contexts/CurrentUserContext';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { getCurrentBinding } from '../../lib/keyboard';
 import {
   usePlans,
   PlanSearchBar,
@@ -178,47 +179,47 @@ export function PlansPage() {
       <PageHeader
         title="Plans"
         icon={ClipboardList}
-        iconColor="text-indigo-500"
+        iconColor="text-blue-500"
         count={filteredPlans.length}
         totalCount={plans.length !== filteredPlans.length ? plans.length : undefined}
         bordered
         actions={[
           {
-            label: 'New Plan',
-            shortLabel: 'New',
+            label: 'Create Plan',
+            shortLabel: 'Create',
             icon: Plus,
             onClick: () => setShowCreateModal(true),
+            shortcut: getCurrentBinding('action.createPlan'),
             testId: 'create-plan-btn',
           },
         ]}
-        testId="plans-page-header"
+        testId="plans-header"
       >
-        {/* Controls row */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Search and filter controls */}
+        <div className="space-y-3">
+          {/* Search bar */}
           <PlanSearchBar
             value={searchQuery}
             onChange={setSearchQuery}
             onClear={handleClearSearch}
           />
-          {!isMobile && (
-            <>
+          {/* Filter and View Controls */}
+          <div className="flex items-center justify-between gap-4">
+            <div className={isMobile ? 'overflow-x-auto -mx-3 px-3 scrollbar-hide flex-1' : ''}>
               <StatusFilter
                 selectedStatus={statusFilter}
                 onStatusChange={handleStatusChange}
               />
-              <ViewToggle view={viewMode} onViewChange={setViewMode} />
-            </>
-          )}
-        </div>
-        {/* Mobile status filter */}
-        {isMobile && (
-          <div className="mt-3 overflow-x-auto -mx-3 px-3 pb-1">
-            <StatusFilter
-              selectedStatus={statusFilter}
-              onStatusChange={handleStatusChange}
-            />
+            </div>
+            {/* View Toggle - Hide on mobile */}
+            {!isMobile && (
+              <ViewToggle
+                view={viewMode}
+                onViewChange={setViewMode}
+              />
+            )}
           </div>
-        )}
+        </div>
       </PageHeader>
 
       {/* Content area */}
@@ -275,7 +276,7 @@ export function PlansPage() {
                 </div>
               ) : (
                 // Desktop: List view
-                <div className="p-4 space-y-2">
+                <div className="p-4 space-y-3">
                   {filteredPlans.map((plan) => (
                     <PlanListItem
                       key={plan.id}
@@ -293,7 +294,7 @@ export function PlansPage() {
 
         {/* Detail panel (desktop only) */}
         {showDetailPanel && selectedPlanId && (
-          <div className="w-[400px] xl:w-[480px] flex-shrink-0 border-l border-[var(--color-border)] overflow-hidden">
+          <div className="w-96 flex-shrink-0 border-l border-[var(--color-border)] overflow-hidden">
             <PlanDetailPanel
               planId={selectedPlanId}
               onClose={handlePlanDeselect}

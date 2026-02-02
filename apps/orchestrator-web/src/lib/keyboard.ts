@@ -102,7 +102,19 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutDefinition> = {
     description: 'Create Agent',
     category: 'actions',
   },
+  'action.createPlan': {
+    keys: 'C P',
+    description: 'Create Plan',
+    category: 'actions',
+  },
 };
+
+/**
+ * Get the current binding for an action (returns the default keys)
+ */
+export function getCurrentBinding(actionId: string): string {
+  return DEFAULT_SHORTCUTS[actionId]?.keys || '';
+}
 
 /**
  * Get shortcuts grouped by category for display in settings

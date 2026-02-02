@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   CheckSquare,
-  Folder,
+  ClipboardList,
   Workflow,
   MessageSquare,
   FileText,
@@ -77,7 +77,7 @@ const NAV_SECTIONS: NavSection[] = [
     defaultExpanded: true,
     items: [
       { to: '/tasks', icon: CheckSquare, label: 'Tasks', actionId: 'nav.tasks', testId: 'nav-tasks', search: { page: 1, limit: 25 } },
-      { to: '/plans', icon: Folder, label: 'Plans', actionId: 'nav.plans', testId: 'nav-plans' },
+      { to: '/plans', icon: ClipboardList, label: 'Plans', actionId: 'nav.plans', testId: 'nav-plans' },
       { to: '/workflows', icon: Workflow, label: 'Workflows', actionId: 'nav.workflows', testId: 'nav-workflows' },
       { to: '/dependencies', icon: Network, label: 'Dependencies', actionId: 'nav.dependencies', testId: 'nav-dependencies' },
     ],
