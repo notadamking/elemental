@@ -25,6 +25,9 @@ import {
   Menu,
   Search,
   Command,
+  Inbox,
+  MessageSquare,
+  FileText,
 } from 'lucide-react';
 
 // Responsive breakpoint hooks
@@ -120,6 +123,10 @@ const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/workflows': { label: 'Workflows', icon: Workflow },
   '/metrics': { label: 'Metrics', icon: BarChart3 },
   '/settings': { label: 'Settings', icon: Settings },
+  // Collaborate section
+  '/inbox': { label: 'Inbox', icon: Inbox },
+  '/messages': { label: 'Messages', icon: MessageSquare },
+  '/documents': { label: 'Documents', icon: FileText },
 };
 
 interface BreadcrumbItem {
