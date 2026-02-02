@@ -503,9 +503,10 @@ describe('AgentRegistry', () => {
       // Verify channel can be retrieved
       const channel = await registry.getAgentChannel(director.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      // Channel name is based on agent name, not ID
-      expect(channel?.name).toBe(`agent-${director.name}`);
-      expect(channel?.channelType).toBe('group');
+      // Direct channel name is sorted entity IDs joined by colon
+      const sortedIds = [systemEntity, director.id].sort();
+      expect(channel?.name).toBe(`${sortedIds[0]}:${sortedIds[1]}`);
+      expect(channel?.channelType).toBe('direct');
       expect(channel?.members).toContain(director.id);
       expect(channel?.members).toContain(systemEntity);
     });
@@ -522,9 +523,12 @@ describe('AgentRegistry', () => {
 
       const channel = await registry.getAgentChannel(worker.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      // Channel name is based on agent name, not ID
-      expect(channel?.name).toBe(`agent-${worker.name}`);
+      // Direct channel name is sorted entity IDs joined by colon
+      const sortedIds = [systemEntity, worker.id].sort();
+      expect(channel?.name).toBe(`${sortedIds[0]}:${sortedIds[1]}`);
+      expect(channel?.channelType).toBe('direct');
       expect(channel?.members).toContain(worker.id);
+      expect(channel?.members).toContain(systemEntity);
     });
 
     test('registerSteward creates dedicated channel for the agent', async () => {
@@ -539,8 +543,12 @@ describe('AgentRegistry', () => {
 
       const channel = await registry.getAgentChannel(steward.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      // Channel name is based on agent name, not ID
-      expect(channel?.name).toBe(`agent-${steward.name}`);
+      // Direct channel name is sorted entity IDs joined by colon
+      const sortedIds = [systemEntity, steward.id].sort();
+      expect(channel?.name).toBe(`${sortedIds[0]}:${sortedIds[1]}`);
+      expect(channel?.channelType).toBe('direct');
+      expect(channel?.members).toContain(steward.id);
+      expect(channel?.members).toContain(systemEntity);
     });
 
     test('getAgentChannelId returns channel ID from metadata', async () => {

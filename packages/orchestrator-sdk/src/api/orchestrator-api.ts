@@ -22,7 +22,7 @@ import {
   ElementType,
   EntityTypeValue,
   createEntity,
-  createGroupChannel,
+  createDirectChannel,
   createTimestamp,
 } from '@elemental/core';
 import {
@@ -589,15 +589,11 @@ export class OrchestratorAPIImpl extends ElementalAPIImpl implements Orchestrato
    * @returns The created channel
    */
   private async createAgentChannel(agentName: string, agentId: EntityId, createdBy: EntityId): Promise<Channel> {
-    const channelName = generateAgentChannelName(agentName);
-
-    // Create a group channel with the agent and creator as members
-    const channel = await createGroupChannel({
-      name: channelName,
+    // Create a direct channel between the agent and the operator
+    const channel = await createDirectChannel({
+      entityA: createdBy,  // Operator (el-0000)
+      entityB: agentId,    // The new agent
       createdBy: createdBy,
-      members: [agentId], // Creator is automatically added
-      visibility: 'private',
-      joinPolicy: 'invite-only',
       tags: ['agent-channel'],
       metadata: {
         agentId,

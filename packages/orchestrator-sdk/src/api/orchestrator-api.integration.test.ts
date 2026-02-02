@@ -218,13 +218,13 @@ describe('OrchestratorAPI', () => {
       expect(meta?.lastActivityAt).toBeDefined();
     });
 
-    test('getAgentChannel returns undefined when no channel set', async () => {
-      // Note: Agent channel setup is handled in TB-O7a
-      // Until then, getAgentChannel returns undefined
+    test('getAgentChannel returns direct channel ID created during registration (TB-O7a)', async () => {
       const director = await api.registerDirector({ name: 'ChannelDirector', createdBy: systemEntity });
 
       const channelId = await api.getAgentChannel(director.id as unknown as EntityId);
-      expect(channelId).toBeUndefined();
+      expect(channelId).toBeDefined();
+      // Verify it's a valid element ID (starts with 'el-')
+      expect(channelId?.startsWith('el-')).toBe(true);
     });
   });
 

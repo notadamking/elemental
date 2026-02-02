@@ -16,7 +16,7 @@
  */
 
 import type { Entity, EntityId, ElementId, Channel, ChannelId } from '@elemental/core';
-import { EntityTypeValue, createEntity, createTimestamp, createGroupChannel } from '@elemental/core';
+import { EntityTypeValue, createEntity, createTimestamp, createDirectChannel, generateDirectChannelName } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
 import type {
   AgentRole,
@@ -524,15 +524,16 @@ export class AgentRegistryImpl implements AgentRegistry {
       }
     }
 
-    // Fallback: look up agent to get name, then search for the channel by name
+    // Fallback: look up agent to get createdBy, then search for the direct channel
     const agent = await this.getAgent(agentId);
     if (!agent) {
       return undefined;
     }
 
-    const channelName = generateAgentChannelName(agent.name);
+    // Direct channel name is based on sorted entity IDs
+    const channelName = generateDirectChannelName(agent.createdBy, agentId);
     const channels = await this.api.searchChannels(channelName, {
-      channelType: 'group',
+      channelType: 'direct',
     });
 
     // Find exact match (searchChannels does pattern matching)
@@ -564,15 +565,11 @@ export class AgentRegistryImpl implements AgentRegistry {
    * @returns The created channel
    */
   private async createAgentChannel(agentName: string, agentId: EntityId, createdBy: EntityId): Promise<Channel> {
-    const channelName = generateAgentChannelName(agentName);
-
-    // Create a group channel with the agent and creator as members
-    const channel = await createGroupChannel({
-      name: channelName,
+    // Create a direct channel between the agent and the operator
+    const channel = await createDirectChannel({
+      entityA: createdBy,  // Operator (el-0000)
+      entityB: agentId,    // The new agent
       createdBy: createdBy,
-      members: [agentId], // Creator is automatically added
-      visibility: 'private',
-      joinPolicy: 'invite-only',
       tags: ['agent-channel'],
       metadata: {
         agentId,
