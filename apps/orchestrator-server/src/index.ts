@@ -25,6 +25,7 @@ import {
 // Shared collaborate routes
 import {
   createElementsRoutes,
+  createEntityRoutes,
   createChannelRoutes,
   createMessageRoutes,
   createLibraryRoutes,
@@ -68,6 +69,7 @@ async function main() {
     storageBackend: services.storageBackend,
   };
   app.route('/', createElementsRoutes(collaborateServices));
+  app.route('/', createEntityRoutes(collaborateServices));
   app.route('/', createChannelRoutes(collaborateServices));
   app.route('/', createMessageRoutes(collaborateServices));
   app.route('/', createLibraryRoutes(collaborateServices));

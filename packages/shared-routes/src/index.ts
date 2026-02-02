@@ -9,6 +9,7 @@ export type { CollaborateServices, CollaborateServicesWithBroadcast, BroadcastIn
 
 // Route factories
 export { createElementsRoutes } from './elements.js';
+export { createEntityRoutes } from './entities.js';
 export { createChannelRoutes } from './channels.js';
 export { createMessageRoutes } from './messages.js';
 export { createLibraryRoutes } from './libraries.js';
