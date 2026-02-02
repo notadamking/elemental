@@ -263,6 +263,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.13.18
         version: 3.13.18(react-dom@19.2.4)(react@19.2.4)
+      '@tiptap/core':
+        specifier: ^3.17.1
+        version: 3.17.1(@tiptap/pm@3.17.1)
       '@tiptap/extension-bubble-menu':
         specifier: ^3.17.1
         version: 3.17.1(@tiptap/core@3.17.1)(@tiptap/pm@3.17.1)

@@ -71,3 +71,16 @@ export {
 
 // User selection
 export { UserSelector } from './UserSelector';
+
+// Channel components
+export {
+  ChannelHeader,
+  ChannelIcon,
+  ChannelSearchInput,
+  useChannelSearch,
+  type ChannelHeaderProps,
+  type ChannelHeaderChannel,
+  type ChannelSearchInputProps,
+  type UseChannelSearchOptions,
+  type UseChannelSearchReturn,
+} from './ChannelHeader';

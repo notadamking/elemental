@@ -2,21 +2,24 @@
  * ChannelView component - main channel display with messages
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Hash,
-  Lock,
-  Users,
   MessageSquare,
-  UserCog,
   Search,
   XCircle,
   ChevronLeft,
+  Users,
+  UserCog,
 } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
 import { ChannelMembersPanel } from '../../../components/message/ChannelMembersPanel';
 import { groupMessagesByDay } from '../../../lib';
 import { useChannel, useChannelMessages, useEntities } from '../../../api/hooks/useMessages';
+import {
+  ChannelHeader as SharedChannelHeader,
+  ChannelIcon,
+  useChannelSearch,
+} from '@elemental/ui';
 import { MessageBubble, DateSeparator } from './MessageBubble';
 import { MessageComposer } from './MessageComposer';
 import { MessageSearchDropdown } from './MessageSearch';
@@ -43,21 +46,26 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const [showMembersPanel, setShowMembersPanel] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
-
-  // TB103: Message search state
-  const [messageSearchQuery, setMessageSearchQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Use shared search hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    isSearchOpen,
+    setIsSearchOpen,
+    searchInputRef,
+    clearSearch,
+  } = useChannelSearch({ enableKeyboardShortcut: true });
 
   // Determine current operator (prefer human entity, fall back to first entity)
   const currentOperator =
     entities?.find((e) => e.entityType === 'human')?.id || entities?.[0]?.id || '';
 
-  // TB103: Handle search result selection - scroll to and highlight message
+  // Handle search result selection - scroll to and highlight message
   const handleSearchResultSelect = useCallback((messageId: string) => {
-    setMessageSearchQuery('');
-    setIsSearchOpen(false);
+    clearSearch();
+    setShowMobileSearch(false);
 
     // Find the message element and scroll to it
     const messageElement = document.querySelector(`[data-testid="message-${messageId}"]`);
@@ -70,9 +78,9 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
         setHighlightedMessageId(null);
       }, 2000);
     }
-  }, []);
+  }, [clearSearch]);
 
-  // TB103: Clear highlight when clicking elsewhere
+  // Clear highlight when clicking elsewhere
   useEffect(() => {
     if (!highlightedMessageId) return;
 
@@ -90,21 +98,6 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
       document.removeEventListener('click', handleClick);
     };
   }, [highlightedMessageId]);
-
-  // TB103: Handle search input focus with keyboard shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + F to focus search
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        setIsSearchOpen(true);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   // Calculate reply counts for each message
   const replyCounts = messages.reduce(
@@ -130,6 +123,98 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
     setSelectedThread(message);
   };
 
+  // Render search input for desktop
+  const renderDesktopSearch = () => (
+    <div className="relative" data-testid="message-search-container">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setIsSearchOpen(e.target.value.length > 0);
+          }}
+          onFocus={() => searchQuery && setIsSearchOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              clearSearch();
+              searchInputRef.current?.blur();
+            }
+          }}
+          placeholder="Search messages..."
+          className="w-48 pl-8 pr-8 py-1.5 text-sm border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+          data-testid="message-search-input"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => {
+              clearSearch();
+              searchInputRef.current?.focus();
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            data-testid="message-search-clear"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {/* Search Results Dropdown */}
+      {isSearchOpen && (
+        <MessageSearchDropdown
+          searchQuery={searchQuery}
+          channelId={channelId}
+          onSelectResult={handleSearchResultSelect}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
+    </div>
+  );
+
+  // Render actions for the header
+  const renderHeaderActions = ({ isMobile: mobile }: { isMobile: boolean }) => {
+    if (!channel) return null;
+
+    if (mobile) {
+      return (
+        <div className="flex items-center gap-1 ml-auto">
+          <button
+            onClick={() => setShowMobileSearch(!showMobileSearch)}
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+            data-testid="mobile-search-toggle"
+            aria-label="Search messages"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setShowMembersPanel(true)}
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
+            data-testid="channel-members-button"
+            aria-label="View members"
+          >
+            <Users className="w-5 h-5" />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <button
+          onClick={() => setShowMembersPanel(true)}
+          className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition-colors"
+          data-testid="channel-members-button"
+        >
+          <UserCog className="w-4 h-4" />
+          {channel.members.length} members
+        </button>
+        <div className="flex-1" />
+        {renderDesktopSearch()}
+      </>
+    );
+  };
+
   return (
     <div
       data-testid="channel-view"
@@ -138,21 +223,74 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
       {/* Main Channel Area */}
       <div className="flex-1 flex flex-col">
         {/* Channel Header */}
-        <ChannelHeader
-          channel={channel}
-          isMobile={isMobile}
-          onBack={onBack}
-          showMobileSearch={showMobileSearch}
-          setShowMobileSearch={setShowMobileSearch}
-          setShowMembersPanel={setShowMembersPanel}
-          messageSearchQuery={messageSearchQuery}
-          setMessageSearchQuery={setMessageSearchQuery}
-          isSearchOpen={isSearchOpen}
-          setIsSearchOpen={setIsSearchOpen}
-          searchInputRef={searchInputRef}
-          channelId={channelId}
-          handleSearchResultSelect={handleSearchResultSelect}
-        />
+        {channel && (
+          <div>
+            <SharedChannelHeader
+              channel={channel}
+              isMobile={isMobile}
+              onBack={onBack}
+              renderIcon={(ch) => (
+                <ChannelIcon channel={ch} className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
+              )}
+              renderActions={renderHeaderActions}
+            />
+
+            {/* Mobile search bar (shown below header when toggled) */}
+            {isMobile && showMobileSearch && (
+              <div className="px-3 pb-3 relative" data-testid="mobile-message-search-container">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setIsSearchOpen(e.target.value.length > 0);
+                    }}
+                    onFocus={() => searchQuery && setIsSearchOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        clearSearch();
+                        setShowMobileSearch(false);
+                      }
+                    }}
+                    placeholder="Search..."
+                    className="w-full pl-10 pr-10 py-2.5 text-base border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+                    data-testid="mobile-message-search-input"
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => {
+                        clearSearch();
+                        searchInputRef.current?.focus();
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+                {/* Search Results Dropdown */}
+                {isSearchOpen && (
+                  <MessageSearchDropdown
+                    searchQuery={searchQuery}
+                    channelId={channelId}
+                    onSelectResult={(messageId) => {
+                      handleSearchResultSelect(messageId);
+                      setShowMobileSearch(false);
+                    }}
+                    onClose={() => {
+                      setIsSearchOpen(false);
+                      setShowMobileSearch(false);
+                    }}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Messages Area - TB131: Always use virtualized chat list */}
         <div
@@ -266,223 +404,6 @@ export function ChannelView({ channelId, isMobile = false, onBack }: ChannelView
           currentOperator={currentOperator}
           onClose={() => setShowMembersPanel(false)}
         />
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// ChannelHeader (extracted for clarity)
-// ============================================================================
-
-interface ChannelHeaderProps {
-  channel: Channel | undefined;
-  isMobile: boolean;
-  onBack?: () => void;
-  showMobileSearch: boolean;
-  setShowMobileSearch: (show: boolean) => void;
-  setShowMembersPanel: (show: boolean) => void;
-  messageSearchQuery: string;
-  setMessageSearchQuery: (query: string) => void;
-  isSearchOpen: boolean;
-  setIsSearchOpen: (open: boolean) => void;
-  searchInputRef: React.RefObject<HTMLInputElement | null>;
-  channelId: string;
-  handleSearchResultSelect: (messageId: string) => void;
-}
-
-function ChannelHeader({
-  channel,
-  isMobile,
-  onBack,
-  showMobileSearch,
-  setShowMobileSearch,
-  setShowMembersPanel,
-  messageSearchQuery,
-  setMessageSearchQuery,
-  isSearchOpen,
-  setIsSearchOpen,
-  searchInputRef,
-  channelId,
-  handleSearchResultSelect,
-}: ChannelHeaderProps) {
-  return (
-    <div
-      data-testid="channel-header"
-      className={`border-b border-[var(--color-border)] ${isMobile ? 'p-3' : 'p-4'}`}
-    >
-      <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-2'}`}>
-        {/* Mobile back button */}
-        {isMobile && onBack && (
-          <button
-            onClick={onBack}
-            className="p-2 -ml-2 rounded-md text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
-            data-testid="channel-back-button"
-            aria-label="Back to channels"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-
-        {channel && (
-          <>
-            {channel.channelType === 'direct' ? (
-              <Users className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
-            ) : channel.permissions.visibility === 'private' ? (
-              <Lock className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
-            ) : (
-              <Hash className={`text-gray-400 ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
-            )}
-            <h3
-              data-testid="channel-name"
-              className={`font-medium text-[var(--color-text)] truncate ${
-                isMobile ? 'text-base flex-1' : ''
-              }`}
-            >
-              {channel.name}
-            </h3>
-
-            {/* Desktop: show members button and search inline */}
-            {!isMobile && (
-              <>
-                <button
-                  onClick={() => setShowMembersPanel(true)}
-                  className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition-colors"
-                  data-testid="channel-members-button"
-                >
-                  <UserCog className="w-4 h-4" />
-                  {channel.members.length} members
-                </button>
-                <div className="flex-1" />
-                {/* TB103: Message Search Input */}
-                <div className="relative" data-testid="message-search-container">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      value={messageSearchQuery}
-                      onChange={(e) => {
-                        setMessageSearchQuery(e.target.value);
-                        setIsSearchOpen(e.target.value.length > 0);
-                      }}
-                      onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setMessageSearchQuery('');
-                          setIsSearchOpen(false);
-                          searchInputRef.current?.blur();
-                        }
-                      }}
-                      placeholder="Search messages..."
-                      className="w-48 pl-8 pr-8 py-1.5 text-sm border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
-                      data-testid="message-search-input"
-                    />
-                    {messageSearchQuery && (
-                      <button
-                        onClick={() => {
-                          setMessageSearchQuery('');
-                          setIsSearchOpen(false);
-                          searchInputRef.current?.focus();
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        data-testid="message-search-clear"
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  {/* Search Results Dropdown */}
-                  {isSearchOpen && (
-                    <MessageSearchDropdown
-                      searchQuery={messageSearchQuery}
-                      channelId={channelId}
-                      onSelectResult={handleSearchResultSelect}
-                      onClose={() => setIsSearchOpen(false)}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Mobile: show search and members as icon buttons */}
-            {isMobile && (
-              <div className="flex items-center gap-1 ml-auto">
-                <button
-                  onClick={() => setShowMobileSearch(!showMobileSearch)}
-                  className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
-                  data-testid="mobile-search-toggle"
-                  aria-label="Search messages"
-                >
-                  <Search className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setShowMembersPanel(true)}
-                  className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors touch-target"
-                  data-testid="channel-members-button"
-                  aria-label="View members"
-                >
-                  <Users className="w-5 h-5" />
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Mobile search bar (shown below header when toggled) */}
-      {isMobile && showMobileSearch && (
-        <div className="mt-3 relative" data-testid="mobile-message-search-container">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={messageSearchQuery}
-            onChange={(e) => {
-              setMessageSearchQuery(e.target.value);
-              setIsSearchOpen(e.target.value.length > 0);
-            }}
-            onFocus={() => messageSearchQuery && setIsSearchOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setMessageSearchQuery('');
-                setIsSearchOpen(false);
-                setShowMobileSearch(false);
-              }
-            }}
-            placeholder="Search..."
-            className="w-full pl-10 pr-10 py-2.5 text-base border border-[var(--color-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
-            data-testid="mobile-message-search-input"
-            autoFocus
-          />
-          {messageSearchQuery && (
-            <button
-              onClick={() => {
-                setMessageSearchQuery('');
-                setIsSearchOpen(false);
-                searchInputRef.current?.focus();
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <XCircle className="w-5 h-5" />
-            </button>
-          )}
-          {/* Search Results Dropdown */}
-          {isSearchOpen && (
-            <MessageSearchDropdown
-              searchQuery={messageSearchQuery}
-              channelId={channelId}
-              onSelectResult={(messageId) => {
-                handleSearchResultSelect(messageId);
-                setShowMobileSearch(false);
-              }}
-              onClose={() => {
-                setIsSearchOpen(false);
-                setShowMobileSearch(false);
-              }}
-            />
-          )}
-        </div>
       )}
     </div>
   );

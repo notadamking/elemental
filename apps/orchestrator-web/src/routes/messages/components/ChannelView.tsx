@@ -3,7 +3,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Settings, Search, ChevronLeft } from 'lucide-react';
+import { Search, ChevronLeft, Settings, XCircle } from 'lucide-react';
 import { VirtualizedChatList } from '../../../components/shared/VirtualizedChatList';
 import { useIsMobile } from '../../../hooks';
 import { useChannelMessages } from '../../../api/hooks/useMessages';
@@ -12,133 +12,16 @@ import {
   type MessageWithDayGroup,
   formatDateSeparator,
 } from '../../../lib';
-import { ChannelIcon } from './ChannelList';
+import {
+  ChannelHeader as SharedChannelHeader,
+  ChannelIcon,
+  useChannelSearch,
+} from '@elemental/ui';
 import { MessageBubble, DateSeparator } from './MessageBubble';
 import { MessageComposer } from './MessageComposer';
-import { MessageSearch } from './MessageSearch';
+import { MessageSearchDropdown } from './MessageSearch';
 import { ThreadPanel } from './ThreadPanel';
-import type { Channel, Message, MessageSearchResult } from '../types';
-
-// ============================================================================
-// ChannelHeader
-// ============================================================================
-
-interface ChannelHeaderProps {
-  channel: Channel;
-  onOpenMembers?: () => void;
-  onBack?: () => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  onSearchResultClick: (result: MessageSearchResult) => void;
-  isMobile?: boolean;
-}
-
-export function ChannelHeader({
-  channel,
-  onOpenMembers,
-  onBack,
-  searchQuery: _searchQuery,
-  onSearchChange: _onSearchChange,
-  onSearchResultClick,
-  isMobile = false,
-}: ChannelHeaderProps) {
-  const [showSearch, setShowSearch] = useState(false);
-
-  return (
-    <div
-      data-testid="channel-header"
-      className={`border-b border-[var(--color-border)] bg-[var(--color-bg)] ${
-        isMobile ? 'px-2 py-2' : 'px-4 py-3'
-      }`}
-    >
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Mobile back button */}
-        {isMobile && onBack && (
-          <button
-            onClick={onBack}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 touch-target"
-            data-testid="channel-back-button"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-        <ChannelIcon channel={channel} />
-        <div className="flex-1 min-w-0">
-          <h2
-            data-testid="channel-name"
-            className={`font-semibold text-[var(--color-text)] truncate ${
-              isMobile ? 'text-base' : 'text-lg'
-            }`}
-          >
-            {channel.name}
-          </h2>
-          <p
-            data-testid="channel-members-count"
-            className={`text-gray-500 dark:text-gray-400 ${
-              isMobile ? 'text-xs' : 'text-sm'
-            }`}
-          >
-            {channel.members.length} {channel.members.length === 1 ? 'member' : 'members'}
-          </p>
-        </div>
-
-        {/* Search toggle (mobile) */}
-        {isMobile && (
-          <button
-            onClick={() => setShowSearch(!showSearch)}
-            className={`p-2 rounded-lg transition-colors touch-target ${
-              showSearch
-                ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-            data-testid="channel-search-toggle"
-          >
-            <Search className="w-5 h-5" />
-          </button>
-        )}
-
-        {/* Search bar (desktop) */}
-        {!isMobile && (
-          <div className="hidden md:block w-64">
-            <MessageSearch
-              channelId={channel.id}
-              onResultClick={onSearchResultClick}
-              isMobile={false}
-            />
-          </div>
-        )}
-
-        {/* Settings button */}
-        {onOpenMembers && (
-          <button
-            onClick={onOpenMembers}
-            className={`text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ${
-              isMobile ? 'p-2 touch-target' : 'p-2'
-            }`}
-            title="Channel settings"
-            data-testid="channel-settings-button"
-          >
-            <Settings className={isMobile ? 'w-5 h-5' : 'w-5 h-5'} />
-          </button>
-        )}
-      </div>
-
-      {/* Mobile search bar (expanded) */}
-      {isMobile && showSearch && (
-        <div className="mt-2">
-          <MessageSearch
-            channelId={channel.id}
-            onResultClick={(result) => {
-              onSearchResultClick(result);
-              setShowSearch(false);
-            }}
-            isMobile={true}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
+import type { Channel, Message } from '../types';
 
 // ============================================================================
 // ChannelView
@@ -163,8 +46,18 @@ export function ChannelView({
   const { data: messages = [], isLoading } = useChannelMessages(channelId);
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Use shared search hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    isSearchOpen,
+    setIsSearchOpen,
+    searchInputRef,
+    clearSearch,
+  } = useChannelSearch({ enableKeyboardShortcut: true });
 
   // Clear highlighted message after delay
   useEffect(() => {
@@ -202,23 +95,131 @@ export function ChannelView({
     setSelectedThread(message);
   }, []);
 
-  const handleSearchResultClick = useCallback((result: MessageSearchResult) => {
-    // Check if it's a threaded message
-    if (result.threadId) {
-      // Find the parent message and open thread panel
-      const parentMessage = messages.find((m: Message) => m.id === result.threadId);
-      if (parentMessage) {
-        setSelectedThread(parentMessage);
-        // After thread opens, scroll to and highlight the specific reply
-        setTimeout(() => {
-          setHighlightedMessageId(result.id);
-        }, 100);
+  const handleSearchResultSelect = useCallback(
+    (messageId: string) => {
+      clearSearch();
+      setShowMobileSearch(false);
+
+      // Find the result to check if it's threaded
+      const message = messages.find((m: Message) => m.id === messageId);
+      if (message?.threadId) {
+        // Find the parent message and open thread panel
+        const parentMessage = messages.find((m: Message) => m.id === message.threadId);
+        if (parentMessage) {
+          setSelectedThread(parentMessage);
+          // After thread opens, scroll to and highlight the specific reply
+          setTimeout(() => {
+            setHighlightedMessageId(messageId);
+          }, 100);
+        }
+      } else {
+        // Highlight the message in main view
+        setHighlightedMessageId(messageId);
       }
-    } else {
-      // Highlight the message in main view
-      setHighlightedMessageId(result.id);
+    },
+    [messages, clearSearch]
+  );
+
+  // Render search input for desktop
+  const renderDesktopSearch = () => {
+    if (!channel) return null;
+    return (
+      <div className="relative w-64" data-testid="message-search-container">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setIsSearchOpen(e.target.value.length > 0);
+            }}
+            onFocus={() => searchQuery && setIsSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                clearSearch();
+                searchInputRef.current?.blur();
+              }
+            }}
+            placeholder="Search messages..."
+            className="w-full pl-8 pr-8 py-1.5 text-sm border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+            data-testid="message-search-input"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                clearSearch();
+                searchInputRef.current?.focus();
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              data-testid="message-search-clear"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {/* Search Results Dropdown */}
+        {isSearchOpen && (
+          <MessageSearchDropdown
+            searchQuery={searchQuery}
+            channelId={channelId}
+            onSelectResult={handleSearchResultSelect}
+            onClose={() => setIsSearchOpen(false)}
+          />
+        )}
+      </div>
+    );
+  };
+
+  // Render actions for the header
+  const renderHeaderActions = ({ isMobile: mobile }: { isMobile: boolean }) => {
+    if (!channel) return null;
+
+    if (mobile) {
+      return (
+        <div className="flex items-center gap-1 ml-auto">
+          <button
+            onClick={() => setShowMobileSearch(!showMobileSearch)}
+            className={`p-2 rounded-lg transition-colors touch-target ${
+              showMobileSearch
+                ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+            data-testid="channel-search-toggle"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          {onOpenMembers && (
+            <button
+              onClick={onOpenMembers}
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors touch-target"
+              title="Channel settings"
+              data-testid="channel-settings-button"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      );
     }
-  }, [messages]);
+
+    return (
+      <>
+        {renderDesktopSearch()}
+        {onOpenMembers && (
+          <button
+            onClick={onOpenMembers}
+            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            title="Channel settings"
+            data-testid="channel-settings-button"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        )}
+      </>
+    );
+  };
 
   if (!channel) {
     return (
@@ -265,15 +266,75 @@ export function ChannelView({
       data-testid="channel-view"
       className={`flex-1 flex flex-col h-full bg-[var(--color-bg)] ${className}`}
     >
-      <ChannelHeader
-        channel={channel}
-        onOpenMembers={onOpenMembers}
-        onBack={onBack}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onSearchResultClick={handleSearchResultClick}
-        isMobile={isMobile}
-      />
+      {/* Channel Header */}
+      <div>
+        <SharedChannelHeader
+          channel={channel}
+          isMobile={isMobile}
+          onBack={onBack}
+          showMemberCount={true}
+          renderIcon={(ch) => (
+            <ChannelIcon channel={ch} className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
+          )}
+          renderActions={renderHeaderActions}
+        />
+
+        {/* Mobile search bar (expanded) */}
+        {isMobile && showMobileSearch && (
+          <div className="px-2 pb-2 relative" data-testid="mobile-message-search-container">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSearchOpen(e.target.value.length > 0);
+                }}
+                onFocus={() => searchQuery && setIsSearchOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    clearSearch();
+                    setShowMobileSearch(false);
+                  }
+                }}
+                placeholder="Search messages..."
+                className="w-full pl-10 pr-10 py-2.5 text-base border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-[var(--color-surface)] text-[var(--color-text)]"
+                data-testid="mobile-message-search-input"
+                autoFocus
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    clearSearch();
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+            {/* Search Results Dropdown */}
+            {isSearchOpen && (
+              <MessageSearchDropdown
+                searchQuery={searchQuery}
+                channelId={channelId}
+                onSelectResult={(messageId) => {
+                  handleSearchResultSelect(messageId);
+                  setShowMobileSearch(false);
+                }}
+                onClose={() => {
+                  setIsSearchOpen(false);
+                  setShowMobileSearch(false);
+                }}
+              />
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 flex overflow-hidden">
         {/* Messages area - TB131: Virtualized */}
         <div className="flex-1 flex flex-col min-w-0">
@@ -358,11 +419,7 @@ interface MobileThreadModalProps {
   onClose: () => void;
 }
 
-function MobileThreadModal({
-  parentMessage,
-  channel,
-  onClose,
-}: MobileThreadModalProps) {
+function MobileThreadModal({ parentMessage, channel, onClose }: MobileThreadModalProps) {
   return (
     <div className="fixed inset-0 z-50 bg-[var(--color-bg)] flex flex-col">
       {/* Header */}
@@ -378,12 +435,9 @@ function MobileThreadModal({
 
       {/* Thread content */}
       <div className="flex-1 overflow-hidden">
-        <ThreadPanel
-          parentMessage={parentMessage}
-          channel={channel}
-          onClose={onClose}
-        />
+        <ThreadPanel parentMessage={parentMessage} channel={channel} onClose={onClose} />
       </div>
     </div>
   );
 }
+

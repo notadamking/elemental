@@ -9,10 +9,7 @@ export {
   ChannelPlaceholder,
 } from './ChannelList';
 
-export {
-  ChannelView,
-  ChannelHeader,
-} from './ChannelView';
+export { ChannelView } from './ChannelView';
 
 export {
   MessageBubble,
