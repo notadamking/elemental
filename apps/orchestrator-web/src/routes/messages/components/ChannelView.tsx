@@ -263,7 +263,7 @@ export function ChannelView({
   return (
     <div
       data-testid="channel-view"
-      className={`flex flex-col h-full bg-[var(--color-bg)] ${className}`}
+      className={`flex-1 flex flex-col h-full bg-[var(--color-bg)] ${className}`}
     >
       <ChannelHeader
         channel={channel}
