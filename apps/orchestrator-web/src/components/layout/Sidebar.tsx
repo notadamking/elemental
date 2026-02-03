@@ -49,7 +49,6 @@ const NAV_SECTIONS: NavSection[] = [
   {
     id: 'overview',
     label: 'Overview',
-    icon: Activity,
     defaultExpanded: true,
     items: [
       { to: '/activity', icon: Activity, label: 'Activity', testId: 'nav-activity', actionId: 'nav.activity' },
