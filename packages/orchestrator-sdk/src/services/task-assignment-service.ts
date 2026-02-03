@@ -568,6 +568,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       handoffWorktree,
       lastSessionId: sessionId,
       handoffAt: createTimestamp(),
+      handoffNote: message,
       handoffMessage: message,
       handoffHistory,
     };
