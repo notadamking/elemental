@@ -85,14 +85,17 @@ export interface OrchestratorTaskMeta {
   readonly handoffFrom?: EntityId;
 
   // ----------------------------------------
-  // PR Information (for completed tasks)
+  // Merge Request Information (for completed tasks)
   // ----------------------------------------
 
-  /** URL of the pull request created for this task */
-  readonly prUrl?: string;
+  /** URL of the merge request created for this task */
+  readonly mergeRequestUrl?: string;
 
-  /** PR number for this task */
-  readonly prNumber?: number;
+  /** Merge request identifier (e.g. PR number) */
+  readonly mergeRequestId?: number;
+
+  /** Which provider created the merge request (e.g. 'github', 'local') */
+  readonly mergeRequestProvider?: string;
 
   /** Completion summary provided by the agent */
   readonly completionSummary?: string;

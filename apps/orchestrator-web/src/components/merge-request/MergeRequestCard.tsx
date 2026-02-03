@@ -82,16 +82,18 @@ export function MergeRequestCard({
             )}
           </div>
         )}
-        {orchestratorMeta?.sessionId && (
+        {orchestratorMeta?.mergeRequestUrl && (
           <>
             <span className="text-[var(--color-text-tertiary)]">&bull;</span>
             <a
-              href={`#pr`}
+              href={orchestratorMeta.mergeRequestUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-1 text-[var(--color-primary)] hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               <ExternalLink className="w-3 h-3" />
-              <span>PR</span>
+              <span>View MR</span>
             </a>
           </>
         )}

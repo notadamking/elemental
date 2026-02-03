@@ -216,6 +216,9 @@ export interface OrchestratorTaskMeta {
   mergeFailureReason?: string;
   testRunCount?: number;
   lastTestResult?: TestResult;
+  mergeRequestUrl?: string;
+  mergeRequestId?: number;
+  mergeRequestProvider?: string;
 }
 
 export interface TestResult {

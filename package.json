@@ -2,6 +2,7 @@
   "name": "elemental-monorepo",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Elemental Agent Orchestration Platform - Monorepo",
   "scripts": {
     "build": "turbo run build",
@@ -10,7 +11,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
-    "dev:platform": "turbo run dev --filter=@elemental/server --filter=@elemental/web"
+    "dev:platform": "turbo run dev --filter=@elemental/server --filter=@elemental/web",
+    "postinstall": "node scripts/fix-node-pty-permissions.js"
   },
   "packageManager": "pnpm@8.15.5",
   "engines": {

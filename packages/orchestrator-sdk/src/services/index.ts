@@ -37,6 +37,20 @@ export {
   createRoleDefinitionService,
 } from './role-definition-service.js';
 
+// Merge request provider
+export {
+  // Types
+  type MergeRequestResult,
+  type CreateMergeRequestOptions,
+  type MergeRequestProvider,
+  // Implementations
+  LocalMergeProvider,
+  GitHubMergeProvider,
+  // Factories
+  createLocalMergeProvider,
+  createGitHubMergeProvider,
+} from './merge-request-provider.js';
+
 // Task assignment service (TB-O8)
 export {
   // Types

@@ -196,9 +196,9 @@ Examples:
 interface TaskCompleteOptions {
   summary?: string;
   commitHash?: string;
-  noPR?: boolean;
-  prTitle?: string;
-  prBody?: string;
+  noMR?: boolean;
+  mrTitle?: string;
+  mrBody?: string;
   baseBranch?: string;
 }
 
@@ -216,30 +216,30 @@ const taskCompleteOptions: CommandOption[] = [
     hasValue: true,
   },
   {
-    name: 'no-pr',
-    description: 'Skip pull request creation',
+    name: 'no-mr',
+    description: 'Skip merge request creation',
   },
   {
-    name: 'prTitle',
-    description: 'Custom title for the pull request',
+    name: 'mr-title',
+    description: 'Custom title for the merge request',
     hasValue: true,
   },
   {
-    name: 'prBody',
-    description: 'Custom body for the pull request',
+    name: 'mr-body',
+    description: 'Custom body for the merge request',
     hasValue: true,
   },
   {
     name: 'baseBranch',
     short: 'b',
-    description: 'Base branch for the PR (default: main)',
+    description: 'Base branch for the merge request (default: main)',
     hasValue: true,
   },
 ];
 
 async function taskCompleteHandler(
   args: string[],
-  options: GlobalOptions & TaskCompleteOptions & { 'no-pr'?: boolean }
+  options: GlobalOptions & TaskCompleteOptions & { 'no-mr'?: boolean; 'mr-title'?: string; 'mr-body'?: string }
 ): Promise<CommandResult> {
   const [taskId] = args;
 
@@ -256,9 +256,9 @@ async function taskCompleteHandler(
     const result = await service.completeTask(taskId as ElementId, {
       summary: options.summary,
       commitHash: options.commitHash,
-      createPR: options['no-pr'] !== true,
-      prTitle: options.prTitle,
-      prBody: options.prBody,
+      createMergeRequest: options['no-mr'] !== true,
+      mergeRequestTitle: options['mr-title'],
+      mergeRequestBody: options['mr-body'],
       baseBranch: options.baseBranch,
     });
 
@@ -268,8 +268,8 @@ async function taskCompleteHandler(
       return success({
         taskId: result.task.id,
         status: result.task.status,
-        prUrl: result.prUrl,
-        prNumber: result.prNumber,
+        mergeRequestUrl: result.mergeRequestUrl,
+        mergeRequestId: result.mergeRequestId,
       });
     }
 
@@ -284,8 +284,8 @@ async function taskCompleteHandler(
     if (options.summary) {
       lines.push(`  Summary: ${options.summary.slice(0, 50)}${options.summary.length > 50 ? '...' : ''}`);
     }
-    if (result.prUrl) {
-      lines.push(`  PR: ${result.prUrl}`);
+    if (result.mergeRequestUrl) {
+      lines.push(`  MR: ${result.mergeRequestUrl}`);
     }
 
     return success(result, lines.join('\n'));
@@ -297,14 +297,14 @@ async function taskCompleteHandler(
 
 export const taskCompleteCommand: Command = {
   name: 'complete',
-  description: 'Complete a task and optionally create a PR',
+  description: 'Complete a task and optionally create a merge request',
   usage: 'el task complete <task-id> [options]',
-  help: `Complete a task and optionally create a pull request.
+  help: `Complete a task and optionally create a merge request.
 
 This command:
 1. Marks the task as closed
 2. Records completion time and optional summary
-3. Creates a pull request for the task branch (unless --no-pr)
+3. Creates a merge request for the task branch (unless --no-mr)
 
 Arguments:
   task-id    Task identifier to complete
@@ -312,15 +312,15 @@ Arguments:
 Options:
   -s, --summary <text>      Summary of what was accomplished
   -c, --commitHash <hash>   Commit hash for the final commit
-  --no-pr                   Skip pull request creation
-  --prTitle <title>         Custom PR title (defaults to task title)
-  --prBody <body>           Custom PR body
-  -b, --baseBranch <name>   Base branch for PR (default: main)
+  --no-mr                   Skip merge request creation
+  --mr-title <title>        Custom MR title (defaults to task title)
+  --mr-body <body>          Custom MR body
+  -b, --baseBranch <name>   Base branch for MR (default: main)
 
 Examples:
   el task complete el-abc123
   el task complete el-abc123 --summary "Implemented login feature"
-  el task complete el-abc123 --no-pr
+  el task complete el-abc123 --no-mr
   el task complete el-abc123 --baseBranch develop`,
   options: taskCompleteOptions,
   handler: taskCompleteHandler as Command['handler'],
@@ -338,7 +338,7 @@ export const taskCommand: Command = {
 
 Subcommands:
   handoff   Hand off a task to another agent
-  complete  Complete a task and optionally create a PR
+  complete  Complete a task and optionally create a merge request
 
 Examples:
   el task handoff el-abc123 --message "Need help with frontend"

@@ -2,10 +2,10 @@
  * MergeRequestActions - Context-aware action buttons
  *
  * Actions vary based on merge status:
- * - pending: Merge, Run Tests, View PR
- * - testing/merging: (waiting), View PR
- * - merged: View PR, View Diff
- * - conflict/failed: Create Fix Task, View Conflicts, View PR
+ * - pending: Merge, Run Tests, View MR
+ * - testing/merging: (waiting), View MR
+ * - merged: View MR, View Diff
+ * - conflict/failed: Create Fix Task, View Conflicts, View MR
  * - test_failed: Create Fix Task, Re-run Tests, View Logs
  */
 
@@ -32,7 +32,7 @@ import {
 
 interface MergeRequestActionsProps {
   task: Task;
-  onViewPR?: () => void;
+  onViewMergeRequest?: () => void;
   onViewDiff?: () => void;
   onViewConflicts?: () => void;
   onViewLogs?: () => void;
@@ -41,7 +41,7 @@ interface MergeRequestActionsProps {
 
 export function MergeRequestActions({
   task,
-  onViewPR,
+  onViewMergeRequest,
   onViewDiff,
   onViewConflicts,
   onViewLogs,
@@ -147,15 +147,15 @@ export function MergeRequestActions({
 
       {/* Secondary Actions */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* View PR */}
-        {onViewPR && (
+        {/* View MR */}
+        {onViewMergeRequest && (
           <button
-            onClick={onViewPR}
+            onClick={onViewMergeRequest}
             className={`${buttonClass} bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] border border-[var(--color-border)]`}
-            data-testid="view-pr-button"
+            data-testid="view-mr-button"
           >
             <ExternalLink className="w-4 h-4" />
-            <span>View PR</span>
+            <span>View MR</span>
           </button>
         )}
 

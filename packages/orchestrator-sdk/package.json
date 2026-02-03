@@ -25,6 +25,10 @@
     "./git": {
       "types": "./dist/git/index.d.ts",
       "import": "./dist/git/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
     }
   },
   "scripts": {
@@ -32,6 +36,7 @@
     "test": "bun test src",
     "test:node": "vitest run",
     "test:all": "pnpm run test && pnpm run test:node",
+    "test:orchestration": "bun run src/cli/commands/test-orchestration.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"

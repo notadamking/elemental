@@ -246,7 +246,7 @@ describe('TaskAssignmentService', () => {
       // Assign and start
       await service.assignToAgent(task.id, agentId, { markAsStarted: true });
 
-      // Complete - returns { task, prUrl?, prNumber? }
+      // Complete - returns { task, mergeRequestUrl?, mergeRequestId? }
       const result = await service.completeTask(task.id);
       const completed = result.task;
 

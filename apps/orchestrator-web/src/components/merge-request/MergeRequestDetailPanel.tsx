@@ -132,9 +132,11 @@ export function MergeRequestDetailPanel({
           </h4>
           <MergeRequestActions
             task={task}
-            onViewPR={() => {
-              // TODO: Open PR in new tab
-            }}
+            onViewMergeRequest={
+              orchestratorMeta?.mergeRequestUrl
+                ? () => window.open(orchestratorMeta.mergeRequestUrl, '_blank', 'noopener,noreferrer')
+                : undefined
+            }
           />
         </div>
 
@@ -161,6 +163,21 @@ export function MergeRequestDetailPanel({
                 {assignedAgent?.name || task.assignee || 'Unassigned'}
               </span>
             </div>
+
+            {/* Merge Request URL */}
+            {orchestratorMeta?.mergeRequestUrl && (
+              <div className="flex items-center gap-2 text-sm">
+                <GitMerge className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                <a
+                  href={orchestratorMeta.mergeRequestUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--color-primary)] hover:underline truncate"
+                >
+                  {orchestratorMeta.mergeRequestUrl}
+                </a>
+              </div>
+            )}
 
             {/* Session */}
             {orchestratorMeta?.sessionId && (

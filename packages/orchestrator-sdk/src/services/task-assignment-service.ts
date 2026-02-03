@@ -15,7 +15,7 @@
  * @module
  */
 
-import type { Task, ElementId, EntityId, Timestamp } from '@elemental/core';
+import type { Task, ElementId, EntityId } from '@elemental/core';
 import { createTimestamp, TaskStatus, ElementType } from '@elemental/core';
 
 // Use type alias for TaskStatus values
@@ -35,6 +35,7 @@ import {
   isAgentEntity,
   getAgentMetadata,
 } from '../api/orchestrator-api.js';
+import type { MergeRequestProvider } from './merge-request-provider.js';
 
 // ============================================================================
 // Types
@@ -62,13 +63,13 @@ export interface CompleteTaskOptions {
   summary?: string;
   /** Commit hash for the final commit */
   commitHash?: string;
-  /** Whether to create a pull request (default: true if branch exists) */
-  createPR?: boolean;
-  /** Custom PR title (defaults to task title) */
-  prTitle?: string;
-  /** Custom PR body (defaults to task description + summary) */
-  prBody?: string;
-  /** Base branch for PR (defaults to 'main' or 'master') */
+  /** Whether to create a merge request (default: true if branch exists and provider is set) */
+  createMergeRequest?: boolean;
+  /** Custom merge request title (defaults to task title) */
+  mergeRequestTitle?: string;
+  /** Custom merge request body (defaults to task description + summary) */
+  mergeRequestBody?: string;
+  /** Base branch for merge request (defaults to 'main' or 'master') */
   baseBranch?: string;
 }
 
@@ -87,15 +88,15 @@ export interface HandoffTaskOptions {
 }
 
 /**
- * Result of a task completion with optional PR info
+ * Result of a task completion with optional merge request info
  */
 export interface TaskCompletionResult {
   /** The updated task */
   task: Task;
-  /** URL of the created PR, if applicable */
-  prUrl?: string;
-  /** PR number, if applicable */
-  prNumber?: number;
+  /** URL of the created merge request, if applicable */
+  mergeRequestUrl?: string;
+  /** Merge request identifier, if applicable */
+  mergeRequestId?: number;
 }
 
 /**
@@ -227,11 +228,11 @@ export interface TaskAssignmentService {
    *
    * Sets the task status to 'done' and records completion time.
    * The task remains assigned for merge tracking.
-   * Optionally creates a pull request for the task branch.
+   * Optionally creates a merge request for the task branch (when a provider is configured).
    *
    * @param taskId - The task to complete
    * @param options - Optional completion options
-   * @returns The updated task and optional PR info
+   * @returns The updated task and optional merge request info
    */
   completeTask(taskId: ElementId, options?: CompleteTaskOptions): Promise<TaskCompletionResult>;
 
@@ -344,9 +345,11 @@ export interface TaskAssignmentService {
  */
 export class TaskAssignmentServiceImpl implements TaskAssignmentService {
   private readonly api: ElementalAPI;
+  private readonly mergeRequestProvider?: MergeRequestProvider;
 
-  constructor(api: ElementalAPI) {
+  constructor(api: ElementalAPI, mergeRequestProvider?: MergeRequestProvider) {
     this.api = api;
+    this.mergeRequestProvider = mergeRequestProvider;
   }
 
   // ----------------------------------------
@@ -483,25 +486,33 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       metaUpdates.lastCommitHash = options.commitHash;
     }
 
-    // Try to create a PR if we have a branch and createPR is not explicitly false
-    let prUrl: string | undefined;
-    let prNumber: number | undefined;
+    // Try to create a merge request if we have a branch, a provider, and it's not explicitly disabled
+    let mergeRequestUrl: string | undefined;
+    let mergeRequestId: number | undefined;
 
-    if (branch && options?.createPR !== false) {
+    if (branch && this.mergeRequestProvider && options?.createMergeRequest !== false) {
       try {
-        const prResult = await this.createPullRequest(task, branch, {
-          title: options?.prTitle,
-          body: options?.prBody,
-          summary: options?.summary,
-          baseBranch: options?.baseBranch,
+        const baseBranch = options?.baseBranch || 'main';
+        let body = `## Task\n\n**ID:** ${task.id}\n**Title:** ${task.title}\n\n`;
+        if (options?.summary) {
+          body += `## Summary\n\n${options.summary}\n\n`;
+        }
+        body += `---\n_Created by Elemental Orchestrator_`;
+
+        const mrResult = await this.mergeRequestProvider.createMergeRequest(task, {
+          title: options?.mergeRequestTitle || task.title,
+          body: options?.mergeRequestBody || body,
+          sourceBranch: branch,
+          targetBranch: baseBranch,
         });
-        prUrl = prResult.url;
-        prNumber = prResult.number;
-        metaUpdates.prUrl = prUrl;
-        metaUpdates.prNumber = prNumber;
+        mergeRequestUrl = mrResult.url;
+        mergeRequestId = mrResult.id;
+        metaUpdates.mergeRequestUrl = mergeRequestUrl;
+        metaUpdates.mergeRequestId = mergeRequestId;
+        metaUpdates.mergeRequestProvider = this.mergeRequestProvider.name;
       } catch (err) {
-        // Log but don't fail completion if PR creation fails
-        console.warn(`Failed to create PR for task ${taskId}:`, err);
+        // Log but don't fail completion if MR creation fails
+        console.warn(`Failed to create merge request for task ${taskId}:`, err);
       }
     }
 
@@ -517,8 +528,8 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
     return {
       task: updatedTask,
-      prUrl,
-      prNumber,
+      mergeRequestUrl,
+      mergeRequestId,
     };
   }
 
@@ -571,74 +582,6 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     return this.api.update<Task>(taskId, {
       assignee: undefined,
       metadata: newMeta,
-    });
-  }
-
-  /**
-   * Creates a pull request for a completed task using the gh CLI
-   */
-  private async createPullRequest(
-    task: Task,
-    branch: string,
-    options: {
-      title?: string;
-      body?: string;
-      summary?: string;
-      baseBranch?: string;
-    }
-  ): Promise<{ url: string; number: number }> {
-    const { spawn } = await import('node:child_process');
-
-    const title = options.title || task.title;
-    const baseBranch = options.baseBranch || 'main';
-
-    // Build PR body
-    let body = `## Task\n\n**ID:** ${task.id}\n**Title:** ${task.title}\n\n`;
-    if (options.summary) {
-      body += `## Summary\n\n${options.summary}\n\n`;
-    }
-    body += `---\n_Created by Elemental Orchestrator_`;
-
-    return new Promise((resolve, reject) => {
-      const args = [
-        'pr', 'create',
-        '--title', title,
-        '--body', body,
-        '--head', branch,
-        '--base', baseBranch,
-      ];
-
-      const proc = spawn('gh', args, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      proc.stdout.on('data', (data: Buffer) => {
-        stdout += data.toString();
-      });
-
-      proc.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString();
-      });
-
-      proc.on('close', (code: number | null) => {
-        if (code === 0) {
-          // The output is typically a URL like https://github.com/owner/repo/pull/123
-          const trimmedOutput = stdout.trim();
-          // Try to extract PR number from the URL
-          const match = trimmedOutput.match(/\/pull\/(\d+)$/);
-          const prNumber = match ? parseInt(match[1], 10) : 0;
-          resolve({ url: trimmedOutput, number: prNumber });
-        } else {
-          reject(new Error(`gh pr create failed (code ${code}): ${stderr}`));
-        }
-      });
-
-      proc.on('error', (err: Error) => {
-        reject(new Error(`Failed to spawn gh: ${err.message}`));
-      });
     });
   }
 
@@ -860,7 +803,14 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
 /**
  * Creates a TaskAssignmentService instance
+ *
+ * @param api - The ElementalAPI instance
+ * @param mergeRequestProvider - Optional provider for creating merge requests.
+ *   When omitted, merge request creation is silently skipped.
  */
-export function createTaskAssignmentService(api: ElementalAPI): TaskAssignmentService {
-  return new TaskAssignmentServiceImpl(api);
+export function createTaskAssignmentService(
+  api: ElementalAPI,
+  mergeRequestProvider?: MergeRequestProvider,
+): TaskAssignmentService {
+  return new TaskAssignmentServiceImpl(api, mergeRequestProvider);
 }
