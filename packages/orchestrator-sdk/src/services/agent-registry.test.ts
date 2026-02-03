@@ -503,9 +503,9 @@ describe('AgentRegistry', () => {
       // Verify channel can be retrieved
       const channel = await registry.getAgentChannel(director.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      // Direct channel name is sorted entity IDs joined by colon
-      const sortedIds = [systemEntity, director.id].sort();
-      expect(channel?.name).toBe(`${sortedIds[0]}:${sortedIds[1]}`);
+      // Direct channel name is sorted entity names joined by colon
+      const sortedNames = ['test-system', 'DirectorWithChannel'].sort();
+      expect(channel?.name).toBe(`${sortedNames[0]}:${sortedNames[1]}`);
       expect(channel?.channelType).toBe('direct');
       expect(channel?.members).toContain(director.id);
       expect(channel?.members).toContain(systemEntity);
@@ -523,9 +523,9 @@ describe('AgentRegistry', () => {
 
       const channel = await registry.getAgentChannel(worker.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      // Direct channel name is sorted entity IDs joined by colon
-      const sortedIds = [systemEntity, worker.id].sort();
-      expect(channel?.name).toBe(`${sortedIds[0]}:${sortedIds[1]}`);
+      // Direct channel name is sorted entity names joined by colon
+      const sortedNames = ['test-system', 'WorkerWithChannel'].sort();
+      expect(channel?.name).toBe(`${sortedNames[0]}:${sortedNames[1]}`);
       expect(channel?.channelType).toBe('direct');
       expect(channel?.members).toContain(worker.id);
       expect(channel?.members).toContain(systemEntity);
@@ -543,9 +543,9 @@ describe('AgentRegistry', () => {
 
       const channel = await registry.getAgentChannel(steward.id as unknown as EntityId);
       expect(channel).toBeDefined();
-      // Direct channel name is sorted entity IDs joined by colon
-      const sortedIds = [systemEntity, steward.id].sort();
-      expect(channel?.name).toBe(`${sortedIds[0]}:${sortedIds[1]}`);
+      // Direct channel name is sorted entity names joined by colon
+      const sortedNames = ['test-system', 'StewardWithChannel'].sort();
+      expect(channel?.name).toBe(`${sortedNames[0]}:${sortedNames[1]}`);
       expect(channel?.channelType).toBe('direct');
       expect(channel?.members).toContain(steward.id);
       expect(channel?.members).toContain(systemEntity);

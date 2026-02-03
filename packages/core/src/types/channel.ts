@@ -761,6 +761,10 @@ export interface CreateDirectChannelInput {
   entityB: EntityId;
   /** Creator (must be one of the entities) */
   createdBy: EntityId;
+  /** Optional: Display name for first entity (used for channel name) */
+  entityAName?: string;
+  /** Optional: Display name for second entity (used for channel name) */
+  entityBName?: string;
   /** Optional: Reference to description Document */
   descriptionRef?: DocumentId | null;
   /** Optional: tags */
@@ -805,8 +809,11 @@ export async function createDirectChannel(
     );
   }
 
-  // Generate deterministic name
-  const name = generateDirectChannelName(entityA, entityB);
+  // Generate channel name - use entity names if provided, otherwise use IDs
+  const nameA = input.entityAName ?? entityA;
+  const nameB = input.entityBName ?? entityB;
+  const sortedNames = [nameA, nameB].sort();
+  const name = `${sortedNames[0]}:${sortedNames[1]}`;
 
   // Build members (sorted for consistency)
   const members = [entityA, entityB].sort() as EntityId[];
@@ -1090,9 +1097,13 @@ export function findDirectChannel<T extends Channel>(
   entityA: EntityId,
   entityB: EntityId
 ): T | undefined {
-  const expectedName = generateDirectChannelName(entityA, entityB);
+  const sortedMembers = [entityA, entityB].sort();
   return channels.find(
-    (c) => c.channelType === ChannelTypeValue.DIRECT && c.name === expectedName
+    (c) =>
+      c.channelType === ChannelTypeValue.DIRECT &&
+      c.members.length === 2 &&
+      c.members[0] === sortedMembers[0] &&
+      c.members[1] === sortedMembers[1]
   );
 }
 

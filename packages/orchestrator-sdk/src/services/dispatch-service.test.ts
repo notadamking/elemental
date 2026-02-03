@@ -124,8 +124,8 @@ describe('DispatchService', () => {
       expect(meta?.branch).toContain('agent/alice/');
 
       // Check notification was sent to the correct channel (direct channel between agent and creator)
-      const sortedIds = [systemEntity, agentId].sort();
-      expect(result.channel.name).toBe(`${sortedIds[0]}:${sortedIds[1]}`);
+      const sortedNames = ['test-system', 'alice'].sort();
+      expect(result.channel.name).toBe(`${sortedNames[0]}:${sortedNames[1]}`);
     });
 
     test('dispatches with custom options (priority, restart)', async () => {

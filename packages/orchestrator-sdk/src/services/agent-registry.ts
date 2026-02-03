@@ -565,10 +565,16 @@ export class AgentRegistryImpl implements AgentRegistry {
    * @returns The created channel
    */
   private async createAgentChannel(agentName: string, agentId: EntityId, createdBy: EntityId): Promise<Channel> {
+    // Look up the creator entity name for the channel display name
+    const creatorEntity = await this.api.get(createdBy as unknown as ElementId);
+    const creatorName = (creatorEntity as { name?: string } | null)?.name ?? 'operator';
+
     // Create a direct channel between the agent and the operator
     const channel = await createDirectChannel({
       entityA: createdBy,  // Operator (el-0000)
       entityB: agentId,    // The new agent
+      entityAName: creatorName,
+      entityBName: agentName,
       createdBy: createdBy,
       tags: ['agent-channel'],
       metadata: {
