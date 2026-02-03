@@ -203,7 +203,7 @@ function Breadcrumbs() {
               )}
               {crumb.isLast ? (
                 <span
-                  className="flex items-center gap-1.5 px-2 py-1 font-medium text-[var(--color-text)] rounded-md"
+                  className="flex items-center gap-1.5 px-2 py-1 font-normal text-[var(--color-text)] rounded-md"
                   data-testid={`breadcrumb-${crumb.label.toLowerCase().replace(/\s/g, '-')}`}
                 >
                   {Icon && <Icon className="w-4 h-4" />}
@@ -239,7 +239,7 @@ function BreadcrumbsMobile() {
 
   return (
     <div
-      className="flex items-center justify-center gap-1.5 text-sm font-medium text-[var(--color-text)]"
+      className="flex items-center justify-center gap-1.5 text-sm font-normal text-[var(--color-text)]"
       data-testid="breadcrumbs-mobile"
     >
       {Icon && <Icon className="w-4 h-4" />}
