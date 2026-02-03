@@ -17,6 +17,7 @@ import { PopoutTerminalPage } from './routes/popout';
 import { InboxPage } from './routes/inbox';
 import { MessagesPage } from './routes/messages';
 import { DocumentsPage } from './routes/documents';
+import { MergeRequestsPage } from './routes/merge-requests';
 
 /**
  * Root layout component that conditionally renders AppShell or plain Outlet
@@ -189,6 +190,20 @@ const documentsRoute = createRoute({
   },
 });
 
+// Merge Requests route
+const mergeRequestsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/merge-requests',
+  component: MergeRequestsPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      selected: typeof search.selected === 'string' ? search.selected : undefined,
+      status: typeof search.status === 'string' ? search.status : undefined,
+      showMerged: search.showMerged === true || search.showMerged === 'true' ? true : undefined,
+    };
+  },
+});
+
 // Popout routes - these render without AppShell via the RootLayout conditional
 const popoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -225,6 +240,7 @@ const routeTree = rootRoute.addChildren([
   inboxRoute,
   messagesRoute,
   documentsRoute,
+  mergeRequestsRoute,
   popoutRoute.addChildren([
     popoutTerminalRoute,
   ]),

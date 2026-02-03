@@ -6,3 +6,4 @@ export * from './useRealtimeEvents';
 export * from './useAllElements';
 export * from './useMessages';
 export * from './useAgentInbox';
+export * from './useMergeRequests';

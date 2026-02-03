@@ -20,6 +20,7 @@ import {
   Inbox,
   MessageSquare,
   FileText,
+  GitMerge,
   type LucideIcon,
 } from 'lucide-react';
 import { useShortcutVersion } from '@elemental/ui';
@@ -61,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
     defaultExpanded: true,
     items: [
       { to: '/tasks', icon: CheckSquare, label: 'Tasks', testId: 'nav-tasks', actionId: 'nav.tasks' },
+      { to: '/merge-requests', icon: GitMerge, label: 'Merge Requests', testId: 'nav-merge-requests', actionId: 'nav.mergeRequests' },
       { to: '/plans', icon: ClipboardList, label: 'Plans', testId: 'nav-plans' },
       { to: '/workflows', icon: Workflow, label: 'Workflows', testId: 'nav-workflows', actionId: 'nav.workflows' },
     ],
