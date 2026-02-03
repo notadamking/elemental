@@ -953,19 +953,46 @@ async function runWorkerHandoffOnContextFillMock(ctx: TestContext): Promise<Test
 }
 
 async function runWorkerHandoffOnContextFillReal(ctx: TestContext): Promise<TestResult> {
-  // 1. Create worker (needed for dispatch) and task that asks for a handoff
-  await createTestWorker(ctx, `TestWorker-${uniqueId()}`);
-  const task = await createTestTask(ctx, 'Hand off this task instead of completing it', {
+  // 1. Create worker and task
+  const worker = await createTestWorker(ctx, `TestWorker-${uniqueId()}`);
+  const task = await createTestTask(ctx, 'Hand off this task', {
     priority: 5,
     tags: ['test', 'handoff'],
-    acceptanceCriteria: 'Run el task handoff <task-id> --message "Handing off" to hand off this task. Do NOT run el task complete.',
+    acceptanceCriteria: 'Task is handed off with a note',
   });
 
-  // 2. Let daemon dispatch
-  await ctx.daemon.pollWorkerAvailability();
-  await waitForTaskAssignment(ctx.api, task.id, { timeout: 120000 });
+  // 2. Assign task to worker (needed so handoff command can find the assignment)
+  await ctx.api.assignTaskToAgent(task.id, worker.id as unknown as EntityId, {
+    markAsStarted: true,
+  });
 
-  // 3. Wait for handoff metadata to appear
+  // 3. Start worker session with ultra-direct handoff prompt (like steward tests)
+  const dbFlag = ctx.dbPath ? ` --db "${ctx.dbPath}"` : '';
+  const command = `el task handoff ${task.id} --message "Handing off to next worker"${dbFlag}`;
+  const prompt = `You are a test agent. Execute this one command immediately and stop.
+
+COMMAND TO RUN:
+\`\`\`
+${command}
+\`\`\`
+
+RULES:
+- Run ONLY the command above. Nothing else.
+- The \`el\` command is already on PATH. Do not install or locate it.
+- Do not explore the codebase, read files, or run other commands first.
+- Do not ask questions. Just run the command.
+- After running the command, stop immediately.`;
+
+  const { session } = await ctx.sessionManager.startSession(
+    worker.id as unknown as EntityId,
+    {
+      workingDirectory: ctx.tempWorkspace,
+      initialPrompt: prompt,
+    }
+  );
+  ctx.log(`Worker session started: ${session.id}`);
+
+  // 4. Wait for handoff metadata to appear
   ctx.log('Waiting for handoff...');
   const meta = await waitForTaskMeta(
     ctx.api,
@@ -974,7 +1001,7 @@ async function runWorkerHandoffOnContextFillReal(ctx: TestContext): Promise<Test
     { timeout: 240000 }
   );
 
-  // 4. Verify task was reopened
+  // 5. Verify task was reopened
   const reopened = await ctx.api.get<Task>(task.id);
   if (reopened?.status !== TaskStatus.OPEN) {
     ctx.log(`Task status after handoff: ${reopened?.status} (expected OPEN)`);
