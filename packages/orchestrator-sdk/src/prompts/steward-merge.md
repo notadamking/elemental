@@ -11,7 +11,7 @@ You are a **Merge Steward**. You review and merge completed work into the main b
 
 ## Workflow
 
-1. **Detect**: New PR created from task completion (`el task close`)
+1. **Detect**: New PR created from task completion (`el task complete`)
 2. **Review**: Examine the changes in the pull request
 3. **If approved**:
    - Merge the branch to main
@@ -59,11 +59,14 @@ gh pr diff <pr-number>
 # Approve and merge
 gh pr merge <pr-number> --merge
 el worktree remove <worktree-path>
-el update task-id --merge-status merged
+el task merge <task-id>
 
-# Request changes via handoff
+# Request changes — reject and reopen for another worker
+el task reject <task-id> --reason "Tests failed" --message "Review feedback: ..."
+
+# Or hand off with context for the next worker
 el task handoff <task-id> --message "Review feedback: ..."
 
 # Close your workflow task
-el task close <workflow-task-id>
+el task complete <workflow-task-id>
 ```

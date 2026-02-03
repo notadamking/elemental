@@ -108,6 +108,13 @@ export interface DispatchDaemonConfig {
   readonly workflowTaskPollEnabled?: boolean;
 
   /**
+   * Maximum session duration in ms before the daemon terminates it.
+   * Prevents stuck workers from blocking their slot indefinitely.
+   * Default: 0 (disabled).
+   */
+  readonly maxSessionDurationMs?: number;
+
+  /**
    * Callback fired when a session is started by the daemon.
    * Allows the server to attach event savers and save the initial prompt.
    */
@@ -141,6 +148,7 @@ interface NormalizedConfig {
   inboxPollEnabled: boolean;
   stewardTriggerPollEnabled: boolean;
   workflowTaskPollEnabled: boolean;
+  maxSessionDurationMs: number;
   onSessionStarted?: OnSessionStartedCallback;
 }
 
@@ -629,6 +637,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       inboxPollEnabled: config?.inboxPollEnabled ?? true,
       stewardTriggerPollEnabled: config?.stewardTriggerPollEnabled ?? true,
       workflowTaskPollEnabled: config?.workflowTaskPollEnabled ?? true,
+      maxSessionDurationMs: config?.maxSessionDurationMs ?? 0,
       onSessionStarted: config?.onSessionStarted,
     };
   }
@@ -637,6 +646,9 @@ export class DispatchDaemonImpl implements DispatchDaemon {
    * Runs a complete poll cycle for all enabled polling loops.
    */
   private async runPollCycle(): Promise<void> {
+    // Reap stale sessions before polling for availability
+    await this.reapStaleSessions();
+
     // Run polls sequentially to avoid overwhelming the system
     if (this.config.workerAvailabilityPollEnabled) {
       await this.pollWorkerAvailability();
@@ -652,6 +664,33 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     if (this.config.workflowTaskPollEnabled) {
       await this.pollWorkflowTasks();
+    }
+  }
+
+  /**
+   * Terminates sessions that have exceeded the configured max duration.
+   * Prevents stuck workers from blocking their slot indefinitely.
+   */
+  private async reapStaleSessions(): Promise<void> {
+    if (this.config.maxSessionDurationMs <= 0) return;
+
+    const running = this.sessionManager.listSessions({ status: 'running' });
+    const now = Date.now();
+
+    for (const session of running) {
+      const createdAt = typeof session.createdAt === 'number'
+        ? session.createdAt
+        : new Date(session.createdAt).getTime();
+      const age = now - createdAt;
+
+      if (age > this.config.maxSessionDurationMs) {
+        try {
+          await this.sessionManager.stopSession(session.id, {
+            graceful: false,
+            reason: `Session exceeded max duration (${Math.round(age / 1000)}s)`,
+          });
+        } catch { /* ignore — session may already be stopped */ }
+      }
     }
   }
 
@@ -798,6 +837,16 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     if (taskMeta?.handoffNote) {
       parts.push('', '### Handoff Note', taskMeta.handoffNote);
     }
+
+    // Explicit action instructions so the worker knows what to do
+    parts.push(
+      '',
+      '### Instructions',
+      '1. Complete the task described above.',
+      '2. Commit your changes with a descriptive message.',
+      '3. Push to the current branch.',
+      '4. Run: `el task complete ' + task.id + '` to mark the task done.',
+    );
 
     return parts.join('\n');
   }

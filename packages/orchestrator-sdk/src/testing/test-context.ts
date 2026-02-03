@@ -262,6 +262,8 @@ export async function setupTestContext(
     }
 
     // 9. Create dispatch daemon
+    // In real mode, enforce a max session duration so stuck workers
+    // get reaped and don't block subsequent test dispatches.
     const daemon = createDispatchDaemon(
       elementalApi,
       agentRegistry,
@@ -271,7 +273,10 @@ export async function setupTestContext(
       taskAssignment,
       stewardScheduler,
       inboxService,
-      { pollIntervalMs }
+      {
+        pollIntervalMs,
+        maxSessionDurationMs: mode === 'real' ? 180_000 : 0,
+      }
     );
 
     // 10. Start daemon if not skipped

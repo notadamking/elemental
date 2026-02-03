@@ -67,7 +67,7 @@ When acceptance criteria are met:
 2. Push to remote
 3. Close the task (this triggers PR creation):
 ```bash
-el task close <task-id>
+el task complete <task-id>
 ```
 The Merge Steward will review and merge your PR. Your session ends after closing.
 
@@ -134,7 +134,7 @@ el show task-id
 el update task-id --status in_progress
 
 # Complete task (triggers PR creation, ends session)
-el task close <task-id>
+el task complete <task-id>
 
 # Handoff task (ends session)
 el task handoff <task-id> --message "..."

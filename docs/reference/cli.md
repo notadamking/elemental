@@ -483,6 +483,42 @@ el dispatch smart el-task123
 el dispatch smart el-task123 --branch feature/task
 ```
 
+### Orchestrator Task Commands
+
+| Command | Description |
+|---------|-------------|
+| `el task handoff <id>` | Hand off task to another agent |
+| `el task complete <id>` | Complete task and create merge request |
+| `el task merge <id>` | Mark task as merged and close it |
+| `el task reject <id>` | Mark merge as failed and reopen task |
+
+#### task merge
+
+Mark a task as merged and close it.
+
+| Option | Description |
+|--------|-------------|
+| `-s, --summary <text>` | Summary of the merge |
+
+```bash
+el task merge el-abc123
+el task merge el-abc123 --summary "All tests passing"
+```
+
+#### task reject
+
+Mark a task merge as failed and reopen it.
+
+| Option | Description |
+|--------|-------------|
+| `-r, --reason <text>` | Reason for rejection (required) |
+| `-m, --message <text>` | Handoff message for next worker |
+
+```bash
+el task reject el-abc123 --reason "Tests failed"
+el task reject el-abc123 --reason "Tests failed" --message "Fix flaky test in auth.test.ts"
+```
+
 ## Short IDs
 
 The CLI supports short IDs (minimum unique prefix):

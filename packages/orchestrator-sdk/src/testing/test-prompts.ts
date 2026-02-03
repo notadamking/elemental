@@ -32,7 +32,7 @@ INSTRUCTIONS:
 3. Do NOT explore the codebase beyond what is needed.
 4. Commit your changes with a descriptive message.
 5. Push to the current branch.
-6. Mark the task as done using: el task done
+6. Mark the task as done using: el task complete <task-id>
 
 CONSTRAINTS:
 - Do not refactor existing code.
@@ -113,14 +113,20 @@ export function buildTestStewardPrompt(
   action: 'merge' | 'reject' | 'handoff',
   taskId: string
 ): string {
+  let actionInstruction: string;
+  if (action === 'merge') {
+    actionInstruction = `Run \`el task merge ${taskId}\` to merge this task.`;
+  } else {
+    actionInstruction = `Run \`el task reject ${taskId} --reason "Tests failed" --message "Needs fixes"\` to reject this task.`;
+  }
+
   return `You are a test steward agent. Review the specified task and take the required action.
 
 TASK ID: ${taskId}
 REQUIRED ACTION: ${action}
 
 INSTRUCTIONS:
-- Review the task's merge request metadata.
-- Take the "${action}" action on this task.
+- ${actionInstruction}
 - Use the \`el\` CLI for all operations.
 - Complete as quickly as possible.
 
@@ -142,6 +148,7 @@ You are running inside an orchestration test. Your goal is to review and act on 
 ## Rules
 - Review the task metadata and take the appropriate action.
 - Use the \`el\` CLI for all elemental operations.
+- Available commands: \`el task merge <id>\`, \`el task reject <id> --reason "..." --message "..."\`
 - Do not explore the codebase.
 - Act on the merge request status as instructed.
 - Complete as quickly as possible.
