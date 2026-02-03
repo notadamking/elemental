@@ -396,9 +396,13 @@ async function runDaemonRespectsDependenciesMock(ctx: TestContext): Promise<Test
     return fail('Daemon assigned blocked task before dependency resolved');
   }
 
-  // 6. Complete task1 (simulate)
+  // 6. Complete task1 (simulate) and stop worker session so it becomes available
   await ctx.api.update<Task>(task1.id, { status: TaskStatus.CLOSED });
-  ctx.log('Completed task1');
+  const activeSession = ctx.sessionManager.getActiveSession(worker.id as unknown as EntityId);
+  if (activeSession) {
+    await ctx.sessionManager.stopSession(activeSession.id, { graceful: false });
+  }
+  ctx.log('Completed task1 and freed worker');
 
   // 7. Now poll again - task2 should be assignable
   await ctx.daemon.pollWorkerAvailability();

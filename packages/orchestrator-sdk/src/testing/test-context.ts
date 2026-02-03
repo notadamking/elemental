@@ -195,7 +195,8 @@ export async function setupTestContext(
     const bareRepoPath = join(tempWorkspace, '.test-remote.git');
     execSync(`git init --bare "${bareRepoPath}"`, { stdio: 'pipe' });
     execSync(`git remote add origin "${bareRepoPath}"`, { cwd: tempWorkspace, stdio: 'pipe' });
-    execSync('git push -u origin master', { cwd: tempWorkspace, stdio: 'pipe' });
+    const defaultBranch = execSync('git branch --show-current', { cwd: tempWorkspace, encoding: 'utf-8' }).trim();
+    execSync(`git push -u origin ${defaultBranch}`, { cwd: tempWorkspace, stdio: 'pipe' });
     log('Created local bare remote');
 
     // 5. Initialize Elemental database
