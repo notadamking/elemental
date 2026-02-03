@@ -107,33 +107,34 @@ You are running inside an orchestration test. Your goal is to execute instructio
 /**
  * Builds a constrained prompt for a test steward agent.
  *
- * Instructs the steward to review a task and take a specific action.
+ * Instructs the steward to execute exactly one command and stop.
  */
 export function buildTestStewardPrompt(
   action: 'merge' | 'reject' | 'handoff',
-  taskId: string
+  taskId: string,
+  options?: { dbPath?: string }
 ): string {
-  let actionInstruction: string;
+  const dbFlag = options?.dbPath ? ` --db "${options.dbPath}"` : '';
+  let command: string;
   if (action === 'merge') {
-    actionInstruction = `Run \`el task merge ${taskId}\` to merge this task.`;
+    command = `el task merge ${taskId}${dbFlag}`;
   } else {
-    actionInstruction = `Run \`el task reject ${taskId} --reason "Tests failed" --message "Needs fixes"\` to reject this task.`;
+    command = `el task reject ${taskId} --reason "Tests failed" --message "Needs fixes"${dbFlag}`;
   }
 
-  return `You are a test steward agent. Review the specified task and take the required action.
+  return `You are a test agent. Execute this one command immediately and stop.
 
-TASK ID: ${taskId}
-REQUIRED ACTION: ${action}
+COMMAND TO RUN:
+\`\`\`
+${command}
+\`\`\`
 
-INSTRUCTIONS:
-- ${actionInstruction}
-- Use the \`el\` CLI for all operations.
-- Complete as quickly as possible.
-
-CONSTRAINTS:
-- Do not explore the codebase beyond the task metadata.
-- Do not modify code.
-- Execute only the specified action.`;
+RULES:
+- Run ONLY the command above. Nothing else.
+- The \`el\` command is already on PATH. Do not install or locate it.
+- Do not explore the codebase, read files, or run other commands first.
+- Do not ask questions. Just run the command.
+- After running the command, stop immediately.`;
 }
 
 /**
@@ -143,14 +144,12 @@ CONSTRAINTS:
 export function buildTestStewardOverride(): string {
   return `# Test Steward Override
 
-You are running inside an orchestration test. Your goal is to review and act on tasks quickly.
+You are running inside an orchestration test.
 
 ## Rules
-- Review the task metadata and take the appropriate action.
-- Use the \`el\` CLI for all elemental operations.
+- Execute the command given in your prompt immediately.
+- The \`el\` command is on PATH and ready to use. Do not attempt to install or locate it.
 - Available commands: \`el task merge <id>\`, \`el task reject <id> --reason "..." --message "..."\`
-- Do not explore the codebase.
-- Act on the merge request status as instructed.
-- Complete as quickly as possible.
-- The \`el\` command is on PATH and ready to use. Do not attempt to install or locate it.`;
+- Do not explore the codebase or run discovery commands.
+- Complete as quickly as possible.`;
 }

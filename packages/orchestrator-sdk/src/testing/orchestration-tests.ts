@@ -1194,7 +1194,7 @@ async function runStewardMergesPassingMRReal(ctx: TestContext): Promise<TestResu
   });
 
   // 3. Start steward session with review prompt
-  const prompt = buildTestStewardPrompt('merge', task.id as unknown as string);
+  const prompt = buildTestStewardPrompt('merge', task.id as unknown as string, { dbPath: ctx.dbPath });
   const { session } = await ctx.sessionManager.startSession(
     steward.id as unknown as EntityId,
     {
@@ -1336,7 +1336,7 @@ async function runStewardHandoffFailingMRReal(ctx: TestContext): Promise<TestRes
   });
 
   // 3. Start steward session with reject/handoff prompt
-  const prompt = buildTestStewardPrompt('handoff', task.id as unknown as string);
+  const prompt = buildTestStewardPrompt('reject', task.id as unknown as string, { dbPath: ctx.dbPath });
   const { session } = await ctx.sessionManager.startSession(
     steward.id as unknown as EntityId,
     {

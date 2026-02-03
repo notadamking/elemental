@@ -846,6 +846,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       '2. Commit your changes with a descriptive message.',
       '3. Push to the current branch.',
       '4. Run: `el task complete ' + task.id + '` to mark the task done.',
+      '5. If the task asks you to hand off instead of completing, run: `el task handoff ' + task.id + ' --message "your handoff note"` instead.',
     );
 
     return parts.join('\n');
