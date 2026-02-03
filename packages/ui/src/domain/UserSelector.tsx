@@ -11,7 +11,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, ChevronDown, Check } from 'lucide-react';
+import { User, ChevronDown } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCurrentUser } from '../contexts';
 
@@ -181,29 +181,14 @@ export function UserSelector() {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
-        className={[
-          'inline-flex items-center justify-between gap-2',
-          'h-7 px-2.5 text-sm',
-          'min-w-[140px] max-w-[180px]',
-          'bg-[var(--color-input-bg)]',
-          'text-[var(--color-text)]',
-          'border border-[var(--color-input-border)]',
-          'rounded-md',
-          'hover:border-[var(--color-neutral-400)] dark:hover:border-[var(--color-neutral-600)]',
-          'focus:outline-none focus:ring-2 focus:ring-[var(--color-input-focus-ring)] focus:border-[var(--color-border-focus)]',
-          'transition-colors duration-[var(--duration-fast)]',
-        ].join(' ')}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--color-text-secondary)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors border border-[var(--color-border)]"
         data-testid="user-selector-trigger"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0">
-            <User className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-          </div>
-          <span className="truncate">{currentUser?.name ?? 'Select user'}</span>
-        </div>
-        <ChevronDown className="h-4 w-4 flex-shrink-0 text-[var(--color-text-tertiary)]" />
+        <User className="w-4 h-4" />
+        <span className="truncate max-w-[120px]">{currentUser?.name ?? 'Select user'}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Portal */}
@@ -212,13 +197,7 @@ export function UserSelector() {
           <div
             ref={dropdownRef}
             style={dropdownStyle}
-            className={[
-              'bg-[var(--color-bg-elevated)] dark:bg-[var(--color-card-bg)]',
-              'border border-[var(--color-border)] dark:border-[var(--color-card-border)]',
-              'shadow-lg rounded-lg',
-              'overflow-hidden',
-              'animate-in fade-in-0 zoom-in-95 duration-100',
-            ].join(' ')}
+            className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 overflow-hidden"
             role="listbox"
             data-testid="user-selector-dropdown"
           >
@@ -257,12 +236,12 @@ export function UserSelector() {
                         onClick={() => handleSelect(entity.id)}
                         onMouseEnter={() => setHighlightedIndex(virtualItem.index)}
                         className={[
-                          'w-full flex items-center gap-2',
-                          'pl-8 pr-2 py-2',
-                          'text-sm text-left',
-                          'rounded-md',
-                          'cursor-pointer select-none',
+                          'w-full text-left px-3 py-1.5 text-sm',
+                          'flex items-center justify-between',
                           'transition-colors',
+                          isSelected
+                            ? 'text-[var(--color-primary)] font-medium'
+                            : 'text-[var(--color-text)]',
                           isHighlighted
                             ? 'bg-[var(--color-surface-hover)]'
                             : 'hover:bg-[var(--color-surface-hover)]',
@@ -271,16 +250,10 @@ export function UserSelector() {
                         aria-selected={isSelected}
                         data-testid={`user-selector-option-${entity.id}`}
                       >
-                        {/* Check indicator */}
-                        <span className="absolute left-2 flex h-4 w-4 items-center justify-center">
-                          {isSelected && (
-                            <Check className="h-4 w-4 text-[var(--color-primary)]" />
-                          )}
-                        </span>
-                        <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0">
-                          <User className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <span className="truncate text-[var(--color-text)]">{entity.name}</span>
+                        <span className="truncate">{entity.name}</span>
+                        {isSelected && (
+                          <span className="text-[var(--color-primary)]">✓</span>
+                        )}
                       </button>
                     </div>
                   );
