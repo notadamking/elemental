@@ -168,8 +168,8 @@ describe('ready command', () => {
     // Add a blocking dependency (blockerTask blocks taskId - taskId waits for blockerTask to close)
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: taskId as ElementId,
+      blockedId: taskId as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -259,8 +259,8 @@ describe('blocked command', () => {
     // Add a blocking dependency (blockerTask blocks taskId - taskId waits for blockerTask to close)
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: taskId as ElementId,
+      blockedId: taskId as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -292,13 +292,13 @@ describe('blocked command', () => {
     // Block both tasks (blockerTask blocks aliceTask and bobTask)
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: aliceTask as ElementId,
+      blockedId: aliceTask as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: bobTask as ElementId,
+      blockedId: bobTask as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -318,8 +318,8 @@ describe('blocked command', () => {
     // blockerTask blocks taskId - taskId waits for blockerTask to close
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: taskId as ElementId,
+      blockedId: taskId as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -337,8 +337,8 @@ describe('blocked command', () => {
     // blockerTask blocks taskId - taskId waits for blockerTask to close
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: taskId as ElementId,
+      blockedId: taskId as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -880,8 +880,8 @@ describe('task command integration', () => {
     // Add dependency (blockerTask blocks blockedTask - blockedTask waits for blockerTask to close)
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: blockedTaskId as ElementId,
+      blockedId: blockedTaskId as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -1012,8 +1012,8 @@ describe('task lifecycle E2E scenarios', () => {
     // 3. Add blocking dependency (blockerTask blocks blockedTask - blockedTask waits for blockerTask to close)
     const { api, backend } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerTaskId as ElementId,
-      targetId: blockedTaskId as ElementId,
+      blockedId: blockedTaskId as ElementId,
+      blockerId: blockerTaskId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -1150,14 +1150,14 @@ describe('task lifecycle E2E scenarios', () => {
     const { api, backend } = createTestAPI();
     // A blocks B (B waits for A to close)
     await api.addDependency({
-      sourceId: taskA as ElementId,
-      targetId: taskB as ElementId,
+      blockedId: taskB as ElementId,
+      blockerId: taskA as ElementId,
       type: DependencyType.BLOCKS,
     });
     // B blocks C (C waits for B to close)
     await api.addDependency({
-      sourceId: taskB as ElementId,
-      targetId: taskC as ElementId,
+      blockedId: taskC as ElementId,
+      blockerId: taskB as ElementId,
       type: DependencyType.BLOCKS,
     });
     backend.close();
@@ -1187,14 +1187,14 @@ describe('task lifecycle E2E scenarios', () => {
     let { api, backend } = createTestAPI();
     // A blocks B (B waits for A)
     await api.addDependency({
-      sourceId: taskA as ElementId,
-      targetId: taskB as ElementId,
+      blockedId: taskB as ElementId,
+      blockerId: taskA as ElementId,
       type: DependencyType.BLOCKS,
     });
     // B blocks C (C waits for B)
     await api.addDependency({
-      sourceId: taskB as ElementId,
-      targetId: taskC as ElementId,
+      blockedId: taskC as ElementId,
+      blockerId: taskB as ElementId,
       type: DependencyType.BLOCKS,
     });
     backend.close();
@@ -1229,18 +1229,18 @@ describe('task lifecycle E2E scenarios', () => {
     // All blockers block mainTask (mainTask waits for all)
     const { api, backend } = createTestAPI();
     await api.addDependency({
-      sourceId: blockerA as ElementId,
-      targetId: mainTask as ElementId,
+      blockedId: mainTask as ElementId,
+      blockerId: blockerA as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: blockerB as ElementId,
-      targetId: mainTask as ElementId,
+      blockedId: mainTask as ElementId,
+      blockerId: blockerB as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: blockerC as ElementId,
-      targetId: mainTask as ElementId,
+      blockedId: mainTask as ElementId,
+      blockerId: blockerC as ElementId,
       type: DependencyType.BLOCKS,
     });
     backend.close();

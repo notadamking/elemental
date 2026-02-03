@@ -19,8 +19,8 @@ import { Priority as PriorityEnum, Complexity as ComplexityEnum, DependencyType 
  * Row type for dependency queries
  */
 interface DependencyRow {
-  source_id: string;
-  target_id: string;
+  blocked_id: string;
+  blocker_id: string;
   type: string;
   [key: string]: unknown;
 }
@@ -308,9 +308,9 @@ export class PriorityService {
   /**
    * Collect priorities of all tasks that depend on a given task (transitively).
    *
-   * With blocks dependency semantics: "target waits for source to close"
-   * - If current task is the SOURCE of a blocks dependency, then TARGET depends on it
-   * - So we query for dependencies where source_id = current.id
+   * blockedId = the element waiting, blockerId = the element doing the blocking.
+   * To find tasks blocked by current.id, query WHERE blocker_id = current.id,
+   * then read blocked_id to get the dependent tasks.
    */
   private collectDependentPriorities(
     taskId: ElementId,
@@ -328,25 +328,21 @@ export class PriorityService {
       }
       visited.add(current.id);
 
-      // Find tasks that depend on this task (i.e., are blocked by it)
-      // Semantics: "target waits for source to close"
-      // So if current.id is the SOURCE, then the TARGETs are waiting for it
+      // Find tasks that are blocked by this task (current.id is the blocker)
       const dependents = this.db.query<DependencyRow>(
-        `SELECT d.source_id, d.target_id, d.type
+        `SELECT d.blocked_id, d.blocker_id, d.type
          FROM dependencies d
-         WHERE d.source_id = ? AND d.type = ?`,
+         WHERE d.blocker_id = ? AND d.type = ?`,
         [current.id, DT.BLOCKS]
       );
 
       for (const dep of dependents) {
-        const targetId = dep.target_id as ElementId;
-        if (!visited.has(targetId)) {
-          // Get the priority of the dependent task
-          const task = this.getTaskPriority(targetId);
+        const blockedId = dep.blocked_id as ElementId;
+        if (!visited.has(blockedId)) {
+          const task = this.getTaskPriority(blockedId);
           if (task) {
-            result.push({ id: targetId, priority: task.priority });
-            // Continue traversing
-            queue.push({ id: targetId, depth: current.depth + 1 });
+            result.push({ id: blockedId, priority: task.priority });
+            queue.push({ id: blockedId, depth: current.depth + 1 });
           }
         }
       }
@@ -358,9 +354,9 @@ export class PriorityService {
   /**
    * Collect complexities of all tasks that this task depends on (blockers, transitively).
    *
-   * With blocks dependency semantics: "target waits for source to close"
-   * - If current task is the TARGET of a blocks dependency, then SOURCE is blocking it
-   * - So we query for dependencies where target_id = current.id
+   * blockedId = the element waiting, blockerId = the element doing the blocking.
+   * To find tasks that block current.id, query WHERE blocked_id = current.id,
+   * then read blocker_id to get the blocking tasks.
    */
   private collectBlockerComplexities(
     taskId: ElementId,
@@ -378,25 +374,21 @@ export class PriorityService {
       }
       visited.add(current.id);
 
-      // Find tasks that block this task (where this task is waiting for them)
-      // Semantics: "target waits for source to close"
-      // So if current.id is the TARGET, then the SOURCEs are blocking it
+      // Find tasks that block this task (current.id is the blocked element)
       const blockers = this.db.query<DependencyRow>(
-        `SELECT d.source_id, d.target_id, d.type
+        `SELECT d.blocked_id, d.blocker_id, d.type
          FROM dependencies d
-         WHERE d.target_id = ? AND d.type = ?`,
+         WHERE d.blocked_id = ? AND d.type = ?`,
         [current.id, DT.BLOCKS]
       );
 
       for (const dep of blockers) {
-        const sourceId = dep.source_id as ElementId;
-        if (!visited.has(sourceId)) {
-          // Get the complexity of the blocker task
-          const task = this.getTaskPriority(sourceId);
+        const blockerId = dep.blocker_id as ElementId;
+        if (!visited.has(blockerId)) {
+          const task = this.getTaskPriority(blockerId);
           if (task) {
-            result.push({ id: sourceId, complexity: task.complexity });
-            // Continue traversing
-            queue.push({ id: sourceId, depth: current.depth + 1 });
+            result.push({ id: blockerId, complexity: task.complexity });
+            queue.push({ id: blockerId, depth: current.depth + 1 });
           }
         }
       }

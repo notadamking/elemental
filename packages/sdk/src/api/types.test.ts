@@ -651,22 +651,22 @@ describe('Type Structures', () => {
   describe('DependencyInput', () => {
     it('should have correct structure', () => {
       const input: DependencyInput = {
-        sourceId: 'el-source' as ElementId,
-        targetId: 'el-target' as ElementId,
+        blockedId: 'el-blocked' as ElementId,
+        blockerId: 'el-blocker' as ElementId,
         type: DependencyType.BLOCKS,
         metadata: { reason: 'Technical dependency' },
       };
 
-      expect(input.sourceId).toBeDefined();
-      expect(input.targetId).toBeDefined();
+      expect(input.blockedId).toBeDefined();
+      expect(input.blockerId).toBeDefined();
       expect(input.type).toBe(DependencyType.BLOCKS);
       expect(input.metadata).toBeDefined();
     });
 
     it('should allow optional metadata', () => {
       const input: DependencyInput = {
-        sourceId: 'el-source' as ElementId,
-        targetId: 'el-target' as ElementId,
+        blockedId: 'el-blocked' as ElementId,
+        blockerId: 'el-blocker' as ElementId,
         type: DependencyType.RELATES_TO,
       };
 
@@ -864,14 +864,14 @@ describe('ElementalAPI Interface', () => {
 
       // Dependency operations
       addDependency: async (_dep: DependencyInput) => ({
-        sourceId: mockElementId,
-        targetId: 'el-target' as ElementId,
+        blockedId: mockElementId,
+        blockerId: 'el-blocker' as ElementId,
         type: DependencyType.BLOCKS,
         createdAt: mockTimestamp,
         createdBy: mockEntityId,
         metadata: {},
       }),
-      removeDependency: async (_sourceId: ElementId, _targetId: ElementId, _type: DependencyType) => {},
+      removeDependency: async (_blockedId: ElementId, _blockerId: ElementId, _type: DependencyType) => {},
       getDependencies: async (_id: ElementId, _types?: DependencyType[]) => [],
       getDependents: async (_id: ElementId, _types?: DependencyType[]) => [],
       getDependencyTree: async (_id: ElementId): Promise<DependencyTree> => ({

@@ -335,14 +335,14 @@ describe('Library Hydration', () => {
 
       // Add documents to library via parent-child dependency
       await api.addDependency({
-        sourceId: createdDoc1.id,
-        targetId: createdLibrary.id,
+        blockedId: createdDoc1.id,
+        blockerId: createdLibrary.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc2.id,
-        targetId: createdLibrary.id,
+        blockedId: createdDoc2.id,
+        blockerId: createdLibrary.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -351,7 +351,7 @@ describe('Library Hydration', () => {
       const dependents = await api.getDependents(createdLibrary.id, ['parent-child']);
 
       expect(dependents.length).toBe(2);
-      const childIds = dependents.map((d) => d.sourceId);
+      const childIds = dependents.map((d) => d.blockedId);
       expect(childIds).toContain(createdDoc1.id);
       expect(childIds).toContain(createdDoc2.id);
     });
@@ -366,8 +366,8 @@ describe('Library Hydration', () => {
         const doc = await createTestDocument(mockEntityA, `Doc ${i} content`);
         const createdDoc = await api.create<Document>(toCreateInput(doc));
         await api.addDependency({
-          sourceId: createdDoc.id,
-          targetId: createdLibrary.id,
+          blockedId: createdDoc.id,
+          blockerId: createdLibrary.id,
           type: 'parent-child',
           actor: mockEntityA,
         });
@@ -378,7 +378,7 @@ describe('Library Hydration', () => {
       expect(dependents.length).toBe(5);
 
       // Fetch the actual documents
-      const documentIds = dependents.map((d) => d.sourceId);
+      const documentIds = dependents.map((d) => d.blockedId);
       const documents: Document[] = [];
       for (const id of documentIds) {
         const doc = await api.get<Document>(id);
@@ -404,14 +404,14 @@ describe('Library Hydration', () => {
 
       // Add child libraries to parent via parent-child dependency
       await api.addDependency({
-        sourceId: createdChildLib1.id,
-        targetId: createdParentLib.id,
+        blockedId: createdChildLib1.id,
+        blockerId: createdParentLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdChildLib2.id,
-        targetId: createdParentLib.id,
+        blockedId: createdChildLib2.id,
+        blockerId: createdParentLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -420,7 +420,7 @@ describe('Library Hydration', () => {
       const children = await api.getDependents(createdParentLib.id, ['parent-child']);
       expect(children.length).toBe(2);
 
-      const childIds = children.map((d) => d.sourceId);
+      const childIds = children.map((d) => d.blockedId);
       expect(childIds).toContain(createdChildLib1.id);
       expect(childIds).toContain(createdChildLib2.id);
     });
@@ -438,14 +438,14 @@ describe('Library Hydration', () => {
 
       // Add document to both libraries
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib1.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib1.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib2.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib2.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -454,7 +454,7 @@ describe('Library Hydration', () => {
       const docDeps = await api.getDependencies(createdDoc.id, ['parent-child']);
       expect(docDeps.length).toBe(2);
 
-      const targetIds = docDeps.map((d) => d.targetId);
+      const targetIds = docDeps.map((d) => d.blockerId);
       expect(targetIds).toContain(createdLib1.id);
       expect(targetIds).toContain(createdLib2.id);
     });

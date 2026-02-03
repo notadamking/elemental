@@ -57,8 +57,8 @@ import {
   filterByType,
   filterBlocking,
   filterAssociative,
-  filterBySource,
-  filterByTarget,
+  filterByBlocked,
+  filterByBlocker,
   getDependencyTypeDisplayName,
   getGateTypeDisplayName,
   describeDependency,
@@ -72,8 +72,8 @@ import { ErrorCode } from '../errors/codes.js';
 // Helper to create a valid dependency for testing
 function createTestDependency(overrides: Partial<Dependency> = {}): Dependency {
   return {
-    sourceId: 'el-source123' as ElementId,
-    targetId: 'el-target456' as ElementId,
+    blockedId: 'el-target456' as ElementId,
+    blockerId: 'el-source123' as ElementId,
     type: DependencyType.BLOCKS,
     createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
     createdBy: 'el-system1' as EntityId,
@@ -600,32 +600,32 @@ describe('isDependency', () => {
     expect(isDependency(123)).toBe(false);
   });
 
-  test('rejects dependency without sourceId', () => {
+  test('rejects dependency without blockedId', () => {
     const dep = createTestDependency();
-    delete (dep as unknown as Record<string, unknown>).sourceId;
+    delete (dep as unknown as Record<string, unknown>).blockedId;
     expect(isDependency(dep)).toBe(false);
   });
 
-  test('rejects dependency with empty sourceId', () => {
-    const dep = createTestDependency({ sourceId: '' as ElementId });
+  test('rejects dependency with empty blockedId', () => {
+    const dep = createTestDependency({ blockedId: '' as ElementId });
     expect(isDependency(dep)).toBe(false);
   });
 
-  test('rejects dependency without targetId', () => {
+  test('rejects dependency without blockerId', () => {
     const dep = createTestDependency();
-    delete (dep as unknown as Record<string, unknown>).targetId;
+    delete (dep as unknown as Record<string, unknown>).blockerId;
     expect(isDependency(dep)).toBe(false);
   });
 
-  test('rejects dependency with empty targetId', () => {
-    const dep = createTestDependency({ targetId: '' as ElementId });
+  test('rejects dependency with empty blockerId', () => {
+    const dep = createTestDependency({ blockerId: '' as ElementId });
     expect(isDependency(dep)).toBe(false);
   });
 
   test('rejects self-referencing dependency', () => {
     const dep = createTestDependency({
-      sourceId: 'el-same123' as ElementId,
-      targetId: 'el-same123' as ElementId,
+      blockedId: 'el-same123' as ElementId,
+      blockerId: 'el-same123' as ElementId,
     });
     expect(isDependency(dep)).toBe(false);
   });
@@ -852,17 +852,17 @@ describe('validateValidatesMetadata', () => {
 
 describe('validateElementId', () => {
   test('returns valid element ID', () => {
-    expect(validateElementId('el-abc123', 'sourceId')).toBe('el-abc123' as ElementId);
+    expect(validateElementId('el-abc123', 'blockedId')).toBe('el-abc123' as ElementId);
   });
 
   test('throws for non-string', () => {
-    expect(() => validateElementId(123, 'sourceId')).toThrow(ValidationError);
+    expect(() => validateElementId(123, 'blockedId')).toThrow(ValidationError);
   });
 
   test('throws for empty string', () => {
-    expect(() => validateElementId('', 'sourceId')).toThrow(ValidationError);
+    expect(() => validateElementId('', 'blockedId')).toThrow(ValidationError);
     try {
-      validateElementId('', 'sourceId');
+      validateElementId('', 'blockedId');
     } catch (e) {
       const err = e as ValidationError;
       expect(err.code).toBe(ErrorCode.INVALID_ID);
@@ -897,19 +897,19 @@ describe('validateDependency', () => {
 
   test('throws for self-reference', () => {
     const dep = createTestDependency({
-      sourceId: 'el-same' as ElementId,
-      targetId: 'el-same' as ElementId,
+      blockedId: 'el-same' as ElementId,
+      blockerId: 'el-same' as ElementId,
     });
     expect(() => validateDependency(dep)).toThrow(ValidationError);
   });
 
-  test('throws for invalid sourceId', () => {
-    const dep = createTestDependency({ sourceId: '' as ElementId });
+  test('throws for invalid blockedId', () => {
+    const dep = createTestDependency({ blockedId: '' as ElementId });
     expect(() => validateDependency(dep)).toThrow(ValidationError);
   });
 
-  test('throws for invalid targetId', () => {
-    const dep = createTestDependency({ targetId: '' as ElementId });
+  test('throws for invalid blockerId', () => {
+    const dep = createTestDependency({ blockerId: '' as ElementId });
     expect(() => validateDependency(dep)).toThrow(ValidationError);
   });
 
@@ -968,16 +968,16 @@ describe('validateDependency', () => {
 describe('createDependency', () => {
   test('creates dependency with required fields', () => {
     const input: CreateDependencyInput = {
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-target1' as ElementId,
+      blockerId: 'el-source1' as ElementId,
       type: DependencyType.BLOCKS,
       createdBy: 'el-user1' as EntityId,
     };
 
     const dep = createDependency(input);
 
-    expect(dep.sourceId).toBe('el-source1' as ElementId);
-    expect(dep.targetId).toBe('el-target1' as ElementId);
+    expect(dep.blockedId).toBe('el-target1' as ElementId);
+    expect(dep.blockerId).toBe('el-source1' as ElementId);
     expect(dep.type).toBe('blocks');
     expect(dep.createdBy).toBe('el-user1' as EntityId);
     expect(dep.metadata).toEqual({});
@@ -986,8 +986,8 @@ describe('createDependency', () => {
 
   test('creates dependency with metadata', () => {
     const input: CreateDependencyInput = {
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-source1' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.REFERENCES,
       createdBy: 'el-user1' as EntityId,
       metadata: { note: 'Important reference' },
@@ -1000,8 +1000,8 @@ describe('createDependency', () => {
 
   test('throws for self-reference', () => {
     const input: CreateDependencyInput = {
-      sourceId: 'el-same' as ElementId,
-      targetId: 'el-same' as ElementId,
+      blockedId: 'el-same' as ElementId,
+      blockerId: 'el-same' as ElementId,
       type: DependencyType.BLOCKS,
       createdBy: 'el-user1' as EntityId,
     };
@@ -1009,10 +1009,10 @@ describe('createDependency', () => {
     expect(() => createDependency(input)).toThrow(ValidationError);
   });
 
-  test('throws for invalid sourceId', () => {
+  test('throws for invalid blockedId', () => {
     const input: CreateDependencyInput = {
-      sourceId: '' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: '' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.BLOCKS,
       createdBy: 'el-user1' as EntityId,
     };
@@ -1022,8 +1022,8 @@ describe('createDependency', () => {
 
   test('throws for invalid type', () => {
     const input = {
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-target1' as ElementId,
+      blockerId: 'el-source1' as ElementId,
       type: 'invalid' as DependencyType,
       createdBy: 'el-user1' as EntityId,
     };
@@ -1033,8 +1033,8 @@ describe('createDependency', () => {
 
   test('validates awaits metadata', () => {
     const input: CreateDependencyInput = {
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-source1' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.AWAITS,
       createdBy: 'el-user1' as EntityId,
       metadata: { gateType: 'timer', waitUntil: '2025-01-22T15:00:00.000Z' },
@@ -1051,8 +1051,8 @@ describe('createDependency', () => {
 
   test('throws for awaits without valid metadata', () => {
     const input: CreateDependencyInput = {
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-source1' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.AWAITS,
       createdBy: 'el-user1' as EntityId,
       metadata: {},
@@ -1063,8 +1063,8 @@ describe('createDependency', () => {
 
   test('validates validates metadata', () => {
     const input: CreateDependencyInput = {
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-source1' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.VALIDATES,
       createdBy: 'el-user1' as EntityId,
       metadata: { testType: 'unit', result: 'pass' },
@@ -1078,8 +1078,8 @@ describe('createDependency', () => {
 
   test('throws for validates without valid metadata', () => {
     const input: CreateDependencyInput = {
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-source1' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.VALIDATES,
       createdBy: 'el-user1' as EntityId,
       metadata: {},
@@ -1092,8 +1092,8 @@ describe('createDependency', () => {
 describe('createAwaitsDependency', () => {
   test('creates timer gate dependency', () => {
     const dep = createAwaitsDependency({
-      sourceId: 'el-task1' as ElementId,
-      targetId: 'el-gate1' as ElementId,
+      blockedId: 'el-task1' as ElementId,
+      blockerId: 'el-gate1' as ElementId,
       createdBy: 'el-user1' as EntityId,
       awaitsMetadata: {
         gateType: GateType.TIMER,
@@ -1108,8 +1108,8 @@ describe('createAwaitsDependency', () => {
 
   test('creates approval gate dependency', () => {
     const dep = createAwaitsDependency({
-      sourceId: 'el-task1' as ElementId,
-      targetId: 'el-gate1' as ElementId,
+      blockedId: 'el-task1' as ElementId,
+      blockerId: 'el-gate1' as ElementId,
       createdBy: 'el-user1' as EntityId,
       awaitsMetadata: {
         gateType: GateType.APPROVAL,
@@ -1125,8 +1125,8 @@ describe('createAwaitsDependency', () => {
 
   test('creates external gate dependency', () => {
     const dep = createAwaitsDependency({
-      sourceId: 'el-task1' as ElementId,
-      targetId: 'el-gate1' as ElementId,
+      blockedId: 'el-task1' as ElementId,
+      blockerId: 'el-gate1' as ElementId,
       createdBy: 'el-user1' as EntityId,
       awaitsMetadata: {
         gateType: GateType.EXTERNAL,
@@ -1142,8 +1142,8 @@ describe('createAwaitsDependency', () => {
 
   test('creates webhook gate dependency', () => {
     const dep = createAwaitsDependency({
-      sourceId: 'el-task1' as ElementId,
-      targetId: 'el-gate1' as ElementId,
+      blockedId: 'el-task1' as ElementId,
+      blockerId: 'el-gate1' as ElementId,
       createdBy: 'el-user1' as EntityId,
       awaitsMetadata: {
         gateType: GateType.WEBHOOK,
@@ -1159,8 +1159,8 @@ describe('createAwaitsDependency', () => {
   test('throws for invalid metadata', () => {
     expect(() =>
       createAwaitsDependency({
-        sourceId: 'el-task1' as ElementId,
-        targetId: 'el-gate1' as ElementId,
+        blockedId: 'el-task1' as ElementId,
+        blockerId: 'el-gate1' as ElementId,
         createdBy: 'el-user1' as EntityId,
         awaitsMetadata: { gateType: 'invalid' } as unknown as AwaitsMetadata,
       })
@@ -1171,8 +1171,8 @@ describe('createAwaitsDependency', () => {
 describe('createValidatesDependency', () => {
   test('creates validates dependency with pass result', () => {
     const dep = createValidatesDependency({
-      sourceId: 'el-test1' as ElementId,
-      targetId: 'el-task1' as ElementId,
+      blockedId: 'el-test1' as ElementId,
+      blockerId: 'el-task1' as ElementId,
       createdBy: 'el-system1' as EntityId,
       validatesMetadata: {
         testType: TestType.UNIT,
@@ -1189,8 +1189,8 @@ describe('createValidatesDependency', () => {
 
   test('creates validates dependency with fail result', () => {
     const dep = createValidatesDependency({
-      sourceId: 'el-test1' as ElementId,
-      targetId: 'el-task1' as ElementId,
+      blockedId: 'el-test1' as ElementId,
+      blockerId: 'el-task1' as ElementId,
       createdBy: 'el-system1' as EntityId,
       validatesMetadata: {
         testType: TestType.INTEGRATION,
@@ -1206,8 +1206,8 @@ describe('createValidatesDependency', () => {
   test('throws for invalid metadata', () => {
     expect(() =>
       createValidatesDependency({
-        sourceId: 'el-test1' as ElementId,
-        targetId: 'el-task1' as ElementId,
+        blockedId: 'el-test1' as ElementId,
+        blockerId: 'el-task1' as ElementId,
         createdBy: 'el-system1' as EntityId,
         validatesMetadata: { testType: 'unit' } as unknown as ValidatesMetadata,
       })
@@ -1458,31 +1458,31 @@ describe('filterAssociative', () => {
   });
 });
 
-describe('filterBySource', () => {
+describe('filterByBlocked', () => {
   const dependencies = [
-    createTestDependency({ sourceId: 'el-a' as ElementId }),
-    createTestDependency({ sourceId: 'el-b' as ElementId }),
-    createTestDependency({ sourceId: 'el-a' as ElementId }),
+    createTestDependency({ blockedId: 'el-a' as ElementId }),
+    createTestDependency({ blockedId: 'el-b' as ElementId }),
+    createTestDependency({ blockedId: 'el-a' as ElementId }),
   ];
 
-  test('filters by source element', () => {
-    const fromA = filterBySource(dependencies, 'el-a' as ElementId);
+  test('filters by blocked element', () => {
+    const fromA = filterByBlocked(dependencies, 'el-a' as ElementId);
     expect(fromA).toHaveLength(2);
-    fromA.forEach((d) => expect(d.sourceId).toBe('el-a' as ElementId));
+    fromA.forEach((d) => expect(d.blockedId).toBe('el-a' as ElementId));
   });
 });
 
-describe('filterByTarget', () => {
+describe('filterByBlocker', () => {
   const dependencies = [
-    createTestDependency({ targetId: 'el-x' as ElementId }),
-    createTestDependency({ targetId: 'el-y' as ElementId }),
-    createTestDependency({ targetId: 'el-x' as ElementId }),
+    createTestDependency({ blockerId: 'el-x' as ElementId }),
+    createTestDependency({ blockerId: 'el-y' as ElementId }),
+    createTestDependency({ blockerId: 'el-x' as ElementId }),
   ];
 
-  test('filters by target element', () => {
-    const toX = filterByTarget(dependencies, 'el-x' as ElementId);
+  test('filters by blocker element', () => {
+    const toX = filterByBlocker(dependencies, 'el-x' as ElementId);
     expect(toX).toHaveLength(2);
-    toX.forEach((d) => expect(d.targetId).toBe('el-x' as ElementId));
+    toX.forEach((d) => expect(d.blockerId).toBe('el-x' as ElementId));
   });
 });
 
@@ -1521,19 +1521,19 @@ describe('getGateTypeDisplayName', () => {
 describe('describeDependency', () => {
   test('returns human-readable description', () => {
     const dep = createTestDependency({
-      sourceId: 'el-task1' as ElementId,
-      targetId: 'el-task2' as ElementId,
+      blockedId: 'el-task2' as ElementId,
+      blockerId: 'el-task1' as ElementId,
       type: DependencyType.BLOCKS,
     });
-    expect(describeDependency(dep)).toBe('el-task1 blocks el-task2');
+    expect(describeDependency(dep)).toBe('el-task2 blocks el-task1');
   });
 
   test('works for all dependency types', () => {
     expect(
       describeDependency(
         createTestDependency({
-          sourceId: 'el-a' as ElementId,
-          targetId: 'el-b' as ElementId,
+          blockedId: 'el-a' as ElementId,
+          blockerId: 'el-b' as ElementId,
           type: DependencyType.RELATES_TO,
         })
       )
@@ -1542,8 +1542,8 @@ describe('describeDependency', () => {
     expect(
       describeDependency(
         createTestDependency({
-          sourceId: 'el-doc' as ElementId,
-          targetId: 'el-user' as ElementId,
+          blockedId: 'el-doc' as ElementId,
+          blockerId: 'el-user' as ElementId,
           type: DependencyType.AUTHORED_BY,
         })
       )
@@ -1556,22 +1556,22 @@ describe('describeDependency', () => {
 // ============================================================================
 
 describe('normalizeRelatesToDependency', () => {
-  test('keeps order when source < target', () => {
+  test('keeps order when blocked < blocker', () => {
     const result = normalizeRelatesToDependency('el-aaa' as ElementId, 'el-bbb' as ElementId);
-    expect(result.sourceId).toBe('el-aaa' as ElementId);
-    expect(result.targetId).toBe('el-bbb' as ElementId);
+    expect(result.blockedId).toBe('el-aaa' as ElementId);
+    expect(result.blockerId).toBe('el-bbb' as ElementId);
   });
 
-  test('swaps order when source > target', () => {
+  test('swaps order when blocked > blocker', () => {
     const result = normalizeRelatesToDependency('el-zzz' as ElementId, 'el-aaa' as ElementId);
-    expect(result.sourceId).toBe('el-aaa' as ElementId);
-    expect(result.targetId).toBe('el-zzz' as ElementId);
+    expect(result.blockedId).toBe('el-aaa' as ElementId);
+    expect(result.blockerId).toBe('el-zzz' as ElementId);
   });
 
-  test('keeps order when source = target', () => {
+  test('keeps order when blocked = blocker', () => {
     const result = normalizeRelatesToDependency('el-same' as ElementId, 'el-same' as ElementId);
-    expect(result.sourceId).toBe('el-same' as ElementId);
-    expect(result.targetId).toBe('el-same' as ElementId);
+    expect(result.blockedId).toBe('el-same' as ElementId);
+    expect(result.blockerId).toBe('el-same' as ElementId);
   });
 });
 
@@ -1579,8 +1579,8 @@ describe('areRelated', () => {
   test('finds relation when stored in normalized order', () => {
     const dependencies = [
       createTestDependency({
-        sourceId: 'el-aaa' as ElementId,
-        targetId: 'el-bbb' as ElementId,
+        blockedId: 'el-aaa' as ElementId,
+        blockerId: 'el-bbb' as ElementId,
         type: DependencyType.RELATES_TO,
       }),
     ];
@@ -1592,8 +1592,8 @@ describe('areRelated', () => {
   test('returns false when no relation exists', () => {
     const dependencies = [
       createTestDependency({
-        sourceId: 'el-aaa' as ElementId,
-        targetId: 'el-bbb' as ElementId,
+        blockedId: 'el-bbb' as ElementId,
+        blockerId: 'el-aaa' as ElementId,
         type: DependencyType.BLOCKS, // Not relates-to
       }),
     ];
@@ -1604,8 +1604,8 @@ describe('areRelated', () => {
   test('returns false for unrelated elements', () => {
     const dependencies = [
       createTestDependency({
-        sourceId: 'el-aaa' as ElementId,
-        targetId: 'el-bbb' as ElementId,
+        blockedId: 'el-aaa' as ElementId,
+        blockerId: 'el-bbb' as ElementId,
         type: DependencyType.RELATES_TO,
       }),
     ];
@@ -1626,18 +1626,18 @@ describe('Edge Cases', () => {
   test('dependency with very long IDs', () => {
     const longId = 'el-' + 'a'.repeat(1000);
     const dep = createDependency({
-      sourceId: longId as ElementId,
-      targetId: ('el-' + 'b'.repeat(1000)) as ElementId,
+      blockedId: ('el-' + 'b'.repeat(1000)) as ElementId,
+      blockerId: longId as ElementId,
       type: DependencyType.BLOCKS,
       createdBy: 'el-user1' as EntityId,
     });
-    expect(dep.sourceId).toBe(longId as ElementId);
+    expect(dep.blockerId).toBe(longId as ElementId);
   });
 
   test('dependency metadata with nested objects', () => {
     const dep = createDependency({
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-source1' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.REFERENCES,
       createdBy: 'el-user1' as EntityId,
       metadata: {
@@ -1657,8 +1657,8 @@ describe('Edge Cases', () => {
 
   test('dependency with unicode in metadata', () => {
     const dep = createDependency({
-      sourceId: 'el-source1' as ElementId,
-      targetId: 'el-target1' as ElementId,
+      blockedId: 'el-source1' as ElementId,
+      blockerId: 'el-target1' as ElementId,
       type: DependencyType.REFERENCES,
       createdBy: 'el-user1' as EntityId,
       metadata: {

@@ -40,10 +40,10 @@ export interface SerializedElement {
  * Serialized dependency for JSONL export
  */
 export interface SerializedDependency {
-  /** Source element ID */
-  sourceId: string;
-  /** Target element ID */
-  targetId: string;
+  /** Blocked element ID */
+  blockedId: string;
+  /** Blocker element ID */
+  blockerId: string;
   /** Dependency type */
   type: string;
   /** ISO 8601 creation timestamp */
@@ -124,10 +124,10 @@ export interface ConflictRecord {
  * Dependency conflict record
  */
 export interface DependencyConflictRecord {
-  /** Source element ID */
-  sourceId: ElementId;
-  /** Target element ID */
-  targetId: ElementId;
+  /** Blocked element ID */
+  blockedId: ElementId;
+  /** Blocker element ID */
+  blockerId: ElementId;
   /** Dependency type */
   type: DependencyType;
   /** How conflict was resolved */
@@ -214,10 +214,10 @@ export interface DirtyElement {
  * Dirty dependency record
  */
 export interface DirtyDependency {
-  /** Source element ID */
-  sourceId: ElementId;
-  /** Target element ID */
-  targetId: ElementId;
+  /** Blocked element ID */
+  blockedId: ElementId;
+  /** Blocker element ID */
+  blockerId: ElementId;
   /** Dependency type */
   type: DependencyType;
   /** When it was marked dirty */

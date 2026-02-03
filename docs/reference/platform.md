@@ -172,7 +172,7 @@ app.post('/api/tasks', async (c) => {
 | `element:updated` | Element |
 | `element:deleted` | `{ id }` |
 | `dependency:added` | Dependency |
-| `dependency:removed` | `{ sourceId, targetId, type }` |
+| `dependency:removed` | `{ blockedId, blockerId, type }` |
 
 ### Client Connection
 

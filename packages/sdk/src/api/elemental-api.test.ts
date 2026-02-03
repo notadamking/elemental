@@ -411,24 +411,24 @@ describe('ElementalAPI', () => {
 
       // Add blocking dependency: blocker -> blocks -> blocked
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blocked.id,
+        blockerId: blocker.id,
+        blockedId: blocked.id,
         type: 'blocks',
       });
 
       // Verify dependency exists
-      const depsBefore = await api.getDependencies(blocker.id);
+      const depsBefore = await api.getDependencies(blocked.id);
       expect(depsBefore.length).toBe(1);
 
       // Delete the blocker
       await api.delete(blocker.id);
 
       // Verify dependency was cascade deleted
-      const depsAfter = await api.getDependencies(blocker.id);
+      const depsAfter = await api.getDependencies(blocked.id);
       expect(depsAfter.length).toBe(0);
 
       // Also verify no orphan dependency pointing to blocked
-      const reverseAfter = await api.getDependents(blocked.id);
+      const reverseAfter = await api.getDependents(blocker.id);
       expect(reverseAfter.length).toBe(0);
     });
 
@@ -455,15 +455,15 @@ describe('ElementalAPI', () => {
 
       // Add parent-child dependency: task -> parent-child -> plan
       await api.addDependency({
-        sourceId: task.id,
-        targetId: planId,
+        blockedId: task.id,
+        blockerId: planId,
         type: 'parent-child',
       });
 
       // Verify dependency exists
       const depsBefore = await api.getDependencies(task.id);
       expect(depsBefore.length).toBe(1);
-      expect(depsBefore[0].targetId).toBe(planId);
+      expect(depsBefore[0].blockerId).toBe(planId);
 
       // Delete the plan
       await api.delete(planId);
@@ -484,40 +484,40 @@ describe('ElementalAPI', () => {
 
       // A relates-to B
       await api.addDependency({
-        sourceId: taskA.id,
-        targetId: taskB.id,
+        blockedId: taskA.id,
+        blockerId: taskB.id,
         type: 'relates-to',
       });
 
       // B blocks C
       await api.addDependency({
-        sourceId: taskB.id,
-        targetId: taskC.id,
+        blockerId: taskB.id,
+        blockedId: taskC.id,
         type: 'blocks',
       });
 
       // Verify dependencies exist
-      const bDeps = await api.getDependencies(taskB.id);
-      expect(bDeps.length).toBe(1); // B -> blocks -> C
+      const cDeps = await api.getDependencies(taskC.id);
+      expect(cDeps.length).toBe(1); // C is blocked by B
 
       const bDependents = await api.getDependents(taskB.id);
-      expect(bDependents.length).toBe(1); // A -> relates-to -> B
+      expect(bDependents.length).toBe(2); // B blocks C + B is blocker in A relates-to B
 
       // Delete task B
       await api.delete(taskB.id);
 
       // Verify all dependencies involving B are gone
-      const bDepsAfter = await api.getDependencies(taskB.id);
-      expect(bDepsAfter.length).toBe(0);
+      const cDepsAfter = await api.getDependencies(taskC.id);
+      expect(cDepsAfter.length).toBe(0);
 
       const bDependentsAfter = await api.getDependents(taskB.id);
       expect(bDependentsAfter.length).toBe(0);
 
-      // Task C should no longer have any dependents
+      // Task C should no longer have any dependents (B was the blocker, now deleted)
       const cDependentsAfter = await api.getDependents(taskC.id);
       expect(cDependentsAfter.length).toBe(0);
 
-      // Task A should no longer have any outgoing dependencies (relates-to was bidirectional)
+      // Task A should no longer have any outgoing dependencies (relates-to with B was deleted)
       const aDepsAfter = await api.getDependencies(taskA.id);
       expect(aDepsAfter.length).toBe(0);
     });
@@ -538,8 +538,8 @@ describe('ElementalAPI', () => {
       const blocker = await createTestTask({ title: 'Blocker' });
       await api.create(toCreateInput(blocker));
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: task2.id,
+        blockerId: blocker.id,
+        blockedId: task2.id,
         type: 'blocks',
       });
 
@@ -574,8 +574,8 @@ describe('ElementalAPI', () => {
       await api.create(toCreateInput(blocker));
       // blocker blocks task - task waits for blocker to close
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: task.id,
+        blockerId: blocker.id,
+        blockedId: task.id,
         type: 'blocks',
       });
 
@@ -604,21 +604,21 @@ describe('ElementalAPI', () => {
     describe('addDependency()', () => {
       it('should add a dependency between elements', async () => {
         const dep = await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
 
-        expect(dep.sourceId).toBe(task1.id);
-        expect(dep.targetId).toBe(task2.id);
+        expect(dep.blockerId).toBe(task1.id);
+        expect(dep.blockedId).toBe(task2.id);
         expect(dep.type).toBe('blocks');
       });
 
       it('should throw NotFoundError for non-existent source', async () => {
         await expect(
           api.addDependency({
-            sourceId: 'el-nonexistent' as ElementId,
-            targetId: task2.id,
+            blockedId: 'el-nonexistent' as ElementId,
+            blockerId: task2.id,
             type: 'blocks',
           })
         ).rejects.toThrow(NotFoundError);
@@ -626,15 +626,15 @@ describe('ElementalAPI', () => {
 
       it('should throw ConflictError for duplicate dependency', async () => {
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
 
         await expect(
           api.addDependency({
-            sourceId: task1.id,
-            targetId: task2.id,
+            blockerId: task1.id,
+            blockedId: task2.id,
             type: 'blocks',
           })
         ).rejects.toThrow(ConflictError);
@@ -643,8 +643,8 @@ describe('ElementalAPI', () => {
       it('should update blocked cache for blocking dependencies', async () => {
         // task1 blocks task2 - task2 waits for task1 to close
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
 
@@ -657,32 +657,32 @@ describe('ElementalAPI', () => {
       it('should remove an existing dependency', async () => {
         // task1 blocks task2 - task2 waits for task1 to close
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
 
-        await api.removeDependency(task1.id, task2.id, 'blocks');
+        await api.removeDependency(task2.id, task1.id, 'blocks');
 
-        const deps = await api.getDependencies(task1.id);
+        const deps = await api.getDependencies(task2.id);
         expect(deps.length).toBe(0);
       });
 
       it('should throw NotFoundError for non-existent dependency', async () => {
         await expect(
-          api.removeDependency(task1.id, task2.id, 'blocks')
+          api.removeDependency(task2.id, task1.id, 'blocks')
         ).rejects.toThrow(NotFoundError);
       });
 
       it('should update blocked cache when dependency removed', async () => {
         // task1 blocks task2 - task2 waits for task1 to close
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
 
-        await api.removeDependency(task1.id, task2.id, 'blocks');
+        await api.removeDependency(task2.id, task1.id, 'blocks');
 
         const blockedTasks = await api.blocked();
         expect(blockedTasks.find((t) => t.id === task2.id)).toBeUndefined();
@@ -695,31 +695,31 @@ describe('ElementalAPI', () => {
         await api.create(toCreateInput(task3));
 
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task3.id,
+          blockedId: task2.id,
+          blockerId: task3.id,
           type: 'relates-to',
         });
 
-        const deps = await api.getDependencies(task1.id);
+        const deps = await api.getDependencies(task2.id);
         expect(deps.length).toBe(2);
       });
 
       it('should filter by dependency type', async () => {
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
 
-        const blockDeps = await api.getDependencies(task1.id, ['blocks']);
+        const blockDeps = await api.getDependencies(task2.id, ['blocks']);
         expect(blockDeps.length).toBe(1);
 
-        const relateDeps = await api.getDependencies(task1.id, ['relates-to']);
+        const relateDeps = await api.getDependencies(task2.id, ['relates-to']);
         expect(relateDeps.length).toBe(0);
       });
     });
@@ -727,14 +727,14 @@ describe('ElementalAPI', () => {
     describe('getDependents()', () => {
       it('should return elements that depend on this element', async () => {
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
 
-        const dependents = await api.getDependents(task2.id);
+        const dependents = await api.getDependents(task1.id);
         expect(dependents.length).toBe(1);
-        expect(dependents[0].sourceId).toBe(task1.id);
+        expect(dependents[0].blockedId).toBe(task2.id);
       });
     });
 
@@ -744,18 +744,18 @@ describe('ElementalAPI', () => {
         await api.create(toCreateInput(task3));
 
         await api.addDependency({
-          sourceId: task1.id,
-          targetId: task2.id,
+          blockerId: task1.id,
+          blockedId: task2.id,
           type: 'blocks',
         });
         await api.addDependency({
-          sourceId: task2.id,
-          targetId: task3.id,
+          blockerId: task2.id,
+          blockedId: task3.id,
           type: 'blocks',
         });
 
-        const tree = await api.getDependencyTree(task1.id);
-        expect(tree.root.element.id).toBe(task1.id);
+        const tree = await api.getDependencyTree(task3.id);
+        expect(tree.root.element.id).toBe(task3.id);
         expect(tree.dependencyDepth).toBeGreaterThanOrEqual(1);
         expect(tree.nodeCount).toBeGreaterThanOrEqual(2);
       });
@@ -877,8 +877,8 @@ describe('ElementalAPI', () => {
 
       // blocker blocks task2 - task2 waits for blocker to close
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: task2.id,
+        blockerId: blocker.id,
+        blockedId: task2.id,
         type: 'blocks',
       });
 
@@ -919,8 +919,8 @@ describe('ElementalAPI', () => {
       await api.create(toCreateInput(task1));
       await api.create(toCreateInput(task2));
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockerId: task1.id,
+        blockedId: task2.id,
         type: 'blocks',
       });
 
@@ -1221,8 +1221,8 @@ describe('ElementalAPI', () => {
       await api.create(toCreateInput(task1));
       await api.create(toCreateInput(task2));
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockerId: task1.id,
+        blockedId: task2.id,
         type: 'blocks',
       });
 
@@ -2051,9 +2051,9 @@ describe('Message Inbox Integration', () => {
 
       // Check that a mentions dependency was created
       const deps = await api.getDependencies(createdMessage.id);
-      const mentionDep = deps.find(d => d.type === 'mentions' && d.targetId === charlieId);
+      const mentionDep = deps.find(d => d.type === 'mentions' && d.blockerId === charlieId);
       expect(mentionDep).toBeDefined();
-      expect(mentionDep?.sourceId).toBe(createdMessage.id);
+      expect(mentionDep?.blockedId).toBe(createdMessage.id);
     });
 
     it('does not create inbox for self-mention', async () => {

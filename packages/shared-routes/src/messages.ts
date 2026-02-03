@@ -82,8 +82,8 @@ export function createMessageRoutes(services: CollaborateServicesWithBroadcast) 
           }
           // Create references dependency from message to document
           await api.addDependency({
-            sourceId: createdMessage.id as ElementId,
-            targetId: docId as ElementId,
+            blockedId: createdMessage.id as ElementId,
+            blockerId: docId as ElementId,
             type: 'references',
             actor: body.sender as EntityId,
           });

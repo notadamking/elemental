@@ -86,8 +86,8 @@ describe('Plan-Task Linking', () => {
       const dependency = await api.addTaskToPlan(task.id, plan.id);
 
       expect(dependency).toBeDefined();
-      expect(dependency.sourceId).toBe(task.id);
-      expect(dependency.targetId).toBe(plan.id);
+      expect(dependency.blockedId).toBe(task.id);
+      expect(dependency.blockerId).toBe(plan.id);
       expect(dependency.type).toBe('parent-child');
     });
 
@@ -164,8 +164,8 @@ describe('Plan-Task Linking', () => {
       const depEvents = events.filter(e => e.eventType === 'dependency_added');
       expect(depEvents.length).toBe(1);
       expect(depEvents[0].newValue).toMatchObject({
-        sourceId: task.id,
-        targetId: plan.id,
+        blockedId: task.id,
+        blockerId: plan.id,
         type: 'parent-child',
       });
     });
@@ -216,7 +216,7 @@ describe('Plan-Task Linking', () => {
       await api.removeTaskFromPlan(task.id, plan1.id);
       const dependency = await api.addTaskToPlan(task.id, plan2.id);
 
-      expect(dependency.targetId).toBe(plan2.id);
+      expect(dependency.blockerId).toBe(plan2.id);
 
       // Verify task is in plan 2
       const tasksInPlan2 = await api.getTasksInPlan(plan2.id);
@@ -402,7 +402,7 @@ describe('Plan-Task Linking', () => {
       // Verify parent-child dependency exists
       const dependencies = await api.getDependencies(task.id, ['parent-child']);
       expect(dependencies).toHaveLength(1);
-      expect(dependencies[0].targetId).toBe(plan.id);
+      expect(dependencies[0].blockerId).toBe(plan.id);
     });
 
     it('should throw NotFoundError for non-existent plan', async () => {
@@ -509,8 +509,8 @@ describe('Plan-Task Linking', () => {
 
       // Add blocking dependency (blocker blocks task - task waits for blocker to close)
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: task.id,
+        blockerId: blocker.id,
+        blockedId: task.id,
         type: 'blocks',
       });
 

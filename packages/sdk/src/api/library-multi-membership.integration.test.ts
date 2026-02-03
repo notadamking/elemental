@@ -87,20 +87,20 @@ describe('Library Multi-Membership', () => {
 
       // Add document to all three libraries
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib1.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib1.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib2.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib2.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib3.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib3.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -109,7 +109,7 @@ describe('Library Multi-Membership', () => {
       const docDeps = await api.getDependencies(createdDoc.id, ['parent-child']);
       expect(docDeps.length).toBe(3);
 
-      const targetIds = docDeps.map((d) => d.targetId);
+      const targetIds = docDeps.map((d) => d.blockerId);
       expect(targetIds).toContain(createdLib1.id);
       expect(targetIds).toContain(createdLib2.id);
       expect(targetIds).toContain(createdLib3.id);
@@ -128,14 +128,14 @@ describe('Library Multi-Membership', () => {
       const createdDoc = await api.create<Document>(toCreateInput(doc));
 
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib1.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib1.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib2.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib2.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -150,7 +150,7 @@ describe('Library Multi-Membership', () => {
       // Verify document is still in library B
       docDeps = await api.getDependencies(createdDoc.id, ['parent-child']);
       expect(docDeps.length).toBe(1);
-      expect(docDeps[0].targetId).toBe(createdLib2.id);
+      expect(docDeps[0].blockerId).toBe(createdLib2.id);
 
       // Verify library A has no documents
       const lib1Dependents = await api.getDependents(createdLib1.id, ['parent-child']);
@@ -159,7 +159,7 @@ describe('Library Multi-Membership', () => {
       // Verify library B still has the document
       const lib2Dependents = await api.getDependents(createdLib2.id, ['parent-child']);
       expect(lib2Dependents.length).toBe(1);
-      expect(lib2Dependents[0].sourceId).toBe(createdDoc.id);
+      expect(lib2Dependents[0].blockedId).toBe(createdDoc.id);
     });
 
     it('should correctly list all parent libraries of a document', async () => {
@@ -177,21 +177,21 @@ describe('Library Multi-Membership', () => {
       const createdDoc = await api.create<Document>(toCreateInput(doc));
 
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdApiDocs.id,
+        blockedId: createdDoc.id,
+        blockerId: createdApiDocs.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdBackendDocs.id,
+        blockedId: createdDoc.id,
+        blockerId: createdBackendDocs.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
 
       // Query document's parent libraries
       const parentDeps = await api.getDependencies(createdDoc.id, ['parent-child']);
-      const parentLibraryIds = parentDeps.map((d) => d.targetId);
+      const parentLibraryIds = parentDeps.map((d) => d.blockerId);
 
       expect(parentLibraryIds.length).toBe(2);
       expect(parentLibraryIds).toContain(createdApiDocs.id);
@@ -208,8 +208,8 @@ describe('Library Multi-Membership', () => {
 
       // Add, remove, add again
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -224,8 +224,8 @@ describe('Library Multi-Membership', () => {
 
       // Add again
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -258,14 +258,14 @@ describe('Library Multi-Membership', () => {
       const createdDoc3 = await api.create<Document>(toCreateInput(doc3));
 
       // Add to libraries
-      await api.addDependency({ sourceId: createdDoc1.id, targetId: createdLib1.id, type: 'parent-child', actor: mockEntityA });
-      await api.addDependency({ sourceId: createdDoc2.id, targetId: createdLib1.id, type: 'parent-child', actor: mockEntityA });
-      await api.addDependency({ sourceId: createdDoc2.id, targetId: createdLib2.id, type: 'parent-child', actor: mockEntityA });
-      await api.addDependency({ sourceId: createdDoc3.id, targetId: createdLib2.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdDoc1.id, blockerId: createdLib1.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdDoc2.id, blockerId: createdLib1.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdDoc2.id, blockerId: createdLib2.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdDoc3.id, blockerId: createdLib2.id, type: 'parent-child', actor: mockEntityA });
 
       // Query lib1 documents
       const lib1Children = await api.getDependents(createdLib1.id, ['parent-child']);
-      const lib1DocIds = lib1Children.map((d) => d.sourceId);
+      const lib1DocIds = lib1Children.map((d) => d.blockedId);
 
       expect(lib1DocIds.length).toBe(2);
       expect(lib1DocIds).toContain(createdDoc1.id);
@@ -273,7 +273,7 @@ describe('Library Multi-Membership', () => {
 
       // Query lib2 documents
       const lib2Children = await api.getDependents(createdLib2.id, ['parent-child']);
-      const lib2DocIds = lib2Children.map((d) => d.sourceId);
+      const lib2DocIds = lib2Children.map((d) => d.blockedId);
 
       expect(lib2DocIds.length).toBe(2);
       expect(lib2DocIds).toContain(createdDoc2.id);
@@ -298,8 +298,8 @@ describe('Library Multi-Membership', () => {
 
       for (const lib of createdLibs) {
         await api.addDependency({
-          sourceId: createdDoc.id,
-          targetId: lib.id,
+          blockedId: createdDoc.id,
+          blockerId: lib.id,
           type: 'parent-child',
           actor: mockEntityA,
         });
@@ -333,8 +333,8 @@ describe('Library Multi-Membership', () => {
 
       // Nest child under parent
       await api.addDependency({
-        sourceId: createdChildLib.id,
-        targetId: createdParentLib.id,
+        blockedId: createdChildLib.id,
+        blockerId: createdParentLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -344,14 +344,14 @@ describe('Library Multi-Membership', () => {
       const createdDoc = await api.create<Document>(toCreateInput(doc));
 
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdParentLib.id,
+        blockedId: createdDoc.id,
+        blockerId: createdParentLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdChildLib.id,
+        blockedId: createdDoc.id,
+        blockerId: createdChildLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -363,13 +363,13 @@ describe('Library Multi-Membership', () => {
       // Parent library should have child library + document (2 children)
       const parentChildren = await api.getDependents(createdParentLib.id, ['parent-child']);
       expect(parentChildren.length).toBe(2);
-      expect(parentChildren.map((d) => d.sourceId)).toContain(createdChildLib.id);
-      expect(parentChildren.map((d) => d.sourceId)).toContain(createdDoc.id);
+      expect(parentChildren.map((d) => d.blockedId)).toContain(createdChildLib.id);
+      expect(parentChildren.map((d) => d.blockedId)).toContain(createdDoc.id);
 
       // Child library should have just the document
       const childChildren = await api.getDependents(createdChildLib.id, ['parent-child']);
       expect(childChildren.length).toBe(1);
-      expect(childChildren[0].sourceId).toBe(createdDoc.id);
+      expect(childChildren[0].blockedId).toBe(createdDoc.id);
     });
 
     it('should handle document in multiple sibling libraries under same parent', async () => {
@@ -384,28 +384,28 @@ describe('Library Multi-Membership', () => {
       const createdSiblingB = await api.create<Library>(toCreateInput(siblingB));
 
       // Nest siblings under parent
-      await api.addDependency({ sourceId: createdSiblingA.id, targetId: createdParentLib.id, type: 'parent-child', actor: mockEntityA });
-      await api.addDependency({ sourceId: createdSiblingB.id, targetId: createdParentLib.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdSiblingA.id, blockerId: createdParentLib.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdSiblingB.id, blockerId: createdParentLib.id, type: 'parent-child', actor: mockEntityA });
 
       // Create document in both sibling libraries
       const doc = await createTestDocument(mockEntityA, 'Shared across siblings');
       const createdDoc = await api.create<Document>(toCreateInput(doc));
 
-      await api.addDependency({ sourceId: createdDoc.id, targetId: createdSiblingA.id, type: 'parent-child', actor: mockEntityA });
-      await api.addDependency({ sourceId: createdDoc.id, targetId: createdSiblingB.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdDoc.id, blockerId: createdSiblingA.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdDoc.id, blockerId: createdSiblingB.id, type: 'parent-child', actor: mockEntityA });
 
       // Document should be in both siblings
       const docParents = await api.getDependencies(createdDoc.id, ['parent-child']);
       expect(docParents.length).toBe(2);
-      expect(docParents.map((d) => d.targetId)).toContain(createdSiblingA.id);
-      expect(docParents.map((d) => d.targetId)).toContain(createdSiblingB.id);
+      expect(docParents.map((d) => d.blockerId)).toContain(createdSiblingA.id);
+      expect(docParents.map((d) => d.blockerId)).toContain(createdSiblingB.id);
 
       // Both siblings should contain the document
       const siblingAChildren = await api.getDependents(createdSiblingA.id, ['parent-child']);
       const siblingBChildren = await api.getDependents(createdSiblingB.id, ['parent-child']);
 
-      expect(siblingAChildren.map((d) => d.sourceId)).toContain(createdDoc.id);
-      expect(siblingBChildren.map((d) => d.sourceId)).toContain(createdDoc.id);
+      expect(siblingAChildren.map((d) => d.blockedId)).toContain(createdDoc.id);
+      expect(siblingBChildren.map((d) => d.blockedId)).toContain(createdDoc.id);
     });
   });
 
@@ -422,8 +422,8 @@ describe('Library Multi-Membership', () => {
       const createdDoc = await api.create<Document>(toCreateInput(doc));
 
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -449,8 +449,8 @@ describe('Library Multi-Membership', () => {
 
       // Add document to library
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
@@ -458,8 +458,8 @@ describe('Library Multi-Membership', () => {
       // Try to add again - should throw error
       await expect(
         api.addDependency({
-          sourceId: createdDoc.id,
-          targetId: createdLib.id,
+          blockedId: createdDoc.id,
+          blockerId: createdLib.id,
           type: 'parent-child',
           actor: mockEntityA,
         })
@@ -486,8 +486,8 @@ describe('Library Multi-Membership', () => {
       // Add to all libraries
       for (const lib of createdLibraries) {
         await api.addDependency({
-          sourceId: createdDoc.id,
-          targetId: lib.id,
+          blockedId: createdDoc.id,
+          blockerId: lib.id,
           type: 'parent-child',
           actor: mockEntityA,
         });
@@ -501,7 +501,7 @@ describe('Library Multi-Membership', () => {
       for (const lib of createdLibraries) {
         const children = await api.getDependents(lib.id, ['parent-child']);
         expect(children.length).toBe(1);
-        expect(children[0].sourceId).toBe(createdDoc.id);
+        expect(children[0].blockedId).toBe(createdDoc.id);
       }
     });
 
@@ -530,9 +530,9 @@ describe('Library Multi-Membership', () => {
       const createdText = await api.create<Document>(toCreateInput(textDoc));
       const createdJson = await api.create<Document>(toCreateInput(jsonDoc));
 
-      await api.addDependency({ sourceId: createdMd.id, targetId: createdLib.id, type: 'parent-child', actor: mockEntityA });
-      await api.addDependency({ sourceId: createdText.id, targetId: createdLib.id, type: 'parent-child', actor: mockEntityA });
-      await api.addDependency({ sourceId: createdJson.id, targetId: createdLib.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdMd.id, blockerId: createdLib.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdText.id, blockerId: createdLib.id, type: 'parent-child', actor: mockEntityA });
+      await api.addDependency({ blockedId: createdJson.id, blockerId: createdLib.id, type: 'parent-child', actor: mockEntityA });
 
       // Library should have all three
       const children = await api.getDependents(createdLib.id, ['parent-child']);
@@ -541,7 +541,7 @@ describe('Library Multi-Membership', () => {
       // Fetch and verify types
       const childDocs: Document[] = [];
       for (const child of children) {
-        const doc = await api.get<Document>(child.sourceId);
+        const doc = await api.get<Document>(child.blockedId);
         if (doc) childDocs.push(doc);
       }
 
@@ -570,14 +570,14 @@ describe('Library Multi-Membership', () => {
 
       // Add to both libraries
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib1.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib1.id,
         type: 'parent-child',
         actor: mockEntityA,
       });
       await api.addDependency({
-        sourceId: createdDoc.id,
-        targetId: createdLib2.id,
+        blockedId: createdDoc.id,
+        blockerId: createdLib2.id,
         type: 'parent-child',
         actor: mockEntityA,
       });

@@ -167,8 +167,8 @@ interface TagRow {
 }
 
 interface DependencyRow {
-  source_id: string;
-  target_id: string;
+  blocked_id: string;
+  blocker_id: string;
   type: string;
   created_at: string;
   created_by: string;
@@ -1037,7 +1037,7 @@ export class ElementalAPIImpl implements ElementalAPI {
       if (isMessage(element) && element.threadId !== null) {
         const now = createTimestamp();
         tx.run(
-          `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+          `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
            VALUES (?, ?, ?, ?, ?, ?)`,
           [
             element.id,
@@ -1056,8 +1056,8 @@ export class ElementalAPIImpl implements ElementalAPI {
           actor: element.sender,
           oldValue: null,
           newValue: {
-            sourceId: element.id,
-            targetId: element.threadId,
+            blockedId: element.id,
+            blockerId: element.threadId,
             type: 'replies-to',
             metadata: {},
           },
@@ -1145,7 +1145,7 @@ export class ElementalAPIImpl implements ElementalAPI {
               // Create 'mentions' dependency: message -> entity
               try {
                 this.backend.run(
-                  `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+                  `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
                    VALUES (?, ?, ?, ?, ?, ?)`,
                   [
                     messageData.id,
@@ -1416,15 +1416,15 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Collect elements that will need cache updates BEFORE deleting dependencies
     // For `blocks` deps: when deleting the source (blocker), targets become unblocked
-    const affectedTargets = this.backend.query<{ target_id: string }>(
-      `SELECT DISTINCT target_id FROM dependencies WHERE source_id = ? AND type = 'blocks'`,
+    const affectedTargets = this.backend.query<{ blocked_id: string }>(
+      `SELECT DISTINCT blocked_id FROM dependencies WHERE blocker_id = ? AND type = 'blocks'`,
       [id]
-    ).map(row => row.target_id as ElementId);
+    ).map(row => row.blocked_id as ElementId);
     // For `parent-child` and `awaits` deps: when deleting the target, sources need recheck
-    const affectedSources = this.backend.query<{ source_id: string }>(
-      `SELECT DISTINCT source_id FROM dependencies WHERE target_id = ? AND type IN ('parent-child', 'awaits')`,
+    const affectedSources = this.backend.query<{ blocked_id: string }>(
+      `SELECT DISTINCT blocked_id FROM dependencies WHERE blocker_id = ? AND type IN ('parent-child', 'awaits')`,
       [id]
-    ).map(row => row.source_id as ElementId);
+    ).map(row => row.blocked_id as ElementId);
 
     // Soft delete by setting deleted_at and updating status to tombstone
     this.backend.transaction((tx) => {
@@ -1444,8 +1444,8 @@ export class ElementalAPIImpl implements ElementalAPI {
 
       // Cascade delete: Remove all dependencies where this element is the source or target
       // This prevents orphan dependency records pointing to/from deleted elements
-      tx.run('DELETE FROM dependencies WHERE source_id = ?', [id]);
-      tx.run('DELETE FROM dependencies WHERE target_id = ?', [id]);
+      tx.run('DELETE FROM dependencies WHERE blocked_id = ?', [id]);
+      tx.run('DELETE FROM dependencies WHERE blocker_id = ?', [id]);
 
       // Record delete event with the resolved actor
       const event = createEvent({
@@ -1475,11 +1475,11 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Update blocked cache for the deleted element and all affected elements
     // This must happen AFTER the transaction so the element is already tombstoned
     this.blockedCache.removeBlocked(id);
-    for (const targetId of affectedTargets) {
-      this.blockedCache.invalidateElement(targetId);
+    for (const blockerId of affectedTargets) {
+      this.blockedCache.invalidateElement(blockerId);
     }
-    for (const sourceId of affectedSources) {
-      this.blockedCache.invalidateElement(sourceId);
+    for (const blockedId of affectedSources) {
+      this.blockedCache.invalidateElement(blockedId);
     }
   }
 
@@ -1789,7 +1789,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Check if task is already in any plan
     const existingParentDeps = await this.getDependencies(taskId, ['parent-child']);
     if (existingParentDeps.length > 0) {
-      const existingPlanId = existingParentDeps[0].targetId;
+      const existingPlanId = existingParentDeps[0].blockerId;
       throw new ConstraintError(
         `Task is already in plan: ${existingPlanId}`,
         ErrorCode.ALREADY_IN_PLAN,
@@ -1802,8 +1802,8 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Create parent-child dependency from task to plan
     const dependency = await this.addDependency({
-      sourceId: taskId,
-      targetId: planId,
+      blockedId: taskId,
+      blockerId: planId,
       type: 'parent-child',
       actor,
     });
@@ -1818,7 +1818,7 @@ export class ElementalAPIImpl implements ElementalAPI {
   ): Promise<void> {
     // Check if the task-plan relationship exists
     const existingDeps = await this.getDependencies(taskId, ['parent-child']);
-    const hasRelation = existingDeps.some((d) => d.targetId === planId);
+    const hasRelation = existingDeps.some((d) => d.blockerId === planId);
 
     if (!hasRelation) {
       throw new NotFoundError(
@@ -1859,7 +1859,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     // Fetch tasks by their IDs
-    const taskIds = dependents.map((d) => d.sourceId);
+    const taskIds = dependents.map((d) => d.blockedId);
     const tasks: Task[] = [];
 
     for (const taskId of taskIds) {
@@ -1996,8 +1996,8 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Create parent-child dependency
     const actor = options?.actor ?? taskInput.createdBy;
     await this.addDependency({
-      sourceId: task.id,
-      targetId: planId,
+      blockedId: task.id,
+      blockerId: planId,
       type: 'parent-child',
       actor,
     });
@@ -2350,8 +2350,8 @@ export class ElementalAPIImpl implements ElementalAPI {
       if (ephemeralWorkflowIds.size > 0) {
         const deps = await this.getAllDependencies();
         for (const dep of deps) {
-          if (dep.type === 'parent-child' && ephemeralWorkflowIds.has(dep.targetId)) {
-            ephemeralTaskIds.add(dep.sourceId);
+          if (dep.type === 'parent-child' && ephemeralWorkflowIds.has(dep.blockerId)) {
+            ephemeralTaskIds.add(dep.blockedId);
           }
         }
       }
@@ -2440,28 +2440,28 @@ export class ElementalAPIImpl implements ElementalAPI {
   // --------------------------------------------------------------------------
 
   async addDependency(dep: DependencyInput): Promise<Dependency> {
-    // Verify source element exists
-    const source = await this.get<Element>(dep.sourceId);
+    // Verify blocked element exists
+    const source = await this.get<Element>(dep.blockedId);
     if (!source) {
       throw new NotFoundError(
-        `Source element not found: ${dep.sourceId}`,
+        `Source element not found: ${dep.blockedId}`,
         ErrorCode.NOT_FOUND,
-        { elementId: dep.sourceId }
+        { elementId: dep.blockedId }
       );
     }
 
     // Check for existing dependency
     const existing = this.backend.queryOne<DependencyRow>(
-      'SELECT * FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
-      [dep.sourceId, dep.targetId, dep.type]
+      'SELECT * FROM dependencies WHERE blocked_id = ? AND blocker_id = ? AND type = ?',
+      [dep.blockedId, dep.blockerId, dep.type]
     );
     if (existing) {
       throw new ConflictError(
         'Dependency already exists',
         ErrorCode.DUPLICATE_DEPENDENCY,
         {
-          sourceId: dep.sourceId,
-          targetId: dep.targetId,
+          blockedId: dep.blockedId,
+          blockerId: dep.blockerId,
           dependencyType: dep.type,
         }
       );
@@ -2474,8 +2474,8 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     const now = createTimestamp();
     const dependency: Dependency = {
-      sourceId: dep.sourceId,
-      targetId: dep.targetId,
+      blockedId: dep.blockedId,
+      blockerId: dep.blockerId,
       type: dep.type,
       createdAt: now,
       createdBy: actor,
@@ -2486,11 +2486,11 @@ export class ElementalAPIImpl implements ElementalAPI {
     this.backend.transaction((tx) => {
       // Insert dependency
       tx.run(
-        `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+        `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [
-          dependency.sourceId,
-          dependency.targetId,
+          dependency.blockedId,
+          dependency.blockerId,
           dependency.type,
           dependency.createdAt,
           dependency.createdBy,
@@ -2500,13 +2500,13 @@ export class ElementalAPIImpl implements ElementalAPI {
 
       // Record dependency_added event
       const event = createEvent({
-        elementId: dependency.sourceId,
+        elementId: dependency.blockedId,
         eventType: 'dependency_added' as EventType,
         actor: dependency.createdBy,
         oldValue: null,
         newValue: {
-          sourceId: dependency.sourceId,
-          targetId: dependency.targetId,
+          blockedId: dependency.blockedId,
+          blockerId: dependency.blockerId,
           type: dependency.type,
           metadata: dependency.metadata,
         },
@@ -2527,34 +2527,34 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Update blocked cache using the service (handles transitive blocking, gate satisfaction, etc.)
     this.blockedCache.onDependencyAdded(
-      dep.sourceId,
-      dep.targetId,
+      dep.blockedId,
+      dep.blockerId,
       dep.type,
       dep.metadata
     );
 
     // Mark source as dirty
-    this.backend.markDirty(dep.sourceId);
+    this.backend.markDirty(dep.blockedId);
 
     return dependency;
   }
 
   async removeDependency(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     type: DependencyType,
     actor?: EntityId
   ): Promise<void> {
     // Check dependency exists and capture for event
     const existing = this.backend.queryOne<DependencyRow>(
-      'SELECT * FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
-      [sourceId, targetId, type]
+      'SELECT * FROM dependencies WHERE blocked_id = ? AND blocker_id = ? AND type = ?',
+      [blockedId, blockerId, type]
     );
     if (!existing) {
       throw new NotFoundError(
         'Dependency not found',
         ErrorCode.DEPENDENCY_NOT_FOUND,
-        { sourceId, targetId, dependencyType: type }
+        { blockedId, blockerId, dependencyType: type }
       );
     }
 
@@ -2565,18 +2565,18 @@ export class ElementalAPIImpl implements ElementalAPI {
     this.backend.transaction((tx) => {
       // Remove dependency
       tx.run(
-        'DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
-        [sourceId, targetId, type]
+        'DELETE FROM dependencies WHERE blocked_id = ? AND blocker_id = ? AND type = ?',
+        [blockedId, blockerId, type]
       );
 
       // Record dependency_removed event
       const event = createEvent({
-        elementId: sourceId,
+        elementId: blockedId,
         eventType: 'dependency_removed' as EventType,
         actor: eventActor,
         oldValue: {
-          sourceId: existing.source_id,
-          targetId: existing.target_id,
+          blockedId: existing.blocked_id,
+          blockerId: existing.blocker_id,
           type: existing.type,
           metadata: existing.metadata ? JSON.parse(existing.metadata) : {},
         },
@@ -2597,14 +2597,14 @@ export class ElementalAPIImpl implements ElementalAPI {
     });
 
     // Update blocked cache using the service (recomputes blocking state)
-    this.blockedCache.onDependencyRemoved(sourceId, targetId, type);
+    this.blockedCache.onDependencyRemoved(blockedId, blockerId, type);
 
     // Mark source as dirty
-    this.backend.markDirty(sourceId);
+    this.backend.markDirty(blockedId);
   }
 
   async getDependencies(id: ElementId, types?: DependencyType[]): Promise<Dependency[]> {
-    let sql = 'SELECT * FROM dependencies WHERE source_id = ?';
+    let sql = 'SELECT * FROM dependencies WHERE blocked_id = ?';
     const params: unknown[] = [id];
 
     if (types && types.length > 0) {
@@ -2616,8 +2616,8 @@ export class ElementalAPIImpl implements ElementalAPI {
     const rows = this.backend.query<DependencyRow>(sql, params);
 
     return rows.map((row) => ({
-      sourceId: row.source_id as ElementId,
-      targetId: row.target_id as ElementId,
+      blockedId: row.blocked_id as ElementId,
+      blockerId: row.blocker_id as ElementId,
       type: row.type as DependencyType,
       createdAt: row.created_at as Timestamp,
       createdBy: row.created_by as EntityId,
@@ -2626,7 +2626,7 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   async getDependents(id: ElementId, types?: DependencyType[]): Promise<Dependency[]> {
-    let sql = 'SELECT * FROM dependencies WHERE target_id = ?';
+    let sql = 'SELECT * FROM dependencies WHERE blocker_id = ?';
     const params: unknown[] = [id];
 
     if (types && types.length > 0) {
@@ -2638,8 +2638,8 @@ export class ElementalAPIImpl implements ElementalAPI {
     const rows = this.backend.query<DependencyRow>(sql, params);
 
     return rows.map((row) => ({
-      sourceId: row.source_id as ElementId,
-      targetId: row.target_id as ElementId,
+      blockedId: row.blocked_id as ElementId,
+      blockerId: row.blocker_id as ElementId,
       type: row.type as DependencyType,
       createdAt: row.created_at as Timestamp,
       createdBy: row.created_by as EntityId,
@@ -2680,7 +2680,7 @@ export class ElementalAPIImpl implements ElementalAPI {
       if (direction === 'deps' || depth === 0) {
         const deps = await this.getDependencies(elem.id);
         for (const dep of deps) {
-          const targetElem = await this.get<Element>(dep.targetId);
+          const targetElem = await this.get<Element>(dep.blockerId);
           if (targetElem) {
             const childNode = await buildNode(targetElem, depth + 1, 'deps');
             node.dependencies.push(childNode);
@@ -2691,7 +2691,7 @@ export class ElementalAPIImpl implements ElementalAPI {
       if (direction === 'dependents' || depth === 0) {
         const dependents = await this.getDependents(elem.id);
         for (const dep of dependents) {
-          const sourceElem = await this.get<Element>(dep.sourceId);
+          const sourceElem = await this.get<Element>(dep.blockedId);
           if (sourceElem) {
             const parentNode = await buildNode(sourceElem, depth + 1, 'dependents');
             node.dependents.push(parentNode);
@@ -2737,27 +2737,27 @@ export class ElementalAPIImpl implements ElementalAPI {
   // --------------------------------------------------------------------------
 
   async satisfyGate(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     actor: EntityId
   ): Promise<boolean> {
-    return this.blockedCache.satisfyGate(sourceId, targetId, actor);
+    return this.blockedCache.satisfyGate(blockedId, blockerId, actor);
   }
 
   async recordApproval(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     approver: EntityId
   ): Promise<ApprovalResult> {
-    return this.blockedCache.recordApproval(sourceId, targetId, approver);
+    return this.blockedCache.recordApproval(blockedId, blockerId, approver);
   }
 
   async removeApproval(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     approver: EntityId
   ): Promise<ApprovalResult> {
-    return this.blockedCache.removeApproval(sourceId, targetId, approver);
+    return this.blockedCache.removeApproval(blockedId, blockerId, approver);
   }
 
   // --------------------------------------------------------------------------
@@ -3586,21 +3586,21 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Find task IDs that are children of this workflow
     const taskIds: ElementId[] = [];
     for (const dep of allDependencies) {
-      if (dep.type === 'parent-child' && dep.targetId === workflowId) {
-        taskIds.push(dep.sourceId);
+      if (dep.type === 'parent-child' && dep.blockerId === workflowId) {
+        taskIds.push(dep.blockedId);
       }
     }
 
     // Find all dependencies involving the workflow or its tasks
     const elementIds = new Set([workflowId, ...taskIds]);
     const depsToDelete = allDependencies.filter(
-      (dep) => elementIds.has(dep.sourceId) || elementIds.has(dep.targetId)
+      (dep) => elementIds.has(dep.blockedId) || elementIds.has(dep.blockerId)
     );
 
     // Delete dependencies first
     for (const dep of depsToDelete) {
       try {
-        await this.removeDependency(dep.sourceId, dep.targetId, dep.type, options?.actor);
+        await this.removeDependency(dep.blockedId, dep.blockerId, dep.type, options?.actor);
       } catch {
         // Ignore errors for dependencies that don't exist
       }
@@ -3676,7 +3676,7 @@ export class ElementalAPIImpl implements ElementalAPI {
 
         // Count tasks
         for (const dep of allDeps) {
-          if (dep.type === 'parent-child' && dep.targetId === workflow.id) {
+          if (dep.type === 'parent-child' && dep.blockerId === workflow.id) {
             result.tasksDeleted++;
           }
         }
@@ -3715,8 +3715,8 @@ export class ElementalAPIImpl implements ElementalAPI {
     for (const dep of allDependencies) {
       if (dep.type === 'parent-child') {
         // Tasks with a parent-child relationship where target is a workflow
-        // The sourceId is the task, targetId is the workflow
-        tasksInWorkflows.add(dep.sourceId);
+        // The blockedId is the task, blockerId is the workflow
+        tasksInWorkflows.add(dep.blockedId);
       }
     }
 
@@ -3733,7 +3733,7 @@ export class ElementalAPIImpl implements ElementalAPI {
 
         // Count dependencies that would be deleted
         for (const dep of allDependencies) {
-          if (dep.sourceId === task.id || dep.targetId === task.id) {
+          if (dep.blockedId === task.id || dep.blockerId === task.id) {
             result.dependenciesDeleted++;
           }
         }
@@ -3745,13 +3745,13 @@ export class ElementalAPIImpl implements ElementalAPI {
     for (const task of toDelete) {
       // Find and count dependencies to delete
       const taskDeps = allDependencies.filter(
-        dep => dep.sourceId === task.id || dep.targetId === task.id
+        dep => dep.blockedId === task.id || dep.blockerId === task.id
       );
 
       // Delete dependencies first
       for (const dep of taskDeps) {
         try {
-          await this.removeDependency(dep.sourceId, dep.targetId, dep.type);
+          await this.removeDependency(dep.blockedId, dep.blockerId, dep.type);
         } catch {
           // Ignore errors for dependencies that don't exist
         }
@@ -3801,7 +3801,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     // Fetch tasks by their IDs
-    const taskIds = dependents.map((d) => d.sourceId);
+    const taskIds = dependents.map((d) => d.blockedId);
     const tasks: Task[] = [];
 
     for (const taskId of taskIds) {
@@ -3992,11 +3992,11 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Query blocks dependencies where both source and target are in this workflow
     const placeholders = taskIds.map(() => '?').join(', ');
-    const deps = this.backend.query<{ source_id: string; target_id: string }>(
-      `SELECT source_id, target_id FROM dependencies
+    const deps = this.backend.query<{ blocker_id: string; blocked_id: string }>(
+      `SELECT blocker_id, blocked_id FROM dependencies
        WHERE type = 'blocks'
-       AND source_id IN (${placeholders})
-       AND target_id IN (${placeholders})`,
+       AND blocker_id IN (${placeholders})
+       AND blocked_id IN (${placeholders})`,
       [...taskIds, ...taskIds]
     );
 
@@ -4007,12 +4007,12 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
 
     for (const dep of deps) {
-      // In blocks dependency: sourceId = blocker, targetId = blocked (target waits for source)
-      // So target is blocked by source
-      if (taskIdSet.has(dep.source_id as ElementId) && taskIdSet.has(dep.target_id as ElementId)) {
-        const current = blockedBy.get(dep.target_id) ?? [];
-        current.push(dep.source_id);
-        blockedBy.set(dep.target_id, current);
+      // In blocks dependency: blocked_id = blocked, blocker_id = blocker (blocked waits for blocker)
+      // So blocked_id is blocked by blocker_id
+      if (taskIdSet.has(dep.blocker_id as ElementId) && taskIdSet.has(dep.blocked_id as ElementId)) {
+        const current = blockedBy.get(dep.blocked_id) ?? [];
+        current.push(dep.blocker_id);
+        blockedBy.set(dep.blocked_id, current);
       }
     }
 
@@ -4052,16 +4052,16 @@ export class ElementalAPIImpl implements ElementalAPI {
         result.push(task);
       }
 
-      // Find tasks that were blocked by this one (this task is source_id = blocker)
+      // Find tasks that were blocked by this one (this task is blocker_id = blocker)
       // and reduce their in-degree
       for (const dep of deps) {
-        // dep.source_id = blocker, dep.target_id = blocked (target waits for source)
-        // If this task is the blocker (source_id), the blocked task (target_id) can progress
-        if (dep.source_id === taskId && !processed.has(dep.target_id)) {
-          const newDegree = (inDegree.get(dep.target_id) ?? 1) - 1;
-          inDegree.set(dep.target_id, newDegree);
+        // dep.blocker_id = blocker, dep.blocked_id = blocked (blocked waits for blocker)
+        // If this task is the blocker (blocker_id), the blocked task (blocked_id) can progress
+        if (dep.blocker_id === taskId && !processed.has(dep.blocked_id)) {
+          const newDegree = (inDegree.get(dep.blocked_id) ?? 1) - 1;
+          inDegree.set(dep.blocked_id, newDegree);
           if (newDegree === 0) {
-            queue.push(dep.target_id);
+            queue.push(dep.blocked_id);
             // Re-sort queue by priority
             queue.sort((a, b) => {
               const taskA = taskById.get(a)!;
@@ -4089,8 +4089,8 @@ export class ElementalAPIImpl implements ElementalAPI {
   private async getAllDependencies(): Promise<Dependency[]> {
     const rows = this.backend.query<DependencyRow>('SELECT * FROM dependencies');
     return rows.map((row) => ({
-      sourceId: row.source_id as ElementId,
-      targetId: row.target_id as ElementId,
+      blockedId: row.blocked_id as ElementId,
+      blockerId: row.blocker_id as ElementId,
       type: row.type as DependencyType,
       createdAt: row.created_at as Timestamp,
       createdBy: row.created_by as EntityId,
@@ -4137,7 +4137,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Handle input data - either from file path or raw data string
     if (options.data) {
       // Parse raw JSONL data - separate elements from dependencies
-      // Elements have `id` and `type`, dependencies have `sourceId` and `targetId`
+      // Elements have `id` and `type`, dependencies have `blockedId` and `blockerId`
       const lines = options.data.split('\n').filter((line) => line.trim());
       const elementLines: string[] = [];
       const dependencyLines: string[] = [];
@@ -4145,7 +4145,7 @@ export class ElementalAPIImpl implements ElementalAPI {
       for (const line of lines) {
         try {
           const parsed = JSON.parse(line);
-          if (parsed.sourceId && parsed.targetId) {
+          if (parsed.blockedId && parsed.blockerId) {
             // This is a dependency
             dependencyLines.push(line);
           } else if (parsed.id) {

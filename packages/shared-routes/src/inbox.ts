@@ -137,7 +137,7 @@ export function createInboxRoutes(services: CollaborateServicesWithBroadcast) {
               const deps = await api.getDependencies(message.id as ElementId);
               const refDeps = deps.filter((d) => d.type === 'references');
               for (const dep of refDeps) {
-                const doc = await api.get(dep.targetId as ElementId);
+                const doc = await api.get(dep.blockerId as ElementId);
                 if (doc && doc.type === 'document') {
                   const docTyped = doc as Document;
                   const firstLine = (docTyped.content ?? '').split('\n')[0]?.slice(0, 50) || 'Untitled';
@@ -432,7 +432,7 @@ export function createInboxRoutes(services: CollaborateServicesWithBroadcast) {
               const deps = await api.getDependencies(message.id as ElementId);
               const refDeps = deps.filter((d) => d.type === 'references');
               for (const dep of refDeps) {
-                const doc = await api.get(dep.targetId as ElementId);
+                const doc = await api.get(dep.blockerId as ElementId);
                 if (doc && doc.type === 'document') {
                   const docTyped = doc as Document;
                   const firstLine = (docTyped.content ?? '').split('\n')[0]?.slice(0, 50) || 'Untitled';

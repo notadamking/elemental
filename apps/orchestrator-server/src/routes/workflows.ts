@@ -60,8 +60,8 @@ interface WorkflowTasksResponse {
     percentage: number;
   };
   dependencies: {
-    sourceId: ElementId;
-    targetId: ElementId;
+    blockedId: ElementId;
+    blockerId: ElementId;
     type: string;
   }[];
 }
@@ -201,8 +201,8 @@ export function createWorkflowRoutes(services: Services) {
       // Tasks are linked to workflows via parent-child dependencies
       const allDependencies = await api.getDependents(workflowId as ElementId, [DependencyType.PARENT_CHILD]);
 
-      // Task IDs are the sourceIds of parent-child deps pointing to workflow
-      const taskIds = allDependencies.map(d => d.sourceId);
+      // Task IDs are the blockedIds of parent-child deps pointing to workflow
+      const taskIds = allDependencies.map(d => d.blockedId);
 
       // Fetch all tasks
       const tasks: Task[] = [];
@@ -215,16 +215,16 @@ export function createWorkflowRoutes(services: Services) {
 
       // Get inter-task dependencies (blocks relationships)
       const taskIdSet = new Set(taskIds);
-      const internalDependencies: { sourceId: ElementId; targetId: ElementId; type: string }[] = [];
+      const internalDependencies: { blockedId: ElementId; blockerId: ElementId; type: string }[] = [];
 
       for (const taskId of taskIds) {
         const taskDeps = await api.getDependencies(taskId, [DependencyType.BLOCKS]);
         for (const dep of taskDeps) {
-          // Only include if both source and target are in the workflow
-          if (taskIdSet.has(dep.targetId)) {
+          // Only include if both blocked and blocker are in the workflow
+          if (taskIdSet.has(dep.blockerId)) {
             internalDependencies.push({
-              sourceId: dep.sourceId,
-              targetId: dep.targetId,
+              blockedId: dep.blockedId,
+              blockerId: dep.blockerId,
               type: dep.type,
             });
           }
@@ -656,8 +656,8 @@ export function createWorkflowRoutes(services: Services) {
       ];
       for (const dep of allDependencies) {
         await api.addDependency({
-          sourceId: dep.sourceId,
-          targetId: dep.targetId,
+          blockedId: dep.blockedId,
+          blockerId: dep.blockerId,
           type: dep.type,
           actor: createdBy,
         });

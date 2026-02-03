@@ -91,26 +91,26 @@ afterEach(() => {
 
 describe('dep add command', () => {
   test('adds a blocking dependency between tasks', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'blocks' });
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toBeDefined();
     const dep = result.data as Dependency;
-    expect(dep.sourceId).toBe(sourceId);
-    expect(dep.targetId).toBe(targetId);
+    expect(dep.blockedId).toBe(blockedId);
+    expect(dep.blockerId).toBe(blockerId);
     expect(dep.type).toBe(DependencyType.BLOCKS);
   });
 
   test('adds an associative dependency', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'relates-to' });
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const dep = result.data as Dependency;
@@ -118,19 +118,19 @@ describe('dep add command', () => {
   });
 
   test('accepts metadata as JSON', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const metadata = JSON.stringify({ note: 'test metadata', priority: 'high' });
     const options = createTestOptions({ type: 'references', metadata });
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const dep = result.data as Dependency;
     expect(dep.metadata).toEqual({ note: 'test metadata', priority: 'high' });
   });
 
-  test('fails without source argument', async () => {
+  test('fails without blocked argument', async () => {
     const options = createTestOptions({ type: 'blocks' });
     const result = await depAddCommand.handler([], options);
 
@@ -138,64 +138,64 @@ describe('dep add command', () => {
     expect(result.error).toContain('Usage');
   });
 
-  test('fails without target argument', async () => {
-    const sourceId = await createTestTask('Source Task');
+  test('fails without blocker argument', async () => {
+    const blockedId = await createTestTask('Blocked Task');
 
     const options = createTestOptions({ type: 'blocks' });
-    const result = await depAddCommand.handler([sourceId], options);
+    const result = await depAddCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('Usage');
   });
 
   test('fails without type option', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions();
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('type is required');
   });
 
   test('fails with invalid type', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'invalid-type' });
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
     expect(result.error).toContain('Invalid dependency type');
   });
 
-  test('fails when source element does not exist', async () => {
-    const targetId = await createTestTask('Target Task');
+  test('fails when blocked element does not exist', async () => {
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'blocks' });
-    const result = await depAddCommand.handler(['nonexistent-id', targetId], options);
+    const result = await depAddCommand.handler(['nonexistent-id', blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error).toContain('not found');
   });
 
-  test('fails when target element does not exist', async () => {
-    const sourceId = await createTestTask('Source Task');
+  test('fails when blocker element does not exist', async () => {
+    const blockedId = await createTestTask('Blocked Task');
 
     const options = createTestOptions({ type: 'blocks' });
-    const result = await depAddCommand.handler([sourceId, 'nonexistent-id'], options);
+    const result = await depAddCommand.handler([blockedId, 'nonexistent-id'], options);
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error).toContain('not found');
   });
 
   test('fails with invalid JSON metadata', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'references', metadata: 'not valid json' });
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
     expect(result.error).toContain('Invalid JSON');
@@ -210,8 +210,8 @@ describe('dep add command', () => {
     // Create task1 -> task2 dependency
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: task1 as ElementId,
-      targetId: task2 as ElementId,
+      blockedId: task1 as ElementId,
+      blockerId: task2 as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -224,11 +224,11 @@ describe('dep add command', () => {
   });
 
   test('returns JSON in JSON mode', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'blocks', json: true });
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toBeDefined();
@@ -236,11 +236,11 @@ describe('dep add command', () => {
   });
 
   test('returns minimal output in quiet mode', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'blocks', quiet: true });
-    const result = await depAddCommand.handler([sourceId, targetId], options);
+    const result = await depAddCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toContain('->');
@@ -253,92 +253,92 @@ describe('dep add command', () => {
 
 describe('dep remove command', () => {
   test('removes an existing dependency', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     // Add dependency first
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
     // Remove it via CLI
     const options = createTestOptions({ type: 'blocks' });
-    const result = await depRemoveCommand.handler([sourceId, targetId], options);
+    const result = await depRemoveCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.message).toContain('Removed');
 
     // Verify it's gone
     const { api: api2 } = createTestAPI();
-    const deps = await api2.getDependencies(sourceId as ElementId);
+    const deps = await api2.getDependencies(blockedId as ElementId);
     expect(deps.length).toBe(0);
   });
 
-  test('fails without source argument', async () => {
+  test('fails without blocked argument', async () => {
     const options = createTestOptions({ type: 'blocks' });
     const result = await depRemoveCommand.handler([], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
   });
 
-  test('fails without target argument', async () => {
-    const sourceId = await createTestTask('Source Task');
+  test('fails without blocker argument', async () => {
+    const blockedId = await createTestTask('Blocked Task');
 
     const options = createTestOptions({ type: 'blocks' });
-    const result = await depRemoveCommand.handler([sourceId], options);
+    const result = await depRemoveCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
   });
 
   test('fails without type option', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions();
-    const result = await depRemoveCommand.handler([sourceId, targetId], options);
+    const result = await depRemoveCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('type is required');
   });
 
   test('fails with invalid type', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'invalid-type' });
-    const result = await depRemoveCommand.handler([sourceId, targetId], options);
+    const result = await depRemoveCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
   });
 
   test('fails when dependency does not exist', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const options = createTestOptions({ type: 'blocks' });
-    const result = await depRemoveCommand.handler([sourceId, targetId], options);
+    const result = await depRemoveCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error).toContain('not found');
   });
 
   test('returns JSON in JSON mode', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     // Add dependency first
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
     const options = createTestOptions({ type: 'blocks', json: true });
-    const result = await depRemoveCommand.handler([sourceId, targetId], options);
+    const result = await depRemoveCommand.handler([blockedId, blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toBeDefined();
@@ -352,24 +352,24 @@ describe('dep remove command', () => {
 
 describe('dep list command', () => {
   test('lists outgoing dependencies', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId1 = await createTestTask('Target Task 1');
-    const targetId2 = await createTestTask('Target Task 2');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId1 = await createTestTask('Blocker Task 1');
+    const blockerId2 = await createTestTask('Blocker Task 2');
 
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId1 as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId1 as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId2 as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId2 as ElementId,
       type: DependencyType.RELATES_TO,
     });
 
     const options = createTestOptions({ direction: 'out' });
-    const result = await depListCommand.handler([sourceId], options);
+    const result = await depListCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const data = result.data as { dependencies: Dependency[]; dependents: Dependency[] };
@@ -378,24 +378,24 @@ describe('dep list command', () => {
   });
 
   test('lists incoming dependencies', async () => {
-    const targetId = await createTestTask('Target Task');
-    const sourceId1 = await createTestTask('Source Task 1');
-    const sourceId2 = await createTestTask('Source Task 2');
+    const blockerId = await createTestTask('Blocker Task');
+    const blockedId1 = await createTestTask('Blocked Task 1');
+    const blockedId2 = await createTestTask('Blocked Task 2');
 
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId1 as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId1 as ElementId,
+      blockerId: blockerId as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: sourceId2 as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId2 as ElementId,
+      blockerId: blockerId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
     const options = createTestOptions({ direction: 'in' });
-    const result = await depListCommand.handler([targetId], options);
+    const result = await depListCommand.handler([blockerId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const data = result.data as { dependencies: Dependency[]; dependents: Dependency[] };
@@ -411,14 +411,14 @@ describe('dep list command', () => {
     const { api } = createTestAPI();
     // middleTask depends on upstreamTask
     await api.addDependency({
-      sourceId: middleTask as ElementId,
-      targetId: upstreamTask as ElementId,
+      blockedId: middleTask as ElementId,
+      blockerId: upstreamTask as ElementId,
       type: DependencyType.BLOCKS,
     });
     // downstreamTask depends on middleTask
     await api.addDependency({
-      sourceId: downstreamTask as ElementId,
-      targetId: middleTask as ElementId,
+      blockedId: downstreamTask as ElementId,
+      blockerId: middleTask as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -432,24 +432,24 @@ describe('dep list command', () => {
   });
 
   test('filters by dependency type', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId1 = await createTestTask('Target Task 1');
-    const targetId2 = await createTestTask('Target Task 2');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId1 = await createTestTask('Blocker Task 1');
+    const blockerId2 = await createTestTask('Blocker Task 2');
 
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId1 as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId1 as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId2 as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId2 as ElementId,
       type: DependencyType.RELATES_TO,
     });
 
     const options = createTestOptions({ type: 'blocks', direction: 'out' });
-    const result = await depListCommand.handler([sourceId], options);
+    const result = await depListCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const data = result.data as { dependencies: Dependency[]; dependents: Dependency[] };
@@ -472,19 +472,19 @@ describe('dep list command', () => {
   });
 
   test('fails with invalid type filter', async () => {
-    const sourceId = await createTestTask('Source Task');
+    const blockedId = await createTestTask('Blocked Task');
 
     const options = createTestOptions({ type: 'invalid-type' });
-    const result = await depListCommand.handler([sourceId], options);
+    const result = await depListCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
   });
 
   test('fails with invalid direction', async () => {
-    const sourceId = await createTestTask('Source Task');
+    const blockedId = await createTestTask('Blocked Task');
 
     const options = createTestOptions({ direction: 'invalid' });
-    const result = await depListCommand.handler([sourceId], options);
+    const result = await depListCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
   });
@@ -504,40 +504,40 @@ describe('dep list command', () => {
   });
 
   test('returns JSON in JSON mode', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
     const options = createTestOptions({ json: true });
-    const result = await depListCommand.handler([sourceId], options);
+    const result = await depListCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toBeDefined();
   });
 
   test('returns IDs only in quiet mode', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
     const options = createTestOptions({ quiet: true });
-    const result = await depListCommand.handler([sourceId], options);
+    const result = await depListCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(typeof result.data).toBe('string');
-    expect(result.data).toContain(targetId);
+    expect(result.data).toContain(blockerId);
   });
 });
 
@@ -555,19 +555,19 @@ describe('dep tree command', () => {
     const { api } = createTestAPI();
     // Root depends on Child1 and Child2
     await api.addDependency({
-      sourceId: rootTask as ElementId,
-      targetId: childTask1 as ElementId,
+      blockedId: rootTask as ElementId,
+      blockerId: childTask1 as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: rootTask as ElementId,
-      targetId: childTask2 as ElementId,
+      blockedId: rootTask as ElementId,
+      blockerId: childTask2 as ElementId,
       type: DependencyType.BLOCKS,
     });
     // Child1 depends on Grandchild
     await api.addDependency({
-      sourceId: childTask1 as ElementId,
-      targetId: grandchildTask as ElementId,
+      blockedId: childTask1 as ElementId,
+      blockerId: grandchildTask as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -594,13 +594,13 @@ describe('dep tree command', () => {
 
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: dependentTask1 as ElementId,
-      targetId: targetTask as ElementId,
+      blockedId: dependentTask1 as ElementId,
+      blockerId: targetTask as ElementId,
       type: DependencyType.BLOCKS,
     });
     await api.addDependency({
-      sourceId: dependentTask2 as ElementId,
-      targetId: targetTask as ElementId,
+      blockedId: dependentTask2 as ElementId,
+      blockerId: targetTask as ElementId,
       type: DependencyType.BLOCKS,
     });
 
@@ -657,23 +657,23 @@ describe('dep tree command', () => {
   });
 
   test('returns IDs only in quiet mode', async () => {
-    const sourceId = await createTestTask('Source Task');
-    const targetId = await createTestTask('Target Task');
+    const blockedId = await createTestTask('Blocked Task');
+    const blockerId = await createTestTask('Blocker Task');
 
     const { api } = createTestAPI();
     await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId as ElementId,
       type: DependencyType.BLOCKS,
     });
 
     const options = createTestOptions({ quiet: true });
-    const result = await depTreeCommand.handler([sourceId], options);
+    const result = await depTreeCommand.handler([blockedId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(typeof result.data).toBe('string');
-    expect(result.data).toContain(sourceId);
-    expect(result.data).toContain(targetId);
+    expect(result.data).toContain(blockedId);
+    expect(result.data).toContain(blockerId);
   });
 
   test('handles element with no dependencies', async () => {
@@ -777,10 +777,10 @@ describe('dependency workflow integration', () => {
     const blockerTask = await createTestTask('Blocker Task');
 
     // Add blocking dependency: blockerTask blocks blockedTask
-    // CLI args: [source, target] with --type blocks
-    // Semantics: target waits for source to close
+    // CLI args: [blocked, blocker] with --type blocks
+    // Semantics: blocked element waits for blocker to close
     const result = await depAddCommand.handler(
-      [blockerTask, blockedTask],
+      [blockedTask, blockerTask],
       createTestOptions({ type: 'blocks' })
     );
     expect(result.exitCode).toBe(ExitCode.SUCCESS);

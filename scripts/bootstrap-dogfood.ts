@@ -347,8 +347,8 @@ async function main() {
 
     // Link task to plan via parent-child dependency
     await api.addDependency({
-      sourceId: task.id,
-      targetId: plan.id,
+      blockedId: task.id,
+      blockerId: plan.id,
       type: 'parent-child',
     });
 
@@ -358,16 +358,16 @@ async function main() {
   // Add blocking dependencies
   console.log('\nAdding dependencies...');
   for (const dep of DEPENDENCIES) {
-    const sourceId = taskIdByTitle.get(dep.sourceTitle);
-    const targetId = taskIdByTitle.get(dep.targetTitle);
+    const blockedId = taskIdByTitle.get(dep.sourceTitle);
+    const blockerId = taskIdByTitle.get(dep.targetTitle);
 
-    if (sourceId && targetId) {
+    if (blockedId && blockerId) {
       await api.addDependency({
-        sourceId,
-        targetId,
+        blockedId,
+        blockerId,
         type: 'blocks',
       });
-      console.log(`Added: ${sourceId} blocked by ${targetId}`);
+      console.log(`Added: ${blockedId} blocked by ${blockerId}`);
     } else {
       console.warn(`Warning: Could not find tasks for dependency: ${dep.sourceTitle.substring(0, 30)}... -> ${dep.targetTitle.substring(0, 30)}...`);
     }

@@ -946,15 +946,15 @@ export function generateEventSummary(event: Event | EventWithoutId): string {
     }
 
     case EventType.DEPENDENCY_ADDED: {
-      const targetId = newValue?.targetId ?? 'unknown';
+      const otherId = newValue?.blockerId ?? newValue?.blockedId ?? 'unknown';
       const depType = newValue?.type ?? 'dependency';
-      return `Added ${depType} to ${targetId} by ${actor}`;
+      return `Added ${depType} to ${otherId} by ${actor}`;
     }
 
     case EventType.DEPENDENCY_REMOVED: {
-      const targetId = oldValue?.targetId ?? 'unknown';
+      const otherId = oldValue?.blockerId ?? oldValue?.blockedId ?? 'unknown';
       const depType = oldValue?.type ?? 'dependency';
-      return `Removed ${depType} from ${targetId} by ${actor}`;
+      return `Removed ${depType} from ${otherId} by ${actor}`;
     }
 
     case EventType.TAG_ADDED: {

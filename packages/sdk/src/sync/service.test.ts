@@ -62,13 +62,13 @@ function createTestEntity(overrides: Partial<Element> & Record<string, unknown> 
 }
 
 function createTestDependency(
-  sourceId: ElementId,
-  targetId: ElementId,
+  blockedId: ElementId,
+  blockerId: ElementId,
   type: DependencyType = DependencyType.BLOCKS
 ): Dependency {
   return {
-    sourceId,
-    targetId,
+    blockedId,
+    blockerId,
     type,
     createdAt: createTimestamp(),
     createdBy: 'el-system1' as EntityId,
@@ -90,11 +90,11 @@ function insertElement(backend: StorageBackend, element: Element): void {
 
 function insertDependency(backend: StorageBackend, dep: Dependency): void {
   backend.run(
-    `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+    `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [
-      dep.sourceId,
-      dep.targetId,
+      dep.blockedId,
+      dep.blockerId,
       dep.type,
       dep.createdAt,
       dep.createdBy,
@@ -207,8 +207,8 @@ describe('SyncService', () => {
       // Verify file content
       const content = readFileSync(result.dependenciesFile, 'utf-8');
       const parsed = JSON.parse(content.trim());
-      expect(parsed.sourceId).toBe('el-task1');
-      expect(parsed.targetId).toBe('el-task2');
+      expect(parsed.blockedId).toBe('el-task1');
+      expect(parsed.blockerId).toBe('el-task2');
     });
 
     test('incremental export only exports dirty elements', async () => {
@@ -616,11 +616,11 @@ describe('SyncService', () => {
       expect(tagRows.map((r) => r.tag).sort()).toEqual(['tag1', 'tag2']);
 
       // Verify dependency
-      const depRow = newBackend.queryOne<{ source_id: string; target_id: string }>(
-        'SELECT source_id, target_id FROM dependencies'
+      const depRow = newBackend.queryOne<{ blocked_id: string; blocker_id: string }>(
+        'SELECT blocked_id, blocker_id FROM dependencies'
       );
-      expect(depRow?.source_id).toBe('el-task1');
-      expect(depRow?.target_id).toBe('el-task2');
+      expect(depRow?.blocked_id).toBe('el-task1');
+      expect(depRow?.blocker_id).toBe('el-task2');
 
       newBackend.close();
     });

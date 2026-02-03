@@ -442,8 +442,8 @@ export interface WorkflowProgress {
  * Internal dependency between workflow tasks
  */
 export interface WorkflowDependency {
-  sourceId: ElementId;
-  targetId: ElementId;
+  blockedId: ElementId;
+  blockerId: ElementId;
   type: string;
 }
 

@@ -286,8 +286,8 @@ export function createDocumentRoutes(services: CollaborateServices) {
         const library = await api.get(body.libraryId as ElementId);
         if (library && library.type === 'library') {
           await api.addDependency({
-            sourceId: created.id,
-            targetId: body.libraryId as ElementId,
+            blockedId: created.id,
+            blockerId: body.libraryId as ElementId,
             type: 'parent-child',
           });
         }
@@ -519,8 +519,8 @@ export function createDocumentRoutes(services: CollaborateServices) {
         const library = await api.get(body.libraryId as ElementId);
         if (library && library.type === 'library') {
           await api.addDependency({
-            sourceId: created.id,
-            targetId: body.libraryId as ElementId,
+            blockedId: created.id,
+            blockerId: body.libraryId as ElementId,
             type: 'parent-child',
           });
         }
@@ -562,11 +562,11 @@ export function createDocumentRoutes(services: CollaborateServices) {
       let incoming: (typeof doc)[] = [];
 
       if (direction === 'outgoing' || direction === 'both') {
-        // Outgoing links: documents this document references (sourceId = this document)
+        // Outgoing links: documents this document references (blockedId = this document)
         const outgoingDeps = await api.getDependencies(documentId, ['references']);
         const outgoingDocs = await Promise.all(
           outgoingDeps.map(async (dep) => {
-            const linkedDoc = await api.get(dep.targetId as ElementId);
+            const linkedDoc = await api.get(dep.blockerId as ElementId);
             if (linkedDoc && linkedDoc.type === 'document') {
               return linkedDoc;
             }
@@ -577,11 +577,11 @@ export function createDocumentRoutes(services: CollaborateServices) {
       }
 
       if (direction === 'incoming' || direction === 'both') {
-        // Incoming links: documents that reference this document (targetId = this document)
+        // Incoming links: documents that reference this document (blockerId = this document)
         const incomingDeps = await api.getDependents(documentId, ['references']);
         const incomingDocs = await Promise.all(
           incomingDeps.map(async (dep) => {
-            const linkedDoc = await api.get(dep.sourceId as ElementId);
+            const linkedDoc = await api.get(dep.blockedId as ElementId);
             if (linkedDoc && linkedDoc.type === 'document') {
               return linkedDoc;
             }
@@ -641,7 +641,7 @@ export function createDocumentRoutes(services: CollaborateServices) {
       // Check if link already exists
       const existingDeps = await api.getDependencies(sourceId);
       const alreadyLinked = existingDeps.some(
-        (dep) => dep.sourceId === sourceId && dep.targetId === targetId && dep.type === 'references'
+        (dep) => dep.blockedId === sourceId && dep.blockerId === targetId && dep.type === 'references'
       );
       if (alreadyLinked) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Link already exists between these documents' } }, 400);
@@ -649,8 +649,8 @@ export function createDocumentRoutes(services: CollaborateServices) {
 
       // Create the references dependency (source document references target document)
       await api.addDependency({
-        sourceId,
-        targetId,
+        blockedId: sourceId,
+        blockerId: targetId,
         type: 'references',
         actor: (body.actor as EntityId) || ('el-0000' as EntityId),
       });
@@ -683,7 +683,7 @@ export function createDocumentRoutes(services: CollaborateServices) {
       // Find the link dependency
       const dependencies = await api.getDependencies(sourceId);
       const linkDep = dependencies.find(
-        (dep) => dep.sourceId === sourceId && dep.targetId === targetId && dep.type === 'references'
+        (dep) => dep.blockedId === sourceId && dep.blockerId === targetId && dep.type === 'references'
       );
 
       if (!linkDep) {

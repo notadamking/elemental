@@ -295,8 +295,8 @@ describe('Schema Management', () => {
       const columns = getTableColumns(backend, 'dependencies');
       const columnNames = columns.map((c) => c.name);
 
-      expect(columnNames).toContain('source_id');
-      expect(columnNames).toContain('target_id');
+      expect(columnNames).toContain('blocked_id');
+      expect(columnNames).toContain('blocker_id');
       expect(columnNames).toContain('type');
       expect(columnNames).toContain('created_at');
       expect(columnNames).toContain('created_by');
@@ -316,7 +316,7 @@ describe('Schema Management', () => {
     it('should have expected indexes', () => {
       const indexes = getTableIndexes(backend, 'dependencies');
 
-      expect(indexes).toContain('idx_dependencies_target');
+      expect(indexes).toContain('idx_dependencies_blocker');
       expect(indexes).toContain('idx_dependencies_type');
     });
 
@@ -329,7 +329,7 @@ describe('Schema Management', () => {
 
       // Insert dependency
       backend.run(
-        `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by)
+        `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by)
          VALUES ('el-1', 'el-external', 'blocks', '2024-01-01', 'actor')`,
       );
 
@@ -674,13 +674,13 @@ describe('Schema Management', () => {
       );
 
       backend.run(
-        `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by)
+        `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by)
          VALUES ('el-1', 'el-2', 'blocks', '2024-01-01', 'actor')`,
       );
 
       expect(() => {
         backend.run(
-          `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by)
+          `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by)
            VALUES ('el-1', 'el-2', 'blocks', '2024-01-01', 'actor')`,
         );
       }).toThrow();
@@ -694,11 +694,11 @@ describe('Schema Management', () => {
 
       expect(() => {
         backend.run(
-          `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by)
+          `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by)
            VALUES ('el-1', 'el-2', 'blocks', '2024-01-01', 'actor')`,
         );
         backend.run(
-          `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by)
+          `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by)
            VALUES ('el-1', 'el-2', 'relates-to', '2024-01-01', 'actor')`,
         );
       }).not.toThrow();
@@ -895,12 +895,12 @@ describe('Schema Management', () => {
       );
 
       backend.run(
-        `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+        `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
          VALUES ('el-1', 'el-2', 'blocks', '2024-01-01', 'actor', NULL)`,
       );
 
       const row = backend.queryOne<{ metadata: string | null }>(
-        'SELECT metadata FROM dependencies WHERE source_id = ?',
+        'SELECT metadata FROM dependencies WHERE blocked_id = ?',
         ['el-1'],
       );
       expect(row!.metadata).toBeNull();

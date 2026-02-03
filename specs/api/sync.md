@@ -30,7 +30,7 @@ Each line is complete JSON:
 ### Dependency Line Format
 
 Each line is dependency JSON:
-- sourceId, targetId, type
+- blockedId, blockerId, type
 - createdAt, createdBy
 - metadata (optional)
 

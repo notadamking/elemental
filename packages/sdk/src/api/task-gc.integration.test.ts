@@ -256,8 +256,8 @@ describe('Task Garbage Collection Integration', () => {
 
       // Link task to workflow via parent-child dependency
       await api.addDependency({
-        sourceId: task.id,
-        targetId: workflow.id,
+        blockedId: task.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -284,8 +284,8 @@ describe('Task Garbage Collection Integration', () => {
       const workflowTask = await createClosedEphemeralTask('el-wftask2', oneHourAgo, 'Workflow Task');
       await api.create(toCreateInput(workflowTask));
       await api.addDependency({
-        sourceId: workflowTask.id,
-        targetId: workflow.id,
+        blockedId: workflowTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -350,8 +350,8 @@ describe('Task Garbage Collection Integration', () => {
 
       // Add a dependency between task1 and task2
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockerId: task1.id,
+        blockedId: task2.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -436,14 +436,14 @@ describe('Task Garbage Collection Integration', () => {
 
       // Create dependency between tasks
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockerId: task1.id,
+        blockedId: task2.id,
         type: DependencyType.BLOCKS,
       });
 
-      // Verify dependency exists
-      const depsBefore = await api.getDependencies(task1.id);
-      expect(depsBefore.some(d => d.targetId === task2.id)).toBe(true);
+      // Verify dependency exists (task2 is blocked by task1)
+      const depsBefore = await api.getDependencies(task2.id);
+      expect(depsBefore.some(d => d.blockerId === task1.id)).toBe(true);
 
       // GC
       const result = await api.garbageCollectTasks({
@@ -470,8 +470,8 @@ describe('Task Garbage Collection Integration', () => {
 
       // Create dependency from ephemeral to durable
       await api.addDependency({
-        sourceId: ephemeralTask.id,
-        targetId: durableTask.id,
+        blockerId: ephemeralTask.id,
+        blockedId: durableTask.id,
         type: DependencyType.BLOCKS,
       });
 

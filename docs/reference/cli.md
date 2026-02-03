@@ -110,7 +110,7 @@ el dep list abc123 --direction both   # Both
 el dep tree abc123
 ```
 
-**Warning:** `el dep add --type=blocks A B` means A is blocked BY B.
+**Semantics:** `el dep add --type=blocks A B` means A (blocked) is blocked BY B (blocker).
 
 ## Entity Commands
 

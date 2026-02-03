@@ -513,7 +513,7 @@ el dep remove el-abc el-xyz
 
 Error: Dependency not found between el-abc and el-xyz
   Code: DEPENDENCY_NOT_FOUND
-  Details: { sourceId: "el-abc", targetId: "el-xyz" }
+  Details: { blockedId: "el-abc", blockerId: "el-xyz" }
 
 Resolution: Use 'el dep list el-abc' to see existing dependencies.
 ```
@@ -592,7 +592,7 @@ el dep add el-task1 el-task2 --type blocks
 
 Error: Adding dependency would create cycle: el-task1 -> el-task2
   Code: CYCLE_DETECTED
-  Details: { sourceId: "el-task1", targetId: "el-task2", dependencyType: "blocks" }
+  Details: { blockedId: "el-task1", blockerId: "el-task2", dependencyType: "blocks" }
 
 Resolution: Use 'el dep tree el-task1' to visualize dependencies and restructure.
 ```
@@ -640,7 +640,7 @@ el dep add el-task1 el-task2 --type blocks
 
 Error: Dependency already exists between el-task1 and el-task2
   Code: DUPLICATE_DEPENDENCY
-  Details: { sourceId: "el-task1", targetId: "el-task2" }
+  Details: { blockedId: "el-task1", blockerId: "el-task2" }
 
 Resolution: Dependency already exists. Use 'el dep list el-task1' to verify.
 ```
@@ -1173,7 +1173,7 @@ Cycle detected:
 ```
 code: CYCLE_DETECTED
 message: "Adding dependency would create cycle"
-details: { sourceId: "el-abc", targetId: "el-xyz", type: "blocks" }
+details: { blockedId: "el-abc", blockerId: "el-xyz", type: "blocks" }
 ```
 
 ## Validation Rules

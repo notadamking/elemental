@@ -170,15 +170,15 @@ CREATE TABLE elements (
 
 ```sql
 CREATE TABLE dependencies (
-  source_id TEXT NOT NULL,
-  target_id TEXT NOT NULL,
+  blocked_id TEXT NOT NULL,
+  blocker_id TEXT NOT NULL,
   type TEXT NOT NULL,
   created_at TEXT NOT NULL,
   created_by TEXT NOT NULL,
   metadata TEXT,  -- JSON blob
-  PRIMARY KEY (source_id, target_id, type),
-  FOREIGN KEY (source_id) REFERENCES elements(id) ON DELETE CASCADE,
-  FOREIGN KEY (target_id) REFERENCES elements(id) ON DELETE CASCADE
+  PRIMARY KEY (blocked_id, blocker_id, type),
+  FOREIGN KEY (blocked_id) REFERENCES elements(id) ON DELETE CASCADE,
+  FOREIGN KEY (blocker_id) REFERENCES elements(id) ON DELETE CASCADE
 );
 ```
 

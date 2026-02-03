@@ -14,12 +14,12 @@ The dependency system provides:
 
 ## Dependency Structure
 
-Each dependency connects a source element to a target element:
+Each dependency connects a blocked element to a blocker element:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `sourceId` | `ElementId` | Element that has the dependency |
-| `targetId` | `ElementId` | Element being depended on |
+| `blockedId` | `ElementId` | Element that is blocked (waiting) |
+| `blockerId` | `ElementId` | Element that is blocking (must complete first) |
 | `type` | `DependencyType` | Category of relationship |
 | `createdAt` | `Timestamp` | When dependency was created |
 | `createdBy` | `EntityId` | Who created the dependency |
@@ -33,7 +33,7 @@ Affect work readiness; tasks cannot proceed until blockers resolve.
 
 | Type | Semantics | Target Requirement |
 |------|-----------|-------------------|
-| `blocks` | Target waits for source to close | Source must close |
+| `blocks` | Blocked waits for blocker to close | Blocker must close |
 | `parent-child` | Hierarchical containment | Transitive blocking |
 | `awaits` | External gate dependency | Gate must be satisfied |
 
@@ -150,25 +150,25 @@ Before adding blocking dependencies, verify no cycle would result.
 ### Self-Referential Check
 
 First, reject self-referential dependencies:
-- If `sourceId === targetId`, reject with `CYCLE_DETECTED`
+- If `blockedId === blockerId`, reject with `CYCLE_DETECTED`
 - Message: "Cannot create self-referential dependency"
 - This is the simplest form of cycle (length 1)
 
 ### Algorithm
 
-1. Reject if source equals target (self-referential)
+1. Reject if blockedId equals blockerId (self-referential)
 2. Check if dependency type is blocking
 3. If not blocking, allow (no cycle possible in acyclic graph)
-4. Start from target, traverse all blocking dependencies
-5. If source is reachable, cycle would be created
+4. Start from blockerId, traverse all blocking dependencies
+5. If blockedId is reachable, cycle would be created
 6. Reject with `CYCLE_DETECTED` error
 
 ### Traversal
 
 Breadth-first search with visited set:
-- Start queue with target
-- Pop element, check if equals source
-- Add all blocking dependency targets to queue
+- Start queue with blockerId
+- Pop element, check if equals blockedId
+- Add all blocking dependency blockerIds to queue
 - Continue until queue empty or source found
 - Depth limit: 100 (configurable)
 
@@ -220,16 +220,16 @@ Cache provides ~25x speedup on large datasets:
 ### Schema
 
 Dependencies stored in `dependencies` table:
-- Composite primary key: (source_id, target_id, type)
+- Composite primary key: (blocked_id, blocker_id, type)
 - Allows multiple dependency types between same elements
-- Indexed on target_id for reverse lookups
+- Indexed on blocker_id for reverse lookups
 
 ### Constraints
 
-- source_id must reference valid element
-- target_id: No foreign key (allows external references)
+- blocked_id must reference valid element
+- blocker_id: No foreign key (allows external references)
 - type must be valid DependencyType
-- No self-references (source_id != target_id)
+- No self-references (blocked_id != blocker_id)
 
 ### Implementation Status
 
@@ -237,7 +237,7 @@ Dependencies stored in `dependencies` table:
 > See el-5w9d (cycle detection) and el-4pyu (self-referential dependency).
 >
 > **Workaround:** If a self-referential dependency is accidentally created, it can be removed
-> with `el dep remove <task-id> <task-id> --type blocks` to recover the task to "open" status.
+> with `el dep remove <blocked-id> <blocker-id> --type blocks` to recover the task to "open" status.
 
 ## Operations
 
@@ -261,25 +261,25 @@ Dependencies stored in `dependencies` table:
 
 When an element is deleted (tombstoned), dependencies are automatically cleaned up:
 
-1. Find all dependencies where element is source
-2. Find all dependencies where element is target
+1. Find all dependencies where element is blockedId
+2. Find all dependencies where element is blockerId
 3. Remove all found dependencies (within the same transaction)
 4. Update blocked cache for affected elements
 5. Record delete event for the element
 
 **Implementation:** Cascade cleanup is performed in `ElementalAPIImpl.delete()` using SQL:
-- `DELETE FROM dependencies WHERE source_id = ?` (removes outgoing dependencies)
-- `DELETE FROM dependencies WHERE target_id = ?` (removes incoming dependencies)
+- `DELETE FROM dependencies WHERE blocked_id = ?` (removes outgoing dependencies)
+- `DELETE FROM dependencies WHERE blocker_id = ?` (removes incoming dependencies)
 
 This prevents orphan dependency records pointing to deleted elements.
 
 ### Get Dependencies
 
-Query all dependencies where element is source.
+Query all dependencies where element is blockedId.
 
 ### Get Dependents
 
-Query all dependencies where element is target.
+Query all dependencies where element is blockerId.
 
 ### Get Dependency Tree
 
@@ -296,7 +296,7 @@ Recursive traversal building full tree:
 ### Bidirectional relates-to
 
 Store as single record:
-- Smaller source_id is always source
+- Smaller ID is always blocked_id
 - Query both directions by checking both columns
 - Application layer handles interpretation
 

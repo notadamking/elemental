@@ -67,13 +67,13 @@ function createTestEntity(overrides: Partial<Element> & Record<string, unknown> 
 }
 
 function createTestDependency(
-  sourceId: ElementId,
-  targetId: ElementId,
+  blockedId: ElementId,
+  blockerId: ElementId,
   type: DependencyType = DependencyType.BLOCKS
 ): Dependency {
   return {
-    sourceId,
-    targetId,
+    blockedId,
+    blockerId,
     type,
     createdAt: createTimestamp(),
     createdBy: 'el-system1' as EntityId,
@@ -95,11 +95,11 @@ function insertElement(backend: StorageBackend, element: Element): void {
 
 function insertDependency(backend: StorageBackend, dep: Dependency): void {
   backend.run(
-    `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+    `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [
-      dep.sourceId,
-      dep.targetId,
+      dep.blockedId,
+      dep.blockerId,
       dep.type,
       dep.createdAt,
       dep.createdBy,
@@ -207,7 +207,7 @@ describe('SyncHttpHandlers', () => {
       insertElement(backend, task1);
       insertElement(backend, task2);
 
-      const dep = createTestDependency(task1.id, task2.id);
+      const dep = createTestDependency(task2.id, task1.id);
       insertDependency(backend, dep);
 
       const response = handlers.pull({ includeDependencies: true });
@@ -223,7 +223,7 @@ describe('SyncHttpHandlers', () => {
       insertElement(backend, task1);
       insertElement(backend, task2);
 
-      const dep = createTestDependency(task1.id, task2.id);
+      const dep = createTestDependency(task2.id, task1.id);
       insertDependency(backend, dep);
 
       const response = handlers.pull({ includeDependencies: false });

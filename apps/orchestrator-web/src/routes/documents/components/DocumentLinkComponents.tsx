@@ -257,12 +257,12 @@ export function LinkedDocumentsSection({
   const totalLinks = outgoing.length + incoming.length;
 
   const handleAddLink = (targetDocumentId: string) => {
-    addLink.mutate({ sourceId: documentId, targetDocumentId });
+    addLink.mutate({ blockedId: documentId, targetDocumentId });
     setShowPicker(false);
   };
 
-  const handleRemoveLink = (targetId: string) => {
-    removeLink.mutate({ sourceId: documentId, targetId });
+  const handleRemoveLink = (blockerId: string) => {
+    removeLink.mutate({ blockedId: documentId, blockerId });
   };
 
   const existingOutgoingIds = outgoing.map((doc) => doc.id);

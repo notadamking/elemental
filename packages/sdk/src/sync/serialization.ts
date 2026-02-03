@@ -111,8 +111,8 @@ export function serializeDependency(dependency: Dependency): string {
   }
 
   const serialized: SerializedDependency = {
-    sourceId: dependency.sourceId,
-    targetId: dependency.targetId,
+    blockedId: dependency.blockedId,
+    blockerId: dependency.blockerId,
     type: dependency.type,
     createdAt: dependency.createdAt,
     createdBy: dependency.createdBy,
@@ -307,8 +307,8 @@ export function sortElementsForExport(elements: Element[]): Element[] {
  *
  * Order by:
  * 1. Creation time
- * 2. Source ID
- * 3. Target ID
+ * 2. Blocked ID
+ * 3. Blocker ID
  * 4. Type (for stability)
  *
  * @param dependencies - Dependencies to sort
@@ -320,13 +320,13 @@ export function sortDependenciesForExport(dependencies: Dependency[]): Dependenc
     const timeDiff = a.createdAt.localeCompare(b.createdAt);
     if (timeDiff !== 0) return timeDiff;
 
-    // Then by source ID
-    const sourceDiff = a.sourceId.localeCompare(b.sourceId);
-    if (sourceDiff !== 0) return sourceDiff;
+    // Then by blocked ID
+    const blockedDiff = a.blockedId.localeCompare(b.blockedId);
+    if (blockedDiff !== 0) return blockedDiff;
 
-    // Then by target ID
-    const targetDiff = a.targetId.localeCompare(b.targetId);
-    if (targetDiff !== 0) return targetDiff;
+    // Then by blocker ID
+    const blockerDiff = a.blockerId.localeCompare(b.blockerId);
+    if (blockerDiff !== 0) return blockerDiff;
 
     // Finally by type for stability
     return a.type.localeCompare(b.type);
@@ -373,8 +373,8 @@ export function isSerializedDependency(value: unknown): value is SerializedDepen
 
   // Check required fields exist
   return (
-    typeof obj.sourceId === 'string' &&
-    typeof obj.targetId === 'string' &&
+    typeof obj.blockedId === 'string' &&
+    typeof obj.blockerId === 'string' &&
     typeof obj.type === 'string' &&
     typeof obj.createdAt === 'string' &&
     typeof obj.createdBy === 'string'

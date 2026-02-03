@@ -7,7 +7,7 @@ import type { LayoutDirection, LayoutAlgorithm, LayoutOptions } from './types';
 
 // Dependency types that can be created
 export const DEPENDENCY_TYPES = [
-  { value: 'blocks', label: 'Blocks', description: 'Target cannot proceed until source completes' },
+  { value: 'blocks', label: 'Blocks', description: 'Blocked element cannot proceed until blocker completes' },
   { value: 'parent-child', label: 'Parent-Child', description: 'Hierarchical containment' },
   { value: 'relates-to', label: 'Relates To', description: 'Semantic bidirectional link' },
   { value: 'references', label: 'References', description: 'Citation (unidirectional)' },

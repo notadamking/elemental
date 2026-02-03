@@ -5,11 +5,11 @@ How elements relate to each other and why blocking semantics matter.
 ## The Dependency Model
 
 Dependencies connect elements in a directed graph. Each dependency has:
-- **sourceId** - The element that has the dependency
-- **targetId** - The element being depended on
+- **blockedId** - The element that is blocked (waiting)
+- **blockerId** - The element that is blocking (must complete first)
 - **type** - The nature of the relationship
 
-The composite key is `(sourceId, targetId, type)`, allowing multiple relationship types between the same pair of elements.
+The composite key is `(blockedId, blockerId, type)`, allowing multiple relationship types between the same pair of elements.
 
 ## Dependency Categories
 
@@ -19,21 +19,20 @@ These affect whether work can proceed:
 
 | Type | Who Waits | Use Case |
 |------|-----------|----------|
-| `blocks` | Target waits for source | Task A must finish before Task B |
-| `parent-child` | Source waits for target | Plan contains tasks |
-| `awaits` | Source waits for target | Approval gates, timers |
+| `blocks` | Blocked waits for blocker | Task A must finish before Task B |
+| `parent-child` | Blocked (child) waits for blocker (parent) | Plan contains tasks |
+| `awaits` | Blocked (waiter) waits for blocker (gate) | Approval gates, timers |
 
-**Critical distinction:** `blocks` has **opposite** direction semantics from `parent-child` and `awaits`:
+For `blocks` type:
+- **blockedId** = the task that is waiting
+- **blockerId** = the task that must complete first
 
 ```
-blocks:       Source (blocker) → Target (blocked)
-              Target waits for Source to close
+blocks:       blockedId (the waiting task) ← blockerId (must complete first)
 
-parent-child: Source (child) → Target (parent)
-              Parent waits for all children to close
+parent-child: blockedId (child) → blockerId (parent)
 
-awaits:       Source (waiter) → Target (gate)
-              Source waits for gate condition
+awaits:       blockedId (waiter) → blockerId (gate)
 ```
 
 ### Associative Dependencies
@@ -113,32 +112,32 @@ These generate `auto_blocked` and `auto_unblocked` events with actor `'system:bl
 
 ## Direction Semantics Deep Dive
 
-### `blocks` - Target Waits
+### `blocks` - Blocked Waits for Blocker
 
 "Task B is blocked by Task A" means:
 - Task B cannot proceed until Task A closes
-- Source: Task A (the blocker)
-- Target: Task B (the blocked one)
+- blockedId: Task B (the one waiting)
+- blockerId: Task A (must complete first)
 
 ```typescript
 // Task B waits for Task A
 await api.addDependency({
-  sourceId: taskA.id,  // The blocker
-  targetId: taskB.id,  // The one being blocked
+  blockedId: taskB.id,  // The one being blocked
+  blockerId: taskA.id,  // The blocker (must complete first)
   type: 'blocks',
   createdBy: actorId,
 });
 ```
 
-### `parent-child` - Source Waits (Aggregated)
+### `parent-child` - Child in Plan
 
 A plan contains tasks. The plan's `blocked` status depends on its children:
 
 ```typescript
 // Create task as child of plan
 await api.addDependency({
-  sourceId: taskId,    // The child
-  targetId: planId,    // The parent
+  blockedId: taskId,    // The child
+  blockerId: planId,    // The parent
   type: 'parent-child',
   createdBy: actorId,
 });
@@ -153,8 +152,8 @@ For time-based, approval-based, or external conditions:
 ```typescript
 // Timer gate - wait until a specific time
 await api.addDependency({
-  sourceId: taskId,
-  targetId: gateId,
+  blockedId: taskId,
+  blockerId: gateId,
   type: 'awaits',
   metadata: {
     gateType: 'timer',
@@ -165,8 +164,8 @@ await api.addDependency({
 
 // Approval gate - wait for approvers
 await api.addDependency({
-  sourceId: taskId,
-  targetId: gateId,
+  blockedId: taskId,
+  blockerId: gateId,
   type: 'awaits',
   metadata: {
     gateType: 'approval',
@@ -179,8 +178,8 @@ await api.addDependency({
 
 // External gate - wait for external system
 await api.addDependency({
-  sourceId: taskId,
-  targetId: gateId,
+  blockedId: taskId,
+  blockerId: gateId,
   type: 'awaits',
   metadata: {
     gateType: 'external',
@@ -217,19 +216,19 @@ Cycle detection:
 
 ## Bidirectional `relates-to`
 
-The `relates-to` type is bidirectional but stored normalized (smaller ID is always source):
+The `relates-to` type is bidirectional but stored normalized (smaller ID is always blockedId):
 
 ```typescript
 // Either of these creates the same dependency:
-await api.addDependency({ sourceId: 'a', targetId: 'b', type: 'relates-to' });
-await api.addDependency({ sourceId: 'b', targetId: 'a', type: 'relates-to' });
+await api.addDependency({ blockedId: 'a', blockerId: 'b', type: 'relates-to' });
+await api.addDependency({ blockedId: 'b', blockerId: 'a', type: 'relates-to' });
 
 // To find all related elements, query both directions:
 const outgoing = await api.getDependencies(id, ['relates-to']);
 const incoming = await api.getDependents(id, ['relates-to']);
 const allRelated = [...new Set([
-  ...outgoing.map(d => d.targetId),
-  ...incoming.map(d => d.sourceId),
+  ...outgoing.map(d => d.blockerId),
+  ...incoming.map(d => d.blockedId),
 ])];
 ```
 
@@ -239,7 +238,7 @@ Helper function:
 import { normalizeRelatesToDependency, areRelated } from '@elemental/core';
 
 // Normalize for consistent storage
-const { sourceId, targetId } = normalizeRelatesToDependency(elementA, elementB);
+const { blockedId, blockerId } = normalizeRelatesToDependency(elementA, elementB);
 
 // Check if related
 const related = areRelated(dependencies, elementA, elementB);
@@ -275,16 +274,16 @@ const tree = await api.getDependencyTree(elementId);
 ```typescript
 // Task 2 waits for Task 1
 await api.addDependency({
-  sourceId: task1.id,
-  targetId: task2.id,
+  blockedId: task2.id,
+  blockerId: task1.id,
   type: 'blocks',
   createdBy: actorId,
 });
 
 // Task 3 waits for Task 2
 await api.addDependency({
-  sourceId: task2.id,
-  targetId: task3.id,
+  blockedId: task3.id,
+  blockerId: task2.id,
   type: 'blocks',
   createdBy: actorId,
 });
@@ -302,8 +301,8 @@ const gate = await api.create({
 
 // Deploy waits for approval
 await api.addDependency({
-  sourceId: deployTask.id,
-  targetId: gate.id,
+  blockedId: deployTask.id,
+  blockerId: gate.id,
   type: 'awaits',
   metadata: {
     gateType: 'approval',
@@ -325,16 +324,16 @@ await api.recordApproval(deployTask.id, gate.id, 'ops-team');
 ```typescript
 // Task references a spec document
 await api.addDependency({
-  sourceId: task.id,
-  targetId: specDoc.id,
+  blockedId: task.id,
+  blockerId: specDoc.id,
   type: 'references',
   createdBy: actorId,
 });
 
 // Link related documents
 await api.addDependency({
-  sourceId: doc1.id,
-  targetId: doc2.id,
+  blockedId: doc1.id,
+  blockerId: doc2.id,
   type: 'relates-to',
   createdBy: actorId,
 });
@@ -344,7 +343,7 @@ await api.addDependency({
 
 1. **`blocked` is computed** - Never set `status: 'blocked'` directly. The system computes it from dependencies.
 
-2. **Direction matters** - `blocks` direction is opposite to `parent-child` and `awaits`. Get it wrong and nothing blocks.
+2. **Direction matters** - For `blocks`, `blockedId` is the waiting task and `blockerId` is what must complete first.
 
 3. **Cycles not auto-checked** - Call `detectCycle()` before adding blocking dependencies.
 

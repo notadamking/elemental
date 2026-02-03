@@ -301,10 +301,10 @@ async function libraryAddHandler(
       return failure(`Element ${docId} is not a document (type: ${doc.type})`, ExitCode.VALIDATION);
     }
 
-    // Add parent-child dependency (document is source/child, library is target/parent)
+    // Add parent-child dependency (document is blocked/child, library is blocker/parent)
     await api.addDependency({
-      sourceId: docId as ElementId,
-      targetId: libraryId as ElementId,
+      blockedId: docId as ElementId,
+      blockerId: libraryId as ElementId,
       type: 'parent-child',
       actor,
     });
@@ -354,7 +354,7 @@ async function libraryRemoveHandler(
   }
 
   try {
-    // Remove parent-child dependency (document is source/child, library is target/parent)
+    // Remove parent-child dependency (document is blocked/child, library is blocker/parent)
     await api.removeDependency(
       docId as ElementId,
       libraryId as ElementId,
@@ -416,9 +416,9 @@ async function libraryDocsHandler(
     }
 
     // Get documents that have parent-child dependency to this library
-    // (document is source, library is target)
+    // (document is blocked, library is blocker)
     const deps = await api.getDependents(libraryId as ElementId, ['parent-child']);
-    const docIds = deps.map((d) => d.sourceId);
+    const docIds = deps.map((d) => d.blockedId);
 
     if (docIds.length === 0) {
       return success([], `No documents in library ${libraryId}`);
@@ -528,17 +528,17 @@ async function libraryNestHandler(
     const existingParent = await api.getDependencies(childLibraryId as ElementId, ['parent-child']);
     // Check if any parent-child dependency points to a library
     for (const dep of existingParent) {
-      const target = await api.get<Element>(dep.targetId);
+      const target = await api.get<Element>(dep.blockerId);
       if (target?.type === 'library') {
         return failure(`Library ${childLibraryId} already has a parent library`, ExitCode.VALIDATION);
       }
     }
 
-    // Add parent-child dependency (child library is source, parent library is target)
+    // Add parent-child dependency (child library is blocked, parent library is blocker)
     // Cycle detection is handled by the dependency service
     await api.addDependency({
-      sourceId: childLibraryId as ElementId,
-      targetId: parentLibraryId as ElementId,
+      blockedId: childLibraryId as ElementId,
+      blockerId: parentLibraryId as ElementId,
       type: 'parent-child',
       actor,
     });
@@ -610,7 +610,7 @@ async function libraryStatsHandler(
     let subLibraryCount = 0;
 
     for (const dep of deps) {
-      const child = await api.get<Element>(dep.sourceId);
+      const child = await api.get<Element>(dep.blockedId);
       if (child) {
         if (child.type === 'document') {
           documentCount++;
@@ -693,7 +693,7 @@ async function libraryRootsHandler(
 
     for (const lib of libraries) {
       const deps = await api.getDependencies(lib.id, ['parent-child']);
-      const hasLibraryParent = deps.some((d) => libraryIds.has(d.targetId as string));
+      const hasLibraryParent = deps.some((d) => libraryIds.has(d.blockerId as string));
       if (!hasLibraryParent) {
         rootLibraries.push(lib);
       }
@@ -797,7 +797,7 @@ async function libraryDeleteHandler(
 
     // Orphan strategy: remove all parent-child dependencies pointing to this library
     for (const dep of deps) {
-      await api.removeDependency(dep.sourceId, libraryId as ElementId, 'parent-child');
+      await api.removeDependency(dep.blockedId, libraryId as ElementId, 'parent-child');
     }
 
     // Delete the library

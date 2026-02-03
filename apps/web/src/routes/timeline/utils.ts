@@ -86,15 +86,15 @@ export function generateChangesPreview(event: Event): string | null {
   }
 
   if (eventType === 'dependency_added' && newValue) {
-    const targetId = (newValue.targetId as string) ?? '';
+    const blockerId = (newValue.blockerId as string) ?? '';
     const depType = (newValue.type as string) ?? 'dependency';
-    if (targetId) return `${depType} → ${targetId.slice(0, 8)}...`;
+    if (blockerId) return `${depType} → ${blockerId.slice(0, 8)}...`;
   }
 
   if (eventType === 'dependency_removed' && oldValue) {
-    const targetId = (oldValue.targetId as string) ?? '';
+    const blockerId = (oldValue.blockerId as string) ?? '';
     const depType = (oldValue.type as string) ?? 'dependency';
-    if (targetId) return `${depType} → ${targetId.slice(0, 8)}...`;
+    if (blockerId) return `${depType} → ${blockerId.slice(0, 8)}...`;
   }
 
   if (eventType === 'tag_added' && newValue) {

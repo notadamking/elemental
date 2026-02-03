@@ -288,7 +288,7 @@ export interface DependencyMergeResult {
  * Dependency key for comparison
  */
 function getDependencyKey(dep: Dependency): string {
-  return `${dep.sourceId}|${dep.targetId}|${dep.type}`;
+  return `${dep.blockedId}|${dep.blockerId}|${dep.type}`;
 }
 
 /**
@@ -335,8 +335,8 @@ export function mergeDependencies(
         // Was in original, remote removed it - honor removal
         removed.push(local);
         conflicts.push({
-          sourceId: local.sourceId,
-          targetId: local.targetId,
+          blockedId: local.blockedId,
+          blockerId: local.blockerId,
           type: local.type as DependencyType,
           resolution: 'removed',
           resolvedAt: createTimestamp(),
@@ -352,8 +352,8 @@ export function mergeDependencies(
         // Was in original, local removed it - honor removal
         removed.push(remote);
         conflicts.push({
-          sourceId: remote.sourceId,
-          targetId: remote.targetId,
+          blockedId: remote.blockedId,
+          blockerId: remote.blockerId,
           type: remote.type as DependencyType,
           resolution: 'removed',
           resolvedAt: createTimestamp(),
@@ -363,8 +363,8 @@ export function mergeDependencies(
         keep.push(remote);
         added.push(remote);
         conflicts.push({
-          sourceId: remote.sourceId,
-          targetId: remote.targetId,
+          blockedId: remote.blockedId,
+          blockerId: remote.blockerId,
           type: remote.type as DependencyType,
           resolution: 'added',
           resolvedAt: createTimestamp(),

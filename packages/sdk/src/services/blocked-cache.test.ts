@@ -40,16 +40,16 @@ describe('BlockedCacheService', () => {
 
   // Helper to create a dependency
   function createTestDependency(
-    sourceId: string,
-    targetId: string,
+    blockedId: string,
+    blockerId: string,
     type: string,
     metadata?: Record<string, unknown>
   ): void {
     const now = new Date().toISOString();
     db.run(
-      `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+      `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [sourceId, targetId, type, now, testEntity, metadata ? JSON.stringify(metadata) : null]
+      [blockedId, blockerId, type, now, testEntity, metadata ? JSON.stringify(metadata) : null]
     );
   }
 
@@ -233,39 +233,39 @@ describe('BlockedCacheService', () => {
   // Blocking State Computation
   // ==========================================================================
 
-  describe('isTargetCompleted', () => {
+  describe('isBlockerCompleted', () => {
     test('returns true for non-existent target (external reference)', () => {
-      expect(service.isTargetCompleted(externalTarget)).toBe(true);
+      expect(service.isBlockerCompleted(externalTarget)).toBe(true);
     });
 
     test('returns true for deleted element', () => {
       createTestElement(task1, 'task', 'open', true);
-      expect(service.isTargetCompleted(task1)).toBe(true);
+      expect(service.isBlockerCompleted(task1)).toBe(true);
     });
 
     test('returns true for closed status', () => {
       createTestElement(task1, 'task', 'closed');
-      expect(service.isTargetCompleted(task1)).toBe(true);
+      expect(service.isBlockerCompleted(task1)).toBe(true);
     });
 
     test('returns true for completed status', () => {
       createTestElement(task1, 'task', 'completed');
-      expect(service.isTargetCompleted(task1)).toBe(true);
+      expect(service.isBlockerCompleted(task1)).toBe(true);
     });
 
     test('returns true for tombstone status', () => {
       createTestElement(task1, 'task', 'tombstone');
-      expect(service.isTargetCompleted(task1)).toBe(true);
+      expect(service.isBlockerCompleted(task1)).toBe(true);
     });
 
     test('returns false for open status', () => {
       createTestElement(task1, 'task', 'open');
-      expect(service.isTargetCompleted(task1)).toBe(false);
+      expect(service.isBlockerCompleted(task1)).toBe(false);
     });
 
     test('returns false for in_progress status', () => {
       createTestElement(task1, 'task', 'in_progress');
-      expect(service.isTargetCompleted(task1)).toBe(false);
+      expect(service.isBlockerCompleted(task1)).toBe(false);
     });
   });
 
@@ -394,13 +394,13 @@ describe('BlockedCacheService', () => {
     });
 
     describe('blocks dependency', () => {
-      test('returns blocked when source (blocker) is not completed', () => {
-        // Semantics: "Target waits for source to close"
-        // task1 (source/blocker) blocks task2 (target/blocked)
+      test('returns blocked when blocker is not completed', () => {
+        // Semantics: "blocked element waits for blocker to close"
+        // task1 (blocker) blocks task2 (blocked)
         // So we check task2's blocking state, and it should be blocked by task1
         createTestElement(task1, 'task', 'open');
         createTestElement(task2, 'task', 'open');
-        createTestDependency(task1, task2, DependencyType.BLOCKS);
+        createTestDependency(task2, task1, DependencyType.BLOCKS);
 
         const result = service.computeBlockingState(task2);
         expect(result).not.toBeNull();
@@ -408,31 +408,31 @@ describe('BlockedCacheService', () => {
         expect(result?.reason).toContain('blocks dependency');
       });
 
-      test('returns null for source element (source is not blocked by its own blocks dependency)', () => {
-        // The source (blocker) should NOT be blocked - it's the blocker
+      test('returns null for blocker element (blocker is not blocked by its own blocks dependency)', () => {
+        // The blocker should NOT be blocked - it's the blocker
         createTestElement(task1, 'task', 'open');
         createTestElement(task2, 'task', 'open');
-        createTestDependency(task1, task2, DependencyType.BLOCKS);
+        createTestDependency(task2, task1, DependencyType.BLOCKS);
 
         const result = service.computeBlockingState(task1);
         expect(result).toBeNull();
       });
 
-      test('returns null when source (blocker) is closed', () => {
-        // When the blocker is closed, the target is unblocked
+      test('returns null when blocker is closed', () => {
+        // When the blocker is closed, the blocked element is unblocked
         createTestElement(task1, 'task', 'closed');
         createTestElement(task2, 'task', 'open');
-        createTestDependency(task1, task2, DependencyType.BLOCKS);
+        createTestDependency(task2, task1, DependencyType.BLOCKS);
 
         const result = service.computeBlockingState(task2);
         expect(result).toBeNull();
       });
 
-      test('returns null when source does not exist (external reference)', () => {
+      test('returns null when blocker does not exist (external reference)', () => {
         // If the blocker doesn't exist (deleted or external), treat as non-blocking
         createTestElement(task1, 'task', 'open'); // Blocker that will be deleted
         createTestElement(task2, 'task', 'open');
-        createTestDependency(task1, task2, DependencyType.BLOCKS);
+        createTestDependency(task2, task1, DependencyType.BLOCKS);
 
         // Delete the blocker (simulating external reference or deleted element)
         db.run('DELETE FROM elements WHERE id = ?', [task1]);
@@ -561,10 +561,10 @@ describe('BlockedCacheService', () => {
 
   describe('invalidateElement', () => {
     test('adds to cache when element becomes blocked (blocks dependency)', () => {
-      // task1 (blocker) blocks task2 (target)
+      // task1 (blocker) blocks task2 (blocked) - task2 should be blocked
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
 
       service.invalidateElement(task2);
 
@@ -572,10 +572,10 @@ describe('BlockedCacheService', () => {
     });
 
     test('removes from cache when element becomes unblocked (blocker closed)', () => {
-      // task1 (blocker) blocks task2 (target), but task1 is closed
+      // task1 (blocker) blocks task2 (blocked), but task1 is closed
       createTestElement(task1, 'task', 'closed');
       createTestElement(task2, 'task', 'open');
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
 
       // First, manually add to cache
       service.addBlocked(task2, task1, 'Was blocked');
@@ -594,10 +594,10 @@ describe('BlockedCacheService', () => {
       createTestElement(task2, 'task', 'open');
       createTestElement(task3, 'task', 'open'); // Blocker
 
-      // task3 (source/blocker) blocks both task1 and task2 (targets/blocked)
+      // task3 (blocker) blocks both task1 and task2 (blocked)
       // Semantics: task1 and task2 wait for task3 to close
-      createTestDependency(task3, task1, DependencyType.BLOCKS);
-      createTestDependency(task3, task2, DependencyType.BLOCKS);
+      createTestDependency(task1, task3, DependencyType.BLOCKS);
+      createTestDependency(task2, task3, DependencyType.BLOCKS);
 
       // Initially populate cache
       service.invalidateElement(task1);
@@ -635,17 +635,17 @@ describe('BlockedCacheService', () => {
     });
 
     test('rebuilds cache correctly for blocks dependencies', () => {
-      // Semantics: source (blocker) blocks target (blocked)
-      // task1 is open (blocker), task2 is open (target - should be blocked)
+      // Semantics: blocker blocks blocked element
+      // task1 is open (blocker), task2 is open (blocked - should be blocked)
       // task3 is closed (blocker), so it doesn't block anything
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
       createTestElement(task3, 'task', 'closed');
       // task1 blocks task2 (task2 waits for task1)
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
       // task3 blocks task4 (would be blocked, but task3 is closed)
       createTestElement(task4, 'task', 'open');
-      createTestDependency(task3, task4, DependencyType.BLOCKS);
+      createTestDependency(task4, task3, DependencyType.BLOCKS);
 
       const result = service.rebuild();
 
@@ -673,7 +673,7 @@ describe('BlockedCacheService', () => {
       // task2 is child of task1
       createTestDependency(task2, task1, DependencyType.PARENT_CHILD);
       // task3 blocks plan1 (plan1 waits for task3)
-      createTestDependency(task3, plan1, DependencyType.BLOCKS);
+      createTestDependency(plan1, task3, DependencyType.BLOCKS);
 
       const result = service.rebuild();
 
@@ -695,13 +695,13 @@ describe('BlockedCacheService', () => {
       createTestElement(task2, 'task', 'open');
       createTestElement(task3, 'task', 'closed');
       // task1 blocks task2 (task2 waits for task1)
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
       // task3 blocks task2 too, but task3 is closed so no effect
-      createTestDependency(task3, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task3, DependencyType.BLOCKS);
 
       const result = service.rebuild();
 
-      expect(result.elementsChecked).toBe(1); // Only task2 is a target of blocks deps
+      expect(result.elementsChecked).toBe(1); // Only task2 is a blocked element of blocks deps
       expect(result.elementsBlocked).toBe(1); // Only task2 is blocked (by open task1)
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
     });
@@ -713,12 +713,12 @@ describe('BlockedCacheService', () => {
 
   describe('onDependencyAdded', () => {
     test('updates cache when blocking dependency added', () => {
-      // task1 (blocker) blocks task2 (target) - task2 should be blocked
+      // task1 (blocker) blocks task2 (blocked) - task2 should be blocked
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
 
-      service.onDependencyAdded(task1, task2, DependencyType.BLOCKS);
+      service.onDependencyAdded(task2, task1, DependencyType.BLOCKS);
 
       expect(service.isBlocked(task2)).not.toBeNull();
       expect(service.isBlocked(task1)).toBeNull(); // Blocker is not blocked
@@ -740,7 +740,7 @@ describe('BlockedCacheService', () => {
       createTestElement(task2, 'task', 'open');
       createTestElement(task3, 'task', 'open');
       // task1 blocks task2 (task2 waits for task1)
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
       // task2 is child of task3
       createTestDependency(task2, task3, DependencyType.PARENT_CHILD);
 
@@ -757,23 +757,23 @@ describe('BlockedCacheService', () => {
 
   describe('onDependencyRemoved', () => {
     test('updates cache when blocking dependency removed', () => {
-      // task1 (blocker) blocks task2 (target)
+      // task1 (blocker) blocks task2 (blocked)
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
 
       // Add and establish blocked state
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
       service.rebuild();
       expect(service.isBlocked(task2)).not.toBeNull();
 
       // Remove dependency from DB
       db.run(
-        'DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
-        [task1, task2, DependencyType.BLOCKS]
+        'DELETE FROM dependencies WHERE blocked_id = ? AND blocker_id = ? AND type = ?',
+        [task2, task1, DependencyType.BLOCKS]
       );
 
       // Notify service
-      service.onDependencyRemoved(task1, task2, DependencyType.BLOCKS);
+      service.onDependencyRemoved(task2, task1, DependencyType.BLOCKS);
 
       expect(service.isBlocked(task2)).toBeNull();
     });
@@ -781,10 +781,10 @@ describe('BlockedCacheService', () => {
 
   describe('onStatusChanged', () => {
     test('updates dependents when blocker becomes closed', () => {
-      // task1 (blocker) blocks task2 (target)
+      // task1 (blocker) blocks task2 (blocked)
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
 
       // Establish blocked state
       service.rebuild();
@@ -800,11 +800,11 @@ describe('BlockedCacheService', () => {
       expect(service.isBlocked(task2)).toBeNull();
     });
 
-    test('updates targets when blocker is reopened', () => {
-      // task1 (blocker) blocks task2 (target), but task1 starts as closed
+    test('updates blocked elements when blocker is reopened', () => {
+      // task1 (blocker) blocks task2 (blocked), but task1 starts as closed
       createTestElement(task1, 'task', 'closed');
       createTestElement(task2, 'task', 'open');
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
 
       // Initially task2 not blocked (task1 is closed)
       service.rebuild();
@@ -821,10 +821,10 @@ describe('BlockedCacheService', () => {
     });
 
     test('does nothing when status change does not affect completion', () => {
-      // task1 (blocker) blocks task2 (target)
+      // task1 (blocker) blocks task2 (blocked)
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
 
       service.rebuild();
       const beforeCount = service.count();
@@ -848,11 +848,11 @@ describe('BlockedCacheService', () => {
       expect(service.isBlocked(task1)).toBeNull();
     });
 
-    test('unblocks targets when blocker is deleted', () => {
-      // task1 (blocker) blocks task2 (target)
+    test('unblocks blocked elements when blocker is deleted', () => {
+      // task1 (blocker) blocks task2 (blocked)
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
-      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task2, task1, DependencyType.BLOCKS);
 
       service.rebuild();
       expect(service.isBlocked(task2)).not.toBeNull();
@@ -964,7 +964,7 @@ describe('BlockedCacheService', () => {
 
       // Check that metadata was updated
       const dep = db.queryOne<{ metadata: string }>(
-        'SELECT metadata FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?',
+        'SELECT metadata FROM dependencies WHERE blocked_id = ? AND blocker_id = ? AND type = ?',
         [task1, task2, DependencyType.AWAITS]
       );
 
@@ -1198,7 +1198,7 @@ describe('BlockedCacheService', () => {
       // blocker blocks task0 (task0 waits for blocker to close)
       const blocker = 'el-blocker' as ElementId;
       createTestElement(blocker, 'task', 'open');
-      createTestDependency(blocker, tasks[0], DependencyType.BLOCKS);
+      createTestDependency(tasks[0], blocker, DependencyType.BLOCKS);
 
       const result = service.rebuild();
 
@@ -1215,8 +1215,8 @@ describe('BlockedCacheService', () => {
       createTestElement(task1, 'task', 'open');
       createTestElement(task2, 'task', 'open');
       createTestElement(task3, 'task', 'open');
-      createTestDependency(task2, task1, DependencyType.BLOCKS);
-      createTestDependency(task3, task1, DependencyType.BLOCKS);
+      createTestDependency(task1, task2, DependencyType.BLOCKS);
+      createTestDependency(task1, task3, DependencyType.BLOCKS);
 
       service.rebuild();
 

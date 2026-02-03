@@ -248,8 +248,8 @@ Delete a dependency.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sourceId` | `ElementId` | Source element |
-| `targetId` | `ElementId` | Target element |
+| `blockedId` | `ElementId` | Blocked element |
+| `blockerId` | `ElementId` | Blocker element |
 | `type` | `DependencyType` | Dependency type |
 
 Returns: `Promise<void>`

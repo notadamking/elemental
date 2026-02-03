@@ -516,8 +516,8 @@ describe('pourWorkflow', () => {
 
       expect(result.parentChildDependencies).toHaveLength(2);
       expect(result.parentChildDependencies[0].type).toBe(DependencyType.PARENT_CHILD);
-      expect(result.parentChildDependencies[0].sourceId).toBe(result.tasks[0].task.id);
-      expect(result.parentChildDependencies[0].targetId).toBe(result.workflow.id);
+      expect(result.parentChildDependencies[0].blockedId).toBe(result.tasks[0].task.id);
+      expect(result.parentChildDependencies[0].blockerId).toBe(result.workflow.id);
     });
   });
 
@@ -718,14 +718,14 @@ describe('pourWorkflow', () => {
 
       // setup blocks build
       const setupBlocksBuild = result.blocksDependencies.find(
-        (d) => d.sourceId === result.tasks[0].task.id && d.targetId === result.tasks[1].task.id
+        (d) => d.blockerId === result.tasks[0].task.id && d.blockedId === result.tasks[1].task.id
       );
       expect(setupBlocksBuild).toBeDefined();
       expect(setupBlocksBuild?.type).toBe(DependencyType.BLOCKS);
 
       // build blocks test
       const buildBlocksTest = result.blocksDependencies.find(
-        (d) => d.sourceId === result.tasks[1].task.id && d.targetId === result.tasks[2].task.id
+        (d) => d.blockerId === result.tasks[1].task.id && d.blockedId === result.tasks[2].task.id
       );
       expect(buildBlocksTest).toBeDefined();
     });

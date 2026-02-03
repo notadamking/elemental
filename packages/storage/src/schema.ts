@@ -55,13 +55,13 @@ CREATE TABLE document_versions (
 
 -- Dependencies
 CREATE TABLE dependencies (
-    source_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
-    target_id TEXT NOT NULL,
+    blocked_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
+    blocker_id TEXT NOT NULL,
     type TEXT NOT NULL,
     created_at TEXT NOT NULL,
     created_by TEXT NOT NULL,
     metadata TEXT,
-    PRIMARY KEY (source_id, target_id, type)
+    PRIMARY KEY (blocked_id, blocker_id, type)
 );
 
 -- Tags (many-to-many)
@@ -102,7 +102,7 @@ CREATE INDEX idx_elements_created_by ON elements(created_by);
 CREATE INDEX idx_elements_created_at ON elements(created_at);
 CREATE INDEX idx_elements_content_hash ON elements(content_hash);
 CREATE INDEX idx_elements_deleted_at ON elements(deleted_at);
-CREATE INDEX idx_dependencies_target ON dependencies(target_id);
+CREATE INDEX idx_dependencies_blocker ON dependencies(blocker_id);
 CREATE INDEX idx_dependencies_type ON dependencies(type);
 CREATE INDEX idx_tags_tag ON tags(tag);
 CREATE INDEX idx_events_element ON events(element_id);
@@ -116,7 +116,7 @@ DROP INDEX IF EXISTS idx_events_created_at;
 DROP INDEX IF EXISTS idx_events_element;
 DROP INDEX IF EXISTS idx_tags_tag;
 DROP INDEX IF EXISTS idx_dependencies_type;
-DROP INDEX IF EXISTS idx_dependencies_target;
+DROP INDEX IF EXISTS idx_dependencies_blocker;
 DROP INDEX IF EXISTS idx_elements_deleted_at;
 DROP INDEX IF EXISTS idx_elements_content_hash;
 DROP INDEX IF EXISTS idx_elements_created_at;

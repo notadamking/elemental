@@ -41,10 +41,10 @@ function buildDependencyTypeMap(depList: DependencyListResponse | undefined): Ma
   if (!depList) return typeMap;
 
   for (const dep of depList.dependencies) {
-    typeMap.set(`${dep.sourceId}->${dep.targetId}`, dep.type);
+    typeMap.set(`${dep.blockedId}->${dep.blockerId}`, dep.type);
   }
   for (const dep of depList.dependents) {
-    typeMap.set(`${dep.sourceId}->${dep.targetId}`, dep.type);
+    typeMap.set(`${dep.blockedId}->${dep.blockerId}`, dep.type);
   }
 
   return typeMap;
@@ -80,7 +80,7 @@ All 31 Playwright tests pass for the dependency graph:
 
 - [x] Web: Debug edge deletion flow
 - [x] Server: Verify `DELETE /api/dependencies` endpoint works correctly (was already correct)
-- [x] Web: Ensure correct parameters sent (sourceId, targetId, type) - now uses actual type from dependency data
+- [x] Web: Ensure correct parameters sent (blockedId, blockerId, type) - now uses actual type from dependency data
 - [x] Web: Add confirmation dialog before edge deletion (context menu already exists)
 - [x] Web: Optimistic UI update with rollback on error (cache invalidation in place)
 - [x] Web: Refresh graph data after successful deletion

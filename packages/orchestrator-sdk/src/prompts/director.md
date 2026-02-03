@@ -97,7 +97,7 @@ el create plan --title "..." --description "..."
 el plan add-task plan-id --title "..."
 
 # Set dependencies
-el dep add {dependentTaskId} {blockingTaskId} --type blocks
+el dep add {blockedTaskId} {blockerTaskId} --type blocks
 
 # Communication
 el msg send --to worker-id --content "..."

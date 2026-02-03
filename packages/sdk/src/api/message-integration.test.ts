@@ -728,8 +728,8 @@ describe('Message Integration', () => {
       const repliesToDep = dependencies.find((d) => d.type === 'replies-to');
 
       expect(repliesToDep).toBeDefined();
-      expect(repliesToDep!.sourceId).toBe(createdReplyMessage.id);
-      expect(repliesToDep!.targetId).toBe(createdRootMessage.id);
+      expect(repliesToDep!.blockedId).toBe(createdReplyMessage.id);
+      expect(repliesToDep!.blockerId).toBe(createdRootMessage.id);
     });
 
     it('should not create replies-to dependency when message has no threadId', async () => {
@@ -793,8 +793,8 @@ describe('Message Integration', () => {
       expect(depAddedEvent).toBeDefined();
       expect(depAddedEvent!.actor).toBe(mockEntityB);
       expect(depAddedEvent!.newValue).toEqual({
-        sourceId: createdReplyMessage.id,
-        targetId: createdRootMessage.id,
+        blockedId: createdReplyMessage.id,
+        blockerId: createdRootMessage.id,
         type: 'replies-to',
         metadata: {},
       });
@@ -843,7 +843,7 @@ describe('Message Integration', () => {
       const dependents = await api.getDependents(createdRootMessage.id, ['replies-to']);
 
       expect(dependents).toHaveLength(2);
-      const replyIds = dependents.map((d) => d.sourceId);
+      const replyIds = dependents.map((d) => d.blockedId);
       expect(replyIds).toContain(createdReply1.id);
       expect(replyIds).toContain(createdReply2.id);
     });

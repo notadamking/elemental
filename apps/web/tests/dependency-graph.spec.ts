@@ -473,8 +473,8 @@ test.describe('TB44: Dependency Graph - API Endpoints', () => {
     // Create a relates-to dependency (non-blocking)
     const response = await page.request.post('/api/dependencies', {
       data: {
-        sourceId: sourceTask.id,
-        targetId: targetTask.id,
+        blockedId: sourceTask.id,
+        blockerId: targetTask.id,
         type: 'relates-to',
       },
     });
@@ -485,8 +485,8 @@ test.describe('TB44: Dependency Graph - API Endpoints', () => {
     }
     expect(response.ok()).toBe(true);
     const dependency = await response.json();
-    expect(dependency).toHaveProperty('sourceId', sourceTask.id);
-    expect(dependency).toHaveProperty('targetId', targetTask.id);
+    expect(dependency).toHaveProperty('blockedId', sourceTask.id);
+    expect(dependency).toHaveProperty('blockerId', targetTask.id);
     expect(dependency).toHaveProperty('type', 'relates-to');
 
     // Clean up - delete the dependency
@@ -499,8 +499,8 @@ test.describe('TB44: Dependency Graph - API Endpoints', () => {
   test('POST /api/dependencies returns 400 for missing fields', async ({ page }) => {
     const response = await page.request.post('/api/dependencies', {
       data: {
-        sourceId: 'task-1',
-        // Missing targetId and type
+        blockedId: 'task-1',
+        // Missing blockerId and type
       },
     });
 
@@ -525,8 +525,8 @@ test.describe('TB44: Dependency Graph - API Endpoints', () => {
     // Create a dependency
     const response1 = await page.request.post('/api/dependencies', {
       data: {
-        sourceId: sourceTask.id,
-        targetId: targetTask.id,
+        blockedId: sourceTask.id,
+        blockerId: targetTask.id,
         type: 'relates-to',
       },
     });
@@ -542,8 +542,8 @@ test.describe('TB44: Dependency Graph - API Endpoints', () => {
     // Try to create the same dependency again
     const response2 = await page.request.post('/api/dependencies', {
       data: {
-        sourceId: sourceTask.id,
-        targetId: targetTask.id,
+        blockedId: sourceTask.id,
+        blockerId: targetTask.id,
         type: 'relates-to',
       },
     });
@@ -574,8 +574,8 @@ test.describe('TB44: Dependency Graph - API Endpoints', () => {
     // Create a dependency first
     await page.request.post('/api/dependencies', {
       data: {
-        sourceId: sourceTask.id,
-        targetId: targetTask.id,
+        blockedId: sourceTask.id,
+        blockerId: targetTask.id,
         type: 'relates-to',
       },
     });
@@ -712,8 +712,8 @@ test.describe('TB133: Dependency Graph - Read-Only Mode', () => {
 
     await page.request.post('/api/dependencies', {
       data: {
-        sourceId: sourceTask.id,
-        targetId: targetTask.id,
+        blockedId: sourceTask.id,
+        blockerId: targetTask.id,
         type: 'relates-to',
       },
     });
@@ -873,8 +873,8 @@ test.describe('TB115a: Edge Type Labels', () => {
     // Create a relates-to dependency
     await page.request.post('/api/dependencies', {
       data: {
-        sourceId: sourceTask.id,
-        targetId: targetTask.id,
+        blockedId: sourceTask.id,
+        blockerId: targetTask.id,
         type: 'relates-to',
       },
     });
@@ -926,8 +926,8 @@ test.describe('TB115a: Edge Type Labels', () => {
 
     await page.request.post('/api/dependencies', {
       data: {
-        sourceId: sourceTask.id,
-        targetId: targetTask.id,
+        blockedId: targetTask.id,
+        blockerId: sourceTask.id,
         type: 'blocks',
       },
     });

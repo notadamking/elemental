@@ -243,11 +243,11 @@ export function createChannelRoutes(services: CollaborateServices) {
 
             // Hydrate attachments (documents referenced by this message)
             const dependencies = await api.getDependencies(message.id);
-            const attachmentDeps = dependencies.filter((dep) => dep.sourceId === message.id && dep.type === 'references');
+            const attachmentDeps = dependencies.filter((dep) => dep.blockedId === message.id && dep.type === 'references');
             if (attachmentDeps.length > 0) {
               const attachments = await Promise.all(
                 attachmentDeps.map(async (dep) => {
-                  const doc = await api.get(dep.targetId as ElementId);
+                  const doc = await api.get(dep.blockerId as ElementId);
                   if (doc && doc.type === 'document') {
                     return doc;
                   }

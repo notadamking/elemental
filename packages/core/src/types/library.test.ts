@@ -974,20 +974,20 @@ describe('LibraryDeletionMode', () => {
 
 describe('isRootLibrary', () => {
   test('returns true when library has no parent-child dependencies', () => {
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     expect(isRootLibrary('el-lib1', dependencies)).toBe(true);
   });
 
   test('returns true when library has dependencies but none as source', () => {
     const dependencies = [
-      { sourceId: 'el-other', targetId: 'el-lib1' },
+      { blockedId: 'el-other', blockerId: 'el-lib1' },
     ];
     expect(isRootLibrary('el-lib1', dependencies)).toBe(true);
   });
 
   test('returns false when library has parent-child dependency as source', () => {
     const dependencies = [
-      { sourceId: 'el-lib1', targetId: 'el-parent' },
+      { blockedId: 'el-lib1', blockerId: 'el-parent' },
     ];
     expect(isRootLibrary('el-lib1', dependencies)).toBe(false);
   });
@@ -995,15 +995,15 @@ describe('isRootLibrary', () => {
 
 describe('getDirectChildren', () => {
   test('returns empty array when no children', () => {
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     expect(getDirectChildren('el-lib1', dependencies)).toEqual([]);
   });
 
   test('returns child IDs when library has children', () => {
     const dependencies = [
-      { sourceId: 'el-doc1', targetId: 'el-lib1' },
-      { sourceId: 'el-doc2', targetId: 'el-lib1' },
-      { sourceId: 'el-doc3', targetId: 'el-other' },
+      { blockedId: 'el-doc1', blockerId: 'el-lib1' },
+      { blockedId: 'el-doc2', blockerId: 'el-lib1' },
+      { blockedId: 'el-doc3', blockerId: 'el-other' },
     ];
     const children = getDirectChildren('el-lib1', dependencies);
     expect(children).toHaveLength(2);
@@ -1015,14 +1015,14 @@ describe('getDirectChildren', () => {
 describe('getParentLibraryId', () => {
   test('returns undefined when library has no parent', () => {
     const libraryIds = new Set(['el-lib1', 'el-lib2']);
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     expect(getParentLibraryId('el-lib1', libraryIds, dependencies)).toBeUndefined();
   });
 
   test('returns parent ID when library has a parent', () => {
     const libraryIds = new Set(['el-lib1', 'el-lib2', 'el-parent']);
     const dependencies = [
-      { sourceId: 'el-lib1', targetId: 'el-parent' },
+      { blockedId: 'el-lib1', blockerId: 'el-parent' },
     ];
     expect(getParentLibraryId('el-lib1', libraryIds, dependencies)).toBe('el-parent');
   });
@@ -1030,7 +1030,7 @@ describe('getParentLibraryId', () => {
   test('ignores dependencies to non-library targets', () => {
     const libraryIds = new Set(['el-lib1']);
     const dependencies = [
-      { sourceId: 'el-lib1', targetId: 'el-doc1' }, // doc is not a library
+      { blockedId: 'el-lib1', blockerId: 'el-doc1' }, // doc is not a library
     ];
     expect(getParentLibraryId('el-lib1', libraryIds, dependencies)).toBeUndefined();
   });
@@ -1039,15 +1039,15 @@ describe('getParentLibraryId', () => {
 describe('getAncestorIds', () => {
   test('returns empty array for root library', () => {
     const libraryIds = new Set(['el-root']);
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     expect(getAncestorIds('el-root', libraryIds, dependencies)).toEqual([]);
   });
 
   test('returns ancestors in order from immediate parent to root', () => {
     const libraryIds = new Set(['el-child', 'el-parent', 'el-grandparent']);
     const dependencies = [
-      { sourceId: 'el-child', targetId: 'el-parent' },
-      { sourceId: 'el-parent', targetId: 'el-grandparent' },
+      { blockedId: 'el-child', blockerId: 'el-parent' },
+      { blockedId: 'el-parent', blockerId: 'el-grandparent' },
     ];
     const ancestors = getAncestorIds('el-child', libraryIds, dependencies);
     expect(ancestors).toEqual(['el-parent', 'el-grandparent']);
@@ -1056,9 +1056,9 @@ describe('getAncestorIds', () => {
   test('respects maxDepth parameter', () => {
     const libraryIds = new Set(['el-1', 'el-2', 'el-3', 'el-4']);
     const dependencies = [
-      { sourceId: 'el-1', targetId: 'el-2' },
-      { sourceId: 'el-2', targetId: 'el-3' },
-      { sourceId: 'el-3', targetId: 'el-4' },
+      { blockedId: 'el-1', blockerId: 'el-2' },
+      { blockedId: 'el-2', blockerId: 'el-3' },
+      { blockedId: 'el-3', blockerId: 'el-4' },
     ];
     const ancestors = getAncestorIds('el-1', libraryIds, dependencies, 2);
     expect(ancestors).toEqual(['el-2', 'el-3']);
@@ -1067,15 +1067,15 @@ describe('getAncestorIds', () => {
 
 describe('getDescendantIds', () => {
   test('returns empty array when no children', () => {
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     expect(getDescendantIds('el-lib1', dependencies)).toEqual([]);
   });
 
   test('returns all descendants recursively', () => {
     const dependencies = [
-      { sourceId: 'el-child1', targetId: 'el-root' },
-      { sourceId: 'el-child2', targetId: 'el-root' },
-      { sourceId: 'el-grandchild', targetId: 'el-child1' },
+      { blockedId: 'el-child1', blockerId: 'el-root' },
+      { blockedId: 'el-child2', blockerId: 'el-root' },
+      { blockedId: 'el-grandchild', blockerId: 'el-child1' },
     ];
     const descendants = getDescendantIds('el-root', dependencies);
     expect(descendants).toHaveLength(3);
@@ -1086,7 +1086,7 @@ describe('getDescendantIds', () => {
 
   test('does not include the library itself', () => {
     const dependencies = [
-      { sourceId: 'el-child', targetId: 'el-root' },
+      { blockedId: 'el-child', blockerId: 'el-root' },
     ];
     const descendants = getDescendantIds('el-root', dependencies);
     expect(descendants).not.toContain('el-root');
@@ -1096,7 +1096,7 @@ describe('getDescendantIds', () => {
 describe('buildAncestry', () => {
   test('returns empty path and depth 0 for root library', () => {
     const libraryIds = new Set(['el-root']);
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     const ancestry = buildAncestry('el-root', libraryIds, dependencies);
     expect(ancestry.path).toEqual([]);
     expect(ancestry.depth).toBe(0);
@@ -1105,8 +1105,8 @@ describe('buildAncestry', () => {
   test('returns path from root to library and correct depth', () => {
     const libraryIds = new Set(['el-child', 'el-parent', 'el-root']);
     const dependencies = [
-      { sourceId: 'el-child', targetId: 'el-parent' },
-      { sourceId: 'el-parent', targetId: 'el-root' },
+      { blockedId: 'el-child', blockerId: 'el-parent' },
+      { blockedId: 'el-parent', blockerId: 'el-root' },
     ];
     const ancestry = buildAncestry('el-child', libraryIds, dependencies);
     // Path should be from root to current (but not including current)
@@ -1117,7 +1117,7 @@ describe('buildAncestry', () => {
 
 describe('wouldCreateCycle', () => {
   test('returns false when no cycle would be created', () => {
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     expect(wouldCreateCycle('el-child', 'el-parent', dependencies)).toBe(false);
   });
 
@@ -1125,14 +1125,14 @@ describe('wouldCreateCycle', () => {
     // el-parent is a descendant of el-grandparent
     // If we try to nest el-grandparent under el-parent, it would create a cycle
     const dependencies = [
-      { sourceId: 'el-parent', targetId: 'el-grandparent' },
+      { blockedId: 'el-parent', blockerId: 'el-grandparent' },
     ];
     expect(wouldCreateCycle('el-grandparent', 'el-parent', dependencies)).toBe(true);
   });
 
   test('returns false for unrelated libraries', () => {
     const dependencies = [
-      { sourceId: 'el-other', targetId: 'el-root' },
+      { blockedId: 'el-other', blockerId: 'el-root' },
     ];
     expect(wouldCreateCycle('el-lib1', 'el-lib2', dependencies)).toBe(false);
   });
@@ -1148,7 +1148,7 @@ describe('filterRootLibraries', () => {
       createTestLibrary({ id: 'el-lib1' as ElementId, name: 'Lib 1' }),
       createTestLibrary({ id: 'el-lib2' as ElementId, name: 'Lib 2' }),
     ];
-    const dependencies: Array<{ sourceId: string; targetId: string }> = [];
+    const dependencies: Array<{ blockedId: string; blockerId: string }> = [];
     const roots = filterRootLibraries(libraries, dependencies);
     expect(roots).toHaveLength(2);
   });
@@ -1159,7 +1159,7 @@ describe('filterRootLibraries', () => {
       createTestLibrary({ id: 'el-child' as ElementId, name: 'Child' }),
     ];
     const dependencies = [
-      { sourceId: 'el-child', targetId: 'el-root' },
+      { blockedId: 'el-child', blockerId: 'el-root' },
     ];
     const roots = filterRootLibraries(libraries, dependencies);
     expect(roots).toHaveLength(1);
@@ -1172,7 +1172,7 @@ describe('filterRootLibraries', () => {
     ];
     // el-lib1 has a parent-child dependency pointing to a document (not in libraryIds)
     const dependencies = [
-      { sourceId: 'el-lib1', targetId: 'el-doc1' }, // doc is not a library
+      { blockedId: 'el-lib1', blockerId: 'el-doc1' }, // doc is not a library
     ];
     const roots = filterRootLibraries(libraries, dependencies);
     expect(roots).toHaveLength(1);

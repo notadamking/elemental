@@ -348,8 +348,8 @@
   - [x] **Verify:** Search for task in graph, matching node highlights (Playwright tests passing - 22 tests)
 
 - [x] **TB44: Dependency Graph - Edit Mode**
-  - [x] Server: Add `POST /api/dependencies` endpoint (sourceId, targetId, type)
-  - [x] Server: Add `DELETE /api/dependencies` endpoint (sourceId, targetId, type)
+  - [x] Server: Add `POST /api/dependencies` endpoint (blockedId, blockerId, type)
+  - [x] Server: Add `DELETE /api/dependencies` endpoint (blockedId, blockerId, type)
   - [x] Web: Add "Edit Mode" toggle button to graph toolbar
   - [x] Web: In edit mode: click first node (source), click second node (target), type picker appears
   - [x] Web: In edit mode: right-click edge shows delete option
@@ -434,7 +434,7 @@
 - [x] **TB53: Attach Documents to Documents (Links)**
   - [x] Server: Add `GET /api/documents/:id/links` endpoint (returns outgoing and incoming links)
   - [x] Server: Add `POST /api/documents/:id/links` endpoint (create link using `references` dependency type)
-  - [x] Server: Add `DELETE /api/documents/:sourceId/links/:targetId` endpoint
+  - [x] Server: Add `DELETE /api/documents/:blockedId/links/:blockerId` endpoint
   - [x] Web: Add "Linked Documents" section to DocumentDetailPanel
   - [x] Web: "Link Document" button opens DocumentLinkPickerModal
   - [x] Web: Show both outgoing links (documents this links to) and incoming links (documents linking here)
@@ -1239,7 +1239,7 @@
 - [x] **TB115: Fix Removing Edges (Save Issue)** ([spec](./TB115-fix-removing-edges.md))
   - [x] Web: Debug edge deletion flow
   - [x] Server: Verify `DELETE /api/dependencies` endpoint works correctly
-  - [x] Web: Ensure correct parameters sent (sourceId, targetId, type) - now uses actual type from dependency data
+  - [x] Web: Ensure correct parameters sent (blockedId, blockerId, type) - now uses actual type from dependency data
   - [x] Web: Add confirmation dialog before edge deletion (context menu exists)
   - [x] Web: Optimistic UI update with rollback on error (cache invalidation)
   - [x] Web: Refresh graph data after successful deletion

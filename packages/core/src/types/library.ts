@@ -560,12 +560,12 @@ export interface LibraryAncestry {
  */
 export function isRootLibrary(
   libraryId: LibraryId | string,
-  parentChildDependencies: Array<{ sourceId: string; targetId: string }>
+  parentChildDependencies: Array<{ blockedId: string; blockerId: string }>
 ): boolean {
   // A library is root if it has no parent-child dependency where it is the source
   // and the target is another library
   return !parentChildDependencies.some(
-    (dep) => dep.sourceId === libraryId
+    (dep) => dep.blockedId === libraryId
   );
 }
 
@@ -575,11 +575,11 @@ export function isRootLibrary(
  */
 export function getDirectChildren(
   libraryId: LibraryId | string,
-  dependencies: Array<{ sourceId: string; targetId: string }>
+  dependencies: Array<{ blockedId: string; blockerId: string }>
 ): string[] {
   return dependencies
-    .filter((dep) => dep.targetId === libraryId)
-    .map((dep) => dep.sourceId);
+    .filter((dep) => dep.blockerId === libraryId)
+    .map((dep) => dep.blockedId);
 }
 
 /**
@@ -588,12 +588,12 @@ export function getDirectChildren(
 export function getParentLibraryId(
   libraryId: LibraryId | string,
   libraryIds: Set<string>,
-  dependencies: Array<{ sourceId: string; targetId: string }>
+  dependencies: Array<{ blockedId: string; blockerId: string }>
 ): string | undefined {
   const parentDep = dependencies.find(
-    (dep) => dep.sourceId === libraryId && libraryIds.has(dep.targetId)
+    (dep) => dep.blockedId === libraryId && libraryIds.has(dep.blockerId)
   );
-  return parentDep?.targetId;
+  return parentDep?.blockerId;
 }
 
 /**
@@ -603,7 +603,7 @@ export function getParentLibraryId(
 export function getAncestorIds(
   libraryId: LibraryId | string,
   libraryIds: Set<string>,
-  dependencies: Array<{ sourceId: string; targetId: string }>,
+  dependencies: Array<{ blockedId: string; blockerId: string }>,
   maxDepth = 100
 ): string[] {
   const ancestors: string[] = [];
@@ -627,7 +627,7 @@ export function getAncestorIds(
  */
 export function getDescendantIds(
   libraryId: LibraryId | string,
-  dependencies: Array<{ sourceId: string; targetId: string }>,
+  dependencies: Array<{ blockedId: string; blockerId: string }>,
   maxDepth = 100
 ): string[] {
   const descendants: string[] = [];
@@ -658,7 +658,7 @@ export function getDescendantIds(
 export function buildAncestry(
   libraryId: LibraryId | string,
   libraryIds: Set<string>,
-  dependencies: Array<{ sourceId: string; targetId: string }>
+  dependencies: Array<{ blockedId: string; blockerId: string }>
 ): LibraryAncestry {
   const ancestors = getAncestorIds(libraryId, libraryIds, dependencies);
   // Reverse to get path from root to current (excluding current)
@@ -676,7 +676,7 @@ export function buildAncestry(
 export function wouldCreateCycle(
   childId: LibraryId | string,
   proposedParentId: LibraryId | string,
-  dependencies: Array<{ sourceId: string; targetId: string }>
+  dependencies: Array<{ blockedId: string; blockerId: string }>
 ): boolean {
   // If the proposed parent is already a descendant of the child, adding it would create a cycle
   const descendants = getDescendantIds(childId, dependencies);
@@ -688,13 +688,13 @@ export function wouldCreateCycle(
  */
 export function filterRootLibraries<T extends Library>(
   libraries: T[],
-  dependencies: Array<{ sourceId: string; targetId: string }>
+  dependencies: Array<{ blockedId: string; blockerId: string }>
 ): T[] {
   const libraryIds = new Set(libraries.map((lib) => lib.id as string));
   return libraries.filter((lib) => {
     // Check if this library has no parent-child dependency pointing to another library
     const hasLibraryParent = dependencies.some(
-      (dep) => dep.sourceId === (lib.id as string) && libraryIds.has(dep.targetId)
+      (dep) => dep.blockedId === (lib.id as string) && libraryIds.has(dep.blockerId)
     );
     return !hasLibraryParent;
   });

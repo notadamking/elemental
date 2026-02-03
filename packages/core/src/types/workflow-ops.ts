@@ -97,10 +97,10 @@ export function getEphemeralElementIds(
   for (const dep of dependencies) {
     if (
       dep.type === DependencyType.PARENT_CHILD &&
-      ephemeralWorkflowIds.has(dep.targetId)
+      ephemeralWorkflowIds.has(dep.blockerId)
     ) {
-      // sourceId is the task (child), targetId is the workflow (parent)
-      ephemeralTaskIds.add(dep.sourceId);
+      // blockedId is the task (child), blockerId is the workflow (parent)
+      ephemeralTaskIds.add(dep.blockedId);
     }
   }
 
@@ -164,9 +164,9 @@ export function getTaskIdsInWorkflow(
     .filter(
       (dep) =>
         dep.type === DependencyType.PARENT_CHILD &&
-        dep.targetId === workflowId
+        dep.blockerId === workflowId
     )
-    .map((dep) => dep.sourceId);
+    .map((dep) => dep.blockedId);
 }
 
 /**
@@ -190,8 +190,8 @@ export function getDependenciesInWorkflow(
 
   return dependencies.filter(
     (dep) =>
-      workflowElementIds.has(dep.sourceId) ||
-      workflowElementIds.has(dep.targetId)
+      workflowElementIds.has(dep.blockedId) ||
+      workflowElementIds.has(dep.blockerId)
   );
 }
 
@@ -276,7 +276,7 @@ export function prepareGarbageCollection(
   // Deduplicate dependencies
   const uniqueDeps = new Map<string, Dependency>();
   for (const dep of allDependencies) {
-    const key = `${dep.sourceId}:${dep.targetId}:${dep.type}`;
+    const key = `${dep.blockedId}:${dep.blockerId}:${dep.type}`;
     uniqueDeps.set(key, dep);
   }
 

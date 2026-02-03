@@ -359,8 +359,8 @@ describe('Query API Performance', () => {
         const blockedIdx = i * 2 + 1;
         if (blockedIdx < tasks.length) {
           await api.addDependency({
-            sourceId: tasks[blockedIdx].id,
-            targetId: tasks[blockerIdx].id,
+            blockerId: tasks[blockedIdx].id,
+            blockedId: tasks[blockerIdx].id,
             type: DependencyType.BLOCKS,
           });
         }
@@ -379,8 +379,8 @@ describe('Query API Performance', () => {
       for (let i = 0; i < 10; i++) {
         if (i > 0) {
           await api.addDependency({
-            sourceId: tasks[i].id,
-            targetId: tasks[i - 1].id,
+            blockerId: tasks[i].id,
+            blockedId: tasks[i - 1].id,
             type: DependencyType.BLOCKS,
           });
         }
@@ -424,8 +424,8 @@ describe('Query API Performance', () => {
 
       const { duration } = await measureTime(() =>
         api.addDependency({
-          sourceId: task2.id,
-          targetId: task1.id,
+          blockerId: task2.id,
+          blockedId: task1.id,
           type: DependencyType.BLOCKS,
         })
       );
@@ -440,8 +440,8 @@ describe('Query API Performance', () => {
       const { duration } = await measureTime(async () => {
         for (let i = 0; i < count; i++) {
           await api.addDependency({
-            sourceId: tasks[i * 2 + 1].id,
-            targetId: tasks[i * 2].id,
+            blockerId: tasks[i * 2 + 1].id,
+            blockedId: tasks[i * 2].id,
             type: DependencyType.BLOCKS,
           });
         }
@@ -458,15 +458,15 @@ describe('Query API Performance', () => {
       // Create tree: 0 is root, 1-3 depend on 0, 4-12 depend on 1-3
       for (let i = 1; i <= 3; i++) {
         await api.addDependency({
-          sourceId: tasks[i].id,
-          targetId: tasks[0].id,
+          blockerId: tasks[i].id,
+          blockedId: tasks[0].id,
           type: DependencyType.BLOCKS,
         });
       }
       for (let i = 4; i <= 12; i++) {
         await api.addDependency({
-          sourceId: tasks[i].id,
-          targetId: tasks[Math.floor((i - 1) / 3)].id,
+          blockerId: tasks[i].id,
+          blockedId: tasks[Math.floor((i - 1) / 3)].id,
           type: DependencyType.BLOCKS,
         });
       }
@@ -482,11 +482,11 @@ describe('Query API Performance', () => {
     it('should get dependencies and dependents within threshold', async () => {
       const tasks = await createTaskBatch(api, 20);
 
-      // Create hub-and-spoke: tasks 1-19 all depend on task 0
+      // Create hub-and-spoke: tasks 1-19 all blocked by task 0
       for (let i = 1; i < 20; i++) {
         await api.addDependency({
-          sourceId: tasks[i].id,
-          targetId: tasks[0].id,
+          blockedId: tasks[i].id,
+          blockerId: tasks[0].id,
           type: DependencyType.BLOCKS,
         });
       }
@@ -628,8 +628,8 @@ describe('Query API Performance', () => {
         // Add new dependencies
         for (let j = prevDepCount; j < depCount && j * 2 + 1 < tasks.length; j++) {
           await api.addDependency({
-            sourceId: tasks[j * 2 + 1].id,
-            targetId: tasks[j * 2].id,
+            blockerId: tasks[j * 2 + 1].id,
+            blockedId: tasks[j * 2].id,
             type: DependencyType.BLOCKS,
           });
         }
@@ -760,8 +760,8 @@ describe('Performance Benchmark Summary', () => {
     // Add some dependencies
     for (let i = 0; i < 25; i++) {
       await api.addDependency({
-        sourceId: tasks[i * 2 + 1].id,
-        targetId: tasks[i * 2].id,
+        blockerId: tasks[i * 2 + 1].id,
+        blockedId: tasks[i * 2].id,
         type: DependencyType.BLOCKS,
       });
     }

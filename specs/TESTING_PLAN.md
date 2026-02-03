@@ -3790,7 +3790,7 @@ This is a UX issue rather than a bug since JavaScript's Date behavior matches th
 
 **Workaround - Dependency Query:**
 - [x] `el dep list <task-id>` shows parent-child dependency to plan
-  - Returns correct sourceId (task) and targetId (plan) with type "parent-child"
+  - Returns correct blockedId (task) and blockerId (plan) with type "parent-child"
   - Agents can determine plan membership via dependency query
 
 **Dependency Chain Behavior:**
@@ -5981,7 +5981,7 @@ that need to restore previous document versions. Key findings:
 - [x] Ready list updates correctly after blocker deletion
 - [ ] **BUG el-nyh7 (NEW):** Orphan dependencies remain after element deletion
   - `el dep list` shows dependencies to non-existent elements
-  - Dependency sourceId points to deleted/tombstoned element
+  - Dependency blockedId points to deleted/tombstoned element
   - Similar to el-4egr but for task deletion (not just plans)
 
 **scheduledFor Behavior:**
@@ -7066,8 +7066,8 @@ The tombstone bugs (el-3hp7, el-5u9n) are part of a broader pattern (el-2yva) wh
 **Checkpoints:**
 
 **Basic Blocking Dependency Semantics:**
-- [x] `el dep add A B --type blocks` creates dependency with sourceId=A, targetId=B
-- [x] Help text says: "Target waits for source to close"
+- [x] `el dep add A B --type blocks` creates dependency with blockedId=A, blockerId=B
+- [x] Help text says: "Blocked waits for blocker to close"
 - [x] Therefore: B (target) should wait for A (source) → B should be blocked
 - [x] **FIXED el-sjam:** Blocked cache now correctly records B as blocked by A
   - A (source/blocker) remains ready
@@ -7132,8 +7132,8 @@ el ready --json    # Shows el-xxx as ready (CORRECT!)
 Both the CRITICAL blocked cache direction bug (el-sjam) and the non-task element
 blocking bug (el-3anv) have been fixed. The blocking system now works correctly:
 
-1. When "A blocks B" is created (A is source, B is target)
-2. Help text says "Target waits for source to close" → B should be blocked
+1. When "A blocks B" is created (A is blocker, B is blocked)
+2. B (blockedId) waits for A (blockerId) to close → B should be blocked
 3. NOW: B is marked as blocked, A remains ready
 4. Closing A unblocks B (correct behavior)
 5. Non-task elements (workflows, plans, documents) can now correctly block tasks

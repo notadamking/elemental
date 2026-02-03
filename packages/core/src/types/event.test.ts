@@ -1196,7 +1196,7 @@ describe('applyEventToState', () => {
     const event = createTestEvent({
       eventType: EventType.DEPENDENCY_ADDED,
       oldValue: null,
-      newValue: { targetId: 'el-456', type: 'blocks' },
+      newValue: { blockedId: 'el-456', type: 'blocks' },
     });
     const result = applyEventToState(currentState, event);
     expect(result).toEqual(currentState);
@@ -1450,7 +1450,7 @@ describe('generateEventSummary', () => {
     const event = createTestEvent({
       eventType: EventType.DEPENDENCY_ADDED,
       actor: 'el-alice' as EntityId,
-      newValue: { targetId: 'el-456', type: 'blocks' },
+      newValue: { blockedId: 'el-456', type: 'blocks' },
     });
     expect(generateEventSummary(event)).toBe('Added blocks to el-456 by el-alice');
   });
@@ -1459,7 +1459,7 @@ describe('generateEventSummary', () => {
     const event = createTestEvent({
       eventType: EventType.DEPENDENCY_REMOVED,
       actor: 'el-alice' as EntityId,
-      oldValue: { targetId: 'el-456', type: 'awaits' },
+      oldValue: { blockerId: 'el-456', type: 'awaits' },
     });
     expect(generateEventSummary(event)).toBe('Removed awaits from el-456 by el-alice');
   });

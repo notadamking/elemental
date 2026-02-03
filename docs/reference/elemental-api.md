@@ -156,8 +156,8 @@ await api.update(taskId, { status: 'deferred', scheduledFor: '2024-01-15' });
 
 ```typescript
 await api.addDependency({
-  sourceId: taskA,
-  targetId: taskB,
+  blockedId: taskA,
+  blockerId: taskB,
   type: 'blocks',
   createdBy: actorId,
 });
@@ -166,7 +166,7 @@ await api.addDependency({
 ### Remove dependency
 
 ```typescript
-await api.removeDependency(taskA, taskB, 'blocks');
+await api.removeDependency(blockedId, blockerId, 'blocks');
 ```
 
 ### Get dependencies
@@ -188,9 +188,9 @@ const tree = await api.getDependencyTree(elementId);
 ### Gate satisfaction
 
 ```typescript
-const satisfied = await api.satisfyGate(sourceId, targetId, actor);
-await api.recordApproval(sourceId, targetId, approverId);
-await api.removeApproval(sourceId, targetId, approverId);
+const satisfied = await api.satisfyGate(blockedId, blockerId, actor);
+await api.recordApproval(blockedId, blockerId, approverId);
+await api.removeApproval(blockedId, blockerId, approverId);
 ```
 
 ---

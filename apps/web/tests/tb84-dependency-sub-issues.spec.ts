@@ -34,14 +34,14 @@ test.describe('TB84: Dependencies as Sub-Issues Display', () => {
   // Helper to create a dependency between two tasks
   async function createDependency(
     page: import('@playwright/test').Page,
-    sourceId: string,
-    targetId: string,
+    blockerId: string,
+    blockedId: string,
     type: string = 'blocks'
   ) {
     await page.request.post('/api/dependencies', {
       data: {
-        sourceId,
-        targetId,
+        blockedId,
+        blockerId,
         type,
         actor: 'el-0000',
       },

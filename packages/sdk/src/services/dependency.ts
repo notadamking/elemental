@@ -42,8 +42,8 @@ import {
  * Row type for dependency table queries
  */
 interface DependencyRow extends Row {
-  source_id: string;
-  target_id: string;
+  blocked_id: string;
+  blocker_id: string;
   type: string;
   created_at: string;
   created_by: string;
@@ -104,25 +104,25 @@ export class DependencyService {
   initSchema(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS dependencies (
-        source_id TEXT NOT NULL,
-        target_id TEXT NOT NULL,
+        blocked_id TEXT NOT NULL,
+        blocker_id TEXT NOT NULL,
         type TEXT NOT NULL,
         created_at TEXT NOT NULL,
         created_by TEXT NOT NULL,
         metadata TEXT,
-        PRIMARY KEY (source_id, target_id, type)
+        PRIMARY KEY (blocked_id, blocker_id, type)
       )
     `);
 
     // Create indexes for efficient lookups
     this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_dependencies_target ON dependencies(target_id)
+      CREATE INDEX IF NOT EXISTS idx_dependencies_blocker ON dependencies(blocker_id)
     `);
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_dependencies_type ON dependencies(type)
     `);
     this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_dependencies_source_type ON dependencies(source_id, type)
+      CREATE INDEX IF NOT EXISTS idx_dependencies_blocked_type ON dependencies(blocked_id, type)
     `);
   }
 
@@ -146,17 +146,17 @@ export class DependencyService {
     // Create and validate the dependency
     const dependency = createDependency(input);
 
-    // For relates-to, normalize the direction (smaller ID is always source)
-    let sourceId = dependency.sourceId;
-    let targetId = dependency.targetId;
+    // For relates-to, normalize the direction (smaller ID is always blockedId)
+    let blockedId = dependency.blockedId;
+    let blockerId = dependency.blockerId;
     if (dependency.type === DT.RELATES_TO) {
-      const normalized = normalizeRelatesToDependency(sourceId, targetId);
-      sourceId = normalized.sourceId;
-      targetId = normalized.targetId;
+      const normalized = normalizeRelatesToDependency(blockedId, blockerId);
+      blockedId = normalized.blockedId;
+      blockerId = normalized.blockerId;
     }
 
     // Check for cycles before inserting (for blocking dependency types)
-    this.checkForCycle(sourceId, targetId, dependency.type, cycleConfig);
+    this.checkForCycle(blockedId, blockerId, dependency.type, cycleConfig);
 
     // Serialize metadata
     const metadataJson =
@@ -167,11 +167,11 @@ export class DependencyService {
     // Insert into database
     try {
       this.db.run(
-        `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+        `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [
-          sourceId,
-          targetId,
+          blockedId,
+          blockerId,
           dependency.type,
           dependency.createdAt,
           dependency.createdBy,
@@ -182,20 +182,20 @@ export class DependencyService {
       // Check for duplicate key error
       if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
         throw new ConflictError(
-          `Dependency already exists: ${sourceId} -> ${targetId} (${dependency.type})`,
+          `Dependency already exists: ${blockedId} -> ${blockerId} (${dependency.type})`,
           ErrorCode.DUPLICATE_DEPENDENCY,
-          { sourceId, targetId, type: dependency.type }
+          { blockedId, blockerId, type: dependency.type }
         );
       }
       throw error;
     }
 
     // Return the dependency (with potentially normalized IDs for relates-to)
-    if (dependency.type === DT.RELATES_TO && sourceId !== dependency.sourceId) {
+    if (dependency.type === DT.RELATES_TO && blockedId !== dependency.blockedId) {
       return {
         ...dependency,
-        sourceId: sourceId as ElementId,
-        targetId: targetId as ElementId,
+        blockedId: blockedId as ElementId,
+        blockerId: blockerId as ElementId,
       };
     }
 
@@ -209,45 +209,45 @@ export class DependencyService {
   /**
    * Remove an existing dependency
    *
-   * @param sourceId - Source element ID
-   * @param targetId - Target element ID
+   * @param blockedId - Blocked element ID
+   * @param blockerId - Blocker element ID
    * @param type - Dependency type
    * @param actor - Entity performing the removal (for events)
    * @returns true if dependency was removed
    * @throws NotFoundError if dependency doesn't exist
    */
   removeDependency(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     type: DependencyType,
     actor: EntityId
   ): boolean {
     // Validate inputs
-    validateElementId(sourceId, 'sourceId');
-    validateElementId(targetId, 'targetId');
+    validateElementId(blockedId, 'blockedId');
+    validateElementId(blockerId, 'blockerId');
     validateDependencyType(type);
     validateEntityId(actor, 'actor');
 
     // For relates-to, normalize the direction
-    let normalizedSource = sourceId;
-    let normalizedTarget = targetId;
+    let normalizedBlocked = blockedId;
+    let normalizedBlocker = blockerId;
     if (type === DT.RELATES_TO) {
-      const normalized = normalizeRelatesToDependency(sourceId, targetId);
-      normalizedSource = normalized.sourceId as ElementId;
-      normalizedTarget = normalized.targetId as ElementId;
+      const normalized = normalizeRelatesToDependency(blockedId, blockerId);
+      normalizedBlocked = normalized.blockedId as ElementId;
+      normalizedBlocker = normalized.blockerId as ElementId;
     }
 
     // Delete from database
     const result = this.db.run(
-      `DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?`,
-      [normalizedSource, normalizedTarget, type]
+      `DELETE FROM dependencies WHERE blocked_id = ? AND blocker_id = ? AND type = ?`,
+      [normalizedBlocked, normalizedBlocker, type]
     );
 
     if (result.changes === 0) {
       throw new NotFoundError(
-        `Dependency not found: ${normalizedSource} -> ${normalizedTarget} (${type})`,
+        `Dependency not found: ${normalizedBlocked} -> ${normalizedBlocker} (${type})`,
         ErrorCode.DEPENDENCY_NOT_FOUND,
-        { sourceId: normalizedSource, targetId: normalizedTarget, type }
+        { blockedId: normalizedBlocked, blockerId: normalizedBlocker, type }
       );
     }
 
@@ -259,21 +259,21 @@ export class DependencyService {
   // --------------------------------------------------------------------------
 
   /**
-   * Get all dependencies from a source element
+   * Get all dependencies where the given element is blocked
    *
-   * @param sourceId - Source element ID
+   * @param blockedId - Blocked element ID
    * @param type - Optional filter by dependency type
    * @returns Array of dependencies
    */
-  getDependencies(sourceId: ElementId, type?: DependencyType): Dependency[] {
-    validateElementId(sourceId, 'sourceId');
+  getDependencies(blockedId: ElementId, type?: DependencyType): Dependency[] {
+    validateElementId(blockedId, 'blockedId');
     if (type !== undefined) {
       validateDependencyType(type);
     }
 
-    let sql = `SELECT source_id, target_id, type, created_at, created_by, metadata
-               FROM dependencies WHERE source_id = ?`;
-    const params: unknown[] = [sourceId];
+    let sql = `SELECT blocked_id, blocker_id, type, created_at, created_by, metadata
+               FROM dependencies WHERE blocked_id = ?`;
+    const params: unknown[] = [blockedId];
 
     if (type !== undefined) {
       sql += ` AND type = ?`;
@@ -296,9 +296,9 @@ export class DependencyService {
   getRelatedTo(elementId: ElementId): Dependency[] {
     validateElementId(elementId, 'elementId');
 
-    const sql = `SELECT source_id, target_id, type, created_at, created_by, metadata
+    const sql = `SELECT blocked_id, blocker_id, type, created_at, created_by, metadata
                  FROM dependencies
-                 WHERE type = ? AND (source_id = ? OR target_id = ?)
+                 WHERE type = ? AND (blocked_id = ? OR blocker_id = ?)
                  ORDER BY created_at`;
 
     const rows = this.db.query<DependencyRow>(sql, [DT.RELATES_TO, elementId, elementId]);
@@ -310,21 +310,21 @@ export class DependencyService {
   // --------------------------------------------------------------------------
 
   /**
-   * Get all elements that depend on a target (reverse lookup)
+   * Get all elements that are blocked by a given blocker (reverse lookup)
    *
-   * @param targetId - Target element ID
+   * @param blockerId - Blocker element ID
    * @param type - Optional filter by dependency type
-   * @returns Array of dependencies where targetId is the target
+   * @returns Array of dependencies where blockerId is the blocker
    */
-  getDependents(targetId: ElementId, type?: DependencyType): Dependency[] {
-    validateElementId(targetId, 'targetId');
+  getDependents(blockerId: ElementId, type?: DependencyType): Dependency[] {
+    validateElementId(blockerId, 'blockerId');
     if (type !== undefined) {
       validateDependencyType(type);
     }
 
-    let sql = `SELECT source_id, target_id, type, created_at, created_by, metadata
-               FROM dependencies WHERE target_id = ?`;
-    const params: unknown[] = [targetId];
+    let sql = `SELECT blocked_id, blocker_id, type, created_at, created_by, metadata
+               FROM dependencies WHERE blocker_id = ?`;
+    const params: unknown[] = [blockerId];
 
     if (type !== undefined) {
       sql += ` AND type = ?`;
@@ -344,29 +344,29 @@ export class DependencyService {
   /**
    * Check if a specific dependency exists
    *
-   * @param sourceId - Source element ID
-   * @param targetId - Target element ID
+   * @param blockedId - Blocked element ID
+   * @param blockerId - Blocker element ID
    * @param type - Dependency type
    * @returns true if dependency exists
    */
-  exists(sourceId: ElementId, targetId: ElementId, type: DependencyType): boolean {
-    validateElementId(sourceId, 'sourceId');
-    validateElementId(targetId, 'targetId');
+  exists(blockedId: ElementId, blockerId: ElementId, type: DependencyType): boolean {
+    validateElementId(blockedId, 'blockedId');
+    validateElementId(blockerId, 'blockerId');
     validateDependencyType(type);
 
     // For relates-to, normalize the direction
-    let normalizedSource = sourceId;
-    let normalizedTarget = targetId;
+    let normalizedBlocked = blockedId;
+    let normalizedBlocker = blockerId;
     if (type === DT.RELATES_TO) {
-      const normalized = normalizeRelatesToDependency(sourceId, targetId);
-      normalizedSource = normalized.sourceId as ElementId;
-      normalizedTarget = normalized.targetId as ElementId;
+      const normalized = normalizeRelatesToDependency(blockedId, blockerId);
+      normalizedBlocked = normalized.blockedId as ElementId;
+      normalizedBlocker = normalized.blockerId as ElementId;
     }
 
     const result = this.db.queryOne<{ count: number }>(
       `SELECT COUNT(*) as count FROM dependencies
-       WHERE source_id = ? AND target_id = ? AND type = ?`,
-      [normalizedSource, normalizedTarget, type]
+       WHERE blocked_id = ? AND blocker_id = ? AND type = ?`,
+      [normalizedBlocked, normalizedBlocker, type]
     );
 
     return (result?.count ?? 0) > 0;
@@ -379,34 +379,34 @@ export class DependencyService {
   /**
    * Get a specific dependency by its composite key
    *
-   * @param sourceId - Source element ID
-   * @param targetId - Target element ID
+   * @param blockedId - Blocked element ID
+   * @param blockerId - Blocker element ID
    * @param type - Dependency type
    * @returns The dependency or undefined if not found
    */
   getDependency(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     type: DependencyType
   ): Dependency | undefined {
-    validateElementId(sourceId, 'sourceId');
-    validateElementId(targetId, 'targetId');
+    validateElementId(blockedId, 'blockedId');
+    validateElementId(blockerId, 'blockerId');
     validateDependencyType(type);
 
     // For relates-to, normalize the direction
-    let normalizedSource = sourceId;
-    let normalizedTarget = targetId;
+    let normalizedBlocked = blockedId;
+    let normalizedBlocker = blockerId;
     if (type === DT.RELATES_TO) {
-      const normalized = normalizeRelatesToDependency(sourceId, targetId);
-      normalizedSource = normalized.sourceId as ElementId;
-      normalizedTarget = normalized.targetId as ElementId;
+      const normalized = normalizeRelatesToDependency(blockedId, blockerId);
+      normalizedBlocked = normalized.blockedId as ElementId;
+      normalizedBlocker = normalized.blockerId as ElementId;
     }
 
     const row = this.db.queryOne<DependencyRow>(
-      `SELECT source_id, target_id, type, created_at, created_by, metadata
+      `SELECT blocked_id, blocker_id, type, created_at, created_by, metadata
        FROM dependencies
-       WHERE source_id = ? AND target_id = ? AND type = ?`,
-      [normalizedSource, normalizedTarget, type]
+       WHERE blocked_id = ? AND blocker_id = ? AND type = ?`,
+      [normalizedBlocked, normalizedBlocker, type]
     );
 
     return row ? this.rowToDependency(row) : undefined;
@@ -419,31 +419,31 @@ export class DependencyService {
   /**
    * Get all dependencies for multiple source elements
    *
-   * @param sourceIds - Array of source element IDs
+   * @param blockedIds - Array of blocked element IDs
    * @param type - Optional filter by dependency type
    * @returns Array of dependencies
    */
-  getDependenciesForMany(sourceIds: ElementId[], type?: DependencyType): Dependency[] {
-    if (sourceIds.length === 0) {
+  getDependenciesForMany(blockedIds: ElementId[], type?: DependencyType): Dependency[] {
+    if (blockedIds.length === 0) {
       return [];
     }
 
-    sourceIds.forEach((id, i) => validateElementId(id, `sourceIds[${i}]`));
+    blockedIds.forEach((id, i) => validateElementId(id, `blockedIds[${i}]`));
     if (type !== undefined) {
       validateDependencyType(type);
     }
 
-    const placeholders = sourceIds.map(() => '?').join(',');
-    let sql = `SELECT source_id, target_id, type, created_at, created_by, metadata
-               FROM dependencies WHERE source_id IN (${placeholders})`;
-    const params: unknown[] = [...sourceIds];
+    const placeholders = blockedIds.map(() => '?').join(',');
+    let sql = `SELECT blocked_id, blocker_id, type, created_at, created_by, metadata
+               FROM dependencies WHERE blocked_id IN (${placeholders})`;
+    const params: unknown[] = [...blockedIds];
 
     if (type !== undefined) {
       sql += ` AND type = ?`;
       params.push(type);
     }
 
-    sql += ` ORDER BY source_id, created_at`;
+    sql += ` ORDER BY blocked_id, created_at`;
 
     const rows = this.db.query<DependencyRow>(sql, params);
     return rows.map((row) => this.rowToDependency(row));
@@ -452,18 +452,18 @@ export class DependencyService {
   /**
    * Remove all dependencies from a source element
    *
-   * @param sourceId - Source element ID
+   * @param blockedId - Blocked element ID
    * @param type - Optional filter by dependency type
    * @returns Number of dependencies removed
    */
-  removeAllDependencies(sourceId: ElementId, type?: DependencyType): number {
-    validateElementId(sourceId, 'sourceId');
+  removeAllDependencies(blockedId: ElementId, type?: DependencyType): number {
+    validateElementId(blockedId, 'blockedId');
     if (type !== undefined) {
       validateDependencyType(type);
     }
 
-    let sql = `DELETE FROM dependencies WHERE source_id = ?`;
-    const params: unknown[] = [sourceId];
+    let sql = `DELETE FROM dependencies WHERE blocked_id = ?`;
+    const params: unknown[] = [blockedId];
 
     if (type !== undefined) {
       sql += ` AND type = ?`;
@@ -477,15 +477,15 @@ export class DependencyService {
   /**
    * Remove all dependencies to a target element (cascade on element delete)
    *
-   * @param targetId - Target element ID
+   * @param blockerId - Blocker element ID
    * @returns Number of dependencies removed
    */
-  removeAllDependents(targetId: ElementId): number {
-    validateElementId(targetId, 'targetId');
+  removeAllDependents(blockerId: ElementId): number {
+    validateElementId(blockerId, 'blockerId');
 
     const result = this.db.run(
-      `DELETE FROM dependencies WHERE target_id = ?`,
-      [targetId]
+      `DELETE FROM dependencies WHERE blocker_id = ?`,
+      [blockerId]
     );
     return result.changes;
   }
@@ -497,14 +497,14 @@ export class DependencyService {
   /**
    * Count dependencies from a source element
    */
-  countDependencies(sourceId: ElementId, type?: DependencyType): number {
-    validateElementId(sourceId, 'sourceId');
+  countDependencies(blockedId: ElementId, type?: DependencyType): number {
+    validateElementId(blockedId, 'blockedId');
     if (type !== undefined) {
       validateDependencyType(type);
     }
 
-    let sql = `SELECT COUNT(*) as count FROM dependencies WHERE source_id = ?`;
-    const params: unknown[] = [sourceId];
+    let sql = `SELECT COUNT(*) as count FROM dependencies WHERE blocked_id = ?`;
+    const params: unknown[] = [blockedId];
 
     if (type !== undefined) {
       sql += ` AND type = ?`;
@@ -518,14 +518,14 @@ export class DependencyService {
   /**
    * Count dependents of a target element
    */
-  countDependents(targetId: ElementId, type?: DependencyType): number {
-    validateElementId(targetId, 'targetId');
+  countDependents(blockerId: ElementId, type?: DependencyType): number {
+    validateElementId(blockerId, 'blockerId');
     if (type !== undefined) {
       validateDependencyType(type);
     }
 
-    let sql = `SELECT COUNT(*) as count FROM dependencies WHERE target_id = ?`;
-    const params: unknown[] = [targetId];
+    let sql = `SELECT COUNT(*) as count FROM dependencies WHERE blocker_id = ?`;
+    const params: unknown[] = [blockerId];
 
     if (type !== undefined) {
       sql += ` AND type = ?`;
@@ -549,20 +549,20 @@ export class DependencyService {
    *
    * The relates-to type is excluded because it's bidirectional by design.
    *
-   * @param sourceId - The source element of the proposed dependency
-   * @param targetId - The target element of the proposed dependency
+   * @param blockedId - The blocked element of the proposed dependency
+   * @param blockerId - The blocker element of the proposed dependency
    * @param type - The type of dependency being added
    * @param config - Optional configuration for cycle detection
    * @returns CycleDetectionResult with cycle status and details
    */
   detectCycle(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     type: DependencyType,
     config: CycleDetectionConfig = DEFAULT_CYCLE_DETECTION_CONFIG
   ): CycleDetectionResult {
-    validateElementId(sourceId, 'sourceId');
-    validateElementId(targetId, 'targetId');
+    validateElementId(blockedId, 'blockedId');
+    validateElementId(blockerId, 'blockerId');
     validateDependencyType(type);
 
     // Non-blocking types don't participate in cycle detection
@@ -574,10 +574,10 @@ export class DependencyService {
       };
     }
 
-    // BFS from target to see if we can reach source
+    // BFS from blocker to see if we can reach blockedId
     const visited = new Set<string>();
     const queue: { elementId: ElementId; depth: number; path: ElementId[] }[] = [
-      { elementId: targetId, depth: 0, path: [targetId] },
+      { elementId: blockerId, depth: 0, path: [blockerId] },
     ];
 
     while (queue.length > 0) {
@@ -598,11 +598,11 @@ export class DependencyService {
       }
       visited.add(current.elementId);
 
-      // Found the source - cycle detected!
-      if (current.elementId === sourceId) {
+      // Found the blocked element - cycle detected!
+      if (current.elementId === blockedId) {
         return {
           hasCycle: true,
-          cyclePath: [...current.path, sourceId],
+          cyclePath: [...current.path, blockedId],
           nodesVisited: visited.size,
           depthLimitReached: false,
         };
@@ -611,11 +611,11 @@ export class DependencyService {
       // Get all blocking dependencies from this element
       const blockingDeps = this.getBlockingDependenciesFrom(current.elementId);
       for (const dep of blockingDeps) {
-        if (!visited.has(dep.targetId)) {
+        if (!visited.has(dep.blockerId)) {
           queue.push({
-            elementId: dep.targetId,
+            elementId: dep.blockerId,
             depth: current.depth + 1,
-            path: [...current.path, dep.targetId],
+            path: [...current.path, dep.blockerId],
           });
         }
       }
@@ -631,28 +631,28 @@ export class DependencyService {
   /**
    * Check if adding a dependency would create a cycle and throw if so
    *
-   * @param sourceId - The source element of the proposed dependency
-   * @param targetId - The target element of the proposed dependency
+   * @param blockedId - The blocked element of the proposed dependency
+   * @param blockerId - The blocker element of the proposed dependency
    * @param type - The type of dependency being added
    * @param config - Optional configuration for cycle detection
    * @throws ConflictError if a cycle would be created
    */
   checkForCycle(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     type: DependencyType,
     config?: CycleDetectionConfig
   ): void {
-    const result = this.detectCycle(sourceId, targetId, type, config);
+    const result = this.detectCycle(blockedId, blockerId, type, config);
 
     if (result.hasCycle) {
-      const cyclePath = result.cyclePath?.join(' -> ') ?? `${targetId} -> ... -> ${sourceId}`;
+      const cyclePath = result.cyclePath?.join(' -> ') ?? `${blockerId} -> ... -> ${blockedId}`;
       throw new ConflictError(
         `Adding dependency would create a cycle: ${cyclePath}`,
         ErrorCode.CYCLE_DETECTED,
         {
-          sourceId,
-          targetId,
+          blockedId,
+          blockerId,
           dependencyType: type,
           cyclePath: result.cyclePath,
         }
@@ -665,9 +665,9 @@ export class DependencyService {
    * (internal helper for cycle detection)
    */
   private getBlockingDependenciesFrom(elementId: ElementId): Dependency[] {
-    const sql = `SELECT source_id, target_id, type, created_at, created_by, metadata
+    const sql = `SELECT blocked_id, blocker_id, type, created_at, created_by, metadata
                  FROM dependencies
-                 WHERE source_id = ? AND type IN (?, ?, ?)
+                 WHERE blocked_id = ? AND type IN (?, ?, ?)
                  ORDER BY created_at`;
 
     const rows = this.db.query<DependencyRow>(sql, [
@@ -690,8 +690,8 @@ export class DependencyService {
     const metadata = row.metadata ? JSON.parse(row.metadata) : {};
 
     return {
-      sourceId: row.source_id as ElementId,
-      targetId: row.target_id as ElementId,
+      blockedId: row.blocked_id as ElementId,
+      blockerId: row.blocker_id as ElementId,
       type: row.type as DependencyType,
       createdAt: row.created_at,
       createdBy: row.created_by as EntityId,
@@ -715,13 +715,13 @@ export class DependencyService {
  */
 export function createDependencyAddedEvent(dependency: Dependency): EventWithoutId {
   return createEvent({
-    elementId: dependency.sourceId,
+    elementId: dependency.blockedId,
     eventType: EventType.DEPENDENCY_ADDED,
     actor: dependency.createdBy,
     oldValue: null,
     newValue: {
-      sourceId: dependency.sourceId,
-      targetId: dependency.targetId,
+      blockedId: dependency.blockedId,
+      blockerId: dependency.blockerId,
       type: dependency.type,
       metadata: dependency.metadata,
     },
@@ -743,12 +743,12 @@ export function createDependencyRemovedEvent(
   actor: EntityId
 ): EventWithoutId {
   return createEvent({
-    elementId: dependency.sourceId,
+    elementId: dependency.blockedId,
     eventType: EventType.DEPENDENCY_REMOVED,
     actor,
     oldValue: {
-      sourceId: dependency.sourceId,
-      targetId: dependency.targetId,
+      blockedId: dependency.blockedId,
+      blockerId: dependency.blockerId,
       type: dependency.type,
       metadata: dependency.metadata,
     },

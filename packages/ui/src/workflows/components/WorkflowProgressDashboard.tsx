@@ -248,15 +248,15 @@ function TaskList({
     const blockedBy = new Map<string, string[]>();
 
     for (const dep of dependencies) {
-      if (!dependsOn.has(dep.targetId)) {
-        dependsOn.set(dep.targetId, []);
+      if (!dependsOn.has(dep.blockedId)) {
+        dependsOn.set(dep.blockedId, []);
       }
-      dependsOn.get(dep.targetId)!.push(dep.sourceId);
+      dependsOn.get(dep.blockedId)!.push(dep.blockerId);
 
-      if (!blockedBy.has(dep.targetId)) {
-        blockedBy.set(dep.targetId, []);
+      if (!blockedBy.has(dep.blockedId)) {
+        blockedBy.set(dep.blockedId, []);
       }
-      blockedBy.get(dep.targetId)!.push(dep.sourceId);
+      blockedBy.get(dep.blockedId)!.push(dep.blockerId);
     }
 
     return { dependsOnMap: dependsOn, blockedByMap: blockedBy };
@@ -349,8 +349,8 @@ function DependencyGraph({
       </div>
       <div className="space-y-2 overflow-x-auto">
         {dependencies.slice(0, 10).map((dep, idx) => {
-          const sourceTask = taskMap.get(dep.sourceId);
-          const targetTask = taskMap.get(dep.targetId);
+          const sourceTask = taskMap.get(dep.blockedId);
+          const targetTask = taskMap.get(dep.blockerId);
           if (!sourceTask || !targetTask) return null;
 
           return (

@@ -157,8 +157,8 @@ type ContentType = 'text' | 'markdown' | 'json' | 'yaml' | 'html' | 'code';
 
 ```typescript
 interface Dependency {
-  sourceId: ElementId;
-  targetId: ElementId;
+  blockedId: ElementId;
+  blockerId: ElementId;
   type: DependencyType;
   createdAt: Timestamp;
   createdBy: EntityId;
@@ -166,9 +166,9 @@ interface Dependency {
 }
 
 type DependencyType =
-  | 'blocks'       // Target waits for source (OPPOSITE direction!)
-  | 'parent-child' // Source waits for target
-  | 'awaits'       // Source waits for target (gate)
+  | 'blocks'       // blockedId waits for blockerId
+  | 'parent-child' // blockedId (child) → blockerId (parent)
+  | 'awaits'       // blockedId (waiter) → blockerId (gate)
   | 'relates-to'   // Bidirectional association
   | 'references'   // Citation
   | 'reply-to'     // Message threading
@@ -181,9 +181,9 @@ type DependencyType =
 **Direction semantics:**
 | Type | Who waits |
 |------|-----------|
-| `blocks` | **Target** waits for source |
-| `parent-child` | **Source** waits for target |
-| `awaits` | **Source** waits for target |
+| `blocks` | **blockedId** waits for blockerId |
+| `parent-child` | **blockedId** (child) waits for blockerId (parent) |
+| `awaits` | **blockedId** (waiter) waits for blockerId (gate) |
 | `relates-to` | Neither (associative) |
 
 **Gate metadata (for `awaits`):**

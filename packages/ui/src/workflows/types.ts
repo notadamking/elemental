@@ -98,8 +98,8 @@ export interface HydratedWorkflow extends Workflow {
  * Internal dependency between workflow tasks
  */
 export interface WorkflowDependency {
-  sourceId: ElementId;
-  targetId: ElementId;
+  blockedId: ElementId;
+  blockerId: ElementId;
   type: string;
 }
 

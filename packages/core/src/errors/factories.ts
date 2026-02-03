@@ -265,17 +265,17 @@ export function duplicateName(
  * Creates a ConflictError for dependency cycle detection
  */
 export function cycleDetected(
-  sourceId: string,
-  targetId: string,
+  blockedId: string,
+  blockerId: string,
   dependencyType: string,
   details: ErrorDetails = {}
 ): ConflictError {
   return new ConflictError(
-    `Adding dependency would create cycle: ${sourceId} -> ${targetId}`,
+    `Adding dependency would create cycle: ${blockedId} -> ${blockerId}`,
     ErrorCode.CYCLE_DETECTED,
     {
-      sourceId,
-      targetId,
+      blockedId,
+      blockerId,
       dependencyType,
       ...details,
     }

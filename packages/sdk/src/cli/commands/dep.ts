@@ -106,11 +106,11 @@ async function depAddHandler(
   args: string[],
   options: GlobalOptions & DepAddOptions
 ): Promise<CommandResult> {
-  const [sourceId, targetId] = args;
+  const [blockedId, blockerId] = args;
 
-  if (!sourceId || !targetId) {
+  if (!blockedId || !blockerId) {
     return failure(
-      'Usage: el dep add <source> <target> --type <type>\n\nExample: el dep add el-task1 el-task2 --type blocks',
+      'Usage: el dep add <blocked> <blocker> --type <type>\n\nExample: el dep add el-task1 el-task2 --type blocks',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -135,16 +135,16 @@ async function depAddHandler(
   }
 
   try {
-    // Verify source element exists
-    const source = await api.get(sourceId as ElementId);
-    if (!source) {
-      return failure(`Source element not found: ${sourceId}`, ExitCode.NOT_FOUND);
+    // Verify blocked element exists
+    const blocked = await api.get(blockedId as ElementId);
+    if (!blocked) {
+      return failure(`Blocked element not found: ${blockedId}`, ExitCode.NOT_FOUND);
     }
 
-    // Verify target element exists
-    const target = await api.get(targetId as ElementId);
-    if (!target) {
-      return failure(`Target element not found: ${targetId}`, ExitCode.NOT_FOUND);
+    // Verify blocker element exists
+    const blocker = await api.get(blockerId as ElementId);
+    if (!blocker) {
+      return failure(`Blocker element not found: ${blockerId}`, ExitCode.NOT_FOUND);
     }
 
     // Parse metadata if provided
@@ -162,8 +162,8 @@ async function depAddHandler(
 
     // Add the dependency
     const dep = await api.addDependency({
-      sourceId: sourceId as ElementId,
-      targetId: targetId as ElementId,
+      blockedId: blockedId as ElementId,
+      blockerId: blockerId as ElementId,
       type: options.type as DependencyType,
       metadata,
     });
@@ -176,13 +176,13 @@ async function depAddHandler(
     }
 
     if (mode === 'quiet') {
-      return success(`${dep.sourceId} -> ${dep.targetId}`);
+      return success(`${dep.blockedId} -> ${dep.blockerId}`);
     }
 
     const typeName = getDependencyTypeDisplayName(dep.type);
     return success(
       dep,
-      `Added dependency: ${dep.sourceId} --[${typeName}]--> ${dep.targetId}`
+      `Added dependency: ${dep.blockedId} --[${typeName}]--> ${dep.blockerId}`
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -196,7 +196,7 @@ async function depAddHandler(
     }
     if (message.includes('already exists') || message.includes('duplicate')) {
       return failure(
-        `Dependency already exists: ${sourceId} --[${options.type}]--> ${targetId}`,
+        `Dependency already exists: ${blockedId} --[${options.type}]--> ${blockerId}`,
         ExitCode.VALIDATION
       );
     }
@@ -208,12 +208,12 @@ async function depAddHandler(
 export const depAddCommand: Command = {
   name: 'add',
   description: 'Add a dependency between elements',
-  usage: 'el dep add <source> <target> --type <type> [options]',
+  usage: 'el dep add <blocked> <blocker> --type <type> [options]',
   help: `Add a dependency between two elements.
 
 Arguments:
-  source    Source element ID (the element that depends on target)
-  target    Target element ID (the element being depended on)
+  blocked   Blocked element ID (the element that is waiting)
+  blocker   Blocker element ID (the element doing the blocking)
 
 Options:
   -t, --type <type>        Dependency type (required)
@@ -221,7 +221,7 @@ Options:
 
 Dependency Types:
   Blocking (affect task readiness):
-    blocks       Target waits for source to close
+    blocks       Blocked element waits for blocker to close
     parent-child Hierarchical containment
     awaits       External gate dependency
 
@@ -271,11 +271,11 @@ async function depRemoveHandler(
   args: string[],
   options: GlobalOptions & DepRemoveOptions
 ): Promise<CommandResult> {
-  const [sourceId, targetId] = args;
+  const [blockedId, blockerId] = args;
 
-  if (!sourceId || !targetId) {
+  if (!blockedId || !blockerId) {
     return failure(
-      'Usage: el dep remove <source> <target> --type <type>',
+      'Usage: el dep remove <blocked> <blocker> --type <type>',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -301,8 +301,8 @@ async function depRemoveHandler(
 
   try {
     await api.removeDependency(
-      sourceId as ElementId,
-      targetId as ElementId,
+      blockedId as ElementId,
+      blockerId as ElementId,
       options.type as DependencyType
     );
 
@@ -311,20 +311,20 @@ async function depRemoveHandler(
     const typeName = getDependencyTypeDisplayName(options.type as DependencyType);
 
     if (mode === 'json') {
-      return success({ sourceId, targetId, type: options.type, removed: true });
+      return success({ blockedId, blockerId, type: options.type, removed: true });
     }
 
     if (mode === 'quiet') {
       return success('');
     }
 
-    return success(null, `Removed dependency: ${sourceId} --[${typeName}]--> ${targetId}`);
+    return success(null, `Removed dependency: ${blockedId} --[${typeName}]--> ${blockerId}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 
     if (message.includes('not found') || message.includes('Not found')) {
       return failure(
-        `Dependency not found: ${sourceId} --[${options.type}]--> ${targetId}`,
+        `Dependency not found: ${blockedId} --[${options.type}]--> ${blockerId}`,
         ExitCode.NOT_FOUND
       );
     }
@@ -336,12 +336,12 @@ async function depRemoveHandler(
 export const depRemoveCommand: Command = {
   name: 'remove',
   description: 'Remove a dependency between elements',
-  usage: 'el dep remove <source> <target> --type <type>',
+  usage: 'el dep remove <blocked> <blocker> --type <type>',
   help: `Remove a dependency between two elements.
 
 Arguments:
-  source    Source element ID
-  target    Target element ID
+  blocked   Blocked element ID
+  blocker   Blocker element ID
 
 Options:
   -t, --type <type>    Dependency type (required)
@@ -439,8 +439,8 @@ async function depListHandler(
     }
 
     if (mode === 'quiet') {
-      const outIds = dependencies.map(d => d.targetId);
-      const inIds = dependents.map(d => d.sourceId);
+      const outIds = dependencies.map(d => d.blockerId);
+      const inIds = dependents.map(d => d.blockedId);
       const allIds = [...new Set([...outIds, ...inIds])];
       return success(allIds.join('\n'));
     }
@@ -453,9 +453,9 @@ async function depListHandler(
         lines.push('No outgoing dependencies');
       } else {
         lines.push(`Outgoing dependencies (${dependencies.length}):`);
-        const headers = ['TARGET', 'TYPE', 'CREATED'];
+        const headers = ['BLOCKER', 'TYPE', 'CREATED'];
         const rows = dependencies.map(d => [
-          d.targetId,
+          d.blockerId,
           getDependencyTypeDisplayName(d.type),
           new Date(d.createdAt).toLocaleDateString(),
         ]);
@@ -472,9 +472,9 @@ async function depListHandler(
         lines.push('No incoming dependencies');
       } else {
         lines.push(`Incoming dependencies (${dependents.length}):`);
-        const headers = ['SOURCE', 'TYPE', 'CREATED'];
+        const headers = ['BLOCKED', 'TYPE', 'CREATED'];
         const rows = dependents.map(d => [
-          d.sourceId,
+          d.blockedId,
           getDependencyTypeDisplayName(d.type),
           new Date(d.createdAt).toLocaleDateString(),
         ]);

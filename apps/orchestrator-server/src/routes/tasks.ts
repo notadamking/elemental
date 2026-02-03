@@ -529,13 +529,13 @@ export function createTaskRoutes(services: Services) {
       // Get all dependencies where this task references a document
       const dependencies = await api.getDependencies(taskId);
       const attachmentDeps = dependencies.filter(
-        (dep) => dep.sourceId === taskId && dep.type === 'references'
+        (dep) => dep.blockedId === taskId && dep.type === 'references'
       );
 
       // Get the document details for each attachment
       const attachments = await Promise.all(
         attachmentDeps.map(async (dep) => {
-          const doc = await api.get(dep.targetId as ElementId);
+          const doc = await api.get(dep.blockerId as ElementId);
           if (doc && doc.type === 'document') {
             return doc;
           }
@@ -577,7 +577,7 @@ export function createTaskRoutes(services: Services) {
       // Check if already attached
       const existingDeps = await api.getDependencies(taskId);
       const alreadyAttached = existingDeps.some(
-        (dep) => dep.sourceId === taskId && dep.targetId === body.documentId && dep.type === 'references'
+        (dep) => dep.blockedId === taskId && dep.blockerId === body.documentId && dep.type === 'references'
       );
       if (alreadyAttached) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Document is already attached to this task' } }, 400);
@@ -585,8 +585,8 @@ export function createTaskRoutes(services: Services) {
 
       // Create the references dependency
       await api.addDependency({
-        sourceId: taskId,
-        targetId: body.documentId as ElementId,
+        blockedId: taskId,
+        blockerId: body.documentId as ElementId,
         type: 'references',
         actor: (body.actor as EntityId) || ('el-0000' as EntityId),
       });
@@ -613,7 +613,7 @@ export function createTaskRoutes(services: Services) {
       // Find the attachment dependency
       const dependencies = await api.getDependencies(taskId);
       const attachmentDep = dependencies.find(
-        (dep) => dep.sourceId === taskId && dep.targetId === docId && dep.type === 'references'
+        (dep) => dep.blockedId === taskId && dep.blockerId === docId && dep.type === 'references'
       );
 
       if (!attachmentDep) {

@@ -1798,8 +1798,8 @@ test.describe('TB-O32: Workflows Page', () => {
               total: 3,
               progress: { total: 3, completed: 1, inProgress: 1, blocked: 1, open: 0, percentage: 33 },
               dependencies: [
-                { sourceId: 't-1', targetId: 't-2', type: 'blocks' },
-                { sourceId: 't-2', targetId: 't-3', type: 'blocks' },
+                { blockedId: 't-2', blockerId: 't-1', type: 'blocks' },
+                { blockedId: 't-3', blockerId: 't-2', type: 'blocks' },
               ],
             }),
           });
@@ -1890,7 +1890,7 @@ test.describe('TB-O32: Workflows Page', () => {
               total: 2,
               progress: { total: 2, completed: 1, inProgress: 1, blocked: 0, open: 0, percentage: 50 },
               dependencies: [
-                { sourceId: 't-1', targetId: 't-2', type: 'blocks' },
+                { blockedId: 't-2', blockerId: 't-1', type: 'blocks' },
               ],
             }),
           });

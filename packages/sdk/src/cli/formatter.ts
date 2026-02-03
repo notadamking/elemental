@@ -553,10 +553,10 @@ function formatChanges(event: EventData): string {
   if (event.eventType === 'dependency_added' || event.eventType === 'dependency_removed') {
     const depInfo = event.newValue ?? event.oldValue;
     if (depInfo && typeof depInfo === 'object') {
-      const targetId = (depInfo as Record<string, unknown>).targetId;
+      const blockerId = (depInfo as Record<string, unknown>).blockerId;
       const depType = (depInfo as Record<string, unknown>).type;
-      if (targetId) {
-        return `${depType ?? 'dep'}: ${targetId}`;
+      if (blockerId) {
+        return `${depType ?? 'dep'}: ${blockerId}`;
       }
     }
     return event.eventType === 'dependency_added' ? 'Added' : 'Removed';

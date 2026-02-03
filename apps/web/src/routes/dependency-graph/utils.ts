@@ -322,13 +322,13 @@ export function buildDependencyTypeMap(depList: DependencyListResponse | undefin
 
   // Map dependencies (outgoing from selected node)
   for (const dep of depList.dependencies) {
-    const key = `${dep.sourceId}->${dep.targetId}`;
+    const key = `${dep.blockedId}->${dep.blockerId}`;
     typeMap.set(key, dep.type);
   }
 
   // Map dependents (incoming to selected node)
   for (const dep of depList.dependents) {
-    const key = `${dep.sourceId}->${dep.targetId}`;
+    const key = `${dep.blockedId}->${dep.blockerId}`;
     typeMap.set(key, dep.type);
   }
 

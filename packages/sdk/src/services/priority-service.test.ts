@@ -101,8 +101,8 @@ describe('PriorityService', () => {
       // Semantics: "target waits for source to close"
       // So task1 -> task2 means task2 depends on task1
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -125,16 +125,16 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
       // task2 blocks task3 (task3 waits for task2)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task3.id,
+        blockedId: task3.id,
+        blockerId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -154,8 +154,8 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -180,8 +180,8 @@ describe('PriorityService', () => {
       // task0 blocks all others transitively
       for (let i = 0; i < tasks.length - 1; i++) {
         depService.addDependency({
-          sourceId: tasks[i].id,
-          targetId: tasks[i + 1].id,
+          blockedId: tasks[i + 1].id,
+          blockerId: tasks[i].id,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
@@ -208,16 +208,16 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
       // task1 blocks task3 (task3 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task3.id,
+        blockedId: task3.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -263,8 +263,8 @@ describe('PriorityService', () => {
 
       // task2 blocks task1 (task1 waits for task2)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        blockedId: task1.id,
+        blockerId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -290,16 +290,16 @@ describe('PriorityService', () => {
 
       // task2 blocks task1 (task1 waits for task2)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        blockedId: task1.id,
+        blockerId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
       // task3 blocks task2 (task2 waits for task3)
       depService.addDependency({
-        sourceId: task3.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task3.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -322,8 +322,8 @@ describe('PriorityService', () => {
       // task[i+1] blocks task[i] (task[i] waits for task[i+1])
       for (let i = 0; i < tasks.length - 1; i++) {
         depService.addDependency({
-          sourceId: tasks[i + 1].id,
-          targetId: tasks[i].id,
+          blockedId: tasks[i].id,
+          blockerId: tasks[i + 1].id,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
@@ -347,8 +347,8 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -373,8 +373,8 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -404,8 +404,8 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -428,8 +428,8 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -459,32 +459,32 @@ describe('PriorityService', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
       // task1 blocks task3 (task3 waits for task1)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task3.id,
+        blockedId: task3.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
       // task2 blocks task4 (task4 waits for task2)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task4.id,
+        blockedId: task4.id,
+        blockerId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
 
       // task3 blocks task4 (task4 waits for task3)
       depService.addDependency({
-        sourceId: task3.id,
-        targetId: task4.id,
+        blockedId: task4.id,
+        blockerId: task3.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -502,8 +502,8 @@ describe('PriorityService', () => {
 
       // task1 relates to task2 (not blocking)
       depService.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task1.id,
+        blockerId: task2.id,
         type: DependencyType.RELATES_TO,
         createdBy: testEntity,
       });
@@ -522,8 +522,8 @@ describe('PriorityService', () => {
 
       // task2 blocks task1 (task1 waits for task2)
       depService.addDependency({
-        sourceId: task2.id,
-        targetId: task1.id,
+        blockedId: task1.id,
+        blockerId: task2.id,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });

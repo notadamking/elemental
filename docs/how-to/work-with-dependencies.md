@@ -6,13 +6,13 @@ Guide for managing relationships between elements.
 
 | Type | Blocking? | Direction | Use Case |
 |------|-----------|-----------|----------|
-| `blocks` | Yes | Target waits for source | Task A must complete before B |
-| `parent-child` | Yes | Source waits for target | Plan contains tasks |
-| `awaits` | Yes | Source waits for target | Approval gates, timers |
+| `blocks` | Yes | Blocked waits for blocker | Task A must complete before B |
+| `parent-child` | Yes | Blocked (child) → blocker (parent) | Plan contains tasks |
+| `awaits` | Yes | Blocked (waiter) → blocker (gate) | Approval gates, timers |
 | `relates-to` | No | Bidirectional | Semantic links |
-| `references` | No | Source → Target | Citations |
-| `reply-to` | No | Source → Target | Message threading |
-| `mentions` | No | Source → Target | @mention reference |
+| `references` | No | Blocked → Blocker | Citations |
+| `reply-to` | No | Blocked → Blocker | Message threading |
+| `mentions` | No | Blocked → Blocker | @mention reference |
 
 ## Adding Dependencies
 
@@ -26,24 +26,24 @@ const api = await createElementalAPI();
 // Add blocking dependency
 // "taskA is blocked BY taskB" (taskB must complete first)
 await api.addDependency({
-  sourceId: taskA.id,
-  targetId: taskB.id,
+  blockedId: taskA.id,
+  blockerId: taskB.id,
   type: 'blocks',
   createdBy: actorId,
 });
 
 // Add parent-child (plan contains task)
 await api.addDependency({
-  sourceId: taskId,
-  targetId: planId,
+  blockedId: taskId,
+  blockerId: planId,
   type: 'parent-child',
   createdBy: actorId,
 });
 
 // Add with metadata (for awaits gates)
 await api.addDependency({
-  sourceId: taskId,
-  targetId: approvalGateId,
+  blockedId: taskId,
+  blockerId: approvalGateId,
   type: 'awaits',
   createdBy: actorId,
   metadata: {
@@ -74,7 +74,7 @@ el dep add --type=relates-to doc-1 doc-2
 ### API
 
 ```typescript
-await api.removeDependency(sourceId, targetId, 'blocks');
+await api.removeDependency(blockedId, blockerId, 'blocks');
 ```
 
 ### CLI
@@ -130,21 +130,18 @@ el dep tree task-1
 
 ### Direction Semantics
 
-**Critical:** `blocks` direction is **opposite** to `parent-child` and `awaits`:
-
-| Type | Source | Target | Who waits? |
-|------|--------|--------|------------|
-| `blocks` | blocker | blocked | **Target** waits |
-| `parent-child` | child | parent | **Source** waits |
-| `awaits` | waiter | gate | **Source** waits |
+| Type | blockedId | blockerId | Who waits? |
+|------|-----------|-----------|------------|
+| `blocks` | the waiting task | must complete first | **blockedId** waits |
+| `parent-child` | child | parent | **blockedId** waits |
+| `awaits` | waiter | gate | **blockedId** waits |
 
 Example:
 ```typescript
 // "Task B is blocked by Task A"
-// Source: A (the blocker), Target: B (the blocked)
 await api.addDependency({
-  sourceId: taskA.id,  // The blocker
-  targetId: taskB.id,  // The one being blocked
+  blockedId: taskB.id,  // The one being blocked (waiting)
+  blockerId: taskA.id,  // The blocker (must complete first)
   type: 'blocks',
 });
 ```
@@ -189,8 +186,8 @@ Events generated: `auto_blocked`, `auto_unblocked` with actor `'system:blocked-c
 
 ```typescript
 await api.addDependency({
-  sourceId: taskId,
-  targetId: gateId,
+  blockedId: taskId,
+  blockerId: gateId,
   type: 'awaits',
   createdBy: actorId,
   metadata: {
@@ -206,8 +203,8 @@ Satisfied when: Current time >= `waitUntil`
 
 ```typescript
 await api.addDependency({
-  sourceId: taskId,
-  targetId: gateId,
+  blockedId: taskId,
+  blockerId: gateId,
   type: 'awaits',
   createdBy: actorId,
   metadata: {
@@ -219,10 +216,10 @@ await api.addDependency({
 });
 
 // Record approval
-await api.recordApproval(sourceId, targetId, 'manager-1');
+await api.recordApproval(blockedId, blockerId, 'manager-1');
 
 // Remove approval
-await api.removeApproval(sourceId, targetId, 'manager-1');
+await api.removeApproval(blockedId, blockerId, 'manager-1');
 ```
 
 Satisfied when: `currentApprovers.length >= requiredCount`
@@ -231,8 +228,8 @@ Satisfied when: `currentApprovers.length >= requiredCount`
 
 ```typescript
 await api.addDependency({
-  sourceId: taskId,
-  targetId: gateId,
+  blockedId: taskId,
+  blockerId: gateId,
   type: 'awaits',
   createdBy: actorId,
   metadata: {
@@ -242,7 +239,7 @@ await api.addDependency({
 });
 
 // Satisfy the gate
-await api.satisfyGate(sourceId, targetId, actorId);
+await api.satisfyGate(blockedId, blockerId, actorId);
 ```
 
 Satisfied when: `metadata.satisfied === true`
@@ -253,12 +250,12 @@ Same as external, but triggered by webhook callback.
 
 ## Bidirectional Dependencies
 
-`relates-to` is stored normalized (smaller ID is always source):
+`relates-to` is stored normalized (smaller ID is always blockedId):
 
 ```typescript
 // Either of these creates the same dependency:
-await api.addDependency({ sourceId: 'a', targetId: 'b', type: 'relates-to' });
-await api.addDependency({ sourceId: 'b', targetId: 'a', type: 'relates-to' });
+await api.addDependency({ blockedId: 'a', blockerId: 'b', type: 'relates-to' });
+await api.addDependency({ blockedId: 'b', blockerId: 'a', type: 'relates-to' });
 
 // Query both directions to find all related:
 const outgoing = await api.getDependencies(id, ['relates-to']);
@@ -274,12 +271,12 @@ import { createDependencyService } from '@elemental/sdk';
 const depService = createDependencyService(storage);
 
 // Check before adding
-const hasCycle = depService.detectCycle(sourceId, targetId, 'blocks');
+const hasCycle = depService.detectCycle(blockedId, blockerId, 'blocks');
 if (hasCycle) {
   throw new Error('Would create a cycle');
 }
 
-await api.addDependency({ sourceId, targetId, type: 'blocks' });
+await api.addDependency({ blockedId, blockerId, type: 'blocks' });
 ```
 
 **Warning:** `api.addDependency()` does NOT check cycles automatically. Check manually!
@@ -302,8 +299,8 @@ const task2 = await api.createTaskInPlan(plan.id, { title: 'Task 2', ... });
 
 // Add blocking between tasks
 await api.addDependency({
-  sourceId: task1.id,
-  targetId: task2.id,
+  blockedId: task2.id,
+  blockerId: task1.id,
   type: 'blocks',  // task2 waits for task1
 });
 ```
@@ -326,8 +323,8 @@ const deployTask = await api.create({
 });
 
 await api.addDependency({
-  sourceId: deployTask.id,
-  targetId: reviewTask.id,
+  blockedId: deployTask.id,
+  blockerId: reviewTask.id,
   type: 'awaits',
   metadata: {
     gate: 'approval',
@@ -348,15 +345,15 @@ await api.recordApproval(deployTask.id, reviewTask.id, 'product-owner');
 ```typescript
 // Link related documents
 await api.addDependency({
-  sourceId: specDoc.id,
-  targetId: designDoc.id,
+  blockedId: specDoc.id,
+  blockerId: designDoc.id,
   type: 'relates-to',
 });
 
 // Link task to documentation
 await api.addDependency({
-  sourceId: task.id,
-  targetId: specDoc.id,
+  blockedId: task.id,
+  blockerId: specDoc.id,
   type: 'references',
 });
 ```
@@ -364,7 +361,7 @@ await api.addDependency({
 ## Gotchas
 
 1. **`blocked` is computed** - Never set `status: 'blocked'` directly
-2. **Direction matters** - `blocks` is opposite to others
+2. **Direction matters** - For `blocks`, `blockedId` is the waiting task, `blockerId` must complete first
 3. **Cycles not auto-checked** - Call `detectCycle()` manually
 4. **`relates-to` is normalized** - Query both directions
 5. **Parent-child doesn't block plans** - Tasks in plan don't wait for plan status

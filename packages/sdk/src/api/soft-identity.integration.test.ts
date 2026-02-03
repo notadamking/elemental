@@ -312,34 +312,35 @@ describe('Soft Identity Integration', () => {
       await api.create(toCreateInput(task2));
 
       const dep = await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockerId: task1.id,
+        blockedId: task2.id,
         type: 'blocks',
         actor: ALT_ACTOR,
       });
 
       expect(dep.createdBy).toBe(ALT_ACTOR);
 
-      const events = await api.getEvents(task1.id);
+      const events = await api.getEvents(task2.id);
       const depEvent = events.find((e) => e.eventType === 'dependency_added');
 
       expect(depEvent).toBeDefined();
       expect(depEvent!.actor).toBe(ALT_ACTOR);
     });
 
-    it('should fall back to source element creator when no actor provided', async () => {
+    it('should fall back to blocked element creator when no actor provided', async () => {
       const task1 = await createTestTask({ title: 'Task 1', createdBy: TEST_ACTOR });
       const task2 = await createTestTask({ title: 'Task 2', createdBy: ALT_ACTOR });
       await api.create(toCreateInput(task1));
       await api.create(toCreateInput(task2));
 
       const dep = await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockerId: task1.id,
+        blockedId: task2.id,
         type: 'blocks',
       });
 
-      expect(dep.createdBy).toBe(TEST_ACTOR);
+      // Falls back to blockedId element's creator (task2's creator)
+      expect(dep.createdBy).toBe(ALT_ACTOR);
     });
   });
 

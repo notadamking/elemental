@@ -128,8 +128,8 @@ test.describe('TB53: Document Links', () => {
     });
     expect(response.status()).toBe(201);
     const result = await response.json();
-    expect(result.sourceId).toBe(sourceDoc.id);
-    expect(result.targetId).toBe(targetDoc.id);
+    expect(result.blockedId).toBe(sourceDoc.id);
+    expect(result.blockerId).toBe(targetDoc.id);
     expect(result.targetDocument.id).toBe(targetDoc.id);
   });
 
@@ -228,7 +228,7 @@ test.describe('TB53: Document Links', () => {
     expect(body.error.message).toContain('already exists');
   });
 
-  test('DELETE /api/documents/:sourceId/links/:targetId removes a link', async ({ page }) => {
+  test('DELETE /api/documents/:blockedId/links/:blockerId removes a link', async ({ page }) => {
     const sourceDoc = await createTestDocument(page);
     const targetDoc = await createTestDocument(page);
 
@@ -250,7 +250,7 @@ test.describe('TB53: Document Links', () => {
     expect(links.outgoing).toHaveLength(0);
   });
 
-  test('DELETE /api/documents/:sourceId/links/:targetId returns 404 for non-existent link', async ({ page }) => {
+  test('DELETE /api/documents/:blockedId/links/:blockerId returns 404 for non-existent link', async ({ page }) => {
     const doc1 = await createTestDocument(page);
     const doc2 = await createTestDocument(page);
 

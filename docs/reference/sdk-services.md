@@ -19,45 +19,45 @@ const depService = createDependencyService(storage);
 ```typescript
 // Add dependency
 depService.add({
-  sourceId,
-  targetId,
+  blockedId,
+  blockerId,
   type: 'blocks',
   createdBy: actorId,
   metadata?: { /* gate config */ },
 });
 
 // Remove dependency
-depService.remove(sourceId, targetId, type);
+depService.remove(blockedId, blockerId, type);
 
 // Check existence
-const exists = depService.exists(sourceId, targetId, type);
+const exists = depService.exists(blockedId, blockerId, type);
 
 // Get single dependency
-const dep = depService.getDependency(sourceId, targetId, type);
+const dep = depService.getDependency(blockedId, blockerId, type);
 
 // Get outgoing dependencies
-const deps = depService.getDependencies(sourceId, types?);
+const deps = depService.getDependencies(blockedId, types?);
 
 // Get incoming dependencies (what depends on this)
-const dependents = depService.getDependents(targetId, types?);
+const dependents = depService.getDependents(blockerId, types?);
 
 // Bulk get for multiple sources
-const deps = depService.getDependenciesForMany(sourceIds, type?);
+const deps = depService.getDependenciesForMany(blockedIds, type?);
 
 // Remove all from/to element
-depService.removeAllDependencies(sourceId, type?);
-depService.removeAllDependents(targetId);
+depService.removeAllDependencies(blockedId, type?);
+depService.removeAllDependents(blockerId);
 
 // Count without fetching
-const count = depService.countDependencies(sourceId, type?);
+const count = depService.countDependencies(blockedId, type?);
 
 // Cycle detection
-const hasCycle = depService.detectCycle(sourceId, targetId, type);
+const hasCycle = depService.detectCycle(blockedId, blockerId, type);
 ```
 
 ### Cycle Detection
 
-- BFS traversal from source to target
+- BFS traversal from blocked to blocker
 - Depth limit: 100 levels
 - Only checked for blocking types (`blocks`, `awaits`)
 - Self-referential rejected immediately with `CYCLE_DETECTED`
@@ -94,8 +94,8 @@ const blockedBy = blockedCache.getBlockedBy(blockerId);
 ### Event Handlers (call after mutations)
 
 ```typescript
-blockedCache.onDependencyAdded(sourceId, targetId, type, metadata?, options?);
-blockedCache.onDependencyRemoved(sourceId, targetId, type, options?);
+blockedCache.onDependencyAdded(blockedId, blockerId, type, metadata?, options?);
+blockedCache.onDependencyRemoved(blockedId, blockerId, type, options?);
 blockedCache.onStatusChanged(elementId, oldStatus, newStatus, options?);
 blockedCache.onElementDeleted(elementId, options?);
 ```
@@ -104,11 +104,11 @@ blockedCache.onElementDeleted(elementId, options?);
 
 ```typescript
 // Satisfy external/webhook gate
-blockedCache.satisfyGate(sourceId, targetId, actor, options?);
+blockedCache.satisfyGate(blockedId, blockerId, actor, options?);
 
 // Approval gates
-blockedCache.recordApproval(sourceId, targetId, approver, options?);
-blockedCache.removeApproval(sourceId, targetId, approver, options?);
+blockedCache.recordApproval(blockedId, blockerId, approver, options?);
+blockedCache.removeApproval(blockedId, blockerId, approver, options?);
 ```
 
 ### Auto-Transitions

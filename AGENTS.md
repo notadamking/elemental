@@ -93,7 +93,7 @@ specs/               # Historical design specifications
 | Assign task        | `el assign <task-id> <entity-id>`                                     |
 | Close task         | `el close <id> --reason "..."`                                        |
 | Create task        | `el create task --title "..." --priority <1-5> --type <feature\|bug>` |
-| Add dependency     | `el dep add --type=blocks <source> <target>`                          |
+| Add dependency     | `el dep add --type=blocks <blocked> <blocker>`                        |
 | View progress      | `el stats` or `el show <plan-id>`                                     |
 
 ### Running Tests
@@ -120,10 +120,10 @@ el create task --title "<description>" --priority <1-5> --type <feature|bug|task
 When a task depends on another:
 
 ```bash
-el dep add --type=blocks <source-id> <target-id>
+el dep add --type=blocks <blocked-id> <blocker-id>
 ```
 
-This means `source-id` is blocked by `target-id` (target must complete first).
+This means `blocked-id` is blocked by `blocker-id` (blocker must complete first).
 
 ### Notes
 

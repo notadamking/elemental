@@ -105,13 +105,13 @@ describe('Workflow Query Integration', () => {
 
       // Link tasks to workflow
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: workflow.id,
+        blockedId: task1.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: task2.id,
-        targetId: workflow.id,
+        blockedId: task2.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -132,13 +132,13 @@ describe('Workflow Query Integration', () => {
       const createdClosedTask = await api.create(toCreateInput(closedTask));
 
       await api.addDependency({
-        sourceId: createdOpenTask.id,
-        targetId: createdWorkflow.id,
+        blockedId: createdOpenTask.id,
+        blockerId: createdWorkflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: createdClosedTask.id,
-        targetId: createdWorkflow.id,
+        blockedId: createdClosedTask.id,
+        blockerId: createdWorkflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -161,13 +161,13 @@ describe('Workflow Query Integration', () => {
       await api.create(toCreateInput(lowPriorityTask));
 
       await api.addDependency({
-        sourceId: highPriorityTask.id,
-        targetId: workflow.id,
+        blockedId: highPriorityTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: lowPriorityTask.id,
-        targetId: workflow.id,
+        blockedId: lowPriorityTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -186,13 +186,13 @@ describe('Workflow Query Integration', () => {
       await api.create(toCreateInput(unassignedTask));
 
       await api.addDependency({
-        sourceId: assignedTask.id,
-        targetId: workflow.id,
+        blockedId: assignedTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: unassignedTask.id,
-        targetId: workflow.id,
+        blockedId: unassignedTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -222,13 +222,13 @@ describe('Workflow Query Integration', () => {
       await api.create(toCreateInput(tombstoneTask));
 
       await api.addDependency({
-        sourceId: activeTask.id,
-        targetId: workflow.id,
+        blockedId: activeTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: tombstoneTask.id,
-        targetId: workflow.id,
+        blockedId: tombstoneTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -247,13 +247,13 @@ describe('Workflow Query Integration', () => {
       await api.create(toCreateInput(tombstoneTask));
 
       await api.addDependency({
-        sourceId: activeTask.id,
-        targetId: workflow.id,
+        blockedId: activeTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: tombstoneTask.id,
-        targetId: workflow.id,
+        blockedId: tombstoneTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -285,16 +285,16 @@ describe('Workflow Query Integration', () => {
       // Link all tasks to workflow
       for (const task of [readyTask, blockerTask, blockedTask, closedTask]) {
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
 
       // Add blocking dependency: blockerTask blocks blockedTask - blockedTask waits for blockerTask to close
       await api.addDependency({
-        sourceId: blockerTask.id,
-        targetId: blockedTask.id,
+        blockerId: blockerTask.id,
+        blockedId: blockedTask.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -320,13 +320,13 @@ describe('Workflow Query Integration', () => {
       await api.create(toCreateInput(futureTask));
 
       await api.addDependency({
-        sourceId: nowTask.id,
-        targetId: workflow.id,
+        blockedId: nowTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: futureTask.id,
-        targetId: workflow.id,
+        blockedId: futureTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -344,8 +344,8 @@ describe('Workflow Query Integration', () => {
         const task = await createTestTask({ title: `Task ${i}`, priority: Priority.MEDIUM });
         await api.create(toCreateInput(task));
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
@@ -365,13 +365,13 @@ describe('Workflow Query Integration', () => {
       await api.create(toCreateInput(highTask));
 
       await api.addDependency({
-        sourceId: lowTask.id,
-        targetId: workflow.id,
+        blockedId: lowTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: highTask.id,
-        targetId: workflow.id,
+        blockedId: highTask.id,
+        blockerId: workflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -413,8 +413,8 @@ describe('Workflow Query Integration', () => {
       for (const task of [closedTask1, closedTask2, openTask1, openTask2]) {
         await api.create(toCreateInput(task));
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
@@ -441,16 +441,16 @@ describe('Workflow Query Integration', () => {
 
       for (const task of [readyTask, blockerTask, blockedTask]) {
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
 
       // Add blocking dependency: blockerTask blocks blockedTask - blockedTask waits for blockerTask to close
       await api.addDependency({
-        sourceId: blockerTask.id,
-        targetId: blockedTask.id,
+        blockerId: blockerTask.id,
+        blockedId: blockedTask.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -498,13 +498,13 @@ describe('Workflow Query Integration', () => {
 
       // Link tasks to workflows
       await api.addDependency({
-        sourceId: ephemeralTask.id,
-        targetId: ephemeralWorkflow.id,
+        blockedId: ephemeralTask.id,
+        blockerId: ephemeralWorkflow.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: durableTask.id,
-        targetId: durableWorkflow.id,
+        blockedId: durableTask.id,
+        blockerId: durableWorkflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -529,8 +529,8 @@ describe('Workflow Query Integration', () => {
       await api.create(toCreateInput(ephemeralTask));
 
       await api.addDependency({
-        sourceId: ephemeralTask.id,
-        targetId: ephemeralWorkflow.id,
+        blockedId: ephemeralTask.id,
+        blockerId: ephemeralWorkflow.id,
         type: DependencyType.PARENT_CHILD,
       });
 
@@ -578,18 +578,18 @@ describe('Workflow Query Integration', () => {
       // Create parent-child dependencies
       for (const dep of pourResult.parentChildDependencies) {
         await api.addDependency({
-          sourceId: dep.sourceId,
-          targetId: dep.targetId,
+          blockedId: dep.blockedId,
+          blockerId: dep.blockerId,
           type: dep.type,
         });
       }
 
       // Create blocks dependencies - pourWorkflow uses correct semantics:
-      // sourceId=blocker, targetId=blocked (target waits for source to close)
+      // blockerId=blocker, blockedId=blocked (blocked waits for blocker to close)
       for (const dep of pourResult.blocksDependencies) {
         await api.addDependency({
-          sourceId: dep.sourceId,  // blocker task
-          targetId: dep.targetId,  // blocked task (waits for blocker)
+          blockerId: dep.blockerId,  // blocker task
+          blockedId: dep.blockedId,  // blocked task (waits for blocker)
           type: dep.type,
         });
       }
@@ -1068,18 +1068,18 @@ describe('Workflow Query Integration', () => {
       // Create parent-child dependencies
       for (const dep of pourResult.parentChildDependencies) {
         await api.addDependency({
-          sourceId: dep.sourceId,
-          targetId: dep.targetId,
+          blockedId: dep.blockedId,
+          blockerId: dep.blockerId,
           type: dep.type,
         });
       }
 
       // Create blocks dependencies - pourWorkflow uses correct semantics:
-      // sourceId=blocker, targetId=blocked (target waits for source to close)
+      // blockerId=blocker, blockedId=blocked (blocked waits for blocker to close)
       for (const dep of pourResult.blocksDependencies) {
         await api.addDependency({
-          sourceId: dep.sourceId,  // blocker task
-          targetId: dep.targetId,  // blocked task (waits for blocker)
+          blockerId: dep.blockerId,  // blocker task
+          blockedId: dep.blockedId,  // blocked task (waits for blocker)
           type: dep.type,
         });
       }
@@ -1488,8 +1488,8 @@ describe('Workflow Query Integration', () => {
       // Link all tasks to workflow
       for (const task of [task1, task2, task3]) {
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
@@ -1497,13 +1497,13 @@ describe('Workflow Query Integration', () => {
       // Create linear dependency chain: task1 blocks task2, task2 blocks task3
       // task1 -> task2 -> task3 (task2 waits for task1, task3 waits for task2)
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockerId: task1.id,
+        blockedId: task2.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: task2.id,
-        targetId: task3.id,
+        blockerId: task2.id,
+        blockedId: task3.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1533,8 +1533,8 @@ describe('Workflow Query Integration', () => {
       // Link all tasks to workflow
       for (const task of [start, middle1, middle2, end]) {
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
@@ -1543,23 +1543,23 @@ describe('Workflow Query Integration', () => {
       // start blocks middle1 and middle2 (they wait for start to close)
       // middle1 and middle2 block end (end waits for both to close)
       await api.addDependency({
-        sourceId: start.id,
-        targetId: middle1.id,
+        blockerId: start.id,
+        blockedId: middle1.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: start.id,
-        targetId: middle2.id,
+        blockerId: start.id,
+        blockedId: middle2.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: middle1.id,
-        targetId: end.id,
+        blockerId: middle1.id,
+        blockedId: end.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: middle2.id,
-        targetId: end.id,
+        blockerId: middle2.id,
+        blockedId: end.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1597,8 +1597,8 @@ describe('Workflow Query Integration', () => {
       // Link all tasks to workflow (no blocks dependencies between them)
       for (const task of [lowPriority, highPriority, mediumPriority]) {
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
@@ -1628,8 +1628,8 @@ describe('Workflow Query Integration', () => {
       // Link all tasks to workflow
       for (const task of [openTask, closedTask, inProgressTask]) {
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }
@@ -1688,17 +1688,17 @@ describe('Workflow Query Integration', () => {
       }
       for (const dep of pourResult.parentChildDependencies) {
         await api.addDependency({
-          sourceId: dep.sourceId,
-          targetId: dep.targetId,
+          blockedId: dep.blockedId,
+          blockerId: dep.blockerId,
           type: dep.type,
         });
       }
       // Blocks dependencies: pourWorkflow uses correct semantics
-      // sourceId=blocker, targetId=blocked (target waits for source to close)
+      // blockerId=blocker, blockedId=blocked (blocked waits for blocker to close)
       for (const dep of pourResult.blocksDependencies) {
         await api.addDependency({
-          sourceId: dep.sourceId,  // blocker task
-          targetId: dep.targetId,  // blocked task (waits for blocker)
+          blockerId: dep.blockerId,  // blocker task
+          blockedId: dep.blockedId,  // blocked task (waits for blocker)
           type: dep.type,
         });
       }
@@ -1729,8 +1729,8 @@ describe('Workflow Query Integration', () => {
       // Link all tasks to workflow (no blocks dependencies)
       for (const task of [task1, task2, task3]) {
         await api.addDependency({
-          sourceId: task.id,
-          targetId: workflow.id,
+          blockedId: task.id,
+          blockerId: workflow.id,
           type: DependencyType.PARENT_CHILD,
         });
       }

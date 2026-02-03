@@ -451,8 +451,8 @@ test.describe('TB47: Edit Plan', () => {
     });
     expect(addResponse.status()).toBe(201);
     const dependency = await addResponse.json();
-    expect(dependency.sourceId).toBe(task.id);
-    expect(dependency.targetId).toBe(plan.id);
+    expect(dependency.blockedId).toBe(task.id);
+    expect(dependency.blockerId).toBe(plan.id);
   });
 
   test('POST /api/plans/:id/tasks returns 404 for invalid plan', async ({ page }) => {

@@ -30,7 +30,7 @@ import {
  * Tasks cannot proceed until blockers resolve
  */
 export const BlockingDependencyType = {
-  /** Target waits for source to close */
+  /** Blocked element waits for blocker to close */
   BLOCKS: 'blocks',
   /** Hierarchical containment with transitive blocking */
   PARENT_CHILD: 'parent-child',
@@ -283,15 +283,15 @@ export interface ValidatesMetadata {
 /**
  * Dependency - Represents a relationship between two elements
  *
- * Dependencies connect a source element to a target element with
- * a specific relationship type. The composite key is (sourceId, targetId, type)
+ * Dependencies connect a blocked element to a blocker element with
+ * a specific relationship type. The composite key is (blockedId, blockerId, type)
  * allowing multiple dependency types between the same elements.
  */
 export interface Dependency {
-  /** Element that has the dependency */
-  readonly sourceId: ElementId;
-  /** Element being depended on */
-  readonly targetId: ElementId;
+  /** Element that is waiting/blocked */
+  readonly blockedId: ElementId;
+  /** Element doing the blocking/being depended on */
+  readonly blockerId: ElementId;
   /** Category of relationship */
   readonly type: DependencyType;
   /** When dependency was created */
@@ -471,15 +471,15 @@ export function isDependency(value: unknown): value is Dependency {
   const obj = value as Record<string, unknown>;
 
   // Check required fields
-  if (typeof obj.sourceId !== 'string' || obj.sourceId.length === 0) return false;
-  if (typeof obj.targetId !== 'string' || obj.targetId.length === 0) return false;
+  if (typeof obj.blockedId !== 'string' || obj.blockedId.length === 0) return false;
+  if (typeof obj.blockerId !== 'string' || obj.blockerId.length === 0) return false;
   if (!isValidDependencyType(obj.type)) return false;
   if (!isValidTimestamp(obj.createdAt)) return false;
   if (typeof obj.createdBy !== 'string' || obj.createdBy.length === 0) return false;
   if (!isValidMetadata(obj.metadata)) return false;
 
   // Self-reference check
-  if (obj.sourceId === obj.targetId) return false;
+  if (obj.blockedId === obj.blockerId) return false;
 
   // Type-specific metadata validation
   if (obj.type === DependencyType.AWAITS) {
@@ -776,18 +776,18 @@ export function validateDependency(value: unknown): Dependency {
 
   const obj = value as Record<string, unknown>;
 
-  // Validate sourceId
-  const sourceId = validateElementId(obj.sourceId, 'sourceId');
+  // Validate blockedId
+  const blockedId = validateElementId(obj.blockedId, 'blockedId');
 
-  // Validate targetId
-  const targetId = validateElementId(obj.targetId, 'targetId');
+  // Validate blockerId
+  const blockerId = validateElementId(obj.blockerId, 'blockerId');
 
   // Check for self-reference
-  if (sourceId === targetId) {
+  if (blockedId === blockerId) {
     throw new ValidationError(
-      'Dependency cannot reference itself (sourceId must differ from targetId)',
+      'Dependency cannot reference itself (blockedId must differ from blockerId)',
       ErrorCode.INVALID_INPUT,
-      { sourceId, targetId }
+      { blockedId, blockerId }
     );
   }
 
@@ -823,10 +823,10 @@ export function validateDependency(value: unknown): Dependency {
  * Input for creating a dependency
  */
 export interface CreateDependencyInput {
-  /** Element that has the dependency */
-  sourceId: ElementId;
-  /** Element being depended on */
-  targetId: ElementId;
+  /** Element that is waiting/blocked */
+  blockedId: ElementId;
+  /** Element doing the blocking/being depended on */
+  blockerId: ElementId;
   /** Type of dependency */
   type: DependencyType;
   /** Who is creating this dependency */
@@ -839,8 +839,8 @@ export interface CreateDependencyInput {
  * Input for creating an awaits dependency
  */
 export interface CreateAwaitsDependencyInput {
-  sourceId: ElementId;
-  targetId: ElementId;
+  blockedId: ElementId;
+  blockerId: ElementId;
   createdBy: EntityId;
   awaitsMetadata: AwaitsMetadata;
 }
@@ -849,8 +849,8 @@ export interface CreateAwaitsDependencyInput {
  * Input for creating a validates dependency
  */
 export interface CreateValidatesDependencyInput {
-  sourceId: ElementId;
-  targetId: ElementId;
+  blockedId: ElementId;
+  blockerId: ElementId;
   createdBy: EntityId;
   validatesMetadata: ValidatesMetadata;
 }
@@ -863,18 +863,18 @@ export interface CreateValidatesDependencyInput {
  * Creates a new Dependency
  */
 export function createDependency(input: CreateDependencyInput): Dependency {
-  // Validate sourceId
-  const sourceId = validateElementId(input.sourceId, 'sourceId');
+  // Validate blockedId
+  const blockedId = validateElementId(input.blockedId, 'blockedId');
 
-  // Validate targetId
-  const targetId = validateElementId(input.targetId, 'targetId');
+  // Validate blockerId
+  const blockerId = validateElementId(input.blockerId, 'blockerId');
 
   // Check for self-reference
-  if (sourceId === targetId) {
+  if (blockedId === blockerId) {
     throw new ValidationError(
-      'Dependency cannot reference itself (sourceId must differ from targetId)',
+      'Dependency cannot reference itself (blockedId must differ from blockerId)',
       ErrorCode.INVALID_INPUT,
-      { sourceId, targetId }
+      { blockedId, blockerId }
     );
   }
 
@@ -897,8 +897,8 @@ export function createDependency(input: CreateDependencyInput): Dependency {
   }
 
   const dependency: Dependency = {
-    sourceId,
-    targetId,
+    blockedId,
+    blockerId,
     type,
     createdAt: createTimestamp(),
     createdBy,
@@ -916,8 +916,8 @@ export function createAwaitsDependency(input: CreateAwaitsDependencyInput): Depe
   const awaitsMetadata = validateAwaitsMetadata(input.awaitsMetadata);
 
   return createDependency({
-    sourceId: input.sourceId,
-    targetId: input.targetId,
+    blockedId: input.blockedId,
+    blockerId: input.blockerId,
     type: DependencyType.AWAITS,
     createdBy: input.createdBy,
     metadata: awaitsMetadata as unknown as Record<string, unknown>,
@@ -932,8 +932,8 @@ export function createValidatesDependency(input: CreateValidatesDependencyInput)
   const validatesMetadata = validateValidatesMetadata(input.validatesMetadata);
 
   return createDependency({
-    sourceId: input.sourceId,
-    targetId: input.targetId,
+    blockedId: input.blockedId,
+    blockerId: input.blockerId,
     type: DependencyType.VALIDATES,
     createdBy: input.createdBy,
     metadata: validatesMetadata as unknown as Record<string, unknown>,
@@ -1039,23 +1039,23 @@ export function filterAssociative<T extends Dependency>(dependencies: T[]): T[] 
 }
 
 /**
- * Filter dependencies by source element
+ * Filter dependencies by blocked element
  */
-export function filterBySource<T extends Dependency>(
+export function filterByBlocked<T extends Dependency>(
   dependencies: T[],
-  sourceId: ElementId
+  blockedId: ElementId
 ): T[] {
-  return dependencies.filter((d) => d.sourceId === sourceId);
+  return dependencies.filter((d) => d.blockedId === blockedId);
 }
 
 /**
- * Filter dependencies by target element
+ * Filter dependencies by blocker element
  */
-export function filterByTarget<T extends Dependency>(
+export function filterByBlocker<T extends Dependency>(
   dependencies: T[],
-  targetId: ElementId
+  blockerId: ElementId
 ): T[] {
-  return dependencies.filter((d) => d.targetId === targetId);
+  return dependencies.filter((d) => d.blockerId === blockerId);
 }
 
 // ============================================================================
@@ -1123,7 +1123,7 @@ export function getGateTypeDisplayName(gateType: GateType): string {
  */
 export function describeDependency(dependency: Dependency): string {
   const typeName = getDependencyTypeDisplayName(dependency.type);
-  return `${dependency.sourceId} ${typeName.toLowerCase()} ${dependency.targetId}`;
+  return `${dependency.blockedId} ${typeName.toLowerCase()} ${dependency.blockerId}`;
 }
 
 // ============================================================================
@@ -1132,16 +1132,16 @@ export function describeDependency(dependency: Dependency): string {
 
 /**
  * Normalize relates-to dependencies to ensure consistent ordering
- * For bidirectional relationships, the smaller ID is always the source
+ * For bidirectional relationships, the smaller ID is always the blockedId
  */
 export function normalizeRelatesToDependency(
-  sourceId: ElementId,
-  targetId: ElementId
-): { sourceId: ElementId; targetId: ElementId } {
-  if (sourceId <= targetId) {
-    return { sourceId, targetId };
+  blockedId: ElementId,
+  blockerId: ElementId
+): { blockedId: ElementId; blockerId: ElementId } {
+  if (blockedId <= blockerId) {
+    return { blockedId, blockerId };
   }
-  return { sourceId: targetId, targetId: sourceId };
+  return { blockedId: blockerId, blockerId: blockedId };
 }
 
 /**
@@ -1156,7 +1156,7 @@ export function areRelated(
   return dependencies.some(
     (d) =>
       d.type === DependencyType.RELATES_TO &&
-      d.sourceId === normalized.sourceId &&
-      d.targetId === normalized.targetId
+      d.blockedId === normalized.blockedId &&
+      d.blockerId === normalized.blockerId
   );
 }

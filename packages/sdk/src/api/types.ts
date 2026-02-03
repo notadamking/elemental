@@ -252,15 +252,15 @@ export interface DependencyTree<T extends Element = Element> {
  * Input for creating a new dependency via the API.
  */
 export interface DependencyInput {
-  /** Element that has the dependency */
-  sourceId: ElementId;
-  /** Element being depended on */
-  targetId: ElementId;
+  /** Element that is waiting/blocked */
+  blockedId: ElementId;
+  /** Element doing the blocking/being depended on */
+  blockerId: ElementId;
   /** Type of dependency relationship */
   type: DependencyType;
   /** Type-specific metadata */
   metadata?: Record<string, unknown>;
-  /** Actor creating the dependency (optional, falls back to source element's createdBy) */
+  /** Actor creating the dependency (optional, falls back to blocked element's createdBy) */
   actor?: EntityId;
 }
 
@@ -999,15 +999,15 @@ export interface ElementalAPI {
   /**
    * Remove a dependency.
    *
-   * @param sourceId - Source element
-   * @param targetId - Target element
+   * @param blockedId - Blocked element
+   * @param blockerId - Blocker element
    * @param type - Dependency type
    * @param actor - Optional actor for the event (defaults to dependency creator)
    * @throws NotFoundError if dependency doesn't exist
    */
   removeDependency(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     type: DependencyType,
     actor?: EntityId
   ): Promise<void>;
@@ -1046,33 +1046,33 @@ export interface ElementalAPI {
    * Mark an external or webhook gate as satisfied.
    * Used to indicate that an external system or webhook has completed.
    *
-   * @param sourceId - Element that has the awaits dependency
-   * @param targetId - Target element ID of the awaits dependency
+   * @param blockedId - Element that has the awaits dependency
+   * @param blockerId - Blocker element ID of the awaits dependency
    * @param actor - Entity marking the gate as satisfied
    * @returns True if gate was found and satisfied, false if not found or wrong type
    */
-  satisfyGate(sourceId: ElementId, targetId: ElementId, actor: EntityId): Promise<boolean>;
+  satisfyGate(blockedId: ElementId, blockerId: ElementId, actor: EntityId): Promise<boolean>;
 
   /**
    * Record an approval for an approval gate.
    * Updates the dependency metadata with the new approver.
    *
-   * @param sourceId - Element that has the awaits dependency
-   * @param targetId - Target element ID of the awaits dependency
+   * @param blockedId - Element that has the awaits dependency
+   * @param blockerId - Blocker element ID of the awaits dependency
    * @param approver - Entity recording their approval
    * @returns Result indicating success and current approval status
    */
-  recordApproval(sourceId: ElementId, targetId: ElementId, approver: EntityId): Promise<ApprovalResult>;
+  recordApproval(blockedId: ElementId, blockerId: ElementId, approver: EntityId): Promise<ApprovalResult>;
 
   /**
    * Remove an approval from an approval gate.
    *
-   * @param sourceId - Element that has the awaits dependency
-   * @param targetId - Target element ID of the awaits dependency
+   * @param blockedId - Element that has the awaits dependency
+   * @param blockerId - Blocker element ID of the awaits dependency
    * @param approver - Entity removing their approval
    * @returns Result indicating success and current approval status
    */
-  removeApproval(sourceId: ElementId, targetId: ElementId, approver: EntityId): Promise<ApprovalResult>;
+  removeApproval(blockedId: ElementId, blockerId: ElementId, approver: EntityId): Promise<ApprovalResult>;
 
   // --------------------------------------------------------------------------
   // Search

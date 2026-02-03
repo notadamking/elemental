@@ -310,8 +310,8 @@ export function useAddDocumentLink() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ sourceId, targetDocumentId }: { sourceId: string; targetDocumentId: string }) => {
-      const response = await fetch(`/api/documents/${sourceId}/links`, {
+    mutationFn: async ({ blockedId, targetDocumentId }: { blockedId: string; targetDocumentId: string }) => {
+      const response = await fetch(`/api/documents/${blockedId}/links`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetDocumentId }),
@@ -324,8 +324,8 @@ export function useAddDocumentLink() {
 
       return response.json();
     },
-    onSuccess: (_data, { sourceId, targetDocumentId }) => {
-      queryClient.invalidateQueries({ queryKey: ['documents', sourceId, 'links'] });
+    onSuccess: (_data, { blockedId, targetDocumentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', blockedId, 'links'] });
       queryClient.invalidateQueries({ queryKey: ['documents', targetDocumentId, 'links'] });
     },
   });
@@ -338,8 +338,8 @@ export function useRemoveDocumentLink() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ sourceId, targetId }: { sourceId: string; targetId: string }) => {
-      const response = await fetch(`/api/documents/${sourceId}/links/${targetId}`, {
+    mutationFn: async ({ blockedId, blockerId }: { blockedId: string; blockerId: string }) => {
+      const response = await fetch(`/api/documents/${blockedId}/links/${blockerId}`, {
         method: 'DELETE',
       });
 
@@ -350,9 +350,9 @@ export function useRemoveDocumentLink() {
 
       return response.json();
     },
-    onSuccess: (_data, { sourceId, targetId }) => {
-      queryClient.invalidateQueries({ queryKey: ['documents', sourceId, 'links'] });
-      queryClient.invalidateQueries({ queryKey: ['documents', targetId, 'links'] });
+    onSuccess: (_data, { blockedId, blockerId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', blockedId, 'links'] });
+      queryClient.invalidateQueries({ queryKey: ['documents', blockerId, 'links'] });
     },
   });
 }

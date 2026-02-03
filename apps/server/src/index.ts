@@ -217,10 +217,10 @@ function enrichTasksWithCounts(tasks: Record<string, unknown>[]): Record<string,
 
   // Get all dependencies efficiently using a single query
   const allDependencies = storageBackend.query<{
-    source_id: string;
-    target_id: string;
+    blocked_id: string;
+    blocker_id: string;
     type: string;
-  }>('SELECT source_id, target_id, type FROM dependencies');
+  }>('SELECT blocked_id, blocker_id, type FROM dependencies');
 
   // Build maps for quick lookup
   const blocksCountMap = new Map<string, number>();
@@ -229,14 +229,14 @@ function enrichTasksWithCounts(tasks: Record<string, unknown>[]): Record<string,
 
   for (const dep of allDependencies) {
     const depType = dep.type;
-    const sourceId = dep.source_id;
-    const targetId = dep.target_id;
+    const blockedId = dep.blocked_id;
+    const blockerId = dep.blocker_id;
 
     if (depType === 'blocks' || depType === 'awaits') {
-      blocksCountMap.set(sourceId, (blocksCountMap.get(sourceId) || 0) + 1);
-      blockedByCountMap.set(targetId, (blockedByCountMap.get(targetId) || 0) + 1);
+      blocksCountMap.set(blockerId, (blocksCountMap.get(blockerId) || 0) + 1);
+      blockedByCountMap.set(blockedId, (blockedByCountMap.get(blockedId) || 0) + 1);
     } else if (depType === 'references') {
-      attachmentCountMap.set(sourceId, (attachmentCountMap.get(sourceId) || 0) + 1);
+      attachmentCountMap.set(blockedId, (attachmentCountMap.get(blockedId) || 0) + 1);
     }
   }
 
@@ -722,11 +722,11 @@ app.delete('/api/tasks/:id', async (c) => {
     // TB121/TB122: Check if task is in a plan or workflow and would be the last one
     const parentDeps = await api.getDependencies(id, ['parent-child']);
     for (const dep of parentDeps) {
-      const parent = await api.get(dep.targetId);
+      const parent = await api.get(dep.blockerId);
       if (parent) {
         if (parent.type === 'plan') {
           // Check if this is the last task in the plan
-          const planTasks = await api.getTasksInPlan(dep.targetId);
+          const planTasks = await api.getTasksInPlan(dep.blockerId);
           if (planTasks.length === 1 && planTasks[0].id === id) {
             return c.json({
               error: {
@@ -737,7 +737,7 @@ app.delete('/api/tasks/:id', async (c) => {
           }
         } else if (parent.type === 'workflow') {
           // Check if this is the last task in the workflow
-          const workflowTasks = await api.getTasksInWorkflow(dep.targetId);
+          const workflowTasks = await api.getTasksInWorkflow(dep.blockerId);
           if (workflowTasks.length === 1 && workflowTasks[0].id === id) {
             return c.json({
               error: {
@@ -787,13 +787,13 @@ app.get('/api/tasks/:id/attachments', async (c) => {
     // Get all dependencies where this task references a document
     const dependencies = await api.getDependencies(taskId);
     const attachmentDeps = dependencies.filter(
-      (dep) => dep.sourceId === taskId && dep.type === 'references'
+      (dep) => dep.blockedId === taskId && dep.type === 'references'
     );
 
     // Get the document details for each attachment
     const attachments = await Promise.all(
       attachmentDeps.map(async (dep) => {
-        const doc = await api.get(dep.targetId as ElementId);
+        const doc = await api.get(dep.blockerId as ElementId);
         if (doc && doc.type === 'document') {
           return doc;
         }
@@ -844,7 +844,7 @@ app.post('/api/tasks/:id/attachments', async (c) => {
     // Check if already attached
     const existingDeps = await api.getDependencies(taskId);
     const alreadyAttached = existingDeps.some(
-      (dep) => dep.sourceId === taskId && dep.targetId === body.documentId && dep.type === 'references'
+      (dep) => dep.blockedId === taskId && dep.blockerId === body.documentId && dep.type === 'references'
     );
     if (alreadyAttached) {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Document is already attached to this task' } }, 400);
@@ -852,8 +852,8 @@ app.post('/api/tasks/:id/attachments', async (c) => {
 
     // Create the references dependency (task references document)
     await api.addDependency({
-      sourceId: taskId,
-      targetId: body.documentId as ElementId,
+      blockedId: taskId,
+      blockerId: body.documentId as ElementId,
       type: 'references',
       actor: (body.actor as EntityId) || ('el-0000' as EntityId),
     });
@@ -886,7 +886,7 @@ app.delete('/api/tasks/:id/attachments/:docId', async (c) => {
     // Find the attachment dependency
     const dependencies = await api.getDependencies(taskId);
     const attachmentDep = dependencies.find(
-      (dep) => dep.sourceId === taskId && dep.targetId === docId && dep.type === 'references'
+      (dep) => dep.blockedId === taskId && dep.blockerId === docId && dep.type === 'references'
     );
 
     if (!attachmentDep) {
@@ -935,10 +935,10 @@ app.get('/api/tasks/:id/dependency-tasks', async (c) => {
     const blocksDeps = outgoingDeps.filter(d => d.type === 'blocks' || d.type === 'awaits');
 
     // Collect all unique task IDs we need to fetch
-    // For blockedBy: this task is the target, so fetch the source (the blocker)
-    // For blocks: this task is the source, so fetch the target (the blocked task)
-    const blockerTaskIds = blockedByDeps.map(d => d.sourceId);
-    const blockedTaskIds = blocksDeps.map(d => d.targetId);
+    // For blockedBy: this task is the blocked, so fetch the blocker
+    // For blocks: this task is the blocker, so fetch the blocked task
+    const blockerTaskIds = blockedByDeps.map(d => d.blockerId);
+    const blockedTaskIds = blocksDeps.map(d => d.blockedId);
     const allTaskIds = [...new Set([...blockerTaskIds, ...blockedTaskIds])];
 
     // Fetch all related tasks in parallel
@@ -970,19 +970,19 @@ app.get('/api/tasks/:id/dependency-tasks', async (c) => {
 
     // Build hydrated blocker list (tasks that block this task)
     const blockedBy = blockedByDeps.map((dep) => {
-      const blockerTask = tasksMap.get(dep.sourceId);
+      const blockerTask = tasksMap.get(dep.blockerId);
       return {
         dependencyType: dep.type,
-        task: blockerTask || { id: dep.sourceId, title: `Unknown (${dep.sourceId})`, status: 'unknown', priority: 3 },
+        task: blockerTask || { id: dep.blockerId, title: `Unknown (${dep.blockerId})`, status: 'unknown', priority: 3 },
       };
     });
 
     // Build hydrated blocking list (tasks blocked by this task)
     const blocks = blocksDeps.map((dep) => {
-      const blockedTask = tasksMap.get(dep.targetId);
+      const blockedTask = tasksMap.get(dep.blockedId);
       return {
         dependencyType: dep.type,
-        task: blockedTask || { id: dep.targetId, title: `Unknown (${dep.targetId})`, status: 'unknown', priority: 3 },
+        task: blockedTask || { id: dep.blockedId, title: `Unknown (${dep.blockedId})`, status: 'unknown', priority: 3 },
       };
     });
 
@@ -2173,24 +2173,24 @@ app.get('/api/dependencies/:id', async (c) => {
 app.post('/api/dependencies', async (c) => {
   try {
     const body = await c.req.json<{
-      sourceId: string;
-      targetId: string;
+      blockedId: string;
+      blockerId: string;
       type: string;
       metadata?: Record<string, unknown>;
       actor?: string;
     }>();
 
     // Validate required fields
-    if (!body.sourceId || !body.targetId || !body.type) {
+    if (!body.blockedId || !body.blockerId || !body.type) {
       return c.json(
-        { error: { code: 'VALIDATION_ERROR', message: 'sourceId, targetId, and type are required' } },
+        { error: { code: 'VALIDATION_ERROR', message: 'blockedId, blockerId, and type are required' } },
         400
       );
     }
 
     const dependency = await api.addDependency({
-      sourceId: body.sourceId as ElementId,
-      targetId: body.targetId as ElementId,
+      blockedId: body.blockedId as ElementId,
+      blockerId: body.blockerId as ElementId,
       type: body.type as 'blocks' | 'parent-child' | 'awaits' | 'relates-to' | 'references' | 'supersedes' | 'duplicates' | 'caused-by' | 'validates' | 'authored-by' | 'assigned-to' | 'approved-by' | 'replies-to',
       metadata: body.metadata,
       actor: body.actor as EntityId | undefined,
@@ -2235,15 +2235,15 @@ app.post('/api/dependencies', async (c) => {
   }
 });
 
-// DELETE /api/dependencies/:sourceId/:targetId/:type - Remove a dependency
-app.delete('/api/dependencies/:sourceId/:targetId/:type', async (c) => {
+// DELETE /api/dependencies/:blockedId/:blockerId/:type - Remove a dependency
+app.delete('/api/dependencies/:blockedId/:blockerId/:type', async (c) => {
   try {
-    const sourceId = c.req.param('sourceId') as ElementId;
-    const targetId = c.req.param('targetId') as ElementId;
+    const blockedId = c.req.param('blockedId') as ElementId;
+    const blockerId = c.req.param('blockerId') as ElementId;
     const type = c.req.param('type') as 'blocks' | 'parent-child' | 'awaits' | 'relates-to' | 'references' | 'supersedes' | 'duplicates' | 'caused-by' | 'validates' | 'authored-by' | 'assigned-to' | 'approved-by' | 'replies-to';
     const actor = c.req.query('actor') as EntityId | undefined;
 
-    await api.removeDependency(sourceId, targetId, type, actor);
+    await api.removeDependency(blockedId, blockerId, type, actor);
 
     // Events are automatically recorded in the database by removeDependency
     // and will be picked up by the event broadcaster's polling mechanism
@@ -2625,8 +2625,8 @@ app.post('/api/workflows', async (c) => {
 
     // Add parent-child dependency from task to workflow
     await api.addDependency({
-      sourceId: taskId,
-      targetId: created.id as ElementId,
+      blockedId: taskId,
+      blockerId: created.id as ElementId,
       type: 'parent-child',
       actor: body.createdBy as EntityId,
     });

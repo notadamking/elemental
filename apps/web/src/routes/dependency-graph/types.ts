@@ -30,8 +30,8 @@ export interface DependencyTree {
 }
 
 export interface Dependency {
-  sourceId: string;
-  targetId: string;
+  blockedId: string;
+  blockerId: string;
   type: string;
   createdAt: string;
   createdBy: string;

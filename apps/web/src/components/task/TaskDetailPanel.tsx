@@ -9,8 +9,8 @@ import { useAllEntities } from '../../api/hooks/useAllElements';
 import { type MentionEntity } from '../editor/MentionAutocomplete';
 
 interface Dependency {
-  sourceId: string;
-  targetId: string;
+  blockedId: string;
+  blockerId: string;
   type: string;
   metadata?: Record<string, unknown>;
   createdBy: string;
@@ -322,8 +322,8 @@ function useCreateBlockerTask() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sourceId: newTask.id,
-          targetId: blockedTaskId,
+          blockerId: newTask.id,
+          blockedId: blockedTaskId,
           type: 'blocks',
           actor: createdBy,
         }),

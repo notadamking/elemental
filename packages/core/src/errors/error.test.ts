@@ -141,12 +141,12 @@ describe('ConflictError', () => {
     const error = new ConflictError(
       'Cycle detected',
       ErrorCode.CYCLE_DETECTED,
-      { sourceId: 'el-a', targetId: 'el-b' }
+      { blockedId: 'el-a', blockerId: 'el-b' }
     );
 
     expect(error.code).toBe(ErrorCode.CYCLE_DETECTED);
-    expect(error.details.sourceId).toBe('el-a');
-    expect(error.details.targetId).toBe('el-b');
+    expect(error.details.blockedId).toBe('el-a');
+    expect(error.details.blockerId).toBe('el-b');
   });
 });
 

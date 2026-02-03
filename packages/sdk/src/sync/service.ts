@@ -55,8 +55,8 @@ interface TagRow {
 }
 
 interface DependencyRow {
-  source_id: string;
-  target_id: string;
+  blocked_id: string;
+  blocker_id: string;
   type: string;
   created_at: string;
   created_by: string;
@@ -448,9 +448,9 @@ export class SyncService {
     );
 
     for (const row of depRows) {
-      // In parent-child, sourceId is the child (task), targetId is the parent (workflow)
-      if (ephemeralWorkflowIds.has(row.target_id)) {
-        ephemeralTaskIds.add(row.source_id);
+      // In parent-child, blockedId is the child (task), blockerId is the parent (workflow)
+      if (ephemeralWorkflowIds.has(row.blocker_id)) {
+        ephemeralTaskIds.add(row.blocked_id);
       }
     }
 
@@ -485,8 +485,8 @@ export class SyncService {
     const rows = this.backend.query<DependencyRow>('SELECT * FROM dependencies ORDER BY created_at');
 
     return rows.map((row) => ({
-      sourceId: row.source_id as ElementId,
-      targetId: row.target_id as ElementId,
+      blockedId: row.blocked_id as ElementId,
+      blockerId: row.blocker_id as ElementId,
       type: row.type as DependencyType,
       createdAt: row.created_at as Timestamp,
       createdBy: row.created_by as EntityId,
@@ -601,11 +601,11 @@ export class SyncService {
     dep: Dependency
   ): void {
     tx.run(
-      `INSERT OR IGNORE INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+      `INSERT OR IGNORE INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
-        dep.sourceId,
-        dep.targetId,
+        dep.blockedId,
+        dep.blockerId,
         dep.type,
         dep.createdAt,
         dep.createdBy,
@@ -623,9 +623,9 @@ export class SyncService {
     },
     dep: Dependency
   ): void {
-    tx.run('DELETE FROM dependencies WHERE source_id = ? AND target_id = ? AND type = ?', [
-      dep.sourceId,
-      dep.targetId,
+    tx.run('DELETE FROM dependencies WHERE blocked_id = ? AND blocker_id = ? AND type = ?', [
+      dep.blockedId,
+      dep.blockerId,
       dep.type,
     ]);
   }

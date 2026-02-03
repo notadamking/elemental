@@ -77,7 +77,7 @@ Each line is a complete, self-contained JSON object. No dependencies between lin
 `.elemental/dependencies.jsonl`:
 
 ```jsonl
-{"type":"dependency","sourceId":"task-abc123","targetId":"task-def456","type":"blocks","createdAt":"2024-01-15T10:30:00.000Z","createdBy":"director-1","metadata":{}}
+{"type":"dependency","blockedId":"task-abc123","blockerId":"task-def456","type":"blocks","createdAt":"2024-01-15T10:30:00.000Z","createdBy":"director-1","metadata":{}}
 ```
 
 ### Serialization

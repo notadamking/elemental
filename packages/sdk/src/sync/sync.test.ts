@@ -72,8 +72,8 @@ function createTestTask(overrides: Partial<Element> & Record<string, unknown> = 
 
 function createTestDependency(overrides: Partial<Dependency> = {}): Dependency {
   return {
-    sourceId: 'el-source' as ElementId,
-    targetId: 'el-target' as ElementId,
+    blockedId: 'el-target' as ElementId,
+    blockerId: 'el-source' as ElementId,
     type: DependencyType.BLOCKS,
     createdAt: '2025-01-22T10:00:00.000Z' as Timestamp,
     createdBy: 'el-system1' as EntityId,
@@ -256,8 +256,8 @@ describe('Serialization', () => {
       const json = serializeDependency(dep);
       const parsed = JSON.parse(json);
 
-      expect(parsed.sourceId).toBe(dep.sourceId);
-      expect(parsed.targetId).toBe(dep.targetId);
+      expect(parsed.blockedId).toBe(dep.blockedId);
+      expect(parsed.blockerId).toBe(dep.blockerId);
       expect(parsed.type).toBe(dep.type);
       expect(parsed.createdAt).toBe(dep.createdAt);
       expect(parsed.createdBy).toBe(dep.createdBy);
@@ -284,15 +284,15 @@ describe('Serialization', () => {
       const json = serializeDependency(dep);
       const parsed = parseDependency(json);
 
-      expect(parsed.sourceId).toBe(dep.sourceId);
-      expect(parsed.targetId).toBe(dep.targetId);
+      expect(parsed.blockedId).toBe(dep.blockedId);
+      expect(parsed.blockerId).toBe(dep.blockerId);
       expect(parsed.type).toBe(dep.type);
     });
 
     test('defaults metadata to empty object', () => {
       const json = JSON.stringify({
-        sourceId: 'el-source',
-        targetId: 'el-target',
+        blockedId: 'el-target',
+        blockerId: 'el-source',
         type: 'blocks',
         createdAt: '2025-01-22T10:00:00.000Z',
         createdBy: 'el-system1',
@@ -316,7 +316,7 @@ describe('Serialization', () => {
       const json = serializeDependency(dep);
       const result = tryParseDependency(json);
       expect(result).not.toBeNull();
-      expect(result?.sourceId).toBe(dep.sourceId);
+      expect(result?.blockedId).toBe(dep.blockedId);
     });
 
     test('returns null for invalid input', () => {
@@ -348,15 +348,15 @@ describe('Serialization', () => {
   describe('serializeDependencies', () => {
     test('serializes multiple dependencies to JSONL', () => {
       const deps = [
-        createTestDependency({ sourceId: 'el-1' as ElementId }),
-        createTestDependency({ sourceId: 'el-2' as ElementId }),
+        createTestDependency({ blockerId: 'el-1' as ElementId }),
+        createTestDependency({ blockerId: 'el-2' as ElementId }),
       ];
       const jsonl = serializeDependencies(deps);
       const lines = jsonl.split('\n');
 
       expect(lines).toHaveLength(2);
-      expect(JSON.parse(lines[0]).sourceId).toBe('el-1');
-      expect(JSON.parse(lines[1]).sourceId).toBe('el-2');
+      expect(JSON.parse(lines[0]).blockerId).toBe('el-1');
+      expect(JSON.parse(lines[1]).blockerId).toBe('el-2');
     });
   });
 
@@ -401,8 +401,8 @@ ${serializeElement(createTestElement({ id: 'el-2' as ElementId }))}`;
   describe('parseDependencies', () => {
     test('parses JSONL content into dependencies', () => {
       const deps = [
-        createTestDependency({ sourceId: 'el-1' as ElementId }),
-        createTestDependency({ sourceId: 'el-2' as ElementId }),
+        createTestDependency({ blockerId: 'el-1' as ElementId }),
+        createTestDependency({ blockerId: 'el-2' as ElementId }),
       ];
       const jsonl = serializeDependencies(deps);
       const { dependencies: parsed, errors } = parseDependencies(jsonl);
@@ -486,14 +486,14 @@ invalid`;
       expect(sorted[0].createdAt).toBe('2025-01-22T10:00:00.000Z');
     });
 
-    test('sorts by sourceId when createdAt equal', () => {
+    test('sorts by blockedId when createdAt equal', () => {
       const deps = [
-        createTestDependency({ sourceId: 'el-b' as ElementId }),
-        createTestDependency({ sourceId: 'el-a' as ElementId }),
+        createTestDependency({ blockedId: 'el-b' as ElementId }),
+        createTestDependency({ blockedId: 'el-a' as ElementId }),
       ];
       const sorted = sortDependenciesForExport(deps);
 
-      expect(sorted[0].sourceId).toBe('el-a');
+      expect(sorted[0].blockedId).toBe('el-a');
     });
   });
 
@@ -531,7 +531,7 @@ invalid`;
 
     test('returns false for objects missing required fields', () => {
       expect(isSerializedDependency({})).toBe(false);
-      expect(isSerializedDependency({ sourceId: 'el-1' })).toBe(false);
+      expect(isSerializedDependency({ blockedId: 'el-1' })).toBe(false);
     });
   });
 });
@@ -849,14 +849,14 @@ describe('Merge Strategy', () => {
     });
 
     test('adds new dependencies from remote', () => {
-      const localDep = createTestDependency({ sourceId: 'el-1' as ElementId });
-      const remoteDep = createTestDependency({ sourceId: 'el-2' as ElementId });
+      const localDep = createTestDependency({ blockerId: 'el-1' as ElementId });
+      const remoteDep = createTestDependency({ blockerId: 'el-2' as ElementId });
 
       const result = mergeDependencies([localDep], [localDep, remoteDep]);
 
       expect(result.keep).toHaveLength(2);
       expect(result.added).toHaveLength(1);
-      expect(result.added[0].sourceId).toBe('el-2');
+      expect(result.added[0].blockerId).toBe('el-2');
     });
 
     test('removes dependencies removed by remote when original exists', () => {
@@ -907,8 +907,8 @@ describe('Integration', () => {
     const json = serializeDependency(original);
     const parsed = parseDependency(json);
 
-    expect(parsed.sourceId).toBe(original.sourceId);
-    expect(parsed.targetId).toBe(original.targetId);
+    expect(parsed.blockedId).toBe(original.blockedId);
+    expect(parsed.blockerId).toBe(original.blockerId);
     expect(parsed.type).toBe(original.type);
     expect(parsed.metadata).toEqual(original.metadata);
   });

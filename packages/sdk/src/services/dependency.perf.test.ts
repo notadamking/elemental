@@ -69,8 +69,8 @@ function createDependencyChain(
 
   for (let i = 0; i < ids.length - 1; i++) {
     service.addDependency({
-      sourceId: ids[i],
-      targetId: ids[i + 1],
+      blockedId: ids[i + 1],
+      blockerId: ids[i],
       type,
       createdBy,
     });
@@ -96,8 +96,8 @@ function createWideGraph(
     const child = `el-wide-child-${i}` as ElementId;
     children.push(child);
     service.addDependency({
-      sourceId: parent,
-      targetId: child,
+      blockedId: child,
+      blockerId: parent,
       type,
       createdBy,
     });
@@ -155,8 +155,8 @@ describe('Dependency Performance', () => {
 
       const start = performance.now();
       const result = service.detectCycle(
-        ids[ids.length - 1], // last element
-        ids[0], // first element - would create cycle
+        ids[0], // first element (blockedId) - would be blocked by last
+        ids[ids.length - 1], // last element (blockerId) - would create cycle
         DependencyType.BLOCKS
       );
       const elapsed = performance.now() - start;
@@ -171,8 +171,8 @@ describe('Dependency Performance', () => {
 
       const start = performance.now();
       const result = service.detectCycle(
-        ids[ids.length - 1],
         ids[0],
+        ids[ids.length - 1],
         DependencyType.BLOCKS
       );
       const elapsed = performance.now() - start;
@@ -189,8 +189,8 @@ describe('Dependency Performance', () => {
 
       const start = performance.now();
       const result = service.detectCycle(
-        ids[ids.length - 1],
         ids[0],
+        ids[ids.length - 1],
         DependencyType.BLOCKS
       );
       const elapsed = performance.now() - start;
@@ -226,8 +226,8 @@ describe('Dependency Performance', () => {
       // Add new child - should be fast since no path from child to parent
       const start = performance.now();
       service.addDependency({
-        sourceId: parent,
-        targetId: 'el-new-child' as ElementId,
+        blockedId: 'el-new-child' as ElementId,
+        blockerId: parent,
         type: DependencyType.BLOCKS,
         createdBy: testEntity,
       });
@@ -240,16 +240,17 @@ describe('Dependency Performance', () => {
       const { parent, children } = createWideGraph(service, 100, testEntity);
 
       // Check if adding dependency from child back to parent would cycle
-      // Since parent -> children exists, child -> parent would create: parent -> child -> parent
+      // Since parent blocks children, child blocking parent would create cycle
+      // blockedId=parent, blockerId=children[50]
       const start = performance.now();
       const result = service.detectCycle(
-        children[50],
         parent,
+        children[50],
         DependencyType.BLOCKS
       );
       const elapsed = performance.now() - start;
 
-      // Cycle IS detected: parent -> child50 -> parent
+      // Cycle IS detected: child50 -> (blocked_id=child50, blocker=parent) -> parent == blockedId
       expect(result.hasCycle).toBe(true);
       // Performance should still be good - we find the cycle quickly
       expect(elapsed).toBeLessThan(PERF_THRESHOLDS.addToWideGraph);
@@ -281,36 +282,37 @@ describe('Dependency Performance', () => {
         const d = `el-d${i}-d` as ElementId;
 
         service.addDependency({
-          sourceId: a,
-          targetId: b,
+          blockedId: b,
+          blockerId: a,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
         service.addDependency({
-          sourceId: a,
-          targetId: c,
+          blockedId: c,
+          blockerId: a,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
         service.addDependency({
-          sourceId: b,
-          targetId: d,
+          blockedId: d,
+          blockerId: b,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
         service.addDependency({
-          sourceId: c,
-          targetId: d,
+          blockedId: d,
+          blockerId: c,
           type: DependencyType.BLOCKS,
           createdBy: testEntity,
         });
       }
 
       // Check cycle detection on diamond pattern
+      // Would d blocking a create a cycle? blockedId=a, blockerId=d
       const start = performance.now();
       const result = service.detectCycle(
-        'el-d10-d' as ElementId,
         'el-d10-a' as ElementId,
+        'el-d10-d' as ElementId,
         DependencyType.BLOCKS
       );
       const elapsed = performance.now() - start;
@@ -343,18 +345,19 @@ describe('Dependency Performance', () => {
             : undefined;
 
         service.addDependency({
-          sourceId: ids[i],
-          targetId: ids[i + 1],
+          blockedId: ids[i + 1],
+          blockerId: ids[i],
           type,
           createdBy: testEntity,
           metadata,
         });
       }
 
+      // Would last element blocking first create a cycle? blockedId=first, blockerId=last
       const start = performance.now();
       const result = service.detectCycle(
-        ids[ids.length - 1],
         ids[0],
+        ids[ids.length - 1],
         DependencyType.BLOCKS
       );
       const elapsed = performance.now() - start;
@@ -428,9 +431,9 @@ describe('Blocked Cache Performance', () => {
         if (i > 0) {
           // Each element blocks the previous one
           db.run(
-            `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+            `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
              VALUES (?, ?, ?, ?, ?, null)`,
-            [elementId, `el-rebuild-${i - 1}`, DependencyType.BLOCKS, new Date().toISOString(), testEntity]
+            [`el-rebuild-${i - 1}`, elementId, DependencyType.BLOCKS, new Date().toISOString(), testEntity]
           );
         }
       }
@@ -455,9 +458,9 @@ describe('Blocked Cache Performance', () => {
       // Create chain dependencies (every 5th element blocks the previous)
       for (let i = 5; i < 500; i += 5) {
         db.run(
-          `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+          `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
            VALUES (?, ?, ?, ?, ?, null)`,
-          [`el-rebuild500-${i}`, `el-rebuild500-${i - 5}`, DependencyType.BLOCKS, new Date().toISOString(), testEntity]
+          [`el-rebuild500-${i - 5}`, `el-rebuild500-${i}`, DependencyType.BLOCKS, new Date().toISOString(), testEntity]
         );
       }
 
@@ -481,7 +484,7 @@ describe('Blocked Cache Performance', () => {
 
           // Task is child of plan
           db.run(
-            `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+            `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
              VALUES (?, ?, ?, ?, ?, null)`,
             [taskId, planId, DependencyType.PARENT_CHILD, new Date().toISOString(), testEntity]
           );
@@ -650,9 +653,9 @@ describe('Combined Operations Performance', () => {
       if (i % 3 === 0) {
         // Every 3rd task blocks previous
         db.run(
-          `INSERT INTO dependencies (source_id, target_id, type, created_at, created_by, metadata)
+          `INSERT INTO dependencies (blocked_id, blocker_id, type, created_at, created_by, metadata)
            VALUES (?, ?, ?, ?, ?, null)`,
-          [`el-wf-${i}`, `el-wf-${i - 1}`, DependencyType.BLOCKS, new Date().toISOString(), testEntity]
+          [`el-wf-${i - 1}`, `el-wf-${i}`, DependencyType.BLOCKS, new Date().toISOString(), testEntity]
         );
       }
     }
@@ -701,8 +704,8 @@ describe('Combined Operations Performance', () => {
         for (const type of nonBlockingTypes) {
           try {
             depService.addDependency({
-              sourceId: elements[i],
-              targetId: elements[j],
+              blockedId: elements[i],
+              blockerId: elements[j],
               type,
               createdBy: testEntity,
             });

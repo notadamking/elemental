@@ -82,8 +82,8 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Add blocking dependency: blocker -> blocked
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -106,8 +106,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(blocked));
 
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -134,8 +134,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(blocked));
 
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -162,8 +162,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(blocked));
 
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -171,8 +171,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       let blockedTasks = await api.blocked();
       expect(blockedTasks.map((t) => t.id)).toContain(blocked.id);
 
-      // Remove the dependency
-      await api.removeDependency(blocker.id, blocked.id, DependencyType.BLOCKS);
+      // Remove the dependency (blockedId first, then blockerId)
+      await api.removeDependency(blocked.id, blocker.id, DependencyType.BLOCKS);
 
       // Verify now unblocked
       blockedTasks = await api.blocked();
@@ -189,13 +189,13 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(blocked));
 
       await api.addDependency({
-        sourceId: blocker1.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker1.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: blocker2.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker2.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -235,15 +235,15 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Create hierarchy: child -> parent (parent-child)
       await api.addDependency({
-        sourceId: child.id,
-        targetId: parent.id,
+        blockedId: child.id,
+        blockerId: parent.id,
         type: DependencyType.PARENT_CHILD,
       });
 
       // Block the parent: blocker -> parent (blocks)
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: parent.id,
+        blockedId: parent.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -267,20 +267,20 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Create hierarchy: grandchild -> child -> parent
       await api.addDependency({
-        sourceId: grandchild.id,
-        targetId: child.id,
+        blockedId: grandchild.id,
+        blockerId: child.id,
         type: DependencyType.PARENT_CHILD,
       });
       await api.addDependency({
-        sourceId: child.id,
-        targetId: parent.id,
+        blockedId: child.id,
+        blockerId: parent.id,
         type: DependencyType.PARENT_CHILD,
       });
 
       // Block the parent
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: parent.id,
+        blockedId: parent.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -323,8 +323,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       // Create awaits dependency with future timer
       const futureTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       await api.addDependency({
-        sourceId: blocked.id,
-        targetId: gate.id,
+        blockedId: blocked.id,
+        blockerId: gate.id,
         type: DependencyType.AWAITS,
         metadata: {
           gateType: GateType.TIMER,
@@ -348,8 +348,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       // Create awaits dependency with past timer
       const pastTime = new Date(Date.now() - 1000).toISOString();
       await api.addDependency({
-        sourceId: blocked.id,
-        targetId: gate.id,
+        blockedId: blocked.id,
+        blockerId: gate.id,
         type: DependencyType.AWAITS,
         metadata: {
           gateType: GateType.TIMER,
@@ -376,8 +376,8 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Create awaits dependency with approval gate
       await api.addDependency({
-        sourceId: blocked.id,
-        targetId: gate.id,
+        blockedId: blocked.id,
+        blockerId: gate.id,
         type: DependencyType.AWAITS,
         metadata: {
           gateType: GateType.APPROVAL,
@@ -400,8 +400,8 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Create awaits dependency with all approvals
       await api.addDependency({
-        sourceId: blocked.id,
-        targetId: gate.id,
+        blockedId: blocked.id,
+        blockerId: gate.id,
         type: DependencyType.AWAITS,
         metadata: {
           gateType: GateType.APPROVAL,
@@ -424,8 +424,8 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Create awaits dependency with partial approval (need 2 of 3)
       await api.addDependency({
-        sourceId: blocked.id,
-        targetId: gate.id,
+        blockedId: blocked.id,
+        blockerId: gate.id,
         type: DependencyType.AWAITS,
         metadata: {
           gateType: GateType.APPROVAL,
@@ -451,8 +451,8 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Create awaits dependency with external gate
       await api.addDependency({
-        sourceId: blocked.id,
-        targetId: gate.id,
+        blockedId: blocked.id,
+        blockerId: gate.id,
         type: DependencyType.AWAITS,
         metadata: {
           gateType: GateType.EXTERNAL,
@@ -576,13 +576,13 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Block both tasks
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: highPriority.id,
+        blockedId: highPriority.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: lowPriority.id,
+        blockedId: lowPriority.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -620,13 +620,13 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Block both tasks
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: assignedTask.id,
+        blockedId: assignedTask.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: unassignedTask.id,
+        blockedId: unassignedTask.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -710,13 +710,13 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Block both tasks
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blockedWithDeadline.id,
+        blockedId: blockedWithDeadline.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blockedWithoutDeadline.id,
+        blockedId: blockedWithoutDeadline.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -746,13 +746,13 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Block both tasks
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: urgentBlockedTask.id,
+        blockedId: urgentBlockedTask.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: laterBlockedTask.id,
+        blockedId: laterBlockedTask.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1007,26 +1007,26 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // D -> B (blocks) - D blocks B, so B waits for D
       await api.addDependency({
-        sourceId: taskD.id,
-        targetId: taskB.id,
+        blockedId: taskB.id,
+        blockerId: taskD.id,
         type: DependencyType.BLOCKS,
       });
       // D -> C (blocks) - D blocks C, so C waits for D
       await api.addDependency({
-        sourceId: taskD.id,
-        targetId: taskC.id,
+        blockedId: taskC.id,
+        blockerId: taskD.id,
         type: DependencyType.BLOCKS,
       });
       // B -> A (blocks) - B blocks A, so A waits for B
       await api.addDependency({
-        sourceId: taskB.id,
-        targetId: taskA.id,
+        blockedId: taskA.id,
+        blockerId: taskB.id,
         type: DependencyType.BLOCKS,
       });
       // C -> A (blocks) - C blocks A, so A waits for C
       await api.addDependency({
-        sourceId: taskC.id,
-        targetId: taskA.id,
+        blockedId: taskA.id,
+        blockerId: taskC.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1074,8 +1074,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       // task[i] -> task[i+1] means task[i] blocks task[i+1], so task[i+1] waits for task[i]
       for (let i = 0; i < 4; i++) {
         await api.addDependency({
-          sourceId: tasks[i].id,
-          targetId: tasks[i + 1].id,
+          blockedId: tasks[i + 1].id,
+          blockerId: tasks[i].id,
           type: DependencyType.BLOCKS,
         });
       }
@@ -1110,8 +1110,8 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // Add relates-to dependency
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task1.id,
+        blockerId: task2.id,
         type: DependencyType.RELATES_TO,
       });
 
@@ -1132,8 +1132,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(task2));
 
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task1.id,
+        blockerId: task2.id,
         type: DependencyType.REFERENCES,
       });
 
@@ -1155,8 +1155,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(blocked));
 
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1208,8 +1208,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(closedTask));
 
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blockedTask.id,
+        blockedId: blockedTask.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1256,8 +1256,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       // Create blocking dependency, then delete the blocker
       // This simulates an external reference (blocker no longer exists)
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: task.id,
+        blockedId: task.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1281,8 +1281,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(blocked));
 
       await api.addDependency({
-        sourceId: blocker.id,
-        targetId: blocked.id,
+        blockedId: blocked.id,
+        blockerId: blocker.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1334,8 +1334,8 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // lowPriorityTask blocks criticalTask (criticalTask waits for lowPriorityTask)
       await api.addDependency({
-        sourceId: lowPriorityTask.id,
-        targetId: criticalTask.id,
+        blockedId: criticalTask.id,
+        blockerId: lowPriorityTask.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1369,15 +1369,15 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // task1 blocks task2 (task2 waits for task1)
       await api.addDependency({
-        sourceId: task1.id,
-        targetId: task2.id,
+        blockedId: task2.id,
+        blockerId: task1.id,
         type: DependencyType.BLOCKS,
       });
 
       // task2 blocks task3 (task3 waits for task2)
       await api.addDependency({
-        sourceId: task2.id,
-        targetId: task3.id,
+        blockedId: task3.id,
+        blockerId: task2.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1403,13 +1403,13 @@ describe('Ready/Blocked Work Query Integration', () => {
 
       // highBase and lowBase block criticalDependent (criticalDependent waits for both)
       await api.addDependency({
-        sourceId: highBase.id,
-        targetId: criticalDependent.id,
+        blockedId: criticalDependent.id,
+        blockerId: highBase.id,
         type: DependencyType.BLOCKS,
       });
       await api.addDependency({
-        sourceId: lowBase.id,
-        targetId: criticalDependent.id,
+        blockedId: criticalDependent.id,
+        blockerId: lowBase.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1431,8 +1431,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       await api.create(toCreateInput(lowPriorityDependent));
 
       await api.addDependency({
-        sourceId: highPriorityTask.id,
-        targetId: lowPriorityDependent.id,
+        blockedId: lowPriorityDependent.id,
+        blockerId: highPriorityTask.id,
         type: DependencyType.BLOCKS,
       });
 
@@ -1490,8 +1490,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       for (const task of tasks) {
         await api.create(toCreateInput(task));
         await api.addDependency({
-          sourceId: blocker.id,
-          targetId: task.id,
+          blockedId: task.id,
+          blockerId: blocker.id,
           type: DependencyType.BLOCKS,
         });
       }
@@ -1535,8 +1535,8 @@ describe('Ready/Blocked Work Query Integration', () => {
       // Block all 4 tasks
       for (const task of [blocked1, blocked2, blocked3, blocked4]) {
         await api.addDependency({
-          sourceId: blocker.id,
-          targetId: task.id,
+          blockedId: task.id,
+          blockerId: blocker.id,
           type: DependencyType.BLOCKS,
         });
       }

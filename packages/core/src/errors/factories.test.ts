@@ -284,8 +284,8 @@ describe('Conflict Factories', () => {
       expect(error).toBeInstanceOf(ConflictError);
       expect(error.code).toBe(ErrorCode.CYCLE_DETECTED);
       expect(error.message).toBe('Adding dependency would create cycle: el-abc -> el-xyz');
-      expect(error.details.sourceId).toBe('el-abc');
-      expect(error.details.targetId).toBe('el-xyz');
+      expect(error.details.blockedId).toBe('el-abc');
+      expect(error.details.blockerId).toBe('el-xyz');
       expect(error.details.dependencyType).toBe('blocks');
     });
   });

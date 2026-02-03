@@ -25,10 +25,10 @@ export interface ErrorDetails {
   elementId?: string;
   /** Dependency type for relationship errors */
   dependencyType?: string;
-  /** Source ID for relationship errors */
-  sourceId?: string;
-  /** Target ID for relationship errors */
-  targetId?: string;
+  /** Blocked ID for relationship errors (the element that is waiting/blocked) */
+  blockedId?: string;
+  /** Blocker ID for relationship errors (the element doing the blocking) */
+  blockerId?: string;
   /** Additional arbitrary context */
   [key: string]: unknown;
 }

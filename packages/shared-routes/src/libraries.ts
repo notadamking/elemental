@@ -28,7 +28,7 @@ export function createLibraryRoutes(services: CollaborateServices) {
       } as Parameters<typeof api.list>[0]);
 
       // Get parent relationships for all libraries
-      // Parent-child dependencies have: sourceId = child, targetId = parent
+      // Parent-child dependencies have: blockedId = child, blockerId = parent
       const librariesWithParent = await Promise.all(
         libraries.map(async (library) => {
           // Find if this library has a parent (it would be the source in a parent-child dependency)
@@ -36,7 +36,7 @@ export function createLibraryRoutes(services: CollaborateServices) {
           const parentDep = dependencies.find((d) => d.type === 'parent-child');
           return {
             ...library,
-            parentId: parentDep?.targetId || null,
+            parentId: parentDep?.blockerId || null,
           };
         })
       );
@@ -69,7 +69,7 @@ export function createLibraryRoutes(services: CollaborateServices) {
       const dependents = await api.getDependents(id, ['parent-child']);
 
       // Separate into sub-libraries and documents
-      const childIds = dependents.map((d) => d.sourceId);
+      const childIds = dependents.map((d) => d.blockedId);
       const children: Element[] = [];
       for (const childId of childIds) {
         const child = await api.get(childId as ElementId);
@@ -113,7 +113,7 @@ export function createLibraryRoutes(services: CollaborateServices) {
       const dependents = await api.getDependents(id, ['parent-child']);
 
       // Filter to only documents and fetch full data
-      const documentIds = dependents.map((d) => d.sourceId);
+      const documentIds = dependents.map((d) => d.blockedId);
       const documents: Element[] = [];
 
       for (const docId of documentIds) {
@@ -189,10 +189,10 @@ export function createLibraryRoutes(services: CollaborateServices) {
           return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Parent must be a library' } }, 400);
         }
 
-        // Add parent-child dependency (child is source, parent is target)
+        // Add parent-child dependency (child is blocked, parent is blocker)
         await api.addDependency({
-          sourceId: created.id,
-          targetId: body.parentId as ElementId,
+          blockedId: created.id,
+          blockerId: body.parentId as ElementId,
           type: 'parent-child',
           actor: body.createdBy as EntityId,
         });

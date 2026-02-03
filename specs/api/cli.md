@@ -63,8 +63,8 @@ Task-specific commands:
 
 | Command | Description |
 |---------|-------------|
-| `dep add <src> <tgt>` | Add dependency |
-| `dep remove <src> <tgt>` | Remove dependency |
+| `dep add <blocked> <blocker>` | Add dependency |
+| `dep remove <blocked> <blocker>` | Remove dependency |
 | `dep list <id>` | List dependencies |
 | `dep tree <id>` | Show dependency tree |
 
@@ -229,7 +229,7 @@ Minimal output:
 
 Positional arguments:
 - `el show el-abc123`
-- `el dep add el-src el-tgt`
+- `el dep add el-blocked el-blocker`
 
 ### Flags
 

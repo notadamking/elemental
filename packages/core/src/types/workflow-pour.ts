@@ -326,8 +326,8 @@ function createBlocksDependencies(
       // Create blocks dependency: blocker blocks dependent
       // This means dependent task cannot proceed until blocker is closed
       const dep = createDependency({
-        sourceId: blockerTask.task.id,
-        targetId: dependentTask.task.id,
+        blockedId: dependentTask.task.id,
+        blockerId: blockerTask.task.id,
         type: DependencyType.BLOCKS,
         createdBy,
       });
@@ -349,8 +349,8 @@ function createParentChildDependencies(
 ): Dependency[] {
   return tasks.map((createdTask) =>
     createDependency({
-      sourceId: createdTask.task.id,
-      targetId: workflow.id,
+      blockedId: createdTask.task.id,
+      blockerId: workflow.id,
       type: DependencyType.PARENT_CHILD,
       createdBy,
     })

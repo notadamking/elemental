@@ -555,8 +555,8 @@ Dependencies create relationships between elements. They are categorized by thei
 
 ```typescript
 interface Dependency {
-  sourceId: ElementId; // The element that has the dependency
-  targetId: ElementId; // The element being depended on
+  blockedId: ElementId; // The element that is blocked (waiting)
+  blockerId: ElementId; // The element that is blocking (must complete first)
   type: DependencyType;
   createdAt: Timestamp;
   createdBy: EntityId;
@@ -669,7 +669,7 @@ detectCycle(source, target, type):
     visited.add(current)
 
     for dep in getBlockingDependencies(current):
-      queue.add(dep.targetId)
+      queue.add(dep.blockerId)
 
   return false
 ```
@@ -812,13 +812,13 @@ CREATE TABLE document_versions (
 
 -- Dependencies
 CREATE TABLE dependencies (
-    source_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
-    target_id TEXT NOT NULL,      -- No FK constraint (allows external refs)
+    blocked_id TEXT NOT NULL REFERENCES elements(id) ON DELETE CASCADE,
+    blocker_id TEXT NOT NULL,      -- No FK constraint (allows external refs)
     type TEXT NOT NULL,
     created_at TEXT NOT NULL,
     created_by TEXT NOT NULL,
     metadata TEXT,                -- JSON
-    PRIMARY KEY (source_id, target_id, type)
+    PRIMARY KEY (blocked_id, blocker_id, type)
 );
 
 -- Tags (many-to-many)
@@ -864,7 +864,7 @@ CREATE INDEX idx_elements_type ON elements(type);
 CREATE INDEX idx_elements_created_by ON elements(created_by);
 CREATE INDEX idx_elements_created_at ON elements(created_at);
 CREATE INDEX idx_elements_content_hash ON elements(content_hash);
-CREATE INDEX idx_dependencies_target ON dependencies(target_id);
+CREATE INDEX idx_dependencies_blocker ON dependencies(blocker_id);
 CREATE INDEX idx_dependencies_type ON dependencies(type);
 CREATE INDEX idx_tags_tag ON tags(tag);
 CREATE INDEX idx_events_element ON events(element_id);
@@ -1000,8 +1000,8 @@ interface ElementalAPI {
   // Dependencies
   addDependency(dep: DependencyInput): Promise<Dependency>;
   removeDependency(
-    sourceId: ElementId,
-    targetId: ElementId,
+    blockedId: ElementId,
+    blockerId: ElementId,
     type: DependencyType,
   ): Promise<void>;
   getDependencies(
@@ -1534,11 +1534,11 @@ WebSocket/SSE infrastructure for:
 ## Appendix C: Dependency Examples
 
 ```jsonl
-{"sourceId":"el-j0k1l2.1","targetId":"el-j0k1l2","type":"parent-child","createdAt":"2025-01-22T10:03:00Z","createdBy":"el-d4e5f6"}
-{"sourceId":"el-j0k1l2.2","targetId":"el-j0k1l2","type":"parent-child","createdAt":"2025-01-22T10:04:00Z","createdBy":"el-d4e5f6"}
-{"sourceId":"el-j0k1l2.2","targetId":"el-j0k1l2.1","type":"blocks","createdAt":"2025-01-22T10:04:00Z","createdBy":"el-d4e5f6"}
-{"sourceId":"el-j0k1l2.2","targetId":"el-a1b2c3","type":"assigned-to","createdAt":"2025-01-22T15:00:00Z","createdBy":"el-d4e5f6"}
-{"sourceId":"el-j0k1l2.1","targetId":"el-d4e5f6","type":"authored-by","createdAt":"2025-01-22T10:03:00Z","createdBy":"system"}
+{"blockedId":"el-j0k1l2.1","blockerId":"el-j0k1l2","type":"parent-child","createdAt":"2025-01-22T10:03:00Z","createdBy":"el-d4e5f6"}
+{"blockedId":"el-j0k1l2.2","blockerId":"el-j0k1l2","type":"parent-child","createdAt":"2025-01-22T10:04:00Z","createdBy":"el-d4e5f6"}
+{"blockedId":"el-j0k1l2.2","blockerId":"el-j0k1l2.1","type":"blocks","createdAt":"2025-01-22T10:04:00Z","createdBy":"el-d4e5f6"}
+{"blockedId":"el-j0k1l2.2","blockerId":"el-a1b2c3","type":"assigned-to","createdAt":"2025-01-22T15:00:00Z","createdBy":"el-d4e5f6"}
+{"blockedId":"el-j0k1l2.1","blockerId":"el-d4e5f6","type":"authored-by","createdAt":"2025-01-22T10:03:00Z","createdBy":"system"}
 ```
 
 ---
