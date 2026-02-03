@@ -14,7 +14,8 @@
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname, resolve, delimiter } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import type { EventEmitter } from 'node:events';
 import type { EntityId, ElementId, Task, Priority } from '@elemental/core';
@@ -238,9 +239,14 @@ export async function setupTestContext(
       const { createSpawnerService } = await import('../runtime/spawner.js');
       const { createSessionManager: createRealSessionManager } = await import('../runtime/session-manager.js');
 
+      const elBinDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'node_modules', '.bin');
+
       const spawner = createSpawnerService({
         workingDirectory: tempWorkspace,
         elementalRoot: tempWorkspace,
+        environmentVariables: {
+          PATH: `${elBinDir}${delimiter}${process.env.PATH ?? ''}`,
+        },
       });
       sessionManager = createRealSessionManager(spawner, elementalApi, agentRegistry);
       log('Created real session manager (spawner-backed)');

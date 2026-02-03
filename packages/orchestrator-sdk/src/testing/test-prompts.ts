@@ -56,7 +56,8 @@ You are running inside an orchestration test. Your goal is to complete tasks qui
 - Use the \`el\` CLI for all elemental operations.
 - Always commit and push your changes before marking a task done.
 - Do not ask clarifying questions — use your best judgment.
-- Do not install dependencies or run builds unless required by the task.`;
+- Do not install dependencies or run builds unless required by the task.
+- The \`el\` command is on PATH and ready to use. Do not attempt to install or locate it.`;
 }
 
 // ============================================================================
@@ -95,7 +96,8 @@ You are running inside an orchestration test. Your goal is to execute instructio
 - Use the \`el\` CLI for creating tasks and plans.
 - Do not explore the codebase.
 - Do not engage in extended planning — act immediately.
-- Keep task titles concise and descriptive.`;
+- Keep task titles concise and descriptive.
+- The \`el\` command is on PATH and ready to use. Do not attempt to install or locate it.`;
 }
 
 // ============================================================================
@@ -142,5 +144,6 @@ You are running inside an orchestration test. Your goal is to review and act on 
 - Use the \`el\` CLI for all elemental operations.
 - Do not explore the codebase.
 - Act on the merge request status as instructed.
-- Complete as quickly as possible.`;
+- Complete as quickly as possible.
+- The \`el\` command is on PATH and ready to use. Do not attempt to install or locate it.`;
 }

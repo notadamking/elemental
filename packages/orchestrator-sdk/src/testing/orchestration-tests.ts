@@ -136,6 +136,7 @@ async function runDirectorCreatesTasksReal(ctx: TestContext): Promise<TestResult
     {
       workingDirectory: ctx.tempWorkspace,
       initialPrompt: prompt,
+      interactive: false,
     }
   );
   ctx.log(`Director session started: ${session.id}`);
@@ -232,6 +233,7 @@ async function runDirectorCreatesPlansReal(ctx: TestContext): Promise<TestResult
     {
       workingDirectory: ctx.tempWorkspace,
       initialPrompt: prompt,
+      interactive: false,
     }
   );
   ctx.log(`Director session started: ${session.id}`);
@@ -454,9 +456,13 @@ async function runDaemonRespectsDependenciesReal(ctx: TestContext): Promise<Test
   }
   ctx.log('Verified: blocked task is not assigned');
 
-  // 6. Close task1 to unblock task2
+  // 6. Close task1 and free the worker session to unblock task2
   await ctx.api.update<Task>(task1.id, { status: TaskStatus.CLOSED });
-  ctx.log('Completed task1');
+  const activeSession = ctx.sessionManager.getActiveSession(worker.id as unknown as EntityId);
+  if (activeSession) {
+    await ctx.sessionManager.stopSession(activeSession.id, { graceful: false });
+  }
+  ctx.log('Completed task1 and freed worker');
 
   // 7. Poll again — task2 should now be assignable
   await ctx.daemon.pollWorkerAvailability();
