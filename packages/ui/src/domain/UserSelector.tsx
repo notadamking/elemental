@@ -181,7 +181,7 @@ export function UserSelector() {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--color-text-secondary)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors border border-[var(--color-border)]"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--color-text-secondary)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors"
         data-testid="user-selector-trigger"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
