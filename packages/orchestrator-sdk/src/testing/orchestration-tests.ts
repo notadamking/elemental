@@ -955,10 +955,10 @@ async function runWorkerHandoffOnContextFillMock(ctx: TestContext): Promise<Test
 async function runWorkerHandoffOnContextFillReal(ctx: TestContext): Promise<TestResult> {
   // 1. Create worker (needed for dispatch) and task that asks for a handoff
   await createTestWorker(ctx, `TestWorker-${uniqueId()}`);
-  const task = await createTestTask(ctx, 'Simulate a handoff by calling el task handoff', {
+  const task = await createTestTask(ctx, 'Hand off this task instead of completing it', {
     priority: 5,
     tags: ['test', 'handoff'],
-    acceptanceCriteria: 'Task is handed off with a note',
+    acceptanceCriteria: 'Run el task handoff <task-id> --message "Handing off" to hand off this task. Do NOT run el task complete.',
   });
 
   // 2. Let daemon dispatch
