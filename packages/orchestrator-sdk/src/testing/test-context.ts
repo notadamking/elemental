@@ -77,6 +77,8 @@ export interface TestContext {
   readonly log: (message: string) => void;
   /** Whether verbose logging is enabled */
   readonly verbose: boolean;
+  /** Test mode: 'mock' uses mock sessions, 'real' spawns Claude processes */
+  readonly mode: 'mock' | 'real';
   /** Cleanup function - call when tests are done */
   readonly cleanup: () => Promise<void>;
 }
@@ -93,6 +95,8 @@ export interface TestContextOptions {
   readonly pollIntervalMs?: number;
   /** Skip daemon startup (default: false) */
   readonly skipDaemonStart?: boolean;
+  /** Test mode: 'mock' (default) or 'real' (spawns Claude processes) */
+  readonly mode?: 'mock' | 'real';
 }
 
 /**
@@ -159,6 +163,7 @@ export async function setupTestContext(
   const verbose = options.verbose ?? false;
   const tempPrefix = options.tempPrefix ?? 'orchestration-test-';
   const pollIntervalMs = options.pollIntervalMs ?? 2000;
+  const mode = options.mode ?? 'mock';
 
   const log = (message: string) => {
     if (verbose) {
@@ -185,6 +190,13 @@ export async function setupTestContext(
       stdio: 'pipe',
     });
     log('Created initial commit');
+
+    // 4b. Create bare repo as fake remote (allows workers to push branches)
+    const bareRepoPath = join(tempWorkspace, '.test-remote.git');
+    execSync(`git init --bare "${bareRepoPath}"`, { stdio: 'pipe' });
+    execSync(`git remote add origin "${bareRepoPath}"`, { cwd: tempWorkspace, stdio: 'pipe' });
+    execSync('git push -u origin master', { cwd: tempWorkspace, stdio: 'pipe' });
+    log('Created local bare remote');
 
     // 5. Initialize Elemental database
     const elementalDir = join(tempWorkspace, '.elemental');
@@ -219,8 +231,28 @@ export async function setupTestContext(
       createDefaultStewardExecutor()
     );
 
-    // 8. Create mock session manager
-    const sessionManager = createMockSessionManager(agentRegistry);
+    // 8. Create session manager (mock or real)
+    let sessionManager: SessionManager;
+    if (mode === 'real') {
+      const { createSpawnerService } = await import('../runtime/spawner.js');
+      const { createSessionManager: createRealSessionManager } = await import('../runtime/session-manager.js');
+
+      const spawner = createSpawnerService({
+        workingDirectory: tempWorkspace,
+        elementalRoot: tempWorkspace,
+      });
+      sessionManager = createRealSessionManager(spawner, elementalApi, agentRegistry);
+      log('Created real session manager (spawner-backed)');
+    } else {
+      sessionManager = createMockSessionManager(agentRegistry);
+      log('Created mock session manager');
+    }
+
+    // 8b. Write test prompt overrides for real mode
+    if (mode === 'real') {
+      await writeTestPromptOverrides(tempWorkspace);
+      log('Wrote test prompt overrides');
+    }
 
     // 9. Create dispatch daemon
     const daemon = createDispatchDaemon(
@@ -249,12 +281,42 @@ export async function setupTestContext(
       daemon.stop();
       log('Stopped daemon');
 
-      // Stop any running sessions
-      const sessions = sessionManager.listSessions({ status: 'running' });
-      for (const session of sessions) {
-        await sessionManager.stopSession(session.id, { graceful: false });
+      // Stop any running sessions with grace period for real mode
+      const running = sessionManager.listSessions({ status: 'running' });
+      const starting = sessionManager.listSessions({ status: 'starting' });
+      const sessionsToStop = [...running, ...starting];
+
+      for (const session of sessionsToStop) {
+        try {
+          if (mode === 'real') {
+            // Give real sessions a grace period before force-terminating
+            const gracefulStop = sessionManager.stopSession(session.id, { graceful: true });
+            const forceStop = new Promise<void>((resolve) =>
+              setTimeout(async () => {
+                try {
+                  await sessionManager.stopSession(session.id, { graceful: false });
+                } catch { /* ignore */ }
+                resolve();
+              }, 5000)
+            );
+            await Promise.race([gracefulStop, forceStop]);
+          } else {
+            await sessionManager.stopSession(session.id, { graceful: false });
+          }
+        } catch { /* ignore */ }
       }
-      log(`Terminated ${sessions.length} sessions`);
+      log(`Terminated ${sessionsToStop.length} sessions`);
+
+      // Clean up worktrees
+      try {
+        const worktrees = await worktreeManager.listWorktrees();
+        for (const wt of worktrees) {
+          try {
+            await worktreeManager.removeWorktree(wt.path, { force: true });
+          } catch { /* ignore */ }
+        }
+        log(`Cleaned up ${worktrees.length} worktrees`);
+      } catch { /* ignore */ }
 
       // Delete temp workspace
       if (existsSync(tempWorkspace)) {
@@ -262,6 +324,13 @@ export async function setupTestContext(
         log('Deleted temp workspace');
       }
     };
+
+    // Safety net: clean up on process termination
+    const sigintHandler = () => {
+      cleanup().catch(() => {}).finally(() => process.exit(1));
+    };
+    process.on('SIGINT', sigintHandler);
+    process.on('SIGTERM', sigintHandler);
 
     return {
       api,
@@ -279,6 +348,7 @@ export async function setupTestContext(
       systemEntityId: systemEntity,
       log,
       verbose,
+      mode,
       cleanup,
     };
   } catch (error) {
@@ -369,6 +439,7 @@ Agents can modify files in this project during tests.
     `node_modules/
 dist/
 .elemental/.worktrees/
+.test-remote.git/
 *.db
 *.db-journal
 `
@@ -389,6 +460,29 @@ async function createSystemEntity(api: ElementalAPI): Promise<EntityId> {
   });
   const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
   return saved.id as unknown as EntityId;
+}
+
+// ============================================================================
+// Test Prompt Overrides (Real Mode)
+// ============================================================================
+
+/**
+ * Writes constrained prompt overrides into the workspace for real-mode testing.
+ * These instruct agents to work fast, skip exploration, and use the `el` CLI.
+ */
+async function writeTestPromptOverrides(workspacePath: string): Promise<void> {
+  const {
+    buildTestWorkerOverride,
+    buildTestDirectorOverride,
+    buildTestStewardOverride,
+  } = await import('./test-prompts.js');
+
+  const promptsDir = join(workspacePath, '.elemental', 'prompts');
+  await mkdir(promptsDir, { recursive: true });
+
+  await writeFile(join(promptsDir, 'worker.md'), buildTestWorkerOverride());
+  await writeFile(join(promptsDir, 'director.md'), buildTestDirectorOverride());
+  await writeFile(join(promptsDir, 'steward.md'), buildTestStewardOverride());
 }
 
 // ============================================================================

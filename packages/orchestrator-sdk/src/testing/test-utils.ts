@@ -7,6 +7,10 @@
  * @module
  */
 
+import type { EntityId, ElementId, Task } from '@elemental/core';
+import type { SessionManager, SessionRecord } from '../runtime/session-manager.js';
+import type { OrchestratorAPI } from '../api/index.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -453,4 +457,173 @@ export async function retry<T>(
   }
 
   throw lastError ?? new Error('Retry failed');
+}
+
+// ============================================================================
+// Domain-Specific Polling Helpers
+// ============================================================================
+
+/**
+ * Options for domain-specific wait helpers
+ */
+export interface DomainWaitOptions {
+  readonly timeout?: number;
+  readonly interval?: number;
+}
+
+/**
+ * Waits for a task to reach a specific status.
+ */
+export async function waitForTaskStatus(
+  api: OrchestratorAPI,
+  taskId: ElementId,
+  targetStatus: string,
+  opts: DomainWaitOptions = {}
+): Promise<Task> {
+  return waitFor(
+    async () => {
+      const task = await api.get<Task>(taskId);
+      if (!task) return null;
+      return task.status === targetStatus ? task : null;
+    },
+    {
+      timeout: opts.timeout ?? 60000,
+      interval: opts.interval ?? 2000,
+      description: `task ${taskId} to reach status '${targetStatus}'`,
+    }
+  );
+}
+
+/**
+ * Waits for a task to be assigned to any agent.
+ */
+export async function waitForTaskAssignment(
+  api: OrchestratorAPI,
+  taskId: ElementId,
+  opts: DomainWaitOptions = {}
+): Promise<Task> {
+  return waitFor(
+    async () => {
+      const task = await api.get<Task>(taskId);
+      if (!task) return null;
+      return task.assignee ? task : null;
+    },
+    {
+      timeout: opts.timeout ?? 60000,
+      interval: opts.interval ?? 2000,
+      description: `task ${taskId} to be assigned`,
+    }
+  );
+}
+
+/**
+ * Waits for a session to start for a given agent.
+ */
+export async function waitForSessionStart(
+  sessionManager: SessionManager,
+  agentId: EntityId,
+  opts: DomainWaitOptions = {}
+): Promise<SessionRecord> {
+  return waitFor(
+    async () => {
+      const session = sessionManager.getActiveSession(agentId);
+      return session ?? null;
+    },
+    {
+      timeout: opts.timeout ?? 60000,
+      interval: opts.interval ?? 2000,
+      description: `session start for agent ${agentId}`,
+    }
+  );
+}
+
+/**
+ * Waits for a session to end (terminate or suspend).
+ */
+export async function waitForSessionEnd(
+  sessionManager: SessionManager,
+  sessionId: string,
+  opts: DomainWaitOptions = {}
+): Promise<SessionRecord> {
+  return waitFor(
+    async () => {
+      const session = sessionManager.getSession(sessionId);
+      if (!session) return null;
+      return session.status === 'terminated' || session.status === 'suspended'
+        ? session
+        : null;
+    },
+    {
+      timeout: opts.timeout ?? 120000,
+      interval: opts.interval ?? 3000,
+      description: `session ${sessionId} to end`,
+    }
+  );
+}
+
+/**
+ * Waits for task orchestrator metadata to satisfy a predicate.
+ */
+export async function waitForTaskMeta(
+  api: OrchestratorAPI,
+  taskId: ElementId,
+  predicate: (meta: Record<string, unknown>) => boolean,
+  opts: DomainWaitOptions = {}
+): Promise<Record<string, unknown>> {
+  return waitFor(
+    async () => {
+      const meta = await api.getTaskOrchestratorMeta(taskId);
+      if (!meta) return null;
+      return predicate(meta as Record<string, unknown>)
+        ? (meta as Record<string, unknown>)
+        : null;
+    },
+    {
+      timeout: opts.timeout ?? 60000,
+      interval: opts.interval ?? 2000,
+      description: `task ${taskId} metadata to match predicate`,
+    }
+  );
+}
+
+/**
+ * Waits for a git commit to appear in a worktree directory.
+ * Returns the commit hash of the most recent commit.
+ */
+export async function waitForGitCommit(
+  worktreePath: string,
+  opts: DomainWaitOptions = {}
+): Promise<string> {
+  const { execSync } = await import('node:child_process');
+
+  return waitFor(
+    async () => {
+      try {
+        // Check if there's at least one commit beyond the initial
+        const log = execSync('git log --oneline -2', {
+          cwd: worktreePath,
+          encoding: 'utf8',
+          stdio: 'pipe',
+        }).trim();
+
+        const lines = log.split('\n');
+        if (lines.length >= 2) {
+          // There's at least 2 commits, return the latest hash
+          return execSync('git rev-parse HEAD', {
+            cwd: worktreePath,
+            encoding: 'utf8',
+            stdio: 'pipe',
+          }).trim();
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    {
+      timeout: opts.timeout ?? 120000,
+      interval: opts.interval ?? 3000,
+      description: `git commit in ${worktreePath}`,
+    }
+  );
 }

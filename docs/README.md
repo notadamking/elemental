@@ -36,6 +36,7 @@
 | Work with dependencies | [how-to/work-with-dependencies.md](how-to/work-with-dependencies.md) | `packages/sdk/src/services/dependency.ts` |
 | Customize agent prompts | [how-to/customize-agent-prompts.md](how-to/customize-agent-prompts.md) | `.elemental/prompts/` |
 | Configure identity | [how-to/configure-identity.md](how-to/configure-identity.md) | `packages/sdk/src/systems/identity.ts` |
+| Run orchestration tests | [how-to/run-orchestration-tests.md](how-to/run-orchestration-tests.md) | `packages/orchestrator-sdk/src/testing/` |
 | **Understanding** |
 | Understand event sourcing | [explanation/event-sourcing.md](explanation/event-sourcing.md) | `packages/core/src/types/event.ts` |
 | Understand dependencies | [explanation/dependency-system.md](explanation/dependency-system.md) | `packages/sdk/src/services/` |
@@ -190,7 +191,7 @@ See [GOTCHAS.md](GOTCHAS.md) for full list.
 **Top 5:**
 1. Task `blocked` status is **computed** from dependencies, never set directly
 2. `sendDirectMessage()` needs `contentRef` (DocumentId), not raw text
-3. `blocks` direction is **opposite** to `parent-child`/`awaits`
+3. For `blocks`: `blockedId` is the waiting task, `blockerId` must complete first
 4. SQLite is cache, JSONL is source of truth
 5. `sortByEffectivePriority()` mutates array in place
 

@@ -4,6 +4,9 @@
  * Provides commands for running the orchestration test suite:
  * - test-orchestration: Run all tests
  * - test-orchestration --test <id>: Run specific test
+ * - test-orchestration --mode real: Run with real Claude processes
+ * - test-orchestration --tag worker: Run tests by tag
+ * - test-orchestration --bail: Stop on first failure
  * - test-orchestration --verbose: Verbose output
  */
 
@@ -25,6 +28,12 @@ interface TestOrchestrationOptions {
   timeout?: number;
   /** Skip cleanup on failure (for debugging) */
   skipCleanup?: boolean;
+  /** Test mode: 'mock' (default) or 'real' (spawns Claude processes) */
+  mode?: 'mock' | 'real';
+  /** Stop on first failure */
+  bail?: boolean;
+  /** Filter tests by tag */
+  tag?: string;
 }
 
 interface TestRunResult {
@@ -34,16 +43,38 @@ interface TestRunResult {
   details?: Record<string, unknown>;
 }
 
+// Default timeouts by test tag for real mode (in ms)
+const REAL_MODE_TIMEOUTS: Record<string, number> = {
+  director: 240000,
+  daemon: 180000,
+  worker: 300000,
+  steward: 300000,
+};
+
+const DEFAULT_REAL_TIMEOUT = 300000;
+
 // ============================================================================
 // Test Runner
 // ============================================================================
 
 async function runOrchestrationTests(options: TestOrchestrationOptions): Promise<CommandResult> {
   const { setupTestContext } = await import('../../testing/test-context.js');
-  const { allTests } = await import('../../testing/orchestration-tests.js');
+  const { allTests, getTestsByTag } = await import('../../testing/orchestration-tests.js');
+
+  const mode = options.mode ?? 'mock';
 
   console.log('🧪 Orchestration Test Suite\n');
   console.log('═'.repeat(60));
+  console.log(`  Mode: ${mode}`);
+
+  // Real mode warning
+  if (mode === 'real') {
+    console.log('');
+    console.log('  ⚠  REAL MODE: This will spawn actual Claude processes.');
+    console.log('  ⚠  Ensure `claude` is installed and accessible in PATH.');
+    console.log('  ⚠  Tests will have longer timeouts.');
+    console.log('');
+  }
 
   // Setup isolated test environment
   console.log('\nCreating isolated test workspace...');
@@ -52,11 +83,19 @@ async function runOrchestrationTests(options: TestOrchestrationOptions): Promise
   try {
     ctx = await setupTestContext({
       verbose: options.verbose ?? false,
+      mode,
     });
     console.log(`  ✓ Temp workspace: ${ctx.tempWorkspace}`);
     console.log('  ✓ Git repo initialized');
+    console.log('  ✓ Local bare remote created');
     console.log('  ✓ Project structure created');
     console.log('  ✓ Database initialized');
+    if (mode === 'real') {
+      console.log('  ✓ Real session manager (spawner-backed)');
+      console.log('  ✓ Test prompt overrides written');
+    } else {
+      console.log('  ✓ Mock session manager');
+    }
     console.log('\n✓ Test environment ready\n');
 
     // Start daemon
@@ -65,19 +104,30 @@ async function runOrchestrationTests(options: TestOrchestrationOptions): Promise
     console.log('═'.repeat(60));
     console.log('');
 
-    // Get tests to run
-    const tests = options.test
-      ? allTests.filter((t: OrchestrationTest) => t.id.includes(options.test!))
-      : allTests;
+    // Get tests to run — filter by --test and --tag
+    let tests: OrchestrationTest[] = allTests;
+
+    if (options.tag) {
+      tests = getTestsByTag(options.tag);
+    }
+
+    if (options.test) {
+      tests = tests.filter((t: OrchestrationTest) => t.id.includes(options.test!));
+    }
 
     if (tests.length === 0) {
-      return failure(`No tests matching "${options.test}"`, ExitCode.GENERAL_ERROR);
+      const filterDesc = [
+        options.test ? `id="${options.test}"` : '',
+        options.tag ? `tag="${options.tag}"` : '',
+      ].filter(Boolean).join(', ');
+      return failure(`No tests matching ${filterDesc}`, ExitCode.GENERAL_ERROR);
     }
 
     console.log(`Running ${tests.length} test(s)...\n`);
 
     // Run tests
     const results: TestRunResult[] = [];
+    let bailed = false;
 
     for (const test of tests) {
       console.log(`▶ ${test.name}`);
@@ -100,6 +150,19 @@ async function runOrchestrationTests(options: TestOrchestrationOptions): Promise
           console.log(`    Details: ${JSON.stringify(result.details, null, 2)}`);
         }
         console.log('');
+
+        // Bail on failure if requested
+        if (!result.passed && options.bail) {
+          console.log('  ⚠ Bailing on first failure (--bail)\n');
+          bailed = true;
+
+          // In real mode, dump session event logs if available
+          if (mode === 'real' && options.verbose) {
+            await dumpSessionLogs(ctx);
+          }
+
+          break;
+        }
       } catch (error) {
         const duration = Date.now() - startTime;
         const message = error instanceof Error ? error.message : String(error);
@@ -109,24 +172,40 @@ async function runOrchestrationTests(options: TestOrchestrationOptions): Promise
           duration,
         });
         console.log(`  \x1b[31m✗\x1b[0m Error: ${message} (${formatDuration(duration)})\n`);
+
+        if (options.bail) {
+          console.log('  ⚠ Bailing on first failure (--bail)\n');
+          bailed = true;
+
+          if (mode === 'real' && options.verbose) {
+            await dumpSessionLogs(ctx);
+          }
+
+          break;
+        }
       }
     }
 
     // Summary
     const passed = results.filter(r => r.passed).length;
     const failed = results.length - passed;
+    const skipped = tests.length - results.length;
     const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
     console.log('═'.repeat(60));
     console.log('\n📊 Results Summary\n');
 
-    if (failed === 0) {
+    if (failed === 0 && !bailed) {
       console.log(`  \x1b[32m✓ All ${passed} tests passed\x1b[0m`);
     } else {
       console.log(`  \x1b[32m✓ ${passed} passed\x1b[0m`);
       console.log(`  \x1b[31m✗ ${failed} failed\x1b[0m`);
+      if (skipped > 0) {
+        console.log(`  ⊘ ${skipped} skipped (bail)`);
+      }
     }
     console.log(`  ⏱ Total time: ${formatDuration(totalDuration)}`);
+    console.log(`  Mode: ${mode}`);
     console.log('');
 
     // Cleanup
@@ -167,7 +246,17 @@ async function runSingleTest(
   ctx: TestContext,
   options: TestOrchestrationOptions
 ): Promise<TestRunResult> {
-  const testTimeout = options.timeout ?? test.timeout;
+  // Determine timeout: explicit option > mode-specific default > test default
+  let testTimeout: number;
+  if (options.timeout) {
+    testTimeout = options.timeout;
+  } else if (options.mode === 'real') {
+    // Use tag-based timeout for real mode
+    const tag = test.tags?.find(t => t in REAL_MODE_TIMEOUTS);
+    testTimeout = tag ? REAL_MODE_TIMEOUTS[tag] : DEFAULT_REAL_TIMEOUT;
+  } else {
+    testTimeout = test.timeout;
+  }
 
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
@@ -198,6 +287,26 @@ async function runSingleTest(
 }
 
 /**
+ * Dump session event logs for debugging real mode failures
+ */
+async function dumpSessionLogs(ctx: TestContext): Promise<void> {
+  try {
+    const sessions = ctx.sessionManager.listSessions({});
+    if (sessions.length === 0) return;
+
+    console.log('  📋 Session logs:');
+    for (const session of sessions) {
+      console.log(`    Session ${session.id} (${session.agentRole}): status=${session.status}`);
+      if (session.terminationReason) {
+        console.log(`      Termination reason: ${session.terminationReason}`);
+      }
+    }
+  } catch {
+    // Ignore errors when dumping logs
+  }
+}
+
+/**
  * Format duration in human-readable format
  */
 function formatDuration(ms: number): string {
@@ -224,6 +333,21 @@ const testOrchestrationOptions = [
     hasValue: true,
   },
   {
+    name: 'mode',
+    short: 'm',
+    description: 'Test mode: mock (default) or real (spawns Claude processes)',
+    hasValue: true,
+  },
+  {
+    name: 'tag',
+    description: 'Filter tests by tag (e.g., director, worker, steward)',
+    hasValue: true,
+  },
+  {
+    name: 'bail',
+    description: 'Stop on first failure',
+  },
+  {
     name: 'verbose',
     short: 'v',
     description: 'Enable verbose logging',
@@ -241,13 +365,23 @@ const testOrchestrationOptions = [
 
 async function testOrchestrationHandler(
   _args: string[],
-  options: GlobalOptions & { test?: string; timeout?: string; 'skip-cleanup'?: boolean }
+  options: GlobalOptions & {
+    test?: string;
+    mode?: string;
+    tag?: string;
+    bail?: boolean;
+    timeout?: string;
+    'skip-cleanup'?: boolean;
+  }
 ): Promise<CommandResult> {
   const testOptions: TestOrchestrationOptions = {
     test: options.test,
     verbose: options.verbose,
     timeout: options.timeout ? parseInt(options.timeout, 10) : undefined,
     skipCleanup: options['skip-cleanup'],
+    mode: (options.mode === 'real' ? 'real' : 'mock') as 'mock' | 'real',
+    bail: options.bail,
+    tag: options.tag,
   };
 
   return runOrchestrationTests(testOptions);
@@ -288,6 +422,13 @@ async function main() {
     const arg = args[i];
     if (arg === '--test' || arg === '-t') {
       options.test = args[++i];
+    } else if (arg === '--mode' || arg === '-m') {
+      const modeArg = args[++i];
+      options.mode = modeArg === 'real' ? 'real' : 'mock';
+    } else if (arg === '--tag') {
+      options.tag = args[++i];
+    } else if (arg === '--bail') {
+      options.bail = true;
     } else if (arg === '--verbose' || arg === '-v') {
       options.verbose = true;
     } else if (arg === '--timeout') {
@@ -302,6 +443,9 @@ Usage: bun run test:orchestration [options]
 
 Options:
   -t, --test <id>      Run specific test by ID (substring match)
+  -m, --mode <mode>    Test mode: mock (default) or real (spawns Claude processes)
+  --tag <tag>          Filter tests by tag (director, worker, steward, daemon)
+  --bail               Stop on first failure
   -v, --verbose        Enable verbose logging
   --timeout <ms>       Timeout for each test in milliseconds
   --skip-cleanup       Skip cleanup on failure (for debugging)
@@ -309,8 +453,9 @@ Options:
 
 Examples:
   bun run test:orchestration
-  bun run test:orchestration --test "director"
-  bun run test:orchestration --verbose --skip-cleanup
+  bun run test:orchestration --mode real --tag worker --bail
+  bun run test:orchestration --mode real --test "worker-marks-task-complete" --verbose --skip-cleanup
+  bun run test:orchestration --test "director" --verbose
 `);
       process.exit(0);
     }

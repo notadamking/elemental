@@ -28,10 +28,17 @@ export {
   randomString,
   uniqueId,
   retry,
+  waitForTaskStatus,
+  waitForTaskAssignment,
+  waitForSessionStart,
+  waitForSessionEnd,
+  waitForTaskMeta,
+  waitForGitCommit,
   type WaitForOptions,
   type AssertionResult,
   type TestResult,
   type RetryOptions,
+  type DomainWaitOptions,
 } from './test-utils.js';
 
 // Test context
@@ -44,6 +51,16 @@ export {
   type TestContext,
   type TestContextOptions,
 } from './test-context.js';
+
+// Test prompts
+export {
+  buildTestWorkerPrompt,
+  buildTestWorkerOverride,
+  buildTestDirectorPrompt,
+  buildTestDirectorOverride,
+  buildTestStewardPrompt,
+  buildTestStewardOverride,
+} from './test-prompts.js';
 
 // Orchestration tests
 export {
