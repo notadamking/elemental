@@ -225,7 +225,7 @@ async function embeddingsReindexHandler(
 
     const documents = result.items.map((doc) => ({
       id: doc.id,
-      content: `${(doc.metadata?.title as string) ?? ''} ${doc.content}`.trim(),
+      content: `${doc.title ?? ''} ${doc.content}`.trim(),
     }));
 
     const { indexed, errors } = await service.reindexAll(documents);

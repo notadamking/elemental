@@ -130,17 +130,17 @@ interface Message extends Element {
 ```typescript
 interface Document extends Element {
   type: 'document';
-  title?: string;
-  content: string;           // Current version content
+  title?: string;                       // Optional display title
   contentType: ContentType;
-  category: DocumentCategory; // Defaults to 'other'
-  status: DocumentStatus;     // Defaults to 'active'
-  immutable: boolean;         // Defaults to false
-  version: number;           // Starts at 1
-  attachmentRefs?: DocumentId[];
+  content: string;
+  version: number;                      // Starts at 1
+  previousVersionId: DocumentId | null; // null for version 1
+  category: DocumentCategory;           // Defaults to 'other'
+  status: DocumentStatus;               // Defaults to 'active'
+  immutable: boolean;                   // Defaults to false
 }
 
-type ContentType = 'text' | 'markdown' | 'json' | 'yaml' | 'html' | 'code';
+type ContentType = 'text' | 'markdown' | 'json';
 
 type DocumentCategory =
   | 'spec' | 'prd' | 'decision-log' | 'changelog'
@@ -152,6 +152,10 @@ type DocumentCategory =
 
 type DocumentStatus = 'active' | 'archived';
 ```
+
+**Document links:** Bidirectional references between documents use the dependency system with `type: 'references'`. See `/api/documents/:id/links` endpoints.
+
+**Task attachments:** Tasks attach documents using the same dependency mechanism. See `/api/tasks/:id/attachments` endpoints.
 
 **Key functions:**
 - `createDocument(input)` - Factory

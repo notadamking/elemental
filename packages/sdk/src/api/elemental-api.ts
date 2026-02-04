@@ -1440,9 +1440,13 @@ export class ElementalAPIImpl implements ElementalAPI {
       this.blockedCache.onStatusChanged(id, oldStatusPost ?? null, newStatusPost);
     }
 
-    // Re-index document for FTS
+    // Re-index document for FTS only when content-relevant fields change
     if (isDocument(updated)) {
-      this.indexDocumentForFTS(updated as unknown as Document);
+      const ftsRelevantUpdate = 'content' in updates || 'contentType' in updates ||
+        'tags' in updates || 'category' in updates || 'metadata' in updates || 'title' in updates;
+      if (ftsRelevantUpdate) {
+        this.indexDocumentForFTS(updated as unknown as Document);
+      }
     }
 
     return updated;
@@ -1533,8 +1537,8 @@ export class ElementalAPIImpl implements ElementalAPI {
         if (this.checkFTSAvailable()) {
           try {
             tx.run('DELETE FROM documents_fts WHERE document_id = ?', [id]);
-          } catch {
-            // Best-effort
+          } catch (error) {
+            console.warn(`[elemental] FTS removal failed for ${id}:`, error);
           }
         }
       }
@@ -4396,7 +4400,7 @@ export class ElementalAPIImpl implements ElementalAPI {
   private indexDocumentForFTS(doc: Document): void {
     if (!this.checkFTSAvailable()) return;
     try {
-      const title = (doc.metadata?.title as string) ?? '';
+      const title = doc.title ?? '';
       // Remove existing entry first (idempotent)
       this.backend.run(
         `DELETE FROM documents_fts WHERE document_id = ?`,
@@ -4420,7 +4424,7 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Auto-embed if embedding service is registered
     if (this.embeddingService) {
-      const text = `${(doc.metadata?.title as string) ?? ''} ${doc.content}`.trim();
+      const text = `${doc.title ?? ''} ${doc.content}`.trim();
       this.embeddingService.indexDocument(doc.id, text).catch((error) => {
         console.warn(`[elemental] Embedding index failed for ${doc.id}:`, error);
       });

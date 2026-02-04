@@ -919,7 +919,7 @@ async function docSearchHandler(
     const rows = results.map((r) => [
       r.document.id,
       r.score.toFixed(2),
-      ((r.document.metadata?.title as string) ?? '').slice(0, 40),
+      (r.document.title ?? '').slice(0, 40),
       r.document.category ?? 'other',
       r.snippet.slice(0, 60).replace(/\n/g, ' '),
     ]);

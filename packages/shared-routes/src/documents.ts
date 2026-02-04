@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import type { ElementId, EntityId, Element, Document, DocumentId, CreateDocumentInput, DocumentCategory, DocumentStatus } from '@elemental/core';
-import { createDocument, isValidDocumentCategory, isValidDocumentStatus, DocumentStatus as DocumentStatusEnum } from '@elemental/core';
+import { createDocument, isValidDocumentCategory, isValidDocumentStatus, DocumentStatus as DocumentStatusEnum, ContentType } from '@elemental/core';
 import type { CollaborateServices } from './types.js';
 
 // Comment type for the comments table
@@ -270,7 +270,7 @@ export function createDocumentRoutes(services: CollaborateServices) {
       const contentType = body.contentType || 'text';
 
       // Validate contentType
-      const validContentTypes = ['text', 'markdown', 'json'];
+      const validContentTypes = Object.values(ContentType) as string[];
       if (!validContentTypes.includes(contentType)) {
         return c.json(
           {
@@ -318,6 +318,7 @@ export function createDocumentRoutes(services: CollaborateServices) {
         contentType,
         content,
         createdBy: body.createdBy as EntityId,
+        ...(body.title !== undefined && { title: body.title }),
         ...(body.tags !== undefined && { tags: body.tags }),
         ...(body.metadata !== undefined && { metadata: body.metadata }),
         ...(body.category !== undefined && { category: body.category as DocumentCategory }),
@@ -327,11 +328,8 @@ export function createDocumentRoutes(services: CollaborateServices) {
       // Create the document using the factory function
       const document = await createDocument(docInput);
 
-      // If title is provided, add it to the document data
-      const documentWithTitle = body.title ? { ...document, title: body.title } : document;
-
       // Create in database
-      const created = await api.create(documentWithTitle as unknown as Element & Record<string, unknown>);
+      const created = await api.create(document as unknown as Element & Record<string, unknown>);
 
       // If libraryId is provided, add document to library via parent-child dependency
       if (body.libraryId) {
@@ -392,13 +390,13 @@ export function createDocumentRoutes(services: CollaborateServices) {
 
       // Validate contentType if provided
       if (updates.contentType) {
-        const validContentTypes = ['text', 'markdown', 'json'];
-        if (!validContentTypes.includes(updates.contentType as string)) {
+        const validTypes = Object.values(ContentType) as string[];
+        if (!validTypes.includes(updates.contentType as string)) {
           return c.json(
             {
               error: {
                 code: 'VALIDATION_ERROR',
-                message: `Invalid contentType. Must be one of: ${validContentTypes.join(', ')}`,
+                message: `Invalid contentType. Must be one of: ${validTypes.join(', ')}`,
               },
             },
             400
@@ -607,32 +605,30 @@ export function createDocumentRoutes(services: CollaborateServices) {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
       }
 
-      // Cast to document type with title field (title is a runtime-added field)
-      const sourceDocument = sourceDoc as Document & { title?: string };
+      const sourceDocument = sourceDoc as Document;
 
       // Validate createdBy
       if (!body.createdBy || typeof body.createdBy !== 'string') {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: 'createdBy is required' } }, 400);
       }
 
+      // Use the new title or generate one from the original
+      const originalTitle = sourceDocument.title || `Document ${sourceDocument.id}`;
+      const newTitle = body.title || `${originalTitle} (Copy)`;
+
       // Create a new document with the same content
       const docInput: CreateDocumentInput = {
         contentType: sourceDocument.contentType,
         content: sourceDocument.content || '',
         createdBy: body.createdBy as EntityId,
+        title: newTitle,
         tags: sourceDocument.tags || [],
       };
 
       const newDoc = await createDocument(docInput);
 
-      // Use the new title or generate one from the original
-      const originalTitle = (sourceDocument.title as string | undefined) || `Document ${sourceDocument.id}`;
-      const newTitle = body.title || `${originalTitle} (Copy)`;
-
-      const documentWithTitle = { ...newDoc, title: newTitle };
-
       // Create in database
-      const created = await api.create(documentWithTitle as unknown as Element & Record<string, unknown>);
+      const created = await api.create(newDoc as unknown as Element & Record<string, unknown>);
 
       // If libraryId is provided, add document to library via parent-child dependency
       if (body.libraryId) {

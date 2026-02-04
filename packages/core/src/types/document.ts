@@ -102,6 +102,8 @@ export type DocumentId = ElementId & { readonly [DocumentIdBrand]: typeof Docume
 export interface Document extends Element {
   /** Document type is always 'document' */
   readonly type: typeof ElementType.DOCUMENT;
+  /** Optional display title */
+  title?: string;
   /** Format of the content */
   readonly contentType: ContentType;
   /** The actual content data */
@@ -408,6 +410,9 @@ export function isDocument(value: unknown): value is Document {
   if (!isValidDocumentCategory(obj.category)) return false;
   if (!isValidDocumentStatus(obj.status)) return false;
 
+  // Optional title must be a string if present
+  if (obj.title !== undefined && typeof obj.title !== 'string') return false;
+
   // Backward compat: treat missing immutable as false
   if (obj.immutable !== undefined && typeof obj.immutable !== 'boolean') return false;
 
@@ -498,6 +503,15 @@ export function validateDocument(value: unknown): Document {
   validateDocumentCategory(obj.category);
   validateDocumentStatus(obj.status);
 
+  // Validate title if present
+  if (obj.title !== undefined && typeof obj.title !== 'string') {
+    throw new ValidationError(
+      'Document title must be a string',
+      ErrorCode.INVALID_INPUT,
+      { field: 'title', value: obj.title, expected: 'string' }
+    );
+  }
+
   // Validate immutable field if present (backward compat: missing = false)
   if (obj.immutable !== undefined && typeof obj.immutable !== 'boolean') {
     throw new ValidationError(
@@ -529,6 +543,8 @@ export interface CreateDocumentInput {
   content: string;
   /** Reference to the entity that created this document */
   createdBy: EntityId;
+  /** Optional display title */
+  title?: string;
   /** Optional tags */
   tags?: string[];
   /** Optional metadata */
@@ -581,6 +597,7 @@ export async function createDocument(
     createdBy: input.createdBy,
     tags: input.tags ?? [],
     metadata: input.metadata ?? {},
+    ...(input.title !== undefined && { title: input.title }),
     contentType,
     content,
     version: 1,

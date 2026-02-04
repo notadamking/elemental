@@ -2367,3 +2367,121 @@ describe('Document Filtering', () => {
     expect(() => api.archiveDocument(createdTask.id)).toThrow(NotFoundError);
   });
 });
+
+// ============================================================================
+// Document Version Control Tests
+// ============================================================================
+
+describe('document version control', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // Metadata-only updates must NOT increment version
+  // --------------------------------------------------------------------------
+
+  it('should not increment version when updating tags only', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    const updated = await api.update(created.id, { tags: ['new-tag'] });
+
+    expect((updated as any).version).toBe(1);
+  });
+
+  it('should not increment version when updating category only', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    const updated = await api.update(created.id, { category: 'spec' });
+
+    expect((updated as any).version).toBe(1);
+  });
+
+  it('should not increment version when archiving', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    const updated = await api.update(created.id, { status: 'archived' });
+
+    expect((updated as any).version).toBe(1);
+  });
+
+  it('should not increment version when updating metadata only', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    const updated = await api.update(created.id, { metadata: { foo: 'bar' } });
+
+    expect((updated as any).version).toBe(1);
+  });
+
+  // --------------------------------------------------------------------------
+  // Content changes MUST increment version
+  // --------------------------------------------------------------------------
+
+  it('should increment version when updating content', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    const updated = await api.update(created.id, { content: 'Updated content' });
+
+    expect((updated as any).version).toBe(2);
+
+    // Verify history has v1 entry
+    const history = await api.getDocumentHistory(created.id as unknown as DocumentId);
+    const versions = history.map((h) => h.version);
+    expect(versions).toContain(1);
+    expect(versions).toContain(2);
+  });
+
+  it('should increment version when updating contentType only', async () => {
+    const doc = await createTestDocument({ contentType: ContentType.TEXT, content: 'plain text' });
+    const created = await api.create(toCreateInput(doc));
+
+    // First content update: version 1 → 2
+    const updated1 = await api.update(created.id, { content: 'updated text' });
+    expect((updated1 as any).version).toBe(2);
+
+    // ContentType update: version 2 → 3
+    const updated2 = await api.update(created.id, { contentType: ContentType.MARKDOWN });
+    expect((updated2 as any).version).toBe(3);
+  });
+
+  // --------------------------------------------------------------------------
+  // Archive/unarchive lifecycle events
+  // --------------------------------------------------------------------------
+
+  it('should emit CLOSED event when archiving a document', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    await api.update(created.id, { status: 'archived' });
+
+    const closedEvents = await api.getEvents(created.id, { eventType: 'closed' });
+    expect(closedEvents.length).toBe(1);
+  });
+
+  it('should emit REOPENED event when unarchiving a document', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    await api.update(created.id, { status: 'archived' });
+    await api.update(created.id, { status: 'active' });
+
+    const reopenedEvents = await api.getEvents(created.id, { eventType: 'reopened' });
+    expect(reopenedEvents.length).toBe(1);
+  });
+});
