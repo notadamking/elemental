@@ -79,6 +79,7 @@ Common pitfalls and their solutions, organized by severity and category.
 - Short IDs supported for CLI (minimum unique prefix)
 - ID length calculated from element count (cached for 60 seconds)
 - **Branded Types**: `ElementId`, `DocumentId`, `MessageId`, etc. are distinct - using one where another is expected may cause runtime issues
+- **Cast utilities**: Use `asEntityId(str)` and `asElementId(str)` from `@elemental/core` instead of `x as unknown as EntityId` double-casts. Only use at trust boundaries (DB rows, API responses).
 
 ## Workflows
 
@@ -151,6 +152,11 @@ Common pitfalls and their solutions, organized by severity and category.
 - `ELEMENTAL_ROOT` env var is set for worktree root-finding
 - Built-in prompts are loaded from `packages/orchestrator-sdk/src/prompts/`
 - Project-level prompt overrides go in `.elemental/prompts/`
+- **Handoff notes are in the description Document**, not in metadata fields. `handoffTask()` appends `[AGENT HANDOFF NOTE]: {message}` to the task's `descriptionRef` Document. The `handoffHistory` array in metadata tracks handoff audit history.
+- **Agent names must be unique** — `registerDirector`, `registerWorker`, `registerSteward` throw if an agent with the same name already exists
+- **Tasks cannot be double-assigned** — `assignToAgent` throws if the task is already assigned to a different agent
+- **`DispatchDaemonConfig.projectRoot`** enables project-level prompt overrides for triage sessions (defaults to `process.cwd()`)
+- **`updateConfig()` restarts the poll interval** if `pollIntervalMs` changes — other config changes take effect immediately since they're checked inside `runPollCycle`
 
 ## Identity
 

@@ -324,14 +324,21 @@ interface DispatchMessage {
 
 **Task ID:** {taskId}
 **Title:** {title}
+**Priority:** {priority}
 
 ### Description
-{description}
+{description content fetched from descriptionRef Document}
 
-### Attached Documents
-- {documentRef1}
-- {documentRef2}
+### Acceptance Criteria
+{acceptanceCriteria}
+
+### Instructions
+1. Read the task title and acceptance criteria carefully to decide the correct action.
+2. If the task asks you to **hand off**, run: `el task handoff {taskId} --message "your handoff note"` and stop.
+3. Otherwise, complete the task: make changes, commit, push, then run: `el task complete {taskId}`.
 ```
+
+> **Note:** Priority and Acceptance Criteria sections are only included when present. Description content is fetched from the task's `descriptionRef` Document, which includes any accumulated handoff notes.
 
 ### Forwarded Message
 
@@ -353,12 +360,12 @@ Added to task description when an agent hands off work.
 
 **Format:**
 ```
-[HANDOFF NOTE FROM AGENT SESSION {sessionId}]: {handoffMessage}
+[AGENT HANDOFF NOTE]: {message}
 ```
 
 **Example:**
 ```
-[HANDOFF NOTE FROM AGENT SESSION sess-abc123]: Completed API integration. Unable to resolve CORS issue - requires infrastructure access. Branch contains working local implementation.
+[AGENT HANDOFF NOTE]: Completed API integration. Unable to resolve CORS issue - requires infrastructure access. Branch contains working local implementation.
 ```
 
 ---
@@ -374,15 +381,24 @@ Handoffs allow agents to transfer work to another agent (or another instance of 
    ```typescript
    {
      metadata: {
-       handoff: {
-         branch: 'task/abc123-implement-login',
-         worktree: 'agent/worker-1/abc123-implement-login',
-         previousSession: 'sess-xyz789'
+       orchestrator: {
+         handoffBranch: 'agent/worker-1/abc123-implement-login',
+         handoffWorktree: '.elemental/.worktrees/worker-1-implement-login',
+         lastSessionId: 'sess-xyz789',
+         handoffAt: '2026-02-03T12:00:00.000Z',
+         handoffHistory: [
+           {
+             sessionId: 'sess-xyz789',
+             message: 'Completed API integration...',
+             branch: 'agent/worker-1/abc123-implement-login',
+             handoffAt: '2026-02-03T12:00:00.000Z',
+           }
+         ]
        }
      }
    }
    ```
-3. **Append handoff note:** Add context to task description
+3. **Append handoff note:** Append `[AGENT HANDOFF NOTE]: {message}` to the task's description Document content. Also preserved in `handoffHistory` for audit trail.
 4. **Task returns to pool:** Dispatch Daemon will reassign to next available worker
 
 ### Handoff Triggers

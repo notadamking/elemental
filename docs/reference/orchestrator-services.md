@@ -139,6 +139,20 @@ const task = await assignmentService.startTask(taskId, 'session-456');
 const task = await assignmentService.completeTask(taskId);
 ```
 
+### Handoff
+
+```typescript
+// Hand off a task (unassigns, preserves branch/worktree, appends note to description)
+const task = await assignmentService.handoffTask(taskId, {
+  sessionId: 'session-123',
+  message: 'Completed API integration, needs infrastructure access for CORS fix',
+  branch: 'agent/worker-1/abc123-implement-login',
+  worktree: '.elemental/.worktrees/worker-1-implement-login',
+});
+```
+
+Handoff appends `[AGENT HANDOFF NOTE]: {message}` to the task's description Document and records the handoff in `handoffHistory`. The task is unassigned and returns to the pool for reassignment.
+
 ### Workload Queries
 
 ```typescript
@@ -256,6 +270,7 @@ import { createDispatchDaemon } from '@elemental/orchestrator-sdk';
 
 const daemon = createDispatchDaemon(api, spawner, sessionManager, {
   pollIntervalMs: 5000,
+  projectRoot: process.cwd(), // For project-level prompt overrides
 });
 ```
 
@@ -267,6 +282,13 @@ await daemon.start();
 
 // Stop the daemon
 await daemon.stop();
+```
+
+### Runtime Configuration
+
+```typescript
+// Update config while running (restarts poll interval if pollIntervalMs changes)
+daemon.updateConfig({ pollIntervalMs: 10000 });
 ```
 
 ### Polling Loops
