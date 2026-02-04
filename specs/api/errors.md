@@ -49,6 +49,8 @@ Categorized error codes:
 | `INVALID_CONTENT_TYPE` | Unknown content type | 400 |
 | `INVALID_JSON` | JSON content invalid | 400 |
 | `MISSING_REQUIRED_FIELD` | Required field missing | 400 |
+| `INVALID_CATEGORY` | Invalid document category | 400 |
+| `INVALID_DOCUMENT_STATUS` | Invalid document status | 400 |
 
 ### Not Found Errors
 
@@ -363,6 +365,50 @@ Error: Invalid metadata: must be an object
   Code: INVALID_METADATA
 
 Resolution: Provide valid JSON object: --metadata '{"key": "value"}'
+```
+
+#### INVALID_CATEGORY
+
+**Description**: The document category is not a recognized value.
+
+**Common Causes**:
+- Providing a category string not in the allowed set
+- Typo in category name
+
+**Resolution**:
+1. Check valid categories (e.g., spec, prd, reference, guide, other)
+2. Correct the category value and retry
+
+**Example**:
+```
+el doc create --category "invalid"
+
+Error: Invalid category: invalid
+  Code: INVALID_CATEGORY
+
+Resolution: Use a valid category: spec, prd, reference, guide, other
+```
+
+#### INVALID_DOCUMENT_STATUS
+
+**Description**: The document status is not a recognized value.
+
+**Common Causes**:
+- Providing a status string not in the allowed set
+- Attempting an invalid status transition
+
+**Resolution**:
+1. Check valid statuses (e.g., active, archived)
+2. Correct the status value and retry
+
+**Example**:
+```
+el doc update el-abc --status "invalid"
+
+Error: Invalid status: invalid
+  Code: INVALID_DOCUMENT_STATUS
+
+Resolution: Use a valid status: active, archived
 ```
 
 ### Not Found Errors Reference

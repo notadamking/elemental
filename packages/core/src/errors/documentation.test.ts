@@ -16,8 +16,8 @@ import {
  */
 
 describe('Error Documentation', () => {
-  // Walk up from apps/legacy to find root specs directory
-  const rootDir = path.resolve(process.cwd(), '..', '..');
+  // Walk up from packages/core/src/errors to find root specs directory
+  const rootDir = path.resolve(import.meta.dir, '..', '..', '..', '..');
   const specsPath = path.join(rootDir, 'specs', 'api', 'errors.md');
   const specContent = fs.readFileSync(specsPath, 'utf-8');
 

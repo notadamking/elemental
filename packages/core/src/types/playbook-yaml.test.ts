@@ -950,8 +950,10 @@ describe('PlaybookFileWatcher', () => {
       const filePath = path.join(watchDir, 'new.playbook.yaml');
       fs.writeFileSync(filePath, 'name: new\ntitle: New Playbook\n');
 
-      // Wait for debounce
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Poll for the change event (fs.watch delivery can be delayed on macOS)
+      for (let i = 0; i < 20 && changes.length === 0; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
 
       expect(changes.length).toBeGreaterThanOrEqual(1);
       const addedChange = changes.find(c => c.event === 'added' && c.name === 'new');
@@ -977,8 +979,10 @@ describe('PlaybookFileWatcher', () => {
       // Modify the file
       fs.writeFileSync(filePath, 'name: modify\ntitle: Modified\n');
 
-      // Wait for debounce
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Poll for the change event (fs.watch delivery can be delayed on macOS)
+      for (let i = 0; i < 20 && changes.length === 0; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
 
       expect(changes.length).toBeGreaterThanOrEqual(1);
       const changedEvent = changes.find(c => c.event === 'changed' && c.name === 'modify');
@@ -1003,8 +1007,10 @@ describe('PlaybookFileWatcher', () => {
       // Remove the file
       fs.unlinkSync(filePath);
 
-      // Wait for debounce
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Poll for the change event (fs.watch delivery can be delayed on macOS)
+      for (let i = 0; i < 20 && changes.length === 0; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
 
       expect(changes.length).toBeGreaterThanOrEqual(1);
       const removedEvent = changes.find(c => c.event === 'removed' && c.name === 'remove');
@@ -1038,8 +1044,10 @@ describe('PlaybookFileWatcher', () => {
       watcher.on('change', (change) => changes.push(change));
       watcher.start();
 
-      // Clear initial events
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Clear initial events (poll to allow fs.watch to deliver)
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
       changes.length = 0;
 
       // Rapid modifications
@@ -1047,8 +1055,10 @@ describe('PlaybookFileWatcher', () => {
       fs.writeFileSync(filePath, 'name: rapid\ntitle: Update 2\n');
       fs.writeFileSync(filePath, 'name: rapid\ntitle: Update 3\n');
 
-      // Wait for debounce to settle
-      await new Promise(resolve => setTimeout(resolve, 150));
+      // Wait for debounce to settle (poll for events)
+      for (let i = 0; i < 20 && changes.length === 0; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
 
       // Should only have one change event due to debouncing
       const changedEvents = changes.filter(c => c.event === 'changed');
@@ -1121,7 +1131,10 @@ describe('PlaybookFileWatcher', () => {
       const filePath = path.join(watchDir, 'structure.playbook.yaml');
       fs.writeFileSync(filePath, 'name: structure\ntitle: Structure Test\n');
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Poll for the change event (fs.watch delivery can be delayed on macOS)
+      for (let i = 0; i < 20 && changes.length === 0; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
 
       expect(changes.length).toBeGreaterThanOrEqual(1);
       const change = changes[0];
@@ -1156,7 +1169,10 @@ describe('PlaybookFileWatcher', () => {
       // Add a file to trigger callbacks
       fs.writeFileSync(path.join(watchDir, 'error.playbook.yaml'), 'name: error\ntitle: Error\n');
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Poll for the callback to fire (fs.watch delivery can be delayed on macOS)
+      for (let i = 0; i < 20 && !secondCallbackCalled; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
 
       // Second callback should still be called despite first throwing
       expect(secondCallbackCalled).toBe(true);
