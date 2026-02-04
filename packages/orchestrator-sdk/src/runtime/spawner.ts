@@ -26,6 +26,14 @@ import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { Query as SDKQuery, SDKMessage, SDKUserMessage, Options as SDKOptions } from '@anthropic-ai/claude-agent-sdk';
 
 /**
+ * Shell-quotes a string for safe inclusion in a bash command.
+ * Wraps in single quotes and escapes internal single quotes.
+ */
+export function shellQuote(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
+/**
  * Message queue for SDK streaming input mode.
  * Allows pushing messages that will be sent to the SDK query.
  */
@@ -1134,7 +1142,7 @@ export class SpawnerServiceImpl implements SpawnerService {
     const shellArgs = process.platform === 'win32' ? [] : ['-l'];
 
     // Build the command to run claude inside the shell
-    const claudeCommand = [this.defaultConfig.claudePath!, ...args].join(' ');
+    const claudeCommand = [shellQuote(this.defaultConfig.claudePath!), ...args].join(' ');
 
     let ptyProcess: IPty;
     try {
@@ -1227,12 +1235,12 @@ export class SpawnerServiceImpl implements SpawnerService {
     ];
 
     if (options?.resumeSessionId) {
-      args.push('--resume', options.resumeSessionId);
+      args.push('--resume', shellQuote(options.resumeSessionId));
     }
 
     // For interactive mode, we can add an initial prompt as a positional arg
     if (options?.initialPrompt) {
-      args.push(options.initialPrompt);
+      args.push(shellQuote(options.initialPrompt));
     }
 
     return args;

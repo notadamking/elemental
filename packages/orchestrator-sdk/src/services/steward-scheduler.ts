@@ -359,6 +359,59 @@ export function getNextCronRunTime(_schedule: string): Date | undefined {
 // ============================================================================
 
 /**
+ * Validates that a condition string contains only safe expression tokens.
+ * Allows: property access, comparisons, string/number literals, booleans,
+ * logical operators, parentheses.
+ * Rejects: function calls, assignments, semicolons, template literals,
+ * dangerous globals.
+ */
+function isSafeCondition(condition: string): boolean {
+  // Strip string literals so their contents don't trigger false positives
+  const withoutStrings = condition
+    .replace(/'[^']*'/g, '""')
+    .replace(/"[^"]*"/g, '""');
+
+  // Reject dangerous patterns
+  const dangerousPatterns = [
+    /[;{}]/,                          // statements, blocks
+    /\b(import|require|eval|Function|constructor|__proto__|prototype)\b/,
+    /\b(process|global|globalThis|window|document)\b/,
+    /\b(setTimeout|setInterval|fetch|XMLHttpRequest)\b/,
+    /=>|\.\.\.|\+\+|--/,             // arrow functions, spread, increment/decrement
+    /\[.*\]/,                         // bracket notation (property access escape vector)
+    /`/,                              // template literals
+    /\$\{/,                           // template expressions
+    /\bthis\b/,                       // this reference
+    /\bnew\b/,                        // constructor calls
+    /\bdelete\b/,                     // delete operator
+    /\bvoid\b/,                       // void operator
+    /\btypeof\b/,                     // typeof operator
+    /\bin\b/,                         // in operator
+    /\binstanceof\b/,                 // instanceof operator
+    /[^=!<>]=[^=]/,                   // assignment (but not ==, !=, <=, >=)
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(withoutStrings)) {
+      return false;
+    }
+  }
+
+  // Only allow safe characters after string removal
+  const safeTokenPattern = /^[\w\s.$?!&|><=()'",-]+$/;
+  if (!safeTokenPattern.test(withoutStrings)) {
+    return false;
+  }
+
+  // Reject function calls: identifier followed by (
+  if (/\w\s*\(/.test(withoutStrings)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Evaluates a simple condition expression against event data.
  * Supports basic JavaScript-like expressions with property access.
  *
@@ -372,20 +425,21 @@ export function evaluateCondition(
   context: Record<string, unknown>
 ): boolean {
   try {
-    // Create a safe evaluation context
-    // We use Function constructor but with limited scope
+    // Validate condition contains only safe expression tokens
+    if (!isSafeCondition(condition)) {
+      return false;
+    }
+
     const contextKeys = Object.keys(context);
     const contextValues = Object.values(context);
 
-    // Build a function that evaluates the condition
     const fn = new Function(
       ...contextKeys,
-      `try { return Boolean(${condition}); } catch { return false; }`
+      `"use strict"; try { return Boolean(${condition}); } catch { return false; }`
     );
 
     return fn(...contextValues);
   } catch {
-    // If condition evaluation fails, return false
     return false;
   }
 }

@@ -171,6 +171,17 @@ describe('evaluateCondition', () => {
     expect(evaluateCondition('isEnabled', { isEnabled: true })).toBe(true);
     expect(evaluateCondition('!isDisabled', { isDisabled: false })).toBe(true);
   });
+
+  it('should reject code injection attempts', () => {
+    expect(evaluateCondition('eval("alert(1)")', {})).toBe(false);
+    expect(evaluateCondition('require("child_process")', {})).toBe(false);
+    expect(evaluateCondition('process.exit(1)', {})).toBe(false);
+    expect(evaluateCondition('x = 1', { x: 0 })).toBe(false);
+    expect(evaluateCondition('true; process.exit(1)', {})).toBe(false);
+    expect(evaluateCondition('`${process.env.SECRET}`', {})).toBe(false);
+    expect(evaluateCondition('constructor.constructor("return process")()', {})).toBe(false);
+    expect(evaluateCondition('x["constructor"]', { x: {} })).toBe(false);
+  });
 });
 
 // ============================================================================

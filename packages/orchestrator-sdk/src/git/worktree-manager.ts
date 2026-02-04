@@ -14,7 +14,7 @@
  * @module
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -26,7 +26,7 @@ import {
   createSlugFromTitle,
 } from '../types/task-meta.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ============================================================================
 // Types
@@ -804,8 +804,7 @@ export class WorktreeManagerImpl implements WorktreeManager {
   }
 
   private async execGit(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    const command = `git ${args.join(' ')}`;
-    return execAsync(command, {
+    return execFileAsync('git', args, {
       cwd: this.config.workspaceRoot,
       encoding: 'utf8',
     });

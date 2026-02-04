@@ -19,7 +19,7 @@ Generated 2026-02-03 from rounds 1-3 of post-implementation review.
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/git/worktree-manager.ts:799-805` |
 | **Severity** | CRITICAL |
 | **Category** | Command Injection |
@@ -52,7 +52,7 @@ private async execGit(args: string[]): Promise<{ stdout: string; stderr: string 
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/steward-scheduler.ts:370-391` |
 | **Severity** | CRITICAL |
 | **Category** | Code Injection |
@@ -80,7 +80,7 @@ Despite the comment claiming "limited scope," `new Function()` executes in globa
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/runtime/spawner.ts:1137,1206,1234-1235` |
 | **Severity** | CRITICAL |
 | **Category** | Command Injection |
