@@ -291,10 +291,10 @@ The daemon runs four concurrent polling loops:
 
 ### Inbox Dispatch Behavior
 
-For ephemeral workers and stewards:
-- Dispatch message + no active session = spawn agent
-- Non-dispatch message + active session = forward to session
-- Non-dispatch message + no active session = silently drop
+For ephemeral workers and stewards (two-path model):
+- Dispatch message → mark as read (spawn handled by worker availability polling)
+- Non-dispatch message + active session → leave unread (do NOT forward)
+- Non-dispatch message + no active session → accumulate for triage batch
 
 For persistent workers and directors:
 - Active session = forward message as user input

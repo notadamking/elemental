@@ -361,13 +361,22 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         workerMode: 'ephemeral',
       });
 
-      // 2. Find workers with no active session
+      // 2. Find workers with no active session and no unread non-dispatch messages.
+      // pollInboxes() runs first in each cycle, marking dispatch messages as read.
+      // Any remaining unread items are non-dispatch messages needing triage —
+      // defer task assignment so the next cycle's triage pass can handle them.
       const availableWorkers: AgentEntity[] = [];
       for (const worker of workers) {
         const session = this.sessionManager.getActiveSession(worker.id as unknown as EntityId);
-        if (!session) {
-          availableWorkers.push(worker);
-        }
+        if (session) continue;
+
+        const unreadItems = this.inboxService.getInbox(worker.id as unknown as EntityId, {
+          status: InboxStatus.UNREAD,
+          limit: 1,
+        });
+        if (unreadItems.length > 0) continue;
+
+        availableWorkers.push(worker);
       }
 
       // 3. For each available worker, try to assign a task
@@ -671,13 +680,15 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Reap stale sessions before polling for availability
     await this.reapStaleSessions();
 
-    // Run polls sequentially to avoid overwhelming the system
-    if (this.config.workerAvailabilityPollEnabled) {
-      await this.pollWorkerAvailability();
-    }
-
+    // Run polls sequentially to avoid overwhelming the system.
+    // Inbox runs first so triage spawns before task dispatch — idle agents
+    // process accumulated non-dispatch messages before picking up new tasks.
     if (this.config.inboxPollEnabled) {
       await this.pollInboxes();
+    }
+
+    if (this.config.workerAvailabilityPollEnabled) {
+      await this.pollWorkerAvailability();
     }
 
     if (this.config.stewardTriggerPollEnabled) {
@@ -869,7 +880,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Processes an inbox item for an agent.
-   * Handles dispatch messages, forwarding, and silent drops.
+   * Handles dispatch messages and delegates to role-specific processors.
    */
   private async processInboxItem(
     agent: AgentEntity,
@@ -974,7 +985,6 @@ export class DispatchDaemonImpl implements DispatchDaemon {
    *
    * Groups items by agentId then channelId. For each agent:
    * - Skips if agent now has an active session (messages stay unread for next cycle)
-   * - Skips if agent has unassigned tasks (task dispatch takes priority)
    * - Spawns triage session for the first channel group only (single-session constraint)
    * - Marks those items as read
    *
@@ -986,31 +996,33 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     let processed = 0;
 
     for (const [agentId, { agent, items }] of deferredItems) {
-      // Re-check: agent may have had a session started by task dispatch
+      // Re-check: agent may have had a session started by task dispatch.
+      // Known race: between this check and startSession() below, another poll
+      // cycle could spawn a session for the same agent. If that happens,
+      // startSession() fails, the error is caught, items stay unread, and
+      // retry happens next cycle. This is acceptable — not a bug.
       const activeSession = this.sessionManager.getActiveSession(agentId as unknown as EntityId);
       if (activeSession) {
         // Agent is now busy — leave messages unread for next cycle
         continue;
       }
 
-      // Check for unassigned tasks — task dispatch takes priority over triage
-      const unassignedTasks = await this.taskAssignment.getUnassignedTasks({
-        taskStatus: [TaskStatus.OPEN],
-      });
-      if (unassignedTasks.length > 0) {
-        // Tasks waiting to be dispatched — skip triage this cycle
-        continue;
-      }
-
       // Group items by channelId
       const byChannel = new Map<string, InboxItem[]>();
       for (const item of items) {
+        if (!item.channelId) {
+          console.warn(`[dispatch-daemon] Inbox item ${item.id} has no channelId — skipping`);
+          continue;
+        }
         const channelKey = String(item.channelId);
         if (!byChannel.has(channelKey)) {
           byChannel.set(channelKey, []);
         }
         byChannel.get(channelKey)!.push(item);
       }
+
+      // All items had missing channelId — nothing to triage
+      if (byChannel.size === 0) continue;
 
       // Spawn triage for the first channel group only (single-session constraint)
       const [channelId, channelItems] = byChannel.entries().next().value as [string, InboxItem[]];
@@ -1067,6 +1079,9 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
     }
 
+    // All message fetches failed — nothing to triage
+    if (messages.length === 0) return;
+
     const initialPrompt = await this.buildTriagePrompt(agent, messages, channelId);
 
     // Start a headless session in the read-only worktree
@@ -1083,7 +1098,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     }
 
     // Register worktree cleanup on session exit
-    events.on('session:exit', async () => {
+    events.on('exit', async () => {
       try {
         await this.worktreeManager.removeWorktree(worktreeResult.path);
       } catch {
@@ -1123,8 +1138,8 @@ export class DispatchDaemonImpl implements DispatchDaemon {
           if (doc?.content) {
             content = doc.content;
           }
-        } catch {
-          // Content fetch failed — use placeholder
+        } catch (error) {
+          console.warn(`[dispatch-daemon] Failed to fetch content for message ${message.id}:`, error);
         }
       }
 

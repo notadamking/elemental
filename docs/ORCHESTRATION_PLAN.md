@@ -245,7 +245,7 @@ When an idle agent (no active session) has accumulated unread non-dispatch messa
 ### Triage Spawn Lifecycle
 
 1. **Detection:** During inbox polling, non-dispatch messages for idle agents are left unread. When at least one such message exists, the agent becomes a triage candidate.
-2. **Task dispatch takes priority:** If unassigned tasks exist for the agent, triage is skipped for that cycle. Worker Availability Polling handles task dispatch first.
+2. **Triage takes priority:** Idle agents process accumulated non-dispatch messages before picking up new tasks. Inbox polling runs before worker availability polling, and workers with unread items are excluded from task assignment.
 3. **Grouping by channel:** Deferred messages are grouped by originating channel. Each triage session handles one channel batch.
 4. **Single-session constraint:** Only one triage session is spawned per agent per poll cycle. If the agent has deferred messages across multiple channels, the remaining channels are processed in subsequent poll cycles.
 5. **Session spawn:** A triage session is started for the agent with the selected channel batch.
@@ -257,8 +257,8 @@ Triage sessions operate in a **temporary detached worktree** checked out on the 
 
 ### Interaction with Other Polling Loops
 
-- **Worker Availability Polling** runs before triage evaluation. If it dispatches a task and spawns a session, the agent is no longer idle and triage is deferred.
-- **Inbox Polling** leaves non-dispatch messages unread for idle agents specifically so triage can batch them.
+- **Inbox Polling** runs first in each cycle. It marks dispatch messages as read and spawns triage sessions for idle agents with non-dispatch messages.
+- **Worker Availability Polling** runs after inbox polling. It skips workers with active sessions (including triage) and workers with remaining unread items.
 - **Subsequent cycles:** After a triage session completes and the agent becomes idle again, remaining channel batches are eligible for the next triage spawn.
 
 ---
