@@ -16,7 +16,7 @@
  */
 
 import type { Entity, EntityId, ElementId, Channel, ChannelId } from '@elemental/core';
-import { EntityTypeValue, createEntity, createTimestamp, createDirectChannel, generateDirectChannelName } from '@elemental/core';
+import { EntityTypeValue, createEntity, createTimestamp, createDirectChannel, generateDirectChannelName, duplicateName } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
 import type {
   AgentRole,
@@ -258,6 +258,11 @@ export class AgentRegistryImpl implements AgentRegistry {
   }
 
   async registerDirector(input: RegisterDirectorInput): Promise<AgentEntity> {
+    const existing = await this.getAgentByName(input.name);
+    if (existing) {
+      throw duplicateName(input.name, 'agent', { existingId: existing.id });
+    }
+
     const agentMetadata: DirectorMetadata = {
       agentRole: 'director',
       sessionStatus: 'idle',
@@ -293,6 +298,11 @@ export class AgentRegistryImpl implements AgentRegistry {
   }
 
   async registerWorker(input: RegisterWorkerInput): Promise<AgentEntity> {
+    const existing = await this.getAgentByName(input.name);
+    if (existing) {
+      throw duplicateName(input.name, 'agent', { existingId: existing.id });
+    }
+
     const agentMetadata: WorkerMetadata = {
       agentRole: 'worker',
       workerMode: input.workerMode,
@@ -330,6 +340,11 @@ export class AgentRegistryImpl implements AgentRegistry {
   }
 
   async registerSteward(input: RegisterStewardInput): Promise<AgentEntity> {
+    const existing = await this.getAgentByName(input.name);
+    if (existing) {
+      throw duplicateName(input.name, 'agent', { existingId: existing.id });
+    }
+
     const agentMetadata: StewardMetadata = {
       agentRole: 'steward',
       stewardFocus: input.stewardFocus,

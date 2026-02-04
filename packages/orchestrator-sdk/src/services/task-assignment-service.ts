@@ -16,7 +16,7 @@
  */
 
 import type { Task, ElementId, EntityId } from '@elemental/core';
-import { createTimestamp, TaskStatus, ElementType } from '@elemental/core';
+import { createTimestamp, TaskStatus, ElementType, ConflictError, ConflictErrorCode } from '@elemental/core';
 
 // Use type alias for TaskStatus values
 type TaskStatusValue = typeof TaskStatus[keyof typeof TaskStatus];
@@ -365,6 +365,15 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     const task = await this.api.get<Task>(taskId);
     if (!task || task.type !== ElementType.TASK) {
       throw new Error(`Task not found: ${taskId}`);
+    }
+
+    // Guard against double-assignment
+    if (task.assignee && task.assignee !== (agentId as unknown as EntityId)) {
+      throw new ConflictError(
+        `Task ${taskId} is already assigned to ${task.assignee}`,
+        ConflictErrorCode.ALREADY_EXISTS,
+        { taskId, currentAssignee: task.assignee, requestedAssignee: agentId }
+      );
     }
 
     // Get and validate the agent

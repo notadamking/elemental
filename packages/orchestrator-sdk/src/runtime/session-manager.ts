@@ -921,22 +921,29 @@ export class SessionManagerImpl implements SessionManager {
     }
 
     try {
-      // Send message via the channel
-      // The contentRef and senderId from options are used to construct the message
-      // Note: The actual message sending would use the API's message creation
-      // For now, we return success with placeholder - the full implementation
-      // would integrate with InboxService
-      const messageParams = {
-        contentRef: options.contentRef,
-        content: options.content,
-        senderId: options.senderId ?? session.agentId,
-        channelId: channelId,
-        metadata: options.metadata,
-      };
+      // Resolve message content
+      let messageContent = options.content;
+      if (!messageContent && options.contentRef) {
+        const doc = await this.api.get(options.contentRef as unknown as Parameters<typeof this.api.get>[0]);
+        if (doc && 'content' in doc) {
+          messageContent = (doc as { content?: string }).content;
+        }
+      }
 
-      // TODO: Use InboxService to send the message
-      // const messageId = await this.api.sendMessage(messageParams);
-      void messageParams; // Acknowledge params until full implementation
+      if (!messageContent) {
+        return { success: false, error: 'Could not resolve message content' };
+      }
+
+      // Format the message with sender context
+      const senderId = options.senderId ?? 'system';
+      const formattedMessage = `[Message from ${senderId}]: ${messageContent}`;
+
+      // Forward to the running process via spawner
+      if (session.mode === 'interactive') {
+        await this.spawner.writeToPty(sessionId, formattedMessage + '\n');
+      } else {
+        await this.spawner.sendInput(sessionId, formattedMessage);
+      }
 
       // Update session activity
       const updatedSession: InternalSessionState = {
@@ -1076,22 +1083,28 @@ export class SessionManagerImpl implements SessionManager {
   ): void {
     // Forward all events from spawner to session's event emitter
     spawnerEvents.on('event', (event) => {
-      session.events.emit('event', event);
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('event', event);
       // Update last activity
-      const updated: InternalSessionState = {
-        ...session,
+      this.sessions.set(session.id, {
+        ...current,
         lastActivityAt: createTimestamp(),
         persisted: false,
-      };
-      this.sessions.set(session.id, updated);
+      });
     });
 
     spawnerEvents.on('error', (error) => {
-      session.events.emit('error', error);
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('error', error);
     });
 
     spawnerEvents.on('exit', async (code, signal) => {
-      session.events.emit('exit', code, signal);
+      const exitingSession = this.sessions.get(session.id);
+      if (exitingSession) {
+        exitingSession.events.emit('exit', code, signal);
+      }
 
       // Update session status if not already updated
       const currentSession = this.sessions.get(session.id);
@@ -1118,28 +1131,33 @@ export class SessionManagerImpl implements SessionManager {
         // Persist
         await this.persistSession(session.id);
 
-        session.events.emit('status', 'terminated');
+        updatedSession.events.emit('status', 'terminated');
       }
     });
 
     spawnerEvents.on('stderr', (data) => {
-      session.events.emit('stderr', data);
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('stderr', data);
     });
 
     spawnerEvents.on('raw', (data) => {
-      session.events.emit('raw', data);
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('raw', data);
     });
 
     // Forward PTY data for interactive sessions
     spawnerEvents.on('pty-data', (data) => {
-      session.events.emit('pty-data', data);
+      const current = this.sessions.get(session.id);
+      if (!current) return;
+      current.events.emit('pty-data', data);
       // Update last activity
-      const updated: InternalSessionState = {
-        ...session,
+      this.sessions.set(session.id, {
+        ...current,
         lastActivityAt: createTimestamp(),
         persisted: false,
-      };
-      this.sessions.set(session.id, updated);
+      });
     });
   }
 

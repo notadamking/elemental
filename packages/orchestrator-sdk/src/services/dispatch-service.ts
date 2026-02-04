@@ -225,6 +225,12 @@ export class DispatchServiceImpl implements DispatchService {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
+    // Get the agent's channel (check before assignment to avoid orphaned assignments)
+    const channel = await this.agentRegistry.getAgentChannel(agentId);
+    if (!channel) {
+      throw new Error(`Agent channel not found for agent: ${agentId}`);
+    }
+
     // Assign the task using TaskAssignmentService
     const assignOptions: AssignTaskOptions = {
       branch: options?.branch,
@@ -237,12 +243,6 @@ export class DispatchServiceImpl implements DispatchService {
       agentId,
       assignOptions
     );
-
-    // Get the agent's channel
-    const channel = await this.agentRegistry.getAgentChannel(agentId);
-    if (!channel) {
-      throw new Error(`Agent channel not found for agent: ${agentId}`);
-    }
 
     // Create notification message
     const messageType: DispatchMessageType = isNewAssignment
