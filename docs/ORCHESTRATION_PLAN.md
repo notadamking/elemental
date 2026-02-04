@@ -195,7 +195,7 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
 - Task description
 - Attached document references
 
-### Inbox Polling
+### Message Routing
 
 **Purpose:** Route messages and trigger agent sessions when needed.
 

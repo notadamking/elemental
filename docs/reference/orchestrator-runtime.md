@@ -260,7 +260,7 @@ const result = await sessionManager.messageSession(sessionId, {
 
 ---
 
-> **Note:** Inbox polling is handled by the Dispatch Daemon (`services/dispatch-daemon.ts`), which routes messages by agent role and spawns triage sessions for idle agents.
+> **Note:** Message routing is handled by the Dispatch Daemon (`services/dispatch-daemon.ts`), which routes messages by agent role and spawns triage sessions for idle agents.
 
 ---
 

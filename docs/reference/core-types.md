@@ -34,20 +34,29 @@ interface Element {
 interface Task extends Element {
   type: 'task';
   title: string;
-  status: TaskStatus;
-  priority: TaskPriority;    // 1 (critical) to 5 (minimal)
-  taskType: TaskType;
-  ephemeral?: boolean;       // If true, not synced to JSONL
-  assigneeId?: EntityId;
   descriptionRef?: DocumentId;
-  scheduledFor?: string;     // ISO 8601 date
-  closedAt?: Timestamp;
+  acceptanceCriteria?: string;
+  status: TaskStatus;
+  priority: Priority;          // 1 (critical) to 5 (minimal)
+  complexity: Complexity;      // 1 (simplest) to 5 (most complex)
+  taskType: TaskType;
   closeReason?: string;
+  assignee?: EntityId;
+  owner?: EntityId;
+  deadline?: Timestamp;
+  scheduledFor?: Timestamp;
+  closedAt?: Timestamp;
+  deletedAt?: Timestamp;
+  deletedBy?: EntityId;
+  deleteReason?: string;
+  externalRef?: string;
+  ephemeral: boolean;          // If true, not synced to JSONL
 }
 
 type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' | 'tombstone';
 type TaskType = 'feature' | 'bug' | 'chore' | 'task';
-type TaskPriority = 1 | 2 | 3 | 4 | 5;
+type Priority = 1 | 2 | 3 | 4 | 5;
+type Complexity = 1 | 2 | 3 | 4 | 5;
 ```
 
 **Key functions:**
@@ -270,11 +279,16 @@ type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelle
 interface Channel extends Element {
   type: 'channel';
   name: string;
+  description: string | null;
   channelType: ChannelType;
-  description: string | null;  // Plain string (unlike Task/Plan/Library which use descriptionRef)
-  memberIds: EntityId[];
-  visibility?: 'public' | 'private';
-  joinPolicy?: 'open' | 'invite-only';
+  members: EntityId[];
+  permissions: ChannelPermissions;
+}
+
+interface ChannelPermissions {
+  visibility: 'public' | 'private';
+  joinPolicy: 'open' | 'invite-only';
+  modifyMembers: EntityId[];
 }
 
 type ChannelType = 'direct' | 'group';

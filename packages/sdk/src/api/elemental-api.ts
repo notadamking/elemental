@@ -1329,6 +1329,8 @@ export class ElementalAPIImpl implements ElementalAPI {
           createdBy: doc.createdBy,
           tags: doc.tags,
           metadata: doc.metadata,
+          title: doc.title,
+          category: doc.category,
         });
         tx.run(
           `INSERT INTO document_versions (id, version, data, created_at) VALUES (?, ?, ?, ?)`,
@@ -1532,8 +1534,9 @@ export class ElementalAPIImpl implements ElementalAPI {
         ]
       );
 
-      // Remove from FTS index (inside transaction for atomicity)
+      // Clean up document-specific data (inside transaction for atomicity)
       if (existing.type === 'document') {
+        tx.run('DELETE FROM document_versions WHERE id = ?', [id]);
         if (this.checkFTSAvailable()) {
           try {
             tx.run('DELETE FROM documents_fts WHERE document_id = ?', [id]);
@@ -3117,25 +3120,29 @@ export class ElementalAPIImpl implements ElementalAPI {
       results.push(current);
     }
 
-    // Get historical versions
+    // Get historical versions (exclude current version to avoid duplicates)
     const rows = this.backend.query<{ version: number; data: string; created_at: string }>(
-      'SELECT version, data, created_at FROM document_versions WHERE id = ? ORDER BY version DESC',
-      [id]
+      'SELECT version, data, created_at FROM document_versions WHERE id = ? AND version != ? ORDER BY version DESC',
+      [id, current?.version ?? -1]
     );
 
     for (const row of rows) {
-      const data = JSON.parse(row.data);
-      results.push({
-        id: id as unknown as ElementId,
-        type: 'document',
-        createdAt: row.created_at,
-        updatedAt: row.created_at,
-        createdBy: data.createdBy,
-        tags: data.tags ?? [],
-        metadata: data.metadata ?? {},
-        ...data,
-        version: row.version,
-      } as Document);
+      try {
+        const data = JSON.parse(row.data);
+        results.push({
+          id: id as unknown as ElementId,
+          type: 'document',
+          createdAt: row.created_at,
+          updatedAt: row.created_at,
+          createdBy: data.createdBy,
+          tags: data.tags ?? [],
+          metadata: data.metadata ?? {},
+          ...data,
+          version: row.version,
+        } as Document);
+      } catch (error) {
+        console.warn(`[elemental] Skipping corrupt version ${row.version} for ${id}:`, error);
+      }
     }
 
     return results;

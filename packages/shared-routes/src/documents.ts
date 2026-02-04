@@ -499,6 +499,28 @@ export function createDocumentRoutes(services: CollaborateServices) {
     }
   });
 
+  // DELETE /api/documents/:id - Delete a document (soft-delete via tombstone)
+  app.delete('/api/documents/:id', async (c) => {
+    try {
+      const id = c.req.param('id') as ElementId;
+      const existing = await api.get(id);
+      if (!existing) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (existing.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      await api.delete(id);
+      return c.json({ success: true, id }, 200);
+    } catch (error) {
+      if ((error as { code?: string }).code === 'NOT_FOUND') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      console.error('[elemental] Failed to delete document:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete document' } }, 500);
+    }
+  });
+
   // GET /api/documents/:id/versions - Get document version history
   app.get('/api/documents/:id/versions', async (c) => {
     try {
@@ -574,11 +596,17 @@ export function createDocumentRoutes(services: CollaborateServices) {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Document version not found' } }, 404);
       }
 
-      // Update the document with the restored content
-      const restored = await api.update(id, {
+      // Update the document with the restored content (including optional fields if present in snapshot)
+      const restorePayload: Record<string, unknown> = {
         content: versionToRestore.content,
         contentType: versionToRestore.contentType,
-      } as unknown as Partial<Document>);
+      };
+      if (versionToRestore.tags !== undefined) restorePayload.tags = versionToRestore.tags;
+      if (versionToRestore.metadata !== undefined) restorePayload.metadata = versionToRestore.metadata;
+      if (versionToRestore.title !== undefined) restorePayload.title = versionToRestore.title;
+      if (versionToRestore.category !== undefined) restorePayload.category = versionToRestore.category;
+
+      const restored = await api.update(id, restorePayload as unknown as Partial<Document>);
 
       return c.json(restored);
     } catch (error) {
@@ -623,6 +651,8 @@ export function createDocumentRoutes(services: CollaborateServices) {
         createdBy: body.createdBy as EntityId,
         title: newTitle,
         tags: sourceDocument.tags || [],
+        metadata: sourceDocument.metadata || {},
+        category: sourceDocument.category,
       };
 
       const newDoc = await createDocument(docInput);
@@ -869,7 +899,14 @@ export function createDocumentRoutes(services: CollaborateServices) {
                 }
               : { id: comment.author_id, name: 'Unknown', entityType: 'unknown' },
             content: comment.content,
-            anchor: JSON.parse(comment.anchor),
+            anchor: (() => {
+              try {
+                return JSON.parse(comment.anchor);
+              } catch {
+                console.warn(`[elemental] Malformed anchor JSON for comment ${comment.id}`);
+                return { hash: '', prefix: '', text: comment.anchor, suffix: '' };
+              }
+            })(),
             startOffset: comment.start_offset,
             endOffset: comment.end_offset,
             resolved: comment.resolved === 1,

@@ -706,7 +706,9 @@ describe('document tombstone handling', () => {
     );
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
-    expect(result.error).toContain('Cannot rollback deleted document');
+    // Version history is cascade-deleted with the document, so rollback fails
+    // at version lookup rather than tombstone check
+    expect(result.error).toContain('not found');
   });
 
   test('history fails on tombstoned document', async () => {

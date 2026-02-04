@@ -2485,3 +2485,114 @@ describe('document version control', () => {
     expect(reopenedEvents.length).toBe(1);
   });
 });
+
+// ============================================================================
+// Document System Audit Fixes
+// ============================================================================
+
+describe('document system audit fixes', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  // 4A: Delete cascade cleans up document_versions
+  it('should delete document_versions when document is deleted', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    // Two content updates → creates v1, v2 in document_versions
+    await api.update<Document>(created.id, { content: 'Update 1' });
+    await api.update<Document>(created.id, { content: 'Update 2' });
+
+    const versionsBefore = backend.query<{ id: string }>(
+      'SELECT id FROM document_versions WHERE id = ?',
+      [created.id]
+    );
+    expect(versionsBefore.length).toBe(2);
+
+    // Delete the document
+    await api.delete(created.id);
+
+    const versionsAfter = backend.query<{ id: string }>(
+      'SELECT id FROM document_versions WHERE id = ?',
+      [created.id]
+    );
+    expect(versionsAfter.length).toBe(0);
+  });
+
+  // 4B: getDocumentHistory returns no duplicates
+  it('should return no duplicate versions in document history', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+
+    // One content update: v1 saved to document_versions, current is v2
+    await api.update<Document>(created.id, { content: 'Updated content' });
+
+    const history = await api.getDocumentHistory(created.id as unknown as DocumentId);
+    const versions = history.map((h) => h.version);
+
+    // Should have v2 (current) and v1 (historical), no duplicates
+    expect(versions).toEqual([2, 1]);
+    expect(new Set(versions).size).toBe(versions.length);
+  });
+
+  // 4C: Clone preserves metadata and category
+  it('should preserve metadata and category when cloning a document', async () => {
+    const doc = await createTestDocument({
+      metadata: { key: 'val' },
+      category: 'spec' as any,
+    });
+    const created = await api.create(toCreateInput(doc));
+
+    // Simulate clone: create new document using source's metadata and category
+    const sourceDoc = await api.get(created.id) as Document;
+    const cloneInput = await createDocument({
+      contentType: sourceDoc.contentType,
+      content: sourceDoc.content || '',
+      createdBy: mockEntityId,
+      title: `${sourceDoc.title} (Copy)`,
+      tags: sourceDoc.tags || [],
+      metadata: sourceDoc.metadata || {},
+      category: sourceDoc.category,
+    });
+    const cloned = await api.create(toCreateInput(cloneInput)) as Document;
+
+    expect(cloned.metadata).toEqual({ key: 'val' });
+    expect(cloned.category).toBe('spec');
+  });
+
+  // 4D: Version snapshot includes title and category
+  it('should include title and category in version snapshots', async () => {
+    const doc = await createTestDocument({
+      title: 'Original Title',
+      category: 'spec' as any,
+    });
+    const created = await api.create(toCreateInput(doc));
+
+    // Content update triggers version snapshot (now includes title/category per 1D)
+    await api.update<Document>(created.id, { content: 'New content' });
+
+    // Check the version snapshot stored in document_versions
+    const rows = backend.query<{ data: string; version: number }>(
+      'SELECT version, data FROM document_versions WHERE id = ? ORDER BY version ASC',
+      [created.id]
+    );
+    expect(rows.length).toBe(1);
+    expect(rows[0].version).toBe(1);
+
+    const snapshotData = JSON.parse(rows[0].data);
+    expect(snapshotData.title).toBe('Original Title');
+    expect(snapshotData.category).toBe('spec');
+  });
+});
