@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Shared route factories for Elemental servers",
+  "license": "Apache-2.0",
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc --noEmit",

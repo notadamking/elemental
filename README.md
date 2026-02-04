@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/license-Apache%202.0%20%2F%20AGPL%203.0-blue.svg" alt="License: Apache 2.0 / AGPL 3.0">
   <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg" alt="Node.js: >=18.0.0">
   <img src="https://img.shields.io/badge/bun-supported-orange.svg" alt="Bun: supported">
   <img src="https://img.shields.io/badge/TypeScript-5.0+-blue.svg" alt="TypeScript: 5.0+">
@@ -419,4 +419,9 @@ Contributions are welcome. Please open an issue to discuss proposed changes befo
 
 ## License
 
-MIT
+This project is dual-licensed:
+
+- **Base Elemental** (core, storage, sdk, ui, shared-routes, server, web) is licensed under [Apache 2.0](LICENSE)
+- **Orchestration** (orchestrator-sdk, orchestrator-server, orchestrator-web) is licensed under [AGPL 3.0](LICENSE-ORCHESTRATION)
+
+See the respective LICENSE files for full terms.

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Elemental platform web server",
+  "license": "Apache-2.0",
   "main": "src/index.ts",
   "scripts": {
     "dev": "bun run --hot src/index.ts",

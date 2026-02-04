@@ -54,7 +54,7 @@
     "directory": "packages/orchestrator-sdk"
   },
   "author": "Toolco",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "keywords": [
     "elemental",
     "orchestrator",

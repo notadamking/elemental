@@ -74,7 +74,7 @@
     "directory": "packages/ui"
   },
   "author": "Toolco",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "elemental",
     "ui",

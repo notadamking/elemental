@@ -45,7 +45,7 @@
     "directory": "packages/storage"
   },
   "author": "Toolco",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "elemental",
     "storage",
