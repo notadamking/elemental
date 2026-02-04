@@ -16,7 +16,7 @@
  */
 
 import type { Entity, EntityId, ElementId, Channel, ChannelId } from '@elemental/core';
-import { EntityTypeValue, createEntity, createTimestamp, createDirectChannel, generateDirectChannelName, duplicateName } from '@elemental/core';
+import { EntityTypeValue, createEntity, createTimestamp, createDirectChannel, generateDirectChannelName, duplicateName, asEntityId, asElementId } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
 import type {
   AgentRole,
@@ -352,7 +352,7 @@ export class AgentRegistryImpl implements AgentRegistry {
 
   async getAgent(entityId: EntityId): Promise<AgentEntity | undefined> {
     // Cast EntityId to ElementId - they are both branded string types
-    const entity = await this.api.get(entityId as unknown as ElementId);
+    const entity = await this.api.get(asElementId(entityId));
     if (!entity || entity.type !== 'entity' || !isAgentEntity(entity as Entity)) {
       return undefined;
     }
@@ -434,7 +434,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     } as AgentMetadata;
 
     // Cast EntityId to ElementId for update
-    const updated = await this.api.update(entityId as unknown as ElementId, {
+    const updated = await this.api.update(asElementId(entityId), {
       metadata: { ...agent.metadata, [AGENT_META_KEY]: updatedAgentMeta },
     });
 
@@ -461,7 +461,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     } as AgentMetadata;
 
     // Cast EntityId to ElementId for update
-    const updated = await this.api.update(entityId as unknown as ElementId, {
+    const updated = await this.api.update(asElementId(entityId), {
       metadata: { ...agent.metadata, [AGENT_META_KEY]: updatedAgentMeta },
     });
 
@@ -484,7 +484,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     }
 
     // Cast EntityId to ElementId for update, explicitly type as Entity
-    const updated = await this.api.update<Entity>(entityId as unknown as ElementId, updateData as Partial<Entity>);
+    const updated = await this.api.update<Entity>(asElementId(entityId), updateData as Partial<Entity>);
 
     return updated as AgentEntity;
   }
@@ -497,7 +497,7 @@ export class AgentRegistryImpl implements AgentRegistry {
     // First try to get the channel ID from the agent's metadata (fast path)
     const channelId = await this.getAgentChannelId(agentId);
     if (channelId) {
-      const channel = await this.api.get(channelId as unknown as ElementId);
+      const channel = await this.api.get(asElementId(channelId));
       if (channel && channel.type === 'channel') {
         return channel as Channel;
       }
@@ -545,7 +545,7 @@ export class AgentRegistryImpl implements AgentRegistry {
   ): Promise<AgentEntity> {
     const saved = await this.api.create(entityData);
     const agentEntity = saved as AgentEntity;
-    const agentEntityId = agentEntity.id as unknown as EntityId;
+    const agentEntityId = asEntityId(agentEntity.id);
 
     let channel: Channel;
     try {
@@ -577,7 +577,7 @@ export class AgentRegistryImpl implements AgentRegistry {
    */
   private async createAgentChannel(agentName: string, agentId: EntityId, createdBy: EntityId): Promise<Channel> {
     // Look up the creator entity name for the channel display name
-    const creatorEntity = await this.api.get(createdBy as unknown as ElementId);
+    const creatorEntity = await this.api.get(asElementId(createdBy));
     const creatorName = (creatorEntity as { name?: string } | null)?.name ?? 'operator';
 
     // Create a direct channel between the agent and the operator

@@ -292,7 +292,9 @@ describe('TaskAssignmentService', () => {
       expect(meta?.handoffWorktree).toBe('.elemental/.worktrees/my-task');
       expect(meta?.lastSessionId).toBe('sess-123');
       expect(meta?.handoffAt).toBeDefined();
-      expect((meta as Record<string, unknown>)?.handoffMessage).toBe('Completed backend, need frontend help');
+      // handoffNote/handoffMessage removed (L-1): handoff notes are now appended to the description Document
+      expect(meta?.handoffHistory).toBeDefined();
+      expect(meta?.handoffHistory?.[0]?.message).toBe('Completed backend, need frontend help');
     });
 
     test('builds handoff history across multiple handoffs', async () => {

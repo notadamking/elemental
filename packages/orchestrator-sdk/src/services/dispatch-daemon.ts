@@ -27,7 +27,7 @@ import type {
   InboxItem,
   Document,
 } from '@elemental/core';
-import { InboxStatus, createTimestamp, TaskStatus } from '@elemental/core';
+import { InboxStatus, createTimestamp, TaskStatus, asEntityId, asElementId } from '@elemental/core';
 import type { ElementalAPI, InboxService } from '@elemental/sdk';
 import { loadTriagePrompt } from '../prompts/index.js';
 
@@ -121,6 +121,12 @@ export interface DispatchDaemonConfig {
    * Allows the server to attach event savers and save the initial prompt.
    */
   readonly onSessionStarted?: OnSessionStartedCallback;
+
+  /**
+   * Project root directory for loading prompt overrides.
+   * Default: process.cwd()
+   */
+  readonly projectRoot?: string;
 }
 
 /**
@@ -152,6 +158,7 @@ interface NormalizedConfig {
   workflowTaskPollEnabled: boolean;
   maxSessionDurationMs: number;
   onSessionStarted?: OnSessionStartedCallback;
+  projectRoot: string;
 }
 
 // ============================================================================
@@ -387,10 +394,10 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       // defer task assignment so the next cycle's triage pass can handle them.
       const availableWorkers: AgentEntity[] = [];
       for (const worker of workers) {
-        const session = this.sessionManager.getActiveSession(worker.id as unknown as EntityId);
+        const session = this.sessionManager.getActiveSession(asEntityId(worker.id));
         if (session) continue;
 
-        const unreadItems = this.inboxService.getInbox(worker.id as unknown as EntityId, {
+        const unreadItems = this.inboxService.getInbox(asEntityId(worker.id), {
           status: InboxStatus.UNREAD,
           limit: 1,
         });
@@ -451,7 +458,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
       for (const agent of agents) {
         try {
-          const agentId = agent.id as unknown as EntityId;
+          const agentId = asEntityId(agent.id);
           const meta = getAgentMetadata(agent);
           if (!meta) continue;
 
@@ -576,7 +583,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       // Find available stewards (no active session)
       const availableStewards: AgentEntity[] = [];
       for (const steward of stewards) {
-        const session = this.sessionManager.getActiveSession(steward.id as unknown as EntityId);
+        const session = this.sessionManager.getActiveSession(asEntityId(steward.id));
         if (!session) {
           availableStewards.push(steward);
         }
@@ -609,7 +616,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
             // Assign the highest priority task to this steward
             const sortedTasks = [...matchingTasks].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
             const task = sortedTasks[0];
-            const stewardId = steward.id as unknown as EntityId;
+            const stewardId = asEntityId(steward.id);
 
             await this.dispatchService.dispatch(task.id, stewardId);
             processed++;
@@ -710,6 +717,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       workflowTaskPollEnabled: config?.workflowTaskPollEnabled ?? true,
       maxSessionDurationMs: config?.maxSessionDurationMs ?? 0,
       onSessionStarted: config?.onSessionStarted,
+      projectRoot: config?.projectRoot ?? process.cwd(),
     };
   }
 
@@ -795,7 +803,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Sort by priority (higher is more urgent)
     const sortedTasks = [...unassignedTasks].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
     const task = sortedTasks[0];
-    const workerId = worker.id as unknown as EntityId;
+    const workerId = asEntityId(worker.id);
 
     // Check for existing worktree/branch in task metadata
     // Priority: handoff > existing assignment > create new
@@ -855,7 +863,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     this.emitter.emit('task:dispatched', task.id, workerId);
 
     // Build initial prompt with task context
-    const initialPrompt = this.buildTaskPrompt(task);
+    const initialPrompt = await this.buildTaskPrompt(task);
 
     // Spawn worker INSIDE the worktree
     const { session, events } = await this.sessionManager.startSession(workerId, {
@@ -887,8 +895,10 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Builds the initial prompt for a task assignment.
+   * Fetches the description Document content so handoff notes (appended to
+   * description) are automatically included.
    */
-  private buildTaskPrompt(task: Task): string {
+  private async buildTaskPrompt(task: Task): Promise<string> {
     const parts = [
       '## Task Assignment',
       '',
@@ -900,10 +910,16 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       parts.push(`**Priority:** ${task.priority}`);
     }
 
-    // Note: Task.descriptionRef is a reference to a Document element
-    // The actual content would need to be fetched separately
+    // Fetch and include the actual description content
     if (task.descriptionRef) {
-      parts.push('', `**Description Document:** ${task.descriptionRef}`);
+      try {
+        const doc = await this.api.get<Document>(asElementId(task.descriptionRef));
+        if (doc?.content) {
+          parts.push('', '### Description', doc.content);
+        }
+      } catch {
+        parts.push('', `**Description Document:** ${task.descriptionRef}`);
+      }
     }
 
     // Include acceptance criteria if any
@@ -911,11 +927,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       parts.push('', '### Acceptance Criteria', task.acceptanceCriteria);
     }
 
-    // Include handoff notes if this is a handoff
-    const taskMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
-    if (taskMeta?.handoffNote) {
-      parts.push('', '### Handoff Note', taskMeta.handoffNote);
-    }
+    // Handoff notes are now embedded in the description — no separate section needed
 
     // Explicit action instructions so the worker knows what to do
     parts.push(
@@ -938,11 +950,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     item: InboxItem,
     meta: WorkerMetadata | StewardMetadata | { agentRole: 'director' }
   ): Promise<boolean> {
-    const agentId = agent.id as unknown as EntityId;
+    const agentId = asEntityId(agent.id);
     const activeSession = this.sessionManager.getActiveSession(agentId);
 
     // Get the message to check its type
-    const message = await this.api.get<Message>(item.messageId as unknown as ElementId);
+    const message = await this.api.get<Message>(asElementId(item.messageId));
     if (!message) {
       // Message not found, mark as read and skip
       this.inboxService.markAsRead(item.id);
@@ -1013,7 +1025,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     item: InboxItem,
     activeSession: SessionRecord | undefined
   ): Promise<boolean> {
-    const agentId = agent.id as unknown as EntityId;
+    const agentId = asEntityId(agent.id);
 
     if (activeSession) {
       // In session -> forward as user input
@@ -1053,7 +1065,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       // cycle could spawn a session for the same agent. If that happens,
       // startSession() fails, the error is caught, items stay unread, and
       // retry happens next cycle. This is acceptable — not a bug.
-      const activeSession = this.sessionManager.getActiveSession(agentId as unknown as EntityId);
+      const activeSession = this.sessionManager.getActiveSession(asEntityId(agentId));
       if (activeSession) {
         // Agent is now busy — leave messages unread for next cycle
         continue;
@@ -1075,9 +1087,10 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       try {
         await this.spawnTriageSession(agent, channelItems, channelId);
 
-        // Items will be marked as read inside spawnTriageSession's exit handler
-        // after the triage session completes successfully. Count is optimistic —
-        // items stay unread on crash and retry next cycle.
+        // Count items as processed only after spawn succeeds. Items are
+        // marked as read in spawnTriageSession's exit handler after the
+        // triage session completes. If the session crashes, items stay
+        // unread and retry next cycle.
         processed += channelItems.length;
       } catch (error) {
         console.error(
@@ -1105,7 +1118,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     items: InboxItem[],
     channelId: string
   ): Promise<void> {
-    const agentId = agent.id as unknown as EntityId;
+    const agentId = asEntityId(agent.id);
 
     // Create a read-only worktree (detached HEAD on default branch).
     // The path is deterministic ({agentName}-triage), so a stale worktree
@@ -1142,7 +1155,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Fetch messages and build the triage prompt
     const messages: Message[] = [];
     for (const item of items) {
-      const message = await this.api.get<Message>(item.messageId as unknown as ElementId);
+      const message = await this.api.get<Message>(asElementId(item.messageId));
       if (message) {
         messages.push(message);
       }
@@ -1204,7 +1217,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     channelId: string
   ): Promise<string> {
     // Load the triage prompt template
-    const triageResult = loadTriagePrompt();
+    const triageResult = loadTriagePrompt({ projectRoot: this.config.projectRoot });
     if (!triageResult) {
       throw new Error('Failed to load message-triage prompt template');
     }
@@ -1219,7 +1232,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       let content = '[No content available]';
       if (message.contentRef) {
         try {
-          const doc = await this.api.get<Document>(message.contentRef as unknown as ElementId);
+          const doc = await this.api.get<Document>(asElementId(message.contentRef));
           if (doc?.content) {
             content = doc.content;
           }
@@ -1251,7 +1264,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     let content = '[No content available]';
     if (message.contentRef) {
       try {
-        const doc = await this.api.get<Document>(message.contentRef as unknown as ElementId);
+        const doc = await this.api.get<Document>(asElementId(message.contentRef));
         if (doc?.content) {
           content = doc.content;
         }

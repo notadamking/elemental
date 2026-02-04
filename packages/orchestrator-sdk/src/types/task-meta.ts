@@ -78,9 +78,6 @@ export interface OrchestratorTaskMeta {
   /** Timestamp when the task was handed off */
   readonly handoffAt?: Timestamp;
 
-  /** Note from the previous agent about the handoff context */
-  readonly handoffNote?: string;
-
   /** Entity ID of the agent who handed off the task */
   readonly handoffFrom?: EntityId;
 
@@ -102,9 +99,6 @@ export interface OrchestratorTaskMeta {
 
   /** Last commit hash before completion */
   readonly lastCommitHash?: string;
-
-  /** Message explaining the handoff context */
-  readonly handoffMessage?: string;
 
   /** History of all handoffs for this task */
   readonly handoffHistory?: HandoffHistoryEntry[];

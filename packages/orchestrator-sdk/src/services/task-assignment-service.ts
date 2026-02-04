@@ -15,8 +15,8 @@
  * @module
  */
 
-import type { Task, ElementId, EntityId } from '@elemental/core';
-import { createTimestamp, TaskStatus, ElementType, ConflictError, ConflictErrorCode } from '@elemental/core';
+import type { Task, ElementId, EntityId, Document } from '@elemental/core';
+import { createTimestamp, TaskStatus, ElementType, ConflictError, ConflictErrorCode, asElementId } from '@elemental/core';
 
 // Use type alias for TaskStatus values
 type TaskStatusValue = typeof TaskStatus[keyof typeof TaskStatus];
@@ -226,7 +226,7 @@ export interface TaskAssignmentService {
   /**
    * Marks a task as completed by the assigned agent.
    *
-   * Sets the task status to 'done' and records completion time.
+   * Sets the task status to 'closed' and records completion time.
    * The task remains assigned for merge tracking.
    * Optionally creates a merge request for the task branch (when a provider is configured).
    *
@@ -368,7 +368,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     }
 
     // Guard against double-assignment
-    if (task.assignee && task.assignee !== (agentId as unknown as EntityId)) {
+    if (task.assignee && task.assignee !== agentId) {
       throw new ConflictError(
         `Task ${taskId} is already assigned to ${task.assignee}`,
         ConflictErrorCode.ALREADY_EXISTS,
@@ -377,7 +377,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     }
 
     // Get and validate the agent
-    const agent = await this.api.get<AgentEntity>(agentId as unknown as ElementId);
+    const agent = await this.api.get<AgentEntity>(asElementId(agentId));
     if (!agent || agent.type !== ElementType.ENTITY || !isAgentEntity(agent)) {
       throw new Error(`Agent not found: ${agentId}`);
     }
@@ -566,6 +566,21 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     };
     const handoffHistory = [...(existingHistory || []), handoffEntry];
 
+    // Append handoff note to the task's description Document
+    if (task.descriptionRef && message) {
+      try {
+        const doc = await this.api.get<Document>(asElementId(task.descriptionRef));
+        if (doc) {
+          const handoffLine = `\n\n[AGENT HANDOFF NOTE]: ${message}`;
+          await this.api.update<Document>(asElementId(task.descriptionRef), {
+            content: doc.content + handoffLine,
+          } as Partial<Document>);
+        }
+      } catch {
+        // Non-fatal: handoff note is also preserved in handoffHistory
+      }
+    }
+
     // Update orchestrator metadata with handoff info
     const metaUpdates: Record<string, unknown> = {
       // Clear assignment but preserve branch/worktree for continuation
@@ -577,8 +592,6 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       handoffWorktree,
       lastSessionId: sessionId,
       handoffAt: createTimestamp(),
-      handoffNote: message,
-      handoffMessage: message,
       handoffHistory,
     };
 
@@ -667,7 +680,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
   async agentHasCapacity(agentId: EntityId): Promise<boolean> {
     // Get the agent to check their max concurrent tasks
-    const agent = await this.api.get<AgentEntity>(agentId as unknown as ElementId);
+    const agent = await this.api.get<AgentEntity>(asElementId(agentId));
     if (!agent || !isAgentEntity(agent)) {
       return false;
     }

@@ -26,6 +26,7 @@ import {
   ContentType,
   ElementType,
   createMessage,
+  asElementId,
 } from '@elemental/core';
 import type { ElementalAPI } from '@elemental/sdk';
 
@@ -93,7 +94,7 @@ export type DispatchMessageType =
  */
 export interface DispatchNotificationMetadata {
   type: DispatchMessageType;
-  taskId: ElementId;
+  taskId?: ElementId;
   priority?: number;
   restart?: boolean;
   branch?: string;
@@ -267,7 +268,7 @@ export class DispatchServiceImpl implements DispatchService {
 
     const notification = await this.sendNotification(
       agentId,
-      channel.id as unknown as ElementId,
+      asElementId(channel.id),
       messageContent,
       notificationMetadata,
       options?.dispatchedBy
@@ -315,14 +316,13 @@ export class DispatchServiceImpl implements DispatchService {
 
     const fullMetadata: DispatchNotificationMetadata = {
       type: messageType,
-      taskId: '' as ElementId, // No task associated
       dispatchedAt: createTimestamp(),
       ...(metadata ?? {}),
     };
 
     return this.sendNotification(
       agentId,
-      channel.id as unknown as ElementId,
+      asElementId(channel.id),
       content,
       fullMetadata
     );

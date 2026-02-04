@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import type { EventEmitter } from 'node:events';
 import type { EntityId, ElementId, Task, Priority } from '@elemental/core';
-import { createTimestamp, createTask as coreCreateTask, ElementType } from '@elemental/core';
+import { createTimestamp, createTask as coreCreateTask, ElementType, asEntityId, asElementId } from '@elemental/core';
 import type { ElementalAPI, InboxService } from '@elemental/sdk';
 import { createStorage, initializeSchema, createInboxService } from '@elemental/sdk';
 
@@ -471,7 +471,7 @@ async function createSystemEntity(api: ElementalAPI): Promise<EntityId> {
     metadata: { description: 'System entity for orchestration tests' },
   });
   const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
-  return saved.id as unknown as EntityId;
+  return asEntityId(saved.id);
 }
 
 // ============================================================================
@@ -930,7 +930,7 @@ export async function sendTestMessage(
     subKind: 'direct',
     channel: channelId,
     sender: ctx.systemEntityId,
-    contentRef: doc.id as unknown as ElementId,
+    contentRef: asElementId(doc.id),
     metadata: {},
     tags: ['test'],
     createdBy: ctx.systemEntityId,

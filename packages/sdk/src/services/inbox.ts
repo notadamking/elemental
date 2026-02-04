@@ -15,7 +15,7 @@
  */
 
 import type { StorageBackend, Row } from '@elemental/storage';
-import type { EntityId, Timestamp, ChannelId, InboxItem, InboxFilter, CreateInboxItemInput } from '@elemental/core';
+import type { EntityId, Timestamp, ChannelId, MessageId, InboxItem, InboxFilter, CreateInboxItemInput } from '@elemental/core';
 import {
   InboxStatus,
   InboxSourceType,
@@ -107,6 +107,10 @@ export class InboxService {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_inbox_message
       ON inbox_items(message_id)
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_inbox_recipient_channel
+      ON inbox_items(recipient_id, channel_id)
     `);
   }
 
@@ -554,7 +558,7 @@ export class InboxService {
     return {
       id: row.id,
       recipientId: row.recipient_id as EntityId,
-      messageId: row.message_id as any,
+      messageId: row.message_id as unknown as MessageId,
       channelId: row.channel_id as ChannelId,
       sourceType: row.source_type as InboxSourceType,
       status: row.status as InboxStatus,

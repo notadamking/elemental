@@ -500,7 +500,7 @@ async function taskRejectHandler(
     await api.updateTaskOrchestratorMeta(taskId as ElementId, {
       mergeStatus: 'test_failed',
       mergeFailureReason: options.reason,
-      ...(options.message ? { handoffNote: options.message } : {}),
+      ...(options.message ? { handoffHistory: [{ sessionId: 'cli', message: options.message, handoffAt: new Date().toISOString() }] } : {}),
     });
 
     await api.update<Task>(taskId as ElementId, {

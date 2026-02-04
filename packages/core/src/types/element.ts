@@ -35,6 +35,20 @@ export type EntityId = string & { readonly [EntityIdBrand]: typeof EntityIdBrand
 export type Timestamp = string;
 
 // ============================================================================
+// Branded Type Cast Utilities
+// ============================================================================
+
+/** Cast a string to EntityId (use at trust boundaries only) */
+export function asEntityId(id: string): EntityId {
+  return id as unknown as EntityId;
+}
+
+/** Cast a string to ElementId (use at trust boundaries only) */
+export function asElementId(id: string): ElementId {
+  return id as unknown as ElementId;
+}
+
+// ============================================================================
 // Element Types
 // ============================================================================
 

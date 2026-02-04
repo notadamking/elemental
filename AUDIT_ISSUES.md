@@ -452,10 +452,12 @@ const timeout = setTimeout(() => {
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/types/task-meta.ts:82,107` |
 
 Both fields serve the same purpose. `handoffTask` in `task-assignment-service.ts:571-572` sets both. Consolidate to one field and deprecate the other.
+
+**Fix:** Removed both `handoffNote` and `handoffMessage` from `OrchestratorTaskMeta`. Handoff notes are now appended to the task's description Document as `[AGENT HANDOFF NOTE]: {note}`. `buildTaskPrompt` fetches the description Document so workers see handoff notes automatically.
 
 ---
 
@@ -463,10 +465,12 @@ Both fields serve the same purpose. `handoffTask` in `task-assignment-service.ts
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/dispatch-daemon.ts:1168` |
 
 `loadTriagePrompt()` is called with no arguments. Project-level prompt overrides in `.elemental/prompts/` are never loaded for triage sessions.
+
+**Fix:** Added `projectRoot` to `DispatchDaemonConfig` (defaults to `process.cwd()`). `loadTriagePrompt()` now receives `{ projectRoot: this.config.projectRoot }`.
 
 ---
 
@@ -474,10 +478,12 @@ Both fields serve the same purpose. `handoffTask` in `task-assignment-service.ts
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | Multiple files across orchestrator-sdk |
 
 `EntityId` and `ElementId` are used interchangeably via double-casts. This suggests a type system inconsistency that should be resolved at the type definition level rather than papered over with casts.
+
+**Fix:** Added `asEntityId()` and `asElementId()` utility cast functions to `@elemental/core` (`packages/core/src/types/element.ts`). Replaced `as unknown as EntityId/ElementId` casts in key orchestrator-sdk files.
 
 ---
 
@@ -485,10 +491,12 @@ Both fields serve the same purpose. `handoffTask` in `task-assignment-service.ts
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/task-assignment-service.ts:229,525` |
 
 The JSDoc says the method "Sets the task status to 'done'" but the code uses `TaskStatus.CLOSED`. No `DONE` status exists in the enum. The doc is misleading.
+
+**Fix:** Updated JSDoc to say "Sets the task status to 'closed'".
 
 ---
 
@@ -496,7 +504,7 @@ The JSDoc says the method "Sets the task status to 'done'" but the code uses `Ta
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/dispatch-service.ts:318` |
 
 ```typescript
@@ -505,16 +513,20 @@ taskId: '' as ElementId, // No task associated
 
 An empty string cast to `ElementId` is a type lie. Downstream lookups using this ID will fail silently or produce confusing errors. Should be `undefined` with the field typed as `ElementId | undefined`.
 
+**Fix:** Made `taskId` optional in `DispatchNotificationMetadata`. Removed the `'' as ElementId` placeholder from `notifyAgent`.
+
 ---
 
 ### L-6. Triage processed count is optimistic
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/dispatch-daemon.ts:1039-1042` |
 
 `processed += channelItems.length` is incremented before the triage session runs. If the session crashes, the `PollResult.processed` count is inflated. This affects monitoring and observability accuracy.
+
+**Fix:** Clarified comment — the increment is already inside the try block after `spawnTriageSession()` succeeds. On spawn failure the catch skips the increment. Session crash after spawn is inherent and items retry via unread state.
 
 ---
 
@@ -522,7 +534,7 @@ An empty string cast to `ElementId` is a type lie. Downstream lookups using this
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/sdk/src/services/inbox.ts:536` |
 
 ```typescript
@@ -531,13 +543,15 @@ messageId: row.message_id as any,
 
 Bypasses type safety entirely. Should use the correct branded type or a validated cast.
 
+**Fix:** Changed to `row.message_id as unknown as MessageId` with proper `MessageId` import from `@elemental/core`.
+
 ---
 
 ### L-8. No `channel_id` index in inbox schema
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/sdk/src/services/inbox.ts:98-111` |
 
 Indexes exist for `(recipient_id, status)`, `(recipient_id, created_at)`, and `(message_id)`, but not `channel_id`. `getInboxByChannel` (line 420) and filter queries with `channelId` require a full table scan. Add:
@@ -545,6 +559,8 @@ Indexes exist for `(recipient_id, status)`, `(recipient_id, created_at)`, and `(
 ```sql
 CREATE INDEX IF NOT EXISTS idx_inbox_channel ON inbox_items(channel_id);
 ```
+
+**Fix:** Added composite index `idx_inbox_recipient_channel ON inbox_items(recipient_id, channel_id)` to support `getInboxByChannel` queries.
 
 ---
 

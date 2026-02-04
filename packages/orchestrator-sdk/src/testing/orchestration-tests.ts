@@ -923,7 +923,13 @@ async function runWorkerHandoffOnContextFillMock(ctx: TestContext): Promise<Test
     handoffWorktree: worktreeResult.path,
     handoffFrom: worker.id as unknown as EntityId,
     handoffAt: new Date().toISOString(),
-    handoffNote: 'Context limit approaching, handing off to continue work',
+    handoffHistory: [{
+      sessionId: 'sim-session',
+      message: 'Context limit approaching, handing off to continue work',
+      branch: worktreeResult.branch,
+      worktree: worktreeResult.path,
+      handoffAt: new Date().toISOString(),
+    }],
   });
 
   // 4. Unassign from current worker (simulating handoff)
@@ -941,14 +947,14 @@ async function runWorkerHandoffOnContextFillMock(ctx: TestContext): Promise<Test
     return fail('Handoff branch not set');
   }
 
-  if (!taskMeta?.handoffNote) {
-    return fail('Handoff note not set');
+  if (!taskMeta?.handoffHistory || taskMeta.handoffHistory.length === 0) {
+    return fail('Handoff history not set');
   }
 
   return pass('Worker created handoff successfully', {
     handoffBranch: taskMeta.handoffBranch,
     handoffFrom: taskMeta.handoffFrom,
-    handoffNote: taskMeta.handoffNote,
+    handoffHistory: taskMeta.handoffHistory,
   });
 }
 
@@ -997,7 +1003,7 @@ RULES:
   const meta = await waitForTaskMeta(
     ctx.api,
     task.id,
-    (m) => !!m.handoffNote,
+    (m) => Array.isArray(m.handoffHistory) && m.handoffHistory.length > 0,
     { timeout: 240000 }
   );
 
@@ -1008,7 +1014,7 @@ RULES:
   }
 
   return pass('Worker created handoff successfully', {
-    handoffNote: meta.handoffNote,
+    handoffHistory: meta.handoffHistory,
     handoffBranch: meta.handoffBranch,
     taskStatus: reopened?.status,
   });
@@ -1298,7 +1304,11 @@ async function runStewardHandoffFailingMRMock(ctx: TestContext): Promise<TestRes
   await ctx.api.updateTaskOrchestratorMeta(task.id, {
     mergeStatus: 'test_failed',
     mergeFailureReason: '3 tests failed: Test 1, Test 2, Test 3',
-    handoffNote: 'Tests failed, needs worker to fix issues',
+    handoffHistory: [{
+      sessionId: 'steward-session',
+      message: 'Tests failed, needs worker to fix issues',
+      handoffAt: new Date().toISOString(),
+    }],
   });
 
   // 4. Reopen task for assignment
@@ -1316,8 +1326,8 @@ async function runStewardHandoffFailingMRMock(ctx: TestContext): Promise<TestRes
     return fail(`Expected merge status 'test_failed', got: ${taskMeta?.mergeStatus}`);
   }
 
-  if (!taskMeta?.handoffNote) {
-    return fail('Handoff note not set');
+  if (!taskMeta?.handoffHistory || taskMeta.handoffHistory.length === 0) {
+    return fail('Handoff history not set');
   }
 
   const updatedTask = await ctx.api.get<Task>(task.id);
@@ -1328,7 +1338,7 @@ async function runStewardHandoffFailingMRMock(ctx: TestContext): Promise<TestRes
   return pass('Steward created handoff for failing PR', {
     taskId: task.id,
     mergeStatus: taskMeta.mergeStatus,
-    handoffNote: taskMeta.handoffNote,
+    handoffHistory: taskMeta.handoffHistory,
     taskStatus: updatedTask.status,
   });
 }
@@ -1392,7 +1402,7 @@ async function runStewardHandoffFailingMRReal(ctx: TestContext): Promise<TestRes
   return pass('Steward created handoff for failing PR', {
     taskId: task.id,
     mergeStatus: meta.mergeStatus,
-    handoffNote: meta.handoffNote,
+    handoffHistory: meta.handoffHistory,
     taskStatus: reopened?.status,
   });
 }
