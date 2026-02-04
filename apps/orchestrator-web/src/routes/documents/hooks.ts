@@ -450,18 +450,49 @@ export function useMoveLibraryToParent() {
   return useMutation<
     MoveLibraryResult,
     Error,
-    { libraryId: string; parentId: string | null; actor?: string }
+    { libraryId: string; parentId: string | null; index?: number; actor?: string }
   >({
-    mutationFn: async ({ libraryId, parentId, actor }) => {
+    mutationFn: async ({ libraryId, parentId, index, actor }) => {
       const response = await fetch(`/api/libraries/${libraryId}/parent`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parentId, actor }),
+        body: JSON.stringify({ parentId, index, actor }),
       });
 
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error?.message || 'Failed to move library');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+    },
+  });
+}
+
+/**
+ * Hook to reorder a library within its current parent
+ */
+export function useReorderLibrary() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { libraryId: string; index: number; parentId: string | null },
+    Error,
+    { libraryId: string; index: number }
+  >({
+    mutationFn: async ({ libraryId, index }) => {
+      const response = await fetch(`/api/libraries/${libraryId}/order`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to reorder library');
       }
 
       return response.json();

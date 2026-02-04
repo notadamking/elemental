@@ -28,9 +28,22 @@ export function buildLibraryTree(libraries: LibraryType[]): LibraryTreeNode[] {
     }
   }
 
-  // Sort children alphabetically at each level
+  // Sort children - use sortIndex if any child has one, otherwise alphabetical
   const sortChildren = (nodes: LibraryTreeNode[]) => {
-    nodes.sort((a, b) => a.name.localeCompare(b.name));
+    // Check if any child has a sortIndex in metadata
+    const hasCustomOrder = nodes.some((n) => n.metadata?.sortIndex !== undefined);
+
+    if (hasCustomOrder) {
+      nodes.sort((a, b) => {
+        const aIndex = (a.metadata?.sortIndex as number) ?? Infinity;
+        const bIndex = (b.metadata?.sortIndex as number) ?? Infinity;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+        return a.name.localeCompare(b.name); // Fallback for items without index
+      });
+    } else {
+      nodes.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     for (const node of nodes) {
       sortChildren(node.children);
     }

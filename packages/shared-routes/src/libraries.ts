@@ -143,9 +143,136 @@ export function createLibraryRoutes(services: CollaborateServices) {
   });
 
   /**
+   * Helper to get siblings of a library (other libraries with the same parent)
+   */
+  async function getSiblingLibraries(libraryId: ElementId, parentId: string | null): Promise<Element[]> {
+    if (parentId) {
+      // Get children of parent
+      const dependents = await api.getDependents(parentId as ElementId, ['parent-child']);
+      const siblings: Element[] = [];
+      for (const dep of dependents) {
+        if (dep.blockedId !== libraryId) {
+          const sibling = await api.get(dep.blockedId as ElementId);
+          if (sibling && sibling.type === 'library') {
+            siblings.push(sibling);
+          }
+        }
+      }
+      return siblings;
+    } else {
+      // Root level - get all libraries without a parent
+      const allLibraries = await api.list({ type: 'library' } as Parameters<typeof api.list>[0]);
+      const rootSiblings: Element[] = [];
+      for (const lib of allLibraries) {
+        if (lib.id !== libraryId) {
+          const deps = await api.getDependencies(lib.id, ['parent-child']);
+          const hasParent = deps.some((d) => d.type === 'parent-child');
+          if (!hasParent) {
+            rootSiblings.push(lib);
+          }
+        }
+      }
+      return rootSiblings;
+    }
+  }
+
+  /**
+   * Helper to assign sort indices to siblings when reordering
+   */
+  async function assignSortIndices(
+    libraryId: ElementId,
+    siblings: Element[],
+    targetIndex: number
+  ): Promise<void> {
+    // Sort siblings by their current sortIndex (or name for those without)
+    const sortedSiblings = [...siblings].sort((a, b) => {
+      const aIndex = (a.metadata?.sortIndex as number) ?? Infinity;
+      const bIndex = (b.metadata?.sortIndex as number) ?? Infinity;
+      if (aIndex !== bIndex) return aIndex - bIndex;
+      // Cast to access 'name' since we know these are libraries
+      const aName = (a as Element & { name?: string }).name ?? '';
+      const bName = (b as Element & { name?: string }).name ?? '';
+      return aName.localeCompare(bName);
+    });
+
+    // Assign new indices: items before targetIndex keep their position,
+    // items at or after targetIndex shift up by 1
+    for (let i = 0; i < sortedSiblings.length; i++) {
+      const sibling = sortedSiblings[i];
+      const currentIndex = (sibling.metadata?.sortIndex as number) ?? i;
+      let newIndex = i;
+
+      // Shift items at or after target position
+      if (newIndex >= targetIndex) {
+        newIndex = i + 1;
+      }
+
+      if (newIndex !== currentIndex || sibling.metadata?.sortIndex === undefined) {
+        await api.update(sibling.id, {
+          metadata: { ...sibling.metadata, sortIndex: newIndex },
+        });
+      }
+    }
+
+    // Set the moved library's sortIndex
+    const library = await api.get(libraryId);
+    if (library) {
+      await api.update(libraryId, {
+        metadata: { ...library.metadata, sortIndex: targetIndex },
+      });
+    }
+  }
+
+  /**
+   * PUT /api/libraries/:id/order
+   * Reorder a library within its current parent
+   * Body: { index: number }
+   */
+  app.put('/api/libraries/:id/order', async (c) => {
+    try {
+      const libraryId = c.req.param('id') as ElementId;
+      const body = await c.req.json();
+      const index = body.index as number;
+
+      if (typeof index !== 'number' || index < 0) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'index must be a non-negative number' } }, 400);
+      }
+
+      // Verify library exists
+      const library = await api.get(libraryId);
+      if (!library) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+      }
+      if (library.type !== 'library') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+      }
+
+      // Find current parent
+      const deps = await api.getDependencies(libraryId, ['parent-child']);
+      let parentId: string | null = null;
+      for (const dep of deps) {
+        const parent = await api.get(dep.blockerId as ElementId);
+        if (parent && parent.type === 'library') {
+          parentId = dep.blockerId;
+          break;
+        }
+      }
+
+      // Get siblings and assign indices
+      const siblings = await getSiblingLibraries(libraryId, parentId);
+      await assignSortIndices(libraryId, siblings, index);
+
+      return c.json({ libraryId, index, parentId });
+    } catch (error) {
+      console.error('[elemental] Failed to reorder library:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reorder library' } }, 500);
+    }
+  });
+
+  /**
    * PUT /api/libraries/:id/parent
    * Move a library to a new parent (or to root level)
-   * Body: { parentId: string | null, actor?: string }
+   * Body: { parentId: string | null, index?: number, actor?: string }
    */
   app.put('/api/libraries/:id/parent', async (c) => {
     try {
@@ -162,6 +289,7 @@ export function createLibraryRoutes(services: CollaborateServices) {
       }
 
       const newParentId = body.parentId as ElementId | null;
+      const index = body.index as number | undefined;
       const actor = (body.actor as EntityId) || ('el-0000' as EntityId);
 
       // Validate new parent if provided
@@ -207,8 +335,13 @@ export function createLibraryRoutes(services: CollaborateServices) {
         }
       }
 
-      // Already at requested parent — no-op
+      // Already at requested parent — check if we need to reorder
       if (previousParentId === newParentId) {
+        if (index !== undefined) {
+          // Reorder within same parent
+          const siblings = await getSiblingLibraries(libraryId, newParentId);
+          await assignSortIndices(libraryId, siblings, index);
+        }
         return c.json({ libraryId, parentId: newParentId, previousParentId });
       }
 
@@ -225,6 +358,12 @@ export function createLibraryRoutes(services: CollaborateServices) {
           type: 'parent-child',
           actor,
         });
+      }
+
+      // If index is provided, set sortIndex in the new parent context
+      if (index !== undefined) {
+        const siblings = await getSiblingLibraries(libraryId, newParentId);
+        await assignSortIndices(libraryId, siblings, index);
       }
 
       return c.json({ libraryId, parentId: newParentId, previousParentId });

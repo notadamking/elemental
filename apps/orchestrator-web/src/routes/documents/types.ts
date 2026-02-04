@@ -13,6 +13,10 @@ export interface LibraryType {
   createdBy: string;
   tags: string[];
   parentId: string | null;
+  metadata?: {
+    sortIndex?: number;
+    [key: string]: unknown;
+  };
 }
 
 export interface LibraryTreeNode extends LibraryType {

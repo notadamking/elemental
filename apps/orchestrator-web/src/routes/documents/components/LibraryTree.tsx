@@ -138,7 +138,8 @@ interface LibraryTreeProps {
   onNewDocument: () => void;
   onNewLibrary: () => void;
   onSelectDocument: (documentId: string) => void;
-  onMoveLibrary?: (libraryId: string, newParentId: string | null) => void;
+  onMoveLibrary?: (libraryId: string, newParentId: string | null, index?: number) => void;
+  onReorderLibrary?: (libraryId: string, newIndex: number) => void;
   onDropDocument?: (documentId: string, libraryId: string) => void;
   activeDragData?: DragData | null;
   isMobile?: boolean;
@@ -154,6 +155,7 @@ export function LibraryTree({
   onNewLibrary,
   onSelectDocument,
   onMoveLibrary,
+  onReorderLibrary,
   activeDragData,
   isMobile = false,
 }: LibraryTreeProps) {
@@ -221,6 +223,7 @@ export function LibraryTree({
       parentId,
       parentNode,
       dragNodes,
+      index,
     }: {
       dragIds: string[];
       dragNodes: NodeApi<TreeNodeData>[];
@@ -228,8 +231,6 @@ export function LibraryTree({
       parentNode: NodeApi<TreeNodeData> | null;
       index: number;
     }) => {
-      if (!onMoveLibrary) return;
-
       const libraryId = dragIds[0];
       if (!libraryId) return;
 
@@ -243,9 +244,22 @@ export function LibraryTree({
         return;
       }
 
-      onMoveLibrary(libraryId, parentId);
+      // Check if this is a reorder within the same parent
+      const currentParentId = dragNodes[0]?.data.parentId ?? null;
+
+      if (currentParentId === parentId) {
+        // Same parent - reorder only
+        if (onReorderLibrary) {
+          onReorderLibrary(libraryId, index);
+        }
+      } else {
+        // Different parent - move with index
+        if (onMoveLibrary) {
+          onMoveLibrary(libraryId, parentId, index);
+        }
+      }
     },
-    [onMoveLibrary]
+    [onMoveLibrary, onReorderLibrary]
   );
 
   // Validate drops - prevent circular nesting

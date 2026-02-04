@@ -36,6 +36,7 @@ import {
   useMoveDocumentToLibrary,
   useRemoveDocumentFromLibrary,
   useMoveLibraryToParent,
+  useReorderLibrary,
 } from './hooks';
 import type { DocumentType, DragData } from './types';
 import {
@@ -80,6 +81,7 @@ export function DocumentsPage() {
   const moveDocumentToLibrary = useMoveDocumentToLibrary();
   const removeDocumentFromLibrary = useRemoveDocumentFromLibrary();
   const moveLibraryToParent = useMoveLibraryToParent();
+  const reorderLibrary = useReorderLibrary();
 
   // Configure dnd-kit sensors
   const sensors = useSensors(
@@ -242,11 +244,12 @@ export function DocumentsPage() {
 
   // Handle library move (from react-arborist internal drag)
   const handleMoveLibrary = useCallback(
-    async (libraryId: string, newParentId: string | null) => {
+    async (libraryId: string, newParentId: string | null, index?: number) => {
       try {
         await moveLibraryToParent.mutateAsync({
           libraryId,
           parentId: newParentId,
+          index,
         });
         toast.success('Library moved successfully');
       } catch (err) {
@@ -254,6 +257,22 @@ export function DocumentsPage() {
       }
     },
     [moveLibraryToParent]
+  );
+
+  // Handle library reorder within same parent
+  const handleReorderLibrary = useCallback(
+    async (libraryId: string, newIndex: number) => {
+      try {
+        await reorderLibrary.mutateAsync({
+          libraryId,
+          index: newIndex,
+        });
+        // Silent success - reordering is a subtle UI operation
+      } catch (err) {
+        toast.error((err as Error).message || 'Failed to reorder library');
+      }
+    },
+    [reorderLibrary]
   );
 
   // DnD handlers for document drag from @dnd-kit
@@ -538,6 +557,7 @@ export function DocumentsPage() {
                   onNewLibrary={handleOpenCreateLibraryModal}
                   onSelectDocument={handleSelectDocument}
                   onMoveLibrary={handleMoveLibrary}
+                  onReorderLibrary={handleReorderLibrary}
                   activeDragData={activeDragData}
                 />
               </div>
