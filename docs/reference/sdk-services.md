@@ -311,6 +311,71 @@ await syncService.import(jsonlPath, { force: true });
 
 ---
 
+## SearchUtils
+
+**File:** `services/search-utils.ts`
+
+Utility functions for FTS5 full-text search.
+
+```typescript
+import { escapeFts5Query, adaptiveTopK } from '@elemental/sdk/services/search-utils';
+```
+
+### Functions
+
+```typescript
+// Escape special FTS5 characters in a query string
+const safeQuery = escapeFts5Query(userInput);
+
+// Adaptive top-K selection using elbow detection
+// Automatically determines the optimal number of results to return
+// based on score distribution (detects the "elbow" where scores drop off)
+const topResults = adaptiveTopK(scoredResults, {
+  maxResults?: number,    // Hard upper limit
+  minResults?: number,    // Minimum results to return
+});
+```
+
+**Elbow detection:** Analyzes the BM25 score distribution to find the natural cutoff point where result relevance drops significantly, avoiding returning low-quality results.
+
+---
+
+## EmbeddingService
+
+**Files:** `services/embeddings/service.ts`, `services/embeddings/types.ts`, `services/embeddings/local-provider.ts`, `services/embeddings/fusion.ts`
+
+Manages document embeddings for semantic search.
+
+```typescript
+import { createEmbeddingService } from '@elemental/sdk/services/embeddings';
+```
+
+### EmbeddingProvider Interface
+
+```typescript
+interface EmbeddingProvider {
+  readonly name: string;
+  readonly dimensions: number;
+  isAvailable(): Promise<boolean>;
+  embed(text: string): Promise<number[]>;
+  embedBatch(texts: string[]): Promise<number[][]>;
+}
+```
+
+### LocalEmbeddingProvider
+
+File: `services/embeddings/local-provider.ts`
+
+Local embedding model provider. Install via `el embeddings install`.
+
+### Reciprocal Rank Fusion
+
+File: `services/embeddings/fusion.ts`
+
+Combines FTS5 (BM25) and semantic (embedding) search results using reciprocal rank fusion for hybrid search mode.
+
+---
+
 ## Service Integration Pattern
 
 Services are typically created together:

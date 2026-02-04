@@ -241,7 +241,6 @@ export interface Task {
   title: string;
   description?: string;
   descriptionRef?: string;
-  designRef?: string;
   acceptanceCriteria?: string;
   status: TaskStatus;
   priority: Priority;

@@ -132,6 +132,50 @@ el dep tree abc123
 | `el doc show <id>` | Show document |
 | `el doc history <id>` | Show version history |
 | `el doc rollback <id> <version>` | Rollback to version |
+| `el doc archive <id>` | Archive document |
+| `el doc unarchive <id>` | Unarchive document |
+| `el doc reindex` | Reindex documents for FTS5 search |
+
+```bash
+# Create document with category
+el doc create --title "API Spec" --category spec
+
+# List documents (active only by default)
+el doc list
+el doc list --category spec
+el doc list --status archived
+el doc list --all                    # Include archived
+
+# Archive / unarchive
+el doc archive abc123
+el doc unarchive abc123
+
+# Reindex FTS5
+el doc reindex
+```
+
+## Embeddings Commands
+
+| Command | Description |
+|---------|-------------|
+| `el embeddings install` | Install local embedding model |
+| `el embeddings status` | Show embedding model status |
+| `el embeddings reindex` | Rebuild document embeddings |
+| `el embeddings search <query>` | Semantic search over documents |
+
+```bash
+# Install the local embedding model
+el embeddings install
+
+# Check status
+el embeddings status
+
+# Rebuild embeddings index
+el embeddings reindex
+
+# Search documents by semantic similarity
+el embeddings search "authentication flow"
+```
 
 ## Plan Commands
 

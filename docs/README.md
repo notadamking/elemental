@@ -102,12 +102,18 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | Inbox service | `services/inbox.ts` | `services/inbox.test.ts` |
 | Priority service | `services/priority-service.ts` | `services/priority-service.test.ts` |
 | ID length cache | `services/id-length-cache.ts` | `services/id-length-cache.test.ts` |
+| Search utils | `services/search-utils.ts` | - |
+| Embedding service | `services/embeddings/service.ts` | - |
+| Embedding types | `services/embeddings/types.ts` | - |
+| Local embedding provider | `services/embeddings/local-provider.ts` | - |
+| Rank fusion | `services/embeddings/fusion.ts` | - |
 | Sync service | `sync/service.ts` | `sync/service.test.ts` |
 | Sync merge | `sync/merge.ts` | - |
 | Sync hash | `sync/hash.ts` | - |
 | Config loader | `config/config.ts` | `config/config.test.ts` |
 | Identity system | `systems/identity.ts` | `systems/identity.test.ts` |
 | CLI commands | `cli/commands/*.ts` | `cli/commands/*.test.ts` |
+| CLI embeddings commands | `cli/commands/embeddings.ts` | - |
 
 ## File Map (@elemental/ui)
 

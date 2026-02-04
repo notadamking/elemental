@@ -5,8 +5,8 @@
  */
 
 import { Hono } from 'hono';
-import type { ElementId, EntityId, Element, Document, DocumentId, CreateDocumentInput } from '@elemental/core';
-import { createDocument } from '@elemental/core';
+import type { ElementId, EntityId, Element, Document, DocumentId, CreateDocumentInput, DocumentCategory, DocumentStatus } from '@elemental/core';
+import { createDocument, isValidDocumentCategory, isValidDocumentStatus, DocumentStatus as DocumentStatusEnum } from '@elemental/core';
 import type { CollaborateServices } from './types.js';
 
 // Comment type for the comments table
@@ -42,11 +42,35 @@ export function createDocumentRoutes(services: CollaborateServices) {
       const orderByParam = url.searchParams.get('orderBy');
       const orderDirParam = url.searchParams.get('orderDir');
       const searchParam = url.searchParams.get('search');
+      const categoryParam = url.searchParams.get('category');
+      const statusParam = url.searchParams.get('status');
 
       // Build filter
       const filter: Record<string, unknown> = {
         type: 'document',
       };
+
+      // Category filter
+      if (categoryParam) {
+        const categories = categoryParam.split(',');
+        for (const cat of categories) {
+          if (!isValidDocumentCategory(cat)) {
+            return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid category: ${cat}` } }, 400);
+          }
+        }
+        filter.category = categories.length === 1 ? categories[0] : categories;
+      }
+
+      // Status filter (default: active only, unless explicitly specified)
+      if (statusParam) {
+        const statuses = statusParam.split(',');
+        for (const s of statuses) {
+          if (!isValidDocumentStatus(s)) {
+            return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status: ${s}` } }, 400);
+          }
+        }
+        filter.status = statuses.length === 1 ? statuses[0] : statuses;
+      }
 
       const requestedLimit = limitParam ? parseInt(limitParam, 10) : 50;
       const requestedOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
@@ -97,97 +121,71 @@ export function createDocumentRoutes(services: CollaborateServices) {
 
   /**
    * GET /api/documents/search
-   * Search documents by title and content with highlighted snippets (TB95)
+   * Search documents using FTS5 full-text search with BM25 ranking.
    *
    * Query params:
    * - q: Search query (required)
-   * - limit: Max number of results (default: 20)
+   * - limit: Hard cap on results (default: 50)
+   * - category: Filter by category
+   * - status: Filter by status (default: active)
+   * - sensitivity: Elbow detection sensitivity (default: 1.5)
+   * - mode: Search mode — 'relevance' (FTS5 only, default), 'semantic' (vector), 'hybrid' (RRF fusion)
    */
   app.get('/api/documents/search', async (c) => {
     try {
       const url = new URL(c.req.url);
       const query = url.searchParams.get('q');
       const limitParam = url.searchParams.get('limit');
-      const limit = limitParam ? parseInt(limitParam, 10) : 20;
+      const categoryParam = url.searchParams.get('category');
+      const statusParam = url.searchParams.get('status');
+      const sensitivityParam = url.searchParams.get('sensitivity');
+      const mode = url.searchParams.get('mode') ?? 'relevance';
 
       if (!query || query.trim().length === 0) {
         return c.json({ results: [] });
       }
 
-      const searchQuery = query.trim().toLowerCase();
-
-      // Get all documents (with reasonable limit to avoid performance issues)
-      const result = await api.listPaginated({
-        type: 'document',
-        limit: 1000,
-        orderBy: 'updated_at',
-        orderDir: 'desc',
-      } as Parameters<typeof api.listPaginated>[0]);
-
-      // Search through documents
-      interface SearchResult {
-        id: string;
-        title: string;
-        contentType: string;
-        matchType: 'title' | 'content' | 'both';
-        snippet?: string;
-        updatedAt: string;
+      // Validate mode
+      if (!['relevance', 'semantic', 'hybrid'].includes(mode)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid mode: ${mode}. Must be relevance, semantic, or hybrid` } }, 400);
       }
 
-      const results: SearchResult[] = [];
-
-      for (const item of result.items) {
-        const doc = item as unknown as { id: string; title: string; content?: string; contentType: string; updatedAt: string };
-        const titleLower = (doc.title || '').toLowerCase();
-        const contentLower = (doc.content || '').toLowerCase();
-
-        const titleMatch = titleLower.includes(searchQuery);
-        const contentMatch = contentLower.includes(searchQuery);
-
-        if (titleMatch || contentMatch) {
-          let snippet: string | undefined;
-
-          // Generate content snippet if there's a content match
-          if (contentMatch && doc.content) {
-            const matchIndex = contentLower.indexOf(searchQuery);
-            // Get surrounding context (50 chars before and after)
-            const snippetStart = Math.max(0, matchIndex - 50);
-            const snippetEnd = Math.min(doc.content.length, matchIndex + searchQuery.length + 50);
-            let snippetText = doc.content.slice(snippetStart, snippetEnd);
-
-            // Add ellipsis if truncated
-            if (snippetStart > 0) snippetText = '...' + snippetText;
-            if (snippetEnd < doc.content.length) snippetText = snippetText + '...';
-
-            // Clean up markdown/HTML for display
-            snippetText = snippetText
-              .replace(/#{1,6}\s*/g, '') // Remove heading markers
-              .replace(/\*\*/g, '') // Remove bold markers
-              .replace(/\*/g, '') // Remove italic markers
-              .replace(/`/g, '') // Remove code markers
-              .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax
-              .replace(/<[^>]+>/g, '') // Remove HTML tags
-              .replace(/\n+/g, ' ') // Replace newlines with spaces
-              .trim();
-
-            snippet = snippetText;
-          }
-
-          results.push({
-            id: doc.id,
-            title: doc.title || `Document ${doc.id}`,
-            contentType: doc.contentType,
-            matchType: titleMatch && contentMatch ? 'both' : titleMatch ? 'title' : 'content',
-            snippet,
-            updatedAt: doc.updatedAt,
-          });
-
-          // Stop when we have enough results
-          if (results.length >= limit) break;
-        }
+      // Semantic and hybrid modes require embeddings service (not yet integrated at route level)
+      if (mode === 'semantic' || mode === 'hybrid') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `${mode} search requires embeddings to be installed. Use mode=relevance or install embeddings via 'el embeddings install'` } }, 400);
       }
 
-      return c.json({ results, query: query.trim() });
+      // Validate category if provided
+      if (categoryParam && !isValidDocumentCategory(categoryParam)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid category: ${categoryParam}` } }, 400);
+      }
+
+      // Validate status if provided
+      if (statusParam && !isValidDocumentStatus(statusParam)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status: ${statusParam}` } }, 400);
+      }
+
+      const results = await api.searchDocumentsFTS(query.trim(), {
+        hardCap: limitParam ? parseInt(limitParam, 10) : 50,
+        ...(categoryParam && { category: categoryParam as DocumentCategory }),
+        ...(statusParam && { status: statusParam as DocumentStatus }),
+        ...(sensitivityParam && { elbowSensitivity: parseFloat(sensitivityParam) }),
+      });
+
+      return c.json({
+        results: results.map((r) => ({
+          id: r.document.id,
+          contentType: r.document.contentType,
+          category: r.document.category,
+          status: r.document.status,
+          score: r.score,
+          snippet: r.snippet,
+          updatedAt: r.document.updatedAt,
+        })),
+        query: query.trim(),
+        mode,
+        total: results.length,
+      });
     } catch (error) {
       console.error('[elemental] Failed to search documents:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to search documents' } }, 500);
@@ -262,6 +260,16 @@ export function createDocumentRoutes(services: CollaborateServices) {
         }
       }
 
+      // Validate category if provided
+      if (body.category !== undefined && !isValidDocumentCategory(body.category)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid category: ${body.category}` } }, 400);
+      }
+
+      // Validate status if provided
+      if (body.status !== undefined && !isValidDocumentStatus(body.status)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status: ${body.status}` } }, 400);
+      }
+
       // Build CreateDocumentInput
       const docInput: CreateDocumentInput = {
         contentType,
@@ -269,6 +277,8 @@ export function createDocumentRoutes(services: CollaborateServices) {
         createdBy: body.createdBy as EntityId,
         ...(body.tags !== undefined && { tags: body.tags }),
         ...(body.metadata !== undefined && { metadata: body.metadata }),
+        ...(body.category !== undefined && { category: body.category as DocumentCategory }),
+        ...(body.status !== undefined && { status: body.status as DocumentStatus }),
       };
 
       // Create the document using the factory function
@@ -320,7 +330,7 @@ export function createDocumentRoutes(services: CollaborateServices) {
 
       // Extract allowed updates (prevent changing immutable fields)
       const updates: Record<string, unknown> = {};
-      const allowedFields = ['title', 'content', 'contentType', 'tags', 'metadata'];
+      const allowedFields = ['title', 'content', 'contentType', 'tags', 'metadata', 'category', 'status'];
 
       for (const field of allowedFields) {
         if (body[field] !== undefined) {
@@ -342,6 +352,16 @@ export function createDocumentRoutes(services: CollaborateServices) {
             400
           );
         }
+      }
+
+      // Validate category if provided
+      if (updates.category !== undefined && !isValidDocumentCategory(updates.category as string)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid category: ${updates.category}` } }, 400);
+      }
+
+      // Validate status if provided
+      if (updates.status !== undefined && !isValidDocumentStatus(updates.status as string)) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status: ${updates.status}` } }, 400);
       }
 
       // Validate JSON content if contentType is json
@@ -378,6 +398,54 @@ export function createDocumentRoutes(services: CollaborateServices) {
       }
       console.error('[elemental] Failed to update document:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update document' } }, 500);
+    }
+  });
+
+  // POST /api/documents/:id/archive - Archive a document
+  app.post('/api/documents/:id/archive', async (c) => {
+    try {
+      const id = c.req.param('id') as ElementId;
+
+      const existing = await api.get(id);
+      if (!existing) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (existing.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      const updated = await api.update(id, { status: DocumentStatusEnum.ARCHIVED } as unknown as Partial<Document>);
+      return c.json(updated);
+    } catch (error) {
+      if ((error as { code?: string }).code === 'NOT_FOUND') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      console.error('[elemental] Failed to archive document:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to archive document' } }, 500);
+    }
+  });
+
+  // POST /api/documents/:id/unarchive - Unarchive a document
+  app.post('/api/documents/:id/unarchive', async (c) => {
+    try {
+      const id = c.req.param('id') as ElementId;
+
+      const existing = await api.get(id);
+      if (!existing) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (existing.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      const updated = await api.update(id, { status: DocumentStatusEnum.ACTIVE } as unknown as Partial<Document>);
+      return c.json(updated);
+    } catch (error) {
+      if ((error as { code?: string }).code === 'NOT_FOUND') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      console.error('[elemental] Failed to unarchive document:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to unarchive document' } }, 500);
     }
   });
 

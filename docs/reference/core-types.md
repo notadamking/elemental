@@ -40,7 +40,6 @@ interface Task extends Element {
   ephemeral?: boolean;       // If true, not synced to JSONL
   assigneeId?: EntityId;
   descriptionRef?: DocumentId;
-  designRef?: DocumentId;
   scheduledFor?: string;     // ISO 8601 date
   closedAt?: Timestamp;
   closeReason?: string;
@@ -133,11 +132,23 @@ interface Document extends Element {
   title?: string;
   content: string;           // Current version content
   contentType: ContentType;
+  category: DocumentCategory; // Defaults to 'other'
+  status: DocumentStatus;     // Defaults to 'active'
   version: number;           // Starts at 1
   attachmentRefs?: DocumentId[];
 }
 
 type ContentType = 'text' | 'markdown' | 'json' | 'yaml' | 'html' | 'code';
+
+type DocumentCategory =
+  | 'spec' | 'prd' | 'decision-log' | 'changelog'
+  | 'tutorial' | 'how-to' | 'explanation' | 'reference'
+  | 'runbook' | 'meeting-notes' | 'post-mortem'
+  | 'task-description'   // System-managed
+  | 'message-content'    // System-managed
+  | 'other';             // Default
+
+type DocumentStatus = 'active' | 'archived';
 ```
 
 **Key functions:**
@@ -148,6 +159,9 @@ type ContentType = 'text' | 'markdown' | 'json' | 'yaml' | 'html' | 'code';
 **Constraints:**
 - Content size limited to 10MB (UTF-8 bytes)
 - Version history preserved in `document_versions` table
+- `category` and `status` are required fields (defaults applied at creation)
+- `task-description` and `message-content` are system-managed categories (set automatically)
+- Archived documents (`status: 'archived'`) are hidden from default list/search results
 
 ---
 
@@ -212,7 +226,6 @@ interface Plan extends Element {
   title: string;
   status: PlanStatus;
   descriptionRef?: DocumentId;
-  designRef?: DocumentId;
 }
 
 type PlanStatus = 'draft' | 'active' | 'completed' | 'cancelled';
@@ -403,6 +416,10 @@ enum ErrorCode {
   INVALID_PUBLIC_KEY = 'INVALID_PUBLIC_KEY',
   INVALID_SIGNATURE = 'INVALID_SIGNATURE',
   SIGNATURE_EXPIRED = 'SIGNATURE_EXPIRED',
+
+  // Document
+  INVALID_CATEGORY = 'INVALID_CATEGORY',
+  INVALID_DOCUMENT_STATUS = 'INVALID_DOCUMENT_STATUS',
 
   // Storage
   STORAGE_ERROR = 'STORAGE_ERROR',

@@ -5,6 +5,8 @@ import {
   MIN_VERSION,
   Document,
   DocumentId,
+  DocumentCategory,
+  DocumentStatus,
   isValidContentType,
   validateContentType,
   isValidContentString,
@@ -16,6 +18,10 @@ import {
   validateVersion,
   isValidPreviousVersionId,
   validatePreviousVersionId,
+  isValidDocumentCategory,
+  validateDocumentCategory,
+  isValidDocumentStatus,
+  validateDocumentStatus,
   isDocument,
   validateDocument,
   createDocument,
@@ -51,6 +57,8 @@ function createTestDocument(overrides: Partial<Document> = {}): Document {
     content: 'Test content',
     version: 1,
     previousVersionId: null,
+    category: DocumentCategory.OTHER,
+    status: DocumentStatus.ACTIVE,
     ...overrides,
   };
 }
@@ -103,6 +111,112 @@ describe('validateContentType', () => {
       const err = e as ValidationError;
       expect(err.code).toBe(ErrorCode.INVALID_CONTENT_TYPE);
       expect(err.details.field).toBe('contentType');
+    }
+  });
+});
+
+// ============================================================================
+// DocumentCategory Tests
+// ============================================================================
+
+describe('DocumentCategory', () => {
+  test('contains all expected categories', () => {
+    expect(DocumentCategory.SPEC).toBe('spec');
+    expect(DocumentCategory.PRD).toBe('prd');
+    expect(DocumentCategory.DECISION_LOG).toBe('decision-log');
+    expect(DocumentCategory.CHANGELOG).toBe('changelog');
+    expect(DocumentCategory.TUTORIAL).toBe('tutorial');
+    expect(DocumentCategory.HOW_TO).toBe('how-to');
+    expect(DocumentCategory.EXPLANATION).toBe('explanation');
+    expect(DocumentCategory.REFERENCE).toBe('reference');
+    expect(DocumentCategory.RUNBOOK).toBe('runbook');
+    expect(DocumentCategory.MEETING_NOTES).toBe('meeting-notes');
+    expect(DocumentCategory.POST_MORTEM).toBe('post-mortem');
+    expect(DocumentCategory.TASK_DESCRIPTION).toBe('task-description');
+    expect(DocumentCategory.MESSAGE_CONTENT).toBe('message-content');
+    expect(DocumentCategory.OTHER).toBe('other');
+  });
+
+  test('has exactly 14 categories', () => {
+    expect(Object.keys(DocumentCategory)).toHaveLength(14);
+  });
+});
+
+describe('isValidDocumentCategory', () => {
+  test('accepts all valid categories', () => {
+    for (const category of Object.values(DocumentCategory)) {
+      expect(isValidDocumentCategory(category)).toBe(true);
+    }
+  });
+
+  test('rejects invalid categories', () => {
+    expect(isValidDocumentCategory('invalid')).toBe(false);
+    expect(isValidDocumentCategory('blog')).toBe(false);
+    expect(isValidDocumentCategory(null)).toBe(false);
+    expect(isValidDocumentCategory(undefined)).toBe(false);
+    expect(isValidDocumentCategory(123)).toBe(false);
+  });
+});
+
+describe('validateDocumentCategory', () => {
+  test('returns valid category', () => {
+    expect(validateDocumentCategory('spec')).toBe('spec');
+    expect(validateDocumentCategory('other')).toBe('other');
+  });
+
+  test('throws ValidationError for invalid category', () => {
+    expect(() => validateDocumentCategory('invalid')).toThrow(ValidationError);
+    try {
+      validateDocumentCategory('invalid');
+    } catch (e) {
+      const err = e as ValidationError;
+      expect(err.code).toBe(ErrorCode.INVALID_CATEGORY);
+    }
+  });
+});
+
+// ============================================================================
+// DocumentStatus Tests
+// ============================================================================
+
+describe('DocumentStatus', () => {
+  test('contains all expected statuses', () => {
+    expect(DocumentStatus.ACTIVE).toBe('active');
+    expect(DocumentStatus.ARCHIVED).toBe('archived');
+  });
+
+  test('has exactly 2 statuses', () => {
+    expect(Object.keys(DocumentStatus)).toHaveLength(2);
+  });
+});
+
+describe('isValidDocumentStatus', () => {
+  test('accepts all valid statuses', () => {
+    expect(isValidDocumentStatus('active')).toBe(true);
+    expect(isValidDocumentStatus('archived')).toBe(true);
+  });
+
+  test('rejects invalid statuses', () => {
+    expect(isValidDocumentStatus('deleted')).toBe(false);
+    expect(isValidDocumentStatus('draft')).toBe(false);
+    expect(isValidDocumentStatus(null)).toBe(false);
+    expect(isValidDocumentStatus(undefined)).toBe(false);
+  });
+});
+
+describe('validateDocumentStatus', () => {
+  test('returns valid status', () => {
+    expect(validateDocumentStatus('active')).toBe('active');
+    expect(validateDocumentStatus('archived')).toBe('archived');
+  });
+
+  test('throws ValidationError for invalid status', () => {
+    expect(() => validateDocumentStatus('invalid')).toThrow(ValidationError);
+    try {
+      validateDocumentStatus('invalid');
+    } catch (e) {
+      const err = e as ValidationError;
+      expect(err.code).toBe(ErrorCode.INVALID_DOCUMENT_STATUS);
     }
   });
 });
@@ -409,6 +523,38 @@ describe('isDocument', () => {
       )
     ).toBe(false);
   });
+
+  test('rejects documents with missing category', () => {
+    const doc = { ...createTestDocument() };
+    delete (doc as any).category;
+    expect(isDocument(doc)).toBe(false);
+  });
+
+  test('rejects documents with invalid category', () => {
+    expect(isDocument({ ...createTestDocument(), category: 'invalid' })).toBe(false);
+  });
+
+  test('rejects documents with missing status', () => {
+    const doc = { ...createTestDocument() };
+    delete (doc as any).status;
+    expect(isDocument(doc)).toBe(false);
+  });
+
+  test('rejects documents with invalid status', () => {
+    expect(isDocument({ ...createTestDocument(), status: 'deleted' })).toBe(false);
+  });
+
+  test('accepts documents with all valid categories', () => {
+    for (const category of Object.values(DocumentCategory)) {
+      expect(isDocument(createTestDocument({ category }))).toBe(true);
+    }
+  });
+
+  test('accepts documents with all valid statuses', () => {
+    for (const status of Object.values(DocumentStatus)) {
+      expect(isDocument(createTestDocument({ status }))).toBe(true);
+    }
+  });
 });
 
 // ============================================================================
@@ -563,6 +709,44 @@ describe('createDocument', () => {
     });
 
     expect(doc.content).toBe('');
+  });
+
+  test('defaults category to other', async () => {
+    const doc = await createDocument(validInput);
+    expect(doc.category).toBe(DocumentCategory.OTHER);
+  });
+
+  test('defaults status to active', async () => {
+    const doc = await createDocument(validInput);
+    expect(doc.status).toBe(DocumentStatus.ACTIVE);
+  });
+
+  test('creates document with explicit category', async () => {
+    const doc = await createDocument({
+      ...validInput,
+      category: DocumentCategory.SPEC,
+    });
+    expect(doc.category).toBe('spec');
+  });
+
+  test('creates document with explicit status', async () => {
+    const doc = await createDocument({
+      ...validInput,
+      status: DocumentStatus.ARCHIVED,
+    });
+    expect(doc.status).toBe('archived');
+  });
+
+  test('validates invalid category', async () => {
+    await expect(
+      createDocument({ ...validInput, category: 'invalid' as any })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  test('validates invalid status', async () => {
+    await expect(
+      createDocument({ ...validInput, status: 'invalid' as any })
+    ).rejects.toThrow(ValidationError);
   });
 });
 

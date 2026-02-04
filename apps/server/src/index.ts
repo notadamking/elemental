@@ -500,7 +500,6 @@ app.post('/api/tasks', async (c) => {
       ...(body.scheduledFor !== undefined && { scheduledFor: body.scheduledFor }),
       ...(body.tags !== undefined && { tags: body.tags }),
       ...(descriptionRef !== undefined && { descriptionRef }),
-      ...(body.designRef !== undefined && { designRef: body.designRef }),
       ...(body.acceptanceCriteria !== undefined && { acceptanceCriteria: body.acceptanceCriteria }),
     };
     const task = await createTask(taskInput);

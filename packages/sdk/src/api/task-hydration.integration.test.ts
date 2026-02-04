@@ -4,7 +4,7 @@
  * Tests for Document reference resolution (hydration) in tasks:
  * - Single task hydration via get()
  * - Batch task hydration via list()
- * - Hydration options (description, design)
+ * - Hydration options (description)
  * - Edge cases (missing documents, partial hydration)
  */
 
@@ -95,58 +95,6 @@ describe('Task Hydration', () => {
       expect(hydrated?.descriptionRef).toBe(descDoc.id);
     });
 
-    it('should hydrate task design when requested', async () => {
-      // Create design document
-      const designDoc = await createTestDocument({
-        content: '## Technical Design\n\nArchitecture details here.',
-      });
-      await api.create(toCreateInput(designDoc));
-
-      // Create task with design ref
-      const task = await createTestTask({
-        title: 'Task with design',
-        designRef: designDoc.id as DocumentId,
-      });
-      await api.create(toCreateInput(task));
-
-      // Get with hydration
-      const hydrated = await api.get<HydratedTask>(task.id, {
-        hydrate: { design: true },
-      });
-
-      expect(hydrated).toBeDefined();
-      expect(hydrated?.design).toBe('## Technical Design\n\nArchitecture details here.');
-      expect(hydrated?.designRef).toBe(designDoc.id);
-    });
-
-    it('should hydrate both description and design when requested', async () => {
-      // Create both documents
-      const descDoc = await createTestDocument({
-        content: 'Description content',
-      });
-      const designDoc = await createTestDocument({
-        content: 'Design content',
-      });
-      await api.create(toCreateInput(descDoc));
-      await api.create(toCreateInput(designDoc));
-
-      // Create task with both refs
-      const task = await createTestTask({
-        title: 'Task with both',
-        descriptionRef: descDoc.id as DocumentId,
-        designRef: designDoc.id as DocumentId,
-      });
-      await api.create(toCreateInput(task));
-
-      // Get with both hydrations
-      const hydrated = await api.get<HydratedTask>(task.id, {
-        hydrate: { description: true, design: true },
-      });
-
-      expect(hydrated?.description).toBe('Description content');
-      expect(hydrated?.design).toBe('Design content');
-    });
-
     it('should not hydrate when not requested', async () => {
       // Create document
       const descDoc = await createTestDocument({
@@ -203,12 +151,11 @@ describe('Task Hydration', () => {
 
       // Get with hydration - should not throw
       const hydrated = await api.get<HydratedTask>(task.id, {
-        hydrate: { description: true, design: true },
+        hydrate: { description: true },
       });
 
       expect(hydrated).toBeDefined();
       expect(hydrated?.description).toBeUndefined();
-      expect(hydrated?.design).toBeUndefined();
     });
   });
 
@@ -418,72 +365,6 @@ describe('Task Hydration', () => {
 
       // Should have task + 2 documents
       expect(elements.length).toBe(3);
-    });
-  });
-
-  // --------------------------------------------------------------------------
-  // Hydration with Multiple Fields
-  // --------------------------------------------------------------------------
-
-  describe('Multi-field Hydration', () => {
-    it('should hydrate description and design independently', async () => {
-      // Create documents
-      const descDoc = await createTestDocument({ content: 'Description only' });
-      const designDoc = await createTestDocument({ content: 'Design only' });
-      await api.create(toCreateInput(descDoc));
-      await api.create(toCreateInput(designDoc));
-
-      // Create task with both
-      const task = await createTestTask({
-        title: 'Multi-ref task',
-        descriptionRef: descDoc.id as DocumentId,
-        designRef: designDoc.id as DocumentId,
-      });
-      await api.create(toCreateInput(task));
-
-      // Hydrate only description
-      const descOnly = await api.get<HydratedTask>(task.id, {
-        hydrate: { description: true },
-      });
-      expect(descOnly?.description).toBe('Description only');
-      expect(descOnly?.design).toBeUndefined();
-
-      // Hydrate only design
-      const designOnly = await api.get<HydratedTask>(task.id, {
-        hydrate: { design: true },
-      });
-      expect(designOnly?.description).toBeUndefined();
-      expect(designOnly?.design).toBe('Design only');
-
-      // Hydrate both
-      const both = await api.get<HydratedTask>(task.id, {
-        hydrate: { description: true, design: true },
-      });
-      expect(both?.description).toBe('Description only');
-      expect(both?.design).toBe('Design only');
-    });
-
-    it('should handle partial refs correctly', async () => {
-      // Create only one document
-      const descDoc = await createTestDocument({ content: 'Has description' });
-      await api.create(toCreateInput(descDoc));
-
-      // Create task with only description ref (no design)
-      const task = await createTestTask({
-        title: 'Partial refs',
-        descriptionRef: descDoc.id as DocumentId,
-        // No designRef
-      });
-      await api.create(toCreateInput(task));
-
-      // Request both hydrations
-      const hydrated = await api.get<HydratedTask>(task.id, {
-        hydrate: { description: true, design: true },
-      });
-
-      expect(hydrated?.description).toBe('Has description');
-      expect(hydrated?.design).toBeUndefined();
-      expect(hydrated?.designRef).toBeUndefined();
     });
   });
 

@@ -18,6 +18,10 @@ import { createElementalAPI } from '../../api/elemental-api.js';
 import {
   createDocument,
   ContentType,
+  DocumentCategory,
+  DocumentStatus,
+  isValidDocumentCategory,
+  isValidDocumentStatus,
   type Document,
   type CreateDocumentInput,
   type DocumentId,
@@ -92,6 +96,7 @@ interface DocCreateOptions {
   content?: string;
   file?: string;
   type?: string;
+  category?: string;
   tag?: string[];
 }
 
@@ -112,6 +117,11 @@ const docCreateOptions: CommandOption[] = [
     name: 'type',
     short: 't',
     description: 'Content type: text, markdown, json (default: text)',
+    hasValue: true,
+  },
+  {
+    name: 'category',
+    description: 'Document category (e.g., spec, prd, reference, tutorial)',
     hasValue: true,
   },
   {
@@ -168,6 +178,15 @@ async function docCreateHandler(
       contentType = options.type as typeof ContentType.TEXT;
     }
 
+    // Validate category
+    if (options.category && !isValidDocumentCategory(options.category)) {
+      const validCategories = Object.values(DocumentCategory);
+      return failure(
+        `Invalid category: ${options.category}. Must be one of: ${validCategories.join(', ')}`,
+        ExitCode.VALIDATION
+      );
+    }
+
     // Handle tags
     let tags: string[] | undefined;
     if (options.tag) {
@@ -179,6 +198,7 @@ async function docCreateHandler(
       contentType,
       createdBy: actor,
       ...(tags && { tags }),
+      ...(options.category && { category: options.category as typeof DocumentCategory.OTHER }),
     };
 
     const doc = await createDocument(input);
@@ -203,14 +223,16 @@ const docCreateCommand: Command = {
   help: `Create a new document.
 
 Options:
-  -c, --content <text>  Document content (inline)
-  -f, --file <path>     Read content from file
-  -t, --type <type>     Content type: text, markdown, json (default: text)
-      --tag <tag>       Add tag (can be repeated)
+  -c, --content <text>      Document content (inline)
+  -f, --file <path>         Read content from file
+  -t, --type <type>         Content type: text, markdown, json (default: text)
+      --category <category> Document category (e.g., spec, prd, reference, tutorial)
+      --tag <tag>           Add tag (can be repeated)
 
 Examples:
   el doc create --content "Hello world"
   el doc create --file README.md --type markdown
+  el doc create --file spec.md --type markdown --category spec
   el doc create -c '{"key": "value"}' -t json --tag config`,
   options: docCreateOptions,
   handler: docCreateHandler as Command['handler'],
@@ -223,6 +245,9 @@ Examples:
 interface DocListOptions {
   limit?: string;
   type?: string;
+  category?: string;
+  status?: string;
+  all?: boolean;
 }
 
 const docListOptions: CommandOption[] = [
@@ -237,6 +262,22 @@ const docListOptions: CommandOption[] = [
     short: 't',
     description: 'Filter by content type (text, markdown, json)',
     hasValue: true,
+  },
+  {
+    name: 'category',
+    description: 'Filter by category (e.g., spec, prd, reference)',
+    hasValue: true,
+  },
+  {
+    name: 'status',
+    description: 'Filter by status (active, archived)',
+    hasValue: true,
+  },
+  {
+    name: 'all',
+    short: 'a',
+    description: 'Include archived documents',
+    hasValue: false,
   },
 ];
 
@@ -264,6 +305,32 @@ async function docListHandler(
       filter.limit = limit;
     }
 
+    // Category filter
+    if (options.category) {
+      if (!isValidDocumentCategory(options.category)) {
+        const validCategories = Object.values(DocumentCategory);
+        return failure(
+          `Invalid category: ${options.category}. Must be one of: ${validCategories.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
+      filter.category = options.category;
+    }
+
+    // Status filter: --all includes everything, --status filters explicitly, default is active only
+    if (options.all) {
+      filter.status = [DocumentStatus.ACTIVE, DocumentStatus.ARCHIVED];
+    } else if (options.status) {
+      if (!isValidDocumentStatus(options.status)) {
+        return failure(
+          `Invalid status: ${options.status}. Must be one of: active, archived`,
+          ExitCode.VALIDATION
+        );
+      }
+      filter.status = options.status;
+    }
+    // Default: active only (handled by buildDocumentWhereClause)
+
     const result = await api.listPaginated<Document>(filter);
     let items = result.items;
 
@@ -288,10 +355,12 @@ async function docListHandler(
     }
 
     // Build table
-    const headers = ['ID', 'TYPE', 'VERSION', 'SIZE', 'CREATED'];
+    const headers = ['ID', 'TYPE', 'CATEGORY', 'STATUS', 'VERSION', 'SIZE', 'CREATED'];
     const rows = items.map((d) => [
       d.id,
       d.contentType,
+      d.category ?? 'other',
+      d.status ?? 'active',
       `v${d.version}`,
       formatSize(d.content.length),
       d.createdAt.split('T')[0],
@@ -320,15 +389,21 @@ const docListCommand: Command = {
   name: 'list',
   description: 'List documents',
   usage: 'el doc list [options]',
-  help: `List documents.
+  help: `List documents (active only by default).
 
 Options:
-  -l, --limit <n>    Maximum results
-  -t, --type <type>  Filter by content type
+  -l, --limit <n>            Maximum results
+  -t, --type <type>          Filter by content type
+      --category <category>  Filter by category (e.g., spec, prd, reference)
+      --status <status>      Filter by status (active, archived)
+  -a, --all                  Include archived documents
 
 Examples:
   el doc list
   el doc list --type markdown
+  el doc list --category spec
+  el doc list --status archived
+  el doc list --all
   el doc list --limit 10`,
   options: docListOptions,
   handler: docListHandler as Command['handler'],
@@ -635,6 +710,189 @@ Examples:
 };
 
 // ============================================================================
+// Document Archive Command
+// ============================================================================
+
+async function docArchiveHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [docId] = args;
+
+  if (!docId) {
+    return failure('Usage: el doc archive <document-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const existing = await api.get<Document>(docId as ElementId);
+    if (!existing) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
+    }
+    if (existing.type !== 'document') {
+      return failure(`Element ${docId} is not a document`, ExitCode.VALIDATION);
+    }
+
+    const updated = await api.update<Document>(
+      docId as ElementId,
+      { status: DocumentStatus.ARCHIVED } as Partial<Document>,
+      { actor: resolveActor(options) }
+    );
+
+    return success(updated, `Archived document ${docId}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to archive document: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const docArchiveCommand: Command = {
+  name: 'archive',
+  description: 'Archive a document',
+  usage: 'el doc archive <document-id>',
+  help: `Archive a document. Archived documents are hidden from default list/search.
+
+Arguments:
+  document-id   Document identifier
+
+Examples:
+  el doc archive el-doc123`,
+  handler: docArchiveHandler as Command['handler'],
+};
+
+// ============================================================================
+// Document Unarchive Command
+// ============================================================================
+
+async function docUnarchiveHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [docId] = args;
+
+  if (!docId) {
+    return failure('Usage: el doc unarchive <document-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const existing = await api.get<Document>(docId as ElementId);
+    if (!existing) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
+    }
+    if (existing.type !== 'document') {
+      return failure(`Element ${docId} is not a document`, ExitCode.VALIDATION);
+    }
+
+    const updated = await api.update<Document>(
+      docId as ElementId,
+      { status: DocumentStatus.ACTIVE } as Partial<Document>,
+      { actor: resolveActor(options) }
+    );
+
+    return success(updated, `Unarchived document ${docId}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to unarchive document: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const docUnarchiveCommand: Command = {
+  name: 'unarchive',
+  description: 'Unarchive a document',
+  usage: 'el doc unarchive <document-id>',
+  help: `Unarchive a document, making it visible in default list/search again.
+
+Arguments:
+  document-id   Document identifier
+
+Examples:
+  el doc unarchive el-doc123`,
+  handler: docUnarchiveHandler as Command['handler'],
+};
+
+// ============================================================================
+// Document Reindex Command
+// ============================================================================
+
+async function docReindexHandler(
+  _args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Get all documents (including archived)
+    const result = await api.listPaginated<Document>({
+      type: 'document',
+      limit: 10000,
+      status: [DocumentStatus.ACTIVE, DocumentStatus.ARCHIVED],
+    } as Record<string, unknown>);
+
+    let indexed = 0;
+    let errors = 0;
+
+    for (const doc of result.items) {
+      try {
+        // Re-create triggers FTS indexing via the API internals
+        // But we need direct FTS access. Instead, use a targeted approach:
+        // We'll call searchDocumentsFTS to verify FTS is working, but
+        // for reindexing we need the raw backend. Use update with no changes
+        // to trigger re-indexing (since update calls indexDocumentForFTS).
+        // Actually, the simplest approach: touch each document to trigger re-index
+        await api.update<Document>(
+          doc.id as ElementId,
+          { metadata: doc.metadata } as Partial<Document>,
+          { actor: resolveActor(options) }
+        );
+        indexed++;
+      } catch {
+        errors++;
+      }
+    }
+
+    const mode = getOutputMode(options);
+    if (mode === 'json') {
+      return success({ indexed, errors, total: result.items.length });
+    }
+
+    return success(
+      null,
+      `Reindexed ${indexed} documents for FTS search${errors > 0 ? ` (${errors} errors)` : ''}`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to reindex documents: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const docReindexCommand: Command = {
+  name: 'reindex',
+  description: 'Rebuild full-text search index',
+  usage: 'el doc reindex',
+  help: `Rebuild the FTS5 full-text search index for all documents.
+
+Iterates all documents (including archived) and re-indexes them
+in the FTS5 virtual table. Use this after migration or if search
+results seem stale.
+
+Examples:
+  el doc reindex`,
+  handler: docReindexHandler as Command['handler'],
+};
+
+// ============================================================================
 // Document Root Command
 // ============================================================================
 
@@ -648,25 +906,35 @@ Documents store content with automatic versioning. Each update creates
 a new version, and you can view history or rollback to any previous version.
 
 Subcommands:
-  create    Create a new document
-  list      List documents
-  show      Show document details
-  history   Show version history
-  rollback  Rollback to a previous version
+  create      Create a new document
+  list        List documents (active only by default)
+  show        Show document details
+  history     Show version history
+  rollback    Rollback to a previous version
+  archive     Archive a document
+  unarchive   Unarchive a document
+  reindex     Rebuild full-text search index
 
 Examples:
   el doc create --content "Hello world"
-  el doc create --file notes.md --type markdown
+  el doc create --file notes.md --type markdown --category spec
   el doc list
+  el doc list --category reference --all
   el doc show el-doc123
   el doc history el-doc123
-  el doc rollback el-doc123 2`,
+  el doc rollback el-doc123 2
+  el doc archive el-doc123
+  el doc unarchive el-doc123
+  el doc reindex`,
   subcommands: {
     create: docCreateCommand,
     list: docListCommand,
     show: docShowCommand,
     history: docHistoryCommand,
     rollback: docRollbackCommand,
+    archive: docArchiveCommand,
+    unarchive: docUnarchiveCommand,
+    reindex: docReindexCommand,
   },
   handler: async (args, options): Promise<CommandResult> => {
     // Default to list if no subcommand

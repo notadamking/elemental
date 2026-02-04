@@ -191,8 +191,6 @@ export interface Task extends Element {
   title: string;
   /** Reference to description Document */
   descriptionRef?: DocumentId;
-  /** Reference to technical design Document */
-  designRef?: DocumentId;
   /** Definition of done criteria */
   acceptanceCriteria?: string;
 
@@ -245,8 +243,6 @@ export interface Task extends Element {
 export interface HydratedTask extends Task {
   /** Hydrated description Document content */
   description?: string;
-  /** Hydrated design Document content */
-  design?: string;
 }
 
 // ============================================================================
@@ -488,7 +484,6 @@ export function isTask(value: unknown): value is Task {
   // Check optional properties have correct types when present
   if (obj.descriptionRef !== undefined && typeof obj.descriptionRef !== 'string')
     return false;
-  if (obj.designRef !== undefined && typeof obj.designRef !== 'string') return false;
   if (obj.acceptanceCriteria !== undefined && typeof obj.acceptanceCriteria !== 'string')
     return false;
   if (obj.closeReason !== undefined && typeof obj.closeReason !== 'string') return false;
@@ -611,8 +606,6 @@ export interface CreateTaskInput {
   id?: ElementId;
   /** Optional: Reference to description Document */
   descriptionRef?: DocumentId;
-  /** Optional: Reference to technical design Document */
-  designRef?: DocumentId;
   /** Optional: Definition of done criteria */
   acceptanceCriteria?: string;
   /** Optional: Initial status (default: open) */
@@ -697,7 +690,6 @@ export async function createTask(
     taskType,
     ephemeral,
     ...(input.descriptionRef !== undefined && { descriptionRef: input.descriptionRef }),
-    ...(input.designRef !== undefined && { designRef: input.designRef }),
     ...(acceptanceCriteria !== undefined && { acceptanceCriteria }),
     ...(input.assignee !== undefined && { assignee: input.assignee }),
     ...(input.owner !== undefined && { owner: input.owner }),

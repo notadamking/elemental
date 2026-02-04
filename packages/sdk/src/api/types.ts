@@ -21,6 +21,8 @@ import type {
   Document,
   DocumentId,
   ContentType,
+  DocumentCategory,
+  DocumentStatus,
   Dependency,
   DependencyType,
   Event,
@@ -134,6 +136,38 @@ export interface DocumentFilter extends ElementFilter {
   minVersion?: number;
   /** Filter by maximum version (inclusive) */
   maxVersion?: number;
+  /** Filter by document category(ies) */
+  category?: DocumentCategory | DocumentCategory[];
+  /** Filter by document status(es) */
+  status?: DocumentStatus | DocumentStatus[];
+}
+
+/**
+ * Options for FTS5 full-text search.
+ */
+export interface FTSSearchOptions {
+  /** Filter by document category(ies) */
+  category?: DocumentCategory | DocumentCategory[];
+  /** Filter by document status(es) (default: active only) */
+  status?: DocumentStatus | DocumentStatus[];
+  /** Hard cap on results before adaptive filtering. Default: 50 */
+  hardCap?: number;
+  /** Sensitivity for elbow detection (higher = more aggressive cutoff). Default: 1.5 */
+  elbowSensitivity?: number;
+  /** Minimum results to return. Default: 1 */
+  minResults?: number;
+}
+
+/**
+ * A single FTS search result with score and snippet.
+ */
+export interface FTSSearchResult {
+  /** The matched document */
+  document: Document;
+  /** BM25 relevance score (lower = more relevant in SQLite FTS5) */
+  score: number;
+  /** Highlighted snippet from content */
+  snippet: string;
 }
 
 /**
@@ -163,8 +197,6 @@ export interface MessageFilter extends ElementFilter {
 export interface HydrationOptions {
   /** Hydrate descriptionRef -> description */
   description?: boolean;
-  /** Hydrate designRef -> design */
-  design?: boolean;
   /** Hydrate contentRef -> content */
   content?: boolean;
   /** Hydrate attachment references */
@@ -1092,6 +1124,18 @@ export interface ElementalAPI {
    */
   search(query: string, filter?: ElementFilter): Promise<Element[]>;
 
+  /**
+   * Full-text search documents using FTS5 with adaptive top-K.
+   *
+   * Uses the FTS5 virtual table for BM25-ranked search with snippet generation.
+   * Applies adaptive elbow detection to return a natural number of results.
+   *
+   * @param query - Search query text
+   * @param options - Search options (category, status, limits, sensitivity)
+   * @returns Array of search results with scores and snippets
+   */
+  searchDocumentsFTS(query: string, options?: FTSSearchOptions): Promise<FTSSearchResult[]>;
+
   // --------------------------------------------------------------------------
   // History Operations
   // --------------------------------------------------------------------------
@@ -1587,7 +1631,7 @@ export function isValidGetOptions(value: unknown): value is GetOptions {
     const hydrate = obj.hydrate as Record<string, unknown>;
 
     // All hydration options should be boolean if present
-    for (const key of ['description', 'design', 'content', 'attachments']) {
+    for (const key of ['description', 'content', 'attachments']) {
       if (hydrate[key] !== undefined && typeof hydrate[key] !== 'boolean') {
         return false;
       }

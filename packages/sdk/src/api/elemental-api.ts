@@ -131,6 +131,8 @@ import type {
   ElementTimeline,
   TimelineSnapshot,
   WorkflowProgress,
+  FTSSearchOptions,
+  FTSSearchResult,
 } from './types.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -143,6 +145,7 @@ import {
   type SendDirectMessageInput,
   type SendDirectMessageResult,
 } from './types.js';
+import { applyAdaptiveTopK, escapeFts5Query } from '../services/search-utils.js';
 
 // ============================================================================
 // Database Row Types
@@ -458,6 +461,26 @@ function buildDocumentWhereClause(
     params.push(filter.maxVersion);
   }
 
+  // Category filter
+  if (filter.category !== undefined) {
+    const categories = Array.isArray(filter.category) ? filter.category : [filter.category];
+    const catConditions = categories.map(() => "JSON_EXTRACT(e.data, '$.category') = ?").join(' OR ');
+    conditions.push(`(${catConditions})`);
+    params.push(...categories);
+  }
+
+  // Status filter (default: active only)
+  if (filter.status !== undefined) {
+    const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+    const statusConditions = statuses.map(() => "JSON_EXTRACT(e.data, '$.status') = ?").join(' OR ');
+    conditions.push(`(${statusConditions})`);
+    params.push(...statuses);
+  } else {
+    // Default: only show active documents
+    conditions.push("JSON_EXTRACT(e.data, '$.status') = ?");
+    params.push('active');
+  }
+
   const where = conditions.length > 0 ? conditions.join(' AND ') : '';
   return { where, params };
 }
@@ -684,7 +707,9 @@ export class ElementalAPIImpl implements ElementalAPI {
       const documentFilter = effectiveFilter as DocumentFilter;
       const { where: dw } = buildDocumentWhereClause(documentFilter, params);
       if (dw) {
-        documentWhere = ` AND ${dw}`;
+        // When filtering multiple types, scope document clauses to document rows only
+        const isMultiType = Array.isArray(effectiveFilter.type) && effectiveFilter.type.length > 1;
+        documentWhere = isMultiType ? ` AND (e.type != 'document' OR (${dw}))` : ` AND ${dw}`;
       }
     }
 
@@ -1208,6 +1233,11 @@ export class ElementalAPIImpl implements ElementalAPI {
     // Mark as dirty for sync
     this.backend.markDirty(element.id);
 
+    // Index document for FTS
+    if (isDocument(element)) {
+      this.indexDocumentForFTS(element as unknown as Document);
+    }
+
     return element;
   }
 
@@ -1385,6 +1415,11 @@ export class ElementalAPIImpl implements ElementalAPI {
       this.blockedCache.onStatusChanged(id, oldStatusPost ?? null, newStatusPost);
     }
 
+    // Re-index document for FTS
+    if (isDocument(updated)) {
+      this.indexDocumentForFTS(updated as unknown as Document);
+    }
+
     return updated;
   }
 
@@ -1471,6 +1506,11 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Mark as dirty for sync
     this.backend.markDirty(id);
+
+    // Remove document from FTS index
+    if (existing.type === 'document') {
+      this.removeDocumentFromFTS(id);
+    }
 
     // Update blocked cache for the deleted element and all affected elements
     // This must happen AFTER the transaction so the element is already tombstoned
@@ -4099,6 +4139,142 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   // --------------------------------------------------------------------------
+  // FTS Index Maintenance
+  // --------------------------------------------------------------------------
+
+  /**
+   * Index a document in the FTS5 virtual table for full-text search.
+   * Called after document creation and update.
+   */
+  private indexDocumentForFTS(doc: Document): void {
+    try {
+      const title = (doc.metadata?.title as string) ?? '';
+      // Remove existing entry first (idempotent)
+      this.backend.run(
+        `DELETE FROM documents_fts WHERE document_id = ?`,
+        [doc.id]
+      );
+      // Insert new entry
+      this.backend.run(
+        `INSERT INTO documents_fts (document_id, title, content, tags, category)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          doc.id,
+          title,
+          doc.content,
+          doc.tags.join(' '),
+          doc.category,
+        ]
+      );
+    } catch {
+      // FTS indexing is best-effort — don't fail the operation if FTS table is unavailable
+    }
+  }
+
+  /**
+   * Remove a document from the FTS5 virtual table.
+   * Called on document deletion.
+   */
+  private removeDocumentFromFTS(docId: ElementId): void {
+    try {
+      this.backend.run(
+        `DELETE FROM documents_fts WHERE document_id = ?`,
+        [docId]
+      );
+    } catch {
+      // Best-effort — don't fail the operation if FTS table is unavailable
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // FTS5 Full-Text Search
+  // --------------------------------------------------------------------------
+
+  async searchDocumentsFTS(query: string, options: FTSSearchOptions = {}): Promise<FTSSearchResult[]> {
+    const {
+      category,
+      status,
+      hardCap = 50,
+      elbowSensitivity = 1.5,
+      minResults = 1,
+    } = options;
+
+    const escaped = escapeFts5Query(query);
+    if (!escaped) return [];
+
+    try {
+      // Build FTS5 query with BM25 ranking and snippet generation
+      // BM25 returns negative scores (more negative = more relevant)
+      let sql = `
+        SELECT
+          f.document_id,
+          bm25(documents_fts) AS score,
+          snippet(documents_fts, 2, '<mark>', '</mark>', '...', 40) AS snippet
+        FROM documents_fts f
+        JOIN elements e ON f.document_id = e.id
+        WHERE documents_fts MATCH ?
+          AND e.deleted_at IS NULL
+      `;
+      const params: unknown[] = [escaped];
+
+      // Category filter
+      if (category !== undefined) {
+        const categories = Array.isArray(category) ? category : [category];
+        sql += ` AND f.category IN (${categories.map(() => '?').join(',')})`;
+        params.push(...categories);
+      }
+
+      // Status filter (default: active only)
+      if (status !== undefined) {
+        const statuses = Array.isArray(status) ? status : [status];
+        sql += ` AND JSON_EXTRACT(e.data, '$.status') IN (${statuses.map(() => '?').join(',')})`;
+        params.push(...statuses);
+      } else {
+        sql += ` AND JSON_EXTRACT(e.data, '$.status') = ?`;
+        params.push('active');
+      }
+
+      sql += ` ORDER BY score LIMIT ?`;
+      params.push(hardCap);
+
+      const rows = this.backend.query<{
+        document_id: string;
+        score: number;
+        snippet: string;
+      }>(sql, params);
+
+      if (rows.length === 0) return [];
+
+      // Hydrate documents
+      const results: FTSSearchResult[] = [];
+      for (const row of rows) {
+        const doc = await this.get<Document>(row.document_id as ElementId);
+        if (doc) {
+          results.push({
+            document: doc,
+            // Negate score so higher = more relevant for adaptive top-K
+            score: -row.score,
+            snippet: row.snippet,
+          });
+        }
+      }
+
+      // Apply adaptive top-K elbow detection
+      const scored = results.map((r) => ({ item: r, score: r.score }));
+      const filtered = applyAdaptiveTopK(scored, {
+        sensitivity: elbowSensitivity,
+        minResults,
+        maxResults: hardCap,
+      });
+
+      return filtered.map((f) => f.item);
+    } catch {
+      // FTS5 table may not exist — fall back to empty results
+      return [];
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Sync Operations
   // --------------------------------------------------------------------------
 
@@ -4714,13 +4890,6 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
     }
 
-    if (options.design && task.designRef) {
-      const doc = await this.get<Document>(task.designRef as unknown as ElementId);
-      if (doc) {
-        hydrated.design = doc.content;
-      }
-    }
-
     return hydrated;
   }
 
@@ -4772,9 +4941,6 @@ export class ElementalAPIImpl implements ElementalAPI {
       if (options.description && task.descriptionRef) {
         documentIds.push(task.descriptionRef as unknown as ElementId);
       }
-      if (options.design && task.designRef) {
-        documentIds.push(task.designRef as unknown as ElementId);
-      }
     }
 
     // Batch fetch all documents
@@ -4788,13 +4954,6 @@ export class ElementalAPIImpl implements ElementalAPI {
         const doc = documentMap.get(task.descriptionRef as unknown as ElementId);
         if (doc) {
           result.description = doc.content;
-        }
-      }
-
-      if (options.design && task.designRef) {
-        const doc = documentMap.get(task.designRef as unknown as ElementId);
-        if (doc) {
-          result.design = doc.content;
         }
       }
 

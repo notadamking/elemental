@@ -34,9 +34,7 @@ interface TaskDetail {
   deadline?: string;
   scheduledFor?: string;
   descriptionRef?: string;
-  designRef?: string;
   description?: string;
-  design?: string;
   _dependencies: Dependency[];
   _dependents: Dependency[];
 }
@@ -50,7 +48,7 @@ function useTaskDetail(taskId: string) {
   return useQuery<TaskDetail>({
     queryKey: ['tasks', taskId],
     queryFn: async () => {
-      const response = await fetch(`/api/tasks/${taskId}?hydrate.description=true&hydrate.design=true`);
+      const response = await fetch(`/api/tasks/${taskId}?hydrate.description=true`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error?.message || 'Failed to fetch task');
@@ -1386,21 +1384,16 @@ function extractMentions(content?: string): string[] {
 // Mentioned Entities Section (TB112)
 function MentionedEntitiesSection({
   description,
-  design,
 }: {
   description?: string;
-  design?: string;
 }) {
   const { data: entitiesData } = useAllEntities();
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Collect all mentions from description and design
+  // Collect all mentions from description
   const mentionedNames = useMemo(() => {
-    const fromDescription = extractMentions(description);
-    const fromDesign = extractMentions(design);
-    const all = [...new Set([...fromDescription, ...fromDesign])];
-    return all;
-  }, [description, design]);
+    return extractMentions(description);
+  }, [description]);
 
   // Match mention names to actual entities
   const mentionedEntities = useMemo(() => {
@@ -2085,24 +2078,9 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           isUpdating={updateField === 'description'}
         />
 
-        {/* Design - supports @mentions (TB112) */}
-        {task.design && (
-          <div className="mb-6">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Design</div>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3" data-testid="task-detail-design">
-              <MarkdownRenderer
-                content={task.design}
-                className="text-gray-700 dark:text-gray-300"
-                testId="task-design-markdown"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Mentioned Entities - collected from description and design (TB112) */}
+        {/* Mentioned Entities - collected from description (TB112) */}
         <MentionedEntitiesSection
           description={task.description}
-          design={task.design}
         />
 
         {/* Attachments */}

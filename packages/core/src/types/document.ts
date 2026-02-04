@@ -30,6 +30,49 @@ export const ContentType = {
 export type ContentType = (typeof ContentType)[keyof typeof ContentType];
 
 // ============================================================================
+// Document Category
+// ============================================================================
+
+/**
+ * Rigid taxonomy of document categories for knowledge management
+ */
+export const DocumentCategory = {
+  // Knowledge categories
+  SPEC: 'spec',
+  PRD: 'prd',
+  DECISION_LOG: 'decision-log',
+  CHANGELOG: 'changelog',
+  TUTORIAL: 'tutorial',
+  HOW_TO: 'how-to',
+  EXPLANATION: 'explanation',
+  REFERENCE: 'reference',
+  RUNBOOK: 'runbook',
+  MEETING_NOTES: 'meeting-notes',
+  POST_MORTEM: 'post-mortem',
+  // System categories (auto-assigned for structural documents)
+  TASK_DESCRIPTION: 'task-description',
+  MESSAGE_CONTENT: 'message-content',
+  // Fallback
+  OTHER: 'other',
+} as const;
+
+export type DocumentCategory = (typeof DocumentCategory)[keyof typeof DocumentCategory];
+
+// ============================================================================
+// Document Status (Lifecycle)
+// ============================================================================
+
+/**
+ * Document lifecycle status
+ */
+export const DocumentStatus = {
+  ACTIVE: 'active',
+  ARCHIVED: 'archived',
+} as const;
+
+export type DocumentStatus = (typeof DocumentStatus)[keyof typeof DocumentStatus];
+
+// ============================================================================
 // Content Constraints
 // ============================================================================
 
@@ -67,6 +110,10 @@ export interface Document extends Element {
   version: number;
   /** Reference to previous version (null for version 1) */
   previousVersionId: DocumentId | null;
+  /** Document category for knowledge taxonomy */
+  category: DocumentCategory;
+  /** Document lifecycle status */
+  status: DocumentStatus;
 }
 
 // ============================================================================
@@ -91,6 +138,52 @@ export function validateContentType(value: unknown): ContentType {
       `Invalid content type: ${value}. Must be one of: ${Object.values(ContentType).join(', ')}`,
       ErrorCode.INVALID_CONTENT_TYPE,
       { field: 'contentType', value, expected: Object.values(ContentType) }
+    );
+  }
+  return value;
+}
+
+/**
+ * Validates a document category value
+ */
+export function isValidDocumentCategory(value: unknown): value is DocumentCategory {
+  return (
+    typeof value === 'string' && Object.values(DocumentCategory).includes(value as DocumentCategory)
+  );
+}
+
+/**
+ * Validates document category and throws if invalid
+ */
+export function validateDocumentCategory(value: unknown): DocumentCategory {
+  if (!isValidDocumentCategory(value)) {
+    throw new ValidationError(
+      `Invalid document category: ${value}. Must be one of: ${Object.values(DocumentCategory).join(', ')}`,
+      ErrorCode.INVALID_CATEGORY,
+      { field: 'category', value, expected: Object.values(DocumentCategory) }
+    );
+  }
+  return value;
+}
+
+/**
+ * Validates a document status value
+ */
+export function isValidDocumentStatus(value: unknown): value is DocumentStatus {
+  return (
+    typeof value === 'string' && Object.values(DocumentStatus).includes(value as DocumentStatus)
+  );
+}
+
+/**
+ * Validates document status and throws if invalid
+ */
+export function validateDocumentStatus(value: unknown): DocumentStatus {
+  if (!isValidDocumentStatus(value)) {
+    throw new ValidationError(
+      `Invalid document status: ${value}. Must be one of: ${Object.values(DocumentStatus).join(', ')}`,
+      ErrorCode.INVALID_DOCUMENT_STATUS,
+      { field: 'status', value, expected: Object.values(DocumentStatus) }
     );
   }
   return value;
@@ -310,6 +403,8 @@ export function isDocument(value: unknown): value is Document {
   if (!isValidContentString(obj.content)) return false;
   if (!isValidVersion(obj.version)) return false;
   if (!isValidPreviousVersionId(obj.previousVersionId, obj.version as number)) return false;
+  if (!isValidDocumentCategory(obj.category)) return false;
+  if (!isValidDocumentStatus(obj.status)) return false;
 
   // For JSON content type, validate content is valid JSON
   if (obj.contentType === ContentType.JSON && !isValidJsonContent(obj.content as string)) {
@@ -395,6 +490,8 @@ export function validateDocument(value: unknown): Document {
   validateContentString(obj.content);
   const version = validateVersion(obj.version);
   validatePreviousVersionId(obj.previousVersionId, version);
+  validateDocumentCategory(obj.category);
+  validateDocumentStatus(obj.status);
 
   // For JSON content, validate the content is valid JSON
   if (obj.contentType === ContentType.JSON) {
@@ -422,6 +519,10 @@ export interface CreateDocumentInput {
   tags?: string[];
   /** Optional metadata */
   metadata?: Record<string, unknown>;
+  /** Optional: Document category (default: 'other') */
+  category?: DocumentCategory;
+  /** Optional: Document status (default: 'active') */
+  status?: DocumentStatus;
 }
 
 /**
@@ -448,6 +549,14 @@ export async function createDocument(
     config
   );
 
+  // Validate and apply defaults for category and status
+  const category = input.category !== undefined
+    ? validateDocumentCategory(input.category)
+    : DocumentCategory.OTHER;
+  const status = input.status !== undefined
+    ? validateDocumentStatus(input.status)
+    : DocumentStatus.ACTIVE;
+
   const document: Document = {
     id,
     type: ElementType.DOCUMENT,
@@ -460,6 +569,8 @@ export async function createDocument(
     content,
     version: 1,
     previousVersionId: null,
+    category,
+    status,
   };
 
   return document;

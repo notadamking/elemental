@@ -14,7 +14,7 @@ import type { Migration, MigrationResult, StorageBackend } from './index.js';
 /**
  * Current schema version
  */
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 // ============================================================================
 // Migrations
@@ -327,9 +327,62 @@ DROP TABLE IF EXISTS session_messages;
 };
 
 /**
+ * Migration 7: Add FTS5 virtual table for document full-text search
+ *
+ * Creates an external-content FTS5 virtual table for document search.
+ * Application code manages sync (insert/delete on create/update/delete).
+ * Columns: document_id (UNINDEXED), title, content, tags, category (UNINDEXED)
+ */
+const migration007: Migration = {
+  version: 7,
+  description: 'Add FTS5 virtual table for document full-text search',
+  up: `
+-- FTS5 virtual table for document search (external content mode)
+CREATE VIRTUAL TABLE documents_fts USING fts5(
+    document_id UNINDEXED,
+    title,
+    content,
+    tags,
+    category UNINDEXED,
+    tokenize='porter unicode61'
+);
+`,
+  down: `
+DROP TABLE IF EXISTS documents_fts;
+`,
+};
+
+/**
+ * Migration 8: Add document_embeddings table for vector semantic search
+ *
+ * Stores pre-computed embeddings for documents.
+ * Initial implementation uses brute-force cosine similarity.
+ * Future: sqlite-vec ANN virtual table for efficient nearest-neighbor search.
+ */
+const migration008: Migration = {
+  version: 8,
+  description: 'Add document_embeddings table for vector semantic search',
+  up: `
+-- Document embeddings for semantic search
+CREATE TABLE document_embeddings (
+    document_id TEXT PRIMARY KEY,
+    embedding BLOB NOT NULL,
+    dimensions INTEGER NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (document_id) REFERENCES elements(id) ON DELETE CASCADE
+);
+`,
+  down: `
+DROP TABLE IF EXISTS document_embeddings;
+`,
+};
+
+/**
  * All migrations in order
  */
-export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006];
+export const MIGRATIONS: readonly Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008];
 
 // ============================================================================
 // Schema Functions
@@ -417,6 +470,8 @@ export const EXPECTED_TABLES = [
   'inbox_items',
   'comments',
   'session_messages',
+  'documents_fts',
+  'document_embeddings',
 ] as const;
 
 /**

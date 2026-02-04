@@ -529,7 +529,6 @@ describe('isTask', () => {
       isTask(
         createTestTask({
           descriptionRef: 'el-doc123' as DocumentId,
-          designRef: 'el-design1' as DocumentId,
           acceptanceCriteria: 'Test criteria',
           closeReason: 'Done',
           assignee: 'el-user1' as EntityId,
@@ -663,7 +662,6 @@ describe('createTask', () => {
     const task = await createTask({
       ...validInput,
       descriptionRef: 'el-doc123' as DocumentId,
-      designRef: 'el-design1' as DocumentId,
       acceptanceCriteria: 'Test criteria',
       status: TaskStatus.IN_PROGRESS,
       priority: Priority.HIGH,
@@ -679,7 +677,6 @@ describe('createTask', () => {
     });
 
     expect(task.descriptionRef).toBe('el-doc123' as DocumentId);
-    expect(task.designRef).toBe('el-design1' as DocumentId);
     expect(task.acceptanceCriteria).toBe('Test criteria');
     expect(task.status).toBe(TaskStatus.IN_PROGRESS);
     expect(task.priority).toBe(Priority.HIGH);
@@ -1240,12 +1237,9 @@ describe('HydratedTask interface', () => {
       ...createTestTask(),
       descriptionRef: 'el-doc1' as DocumentId,
       description: 'Full description content',
-      designRef: 'el-design1' as DocumentId,
-      design: 'Technical design content',
     };
 
     expect(hydratedTask.description).toBe('Full description content');
-    expect(hydratedTask.design).toBe('Technical design content');
     expect(isTask(hydratedTask)).toBe(true); // Base task validation still works
   });
 });

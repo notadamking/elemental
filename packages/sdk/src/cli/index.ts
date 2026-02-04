@@ -35,6 +35,7 @@ export { channelCommand } from './commands/channel.js';
 export { libraryCommand } from './commands/library.js';
 export { teamCommand } from './commands/team.js';
 export { documentCommand } from './commands/document.js';
+export { embeddingsCommand } from './commands/embeddings.js';
 export { messageCommand } from './commands/message.js';
 export { completionCommand } from './commands/completion.js';
 export { aliasCommand } from './commands/alias.js';

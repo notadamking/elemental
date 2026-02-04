@@ -45,7 +45,6 @@ const hydratedTask = await api.get(taskId, {
 ```typescript
 interface HydrationOptions {
   description?: boolean;  // Resolve descriptionRef
-  design?: boolean;       // Resolve designRef
   content?: boolean;      // Resolve contentRef
   attachments?: boolean;  // Resolve attachmentRefs
 }
@@ -104,6 +103,30 @@ const result = await api.listPaginated({
 // result.items, result.total, result.hasMore
 ```
 
+### Document filtering (category/status)
+
+```typescript
+// List documents by category
+const specs = await api.list({
+  type: 'document',
+  category: 'spec',
+});
+
+// List with status filter (default is 'active' only)
+const archived = await api.list({
+  type: 'document',
+  status: 'archived',
+});
+
+// Paginated with category/status
+const result = await api.listPaginated({
+  type: 'document',
+  category: 'prd',
+  status: 'active',
+  limit: 20,
+});
+```
+
 ### Search
 
 ```typescript
@@ -113,6 +136,24 @@ const results = await api.search('keyword', {
 ```
 
 **Note:** Search has **100 result hard limit**. Searches title, content, and tags only.
+
+### FTS5 Document Search
+
+```typescript
+const results = await api.searchDocumentsFTS('search query', {
+  mode: 'relevance',     // 'relevance' (default) | 'semantic' | 'hybrid'
+  category: 'spec',      // Optional category filter
+  status: 'active',      // Optional status filter (default: 'active')
+  limit: 20,             // Optional result limit
+});
+```
+
+Uses FTS5 with BM25 ranking, snippet generation, and adaptive elbow detection for top-K result filtering.
+
+**Search modes:**
+- `relevance` - FTS5 full-text search with BM25 ranking (default)
+- `semantic` - Embedding-based vector similarity search (requires embeddings)
+- `hybrid` - Reciprocal rank fusion of FTS5 + semantic results
 
 ### Search channels
 
@@ -283,6 +324,22 @@ const chart = await api.getOrgChart();
 
 ---
 
+## Document Operations
+
+### Archive / Unarchive
+
+```typescript
+// Archive a document (sets status to 'archived')
+await api.archiveDocument(docId);
+
+// Unarchive a document (sets status back to 'active')
+await api.unarchiveDocument(docId);
+```
+
+Archived documents are excluded from default list and search results.
+
+---
+
 ## History/Timeline
 
 ```typescript
@@ -322,6 +379,20 @@ const result = await api.rebuildBlockedCache();
 ---
 
 ## Common Patterns
+
+### Creating a document with category
+
+```typescript
+const spec = await api.create({
+  type: 'document',
+  createdBy: actorId,
+  title: 'API Specification',
+  content: '# API Spec\n\n...',
+  contentType: 'markdown',
+  category: 'spec',      // Defaults to 'other' if omitted
+  status: 'active',       // Defaults to 'active' if omitted
+});
+```
 
 ### Creating a task with description
 

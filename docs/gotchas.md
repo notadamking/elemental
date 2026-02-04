@@ -46,6 +46,14 @@ Common pitfalls and their solutions, organized by severity and category.
 - Deleting elements CASCADE deletes dependencies (FK constraint)
 - `dirty_elements` table is auto-created in constructor, not via migrations
 
+## Documents
+
+- **`category` and `status` are required** on all Document objects (defaults: `category: 'other'`, `status: 'active'`)
+- **Archived documents hidden by default** - `api.list()`, `api.listPaginated()`, and `api.searchDocumentsFTS()` return only active documents unless `status: 'archived'` is explicitly requested
+- **System categories** (`task-description`, `message-content`) are managed automatically - do not set these manually
+- **`designRef` has been removed** from Task and Plan interfaces - use `descriptionRef` instead
+- Invalid category values produce `INVALID_CATEGORY` error; invalid status values produce `INVALID_DOCUMENT_STATUS` error
+
 ## Messages
 
 - Messages are **immutable** after creation (`updatedAt === createdAt` always)
@@ -110,7 +118,7 @@ Common pitfalls and their solutions, organized by severity and category.
 - Bulk plan operations use `closeReason`, `addTags`/`removeTags` - not `reason`, `add`/`remove`
 - `api.search()` has **100 result hard limit** - searches title, content, and tags only
 - `api.create()` requires `type` and `createdBy` in input object - no 2-param syntax
-- `HydrationOptions` is `{ description?, design?, content?, attachments? }` not just `true`
+- `HydrationOptions` is `{ description?, content?, attachments? }` not just `true`
 - **Auto status transitions:** `BlockedCacheService` auto-transitions tasks to/from `blocked` status, generating `auto_blocked`/`auto_unblocked` events with actor `'system:blocked-cache'`
 
 ## Sync

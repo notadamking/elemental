@@ -362,7 +362,6 @@ describe('GetOptions', () => {
 
     it('should return true for valid hydration options', () => {
       expect(isValidGetOptions({ hydrate: { description: true } })).toBe(true);
-      expect(isValidGetOptions({ hydrate: { design: false } })).toBe(true);
       expect(isValidGetOptions({ hydrate: { content: true, attachments: true } })).toBe(true);
     });
 
@@ -370,7 +369,6 @@ describe('GetOptions', () => {
       const options: GetOptions = {
         hydrate: {
           description: true,
-          design: true,
           content: true,
           attachments: true,
         },
@@ -384,7 +382,7 @@ describe('GetOptions', () => {
 
     it('should return false for non-boolean hydration values', () => {
       expect(isValidGetOptions({ hydrate: { description: 'yes' } })).toBe(false);
-      expect(isValidGetOptions({ hydrate: { design: 1 } })).toBe(false);
+      expect(isValidGetOptions({ hydrate: { attachments: 1 } })).toBe(false);
       expect(isValidGetOptions({ hydrate: { content: null } })).toBe(false);
     });
 
@@ -809,13 +807,12 @@ describe('Type Structures', () => {
     it('should have correct structure', () => {
       const options: HydrationOptions = {
         description: true,
-        design: false,
         content: true,
         attachments: false,
       };
 
       expect(options.description).toBe(true);
-      expect(options.design).toBe(false);
+      expect(options.content).toBe(true);
     });
   });
 });

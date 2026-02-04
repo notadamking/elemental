@@ -827,11 +827,6 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       parts.push('', '### Acceptance Criteria', task.acceptanceCriteria);
     }
 
-    // Include design reference if any
-    if (task.designRef) {
-      parts.push('', `**Design Document:** ${task.designRef}`);
-    }
-
     // Include handoff notes if this is a handoff
     const taskMeta = getOrchestratorTaskMeta(task.metadata as Record<string, unknown> | undefined);
     if (taskMeta?.handoffNote) {

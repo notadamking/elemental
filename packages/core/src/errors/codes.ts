@@ -27,6 +27,10 @@ export const ValidationErrorCode = {
   INVALID_TIMESTAMP: 'INVALID_TIMESTAMP',
   /** Metadata validation failed */
   INVALID_METADATA: 'INVALID_METADATA',
+  /** Invalid document category */
+  INVALID_CATEGORY: 'INVALID_CATEGORY',
+  /** Invalid document status */
+  INVALID_DOCUMENT_STATUS: 'INVALID_DOCUMENT_STATUS',
 } as const;
 
 export type ValidationErrorCode = typeof ValidationErrorCode[keyof typeof ValidationErrorCode];
@@ -162,6 +166,8 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.INVALID_TAG]: 400,
   [ErrorCode.INVALID_TIMESTAMP]: 400,
   [ErrorCode.INVALID_METADATA]: 400,
+  [ErrorCode.INVALID_CATEGORY]: 400,
+  [ErrorCode.INVALID_DOCUMENT_STATUS]: 400,
 
   // Not Found errors -> 404
   [ErrorCode.NOT_FOUND]: 404,
