@@ -62,11 +62,18 @@ Elemental is a **multi-agent orchestration platform** designed for developers bu
 ### Installation
 
 ```bash
-# Using npm
-npm install -g @elemental/sdk
+# Clone the repository
+git clone https://github.com/notadamking/elemental.git
+cd elemental
 
-# Using bun
-bun add -g @elemental/sdk
+# Install dependencies
+pnpm install
+
+# Build all packages
+pnpm build
+
+# Link the CLI globally (optional)
+cd packages/sdk && pnpm link --global
 ```
 
 ### Initialize & Create Your First Task
@@ -359,7 +366,7 @@ See [CLI Reference](docs/reference/cli.md) for complete documentation.
 
 ```bash
 # Clone the repository
-git clone https://github.com/toolco/elemental.git
+git clone https://github.com/notadamking/elemental.git
 cd elemental
 
 # Install dependencies (uses pnpm)
@@ -412,4 +419,4 @@ Contributions are welcome. Please open an issue to discuss proposed changes befo
 
 ## License
 
-MIT © [Toolco](https://github.com/toolco)
+MIT
