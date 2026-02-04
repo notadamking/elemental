@@ -24,6 +24,7 @@ import {
   createDefaultStewardExecutor,
   isValidCronExpression,
   evaluateCondition,
+  StewardSchedulerImpl,
   type StewardExecutor,
   type StewardExecutionResult,
   type StewardScheduler,
@@ -687,5 +688,97 @@ describe('StewardSchedulerImpl - steward without triggers', () => {
     // Should still be able to execute manually
     const result = await scheduler.executeSteward('steward-1' as EntityId);
     expect(result.success).toBe(true);
+  });
+});
+
+// ============================================================================
+// getNextCronTime Tests (M-3)
+// ============================================================================
+
+describe('getNextCronTime', () => {
+  let impl: StewardSchedulerImpl;
+
+  beforeEach(() => {
+    const mockRegistry = createMockAgentRegistry();
+    const mockExecutor = createMockExecutor();
+    impl = new StewardSchedulerImpl(mockRegistry, mockExecutor);
+  });
+
+  it('should return next minute for * * * * *', () => {
+    const now = new Date(2025, 5, 15, 10, 30, 0); // June 15, 10:30 local
+    const next = impl.getNextCronTime('* * * * *', now);
+    expect(next).not.toBeNull();
+    expect(next!.getHours()).toBe(10);
+    expect(next!.getMinutes()).toBe(31);
+  });
+
+  it('should return next 9:00 AM for 0 9 * * *', () => {
+    const now = new Date(2025, 5, 15, 10, 30, 0); // June 15, 10:30 local
+    const next = impl.getNextCronTime('0 9 * * *', now);
+    expect(next).not.toBeNull();
+    // Next 9:00 AM after 10:30 is the next day
+    expect(next!.getHours()).toBe(9);
+    expect(next!.getMinutes()).toBe(0);
+    expect(next!.getDate()).toBe(16);
+  });
+
+  it('should return same day 9:00 AM when before 9:00', () => {
+    const now = new Date(2025, 5, 15, 7, 30, 0); // June 15, 07:30 local
+    const next = impl.getNextCronTime('0 9 * * *', now);
+    expect(next).not.toBeNull();
+    expect(next!.getHours()).toBe(9);
+    expect(next!.getMinutes()).toBe(0);
+    expect(next!.getDate()).toBe(15);
+  });
+
+  it('should handle */5 * * * * (every 5 minutes)', () => {
+    const now = new Date(2025, 5, 15, 10, 32, 0); // June 15, 10:32 local
+    const next = impl.getNextCronTime('*/5 * * * *', now);
+    expect(next).not.toBeNull();
+    // Next 5-min boundary after 10:32 is 10:35
+    expect(next!.getHours()).toBe(10);
+    expect(next!.getMinutes()).toBe(35);
+  });
+
+  it('should handle 0 0 * * 1 (every Monday midnight)', () => {
+    // 2025-06-15 is a Sunday (local time)
+    const now = new Date(2025, 5, 15, 10, 0, 0); // June 15, 10:00 local
+    const next = impl.getNextCronTime('0 0 * * 1', now);
+    expect(next).not.toBeNull();
+    // Next Monday is June 16
+    expect(next!.getDate()).toBe(16);
+    expect(next!.getHours()).toBe(0);
+    expect(next!.getMinutes()).toBe(0);
+  });
+
+  it('should return null for invalid expressions', () => {
+    expect(impl.getNextCronTime('invalid')).toBeNull();
+    expect(impl.getNextCronTime('* * *')).toBeNull();
+    expect(impl.getNextCronTime('')).toBeNull();
+  });
+
+  it('should handle 6-field expressions (ignoring seconds)', () => {
+    const now = new Date(2025, 5, 15, 10, 30, 0); // June 15, 10:30 local
+    const next = impl.getNextCronTime('0 * * * * *', now);
+    expect(next).not.toBeNull();
+    expect(next!.getHours()).toBe(10);
+    expect(next!.getMinutes()).toBe(31);
+  });
+
+  it('should handle ranges like 0 9-17 * * *', () => {
+    const now = new Date(2025, 5, 15, 18, 0, 0); // June 15, 18:00 local
+    const next = impl.getNextCronTime('0 9-17 * * *', now);
+    expect(next).not.toBeNull();
+    // Next match after 18:00 is 9:00 next day
+    expect(next!.getDate()).toBe(16);
+    expect(next!.getHours()).toBe(9);
+  });
+
+  it('should handle lists like 0,30 * * * *', () => {
+    const now = new Date(2025, 5, 15, 10, 15, 0); // June 15, 10:15 local
+    const next = impl.getNextCronTime('0,30 * * * *', now);
+    expect(next).not.toBeNull();
+    expect(next!.getMinutes()).toBe(30);
+    expect(next!.getHours()).toBe(10);
   });
 });

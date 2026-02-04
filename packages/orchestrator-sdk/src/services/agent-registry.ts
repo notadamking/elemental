@@ -278,23 +278,11 @@ export class AgentRegistryImpl implements AgentRegistry {
       metadata: { [AGENT_META_KEY]: agentMetadata },
     });
 
-    // Cast entity to satisfy the create method's signature
-    const saved = await this.api.create(
-      entity as unknown as Record<string, unknown> & { createdBy: EntityId }
+    return this.registerAgentWithRollback(
+      entity as unknown as Record<string, unknown> & { createdBy: EntityId },
+      input.name,
+      input.createdBy
     );
-    const agentEntity = saved as AgentEntity;
-    // Cast to EntityId (Element.id is ElementId but AgentEntity is an Entity)
-    const agentEntityId = agentEntity.id as unknown as EntityId;
-
-    // Create dedicated channel for the agent (TB-O7a)
-    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
-
-    // Update agent metadata with channel ID
-    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
-      channelId: channel.id,
-    } as Partial<AgentMetadata>);
-
-    return updatedAgent;
   }
 
   async registerWorker(input: RegisterWorkerInput): Promise<AgentEntity> {
@@ -320,23 +308,11 @@ export class AgentRegistryImpl implements AgentRegistry {
       reportsTo: input.reportsTo,
     });
 
-    // Cast entity to satisfy the create method's signature
-    const saved = await this.api.create(
-      entity as unknown as Record<string, unknown> & { createdBy: EntityId }
+    return this.registerAgentWithRollback(
+      entity as unknown as Record<string, unknown> & { createdBy: EntityId },
+      input.name,
+      input.createdBy
     );
-    const agentEntity = saved as AgentEntity;
-    // Cast to EntityId (Element.id is ElementId but AgentEntity is an Entity)
-    const agentEntityId = agentEntity.id as unknown as EntityId;
-
-    // Create dedicated channel for the agent (TB-O7a)
-    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
-
-    // Update agent metadata with channel ID
-    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
-      channelId: channel.id,
-    } as Partial<AgentMetadata>);
-
-    return updatedAgent;
   }
 
   async registerSteward(input: RegisterStewardInput): Promise<AgentEntity> {
@@ -363,23 +339,11 @@ export class AgentRegistryImpl implements AgentRegistry {
       reportsTo: input.reportsTo,
     });
 
-    // Cast entity to satisfy the create method's signature
-    const saved = await this.api.create(
-      entity as unknown as Record<string, unknown> & { createdBy: EntityId }
+    return this.registerAgentWithRollback(
+      entity as unknown as Record<string, unknown> & { createdBy: EntityId },
+      input.name,
+      input.createdBy
     );
-    const agentEntity = saved as AgentEntity;
-    // Cast to EntityId (Element.id is ElementId but AgentEntity is an Entity)
-    const agentEntityId = agentEntity.id as unknown as EntityId;
-
-    // Create dedicated channel for the agent (TB-O7a)
-    const channel = await this.createAgentChannel(input.name, agentEntityId, input.createdBy);
-
-    // Update agent metadata with channel ID
-    const updatedAgent = await this.updateAgentMetadata(agentEntityId, {
-      channelId: channel.id,
-    } as Partial<AgentMetadata>);
-
-    return updatedAgent;
   }
 
   // ----------------------------------------
@@ -569,6 +533,38 @@ export class AgentRegistryImpl implements AgentRegistry {
   // ----------------------------------------
   // Private Helpers
   // ----------------------------------------
+
+  /**
+   * Creates an agent entity, its channel, and links them via metadata.
+   * Rolls back on partial failure to prevent orphaned resources.
+   */
+  private async registerAgentWithRollback(
+    entityData: Record<string, unknown> & { createdBy: EntityId },
+    agentName: string,
+    createdBy: EntityId
+  ): Promise<AgentEntity> {
+    const saved = await this.api.create(entityData);
+    const agentEntity = saved as AgentEntity;
+    const agentEntityId = agentEntity.id as unknown as EntityId;
+
+    let channel: Channel;
+    try {
+      channel = await this.createAgentChannel(agentName, agentEntityId, createdBy);
+    } catch (channelError) {
+      try { await this.api.delete(agentEntity.id); } catch { /* best-effort rollback */ }
+      throw channelError;
+    }
+
+    try {
+      return await this.updateAgentMetadata(agentEntityId, {
+        channelId: channel.id,
+      } as Partial<AgentMetadata>);
+    } catch (metadataError) {
+      try { await this.api.delete(channel.id); } catch { /* best-effort */ }
+      try { await this.api.delete(agentEntity.id); } catch { /* best-effort */ }
+      throw metadataError;
+    }
+  }
 
   /**
    * Creates a dedicated channel for an agent and updates the agent's metadata

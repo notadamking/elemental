@@ -623,6 +623,7 @@ export class SpawnerServiceImpl implements SpawnerService {
         // Wait for graceful shutdown with timeout
         await new Promise<void>((resolve) => {
           const timeout = setTimeout(() => {
+            clearInterval(checkInterval);
             if (session.pty) {
               session.pty.kill();
             }
@@ -680,6 +681,9 @@ export class SpawnerServiceImpl implements SpawnerService {
       this.transitionStatus(session, 'terminated');
       session.endedAt = createTimestamp();
     }
+
+    // Schedule cleanup of terminated session from memory (M-1)
+    this.scheduleTerminatedSessionCleanup(sessionId);
   }
 
   async suspend(sessionId: string): Promise<void> {
@@ -1056,6 +1060,10 @@ export class SpawnerServiceImpl implements SpawnerService {
       }
       // Emit exit with code 1 if resume failed, otherwise 0
       session.events.emit('exit', resumeErrorDetected ? 1 : 0, null);
+      // Schedule cleanup of terminated session from memory (M-1)
+      if (session.status === 'terminated') {
+        this.scheduleTerminatedSessionCleanup(session.id);
+      }
     }
   }
 
@@ -1199,6 +1207,10 @@ export class SpawnerServiceImpl implements SpawnerService {
         session.endedAt = createTimestamp();
       }
       session.events.emit('exit', e.exitCode, e.signal);
+      // Schedule cleanup of terminated session from memory (M-1)
+      if (session.status === 'terminated') {
+        this.scheduleTerminatedSessionCleanup(session.id);
+      }
     });
 
     // Transition to running state
@@ -1435,6 +1447,15 @@ export class SpawnerServiceImpl implements SpawnerService {
     // For spawn, we can infer from the requested mode
     const mode = requestedMode ?? this.determineSpawnMode(agentRole);
     return mode === 'interactive' ? 'persistent' : 'ephemeral';
+  }
+
+  private scheduleTerminatedSessionCleanup(sessionId: string): void {
+    setTimeout(() => {
+      const session = this.sessions.get(sessionId);
+      if (session && session.status === 'terminated') {
+        this.sessions.delete(sessionId);
+      }
+    }, 5000);
   }
 
   private transitionStatus(session: InternalSession, newStatus: SessionStatus): void {

@@ -412,6 +412,15 @@ export interface SessionManager {
    * @param agentId - The agent entity ID
    */
   loadSessionState(agentId: EntityId): Promise<void>;
+
+  /**
+   * Reconciles in-memory state with database on startup.
+   * Finds agents marked as 'running' whose processes are no longer alive
+   * and resets them to 'idle'.
+   *
+   * @returns Summary of reconciliation results
+   */
+  reconcileOnStartup(): Promise<{ reconciled: number; errors: string[] }>;
 }
 
 // ============================================================================
@@ -661,6 +670,9 @@ export class SessionManagerImpl implements SessionManager {
     // Persist session state
     await this.persistSession(sessionId);
 
+    // Schedule cleanup of terminated session from memory (M-1)
+    this.scheduleTerminatedSessionCleanup(sessionId);
+
     // Emit status change
     session.events.emit('status', 'terminated');
   }
@@ -688,10 +700,7 @@ export class SessionManagerImpl implements SessionManager {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    // Suspend via spawner
-    await this.spawner.suspend(sessionId);
-
-    // Update session state
+    // Update session state BEFORE suspending to prevent race with exit event handler
     const updatedSession: InternalSessionState = {
       ...session,
       status: 'suspended',
@@ -706,6 +715,18 @@ export class SessionManagerImpl implements SessionManager {
       this.agentSessions.delete(session.agentId);
     }
 
+    // Now suspend via spawner (may trigger exit event, but status already 'suspended')
+    try {
+      await this.spawner.suspend(sessionId);
+    } catch (error) {
+      // Revert status on failure
+      this.sessions.set(sessionId, session);
+      if (this.agentSessions.get(session.agentId) !== sessionId) {
+        this.agentSessions.set(session.agentId, sessionId);
+      }
+      throw error;
+    }
+
     // Add to history
     this.addToHistory(session.agentId, updatedSession);
 
@@ -716,7 +737,7 @@ export class SessionManagerImpl implements SessionManager {
     await this.persistSession(sessionId);
 
     // Emit status change
-    session.events.emit('status', 'suspended');
+    updatedSession.events.emit('status', 'suspended');
   }
 
   // ----------------------------------------
@@ -755,7 +776,9 @@ export class SessionManagerImpl implements SessionManager {
       this.addToHistory(agentId, updatedSession);
       // Fire-and-forget async cleanup
       this.registry.updateAgentSession(agentId, undefined, 'idle').catch(() => {});
-      this.persistSession(sessionId).catch(() => {});
+      this.persistSession(sessionId).then(() => {
+        this.scheduleTerminatedSessionCleanup(sessionId);
+      }).catch(() => {});
       return undefined;
     }
 
@@ -1055,9 +1078,59 @@ export class SessionManagerImpl implements SessionManager {
     }
   }
 
+  async reconcileOnStartup(): Promise<{ reconciled: number; errors: string[] }> {
+    let reconciled = 0;
+    const errors: string[] = [];
+
+    try {
+      // Find all agents that are marked as 'running' in the database
+      const agents = await this.registry.listAgents({ sessionStatus: 'running' });
+
+      for (const agent of agents) {
+        const agentId = agent.id as unknown as EntityId;
+        const meta = getAgentMetadata(agent);
+        if (!meta) continue;
+
+        // Check if there's a live in-memory session for this agent
+        const activeSessionId = this.agentSessions.get(agentId);
+        if (activeSessionId) {
+          const activeSession = this.sessions.get(activeSessionId);
+          if (activeSession && activeSession.status === 'running') {
+            // Session exists in memory and is running — check PID
+            if (activeSession.pid && this.isProcessAlive(activeSession.pid)) {
+              continue; // Process is alive, nothing to reconcile
+            }
+          }
+        }
+
+        // No live session — this agent is stale, reset to idle
+        try {
+          await this.registry.updateAgentSession(agentId, undefined, 'idle');
+          reconciled++;
+        } catch (error) {
+          const msg = `Failed to reset agent ${agent.name} (${agentId}): ${error instanceof Error ? error.message : String(error)}`;
+          errors.push(msg);
+        }
+      }
+    } catch (error) {
+      errors.push(`Failed to list agents: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    return { reconciled, errors };
+  }
+
   // ----------------------------------------
   // Private Helpers
   // ----------------------------------------
+
+  private scheduleTerminatedSessionCleanup(sessionId: string): void {
+    setTimeout(() => {
+      const session = this.sessions.get(sessionId);
+      if (session && session.status === 'terminated' && session.persisted) {
+        this.sessions.delete(sessionId);
+      }
+    }, 5000);
+  }
 
   /**
    * Checks whether a process with the given PID is still alive.
@@ -1130,6 +1203,9 @@ export class SessionManagerImpl implements SessionManager {
 
         // Persist
         await this.persistSession(session.id);
+
+        // Schedule cleanup of terminated session from memory (M-1)
+        this.scheduleTerminatedSessionCleanup(session.id);
 
         updatedSession.events.emit('status', 'terminated');
       }

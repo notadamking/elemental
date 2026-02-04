@@ -281,7 +281,7 @@ export async function setupTestContext(
 
     // 10. Start daemon if not skipped
     if (!options.skipDaemonStart) {
-      daemon.start();
+      await daemon.start();
       log('Started dispatch daemon');
     }
 
@@ -290,7 +290,7 @@ export async function setupTestContext(
       log('Cleaning up test context...');
 
       // Stop daemon
-      daemon.stop();
+      await daemon.stop();
       log('Stopped daemon');
 
       // Stop any running sessions with grace period for real mode
@@ -799,6 +799,10 @@ export function createMockSessionManager(
 
     async loadSessionState(_agentId: EntityId): Promise<void> {
       // No-op for mock
+    },
+
+    async reconcileOnStartup(): Promise<{ reconciled: number; errors: string[] }> {
+      return { reconciled: 0, errors: [] };
     },
   };
 

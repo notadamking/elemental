@@ -28,6 +28,9 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+/** Default timeout for git operations (30 seconds) */
+const GIT_OPERATION_TIMEOUT_MS = 30_000;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -807,6 +810,7 @@ export class WorktreeManagerImpl implements WorktreeManager {
     return execFileAsync('git', args, {
       cwd: this.config.workspaceRoot,
       encoding: 'utf8',
+      timeout: GIT_OPERATION_TIMEOUT_MS,
     });
   }
 

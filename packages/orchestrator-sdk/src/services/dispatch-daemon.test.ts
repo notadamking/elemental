@@ -72,6 +72,7 @@ function createMockSessionManager(): SessionManager {
     messageSession: mock(async () => ({ success: true })),
     getSessionHistory: mock(() => []),
     pruneInactiveSessions: mock(() => 0),
+    reconcileOnStartup: mock(async () => ({ reconciled: 0, errors: [] })),
     on: mock(() => {}),
     off: mock(() => {}),
     emit: mock(() => {}),
@@ -184,8 +185,8 @@ describe('DispatchDaemon Integration', () => {
     );
   });
 
-  afterEach(() => {
-    daemon.stop();
+  afterEach(async () => {
+    await daemon.stop();
     if (fs.existsSync(testDbPath)) {
       fs.unlinkSync(testDbPath);
     }
@@ -332,13 +333,13 @@ describe('DispatchDaemon Integration', () => {
   });
 
   describe('daemon lifecycle', () => {
-    test('starts and stops cleanly', () => {
+    test('starts and stops cleanly', async () => {
       expect(daemon.isRunning()).toBe(false);
 
-      daemon.start();
+      await daemon.start();
       expect(daemon.isRunning()).toBe(true);
 
-      daemon.stop();
+      await daemon.stop();
       expect(daemon.isRunning()).toBe(false);
     });
 

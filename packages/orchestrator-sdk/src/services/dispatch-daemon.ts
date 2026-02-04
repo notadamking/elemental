@@ -173,13 +173,15 @@ export interface DispatchDaemon {
 
   /**
    * Starts the dispatch daemon with all enabled polling loops.
+   * Reconciles stale sessions on startup before beginning polls.
    */
-  start(): void;
+  start(): Promise<void>;
 
   /**
    * Stops the dispatch daemon and all polling loops.
+   * Waits for any in-flight poll cycle to complete before returning.
    */
-  stop(): void;
+  stop(): Promise<void>;
 
   /**
    * Whether the daemon is currently running.
@@ -271,6 +273,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   private running = false;
   private polling = false;
   private pollIntervalHandle?: NodeJS.Timeout;
+  private currentPollCycle?: Promise<void>;
 
   constructor(
     api: ElementalAPI,
@@ -299,33 +302,36 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   // Lifecycle
   // ----------------------------------------
 
-  start(): void {
+  async start(): Promise<void> {
     if (this.running) {
       return;
     }
 
     this.running = true;
 
-    // Start the main poll loop
-    this.pollIntervalHandle = setInterval(async () => {
-      if (!this.running) {
-        return;
+    // Reconcile stale sessions on startup (M-7)
+    try {
+      const result = await this.sessionManager.reconcileOnStartup();
+      if (result.reconciled > 0) {
+        console.log(`[dispatch-daemon] Reconciled ${result.reconciled} stale session(s)`);
       }
+      if (result.errors.length > 0) {
+        console.warn('[dispatch-daemon] Reconciliation errors:', result.errors);
+      }
+    } catch (error) {
+      console.error('[dispatch-daemon] Failed to reconcile on startup:', error);
+    }
 
-      try {
-        await this.runPollCycle();
-      } catch (error) {
-        console.error('[dispatch-daemon] Poll cycle error:', error);
-      }
-    }, this.config.pollIntervalMs);
+    // Start the main poll loop
+    this.pollIntervalHandle = this.createPollInterval();
 
     // Run an initial poll cycle immediately
-    this.runPollCycle().catch((error) => {
+    this.currentPollCycle = this.runPollCycle().catch((error) => {
       console.error('[dispatch-daemon] Initial poll cycle error:', error);
     });
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     if (!this.running) {
       return;
     }
@@ -335,6 +341,19 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     if (this.pollIntervalHandle) {
       clearInterval(this.pollIntervalHandle);
       this.pollIntervalHandle = undefined;
+    }
+
+    // Wait for in-flight poll cycle to complete (M-8)
+    if (this.currentPollCycle) {
+      try {
+        await Promise.race([
+          this.currentPollCycle,
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('Shutdown timeout')), 30_000)
+          ),
+        ]);
+      } catch { /* timeout or error — proceed with shutdown */ }
+      this.currentPollCycle = undefined;
     }
   }
 
@@ -632,7 +651,15 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   }
 
   updateConfig(config: Partial<DispatchDaemonConfig>): void {
+    const oldPollIntervalMs = this.config.pollIntervalMs;
     this.config = this.normalizeConfig({ ...this.config, ...config });
+
+    if (this.running && this.config.pollIntervalMs !== oldPollIntervalMs) {
+      if (this.pollIntervalHandle) {
+        clearInterval(this.pollIntervalHandle);
+      }
+      this.pollIntervalHandle = this.createPollInterval();
+    }
   }
 
   // ----------------------------------------
@@ -658,6 +685,18 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   // ----------------------------------------
   // Private Helpers
   // ----------------------------------------
+
+  private createPollInterval(): NodeJS.Timeout {
+    return setInterval(async () => {
+      if (!this.running) return;
+      try {
+        this.currentPollCycle = this.runPollCycle();
+        await this.currentPollCycle;
+      } catch (error) {
+        console.error('[dispatch-daemon] Poll cycle error:', error);
+      }
+    }, this.config.pollIntervalMs);
+  }
 
   private normalizeConfig(config?: DispatchDaemonConfig): NormalizedConfig {
     let pollIntervalMs = config?.pollIntervalMs ?? DISPATCH_DAEMON_DEFAULT_POLL_INTERVAL_MS;

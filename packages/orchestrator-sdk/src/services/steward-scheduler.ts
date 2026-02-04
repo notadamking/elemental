@@ -887,85 +887,163 @@ export class StewardSchedulerImpl implements StewardScheduler {
     if (job.intervalId) {
       return; // Already running
     }
+    this.scheduleNextRun(job);
+  }
 
-    // Parse cron expression to get interval
-    // For simplicity, we use a basic interval approach
-    // A proper implementation would use node-cron's scheduling
-    const intervalMs = this.parseCronToIntervalMs(job.trigger.schedule);
+  private scheduleNextRun(job: CronJobState): void {
+    const nextTime = this.getNextCronTime(job.trigger.schedule);
+    if (!nextTime) return;
 
-    if (intervalMs === null) {
-      // Invalid cron expression
-      return;
-    }
+    job.nextRunAt = nextTime;
+    const delayMs = Math.max(0, nextTime.getTime() - Date.now());
 
-    job.intervalId = setInterval(async () => {
+    job.intervalId = setTimeout(async () => {
+      if (!this.running) return;
       if (job.isRunning) {
-        return; // Skip if already running
+        // Skip this run but schedule the next one
+        job.intervalId = undefined;
+        this.scheduleNextRun(job);
+        return;
       }
-
       const agent = await this.agentRegistry.getAgent(job.stewardId);
-      if (agent) {
+      if (agent && this.running) {
         await this.runExecution(agent, job.trigger, false);
         job.lastRunAt = createTimestamp();
       }
-    }, intervalMs);
-
-    // Calculate next run time
-    job.nextRunAt = new Date(Date.now() + intervalMs);
+      if (this.running) {
+        job.intervalId = undefined;
+        this.scheduleNextRun(job);
+      }
+    }, delayMs) as unknown as ReturnType<typeof setInterval>;
   }
 
   private stopCronJob(job: CronJobState): void {
     if (job.intervalId) {
-      clearInterval(job.intervalId);
+      clearTimeout(job.intervalId as unknown as ReturnType<typeof setTimeout>);
       job.intervalId = undefined;
     }
   }
 
   /**
-   * Parses a cron expression to an interval in milliseconds.
-   * This is a simplified implementation that handles common patterns.
-   * For full cron support, use node-cron directly.
+   * Calculates the next fire time for a cron expression after the given date.
+   * Supports 5-field cron (minute hour dom month dow) with optional 6th seconds field (ignored).
+   * Supports: *, specific values, step (* /N), range (N-M), and lists (N,M).
+   * Returns null for invalid expressions.
    */
-  private parseCronToIntervalMs(schedule: string): number | null {
+  getNextCronTime(schedule: string, after?: Date): Date | null {
     const parts = schedule.trim().split(/\s+/);
     if (parts.length < 5 || parts.length > 6) {
       return null;
     }
 
-    // Handle common patterns
-    // Format: minute hour day month weekday (or second minute hour day month weekday)
-    const hasSeconds = parts.length === 6;
-    const [minute, hour, day, month, _weekday] = hasSeconds ? parts.slice(1) : parts;
+    // If 6 fields, ignore the first (seconds) field
+    const fields = parts.length === 6 ? parts.slice(1) : parts;
+    const [minuteField, hourField, domField, monthField, dowField] = fields;
 
-    // Every minute: * * * * *
-    if (minute === '*' && hour === '*' && day === '*') {
-      return 60 * 1000; // 1 minute
+    // Parse each field into a set of allowed values
+    const minutes = this.parseCronField(minuteField, 0, 59);
+    const hours = this.parseCronField(hourField, 0, 23);
+    const doms = this.parseCronField(domField, 1, 31);
+    const months = this.parseCronField(monthField, 1, 12);
+    const dows = this.parseCronField(dowField, 0, 6); // 0=Sunday
+
+    if (!minutes || !hours || !doms || !months || !dows) {
+      return null;
     }
 
-    // Every N minutes: */N * * * *
-    const everyNMinutes = minute.match(/^\*\/(\d+)$/);
-    if (everyNMinutes && hour === '*') {
-      return parseInt(everyNMinutes[1], 10) * 60 * 1000;
+    // Start from the next minute after 'after'
+    const start = after ? new Date(after) : new Date();
+    start.setSeconds(0, 0);
+    start.setMinutes(start.getMinutes() + 1);
+
+    // Iterate forward up to 366 days to find the next matching time
+    const maxIterations = 366 * 24 * 60; // worst case: check every minute for a year
+    const candidate = new Date(start);
+
+    for (let i = 0; i < maxIterations; i++) {
+      const month = candidate.getMonth() + 1; // 1-12
+      const dom = candidate.getDate();
+      const dow = candidate.getDay(); // 0=Sunday
+      const hour = candidate.getHours();
+      const minute = candidate.getMinutes();
+
+      if (
+        months.has(month) &&
+        doms.has(dom) &&
+        dows.has(dow) &&
+        hours.has(hour) &&
+        minutes.has(minute)
+      ) {
+        return candidate;
+      }
+
+      // Advance by 1 minute
+      candidate.setMinutes(candidate.getMinutes() + 1);
     }
 
-    // Every hour: 0 * * * *
-    if (/^\d+$/.test(minute) && hour === '*') {
-      return 60 * 60 * 1000; // 1 hour
+    return null; // No match found within 366 days
+  }
+
+  /**
+   * Parses a single cron field into a set of valid values.
+   * Supports: *, N, N-M, N,M, * /N, N-M/S
+   */
+  private parseCronField(field: string, min: number, max: number): Set<number> | null {
+    const result = new Set<number>();
+
+    // Handle comma-separated list
+    const segments = field.split(',');
+    for (const segment of segments) {
+      // Handle step: */N or N-M/S
+      const stepMatch = segment.match(/^(.+)\/(\d+)$/);
+      if (stepMatch) {
+        const step = parseInt(stepMatch[2], 10);
+        if (step <= 0) return null;
+
+        let rangeStart = min;
+        let rangeEnd = max;
+
+        if (stepMatch[1] !== '*') {
+          const rangeMatch = stepMatch[1].match(/^(\d+)-(\d+)$/);
+          if (rangeMatch) {
+            rangeStart = parseInt(rangeMatch[1], 10);
+            rangeEnd = parseInt(rangeMatch[2], 10);
+          } else {
+            rangeStart = parseInt(stepMatch[1], 10);
+            rangeEnd = max;
+          }
+        }
+
+        for (let v = rangeStart; v <= rangeEnd; v += step) {
+          if (v >= min && v <= max) result.add(v);
+        }
+        continue;
+      }
+
+      // Handle wildcard
+      if (segment === '*') {
+        for (let v = min; v <= max; v++) result.add(v);
+        continue;
+      }
+
+      // Handle range: N-M
+      const rangeMatch = segment.match(/^(\d+)-(\d+)$/);
+      if (rangeMatch) {
+        const start = parseInt(rangeMatch[1], 10);
+        const end = parseInt(rangeMatch[2], 10);
+        for (let v = start; v <= end; v++) {
+          if (v >= min && v <= max) result.add(v);
+        }
+        continue;
+      }
+
+      // Handle specific value
+      const value = parseInt(segment, 10);
+      if (isNaN(value) || value < min || value > max) return null;
+      result.add(value);
     }
 
-    // Every N hours: 0 */N * * *
-    const everyNHours = hour.match(/^\*\/(\d+)$/);
-    if (everyNHours && day === '*') {
-      return parseInt(everyNHours[1], 10) * 60 * 60 * 1000;
-    }
-
-    // Daily at specific time: N N * * *
-    if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && day === '*' && month === '*') {
-      return 24 * 60 * 60 * 1000; // 1 day
-    }
-
-    // Default: run every 15 minutes as fallback
-    return 15 * 60 * 1000;
+    return result.size > 0 ? result : null;
   }
 
   private async runExecution(

@@ -99,7 +99,7 @@ async function runOrchestrationTests(options: TestOrchestrationOptions): Promise
     console.log('\n✓ Test environment ready\n');
 
     // Start daemon
-    ctx.daemon.start();
+    await ctx.daemon.start();
     console.log('✓ Dispatch daemon running\n');
     console.log('═'.repeat(60));
     console.log('');
@@ -217,7 +217,7 @@ async function runOrchestrationTests(options: TestOrchestrationOptions): Promise
       console.log('');
     } else {
       console.log(`\n⚠ Skipping cleanup. Temp workspace: ${ctx.tempWorkspace}\n`);
-      ctx.daemon.stop();
+      await ctx.daemon.stop();
     }
 
     return passed === results.length ? success() : failure('Some tests failed', ExitCode.GENERAL_ERROR);

@@ -255,7 +255,7 @@ if (task.assignee && task.assignee !== agentId) {
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `session-manager.ts` (sessions Map), `spawner.ts:534` (sessions Map) |
 | **Severity** | MEDIUM |
 | **Category** | Memory Leak |
@@ -270,7 +270,7 @@ if (task.assignee && task.assignee !== agentId) {
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `agent-registry.ts:391-406`, `task-assignment-service.ts:700-757` |
 | **Severity** | MEDIUM |
 | **Category** | Performance |
@@ -285,7 +285,7 @@ if (task.assignee && task.assignee !== agentId) {
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/steward-scheduler.ts:875-915` |
 | **Severity** | MEDIUM |
 | **Category** | Incorrect Behavior |
@@ -300,7 +300,7 @@ if (task.assignee && task.assignee !== agentId) {
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/dispatch-daemon.ts:634-636` |
 | **Severity** | MEDIUM |
 | **Category** | Configuration Bug |
@@ -326,7 +326,7 @@ updateConfig(config: Partial<DispatchDaemonConfig>): void {
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/git/worktree-manager.ts:799-805` |
 | **Severity** | MEDIUM |
 | **Category** | Reliability |
@@ -347,7 +347,7 @@ return execAsync(command, { cwd: ..., encoding: 'utf8', timeout: 30_000 });
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/agent-registry.ts:277-290` |
 | **Severity** | MEDIUM |
 | **Category** | Inconsistent State |
@@ -368,7 +368,7 @@ If step 2 fails, the entity exists without a channel. If step 3 fails, the entit
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | Cross-cutting: `session-manager.ts`, `spawner.ts`, `worktree-manager.ts`, `steward-scheduler.ts` |
 | **Severity** | MEDIUM |
 | **Category** | Crash Recovery |
@@ -393,7 +393,7 @@ Only agent metadata in the database survives. After restart, agents that were `r
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/services/dispatch-daemon.ts:327-338` |
 | **Severity** | MEDIUM |
 | **Category** | Reliability |
@@ -413,7 +413,7 @@ Only agent metadata in the database survives. After restart, agents that were `r
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/runtime/spawner.ts:626-632` |
 | **Severity** | MEDIUM |
 | **Category** | Resource Leak |
@@ -435,7 +435,7 @@ const timeout = setTimeout(() => {
 
 | Field | Value |
 |-------|-------|
-| **Status** | OPEN |
+| **Status** | FIXED |
 | **File** | `packages/orchestrator-sdk/src/runtime/session-manager.ts:685-720` |
 | **Severity** | MEDIUM |
 | **Category** | Race Condition |

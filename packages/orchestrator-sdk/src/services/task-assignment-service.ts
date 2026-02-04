@@ -708,7 +708,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
   async listAssignments(filter?: AssignmentFilter): Promise<TaskAssignment[]> {
     // Build task filter from assignment filter
-    const taskFilter: { type: 'task'; includeEphemeral?: boolean; status?: TaskStatus | TaskStatus[] } = {
+    const taskFilter: { type: 'task'; includeEphemeral?: boolean; status?: TaskStatus | TaskStatus[]; assignee?: EntityId } = {
       type: 'task' as const,
       includeEphemeral: filter?.includeEphemeral,
     };
@@ -717,7 +717,12 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       taskFilter.status = filter.taskStatus;
     }
 
-    // Get all tasks
+    // Push assignee filter to API level when available (M-2)
+    if (filter?.agentId !== undefined) {
+      taskFilter.assignee = filter.agentId;
+    }
+
+    // Get tasks (pre-filtered by assignee at API level when possible)
     const tasks = await this.api.list<Task>(taskFilter);
 
     // Convert to assignments and apply filters
