@@ -351,13 +351,12 @@ await predecessorService.cancelQuery(queryId);
 Maps between SDK message types and Elemental events.
 
 ```typescript
-import { mapSDKMessageToEvent, mapEventToSDKMessage } from '@elemental/orchestrator-sdk';
+import { mapSDKMessageToEvent } from '@elemental/orchestrator-sdk';
 
 // SDK → Elemental
 const event = mapSDKMessageToEvent(sdkMessage);
 
-// Elemental → SDK
-const sdkMessage = mapEventToSDKMessage(event);
+// Note: There is no reverse mapping function (Elemental → SDK).
 ```
 
 ### Event Type Mapping

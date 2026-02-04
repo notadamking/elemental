@@ -86,48 +86,48 @@ Tracked issues from the document system audit and broader codebase analysis.
 
 ### Wrong field names
 
-- [ ] **Entity** (line 91): `managerId` → `reportsTo` (`entity.ts:71`)
-- [ ] **Entity** (line 95): `type EntityType` → `type EntityTypeValue` (`entity.ts:30`)
-- [ ] **Message** (line 116): `senderId` → `sender` (`message.ts:71`)
-- [ ] **Message** (line 117): `channelId` is required, not optional (`message.ts:67`)
-- [ ] **Message** (line 118): `threadId` is `MessageId | null`, not optional (`message.ts:81`)
-- [ ] **Task** (line 57): `type TaskType` → `type TaskTypeValue` (`task.ts:154`)
-- [ ] **Library** (line 307): `title` → `name` (`library.ts:56`)
-- [ ] **Team** (lines 320-328): `memberIds` → `members` (`team.ts:72-91`)
-- [ ] **Playbook** (line 344): `inherits?: string` → `extends?: string[]` (`playbook.ts:179`)
-- [ ] **Dependency** (line 206): `'reply-to'` → `'replies-to'` (`dependency.ts:87`)
+- [x] **Entity** (line 91): `managerId` → `reportsTo` (`entity.ts:71`)
+- [x] **Entity** (line 95): `type EntityType` → `type EntityTypeValue` (`entity.ts:30`)
+- [x] **Message** (line 116): `senderId` → `sender` (`message.ts:71`)
+- [x] **Message** (line 117): `channelId` is required, not optional (`message.ts:67`)
+- [x] **Message** (line 118): `threadId` is `MessageId | null`, not optional (`message.ts:81`)
+- [x] **Task** (line 57): `type TaskType` → `type TaskTypeValue` (`task.ts:154`)
+- [x] **Library** (line 307): `title` → `name` (`library.ts:56`)
+- [x] **Team** (lines 320-328): `memberIds` → `members` (`team.ts:72-91`)
+- [x] **Playbook** (line 344): `inherits?: string` → `extends?: string[]` (`playbook.ts:179`)
+- [x] **Dependency** (line 206): `'reply-to'` → `'replies-to'` (`dependency.ts:87`)
 
 ### Missing fields
 
-- [ ] **Message**: missing `attachments: readonly DocumentId[]`
-- [ ] **Plan**: missing `completedAt?`, `cancelledAt?`, `cancelReason?`
-- [ ] **Workflow**: missing `descriptionRef?`, `playbookId?`, `variables`, `startedAt?`, `finishedAt?`, `failureReason?`, `cancelReason?`; `parentWorkflowId` doesn't exist; `ephemeral` is required not optional
-- [ ] **Channel**: `joinPolicy` missing `'request'` value
-- [ ] **Playbook**: missing `version`, `descriptionRef?`; `variables` is required not optional
-- [ ] **InboxItem**: missing `channelId: ChannelId`; `readAt` is `Timestamp | null` not optional
-- [ ] **InboxSourceType**: missing `'thread_reply'`
-- [ ] **Dependency types**: missing `supersedes`, `duplicates`, `caused-by`, `validates`, `authored-by`, `assigned-to`, `approved-by`
-- [ ] **Team**: missing `descriptionRef?: DocumentId`; `status` should be optional
+- [x] **Message**: missing `attachments: readonly DocumentId[]`
+- [x] **Plan**: missing `completedAt?`, `cancelledAt?`, `cancelReason?`
+- [x] **Workflow**: missing `descriptionRef?`, `playbookId?`, `variables`, `startedAt?`, `finishedAt?`, `failureReason?`, `cancelReason?`; `parentWorkflowId` doesn't exist; `ephemeral` is required not optional
+- [x] **Channel**: `joinPolicy` missing `'request'` value
+- [x] **Playbook**: missing `version`, `descriptionRef?`; `variables` is required not optional
+- [x] **InboxItem**: missing `channelId: ChannelId`; `readAt` is `Timestamp | null` not optional
+- [x] **InboxSourceType**: missing `'thread_reply'`
+- [x] **Dependency types**: missing `supersedes`, `duplicates`, `caused-by`, `validates`, `authored-by`, `assigned-to`, `approved-by`
+- [x] **Team**: missing `descriptionRef?: DocumentId`; `status` should be optional
 
 ### Sections needing full rewrite
 
-- [ ] **Event interface** (lines 380-398): `id` is `number` not `string`; field is `eventType` not `type`; `elementType` doesn't exist; field is `createdAt` not `timestamp`; has `oldValue`/`newValue` not `data`; EventType values are completely different (actual: `created`, `updated`, `closed`, `reopened`, `deleted`, `dependency_added`, `dependency_removed`, `tag_added`, `tag_removed`, `member_added`, `member_removed`, `auto_blocked`, `auto_unblocked`)
-- [ ] **ErrorCode** (lines 429-453): uses `enum` but actual is `const` object; code names differ (`INVALID_TRANSITION` → `INVALID_STATUS`, `STORAGE_ERROR` → `DATABASE_ERROR`, `CONSTRAINT_VIOLATION` doesn't exist); many codes missing
-- [ ] **Error classes** (lines 457-460): missing `NotFoundError`, `ConflictError`, `ConstraintError`
-- [ ] **Branded IDs** (lines 407-417): uses `__brand` pattern but actual uses `unique symbol` pattern
-- [ ] **Line 25**: `createElementId(content)` doesn't exist; actual function is `generateId()`
+- [x] **Event interface** (lines 380-398): `id` is `number` not `string`; field is `eventType` not `type`; `elementType` doesn't exist; field is `createdAt` not `timestamp`; has `oldValue`/`newValue` not `data`; EventType values are completely different (actual: `created`, `updated`, `closed`, `reopened`, `deleted`, `dependency_added`, `dependency_removed`, `tag_added`, `tag_removed`, `member_added`, `member_removed`, `auto_blocked`, `auto_unblocked`)
+- [x] **ErrorCode** (lines 429-453): uses `enum` but actual is `const` object; code names differ (`INVALID_TRANSITION` → `INVALID_STATUS`, `STORAGE_ERROR` → `DATABASE_ERROR`, `CONSTRAINT_VIOLATION` doesn't exist); many codes missing
+- [x] **Error classes** (lines 457-460): missing `NotFoundError`, `ConflictError`, `ConstraintError`
+- [x] **Branded IDs** (lines 407-417): uses `__brand` pattern but actual uses `unique symbol` pattern
+- [x] **Line 25**: `createElementId(content)` doesn't exist; actual function is `generateId()`
 
 ### Misleading descriptions
 
-- [ ] **Line 130**: says "Must have either channelId or threadId" — both are always present
-- [ ] **Line 70**: says blocked is "never set directly" — transition table allows manual setting
-- [ ] **Line 197**: `metadata?: DependencyMetadata` — actually `metadata: Record<string, unknown>` (required, different type)
-- [ ] **Lines 223-230**: gate metadata uses `gate` field — actual is `gateType`; `requiredCount` → `approvalCount`
+- [x] **Line 130**: says "Must have either channelId or threadId" — both are always present
+- [x] **Line 70**: says blocked is "never set directly" — transition table allows manual setting
+- [x] **Line 197**: `metadata?: DependencyMetadata` — actually `metadata: Record<string, unknown>` (required, different type)
+- [x] **Lines 223-230**: gate metadata uses `gate` field — actual is `gateType`; `requiredCount` → `approvalCount`
 
 ---
 
 ## Documentation: Other Files
 
-- [ ] **`docs/reference/sdk-services.md:65`**: says `addDependency()` does NOT check cycles automatically — it does (`dependency.ts:158-159`)
-- [ ] **`docs/reference/sdk-services.md:62`**: says cycle detection only for `blocks`/`awaits` — also includes `parent-child`
-- [ ] **`docs/reference/orchestrator-runtime.md:360`**: references `mapEventToSDKMessage` — function doesn't exist (only `mapSDKMessageToEvent` exists)
+- [x] **`docs/reference/sdk-services.md:65`**: says `addDependency()` does NOT check cycles automatically — it does (`dependency.ts:158-159`)
+- [x] **`docs/reference/sdk-services.md:62`**: says cycle detection only for `blocks`/`awaits` — also includes `parent-child`
+- [x] **`docs/reference/orchestrator-runtime.md:360`**: references `mapEventToSDKMessage` — function doesn't exist (only `mapSDKMessageToEvent` exists)

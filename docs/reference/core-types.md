@@ -22,7 +22,7 @@ interface Element {
 
 **Key functions:**
 - `isElement(value)` - Type guard
-- `createElementId(content)` - Generate hash-based ID
+- `generateId(input)` - Generate hash-based ID
 
 ---
 
@@ -39,7 +39,7 @@ interface Task extends Element {
   status: TaskStatus;
   priority: Priority;          // 1 (critical) to 5 (minimal)
   complexity: Complexity;      // 1 (simplest) to 5 (most complex)
-  taskType: TaskType;
+  taskType: TaskTypeValue;
   closeReason?: string;
   assignee?: EntityId;
   owner?: EntityId;
@@ -54,7 +54,8 @@ interface Task extends Element {
 }
 
 type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' | 'tombstone';
-type TaskType = 'feature' | 'bug' | 'chore' | 'task';
+const TaskTypeValue = { BUG: 'bug', FEATURE: 'feature', TASK: 'task', CHORE: 'chore' } as const;
+type TaskTypeValue = (typeof TaskTypeValue)[keyof typeof TaskTypeValue];
 type Priority = 1 | 2 | 3 | 4 | 5;
 type Complexity = 1 | 2 | 3 | 4 | 5;
 ```
@@ -67,7 +68,7 @@ type Complexity = 1 | 2 | 3 | 4 | 5;
 
 **Status transitions:**
 - `open` → `in_progress`, `blocked`, `deferred`, `closed`
-- `blocked` is **computed** from dependencies, never set directly
+- `blocked` can be set via direct transition or computed automatically from dependencies
 - `closed` → only `open` (cannot go to in_progress, blocked, or deferred)
 - `tombstone` is terminal
 
@@ -87,12 +88,13 @@ type Complexity = 1 | 2 | 3 | 4 | 5;
 interface Entity extends Element {
   type: 'entity';
   name: string;              // Unique, case-sensitive
-  entityType: EntityType;
-  managerId?: EntityId;      // Reports to
+  entityType: EntityTypeValue;
+  reportsTo?: EntityId;      // Reports to
   publicKey?: string;        // Ed25519 public key (for crypto mode)
 }
 
-type EntityType = 'agent' | 'human' | 'system';
+const EntityTypeValue = { AGENT: 'agent', HUMAN: 'human', SYSTEM: 'system' } as const;
+type EntityTypeValue = (typeof EntityTypeValue)[keyof typeof EntityTypeValue];
 ```
 
 **Key functions:**
@@ -113,10 +115,11 @@ type EntityType = 'agent' | 'human' | 'system';
 ```typescript
 interface Message extends Element {
   type: 'message';
-  senderId: EntityId;
-  channelId?: ChannelId;     // Must have channelId or threadId (mutable for channel merges)
-  threadId?: MessageId;
+  sender: EntityId;
+  channelId: ChannelId;      // Required (mutable for channel merge operations)
+  threadId: MessageId | null; // null for non-threaded messages
   contentRef: DocumentId;    // Reference to content Document
+  attachments: readonly DocumentId[];  // Attachment Documents
 }
 ```
 
@@ -127,7 +130,7 @@ interface Message extends Element {
 **Constraints:**
 - Messages are **immutable** after creation (except `channelId`)
 - Content is stored as Document reference, not inline text
-- Must have either `channelId` or `threadId`
+- Both `channelId` and `threadId` are always present (`threadId` is `null` for non-threaded messages)
 - `channelId` is mutable (not readonly) to support channel merge operations
 
 ---
@@ -194,7 +197,7 @@ interface Dependency {
   type: DependencyType;
   createdAt: Timestamp;
   createdBy: EntityId;
-  metadata?: DependencyMetadata;
+  metadata: Record<string, unknown>;
 }
 
 type DependencyType =
@@ -203,8 +206,15 @@ type DependencyType =
   | 'awaits'       // blockedId (waiter) → blockerId (gate)
   | 'relates-to'   // Bidirectional association
   | 'references'   // Citation
-  | 'reply-to'     // Message threading
-  | 'mentions';    // @mention reference
+  | 'supersedes'   // Replacement
+  | 'duplicates'   // Duplicate of
+  | 'caused-by'    // Causal link
+  | 'validates'    // Validates another element
+  | 'replies-to'   // Message threading
+  | 'mentions'     // @mention reference
+  | 'authored-by'  // Author attribution
+  | 'assigned-to'  // Assignment
+  | 'approved-by'; // Approval attribution
 ```
 
 **Blocking types:** `blocks`, `awaits`, `parent-child`
@@ -221,11 +231,11 @@ type DependencyType =
 **Gate metadata (for `awaits`):**
 ```typescript
 interface AwaitsDependencyMetadata {
-  gate?: 'timer' | 'approval' | 'external' | 'webhook';
+  gateType?: 'timer' | 'approval' | 'external' | 'webhook';
   waitUntil?: Timestamp;        // For timer
   requiredApprovers?: string[]; // For approval
   currentApprovers?: string[];
-  requiredCount?: number;
+  approvalCount?: number;
   satisfied?: boolean;          // For external/webhook
 }
 ```
@@ -242,8 +252,11 @@ interface AwaitsDependencyMetadata {
 interface Plan extends Element {
   type: 'plan';
   title: string;
-  status: PlanStatus;
   descriptionRef?: DocumentId;
+  status: PlanStatus;
+  completedAt?: Timestamp;
+  cancelledAt?: Timestamp;
+  cancelReason?: string;
 }
 
 type PlanStatus = 'draft' | 'active' | 'completed' | 'cancelled';
@@ -259,9 +272,15 @@ Contains tasks via `parent-child` dependencies. **Tasks in a plan are NOT blocke
 interface Workflow extends Element {
   type: 'workflow';
   title: string;
+  descriptionRef?: DocumentId;
   status: WorkflowStatus;
-  ephemeral?: boolean;       // If true, not synced
-  parentWorkflowId?: ElementId;
+  playbookId?: PlaybookId;
+  ephemeral: boolean;               // Required, not optional
+  variables: Record<string, unknown>;
+  startedAt?: Timestamp;
+  finishedAt?: Timestamp;
+  failureReason?: string;
+  cancelReason?: string;
 }
 
 type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -287,7 +306,7 @@ interface Channel extends Element {
 
 interface ChannelPermissions {
   visibility: 'public' | 'private';
-  joinPolicy: 'open' | 'invite-only';
+  joinPolicy: 'open' | 'invite-only' | 'request';
   modifyMembers: EntityId[];
 }
 
@@ -305,7 +324,7 @@ type ChannelType = 'direct' | 'group';
 ```typescript
 interface Library extends Element {
   type: 'library';
-  title: string;
+  name: string;
   descriptionRef?: DocumentId;
 }
 ```
@@ -320,8 +339,9 @@ Contains documents via `parent-child` dependencies.
 interface Team extends Element {
   type: 'team';
   name: string;
-  memberIds: EntityId[];
-  status: TeamStatus;
+  members: EntityId[];
+  descriptionRef?: DocumentId;
+  status?: TeamStatus;
   deletedAt?: Timestamp;
   deletedBy?: EntityId;
   deleteReason?: string;
@@ -339,9 +359,11 @@ interface Playbook extends Element {
   type: 'playbook';
   name: string;
   title: string;
+  descriptionRef?: DocumentId;
+  version: number;
   steps: PlaybookStep[];
-  variables?: PlaybookVariable[];
-  inherits?: string;         // Parent playbook name
+  variables: PlaybookVariable[];
+  extends?: string[];        // Parent playbook names
 }
 ```
 
@@ -358,14 +380,15 @@ interface InboxItem {
   id: string;
   recipientId: EntityId;
   messageId: MessageId;
+  channelId: ChannelId;
   status: InboxStatus;
   sourceType: InboxSourceType;
-  readAt?: Timestamp;
+  readAt: Timestamp | null;
   createdAt: Timestamp;
 }
 
 type InboxStatus = 'unread' | 'read' | 'archived';
-type InboxSourceType = 'direct' | 'mention';
+type InboxSourceType = 'direct' | 'mention' | 'thread_reply';
 ```
 
 **Note:** `readAt` is null if archived without reading.
@@ -378,23 +401,23 @@ type InboxSourceType = 'direct' | 'mention';
 
 ```typescript
 interface Event {
-  id: string;
-  type: EventType;
+  id: number;                                      // Auto-incrementing integer
   elementId: ElementId;
-  elementType: ElementType;
-  actor: string;
-  timestamp: Timestamp;
-  data?: Record<string, unknown>;
+  eventType: EventType;
+  actor: EntityId;
+  oldValue: Record<string, unknown> | null;
+  newValue: Record<string, unknown> | null;
+  createdAt: Timestamp;
 }
 
 type EventType =
-  | 'created' | 'updated' | 'deleted'
-  | 'status_changed' | 'assigned' | 'unassigned'
+  | 'created' | 'updated' | 'closed' | 'reopened' | 'deleted'
   | 'dependency_added' | 'dependency_removed'
-  | 'auto_blocked' | 'auto_unblocked'
-  | 'gate_satisfied' | 'approval_recorded' | 'approval_removed'
+  | 'tag_added' | 'tag_removed'
   | 'member_added' | 'member_removed'
-  | 'message_sent' | 'inbox_read' | 'inbox_archived';
+  | 'comment_added' | 'comment_updated' | 'comment_deleted'
+  | 'comment_resolved' | 'comment_unresolved'
+  | 'auto_blocked' | 'auto_unblocked';
 ```
 
 Events are stored for audit trail. Auto-generated events use actor `'system:blocked-cache'`.
@@ -404,20 +427,50 @@ Events are stored for audit trail. Auto-generated events use actor `'system:bloc
 ## ID Types (Branded)
 
 ```typescript
-type ElementId = string & { readonly __brand: 'ElementId' };
-type TaskId = ElementId & { readonly __taskBrand: 'TaskId' };
-type EntityId = ElementId & { readonly __entityBrand: 'EntityId' };
-type DocumentId = ElementId & { readonly __documentBrand: 'DocumentId' };
-type MessageId = ElementId & { readonly __messageBrand: 'MessageId' };
-type ChannelId = ElementId & { readonly __channelBrand: 'ChannelId' };
-type PlanId = ElementId & { readonly __planBrand: 'PlanId' };
-type WorkflowId = ElementId & { readonly __workflowBrand: 'WorkflowId' };
-type TeamId = ElementId & { readonly __teamBrand: 'TeamId' };
-type LibraryId = ElementId & { readonly __libraryBrand: 'LibraryId' };
-type PlaybookId = ElementId & { readonly __playbookBrand: 'PlaybookId' };
+// Uses unique symbol branding pattern
+declare const ElementIdBrand: unique symbol;
+type ElementId = string & { readonly [ElementIdBrand]: typeof ElementIdBrand };
+
+declare const EntityIdBrand: unique symbol;
+type EntityId = string & { readonly [EntityIdBrand]: typeof EntityIdBrand };
+
+declare const DocumentIdBrand: unique symbol;
+type DocumentId = ElementId & { readonly [DocumentIdBrand]: typeof DocumentIdBrand };
+
+declare const MessageIdBrand: unique symbol;
+type MessageId = ElementId & { readonly [MessageIdBrand]: typeof MessageIdBrand };
+
+declare const ChannelIdBrand: unique symbol;
+type ChannelId = ElementId & { readonly [ChannelIdBrand]: typeof ChannelIdBrand };
+
+declare const WorkflowIdBrand: unique symbol;
+type WorkflowId = ElementId & { readonly [WorkflowIdBrand]: typeof WorkflowIdBrand };
+
+declare const TeamIdBrand: unique symbol;
+type TeamId = ElementId & { readonly [TeamIdBrand]: typeof TeamIdBrand };
+
+declare const LibraryIdBrand: unique symbol;
+type LibraryId = ElementId & { readonly [LibraryIdBrand]: typeof LibraryIdBrand };
+
+declare const PlaybookIdBrand: unique symbol;
+type PlaybookId = ElementId & { readonly [PlaybookIdBrand]: typeof PlaybookIdBrand };
 ```
 
 **Warning:** Using wrong ID type may cause runtime issues even though TypeScript allows it.
+
+### Cast Utilities
+
+Utility functions for casting strings to branded ID types at trust boundaries:
+
+```typescript
+import { asEntityId, asElementId } from '@elemental/core';
+
+// At trust boundaries (API responses, database rows, config values)
+const entityId = asEntityId('ent-abc123');
+const elementId = asElementId('el-xyz789');
+```
+
+These replace the verbose `x as unknown as EntityId` double-cast pattern. Use only at trust boundaries where the string value is known to be a valid ID.
 
 ---
 
@@ -426,35 +479,53 @@ type PlaybookId = ElementId & { readonly __playbookBrand: 'PlaybookId' };
 **File:** `errors/codes.ts`
 
 ```typescript
-enum ErrorCode {
-  // Validation
-  INVALID_INPUT = 'INVALID_INPUT',
-  MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
-  INVALID_TIMESTAMP = 'INVALID_TIMESTAMP',
+// Categorized const objects (NOT a single enum)
+const ValidationErrorCode = {
+  INVALID_INPUT, INVALID_ID, INVALID_STATUS, TITLE_TOO_LONG,
+  INVALID_CONTENT_TYPE, INVALID_JSON, MISSING_REQUIRED_FIELD,
+  INVALID_TAG, INVALID_TIMESTAMP, INVALID_METADATA,
+  INVALID_CATEGORY, INVALID_DOCUMENT_STATUS,
+} as const;
 
-  // Operations
-  NOT_FOUND = 'NOT_FOUND',
-  ALREADY_EXISTS = 'ALREADY_EXISTS',
-  CYCLE_DETECTED = 'CYCLE_DETECTED',
-  INVALID_TRANSITION = 'INVALID_TRANSITION',
+const NotFoundErrorCode = {
+  NOT_FOUND, ENTITY_NOT_FOUND, DOCUMENT_NOT_FOUND,
+  CHANNEL_NOT_FOUND, PLAYBOOK_NOT_FOUND, DEPENDENCY_NOT_FOUND,
+} as const;
 
-  // Identity
-  INVALID_PUBLIC_KEY = 'INVALID_PUBLIC_KEY',
-  INVALID_SIGNATURE = 'INVALID_SIGNATURE',
-  SIGNATURE_EXPIRED = 'SIGNATURE_EXPIRED',
+const ConflictErrorCode = {
+  ALREADY_EXISTS, DUPLICATE_NAME, CYCLE_DETECTED,
+  SYNC_CONFLICT, DUPLICATE_DEPENDENCY, CONCURRENT_MODIFICATION,
+} as const;
 
-  // Document
-  INVALID_CATEGORY = 'INVALID_CATEGORY',
-  INVALID_DOCUMENT_STATUS = 'INVALID_DOCUMENT_STATUS',
+const ConstraintErrorCode = {
+  IMMUTABLE, HAS_DEPENDENTS, INVALID_PARENT,
+  MAX_DEPTH_EXCEEDED, MEMBER_REQUIRED, TYPE_MISMATCH, ALREADY_IN_PLAN,
+} as const;
 
-  // Storage
-  STORAGE_ERROR = 'STORAGE_ERROR',
-  CONSTRAINT_VIOLATION = 'CONSTRAINT_VIOLATION',
-}
+const StorageErrorCode = {
+  DATABASE_ERROR, DATABASE_BUSY, EXPORT_FAILED, IMPORT_FAILED, MIGRATION_FAILED,
+} as const;
+
+const IdentityErrorCode = {
+  INVALID_SIGNATURE, SIGNATURE_VERIFICATION_FAILED, SIGNATURE_EXPIRED,
+  INVALID_PUBLIC_KEY, ACTOR_NOT_FOUND, SIGNATURE_REQUIRED, NO_PUBLIC_KEY,
+} as const;
+
+const ErrorCode = {
+  ...ValidationErrorCode,
+  ...NotFoundErrorCode,
+  ...ConflictErrorCode,
+  ...ConstraintErrorCode,
+  ...StorageErrorCode,
+  ...IdentityErrorCode,
+} as const;
 ```
 
 **Error classes:**
-- `ElementalError` - Base class
+- `ElementalError` - Base class (has `code`, `details`, `httpStatus`)
 - `ValidationError` - Input validation failures
-- `IdentityError` - Authentication/signature errors
+- `NotFoundError` - Element/entity not found
+- `ConflictError` - Duplicate or cycle conflicts
+- `ConstraintError` - Immutability, dependency, and structural constraints
 - `StorageError` - Database errors
+- `IdentityError` - Authentication/signature errors

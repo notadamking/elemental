@@ -59,10 +59,10 @@ const hasCycle = depService.detectCycle(blockedId, blockerId, type);
 
 - BFS traversal from blocked to blocker
 - Depth limit: 100 levels
-- Only checked for blocking types (`blocks`, `awaits`)
+- Only checked for blocking types (`blocks`, `awaits`, `parent-child`)
 - Self-referential rejected immediately with `CYCLE_DETECTED`
 
-**Warning:** `api.addDependency()` does NOT check cycles automatically. Call `detectCycle()` manually.
+**Note:** `api.addDependency()` checks for cycles automatically for blocking types. You can also call `detectCycle()` manually for pre-validation.
 
 ---
 
