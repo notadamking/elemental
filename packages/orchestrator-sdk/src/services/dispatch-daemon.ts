@@ -1069,10 +1069,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     } catch (error: unknown) {
       const errorCode = (error as { code?: string })?.code;
       if (errorCode === 'WORKTREE_EXISTS') {
-        // Remove stale worktree from a previous crash and retry
+        // Remove stale worktree from a previous crash and retry.
+        // Path must match the relative path used by createReadOnlyWorktree.
         try {
           await this.worktreeManager.removeWorktree(
-            `${agent.name}-triage`,
+            `.elemental/.worktrees/${agent.name}-triage`,
             { force: true }
           );
         } catch {
