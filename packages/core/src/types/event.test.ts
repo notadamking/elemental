@@ -131,8 +131,8 @@ describe('EventType', () => {
     expect(EventType.MEMBER_ADDED).toBe('member_added');
   });
 
-  test('has exactly 13 types total', () => {
-    expect(Object.keys(EventType)).toHaveLength(13);
+  test('has exactly 18 types total', () => {
+    expect(Object.keys(EventType)).toHaveLength(18);
   });
 });
 
@@ -149,12 +149,17 @@ describe('ALL_EVENT_TYPES', () => {
     expect(ALL_EVENT_TYPES).toContain('tag_removed');
     expect(ALL_EVENT_TYPES).toContain('member_added');
     expect(ALL_EVENT_TYPES).toContain('member_removed');
+    expect(ALL_EVENT_TYPES).toContain('comment_added');
+    expect(ALL_EVENT_TYPES).toContain('comment_updated');
+    expect(ALL_EVENT_TYPES).toContain('comment_deleted');
+    expect(ALL_EVENT_TYPES).toContain('comment_resolved');
+    expect(ALL_EVENT_TYPES).toContain('comment_unresolved');
     expect(ALL_EVENT_TYPES).toContain('auto_blocked');
     expect(ALL_EVENT_TYPES).toContain('auto_unblocked');
   });
 
-  test('has exactly 13 types', () => {
-    expect(ALL_EVENT_TYPES).toHaveLength(13);
+  test('has exactly 18 types', () => {
+    expect(ALL_EVENT_TYPES).toHaveLength(18);
   });
 });
 

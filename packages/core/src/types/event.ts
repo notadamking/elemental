@@ -75,6 +75,24 @@ export const MembershipEventType = {
 export type MembershipEventType = (typeof MembershipEventType)[keyof typeof MembershipEventType];
 
 /**
+ * Comment event types - comment changes on documents
+ */
+export const CommentEventType = {
+  /** Comment added to document */
+  COMMENT_ADDED: 'comment_added',
+  /** Comment content updated */
+  COMMENT_UPDATED: 'comment_updated',
+  /** Comment soft-deleted */
+  COMMENT_DELETED: 'comment_deleted',
+  /** Comment resolved */
+  COMMENT_RESOLVED: 'comment_resolved',
+  /** Comment unresolved */
+  COMMENT_UNRESOLVED: 'comment_unresolved',
+} as const;
+
+export type CommentEventType = (typeof CommentEventType)[keyof typeof CommentEventType];
+
+/**
  * Automatic status transition event types - system-triggered status changes
  */
 export const AutoStatusEventType = {
@@ -94,6 +112,7 @@ export const EventType = {
   ...DependencyEventType,
   ...TagEventType,
   ...MembershipEventType,
+  ...CommentEventType,
   ...AutoStatusEventType,
 } as const;
 
@@ -627,6 +646,13 @@ export function isMembershipEvent(event: Event | EventWithoutId): boolean {
 }
 
 /**
+ * Checks if an event is a comment event
+ */
+export function isCommentEvent(event: Event | EventWithoutId): boolean {
+  return Object.values(CommentEventType).includes(event.eventType as CommentEventType);
+}
+
+/**
  * Checks if an event is an automatic status transition event
  */
 export function isAutoStatusEvent(event: Event | EventWithoutId): boolean {
@@ -649,6 +675,11 @@ export function getEventTypeDisplayName(eventType: EventType): string {
     [EventType.TAG_REMOVED]: 'Tag Removed',
     [EventType.MEMBER_ADDED]: 'Member Added',
     [EventType.MEMBER_REMOVED]: 'Member Removed',
+    [EventType.COMMENT_ADDED]: 'Comment Added',
+    [EventType.COMMENT_UPDATED]: 'Comment Updated',
+    [EventType.COMMENT_DELETED]: 'Comment Deleted',
+    [EventType.COMMENT_RESOLVED]: 'Comment Resolved',
+    [EventType.COMMENT_UNRESOLVED]: 'Comment Unresolved',
     [EventType.AUTO_BLOCKED]: 'Auto Blocked',
     [EventType.AUTO_UNBLOCKED]: 'Auto Unblocked',
   };

@@ -50,23 +50,23 @@ Tracked issues from the document system audit and broader codebase analysis.
 
 ## Missing Routes & Features
 
-- [ ] **No comment update/delete/resolve endpoints**
+- [x] **No comment update/delete/resolve endpoints**
   - The schema has `resolved`, `resolved_by`, `resolved_at`, `deleted_at` columns, but there are no routes to update, delete, or resolve/unresolve comments.
 
-- [ ] **No CLI `delete` command for documents**
+- [x] **No CLI `delete` command for documents**
   - The HTTP `DELETE /api/documents/:id` route exists, but the CLI has no `doc delete` subcommand.
 
-- [ ] **Comment N+1 query problem**
+- [x] **Comment N+1 query problem**
   - `packages/shared-routes/src/documents.ts:883-924`
   - Each comment triggers individual `api.get()` calls for author and resolver. No batching.
 
-- [ ] **No comment pagination**
+- [x] **No comment pagination**
   - `GET /api/documents/:id/comments` returns all comments with no limit/offset.
 
-- [ ] **No route to remove document from library or move between libraries**
+- [x] **No route to remove document from library or move between libraries**
   - Library assignment happens only during create/clone via `libraryId`.
 
-- [ ] **Comments bypass ElementalAPI; no audit trail**
+- [x] **Comments bypass ElementalAPI; no audit trail**
   - `packages/shared-routes/src/documents.ts:870-1032`
   - Comments are managed entirely through raw SQL in the routes file. No events are recorded for comment creation, no CLI commands exist, and the logic is not reusable by other consumers.
 

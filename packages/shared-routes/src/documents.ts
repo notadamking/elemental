@@ -5,8 +5,8 @@
  */
 
 import { Hono } from 'hono';
-import type { ElementId, EntityId, Element, Document, DocumentId, CreateDocumentInput, DocumentCategory, DocumentStatus } from '@elemental/core';
-import { createDocument, isValidDocumentCategory, isValidDocumentStatus, DocumentStatus as DocumentStatusEnum, ContentType, validateContent } from '@elemental/core';
+import type { ElementId, EntityId, Element, Document, DocumentId, CreateDocumentInput, DocumentCategory, DocumentStatus, EventType } from '@elemental/core';
+import { createDocument, isValidDocumentCategory, isValidDocumentStatus, DocumentStatus as DocumentStatusEnum, ContentType, validateContent, createEvent, createTimestamp } from '@elemental/core';
 import type { CollaborateServices } from './types.js';
 
 // Comment type for the comments table
@@ -855,6 +855,126 @@ export function createDocumentRoutes(services: CollaborateServices) {
   });
 
   /**
+   * PUT /api/documents/:id/library
+   * Move a document to a library (or between libraries)
+   * Body: { libraryId: string, actor?: string }
+   */
+  app.put('/api/documents/:id/library', async (c) => {
+    try {
+      const documentId = c.req.param('id') as ElementId;
+      const body = await c.req.json();
+
+      // Verify document exists and is not tombstoned
+      const doc = await api.get(documentId);
+      if (!doc) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (doc.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      const docData = doc as unknown as Record<string, unknown>;
+      if (docData.status === 'tombstone' || docData.deletedAt) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      // Validate libraryId
+      if (!body.libraryId || typeof body.libraryId !== 'string') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'libraryId is required' } }, 400);
+      }
+
+      const libraryId = body.libraryId as ElementId;
+
+      // Verify library exists
+      const library = await api.get(libraryId);
+      if (!library || library.type !== 'library') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid libraryId: library not found' } }, 400);
+      }
+
+      const actor = (body.actor as EntityId) || ('el-0000' as EntityId);
+
+      // Find current library
+      const deps = await api.getDependencies(documentId, ['parent-child']);
+      let previousLibraryId: string | null = null;
+      for (const dep of deps) {
+        // The blocker is the parent (library)
+        const parent = await api.get(dep.blockerId as ElementId);
+        if (parent && parent.type === 'library') {
+          previousLibraryId = dep.blockerId;
+          break;
+        }
+      }
+
+      // Already in requested library — no-op
+      if (previousLibraryId === libraryId) {
+        return c.json({ documentId, libraryId, previousLibraryId });
+      }
+
+      // Remove from old library if present
+      if (previousLibraryId) {
+        await api.removeDependency(documentId, previousLibraryId as ElementId, 'parent-child');
+      }
+
+      // Add to new library
+      await api.addDependency({
+        blockedId: documentId,
+        blockerId: libraryId,
+        type: 'parent-child',
+        actor,
+      });
+
+      return c.json({ documentId, libraryId, previousLibraryId });
+    } catch (error) {
+      console.error('[elemental] Failed to move document to library:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to move document to library' } }, 500);
+    }
+  });
+
+  /**
+   * DELETE /api/documents/:id/library
+   * Remove a document from its library
+   */
+  app.delete('/api/documents/:id/library', async (c) => {
+    try {
+      const documentId = c.req.param('id') as ElementId;
+
+      // Verify document exists and is not tombstoned
+      const doc = await api.get(documentId);
+      if (!doc) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (doc.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      const docData = doc as unknown as Record<string, unknown>;
+      if (docData.status === 'tombstone' || docData.deletedAt) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      // Find current library
+      const deps = await api.getDependencies(documentId, ['parent-child']);
+      let libraryDep: { blockerId: string } | null = null;
+      for (const dep of deps) {
+        const parent = await api.get(dep.blockerId as ElementId);
+        if (parent && parent.type === 'library') {
+          libraryDep = dep;
+          break;
+        }
+      }
+
+      if (!libraryDep) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document is not in any library' } }, 404);
+      }
+
+      await api.removeDependency(documentId, libraryDep.blockerId as ElementId, 'parent-child');
+
+      return c.json({ success: true, documentId, removedFromLibrary: libraryDep.blockerId });
+    } catch (error) {
+      console.error('[elemental] Failed to remove document from library:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to remove document from library' } }, 500);
+    }
+  });
+
+  /**
    * GET /api/documents/:id/comments
    * Returns all comments for a document
    * Query params:
@@ -865,6 +985,10 @@ export function createDocumentRoutes(services: CollaborateServices) {
       const documentId = c.req.param('id') as ElementId;
       const url = new URL(c.req.url);
       const includeResolved = url.searchParams.get('includeResolved') === 'true';
+
+      // Pagination params
+      const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200);
+      const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 
       // Verify document exists
       const doc = await api.get(documentId);
@@ -879,7 +1003,12 @@ export function createDocumentRoutes(services: CollaborateServices) {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
       }
 
-      // Query comments from the database
+      // Count total comments
+      let countQuery = 'SELECT COUNT(*) as total FROM comments WHERE document_id = ? AND deleted_at IS NULL';
+      if (!includeResolved) countQuery += ' AND resolved = 0';
+      const total = storageBackend.queryOne<{ total: number }>(countQuery, [documentId])?.total ?? 0;
+
+      // Query comments from the database with pagination
       let query = `
         SELECT * FROM comments
         WHERE document_id = ? AND deleted_at IS NULL
@@ -887,57 +1016,71 @@ export function createDocumentRoutes(services: CollaborateServices) {
       if (!includeResolved) {
         query += ' AND resolved = 0';
       }
-      query += ' ORDER BY created_at ASC';
+      query += ' ORDER BY created_at ASC LIMIT ? OFFSET ?';
 
-      const comments = storageBackend.query<CommentRow>(query, [documentId]);
+      const comments = storageBackend.query<CommentRow>(query, [documentId, limit, offset]);
 
-      // Hydrate with author info
-      const hydratedComments = await Promise.all(
-        comments.map(async (comment) => {
-          const author = await api.get(comment.author_id as ElementId);
-          let resolvedByEntity = null;
-          if (comment.resolved_by) {
-            resolvedByEntity = await api.get(comment.resolved_by as ElementId);
-          }
+      // Batch-fetch entities (Fix 3: N+1 → 1 query)
+      const entityIds = new Set<string>();
+      for (const comment of comments) {
+        entityIds.add(comment.author_id);
+        if (comment.resolved_by) entityIds.add(comment.resolved_by);
+      }
 
-          return {
-            id: comment.id,
-            documentId: comment.document_id,
-            author: author
-              ? {
-                  id: author.id,
-                  name: (author as unknown as { name: string }).name,
-                  entityType: (author as unknown as { entityType: string }).entityType,
-                }
-              : { id: comment.author_id, name: 'Unknown', entityType: 'unknown' },
-            content: comment.content,
-            anchor: (() => {
-              try {
-                return JSON.parse(comment.anchor);
-              } catch {
-                console.warn(`[elemental] Malformed anchor JSON for comment ${comment.id}`);
-                return { hash: '', prefix: '', text: comment.anchor, suffix: '' };
-              }
-            })(),
-            startOffset: comment.start_offset,
-            endOffset: comment.end_offset,
-            resolved: comment.resolved === 1,
-            resolvedBy: resolvedByEntity
-              ? {
-                  id: resolvedByEntity.id,
-                  name: (resolvedByEntity as unknown as { name: string }).name,
-                }
-              : null,
-            resolvedAt: comment.resolved_at,
-            createdAt: comment.created_at,
-            updatedAt: comment.updated_at,
-          };
-        })
-      );
+      const entityMap = new Map<string, { id: string; name: string; entityType: string }>();
+      if (entityIds.size > 0) {
+        const ids = [...entityIds];
+        const placeholders = ids.map(() => '?').join(', ');
+        const rows = storageBackend.query<{ id: string; data: string }>(
+          `SELECT id, data FROM elements WHERE id IN (${placeholders})`,
+          ids
+        );
+        for (const row of rows) {
+          try {
+            const data = JSON.parse(row.data);
+            entityMap.set(row.id, { id: row.id, name: data.name ?? 'Unknown', entityType: data.entityType ?? 'unknown' });
+          } catch { /* skip corrupt */ }
+        }
+      }
+
+      // Hydrate comments synchronously using entityMap
+      const hydratedComments = comments.map((comment) => {
+        const author = entityMap.get(comment.author_id);
+        const resolvedByEntity = comment.resolved_by ? entityMap.get(comment.resolved_by) : null;
+
+        return {
+          id: comment.id,
+          documentId: comment.document_id,
+          author: author
+            ? { id: author.id, name: author.name, entityType: author.entityType }
+            : { id: comment.author_id, name: 'Unknown', entityType: 'unknown' },
+          content: comment.content,
+          anchor: (() => {
+            try {
+              return JSON.parse(comment.anchor);
+            } catch {
+              console.warn(`[elemental] Malformed anchor JSON for comment ${comment.id}`);
+              return { hash: '', prefix: '', text: comment.anchor, suffix: '' };
+            }
+          })(),
+          startOffset: comment.start_offset,
+          endOffset: comment.end_offset,
+          resolved: comment.resolved === 1,
+          resolvedBy: resolvedByEntity
+            ? { id: resolvedByEntity.id, name: resolvedByEntity.name }
+            : null,
+          resolvedAt: comment.resolved_at,
+          createdAt: comment.created_at,
+          updatedAt: comment.updated_at,
+        };
+      });
 
       return c.json({
         comments: hydratedComments,
-        total: hydratedComments.length,
+        total,
+        limit,
+        offset,
+        hasMore: offset + comments.length < total,
       });
     } catch (error) {
       console.error('[elemental] Failed to get document comments:', error);
@@ -1020,6 +1163,19 @@ export function createDocumentRoutes(services: CollaborateServices) {
         ]
       );
 
+      // Record comment_added event
+      const event = createEvent({
+        elementId: documentId,
+        eventType: 'comment_added' as EventType,
+        actor: body.authorId as EntityId,
+        oldValue: null,
+        newValue: { commentId, content: body.content.trim(), anchor: body.anchor },
+      });
+      storageBackend.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [event.elementId, event.eventType, event.actor, null, JSON.stringify(event.newValue), event.createdAt]
+      );
+
       return c.json(
         {
           id: commentId,
@@ -1044,6 +1200,224 @@ export function createDocumentRoutes(services: CollaborateServices) {
     } catch (error) {
       console.error('[elemental] Failed to create comment:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create comment' } }, 500);
+    }
+  });
+
+  /**
+   * PATCH /api/documents/:id/comments/:commentId
+   * Update a comment's content
+   * Body: { content: string }
+   */
+  app.patch('/api/documents/:id/comments/:commentId', async (c) => {
+    try {
+      const documentId = c.req.param('id') as ElementId;
+      const commentId = c.req.param('commentId');
+      const body = await c.req.json();
+
+      // Verify document exists and is not tombstoned
+      const doc = await api.get(documentId);
+      if (!doc) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (doc.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      const docData = doc as unknown as Record<string, unknown>;
+      if (docData.status === 'tombstone' || docData.deletedAt) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      // Validate content
+      if (!body.content || typeof body.content !== 'string' || body.content.trim().length === 0) {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'content is required' } }, 400);
+      }
+
+      // Verify comment exists
+      const existing = storageBackend.queryOne<CommentRow>(
+        `SELECT * FROM comments WHERE id = ? AND document_id = ? AND deleted_at IS NULL`,
+        [commentId, documentId]
+      );
+      if (!existing) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Comment not found' } }, 404);
+      }
+
+      const now = createTimestamp();
+      storageBackend.run(
+        `UPDATE comments SET content = ?, updated_at = ? WHERE id = ?`,
+        [body.content.trim(), now, commentId]
+      );
+
+      // Record comment_updated event
+      const event = createEvent({
+        elementId: documentId,
+        eventType: 'comment_updated' as EventType,
+        actor: existing.author_id as EntityId,
+        oldValue: { commentId, content: existing.content },
+        newValue: { commentId, content: body.content.trim() },
+      });
+      storageBackend.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [event.elementId, event.eventType, event.actor, JSON.stringify(event.oldValue), JSON.stringify(event.newValue), event.createdAt]
+      );
+
+      return c.json({
+        id: commentId,
+        documentId,
+        content: body.content.trim(),
+        updatedAt: now,
+      });
+    } catch (error) {
+      console.error('[elemental] Failed to update comment:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update comment' } }, 500);
+    }
+  });
+
+  /**
+   * DELETE /api/documents/:id/comments/:commentId
+   * Soft-delete a comment
+   */
+  app.delete('/api/documents/:id/comments/:commentId', async (c) => {
+    try {
+      const documentId = c.req.param('id') as ElementId;
+      const commentId = c.req.param('commentId');
+
+      // Verify document exists and is not tombstoned
+      const doc = await api.get(documentId);
+      if (!doc) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (doc.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      const docData = doc as unknown as Record<string, unknown>;
+      if (docData.status === 'tombstone' || docData.deletedAt) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      // Verify comment exists and not already deleted
+      const existing = storageBackend.queryOne<CommentRow>(
+        `SELECT * FROM comments WHERE id = ? AND document_id = ? AND deleted_at IS NULL`,
+        [commentId, documentId]
+      );
+      if (!existing) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Comment not found' } }, 404);
+      }
+
+      const now = createTimestamp();
+      storageBackend.run(
+        `UPDATE comments SET deleted_at = ?, updated_at = ? WHERE id = ?`,
+        [now, now, commentId]
+      );
+
+      // Record comment_deleted event
+      const event = createEvent({
+        elementId: documentId,
+        eventType: 'comment_deleted' as EventType,
+        actor: existing.author_id as EntityId,
+        oldValue: { commentId, content: existing.content },
+        newValue: null,
+      });
+      storageBackend.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [event.elementId, event.eventType, event.actor, JSON.stringify(event.oldValue), null, event.createdAt]
+      );
+
+      return c.json({ success: true, id: commentId });
+    } catch (error) {
+      console.error('[elemental] Failed to delete comment:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete comment' } }, 500);
+    }
+  });
+
+  /**
+   * POST /api/documents/:id/comments/:commentId/resolve
+   * Resolve or unresolve a comment
+   * Body: { resolved: boolean, actor: string }
+   */
+  app.post('/api/documents/:id/comments/:commentId/resolve', async (c) => {
+    try {
+      const documentId = c.req.param('id') as ElementId;
+      const commentId = c.req.param('commentId');
+      const body = await c.req.json();
+
+      // Verify document exists and is not tombstoned
+      const doc = await api.get(documentId);
+      if (!doc) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      if (doc.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      const docData = doc as unknown as Record<string, unknown>;
+      if (docData.status === 'tombstone' || docData.deletedAt) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      // Validate body
+      if (typeof body.resolved !== 'boolean') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'resolved (boolean) is required' } }, 400);
+      }
+      if (!body.actor || typeof body.actor !== 'string') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'actor is required' } }, 400);
+      }
+
+      // Verify actor is an entity
+      const actorEntity = await api.get(body.actor as ElementId);
+      if (!actorEntity) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Actor not found' } }, 404);
+      }
+      if (actorEntity.type !== 'entity') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'actor must be an entity' } }, 400);
+      }
+
+      // Verify comment exists and not deleted
+      const existing = storageBackend.queryOne<CommentRow>(
+        `SELECT * FROM comments WHERE id = ? AND document_id = ? AND deleted_at IS NULL`,
+        [commentId, documentId]
+      );
+      if (!existing) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Comment not found' } }, 404);
+      }
+
+      const now = createTimestamp();
+
+      if (body.resolved) {
+        storageBackend.run(
+          `UPDATE comments SET resolved = 1, resolved_by = ?, resolved_at = ?, updated_at = ? WHERE id = ?`,
+          [body.actor, now, now, commentId]
+        );
+      } else {
+        storageBackend.run(
+          `UPDATE comments SET resolved = 0, resolved_by = NULL, resolved_at = NULL, updated_at = ? WHERE id = ?`,
+          [now, commentId]
+        );
+      }
+
+      // Record resolve/unresolve event
+      const eventType = body.resolved ? 'comment_resolved' : 'comment_unresolved';
+      const event = createEvent({
+        elementId: documentId,
+        eventType: eventType as EventType,
+        actor: body.actor as EntityId,
+        oldValue: { commentId, resolved: existing.resolved === 1 },
+        newValue: { commentId, resolved: body.resolved },
+      });
+      storageBackend.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [event.elementId, event.eventType, event.actor, JSON.stringify(event.oldValue), JSON.stringify(event.newValue), event.createdAt]
+      );
+
+      return c.json({
+        id: commentId,
+        documentId,
+        resolved: body.resolved,
+        resolvedBy: body.resolved ? body.actor : null,
+        resolvedAt: body.resolved ? now : null,
+        updatedAt: now,
+      });
+    } catch (error) {
+      console.error('[elemental] Failed to resolve comment:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to resolve comment' } }, 500);
     }
   });
 

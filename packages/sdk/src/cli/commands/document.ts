@@ -779,6 +779,102 @@ Examples:
 };
 
 // ============================================================================
+// Document Delete Command
+// ============================================================================
+
+interface DocDeleteOptions {
+  reason?: string;
+  force?: boolean;
+}
+
+const docDeleteOptions: CommandOption[] = [
+  {
+    name: 'reason',
+    short: 'r',
+    description: 'Reason for deletion',
+    hasValue: true,
+  },
+  {
+    name: 'force',
+    short: 'f',
+    description: 'Skip confirmation',
+    hasValue: false,
+  },
+];
+
+async function docDeleteHandler(
+  args: string[],
+  options: GlobalOptions & DocDeleteOptions
+): Promise<CommandResult> {
+  const [docId] = args;
+
+  if (!docId) {
+    return failure('Usage: el doc delete <document-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const existing = await api.get<Document>(docId as ElementId);
+    if (!existing) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
+    }
+    if (existing.type !== 'document') {
+      return failure(`Element ${docId} is not a document`, ExitCode.VALIDATION);
+    }
+
+    // Check if document is already deleted (tombstone)
+    const data = existing as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
+    }
+
+    const actor = resolveActor(options);
+    await api.delete(docId as ElementId, { actor, reason: options.reason } as Record<string, unknown>);
+
+    const mode = getOutputMode(options);
+    if (mode === 'json') {
+      return success({ id: docId, deleted: true, type: 'document' });
+    }
+    if (mode === 'quiet') {
+      return success(docId);
+    }
+    return success(null, `Deleted document ${docId}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const code = (err as { code?: string }).code;
+    if (code === 'NOT_FOUND') {
+      return failure(message, ExitCode.NOT_FOUND);
+    }
+    return failure(`Failed to delete document: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const docDeleteCommand: Command = {
+  name: 'delete',
+  description: 'Delete a document (soft-delete)',
+  usage: 'el doc delete <document-id> [options]',
+  help: `Delete a document (soft-delete via tombstone).
+
+Arguments:
+  document-id   Document identifier
+
+Options:
+  -r, --reason <text>  Reason for deletion
+  -f, --force          Skip confirmation
+
+Examples:
+  el doc delete el-doc123
+  el doc delete el-doc123 --reason "outdated"
+  el doc delete el-doc123 --force`,
+  options: docDeleteOptions,
+  handler: docDeleteHandler as Command['handler'],
+};
+
+// ============================================================================
 // Document Unarchive Command
 // ============================================================================
 
@@ -1036,6 +1132,7 @@ Subcommands:
   rollback    Rollback to a previous version
   archive     Archive a document
   unarchive   Unarchive a document
+  delete      Delete a document (soft-delete)
   reindex     Rebuild full-text search index
 
 Examples:
@@ -1050,6 +1147,7 @@ Examples:
   el doc rollback el-doc123 2
   el doc archive el-doc123
   el doc unarchive el-doc123
+  el doc delete el-doc123
   el doc reindex`,
   subcommands: {
     create: docCreateCommand,
@@ -1060,6 +1158,7 @@ Examples:
     rollback: docRollbackCommand,
     archive: docArchiveCommand,
     unarchive: docUnarchiveCommand,
+    delete: docDeleteCommand,
     reindex: docReindexCommand,
   },
   handler: async (args, options): Promise<CommandResult> => {
