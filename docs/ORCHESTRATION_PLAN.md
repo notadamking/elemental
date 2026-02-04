@@ -130,12 +130,12 @@ Stewards handle automated maintenance, monitoring, and intervention workflows.
             │                    │                    │                    │
             ▼                    ▼                    ▼                    ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ EPHEMERAL       │  │ Forward msgs    │  │ Create workflow │  │ Dispatch to     │
-│ WORKERS         │  │ to active       │  │ from triggered  │  │ available       │
-│                 │  │ sessions        │  │ playbook        │  │ steward         │
-│ - Task exec     │  │                 │  │                 │  │                 │
-│ - Commit/push   │  │ Spawn on        │  │                 │  │                 │
-│ - Close/handoff │  │ dispatch msg    │  │                 │  │                 │
+│ EPHEMERAL       │  │ Route msgs by   │  │ Create workflow │  │ Dispatch to     │
+│ WORKERS         │  │ agent role;     │  │ from triggered  │  │ available       │
+│                 │  │ spawn triage    │  │ playbook        │  │ steward         │
+│ - Task exec     │  │ for idle agents │  │                 │  │                 │
+│ - Commit/push   │  │ with non-task   │  │                 │  │                 │
+│ - Close/handoff │  │ messages        │  │                 │  │                 │
 └────────┬────────┘  └─────────────────┘  └────────┬────────┘  └────────┬────────┘
          │                                         │                    │
          │                                         └────────┬───────────┘

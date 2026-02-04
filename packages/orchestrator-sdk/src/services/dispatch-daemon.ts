@@ -13,7 +13,7 @@
  * The daemon implements the dispatch behavior defined in ORCHESTRATION_PLAN.md:
  * - Workers are spawned INSIDE their worktree directory
  * - Handoff branches are reused when present in task metadata
- * - Messages are forwarded to active sessions or spawn new ones
+ * - Inbox polling: Routes messages by role (triage for ephemeral, forward for persistent)
  *
  * @module
  */
@@ -907,6 +907,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     if (meta.agentRole === 'worker' && (meta as WorkerMetadata).workerMode === 'ephemeral') {
       return this.processEphemeralWorkerMessage(agent, message, item, activeSession, isDispatchMessage);
     } else if (meta.agentRole === 'steward') {
+      // Stewards use the same two-path model as ephemeral workers
       return this.processEphemeralWorkerMessage(agent, message, item, activeSession, isDispatchMessage);
     } else if (meta.agentRole === 'worker' && (meta as WorkerMetadata).workerMode === 'persistent') {
       return this.processPersistentAgentMessage(agent, message, item, activeSession);
@@ -965,7 +966,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     if (activeSession) {
       // In session -> forward as user input
-      const forwardedContent = this.formatForwardedMessage(message);
+      const forwardedContent = await this.formatForwardedMessage(message);
       await this.sessionManager.messageSession(activeSession.id, {
         content: forwardedContent,
         senderId: message.sender,
@@ -1010,10 +1011,6 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       // Group items by channelId
       const byChannel = new Map<string, InboxItem[]>();
       for (const item of items) {
-        if (!item.channelId) {
-          console.warn(`[dispatch-daemon] Inbox item ${item.id} has no channelId — skipping`);
-          continue;
-        }
         const channelKey = String(item.channelId);
         if (!byChannel.has(channelKey)) {
           byChannel.set(channelKey, []);
@@ -1021,20 +1018,15 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         byChannel.get(channelKey)!.push(item);
       }
 
-      // All items had missing channelId — nothing to triage
-      if (byChannel.size === 0) continue;
-
       // Spawn triage for the first channel group only (single-session constraint)
       const [channelId, channelItems] = byChannel.entries().next().value as [string, InboxItem[]];
 
       try {
         await this.spawnTriageSession(agent, channelItems, channelId);
 
-        // Mark processed items as read
-        for (const item of channelItems) {
-          this.inboxService.markAsRead(item.id);
-        }
-
+        // Items will be marked as read inside spawnTriageSession's exit handler
+        // after the triage session completes successfully. Count is optimistic —
+        // items stay unread on crash and retry next cycle.
         processed += channelItems.length;
       } catch (error) {
         console.error(
@@ -1064,11 +1056,36 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   ): Promise<void> {
     const agentId = agent.id as unknown as EntityId;
 
-    // Create a read-only worktree (detached HEAD on default branch)
-    const worktreeResult = await this.worktreeManager.createReadOnlyWorktree({
-      agentName: agent.name,
-      purpose: 'triage',
-    });
+    // Create a read-only worktree (detached HEAD on default branch).
+    // The path is deterministic ({agentName}-triage), so a stale worktree
+    // from a previous crash would cause WORKTREE_EXISTS. Handle by removing
+    // the stale worktree and retrying once.
+    let worktreeResult: CreateWorktreeResult;
+    try {
+      worktreeResult = await this.worktreeManager.createReadOnlyWorktree({
+        agentName: agent.name,
+        purpose: 'triage',
+      });
+    } catch (error: unknown) {
+      const errorCode = (error as { code?: string })?.code;
+      if (errorCode === 'WORKTREE_EXISTS') {
+        // Remove stale worktree from a previous crash and retry
+        try {
+          await this.worktreeManager.removeWorktree(
+            `${agent.name}-triage`,
+            { force: true }
+          );
+        } catch {
+          // Ignore removal errors
+        }
+        worktreeResult = await this.worktreeManager.createReadOnlyWorktree({
+          agentName: agent.name,
+          purpose: 'triage',
+        });
+      } else {
+        throw error;
+      }
+    }
 
     // Fetch messages and build the triage prompt
     const messages: Message[] = [];
@@ -1079,8 +1096,15 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
     }
 
-    // All message fetches failed — nothing to triage
-    if (messages.length === 0) return;
+    // All message fetches failed — nothing to triage; clean up worktree
+    if (messages.length === 0) {
+      try {
+        await this.worktreeManager.removeWorktree(worktreeResult.path);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return;
+    }
 
     const initialPrompt = await this.buildTriagePrompt(agent, messages, channelId);
 
@@ -1097,8 +1121,13 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       this.config.onSessionStarted(session, events, agentId, initialPrompt);
     }
 
-    // Register worktree cleanup on session exit
+    // On session exit: mark triage items as read and clean up worktree.
+    // Items stay unread if the session crashes, so they retry next cycle.
     events.on('exit', async () => {
+      for (const item of items) {
+        this.inboxService.markAsRead(item.id);
+      }
+
       try {
         await this.worktreeManager.removeWorktree(worktreeResult.path);
       } catch {
@@ -1159,14 +1188,22 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Formats a message for forwarding to an agent session.
+   * Fetches document content from contentRef to provide actual message text.
    */
-  private formatForwardedMessage(message: Message): string {
+  private async formatForwardedMessage(message: Message): Promise<string> {
     const senderId = message.sender ?? 'unknown';
-    // Get content from contentRef or use a placeholder
-    // Note: In a full implementation, we would fetch the document content
-    const contentPlaceholder = '[Message content - see contentRef for details]';
-
-    return `[MESSAGE RECEIVED FROM ${senderId}]: ${contentPlaceholder}`;
+    let content = '[No content available]';
+    if (message.contentRef) {
+      try {
+        const doc = await this.api.get<Document>(message.contentRef as unknown as ElementId);
+        if (doc?.content) {
+          content = doc.content;
+        }
+      } catch (error) {
+        console.warn(`[dispatch-daemon] Failed to fetch content for forwarded message ${message.id}:`, error);
+      }
+    }
+    return `[MESSAGE RECEIVED FROM ${senderId}]: ${content}`;
   }
 }
 

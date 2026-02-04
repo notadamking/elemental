@@ -183,7 +183,7 @@ API call (get/list/query)
      │     - Sends notification        │
      │                                 │
      │  3. Worker polls inbox          │
-     │     (InboxPollingService)       │
+     │     (DispatchDaemon)            │
      │                                 │
      │  4. Worker completes task       │
      │←────────────────────────────────┤
@@ -251,7 +251,7 @@ API call (get/list/query)
 - **Exports:** `OrchestratorAPI`, agent services, runtime, prompts
 - **Responsibilities:** Agent lifecycle, task assignment, process spawning
 - **Services:** AgentRegistry, RoleDefinition, Dispatch, Assignment
-- **Runtime:** Spawner, SessionManager, InboxPolling, Handoff, SDKAdapter
+- **Runtime:** Spawner, SessionManager, Handoff, SDKAdapter
 
 ## Configuration Precedence
 

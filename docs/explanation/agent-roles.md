@@ -321,7 +321,7 @@ await api.sendMessage({
 const messages = await api.inbox.list(workerId);
 ```
 
-Each agent has a dedicated channel for receiving messages. The `InboxPollingService` monitors for new messages.
+Each agent has a dedicated channel for receiving messages. The Dispatch Daemon routes incoming messages by agent role.
 
 ## Lifecycle
 
@@ -330,7 +330,7 @@ Each agent has a dedicated channel for receiving messages. The `InboxPollingServ
 1. Load role definition
 2. Load system prompt (built-in or override)
 3. Register with AgentRegistry
-4. Start inbox polling
+4. Dispatch Daemon handles inbox polling
 5. Check for assigned tasks
 
 ### Agent Operation

@@ -175,7 +175,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | Plugin executor | `services/plugin-executor.ts` | `services/plugin-executor.test.ts` |
 | Spawner service | `runtime/spawner.ts` | `runtime/spawner.test.ts` |
 | Session manager | `runtime/session-manager.ts` | `runtime/session-manager.test.ts` |
-| Inbox polling | `runtime/inbox-polling.ts` | `runtime/inbox-polling.test.ts` |
 | Handoff service | `runtime/handoff.ts` | `runtime/handoff.test.ts` |
 | Message mapper | `runtime/message-mapper.ts` | - |
 | Prompts | `prompts/index.ts` | - |
