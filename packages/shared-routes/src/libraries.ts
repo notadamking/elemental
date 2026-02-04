@@ -142,6 +142,98 @@ export function createLibraryRoutes(services: CollaborateServices) {
     }
   });
 
+  /**
+   * PUT /api/libraries/:id/parent
+   * Move a library to a new parent (or to root level)
+   * Body: { parentId: string | null, actor?: string }
+   */
+  app.put('/api/libraries/:id/parent', async (c) => {
+    try {
+      const libraryId = c.req.param('id') as ElementId;
+      const body = await c.req.json();
+
+      // Verify library exists
+      const library = await api.get(libraryId);
+      if (!library) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+      }
+      if (library.type !== 'library') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Library not found' } }, 404);
+      }
+
+      const newParentId = body.parentId as ElementId | null;
+      const actor = (body.actor as EntityId) || ('el-0000' as EntityId);
+
+      // Validate new parent if provided
+      if (newParentId) {
+        // Verify parent library exists
+        const parent = await api.get(newParentId);
+        if (!parent || parent.type !== 'library') {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid parentId: library not found' } }, 400);
+        }
+
+        // Prevent circular nesting: check if new parent is a descendant of this library
+        const isDescendant = async (ancestorId: ElementId, potentialDescendantId: ElementId): Promise<boolean> => {
+          if (ancestorId === potentialDescendantId) return true;
+
+          // Get children of ancestor
+          const dependents = await api.getDependents(ancestorId, ['parent-child']);
+          const childIds = dependents.map((d) => d.blockedId);
+
+          for (const childId of childIds) {
+            const child = await api.get(childId as ElementId);
+            if (child && child.type === 'library') {
+              if (await isDescendant(childId as ElementId, potentialDescendantId)) {
+                return true;
+              }
+            }
+          }
+          return false;
+        };
+
+        if (await isDescendant(libraryId, newParentId)) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Cannot move library to its own descendant (circular nesting)' } }, 400);
+        }
+      }
+
+      // Find current parent
+      const deps = await api.getDependencies(libraryId, ['parent-child']);
+      let previousParentId: string | null = null;
+      for (const dep of deps) {
+        const parent = await api.get(dep.blockerId as ElementId);
+        if (parent && parent.type === 'library') {
+          previousParentId = dep.blockerId;
+          break;
+        }
+      }
+
+      // Already at requested parent — no-op
+      if (previousParentId === newParentId) {
+        return c.json({ libraryId, parentId: newParentId, previousParentId });
+      }
+
+      // Remove from old parent if present
+      if (previousParentId) {
+        await api.removeDependency(libraryId, previousParentId as ElementId, 'parent-child');
+      }
+
+      // Add to new parent if provided
+      if (newParentId) {
+        await api.addDependency({
+          blockedId: libraryId,
+          blockerId: newParentId,
+          type: 'parent-child',
+          actor,
+        });
+      }
+
+      return c.json({ libraryId, parentId: newParentId, previousParentId });
+    } catch (error) {
+      console.error('[elemental] Failed to move library:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to move library' } }, 500);
+    }
+  });
+
   // POST /api/libraries - Create a new library
   app.post('/api/libraries', async (c) => {
     try {

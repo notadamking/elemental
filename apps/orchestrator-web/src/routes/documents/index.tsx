@@ -2,39 +2,56 @@
  * Documents Page - Notion-style document library interface
  *
  * Features:
- * - Library tree sidebar
- * - Library selection
- * - Document list
+ * - Library tree sidebar with drag-and-drop reordering
+ * - Document drag-and-drop between libraries
+ * - Library selection and navigation
  * - Nested library navigation
  * - Document detail display
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverEvent,
+} from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { ElementNotFound } from '../../components/shared/ElementNotFound';
 import { MobileDetailSheet } from '../../components/shared/MobileDetailSheet';
 import { CreateDocumentModal } from '../../components/document/CreateDocumentModal';
 import { CreateLibraryModal } from '../../components/document/CreateLibraryModal';
+import { useDeepLink, useShortcutVersion } from '../../hooks';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useAllDocuments as useAllDocumentsPreloaded } from '../../api/hooks/useAllElements';
 
-import { useLibraries } from './hooks';
+import {
+  useLibraries,
+  useMoveDocumentToLibrary,
+  useRemoveDocumentFromLibrary,
+  useMoveLibraryToParent,
+} from './hooks';
+import type { DocumentType, DragData } from './types';
 import {
   LibraryTree,
   LibraryView,
   AllDocumentsView,
   DocumentDetailPanel,
+  DocumentDragOverlay,
+  MoveToTopLevelDialog,
 } from './components';
 
 export function DocumentsPage() {
   const navigate = useNavigate();
-  const search = useSearch({ from: '/documents' }) as {
-    library?: string;
-    selected?: string;
-    action?: string;
-  };
+  const search = useSearch({ from: '/documents' });
   const isMobile = useIsMobile();
+  useShortcutVersion();
 
   const { data: libraries = [], isLoading, error } = useLibraries();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
@@ -44,25 +61,34 @@ export function DocumentsPage() {
     search.selected ?? null
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  // Handle ?action=create from global keyboard shortcuts
-  useEffect(() => {
-    if (search.action === 'create') {
-      setShowCreateModal(true);
-      // Clear the action param
-      navigate({
-        to: '/documents',
-        search: { library: search.library, selected: search.selected },
-        replace: true,
-      });
-    }
-  }, [search.action, search.library, search.selected, navigate]);
   const [showCreateLibraryModal, setShowCreateLibraryModal] = useState(false);
   // Expand state - initialized from localStorage
   const [isDocumentExpanded, setIsDocumentExpandedState] = useState(false);
   const [expandedInitialized, setExpandedInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Drag-and-drop state
+  const [activeDragData, setActiveDragData] = useState<DragData | null>(null);
+  const [pendingTopLevelMove, setPendingTopLevelMove] = useState<{
+    documentId: string;
+    documentName: string;
+    libraryName: string;
+  } | null>(null);
+
+  // Mutation hooks
+  const moveDocumentToLibrary = useMoveDocumentToLibrary();
+  const removeDocumentFromLibrary = useRemoveDocumentFromLibrary();
+  const moveLibraryToParent = useMoveLibraryToParent();
+
+  // Configure dnd-kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px drag threshold before activation
+      },
+    })
+  );
 
   // Initialize expand state from localStorage on mount
   useEffect(() => {
@@ -95,14 +121,21 @@ export function DocumentsPage() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
 
-  // Use upfront-loaded data to check if document exists
+  // Use upfront-loaded data for deep-link navigation
   const { data: allDocuments } = useAllDocumentsPreloaded();
 
-  // Check if selected document exists in data
-  const documentNotFound =
-    selectedDocumentId &&
-    allDocuments &&
-    !allDocuments.find((doc) => doc.id === selectedDocumentId);
+  // Deep-link navigation
+  const deepLink = useDeepLink({
+    data: allDocuments as DocumentType[] | undefined,
+    selectedId: search.selected,
+    currentPage: 1,
+    pageSize: 1000,
+    getId: (doc: DocumentType) => doc.id,
+    routePath: '/documents',
+    rowTestIdPrefix: 'document-item-',
+    autoNavigate: false,
+    highlightDelay: 200,
+  });
 
   // Sync state from URL on mount and when search changes
   useEffect(() => {
@@ -118,7 +151,7 @@ export function DocumentsPage() {
     if (!search.library && selectedLibraryId) {
       setSelectedLibraryId(null);
     }
-  }, [search.selected, search.library, selectedDocumentId, selectedLibraryId]);
+  }, [search.selected, search.library]);
 
   // Toggle expand/collapse for a library in the tree
   const handleToggleExpand = (id: string) => {
@@ -207,6 +240,107 @@ export function DocumentsPage() {
     navigate({ to: '/documents', search: { selected: undefined, library: selectedLibraryId ?? undefined } });
   };
 
+  // Handle library move (from react-arborist internal drag)
+  const handleMoveLibrary = useCallback(
+    async (libraryId: string, newParentId: string | null) => {
+      try {
+        await moveLibraryToParent.mutateAsync({
+          libraryId,
+          parentId: newParentId,
+        });
+        toast.success('Library moved successfully');
+      } catch (err) {
+        toast.error((err as Error).message || 'Failed to move library');
+      }
+    },
+    [moveLibraryToParent]
+  );
+
+  // DnD handlers for document drag from @dnd-kit
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const data = event.active.data.current as DragData | undefined;
+    if (data) {
+      setActiveDragData(data);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((_event: DragOverEvent) => {
+    // Could implement auto-expand of libraries on hover here
+  }, []);
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveDragData(null);
+
+      if (!over) return;
+
+      const dragData = active.data.current as DragData | undefined;
+      if (!dragData || dragData.type !== 'document') return;
+
+      const dropData = over.data.current as { type: string; id: string | null; name?: string } | undefined;
+      if (!dropData) return;
+
+      const documentId = dragData.id;
+      const sourceLibraryId = dragData.sourceLibraryId;
+
+      // Handle drop on library
+      if (dropData.type === 'library' && dropData.id) {
+        const targetLibraryId = dropData.id;
+
+        // Skip if same library
+        if (sourceLibraryId === targetLibraryId) return;
+
+        try {
+          await moveDocumentToLibrary.mutateAsync({
+            documentId,
+            libraryId: targetLibraryId,
+          });
+          toast.success(`Moved "${dragData.name}" to "${dropData.name}"`);
+        } catch (err) {
+          toast.error((err as Error).message || 'Failed to move document');
+        }
+      }
+
+      // Handle drop on "All Documents" (remove from library)
+      if (dropData.type === 'all-documents') {
+        // Only show confirmation if document is currently in a library
+        if (!sourceLibraryId) {
+          toast.info('Document is already at top-level');
+          return;
+        }
+
+        const sourceLibrary = libraries.find((l) => l.id === sourceLibraryId);
+        setPendingTopLevelMove({
+          documentId,
+          documentName: dragData.name,
+          libraryName: sourceLibrary?.name || 'Unknown Library',
+        });
+      }
+    },
+    [moveDocumentToLibrary, libraries]
+  );
+
+  // Confirm move to top-level
+  const handleConfirmTopLevelMove = useCallback(async () => {
+    if (!pendingTopLevelMove) return;
+
+    try {
+      await removeDocumentFromLibrary.mutateAsync({
+        documentId: pendingTopLevelMove.documentId,
+      });
+      toast.success(`"${pendingTopLevelMove.documentName}" moved to All Documents`);
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to move document');
+    } finally {
+      setPendingTopLevelMove(null);
+    }
+  }, [pendingTopLevelMove, removeDocumentFromLibrary]);
+
+  const handleCancelTopLevelMove = useCallback(() => {
+    setPendingTopLevelMove(null);
+  }, []);
+
   if (error) {
     return (
       <div
@@ -249,66 +383,205 @@ export function DocumentsPage() {
   // Mobile: Two-screen navigation pattern
   if (isMobile) {
     return (
-      <div data-testid="documents-page" className="flex flex-col h-full relative">
-        {/* Mobile: Show document list when no document selected */}
-        {!selectedDocumentId && (
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div data-testid="documents-page" className="flex flex-col h-full relative">
+          {/* Mobile: Show document list when no document selected */}
+          {!selectedDocumentId && (
+            <>
+              {isLoading ? (
+                <div
+                  data-testid="libraries-loading"
+                  className="flex-1 flex items-center justify-center"
+                >
+                  <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {renderMainContent(true)}
+                </div>
+              )}
+
+              {/* Mobile FAB for creating new document */}
+              <button
+                onClick={handleOpenCreateModal}
+                className="fixed bottom-20 right-4 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-30 touch-target"
+                data-testid="mobile-create-document-fab"
+                aria-label="Create new document"
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+            </>
+          )}
+
+          {/* Mobile: Show full-screen document editor when document selected */}
+          {selectedDocumentId && (
+            <MobileDetailSheet
+              open={true}
+              onClose={handleMobileBack}
+              title="Document"
+              data-testid="mobile-document-sheet"
+            >
+              {deepLink.notFound ? (
+                <ElementNotFound
+                  elementType="Document"
+                  elementId={selectedDocumentId}
+                  backRoute="/documents"
+                  backLabel="Back to Documents"
+                  onDismiss={handleMobileBack}
+                />
+              ) : (
+                <div className="h-full">
+                  <DocumentDetailPanel
+                    documentId={selectedDocumentId}
+                    onClose={handleMobileBack}
+                    isExpanded={true}
+                    isFullscreen={false}
+                    onDocumentCloned={handleDocumentCreated}
+                    libraryId={selectedLibraryId}
+                    onNavigateToDocument={handleSelectDocument}
+                    isMobile={true}
+                  />
+                </div>
+              )}
+            </MobileDetailSheet>
+          )}
+
+          {/* Create Document Modal */}
+          <CreateDocumentModal
+            isOpen={showCreateModal}
+            onClose={handleCloseCreateModal}
+            onSuccess={handleDocumentCreated}
+            defaultLibraryId={selectedLibraryId || undefined}
+            isMobile={true}
+          />
+
+          {/* Create Library Modal */}
+          <CreateLibraryModal
+            isOpen={showCreateLibraryModal}
+            onClose={handleCloseCreateLibraryModal}
+            onSuccess={handleLibraryCreated}
+            defaultParentId={selectedLibraryId || undefined}
+          />
+
+          {/* Move to Top-Level Confirmation Dialog */}
+          <MoveToTopLevelDialog
+            isOpen={!!pendingTopLevelMove}
+            documentName={pendingTopLevelMove?.documentName || ''}
+            libraryName={pendingTopLevelMove?.libraryName || ''}
+            isLoading={removeDocumentFromLibrary.isPending}
+            onConfirm={handleConfirmTopLevelMove}
+            onCancel={handleCancelTopLevelMove}
+          />
+        </div>
+
+        {/* Drag overlay */}
+        <DragOverlay>
+          {activeDragData && <DocumentDragOverlay data={activeDragData} />}
+        </DragOverlay>
+      </DndContext>
+    );
+  }
+
+  // Desktop: Side-by-side layout
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
+      <div data-testid="documents-page" className="flex h-full">
+        {/* Fullscreen Panel - overlays everything when in fullscreen mode */}
+        {isFullscreen && selectedDocumentId && (
+          <div
+            data-testid="document-fullscreen-panel"
+            className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col"
+          >
+            <DocumentDetailPanel
+              documentId={selectedDocumentId}
+              onClose={() => setIsFullscreen(false)}
+              isExpanded={true}
+              onToggleExpand={() => setIsFullscreen(false)}
+              isFullscreen={true}
+              onExitFullscreen={() => setIsFullscreen(false)}
+              onDocumentCloned={handleDocumentCreated}
+              libraryId={selectedLibraryId}
+              onNavigateToDocument={handleSelectDocument}
+            />
+          </div>
+        )}
+
+        {/* Library Tree Sidebar - hide in fullscreen mode */}
+        {!isFullscreen && (
           <>
             {isLoading ? (
               <div
                 data-testid="libraries-loading"
-                className="flex-1 flex items-center justify-center"
+                className="w-64 border-r border-gray-200 dark:border-[var(--color-border)] flex items-center justify-center"
               >
-                <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+                <div className="text-gray-500 dark:text-gray-400">Loading libraries...</div>
               </div>
             ) : (
-              <div className="flex-1 min-h-0 overflow-hidden">
-                {renderMainContent(true)}
-              </div>
-            )}
-
-            {/* Mobile FAB for creating new document */}
-            <button
-              onClick={handleOpenCreateModal}
-              className="fixed bottom-20 right-4 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center transition-colors z-30 touch-target"
-              data-testid="mobile-create-document-fab"
-              aria-label="Create new document"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
-          </>
-        )}
-
-        {/* Mobile: Show full-screen document editor when document selected */}
-        {selectedDocumentId && (
-          <MobileDetailSheet
-            open={true}
-            onClose={handleMobileBack}
-            title="Document"
-            data-testid="mobile-document-sheet"
-          >
-            {documentNotFound ? (
-              <ElementNotFound
-                elementType="Document"
-                elementId={selectedDocumentId}
-                backRoute="/documents"
-                backLabel="Back to Documents"
-                onDismiss={handleMobileBack}
-              />
-            ) : (
-              <div className="h-full">
-                <DocumentDetailPanel
-                  documentId={selectedDocumentId}
-                  onClose={handleMobileBack}
-                  isExpanded={true}
-                  isFullscreen={false}
-                  onDocumentCloned={handleDocumentCreated}
-                  libraryId={selectedLibraryId}
-                  onNavigateToDocument={handleSelectDocument}
-                  isMobile={true}
+              <div data-testid="library-tree-sidebar">
+                <LibraryTree
+                  libraries={libraries}
+                  selectedLibraryId={selectedLibraryId}
+                  expandedIds={expandedIds}
+                  onSelectLibrary={handleSelectLibrary}
+                  onToggleExpand={handleToggleExpand}
+                  onNewDocument={handleOpenCreateModal}
+                  onNewLibrary={handleOpenCreateLibraryModal}
+                  onSelectDocument={handleSelectDocument}
+                  onMoveLibrary={handleMoveLibrary}
+                  activeDragData={activeDragData}
                 />
               </div>
             )}
-          </MobileDetailSheet>
+          </>
+        )}
+
+        {/* Main Content Area - with or without document detail panel (hidden in fullscreen) */}
+        {!isFullscreen && (
+          <div className="flex-1 flex overflow-hidden">
+            {/* Document List / Library View - hide when document is expanded */}
+            {(!selectedDocumentId || !isDocumentExpanded) && (
+              <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200 dark:border-[var(--color-border)]' : 'flex-1'} h-full overflow-hidden`}>
+                {renderMainContent()}
+              </div>
+            )}
+
+            {/* Document Detail Panel or Not Found */}
+            {selectedDocumentId && (
+              <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} flex-shrink-0 overflow-hidden`}>
+                {deepLink.notFound ? (
+                  <ElementNotFound
+                    elementType="Document"
+                    elementId={selectedDocumentId}
+                    backRoute="/documents"
+                    backLabel="Back to Documents"
+                    onDismiss={handleCloseDocument}
+                  />
+                ) : (
+                  <DocumentDetailPanel
+                    documentId={selectedDocumentId}
+                    onClose={handleCloseDocument}
+                    isExpanded={isDocumentExpanded}
+                    onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
+                    isFullscreen={false}
+                    onEnterFullscreen={() => setIsFullscreen(true)}
+                    onDocumentCloned={handleDocumentCreated}
+                    libraryId={selectedLibraryId}
+                    onNavigateToDocument={handleSelectDocument}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Create Document Modal */}
@@ -317,7 +590,6 @@ export function DocumentsPage() {
           onClose={handleCloseCreateModal}
           onSuccess={handleDocumentCreated}
           defaultLibraryId={selectedLibraryId || undefined}
-          isMobile={true}
         />
 
         {/* Create Library Modal */}
@@ -327,115 +599,23 @@ export function DocumentsPage() {
           onSuccess={handleLibraryCreated}
           defaultParentId={selectedLibraryId || undefined}
         />
+
+        {/* Move to Top-Level Confirmation Dialog */}
+        <MoveToTopLevelDialog
+          isOpen={!!pendingTopLevelMove}
+          documentName={pendingTopLevelMove?.documentName || ''}
+          libraryName={pendingTopLevelMove?.libraryName || ''}
+          isLoading={removeDocumentFromLibrary.isPending}
+          onConfirm={handleConfirmTopLevelMove}
+          onCancel={handleCancelTopLevelMove}
+        />
       </div>
-    );
-  }
 
-  // Desktop: Side-by-side layout
-  return (
-    <div data-testid="documents-page" className="flex h-full">
-      {/* Fullscreen Panel - overlays everything when in fullscreen mode */}
-      {isFullscreen && selectedDocumentId && (
-        <div
-          data-testid="document-fullscreen-panel"
-          className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col"
-        >
-          <DocumentDetailPanel
-            documentId={selectedDocumentId}
-            onClose={() => setIsFullscreen(false)}
-            isExpanded={true}
-            onToggleExpand={() => setIsFullscreen(false)}
-            isFullscreen={true}
-            onExitFullscreen={() => setIsFullscreen(false)}
-            onDocumentCloned={handleDocumentCreated}
-            libraryId={selectedLibraryId}
-            onNavigateToDocument={handleSelectDocument}
-          />
-        </div>
-      )}
-
-      {/* Library Tree Sidebar - hide in fullscreen mode */}
-      {!isFullscreen && (
-        <>
-          {isLoading ? (
-            <div
-              data-testid="libraries-loading"
-              className="w-64 border-r border-gray-200 dark:border-[var(--color-border)] flex items-center justify-center"
-            >
-              <div className="text-gray-500 dark:text-gray-400">Loading libraries...</div>
-            </div>
-          ) : (
-            <div data-testid="library-tree-sidebar">
-              <LibraryTree
-                libraries={libraries}
-                selectedLibraryId={selectedLibraryId}
-                expandedIds={expandedIds}
-                onSelectLibrary={handleSelectLibrary}
-                onToggleExpand={handleToggleExpand}
-                onNewDocument={handleOpenCreateModal}
-                onNewLibrary={handleOpenCreateLibraryModal}
-                onSelectDocument={handleSelectDocument}
-              />
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Main Content Area - with or without document detail panel (hidden in fullscreen) */}
-      {!isFullscreen && (
-        <div className="flex-1 flex overflow-hidden">
-          {/* Document List / Library View - hide when document is expanded */}
-          {(!selectedDocumentId || !isDocumentExpanded) && (
-            <div className={`${selectedDocumentId ? 'flex-1 border-r border-gray-200 dark:border-[var(--color-border)]' : 'flex-1'} h-full overflow-hidden`}>
-              {renderMainContent()}
-            </div>
-          )}
-
-          {/* Document Detail Panel or Not Found */}
-          {selectedDocumentId && (
-            <div className={`${isDocumentExpanded ? 'flex-1' : 'flex-1'} flex-shrink-0 overflow-hidden`}>
-              {documentNotFound ? (
-                <ElementNotFound
-                  elementType="Document"
-                  elementId={selectedDocumentId}
-                  backRoute="/documents"
-                  backLabel="Back to Documents"
-                  onDismiss={handleCloseDocument}
-                />
-              ) : (
-                <DocumentDetailPanel
-                  documentId={selectedDocumentId}
-                  onClose={handleCloseDocument}
-                  isExpanded={isDocumentExpanded}
-                  onToggleExpand={() => setIsDocumentExpanded(!isDocumentExpanded)}
-                  isFullscreen={false}
-                  onEnterFullscreen={() => setIsFullscreen(true)}
-                  onDocumentCloned={handleDocumentCreated}
-                  libraryId={selectedLibraryId}
-                  onNavigateToDocument={handleSelectDocument}
-                />
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Create Document Modal */}
-      <CreateDocumentModal
-        isOpen={showCreateModal}
-        onClose={handleCloseCreateModal}
-        onSuccess={handleDocumentCreated}
-        defaultLibraryId={selectedLibraryId || undefined}
-      />
-
-      {/* Create Library Modal */}
-      <CreateLibraryModal
-        isOpen={showCreateLibraryModal}
-        onClose={handleCloseCreateLibraryModal}
-        onSuccess={handleLibraryCreated}
-        defaultParentId={selectedLibraryId || undefined}
-      />
-    </div>
+      {/* Drag overlay */}
+      <DragOverlay>
+        {activeDragData && <DocumentDragOverlay data={activeDragData} />}
+      </DragOverlay>
+    </DndContext>
   );
 }
 

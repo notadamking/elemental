@@ -57,6 +57,13 @@ Common pitfalls and their solutions, organized by severity and category.
 - **`doc reindex` does not create versions** - Unlike `api.update()`, the reindex operation directly rebuilds the FTS index without incrementing document versions
 - **FTS table may not exist** - If schema migrations have not been run (migration 7+), `searchDocumentsFTS()` throws `StorageError`. Run `initializeSchema()` to create the table
 
+## Libraries
+
+- **Library nesting uses `parent-child` dependencies** - Child libraries have `blockedId = child`, `blockerId = parent`
+- **Circular nesting is prevented** - Cannot move a library to its own descendant (API returns `VALIDATION_ERROR`)
+- **Moving documents to top-level requires confirmation** - Dropping a document on "All Documents" shows a confirmation dialog
+- **Library re-parenting is atomic** - `PUT /api/libraries/:id/parent` removes old parent and adds new one in sequence
+
 ## Messages
 
 - Messages are **immutable** after creation (`updatedAt === createdAt` always)

@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDebounce } from '../../hooks/useDebounce';
+import { useDebounce } from '../../hooks';
 import type {
   LibraryType,
   LibraryWithChildren,
@@ -11,6 +11,8 @@ import type {
   PaginatedResult,
   DocumentLinks,
   DocumentSearchResponse,
+  MoveDocumentResult,
+  MoveLibraryResult,
 } from './types';
 import { SEARCH_DEBOUNCE_DELAY, DEFAULT_PAGE_SIZE } from './constants';
 
@@ -371,6 +373,101 @@ export function useAllDocumentsForPicker() {
       }
       const data = await response.json();
       return data.items || data;
+    },
+  });
+}
+
+/**
+ * Hook to move a document to a library
+ */
+export function useMoveDocumentToLibrary() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    MoveDocumentResult,
+    Error,
+    { documentId: string; libraryId: string; actor?: string }
+  >({
+    mutationFn: async ({ documentId, libraryId, actor }) => {
+      const response = await fetch(`/api/documents/${documentId}/library`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ libraryId, actor }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to move document');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, { documentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['documents', documentId] });
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+    },
+  });
+}
+
+/**
+ * Hook to remove a document from its library (move to top-level)
+ */
+export function useRemoveDocumentFromLibrary() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { success: boolean; documentId: string; removedFromLibrary: string },
+    Error,
+    { documentId: string }
+  >({
+    mutationFn: async ({ documentId }) => {
+      const response = await fetch(`/api/documents/${documentId}/library`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to remove document from library');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, { documentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['documents', documentId] });
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
+    },
+  });
+}
+
+/**
+ * Hook to move a library to a new parent (or root level)
+ */
+export function useMoveLibraryToParent() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    MoveLibraryResult,
+    Error,
+    { libraryId: string; parentId: string | null; actor?: string }
+  >({
+    mutationFn: async ({ libraryId, parentId, actor }) => {
+      const response = await fetch(`/api/libraries/${libraryId}/parent`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentId, actor }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to move library');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['libraries'] });
     },
   });
 }

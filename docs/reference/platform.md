@@ -505,6 +505,41 @@ app.route('/', createMyFeatureRoutes(services));
 | `/messages` | `MessagesPage` | Channel messages |
 | `/documents` | `DocumentsPage` | Document library |
 
+### Document Library Drag-and-Drop
+
+The Documents page supports drag-and-drop for organizing documents and libraries:
+
+**Supported Operations:**
+
+| Drag Source | Drop Target | Result |
+|-------------|-------------|--------|
+| Document | Library | Move document to library |
+| Document | All Documents | Remove from library (shows confirmation) |
+| Library | Library | Nest library under another |
+| Library | Root | Move library to root level |
+
+**Invalid Operations (prevented):**
+
+| Drag Source | Drop Target | Why Invalid |
+|-------------|-------------|-------------|
+| Document | Same Library | No-op |
+| Library | Self | Cannot drop on self |
+| Library | Descendant | Prevents circular nesting |
+
+**Components:**
+
+| File | Purpose |
+|------|---------|
+| `LibraryTree.tsx` | Tree sidebar with react-arborist |
+| `DocumentListItem.tsx` | Draggable document item |
+| `MoveToTopLevelDialog.tsx` | Confirmation for removing from library |
+
+**Key Features:**
+- Drag handle appears on hover for documents
+- Visual feedback during drag (highlight, drag preview)
+- 8px activation threshold to prevent accidental drags
+- Toast notifications for success/failure
+
 ### Keyboard Shortcuts
 
 The orchestrator-web app supports global keyboard shortcuts for navigation and actions.

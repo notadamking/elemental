@@ -329,7 +329,10 @@ interface Library extends Element {
 }
 ```
 
-Contains documents via `parent-child` dependencies.
+Contains documents and sub-libraries via `parent-child` dependencies:
+- **Document membership:** Document is child (`blockedId`), Library is parent (`blockerId`)
+- **Library nesting:** Sub-library is child (`blockedId`), parent library is parent (`blockerId`)
+- Circular nesting is prevented at the API level
 
 ### Team
 

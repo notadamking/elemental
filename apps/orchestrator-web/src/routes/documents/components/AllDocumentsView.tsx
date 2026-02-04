@@ -4,28 +4,14 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { FileText, Search, Plus } from 'lucide-react';
+import { useShortcutVersion } from '../../../hooks';
+import { getCurrentBinding } from '../../../lib/keyboard';
 import { VirtualizedList } from '../../../components/shared/VirtualizedList';
-import { useAllDocuments } from '../../../api/hooks/useAllElements';
-import { sortData } from '../../../hooks/usePaginatedData';
+import { useAllDocuments as useAllDocumentsPreloaded } from '../../../api/hooks/useAllElements';
+import { sortData, createSimpleDocumentSearchFilter } from '../../../hooks/usePaginatedData';
 import { DocumentListItem } from './DocumentListItem';
 import { DOCUMENT_ITEM_HEIGHT } from '../constants';
 import type { DocumentType } from '../types';
-
-/**
- * Simple search filter for documents
- */
-function createSimpleDocumentSearchFilter(searchQuery: string) {
-  if (!searchQuery.trim()) return undefined;
-
-  const search = searchQuery.toLowerCase().trim();
-  return (doc: DocumentType) => {
-    return (
-      doc.title?.toLowerCase().includes(search) ||
-      doc.id.toLowerCase().includes(search) ||
-      doc.contentType.toLowerCase().includes(search)
-    );
-  };
-}
 
 interface AllDocumentsViewProps {
   selectedDocumentId: string | null;
@@ -41,9 +27,10 @@ export function AllDocumentsView({
   isMobile = false,
 }: AllDocumentsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  useShortcutVersion();
 
   // Use upfront-loaded data
-  const { data: allDocuments, isLoading: isDocumentsLoading } = useAllDocuments();
+  const { data: allDocuments, isLoading: isDocumentsLoading } = useAllDocumentsPreloaded();
 
   // Client-side filtering with instant results
   const filteredDocuments = useMemo((): DocumentType[] => {
@@ -68,6 +55,8 @@ export function AllDocumentsView({
         document={doc}
         isSelected={selectedDocumentId === doc.id}
         onClick={onSelectDocument}
+        libraryId={null}
+        draggable={true}
       />
     </div>
   ), [selectedDocumentId, onSelectDocument, isMobile]);
@@ -101,6 +90,7 @@ export function AllDocumentsView({
             >
               <Plus className="w-4 h-4" />
               Create Document
+              <kbd className="ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createDocument')}</kbd>
             </button>
           )}
         </div>

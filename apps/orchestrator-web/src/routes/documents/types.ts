@@ -74,3 +74,58 @@ export interface DocumentSearchResponse {
   results: DocumentSearchResult[];
   query: string;
 }
+
+/**
+ * Drag-and-drop types
+ */
+export type DragItemType = 'document' | 'library';
+
+export interface DragData {
+  type: DragItemType;
+  id: string;
+  /** For documents: current library ID (null if at top-level) */
+  sourceLibraryId?: string | null;
+  /** For libraries: current parent ID (null if root) */
+  sourceParentId?: string | null;
+  /** Display name for drag overlay */
+  name: string;
+}
+
+export interface DropTarget {
+  type: 'library' | 'all-documents' | 'root';
+  id: string | null;
+}
+
+export interface MoveOperation {
+  dragData: DragData;
+  dropTarget: DropTarget;
+}
+
+/**
+ * React-arborist tree node type
+ * Used to represent both libraries and documents in the tree
+ */
+export interface ArboristTreeNode {
+  id: string;
+  name: string;
+  /** 'library' or 'document' */
+  nodeType: 'library' | 'document';
+  /** Original data for library or document */
+  data: LibraryType | DocumentType;
+  children?: ArboristTreeNode[];
+}
+
+/**
+ * Move result for API responses
+ */
+export interface MoveDocumentResult {
+  documentId: string;
+  libraryId: string | null;
+  previousLibraryId: string | null;
+}
+
+export interface MoveLibraryResult {
+  libraryId: string;
+  parentId: string | null;
+  previousParentId: string | null;
+}

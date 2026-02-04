@@ -1,8 +1,10 @@
 /**
- * LibraryTree - Virtualized library tree sidebar
+ * LibraryTree - Tree sidebar using react-arborist for drag-and-drop
  */
 
-import { useMemo, useCallback } from 'react';
+import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
+import { Tree, NodeApi, NodeRendererProps } from 'react-arborist';
+import { useDroppable } from '@dnd-kit/core';
 import {
   Library,
   FileText,
@@ -13,49 +15,88 @@ import {
   FolderPlus,
   Plus,
 } from 'lucide-react';
-import { VirtualizedList } from '../../../components/shared/VirtualizedList';
 import { DocumentSearchBar } from './DocumentSearchBar';
-import { buildLibraryTree, flattenLibraryTree } from '../utils';
+import { buildLibraryTree } from '../utils';
 import { LIBRARY_ITEM_HEIGHT } from '../constants';
-import type { LibraryType, FlatLibraryItem } from '../types';
+import type { LibraryType, LibraryTreeNode, DragData } from '../types';
 
 /**
- * Flat library item for virtualized rendering
+ * Data structure for react-arborist tree nodes
  */
-function FlatLibraryTreeItem({
-  item,
-  selectedLibraryId,
-  onSelect,
-  onToggleExpand,
-}: {
-  item: FlatLibraryItem;
-  selectedLibraryId: string | null;
-  onSelect: (id: string) => void;
-  onToggleExpand: (id: string) => void;
-}) {
-  const { node, level, hasChildren, isExpanded } = item;
-  const isSelected = selectedLibraryId === node.id;
+interface TreeNodeData {
+  id: string;
+  name: string;
+  nodeType: 'library';
+  parentId: string | null;
+  data: LibraryType;
+  children?: TreeNodeData[];
+}
+
+/**
+ * Convert LibraryTreeNode to react-arborist compatible format
+ */
+function toArboristData(nodes: LibraryTreeNode[]): TreeNodeData[] {
+  return nodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    nodeType: 'library' as const,
+    parentId: node.parentId,
+    data: node,
+    children: node.children.length > 0 ? toArboristData(node.children) : undefined,
+  }));
+}
+
+/**
+ * LibraryTreeNode renderer for react-arborist
+ */
+function LibraryNode({
+  node,
+  style,
+  dragHandle,
+}: NodeRendererProps<TreeNodeData>) {
+  const isSelected = node.isSelected;
+  const isExpanded = node.isOpen;
+  const hasChildren = !node.isLeaf;
+
+  // Make this node a drop target for @dnd-kit external documents
+  const { isOver, setNodeRef } = useDroppable({
+    id: `library-drop-${node.id}`,
+    data: {
+      type: 'library',
+      id: node.id,
+      name: node.data.name,
+    },
+  });
 
   return (
-    <div data-testid={`library-tree-item-${node.id}`}>
+    <div
+      ref={setNodeRef}
+      data-testid={`library-tree-item-${node.id}`}
+      style={style}
+      className={`relative ${isOver ? 'ring-2 ring-blue-400 ring-inset rounded' : ''}`}
+    >
       <div
+        ref={dragHandle}
         className={`flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
           isSelected
-            ? 'bg-blue-50 text-blue-700'
-            : 'text-gray-700 hover:bg-gray-100'
+            ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
         }`}
-        style={{ paddingLeft: `${8 + level * 16}px` }}
-        onClick={() => onSelect(node.id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          node.select();
+          node.activate();
+        }}
       >
         {/* Expand/Collapse Toggle */}
         <button
           data-testid={`library-toggle-${node.id}`}
           onClick={(e) => {
             e.stopPropagation();
-            onToggleExpand(node.id);
+            node.toggle();
           }}
-          className="p-0.5 hover:bg-gray-200 rounded"
-          aria-label={hasChildren ? (isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`) : 'No children'}
+          className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+          aria-label={hasChildren ? (isExpanded ? `Collapse ${node.data.name}` : `Expand ${node.data.name}`) : 'No children'}
           aria-expanded={hasChildren ? isExpanded : undefined}
         >
           {hasChildren ? (
@@ -81,7 +122,7 @@ function FlatLibraryTreeItem({
           data-testid={`library-name-${node.id}`}
           className="text-sm font-medium truncate"
         >
-          {node.name}
+          {node.data.name}
         </span>
       </div>
     </div>
@@ -97,6 +138,9 @@ interface LibraryTreeProps {
   onNewDocument: () => void;
   onNewLibrary: () => void;
   onSelectDocument: (documentId: string) => void;
+  onMoveLibrary?: (libraryId: string, newParentId: string | null) => void;
+  onDropDocument?: (documentId: string, libraryId: string) => void;
+  activeDragData?: DragData | null;
   isMobile?: boolean;
 }
 
@@ -109,34 +153,142 @@ export function LibraryTree({
   onNewDocument,
   onNewLibrary,
   onSelectDocument,
+  onMoveLibrary,
+  activeDragData,
   isMobile = false,
 }: LibraryTreeProps) {
+  const treeRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [treeHeight, setTreeHeight] = useState(400);
+
+  // Measure container height for react-arborist
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTreeHeight(entry.contentRect.height);
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // Build tree structure from flat list
   const treeNodes = useMemo(() => buildLibraryTree(libraries), [libraries]);
 
-  // Flatten tree for virtualization based on expanded state
-  const flatItems = useMemo(
-    () => flattenLibraryTree(treeNodes, expandedIds),
-    [treeNodes, expandedIds]
+  // Convert to react-arborist format
+  const arboristData = useMemo(() => toArboristData(treeNodes), [treeNodes]);
+
+  // Convert expandedIds Set to OpenMap for react-arborist
+  const initialOpenState = useMemo(() => {
+    const openMap: Record<string, boolean> = {};
+    for (const id of expandedIds) {
+      openMap[id] = true;
+    }
+    return openMap;
+  }, [expandedIds]);
+
+  // Handle tree node selection
+  const handleSelect = useCallback(
+    (nodes: NodeApi<TreeNodeData>[]) => {
+      if (nodes.length > 0) {
+        onSelectLibrary(nodes[0].id);
+      }
+    },
+    [onSelectLibrary]
   );
 
-  // Render a single flat library item
-  const renderLibraryItem = useCallback(
-    (item: FlatLibraryItem, _index: number) => (
-      <FlatLibraryTreeItem
-        item={item}
-        selectedLibraryId={selectedLibraryId}
-        onSelect={onSelectLibrary}
-        onToggleExpand={onToggleExpand}
-      />
-    ),
-    [selectedLibraryId, onSelectLibrary, onToggleExpand]
+  // Handle tree node activation (click)
+  const handleActivate = useCallback(
+    (node: NodeApi<TreeNodeData>) => {
+      onSelectLibrary(node.id);
+    },
+    [onSelectLibrary]
   );
+
+  // Handle toggle expand/collapse
+  const handleToggle = useCallback(
+    (id: string) => {
+      onToggleExpand(id);
+    },
+    [onToggleExpand]
+  );
+
+  // Handle library move (drag within tree)
+  const handleMove = useCallback(
+    async ({
+      dragIds,
+      parentId,
+      parentNode,
+      dragNodes,
+    }: {
+      dragIds: string[];
+      dragNodes: NodeApi<TreeNodeData>[];
+      parentId: string | null;
+      parentNode: NodeApi<TreeNodeData> | null;
+      index: number;
+    }) => {
+      if (!onMoveLibrary) return;
+
+      const libraryId = dragIds[0];
+      if (!libraryId) return;
+
+      // Prevent moving to self
+      if (libraryId === parentId) return;
+
+      // Prevent circular nesting (moving to descendant)
+      const dragNode = dragNodes[0];
+      if (dragNode && parentNode && dragNode.isAncestorOf(parentNode)) {
+        console.warn('Cannot move library to its own descendant');
+        return;
+      }
+
+      onMoveLibrary(libraryId, parentId);
+    },
+    [onMoveLibrary]
+  );
+
+  // Validate drops - prevent circular nesting
+  const disableDrop = useCallback(
+    ({
+      parentNode,
+      dragNodes,
+    }: {
+      parentNode: NodeApi<TreeNodeData>;
+      dragNodes: NodeApi<TreeNodeData>[];
+      index: number;
+    }) => {
+      // Check if any drag node is an ancestor of the parent
+      for (const dragNode of dragNodes) {
+        if (dragNode.isAncestorOf(parentNode)) {
+          return true; // Disable drop (circular nesting)
+        }
+        // Also prevent dropping on self
+        if (dragNode.id === parentNode.id) {
+          return true;
+        }
+      }
+      return false;
+    },
+    []
+  );
+
+  // All Documents droppable target
+  const { isOver: isOverAllDocs, setNodeRef: setAllDocsRef } = useDroppable({
+    id: 'all-documents-drop',
+    data: {
+      type: 'all-documents',
+      id: null,
+    },
+  });
+
+  // Show drag indicator when document is being dragged over
+  const showDragIndicator = activeDragData?.type === 'document';
 
   return (
     <div
       data-testid="library-tree"
-      className={`${isMobile ? 'w-full' : 'w-64 border-r border-gray-200'} bg-white dark:bg-[var(--color-bg)] flex flex-col h-full`}
+      className={`${isMobile ? 'w-full' : 'w-64 border-r border-gray-200 dark:border-[var(--color-border)]'} bg-white dark:bg-[var(--color-bg)] flex flex-col h-full`}
     >
       <div className={`${isMobile ? 'p-3' : 'p-4'} border-b border-gray-200 dark:border-[var(--color-border)]`}>
         <div className="flex items-center justify-between mb-3">
@@ -171,19 +323,25 @@ export function LibraryTree({
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* All Documents option - always visible outside virtualized list */}
+        {/* All Documents option - always visible outside tree */}
         <div className={`${isMobile ? 'p-2 pb-0' : 'p-2 pb-0'}`}>
           <button
+            ref={setAllDocsRef}
             onClick={() => onSelectLibrary(null)}
-            className={`w-full flex items-center gap-2 ${isMobile ? 'px-3 py-3' : 'px-3 py-2'} rounded-md text-left text-sm mb-2 ${
+            className={`w-full flex items-center gap-2 ${isMobile ? 'px-3 py-3' : 'px-3 py-2'} rounded-md text-left text-sm mb-2 transition-all ${
               selectedLibraryId === null
                 ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-            } ${isMobile ? 'touch-target' : ''}`}
+            } ${isMobile ? 'touch-target' : ''} ${
+              isOverAllDocs && showDragIndicator ? 'ring-2 ring-blue-400' : ''
+            }`}
             data-testid="all-documents-button"
           >
             <FileText className="w-4 h-4" />
             All Documents
+            {isOverAllDocs && showDragIndicator && (
+              <span className="ml-auto text-xs text-blue-500">Drop to remove from library</span>
+            )}
           </button>
         </div>
 
@@ -203,22 +361,32 @@ export function LibraryTree({
             </button>
           </div>
         ) : (
-          <div data-testid="library-list" className="flex-1 overflow-hidden px-2">
-            <VirtualizedList
-              items={flatItems}
-              getItemKey={(item) => item.node.id}
-              estimateSize={isMobile ? 44 : LIBRARY_ITEM_HEIGHT}
-              renderItem={renderLibraryItem}
-              overscan={5}
-              className="h-full"
-              scrollRestoreId="library-tree-scroll"
-              testId="virtualized-library-list"
-              renderEmpty={() => (
-                <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
-                  No libraries to display
-                </div>
-              )}
-            />
+          <div
+            ref={containerRef}
+            data-testid="library-list"
+            className="flex-1 overflow-hidden px-2"
+          >
+            <Tree<TreeNodeData>
+              ref={treeRef}
+              data={arboristData}
+              width="100%"
+              height={treeHeight}
+              rowHeight={isMobile ? 44 : LIBRARY_ITEM_HEIGHT}
+              indent={16}
+              paddingTop={4}
+              paddingBottom={4}
+              initialOpenState={initialOpenState}
+              selection={selectedLibraryId ?? undefined}
+              onSelect={handleSelect}
+              onActivate={handleActivate}
+              onToggle={handleToggle}
+              onMove={handleMove}
+              disableDrop={disableDrop}
+              disableMultiSelection
+              openByDefault={false}
+            >
+              {LibraryNode}
+            </Tree>
           </div>
         )}
       </div>

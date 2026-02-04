@@ -4,6 +4,8 @@
 
 import { useMemo, useCallback } from 'react';
 import { FolderOpen, Folder, FileText, Plus } from 'lucide-react';
+import { useShortcutVersion } from '../../../hooks';
+import { getCurrentBinding } from '../../../lib/keyboard';
 import { VirtualizedList } from '../../../components/shared/VirtualizedList';
 import { useLibrary, useLibraryDocuments } from '../hooks';
 import { DocumentListItem } from './DocumentListItem';
@@ -29,6 +31,7 @@ export function LibraryView({
 }: LibraryViewProps) {
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
+  useShortcutVersion();
 
   const isLoading = libraryLoading || docsLoading;
 
@@ -47,9 +50,11 @@ export function LibraryView({
         document={doc}
         isSelected={selectedDocumentId === doc.id}
         onClick={onSelectDocument}
+        libraryId={libraryId}
+        draggable={true}
       />
     </div>
-  ), [selectedDocumentId, onSelectDocument]);
+  ), [selectedDocumentId, onSelectDocument, libraryId]);
 
   return (
     <div
@@ -92,6 +97,7 @@ export function LibraryView({
             >
               <Plus className="w-4 h-4" />
               Create Document
+              <kbd className="ml-1 text-xs bg-[var(--color-primary-700)]/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createDocument')}</kbd>
             </button>
           )}
         </div>
