@@ -378,6 +378,9 @@ export class WorktreeManagerImpl implements WorktreeManager {
     // Cache the default branch
     this.defaultBranch = await this.detectDefaultBranch();
 
+    // Prune stale worktree entries (directories removed but git still tracks them)
+    await this.execGit(['worktree', 'prune']);
+
     // Resolve real path (handles symlinks like /tmp -> /private/tmp on macOS)
     try {
       this.realWorkspaceRoot = fs.realpathSync(this.config.workspaceRoot);
@@ -511,6 +514,10 @@ export class WorktreeManagerImpl implements WorktreeManager {
 
     try {
       const baseBranch = await this.getDefaultBranch();
+
+      // Prune stale worktree entries before adding, in case git's list is stale
+      await this.execGit(['worktree', 'prune']);
+
       await this.execGit(['worktree', 'add', '--detach', fullPath, baseBranch]);
 
       this.worktreeStates.set(relativePath, 'active');

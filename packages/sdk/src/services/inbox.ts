@@ -309,6 +309,27 @@ export class InboxService {
   }
 
   /**
+   * Mark multiple inbox items as read in a single operation.
+   *
+   * @param itemIds - Inbox item IDs to mark as read
+   * @returns Number of items actually marked as read
+   */
+  markAsReadBatch(itemIds: string[]): number {
+    if (itemIds.length === 0) return 0;
+
+    const now = createTimestamp();
+    const placeholders = itemIds.map(() => '?').join(', ');
+    const result = this.db.run(
+      `UPDATE inbox_items
+       SET status = ?, read_at = ?
+       WHERE id IN (${placeholders}) AND status != ?`,
+      [InboxStatus.READ, now, ...itemIds, InboxStatus.ARCHIVED]
+    );
+
+    return result.changes;
+  }
+
+  /**
    * Mark an inbox item as unread
    *
    * @param itemId - Inbox item ID to mark as unread

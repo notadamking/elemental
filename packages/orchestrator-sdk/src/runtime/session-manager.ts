@@ -739,6 +739,26 @@ export class SessionManagerImpl implements SessionManager {
     if (!session || (session.status !== 'running' && session.status !== 'starting')) {
       return undefined;
     }
+
+    // Validate that the process is actually alive (PID available for interactive sessions)
+    if (session.pid && !this.isProcessAlive(session.pid)) {
+      // Process crashed without exit handler firing — clean up
+      const updatedSession: InternalSessionState = {
+        ...session,
+        status: 'terminated',
+        endedAt: createTimestamp(),
+        terminationReason: 'Process no longer alive (PID check)',
+        persisted: false,
+      };
+      this.sessions.set(sessionId, updatedSession);
+      this.agentSessions.delete(agentId);
+      this.addToHistory(agentId, updatedSession);
+      // Fire-and-forget async cleanup
+      this.registry.updateAgentSession(agentId, undefined, 'idle').catch(() => {});
+      this.persistSession(sessionId).catch(() => {});
+      return undefined;
+    }
+
     return this.toPublicSession(session);
   }
 
@@ -1031,6 +1051,19 @@ export class SessionManagerImpl implements SessionManager {
   // ----------------------------------------
   // Private Helpers
   // ----------------------------------------
+
+  /**
+   * Checks whether a process with the given PID is still alive.
+   * Uses signal 0 which doesn't kill — just checks existence.
+   */
+  private isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   private setupSpawnerEventHandlers(): void {
     // Note: The spawner emits events per-session via the session's event emitter

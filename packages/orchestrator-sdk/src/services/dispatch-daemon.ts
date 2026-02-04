@@ -269,6 +269,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   private config: NormalizedConfig;
   private running = false;
+  private polling = false;
   private pollIntervalHandle?: NodeJS.Timeout;
 
   constructor(
@@ -677,26 +678,32 @@ export class DispatchDaemonImpl implements DispatchDaemon {
    * Runs a complete poll cycle for all enabled polling loops.
    */
   private async runPollCycle(): Promise<void> {
-    // Reap stale sessions before polling for availability
-    await this.reapStaleSessions();
+    if (this.polling) return;
+    this.polling = true;
+    try {
+      // Reap stale sessions before polling for availability
+      await this.reapStaleSessions();
 
-    // Run polls sequentially to avoid overwhelming the system.
-    // Inbox runs first so triage spawns before task dispatch — idle agents
-    // process accumulated non-dispatch messages before picking up new tasks.
-    if (this.config.inboxPollEnabled) {
-      await this.pollInboxes();
-    }
+      // Run polls sequentially to avoid overwhelming the system.
+      // Inbox runs first so triage spawns before task dispatch — idle agents
+      // process accumulated non-dispatch messages before picking up new tasks.
+      if (this.config.inboxPollEnabled) {
+        await this.pollInboxes();
+      }
 
-    if (this.config.workerAvailabilityPollEnabled) {
-      await this.pollWorkerAvailability();
-    }
+      if (this.config.workerAvailabilityPollEnabled) {
+        await this.pollWorkerAvailability();
+      }
 
-    if (this.config.stewardTriggerPollEnabled) {
-      await this.pollStewardTriggers();
-    }
+      if (this.config.stewardTriggerPollEnabled) {
+        await this.pollStewardTriggers();
+      }
 
-    if (this.config.workflowTaskPollEnabled) {
-      await this.pollWorkflowTasks();
+      if (this.config.workflowTaskPollEnabled) {
+        await this.pollWorkflowTasks();
+      }
+    } finally {
+      this.polling = false;
     }
   }
 
@@ -722,7 +729,12 @@ export class DispatchDaemonImpl implements DispatchDaemon {
             graceful: false,
             reason: `Session exceeded max duration (${Math.round(age / 1000)}s)`,
           });
-        } catch { /* ignore — session may already be stopped */ }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.includes('not found')) {
+            console.warn(`[dispatch-daemon] Failed to reap session ${session.id}:`, error);
+          }
+        }
       }
     }
   }
@@ -1125,8 +1137,12 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // On session exit: mark triage items as read and clean up worktree.
     // Items stay unread if the session crashes, so they retry next cycle.
     events.on('exit', async () => {
-      for (const item of items) {
-        this.inboxService.markAsRead(item.id);
+      // Mark triage items as read. Use batch for efficiency.
+      // Errors are non-fatal — items stay unread and retry next cycle.
+      try {
+        this.inboxService.markAsReadBatch(items.map((item) => item.id));
+      } catch (error) {
+        console.warn('[dispatch-daemon] Failed to mark triage items as read:', error);
       }
 
       try {
