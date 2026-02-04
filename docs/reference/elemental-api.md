@@ -394,6 +394,60 @@ const result = api.reindexAllDocumentsFTS();
 
 **Note:** Import/sync does not automatically update the FTS index. Call `reindexAllDocumentsFTS()` after importing documents to make them searchable.
 
+### Embedding Service API
+
+The `EmbeddingService` (from `@elemental/sdk`) provides semantic search and hybrid search once an embedding provider is registered.
+
+```typescript
+// Semantic search (cosine similarity against document embeddings)
+const results = await embeddingService.searchSemantic(query, limit);
+// results: Array<{ documentId: string, similarity: number }>
+
+// Hybrid search (combines FTS5 BM25 ranking with vector similarity via RRF)
+const ftsDocIds = ftsResults.map(r => r.id);
+const results = await embeddingService.searchHybrid(query, ftsDocIds, limit);
+// results: Array<{ documentId: string, score: number }>
+
+// Reindex all document embeddings (e.g., after import or model change)
+const result = await embeddingService.reindexAll(
+  documents.map(d => ({ id: d.id, content: d.content })),
+  (indexed, total) => console.log(`${indexed}/${total}`)
+);
+// result: { indexed: number, errors: number }
+```
+
+**Embedding lifecycle:**
+
+1. **Create** — document is auto-embedded when created (if service registered)
+2. **Update** — re-embedded on content/contentType changes
+3. **Delete** — embedding auto-removed
+4. **Import** — embeddings are **not** auto-generated; call `reindexAll()` manually after import
+
+### Content Size Limits
+
+Documents have a maximum content size of **10 MB** (`MAX_CONTENT_SIZE = 10 * 1024 * 1024` bytes). Content exceeding this limit will be rejected at creation or update time.
+
+### Document Categories
+
+Documents must use one of the following categories (defaults to `other` if omitted):
+
+| Category | Description |
+|----------|-------------|
+| `spec` | Technical specifications |
+| `prd` | Product requirement documents |
+| `decision-log` | Architecture/design decisions |
+| `changelog` | Release and change notes |
+| `tutorial` | Learning-oriented walkthroughs |
+| `how-to` | Goal-oriented instructions |
+| `explanation` | Conceptual discussion and context |
+| `reference` | Technical reference material |
+| `runbook` | Operational procedures |
+| `meeting-notes` | Meeting summaries and action items |
+| `post-mortem` | Incident/failure analysis |
+| `task-description` | *(system-assigned)* Task description documents |
+| `message-content` | *(system-assigned)* Message content documents |
+| `other` | Default/uncategorized |
+
 ---
 
 ## History/Timeline

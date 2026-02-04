@@ -177,7 +177,7 @@ export function createDocumentRoutes(services: CollaborateServices) {
 
       // Semantic and hybrid modes require a registered EmbeddingService (currently CLI-only)
       if (mode === 'semantic' || mode === 'hybrid') {
-        return c.json({ error: { code: 'NOT_IMPLEMENTED', message: `${mode} search requires a registered EmbeddingService. Use mode=relevance for FTS5 search, or install embeddings via 'el embeddings install' (CLI only).` } }, 501);
+        return c.json({ error: { code: 'NOT_IMPLEMENTED', message: `${mode} search requires an embedding provider to be configured. Use mode=relevance for FTS5 keyword search. See documentation for embedding setup instructions.` } }, 501);
       }
 
       // Validate category if provided

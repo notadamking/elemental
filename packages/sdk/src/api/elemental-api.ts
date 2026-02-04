@@ -1299,14 +1299,17 @@ export class ElementalAPIImpl implements ElementalAPI {
       updatedAt: now,
     };
 
-    // For documents, auto-increment version and link to previous version
+    // For documents, auto-increment version and link to previous version (only on content changes)
     if (isDocument(existing)) {
       const doc = existing as Document;
-      updated = {
-        ...updated,
-        version: doc.version + 1,
-        previousVersionId: doc.id as unknown as DocumentId,
-      } as T;
+      const isContentUpdate = 'content' in updates || 'contentType' in updates;
+      if (isContentUpdate) {
+        updated = {
+          ...updated,
+          version: doc.version + 1,
+          previousVersionId: doc.id as unknown as DocumentId,
+        } as T;
+      }
     }
 
     // Serialize for storage
@@ -1314,8 +1317,8 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Update in a transaction
     this.backend.transaction((tx) => {
-      // For documents, save current version to version history before updating
-      if (isDocument(existing)) {
+      // For documents, save current version to version history before updating (only on content changes)
+      if (isDocument(existing) && ('content' in updates || 'contentType' in updates)) {
         const doc = existing as Document;
         // Serialize the current document data for version storage
         const versionData = JSON.stringify({
@@ -1390,6 +1393,14 @@ export class ElementalAPIImpl implements ElementalAPI {
             eventType = LifecycleEventType.CLOSED;
           } else if (terminalStatuses.includes(oldStatus as (typeof terminalStatuses)[number])) {
             // Transitioning FROM a terminal status (restarting - though not normally allowed by workflow transitions)
+            eventType = LifecycleEventType.REOPENED;
+          }
+        }
+        // Handle Document status changes
+        else if (isDocument(existing)) {
+          if (newStatus === 'archived') {
+            eventType = LifecycleEventType.CLOSED;
+          } else if (oldStatus === 'archived' && newStatus === 'active') {
             eventType = LifecycleEventType.REOPENED;
           }
         }
@@ -1536,8 +1547,8 @@ export class ElementalAPIImpl implements ElementalAPI {
     if (existing.type === 'document' && this.embeddingService) {
       try {
         this.embeddingService.removeDocument(id);
-      } catch {
-        // Best-effort
+      } catch (error) {
+        console.warn(`[elemental] Embedding removal failed for ${id}:`, error);
       }
     }
 
@@ -4403,14 +4414,16 @@ export class ElementalAPIImpl implements ElementalAPI {
           doc.category,
         ]
       );
-    } catch {
-      // FTS indexing is best-effort — don't fail the operation if FTS table is unavailable
+    } catch (error) {
+      console.warn(`[elemental] FTS index failed for ${doc.id}:`, error);
     }
 
     // Auto-embed if embedding service is registered
     if (this.embeddingService) {
       const text = `${(doc.metadata?.title as string) ?? ''} ${doc.content}`.trim();
-      this.embeddingService.indexDocument(doc.id, text).catch(() => {});
+      this.embeddingService.indexDocument(doc.id, text).catch((error) => {
+        console.warn(`[elemental] Embedding index failed for ${doc.id}:`, error);
+      });
     }
   }
 
@@ -4558,7 +4571,8 @@ export class ElementalAPIImpl implements ElementalAPI {
       if (error instanceof StorageError || error instanceof NotFoundError) {
         throw error;
       }
-      // Other errors (e.g., malformed query) — fall back to empty results
+      // Other errors (e.g., malformed query syntax) — log and return empty
+      console.warn('[elemental] FTS search error:', error);
       return [];
     }
   }

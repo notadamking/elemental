@@ -275,3 +275,81 @@ API call (get/list/query)
 | `soft` | None (name-based) | Development, single-agent |
 | `cryptographic` | Ed25519 signatures | Production, multi-agent |
 | `hybrid` | Optional signatures | Migration, mixed environments |
+
+## Document & Search Architecture
+
+### Storage Layers
+
+Documents use three storage layers:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  elements table                          │
+│  Primary storage for all document data (SQLite)          │
+│  Columns: id, type, data (JSON), created_at, updated_at │
+└────────────────────────────┬────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         │                                       │
+┌────────▼─────────┐                  ┌──────────▼────────┐
+│  documents_fts   │                  │ document_embeddings│
+│  FTS5 virtual    │                  │ Vector storage     │
+│  table (BM25)    │                  │ (cosine similarity)│
+└──────────────────┘                  └───────────────────┘
+```
+
+- **elements table** — source of truth for document content, metadata, tags, category, status
+- **documents_fts** — FTS5 virtual table indexing title, content, tags, category for keyword search
+- **document_embeddings** — vector embeddings for semantic similarity search
+
+### Version Control Model
+
+Documents track versions with a `version` field starting at 1. Version increments occur **only when `content` or `contentType` is changed** — updates to tags, metadata, status, or other fields do not create new versions.
+
+On a content update:
+1. Current document state is saved to the version history table
+2. `version` is incremented
+3. `previousVersionId` links to the prior version
+
+### Document Lifecycle
+
+```
+┌────────┐  archive   ┌──────────┐
+│ active │───────────→│ archived │
+│        │←───────────│          │
+└────────┘  unarchive └──────────┘
+```
+
+- **active** — default status; included in list/search results
+- **archived** — excluded from default queries; retrievable by explicit ID or status filter
+- Archiving emits a `CLOSED` lifecycle event; unarchiving emits `REOPENED`
+
+### Search Modes
+
+| Mode | Engine | Ranking | Requires Embeddings |
+|------|--------|---------|---------------------|
+| `relevance` | FTS5 | BM25 (term frequency / inverse document frequency) | No |
+| `semantic` | Vector | Cosine similarity against query embedding | Yes |
+| `hybrid` | FTS5 + Vector | Reciprocal Rank Fusion (RRF) combining BM25 and cosine | Yes |
+
+**FTS5** uses SQLite's built-in full-text search with BM25 ranking. An elbow-detection algorithm filters low-relevance results.
+
+**Semantic** search embeds the query and computes cosine similarity against all stored document embeddings.
+
+**Hybrid** search runs both FTS5 and semantic pipelines, then merges results using Reciprocal Rank Fusion (RRF).
+
+### Index Maintenance
+
+- **Create/Update/Delete** — FTS and embedding indexes are updated automatically (best-effort, fire-and-forget)
+- **Import** — indexes are **not** updated; call `reindexAllDocumentsFTS()` and `embeddingService.reindexAll()` after import
+- **Reindex** — `reindexAllDocumentsFTS()` rebuilds the FTS5 table without creating version history entries
+
+### Key Files
+
+| File | Responsibility |
+|------|----------------|
+| `packages/sdk/src/api/elemental-api.ts` | Document CRUD, FTS search, FTS indexing, version control |
+| `packages/sdk/src/services/embeddings/service.ts` | Embedding indexing, semantic search, hybrid search, reindex |
+| `packages/core/src/types/document.ts` | Document types, categories, status, content constraints |
+| `packages/shared-routes/src/documents.ts` | HTTP route handlers for document search API |
+| `packages/storage/src/schema.ts` | SQLite schema including FTS5 and embeddings tables |
