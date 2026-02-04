@@ -78,6 +78,8 @@ export interface Element {
   tags: string[];
   /** Arbitrary key-value data */
   metadata: Record<string, unknown>;
+  /** ISO 8601 datetime when element was soft-deleted, undefined if active */
+  deletedAt?: Timestamp;
 }
 
 // ============================================================================

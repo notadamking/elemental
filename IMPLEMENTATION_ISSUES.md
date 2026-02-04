@@ -22,27 +22,27 @@ Tracked issues from the document system audit and broader codebase analysis.
 
 ### MEDIUM
 
-- [ ] **Version snapshots omit `status` and `immutable`**
+- [x] **Version snapshots omit `status` and `immutable`**
   - `packages/sdk/src/api/elemental-api.ts:1324-1334`
   - The snapshot includes `title`/`category` but not `status` or `immutable`. Restoring a version of a previously-immutable document loses the immutable flag. Whether `status` exclusion is intentional is debatable, but `immutable` loss is a data integrity gap.
 
-- [ ] **FTS search route response missing `title`**
+- [x] **FTS search route response missing `title`**
   - `packages/shared-routes/src/documents.ts:219-227`
   - The HTTP search results map includes `id`, `contentType`, `category`, `status`, `score`, `snippet`, `updatedAt` but not `title`. The CLI works because it calls `searchDocumentsFTS()` directly, but HTTP API consumers can't see document titles in search results.
 
-- [ ] **Invalid `libraryId` silently ignored on create/clone**
+- [x] **Invalid `libraryId` silently ignored on create/clone**
   - `packages/shared-routes/src/documents.ts:335-345, 664-672`
   - If the provided `libraryId` doesn't exist or isn't a library, no error is returned. The document is created but without the library association. The caller has no way to know.
 
-- [ ] **No content size validation on document PATCH updates**
+- [x] **No content size validation on document PATCH updates**
   - `packages/shared-routes/src/documents.ts:358`
   - `validateContent()` (which enforces the 10MB `MAX_CONTENT_SIZE`) runs during `createDocument()` but not during `api.update()`. A PATCH with an oversized content payload is accepted.
 
-- [ ] **`getDocumentVersion` doesn't verify document type**
+- [x] **`getDocumentVersion` doesn't verify document type**
   - `packages/sdk/src/api/elemental-api.ts:3086-3089`
   - Called with a non-document ElementId, it could return data from the versions table without type-checking. The routes guard this, but the API method itself is unguarded.
 
-- [ ] **`getDocumentHistory` returns tombstoned documents**
+- [x] **`getDocumentHistory` returns tombstoned documents**
   - `packages/sdk/src/api/elemental-api.ts:3116`
   - `this.get()` returns tombstoned elements, so history for deleted documents still returns results including the tombstoned current version.
 

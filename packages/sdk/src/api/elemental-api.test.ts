@@ -14,7 +14,7 @@ import { ElementalAPIImpl, createElementalAPI } from './elemental-api.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import type { StorageBackend } from '@elemental/storage';
 import type { Element, ElementId, EntityId, Timestamp, Task, HydratedTask, Document, DocumentId } from '@elemental/core';
-import { createTask, Priority, createDocument, ContentType, NotFoundError, ConstraintError, ConflictError, StorageError } from '@elemental/core';
+import { createTask, Priority, createDocument, ContentType, NotFoundError, ValidationError, ConstraintError, ConflictError, StorageError } from '@elemental/core';
 
 // ============================================================================
 // Test Helpers
@@ -2708,5 +2708,115 @@ describe('high priority audit fixes', () => {
     const results = await api.list({ type: 'entity' });
     expect(results.length).toBe(1);
     expect(results[0].id).toBe('el-valid-ent');
+  });
+});
+
+// ============================================================================
+// MEDIUM Priority Audit Fix Tests
+// ============================================================================
+
+describe('medium priority audit fixes', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  // M1: Version snapshot includes status and immutable
+  it('should include status and immutable in version snapshots', async () => {
+    const doc = await createTestDocument({
+      title: 'Snapshot Test',
+      status: 'archived' as any,
+    });
+    const created = await api.create(toCreateInput(doc));
+
+    // Content update triggers version snapshot
+    await api.update<Document>(created.id, { content: 'Updated content' });
+
+    // Check the version snapshot stored in document_versions
+    const rows = backend.query<{ data: string; version: number }>(
+      'SELECT version, data FROM document_versions WHERE id = ? ORDER BY version ASC',
+      [created.id]
+    );
+    expect(rows.length).toBe(1);
+
+    const snapshotData = JSON.parse(rows[0].data);
+    expect(snapshotData.status).toBe('archived');
+    expect(snapshotData.immutable).toBe(false);
+  });
+
+  // M2: FTS search result documents have title
+  it('should include title in FTS search results', async () => {
+    const doc = await createTestDocument({
+      title: 'Unique Searchable FTS Title',
+      content: 'This document has unique searchable content for FTS test',
+    });
+    await api.create(toCreateInput(doc));
+
+    const results = await api.searchDocumentsFTS('unique searchable');
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results[0].document.title).toBe('Unique Searchable FTS Title');
+  });
+
+  // M3: getDocumentVersion throws for non-document
+  it('should throw ValidationError when getDocumentVersion called on non-document', async () => {
+    const task = await createTestTask({ title: 'Not A Document' });
+    const created = await api.create(toCreateInput(task));
+
+    await expect(
+      api.getDocumentVersion(created.id as unknown as DocumentId, 1)
+    ).rejects.toThrow(ValidationError);
+  });
+
+  // M4: getDocumentVersion throws for tombstoned document
+  it('should throw NotFoundError when getDocumentVersion called on deleted document', async () => {
+    const doc = await createTestDocument({ title: 'To Be Deleted' });
+    const created = await api.create(toCreateInput(doc));
+
+    // Delete the document (soft-delete)
+    await api.delete(created.id, { actor: mockEntityId });
+
+    await expect(
+      api.getDocumentVersion(created.id as unknown as DocumentId, 1)
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  // M5: getDocumentHistory excludes tombstoned current version
+  it('should exclude tombstoned current version from document history', async () => {
+    const doc = await createTestDocument({ title: 'History Test' });
+    const created = await api.create(toCreateInput(doc));
+
+    // Update content to create a v1 snapshot in document_versions
+    await api.update<Document>(created.id, { content: 'Version 2 content' });
+
+    // Manually tombstone the current version without cascade (api.delete removes version rows)
+    const row = backend.queryOne<{ data: string }>('SELECT data FROM elements WHERE id = ?', [created.id]);
+    const data = JSON.parse(row!.data);
+    data.status = 'tombstone';
+    data.deletedAt = new Date().toISOString();
+    backend.run('UPDATE elements SET data = ?, deleted_at = ? WHERE id = ?', [JSON.stringify(data), data.deletedAt, created.id]);
+
+    // History should contain only the v1 snapshot, not the tombstoned current version
+    const history = await api.getDocumentHistory(created.id as unknown as DocumentId);
+    expect(history.length).toBe(1);
+    expect(history[0].version).toBe(1);
+  });
+
+  // M6: getDocumentHistory returns empty for non-document
+  it('should return empty array for getDocumentHistory on non-document', async () => {
+    const task = await createTestTask({ title: 'Not A Document Either' });
+    const created = await api.create(toCreateInput(task));
+
+    const history = await api.getDocumentHistory(created.id as unknown as DocumentId);
+    expect(history).toEqual([]);
   });
 });

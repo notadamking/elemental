@@ -587,6 +587,13 @@ async function docRollbackHandler(
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const code = (err as { code?: string }).code;
+    if (code === 'NOT_FOUND') {
+      return failure(message, ExitCode.NOT_FOUND);
+    }
+    if (code === 'INVALID_INPUT') {
+      return failure(message, ExitCode.VALIDATION);
+    }
     return failure(`Failed to rollback document: ${message}`, ExitCode.GENERAL_ERROR);
   }
 }
@@ -685,6 +692,13 @@ async function docShowHandler(
     return success(doc, output);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const code = (err as { code?: string }).code;
+    if (code === 'NOT_FOUND') {
+      return failure(message, ExitCode.NOT_FOUND);
+    }
+    if (code === 'INVALID_INPUT') {
+      return failure(message, ExitCode.VALIDATION);
+    }
     return failure(`Failed to show document: ${message}`, ExitCode.GENERAL_ERROR);
   }
 }

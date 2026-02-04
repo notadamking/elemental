@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import type { ElementId, EntityId, Element, Document, DocumentId, CreateDocumentInput, DocumentCategory, DocumentStatus } from '@elemental/core';
-import { createDocument, isValidDocumentCategory, isValidDocumentStatus, DocumentStatus as DocumentStatusEnum, ContentType } from '@elemental/core';
+import { createDocument, isValidDocumentCategory, isValidDocumentStatus, DocumentStatus as DocumentStatusEnum, ContentType, validateContent } from '@elemental/core';
 import type { CollaborateServices } from './types.js';
 
 // Comment type for the comments table
@@ -218,6 +218,7 @@ export function createDocumentRoutes(services: CollaborateServices) {
       return c.json({
         results: results.map((r) => ({
           id: r.document.id,
+          title: r.document.title,
           contentType: r.document.contentType,
           category: r.document.category,
           status: r.document.status,
@@ -325,23 +326,30 @@ export function createDocumentRoutes(services: CollaborateServices) {
         ...(body.status !== undefined && { status: body.status as DocumentStatus }),
       };
 
+      // Validate libraryId before creating the document
+      if (body.libraryId) {
+        const library = await api.get(body.libraryId as ElementId);
+        if (!library || library.type !== 'library') {
+          return c.json(
+            { error: { code: 'VALIDATION_ERROR', message: 'Invalid libraryId: library not found' } },
+            400
+          );
+        }
+      }
+
       // Create the document using the factory function
       const document = await createDocument(docInput);
 
       // Create in database
       const created = await api.create(document as unknown as Element & Record<string, unknown>);
 
-      // If libraryId is provided, add document to library via parent-child dependency
+      // Add to library (already validated above)
       if (body.libraryId) {
-        // Verify library exists
-        const library = await api.get(body.libraryId as ElementId);
-        if (library && library.type === 'library') {
-          await api.addDependency({
-            blockedId: created.id,
-            blockerId: body.libraryId as ElementId,
-            type: 'parent-child',
-          });
-        }
+        await api.addDependency({
+          blockedId: created.id,
+          blockerId: body.libraryId as ElementId,
+          type: 'parent-child',
+        });
       }
 
       return c.json(created, 201);
@@ -414,21 +422,13 @@ export function createDocumentRoutes(services: CollaborateServices) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status: ${updates.status}` } }, 400);
       }
 
-      // Validate JSON content if contentType is json
-      const contentTypeVal = (updates.contentType || (existing as unknown as { contentType: string }).contentType) as string;
-      if (contentTypeVal === 'json' && updates.content !== undefined) {
+      // Validate content (size limit + JSON validation if applicable)
+      if (updates.content !== undefined) {
+        const contentTypeVal = (updates.contentType || (existing as unknown as { contentType: string }).contentType) as string;
         try {
-          JSON.parse(updates.content as string);
-        } catch {
-          return c.json(
-            {
-              error: {
-                code: 'VALIDATION_ERROR',
-                message: 'Invalid JSON content',
-              },
-            },
-            400
-          );
+          validateContent(updates.content as string, contentTypeVal as ContentType);
+        } catch (err) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: (err as Error).message } }, 400);
         }
       }
 
@@ -655,21 +655,29 @@ export function createDocumentRoutes(services: CollaborateServices) {
         category: sourceDocument.category,
       };
 
+      // Validate libraryId before creating the document
+      if (body.libraryId) {
+        const library = await api.get(body.libraryId as ElementId);
+        if (!library || library.type !== 'library') {
+          return c.json(
+            { error: { code: 'VALIDATION_ERROR', message: 'Invalid libraryId: library not found' } },
+            400
+          );
+        }
+      }
+
       const newDoc = await createDocument(docInput);
 
       // Create in database
       const created = await api.create(newDoc as unknown as Element & Record<string, unknown>);
 
-      // If libraryId is provided, add document to library via parent-child dependency
+      // Add to library (already validated above)
       if (body.libraryId) {
-        const library = await api.get(body.libraryId as ElementId);
-        if (library && library.type === 'library') {
-          await api.addDependency({
-            blockedId: created.id,
-            blockerId: body.libraryId as ElementId,
-            type: 'parent-child',
-          });
-        }
+        await api.addDependency({
+          blockedId: created.id,
+          blockerId: body.libraryId as ElementId,
+          type: 'parent-child',
+        });
       }
 
       return c.json(created, 201);

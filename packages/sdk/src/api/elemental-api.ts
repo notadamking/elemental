@@ -1345,6 +1345,8 @@ export class ElementalAPIImpl implements ElementalAPI {
           metadata: doc.metadata,
           title: doc.title,
           category: doc.category,
+          status: doc.status,
+          immutable: doc.immutable,
         });
         tx.run(
           `INSERT INTO document_versions (id, version, data, created_at) VALUES (?, ?, ?, ?)`,
@@ -3100,9 +3102,21 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   async getDocumentVersion(id: DocumentId, version: number): Promise<Document | null> {
-    // First check if it's the current version
     const current = await this.get<Document>(id as unknown as ElementId);
-    if (current && current.version === version) {
+    if (!current) {
+      throw new NotFoundError(`Document not found: ${id}`, ErrorCode.NOT_FOUND, { documentId: id });
+    }
+    if (current.type !== 'document') {
+      throw new ValidationError(
+        `Element ${id} is not a document (type: ${current.type})`,
+        ErrorCode.INVALID_INPUT,
+        { elementId: id, actualType: current.type, expectedType: 'document' }
+      );
+    }
+    if (current.deletedAt) {
+      throw new NotFoundError(`Document has been deleted: ${id}`, ErrorCode.NOT_FOUND, { documentId: id, deletedAt: current.deletedAt });
+    }
+    if (current.version === version) {
       return current;
     }
 
@@ -3134,7 +3148,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     const current = await this.get<Document>(id as unknown as ElementId);
     const results: Document[] = [];
 
-    if (current) {
+    if (current && current.type === 'document' && !current.deletedAt) {
       results.push(current);
     }
 
