@@ -252,8 +252,14 @@ function serializeElement(element: Element): {
 /**
  * Deserialize a database row to an element
  */
-function deserializeElement<T extends Element>(row: ElementRow, tags: string[]): T {
-  const data = JSON.parse(row.data);
+function deserializeElement<T extends Element>(row: ElementRow, tags: string[]): T | null {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(row.data);
+  } catch (error) {
+    console.warn(`[elemental] Corrupt data for element ${row.id}, skipping:`, error);
+    return null;
+  }
 
   return {
     id: row.id as ElementId,
@@ -666,6 +672,7 @@ export class ElementalAPIImpl implements ElementalAPI {
 
     // Deserialize the element
     let element = deserializeElement<T>(row, tags);
+    if (!element) return null;
 
     // Handle hydration if requested
     if (options?.hydrate) {
@@ -801,10 +808,10 @@ export class ElementalAPIImpl implements ElementalAPI {
     const tagsMap = this.batchFetchTags(elementIds);
 
     // Deserialize elements with their tags
-    const items: T[] = rows.map((row) => {
+    const items = rows.map((row) => {
       const tags = tagsMap.get(row.id) ?? [];
       return deserializeElement<T>(row, tags);
-    });
+    }).filter((el): el is T => el !== null);
 
     // Check if tags filter requires all tags
     let filteredItems = items;
@@ -939,6 +946,9 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
       const tags = tagRows.map((r) => r.tag);
       const channel = deserializeElement<Channel>(channelRow, tags);
+      if (!channel) {
+        throw new NotFoundError(`Channel data corrupt: ${messageData.channelId}`);
+      }
       // Validate sender is a channel member
       if (!isMember(channel, messageData.sender)) {
         throw new NotAMemberError(channel.id, messageData.sender);
@@ -993,6 +1003,9 @@ export class ElementalAPIImpl implements ElementalAPI {
           [threadParent.id]
         );
         const parentMessage = deserializeElement<Message>(threadParent, parentTags.map(r => r.tag));
+        if (!parentMessage) {
+          throw new NotFoundError(`Thread parent message data corrupt: ${messageData.threadId}`);
+        }
         if (parentMessage.channelId !== messageData.channelId) {
           throw new ConstraintError(
             `Thread parent message is in a different channel`,
@@ -1121,7 +1134,7 @@ export class ElementalAPIImpl implements ElementalAPI {
         const channel = deserializeElement<Channel>(channelRow, channelTags.map((r) => r.tag));
 
         // For direct channels: Create inbox item for the OTHER member (not the sender)
-        if (isDirectChannel(channel)) {
+        if (channel && isDirectChannel(channel)) {
           for (const memberId of channel.members) {
             // Skip the sender - they don't need an inbox item for their own message
             if (memberId !== messageData.sender) {
@@ -1147,7 +1160,7 @@ export class ElementalAPIImpl implements ElementalAPI {
         );
         if (contentDocRow) {
           const contentDoc = deserializeElement<Document>(contentDocRow, []);
-          const mentionedNames = extractMentionedNames(contentDoc.content);
+          const mentionedNames = contentDoc ? extractMentionedNames(contentDoc.content) : [];
 
           if (mentionedNames.length > 0) {
             // Get all entities to validate mentions against
@@ -1161,7 +1174,8 @@ export class ElementalAPIImpl implements ElementalAPI {
                 'SELECT tag FROM tags WHERE element_id = ?',
                 [row.id]
               );
-              entities.push(deserializeElement<Entity>(row, entityTags.map((r) => r.tag)));
+              const entity = deserializeElement<Entity>(row, entityTags.map((r) => r.tag));
+              if (entity) entities.push(entity);
             }
 
             const { valid: validMentionIds } = validateMentions(mentionedNames, entities);
@@ -1214,7 +1228,7 @@ export class ElementalAPIImpl implements ElementalAPI {
           if (parentMessageRow) {
             const parentMessage = deserializeElement<Message>(parentMessageRow, []);
             // Notify parent message sender (if not replying to yourself)
-            if (parentMessage.sender !== messageData.sender) {
+            if (parentMessage && parentMessage.sender !== messageData.sender) {
               try {
                 this.inboxService.addToInbox({
                   recipientId: parentMessage.sender as EntityId,
@@ -1537,6 +1551,7 @@ export class ElementalAPIImpl implements ElementalAPI {
       // Clean up document-specific data (inside transaction for atomicity)
       if (existing.type === 'document') {
         tx.run('DELETE FROM document_versions WHERE id = ?', [id]);
+        tx.run('DELETE FROM comments WHERE document_id = ?', [id]);
         if (this.checkFTSAvailable()) {
           try {
             tx.run('DELETE FROM documents_fts WHERE document_id = ?', [id]);
@@ -1748,7 +1763,8 @@ export class ElementalAPIImpl implements ElementalAPI {
         'SELECT tag FROM tags WHERE element_id = ?',
         [row.id]
       );
-      entities.push(deserializeElement<Entity>(row, tagRows.map((r) => r.tag)));
+      const entity = deserializeElement<Entity>(row, tagRows.map((r) => r.tag));
+      if (entity) entities.push(entity);
     }
 
     return entities;
@@ -1822,7 +1838,7 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
       const entity = deserializeElement<Entity>(row, tagRows.map((r) => r.tag));
       // Only include active entities
-      if (isEntityActive(entity)) {
+      if (entity && isEntityActive(entity)) {
         entities.push(entity);
       }
     }
@@ -2885,7 +2901,8 @@ export class ElementalAPIImpl implements ElementalAPI {
         [row.id]
       );
       const tags = tagRows.map((r) => r.tag);
-      results.push(deserializeElement<Element>(row, tags));
+      const el = deserializeElement<Element>(row, tags);
+      if (el) results.push(el);
     }
 
     return results;
@@ -2934,7 +2951,8 @@ export class ElementalAPIImpl implements ElementalAPI {
         [row.id]
       );
       const tags = tagRows.map((r) => r.tag);
-      results.push(deserializeElement<Channel>(row, tags));
+      const ch = deserializeElement<Channel>(row, tags);
+      if (ch) results.push(ch);
     }
 
     return results;
@@ -3252,6 +3270,9 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
       const tags = tagRows.map((r) => r.tag);
       const channel = deserializeElement<Channel>(existingRow, tags);
+      if (!channel) {
+        throw new StorageError(`Corrupt channel data: ${existingRow.id}`);
+      }
       return { channel, created: false };
     }
 
@@ -4469,6 +4490,8 @@ export class ElementalAPIImpl implements ElementalAPI {
           previousVersionId: data.previousVersionId ?? null,
           category: data.category ?? 'other',
           status: data.status ?? 'active',
+          title: data.title,
+          immutable: data.immutable ?? false,
         };
         this.indexDocumentForFTS(doc);
         indexed++;
@@ -5242,7 +5265,7 @@ export class ElementalAPIImpl implements ElementalAPI {
     for (const row of rows) {
       const tags = tagsMap.get(row.id) ?? [];
       const doc = deserializeElement<Document>(row, tags);
-      documentMap.set(doc.id, doc);
+      if (doc) documentMap.set(doc.id, doc);
     }
 
     return documentMap;

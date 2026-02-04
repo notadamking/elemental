@@ -2596,3 +2596,117 @@ describe('document system audit fixes', () => {
     expect(snapshotData.category).toBe('spec');
   });
 });
+
+// ============================================================================
+// HIGH Priority Audit Fix Tests
+// ============================================================================
+
+describe('high priority audit fixes', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  // T1: Delete cascade cleans up comments
+  it('should delete comments when document is soft-deleted', async () => {
+    const doc = await createTestDocument();
+    const created = await api.create(toCreateInput(doc));
+    const now = new Date().toISOString();
+
+    // Create an entity for the author_id FK constraint
+    backend.run(
+      `INSERT INTO elements (id, type, data, content_hash, created_at, updated_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['el-author-1', 'entity', JSON.stringify({ name: 'Test Author', entityType: 'user', status: 'active', metadata: {} }), 'hash000', now, now, mockEntityId]
+    );
+
+    // Insert a comment directly via SQL
+    backend.run(
+      `INSERT INTO comments (id, document_id, author_id, content, anchor, resolved, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+      ['cmt-test-1', created.id, 'el-author-1', 'Test comment', '{"hash":"abc","text":"anchor"}', now, now]
+    );
+
+    // Verify comment exists
+    const before = backend.query<{ id: string }>('SELECT id FROM comments WHERE document_id = ?', [created.id]);
+    expect(before.length).toBe(1);
+
+    // Delete the document
+    await api.delete(created.id, { actor: mockEntityId });
+
+    // Verify comments are gone
+    const after = backend.query<{ id: string }>('SELECT id FROM comments WHERE document_id = ?', [created.id]);
+    expect(after.length).toBe(0);
+  });
+
+  // T2: FTS reindex preserves title
+  it('should include title in FTS index after reindex', async () => {
+    const doc = await createTestDocument({ title: 'Searchable Title' });
+    await api.create(toCreateInput(doc));
+
+    // Reindex all documents
+    const result = api.reindexAllDocumentsFTS();
+    expect(result.errors).toBe(0);
+    expect(result.indexed).toBeGreaterThanOrEqual(1);
+
+    // Query FTS table directly to verify title is indexed
+    const ftsRows = backend.query<{ document_id: string; title: string }>(
+      'SELECT document_id, title FROM documents_fts WHERE document_id = ?',
+      [doc.id]
+    );
+    expect(ftsRows.length).toBe(1);
+    expect(ftsRows[0].title).toBe('Searchable Title');
+  });
+
+  // T3: deserializeElement handles corrupt data gracefully
+  it('should return null for elements with corrupt JSON data', async () => {
+    const now = new Date().toISOString();
+
+    // Insert a row with malformed JSON directly
+    backend.run(
+      `INSERT INTO elements (id, type, data, content_hash, created_at, updated_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['el-corrupt-1', 'document', '{invalid json!!!', 'hash123', now, now, mockEntityId]
+    );
+
+    // api.get() should return null, not throw
+    const result = await api.get('el-corrupt-1' as ElementId);
+    expect(result).toBeNull();
+  });
+
+  // T4: Corrupt elements are filtered from list results
+  it('should skip corrupt elements in list results', async () => {
+    // Use entity type since it doesn't have JSON_EXTRACT-based default filters
+    // (document type defaults to JSON_EXTRACT($.status)='active' which fails at SQLite level)
+    const now = new Date().toISOString();
+
+    // Insert a valid entity
+    backend.run(
+      `INSERT INTO elements (id, type, data, content_hash, created_at, updated_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['el-valid-ent', 'entity', JSON.stringify({ name: 'Valid Entity', entityType: 'user', status: 'active', metadata: {} }), 'hash789', now, now, mockEntityId]
+    );
+
+    // Insert a corrupt entity
+    backend.run(
+      `INSERT INTO elements (id, type, data, content_hash, created_at, updated_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['el-corrupt-2', 'entity', 'NOT_JSON', 'hash456', now, now, mockEntityId]
+    );
+
+    // List should include only the valid entity, not throw
+    const results = await api.list({ type: 'entity' });
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe('el-valid-ent');
+  });
+});

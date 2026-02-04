@@ -866,6 +866,10 @@ export function createDocumentRoutes(services: CollaborateServices) {
       if (doc.type !== 'document') {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
       }
+      const docData = doc as unknown as Record<string, unknown>;
+      if (docData.status === 'tombstone' || docData.deletedAt) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
 
       // Query comments from the database
       let query = `
@@ -969,6 +973,10 @@ export function createDocumentRoutes(services: CollaborateServices) {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
       }
       if (doc.type !== 'document') {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+      const docData = doc as unknown as Record<string, unknown>;
+      if (docData.status === 'tombstone' || docData.deletedAt) {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
       }
 
