@@ -53,6 +53,9 @@ Common pitfalls and their solutions, organized by severity and category.
 - **System categories** (`task-description`, `message-content`) are managed automatically - do not set these manually
 - **`designRef` has been removed** from Task and Plan interfaces - use `descriptionRef` instead
 - Invalid category values produce `INVALID_CATEGORY` error; invalid status values produce `INVALID_DOCUMENT_STATUS` error
+- **Imported documents are not FTS-indexed** - After `el import` or `api.import()`, documents exist in the database but are invisible to `searchDocumentsFTS()`. Run `el doc reindex` or call `api.reindexAllDocumentsFTS()` to rebuild the search index
+- **`doc reindex` does not create versions** - Unlike `api.update()`, the reindex operation directly rebuilds the FTS index without incrementing document versions
+- **FTS table may not exist** - If schema migrations have not been run (migration 7+), `searchDocumentsFTS()` throws `StorageError`. Run `initializeSchema()` to create the table
 
 ## Messages
 

@@ -129,6 +129,7 @@ el dep tree abc123
 |---------|-------------|
 | `el doc create` | Create document |
 | `el doc list` | List documents |
+| `el doc search <query>` | Full-text search documents |
 | `el doc show <id>` | Show document |
 | `el doc history <id>` | Show version history |
 | `el doc rollback <id> <version>` | Rollback to version |
@@ -145,6 +146,11 @@ el doc list
 el doc list --category spec
 el doc list --status archived
 el doc list --all                    # Include archived
+
+# Full-text search documents
+el doc search "API authentication"
+el doc search "migration" --category spec
+el doc search "config" --limit 5
 
 # Archive / unarchive
 el doc archive abc123

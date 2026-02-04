@@ -552,8 +552,6 @@ export class ElementalAPIImpl implements ElementalAPI {
   private syncService: SyncService;
   private inboxService: InboxService;
   private embeddingService?: EmbeddingService;
-  private ftsAvailable: boolean | null = null;
-
   constructor(private backend: StorageBackend) {
     this.blockedCache = createBlockedCacheService(backend);
     this.priorityService = createPriorityService(backend);
@@ -1274,6 +1272,18 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     }
 
+    // Check if document is immutable and content is being updated
+    if (isDocument(existing)) {
+      const doc = existing as unknown as Document;
+      if (doc.immutable && (updates as Record<string, unknown>).content !== undefined) {
+        throw new ConstraintError(
+          'Cannot update content of immutable document',
+          ErrorCode.IMMUTABLE,
+          { elementId: id, type: 'document' }
+        );
+      }
+    }
+
     // Resolve actor - use provided actor or fall back to element's creator
     const actor = options?.actor ?? existing.createdBy;
 
@@ -1506,14 +1516,29 @@ export class ElementalAPIImpl implements ElementalAPI {
           event.createdAt,
         ]
       );
+
+      // Remove from FTS index (inside transaction for atomicity)
+      if (existing.type === 'document') {
+        if (this.checkFTSAvailable()) {
+          try {
+            tx.run('DELETE FROM documents_fts WHERE document_id = ?', [id]);
+          } catch {
+            // Best-effort
+          }
+        }
+      }
     });
 
     // Mark as dirty for sync
     this.backend.markDirty(id);
 
-    // Remove document from FTS index
-    if (existing.type === 'document') {
-      this.removeDocumentFromFTS(id);
+    // Remove embedding (outside transaction — async/best-effort, doesn't affect DB consistency)
+    if (existing.type === 'document' && this.embeddingService) {
+      try {
+        this.embeddingService.removeDocument(id);
+      } catch {
+        // Best-effort
+      }
     }
 
     // Update blocked cache for the deleted element and all affected elements
@@ -4183,16 +4208,14 @@ export class ElementalAPIImpl implements ElementalAPI {
   // --------------------------------------------------------------------------
 
   private checkFTSAvailable(): boolean {
-    if (this.ftsAvailable !== null) return this.ftsAvailable;
     try {
       const row = this.backend.queryOne<{ name: string }>(
         `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'documents_fts'`
       );
-      this.ftsAvailable = !!row;
+      return !!row;
     } catch {
-      this.ftsAvailable = false;
+      return false;
     }
-    return this.ftsAvailable;
   }
 
   // --------------------------------------------------------------------------
@@ -4235,29 +4258,53 @@ export class ElementalAPIImpl implements ElementalAPI {
     }
   }
 
-  /**
-   * Remove a document from the FTS5 virtual table.
-   * Called on document deletion.
-   */
-  private removeDocumentFromFTS(docId: ElementId): void {
-    if (!this.checkFTSAvailable()) return;
-    try {
-      this.backend.run(
-        `DELETE FROM documents_fts WHERE document_id = ?`,
-        [docId]
-      );
-    } catch {
-      // Best-effort — don't fail the operation if FTS table is unavailable
-    }
+  // --------------------------------------------------------------------------
+  // FTS Reindex
+  // --------------------------------------------------------------------------
 
-    // Remove embedding if embedding service is registered
-    if (this.embeddingService) {
+  /**
+   * Reindex all documents in the FTS5 virtual table.
+   * Does NOT create version history entries — safe for bulk reindex.
+   */
+  reindexAllDocumentsFTS(): { indexed: number; errors: number } {
+    const docs = this.backend.query<ElementRow>(
+      `SELECT * FROM elements WHERE type = 'document' AND deleted_at IS NULL`
+    );
+    let indexed = 0;
+    let errors = 0;
+    for (const row of docs) {
       try {
-        this.embeddingService.removeDocument(docId);
+        const data = JSON.parse(row.data);
+        const doc: Document = {
+          id: row.id as ElementId,
+          type: 'document',
+          createdAt: row.created_at as Timestamp,
+          updatedAt: row.updated_at as Timestamp,
+          createdBy: row.created_by as EntityId,
+          tags: data.tags ?? [],
+          metadata: data.metadata ?? {},
+          content: data.content ?? '',
+          contentType: data.contentType ?? 'text',
+          version: data.version ?? 1,
+          previousVersionId: data.previousVersionId ?? null,
+          category: data.category ?? 'other',
+          status: data.status ?? 'active',
+        };
+        this.indexDocumentForFTS(doc);
+        indexed++;
       } catch {
-        // Best-effort
+        errors++;
       }
     }
+    return { indexed, errors };
+  }
+
+  /**
+   * Reindex imported documents after sync completes.
+   * Called internally after import operations.
+   */
+  private reindexDocumentsAfterImport(): void {
+    this.reindexAllDocumentsFTS();
   }
 
   // --------------------------------------------------------------------------
@@ -4431,7 +4478,11 @@ export class ElementalAPIImpl implements ElementalAPI {
       });
 
       // Convert SyncService result to API ImportResult format
-      return this.convertSyncImportResult(syncResult, options.dryRun ?? false);
+      const apiResult = this.convertSyncImportResult(syncResult, options.dryRun ?? false);
+      if (!options.dryRun) {
+        this.reindexDocumentsAfterImport();
+      }
+      return apiResult;
     }
 
     // For raw data import, use SyncService's string-based import
@@ -4444,7 +4495,11 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
     );
 
-    return this.convertSyncImportResult(syncResult, options.dryRun ?? false);
+    const apiResult = this.convertSyncImportResult(syncResult, options.dryRun ?? false);
+    if (!options.dryRun) {
+      this.reindexDocumentsAfterImport();
+    }
+    return apiResult;
   }
 
   /**

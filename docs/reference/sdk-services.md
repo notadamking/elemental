@@ -372,6 +372,11 @@ api.registerEmbeddingService(embeddingService);
 
 Auto-embedding is fire-and-forget (best-effort). Failures are silently ignored to avoid blocking CRUD operations.
 
+**Note:** Auto-embedding only triggers on `api.create()` and `api.update()`. Documents
+added via import/sync are not automatically embedded. Use `el doc reindex` or
+`api.reindexAllDocumentsFTS()` after import to rebuild the FTS index, then
+`el embeddings reindex` to rebuild embeddings.
+
 ### LocalEmbeddingProvider
 
 File: `services/embeddings/local-provider.ts`

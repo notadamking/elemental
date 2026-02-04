@@ -352,6 +352,17 @@ api.registerEmbeddingService(embeddingService);
 
 Once registered, documents are automatically embedded on create/update and removed on delete (fire-and-forget, best-effort).
 
+### Reindex FTS
+
+```typescript
+// Rebuild FTS index for all documents (no version increment)
+const result = api.reindexAllDocumentsFTS();
+// result.indexed — number of documents indexed
+// result.errors — number of documents that failed to index
+```
+
+**Note:** Import/sync does not automatically update the FTS index. Call `reindexAllDocumentsFTS()` after importing documents to make them searchable.
+
 ---
 
 ## History/Timeline
@@ -377,6 +388,9 @@ await api.import(jsonlPath, { force: true });  // Remote always wins
 ```
 
 **Note:** `syncStatus()` is not exposed. Use `el status` CLI command.
+
+**Note:** Import does not update the FTS5 index or embeddings. After importing documents,
+call `api.reindexAllDocumentsFTS()` to rebuild the search index.
 
 ---
 

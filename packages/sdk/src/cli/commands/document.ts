@@ -820,6 +820,143 @@ Examples:
 };
 
 // ============================================================================
+// Document Search Command
+// ============================================================================
+
+interface DocSearchOptions {
+  category?: string;
+  status?: string;
+  limit?: string;
+}
+
+const docSearchOptions: CommandOption[] = [
+  {
+    name: 'category',
+    description: 'Filter by category',
+    hasValue: true,
+  },
+  {
+    name: 'status',
+    description: 'Filter by status',
+    hasValue: true,
+  },
+  {
+    name: 'limit',
+    short: 'l',
+    description: 'Maximum results',
+    hasValue: true,
+  },
+];
+
+async function docSearchHandler(
+  args: string[],
+  options: GlobalOptions & DocSearchOptions
+): Promise<CommandResult> {
+  if (args.length === 0) {
+    return failure('Search query is required. Usage: el doc search <query>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const query = args.join(' ');
+
+    // Validate category
+    if (options.category) {
+      if (!isValidDocumentCategory(options.category)) {
+        const validCategories = Object.values(DocumentCategory);
+        return failure(
+          `Invalid category: ${options.category}. Must be one of: ${validCategories.join(', ')}`,
+          ExitCode.VALIDATION
+        );
+      }
+    }
+
+    // Validate status
+    if (options.status) {
+      if (!isValidDocumentStatus(options.status)) {
+        return failure(
+          `Invalid status: ${options.status}. Must be one of: active, archived`,
+          ExitCode.VALIDATION
+        );
+      }
+    }
+
+    // Validate limit
+    let hardCap = 50;
+    if (options.limit) {
+      hardCap = parseInt(options.limit, 10);
+      if (isNaN(hardCap) || hardCap < 1) {
+        return failure('Limit must be a positive number', ExitCode.VALIDATION);
+      }
+    }
+
+    const searchOptions: Record<string, unknown> = { hardCap };
+    if (options.category) searchOptions.category = options.category;
+    if (options.status) searchOptions.status = options.status;
+
+    const results = await api.searchDocumentsFTS(query, searchOptions as Parameters<typeof api.searchDocumentsFTS>[1]);
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(results);
+    }
+
+    if (mode === 'quiet') {
+      return success(results.map((r) => r.document.id).join('\n'));
+    }
+
+    if (results.length === 0) {
+      return success(null, 'No documents found');
+    }
+
+    const headers = ['ID', 'SCORE', 'TITLE', 'CATEGORY', 'SNIPPET'];
+    const rows = results.map((r) => [
+      r.document.id,
+      r.score.toFixed(2),
+      ((r.document.metadata?.title as string) ?? '').slice(0, 40),
+      r.document.category ?? 'other',
+      r.snippet.slice(0, 60).replace(/\n/g, ' '),
+    ]);
+
+    const table = formatter.table(headers, rows);
+    const summary = `\n${results.length} result${results.length !== 1 ? 's' : ''} for "${query}"`;
+
+    return success(results, table + summary);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Search failed: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const docSearchCommand: Command = {
+  name: 'search',
+  description: 'Full-text search documents',
+  usage: 'el doc search <query> [options]',
+  help: `Full-text search documents using FTS5 with BM25 ranking.
+
+Arguments:
+  query   Search query text
+
+Options:
+  -l, --limit <n>            Maximum results (default: 50)
+      --category <category>  Filter by category (e.g., spec, prd, reference)
+      --status <status>      Filter by status (active, archived)
+
+Examples:
+  el doc search "API authentication"
+  el doc search "migration" --category spec
+  el doc search "config" --limit 5`,
+  options: docSearchOptions,
+  handler: docSearchHandler as Command['handler'],
+};
+
+// ============================================================================
 // Document Reindex Command
 // ============================================================================
 
@@ -833,43 +970,14 @@ async function docReindexHandler(
   }
 
   try {
-    // Get all documents (including archived)
-    const result = await api.listPaginated<Document>({
-      type: 'document',
-      limit: 10000,
-      status: [DocumentStatus.ACTIVE, DocumentStatus.ARCHIVED],
-    } as Record<string, unknown>);
-
-    let indexed = 0;
-    let errors = 0;
-
-    for (const doc of result.items) {
-      try {
-        // Re-create triggers FTS indexing via the API internals
-        // But we need direct FTS access. Instead, use a targeted approach:
-        // We'll call searchDocumentsFTS to verify FTS is working, but
-        // for reindexing we need the raw backend. Use update with no changes
-        // to trigger re-indexing (since update calls indexDocumentForFTS).
-        // Actually, the simplest approach: touch each document to trigger re-index
-        await api.update<Document>(
-          doc.id as ElementId,
-          { metadata: doc.metadata } as Partial<Document>,
-          { actor: resolveActor(options) }
-        );
-        indexed++;
-      } catch {
-        errors++;
-      }
-    }
-
+    const result = api.reindexAllDocumentsFTS();
     const mode = getOutputMode(options);
     if (mode === 'json') {
-      return success({ indexed, errors, total: result.items.length });
+      return success(result);
     }
-
     return success(
       null,
-      `Reindexed ${indexed} documents for FTS search${errors > 0 ? ` (${errors} errors)` : ''}`
+      `Reindexed ${result.indexed} documents for FTS search${result.errors > 0 ? ` (${result.errors} errors)` : ''}`
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -908,6 +1016,7 @@ a new version, and you can view history or rollback to any previous version.
 Subcommands:
   create      Create a new document
   list        List documents (active only by default)
+  search      Full-text search documents
   show        Show document details
   history     Show version history
   rollback    Rollback to a previous version
@@ -920,6 +1029,8 @@ Examples:
   el doc create --file notes.md --type markdown --category spec
   el doc list
   el doc list --category reference --all
+  el doc search "API authentication"
+  el doc search "migration" --category spec
   el doc show el-doc123
   el doc history el-doc123
   el doc rollback el-doc123 2
@@ -929,6 +1040,7 @@ Examples:
   subcommands: {
     create: docCreateCommand,
     list: docListCommand,
+    search: docSearchCommand,
     show: docShowCommand,
     history: docHistoryCommand,
     rollback: docRollbackCommand,

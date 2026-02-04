@@ -1163,6 +1163,14 @@ export interface ElementalAPI {
    */
   registerEmbeddingService(service: EmbeddingService): void;
 
+  /**
+   * Rebuild FTS index for all documents without creating version history entries.
+   * Use after import/sync or when search results seem stale.
+   *
+   * @returns Count of indexed documents and errors
+   */
+  reindexAllDocumentsFTS(): { indexed: number; errors: number };
+
   // --------------------------------------------------------------------------
   // History Operations
   // --------------------------------------------------------------------------

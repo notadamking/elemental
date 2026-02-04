@@ -72,15 +72,40 @@ export function createDocumentRoutes(services: CollaborateServices) {
         filter.status = statuses.length === 1 ? statuses[0] : statuses;
       }
 
-      const requestedLimit = limitParam ? parseInt(limitParam, 10) : 50;
-      const requestedOffset = offsetParam ? parseInt(offsetParam, 10) : 0;
+      // Validate limit and offset
+      const MAX_LIMIT = 500;
+      let requestedLimit = 50;
+      let requestedOffset = 0;
 
+      if (limitParam) {
+        requestedLimit = parseInt(limitParam, 10);
+        if (isNaN(requestedLimit) || requestedLimit < 1 || requestedLimit > MAX_LIMIT) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid limit: must be 1-${MAX_LIMIT}` } }, 400);
+        }
+      }
+      if (offsetParam) {
+        requestedOffset = parseInt(offsetParam, 10);
+        if (isNaN(requestedOffset) || requestedOffset < 0) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid offset: must be >= 0' } }, 400);
+        }
+      }
+
+      // Validate orderBy — whitelist allowed columns
+      const ALLOWED_ORDER_COLUMNS = ['updated_at', 'created_at', 'title', 'type'];
       if (orderByParam) {
+        if (!ALLOWED_ORDER_COLUMNS.includes(orderByParam)) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid orderBy: ${orderByParam}. Must be one of: ${ALLOWED_ORDER_COLUMNS.join(', ')}` } }, 400);
+        }
         filter.orderBy = orderByParam;
       } else {
         filter.orderBy = 'updated_at';
       }
+
+      // Validate orderDir
       if (orderDirParam) {
+        if (orderDirParam !== 'asc' && orderDirParam !== 'desc') {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid orderDir: ${orderDirParam}. Must be 'asc' or 'desc'` } }, 400);
+        }
         filter.orderDir = orderDirParam;
       } else {
         filter.orderDir = 'desc';
@@ -165,11 +190,29 @@ export function createDocumentRoutes(services: CollaborateServices) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid status: ${statusParam}` } }, 400);
       }
 
+      // Validate limit
+      let searchLimit = 50;
+      if (limitParam) {
+        searchLimit = parseInt(limitParam, 10);
+        if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 500) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid limit: must be 1-500' } }, 400);
+        }
+      }
+
+      // Validate sensitivity
+      let sensitivity = 1.5;
+      if (sensitivityParam) {
+        sensitivity = parseFloat(sensitivityParam);
+        if (isNaN(sensitivity) || sensitivity <= 0 || sensitivity > 10) {
+          return c.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid sensitivity: must be between 0 and 10' } }, 400);
+        }
+      }
+
       const results = await api.searchDocumentsFTS(query.trim(), {
-        hardCap: limitParam ? parseInt(limitParam, 10) : 50,
+        hardCap: searchLimit,
         ...(categoryParam && { category: categoryParam as DocumentCategory }),
         ...(statusParam && { status: statusParam as DocumentStatus }),
-        ...(sensitivityParam && { elbowSensitivity: parseFloat(sensitivityParam) }),
+        elbowSensitivity: sensitivity,
       });
 
       return c.json({
@@ -326,6 +369,15 @@ export function createDocumentRoutes(services: CollaborateServices) {
       }
       if (existing.type !== 'document') {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Document not found' } }, 404);
+      }
+
+      // Reject content updates on immutable documents
+      const existingDoc = existing as unknown as { immutable?: boolean };
+      if (existingDoc.immutable === true && body.content !== undefined) {
+        return c.json(
+          { error: { code: 'IMMUTABLE', message: 'Cannot update content of immutable document' } },
+          403
+        );
       }
 
       // Extract allowed updates (prevent changing immutable fields)

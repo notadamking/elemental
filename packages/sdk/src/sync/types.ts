@@ -32,6 +32,16 @@ export interface SerializedElement {
   metadata: Record<string, unknown>;
   /** Content hash for conflict detection */
   contentHash?: string;
+  /** Document category (for document elements) */
+  category?: string;
+  /** Document status (for document elements) */
+  status?: string;
+  /** Document content type (for document elements) */
+  contentType?: string;
+  /** Document content (for document elements) */
+  content?: string;
+  /** Document version (for document elements) */
+  version?: number;
   /** Type-specific fields */
   [key: string]: unknown;
 }
