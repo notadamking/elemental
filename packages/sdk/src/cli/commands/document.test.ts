@@ -765,3 +765,127 @@ describe('document tombstone handling', () => {
     expect(docs[0].id).toBe(doc2.id);
   });
 });
+
+// ============================================================================
+// Document Archive, Unarchive, and Filter Commands
+// ============================================================================
+
+describe('doc archive and filter commands', () => {
+  beforeEach(() => {
+    // Create test workspace
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true });
+    }
+    mkdirSync(ELEMENTAL_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    // Cleanup test workspace
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true });
+    }
+  });
+
+  test('doc archive sets status to archived', async () => {
+    const doc = await createTestDocument('Archive me');
+
+    const result = await documentCommand.subcommands!.archive.handler!(
+      [doc.id],
+      createTestOptions()
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const updated = result.data as Document;
+    expect(updated.status).toBe('archived');
+  });
+
+  test('doc unarchive sets status back to active', async () => {
+    const doc = await createTestDocument('Archive then unarchive me');
+
+    // Archive first
+    await documentCommand.subcommands!.archive.handler!(
+      [doc.id],
+      createTestOptions()
+    );
+
+    // Unarchive
+    const result = await documentCommand.subcommands!.unarchive.handler!(
+      [doc.id],
+      createTestOptions()
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const updated = result.data as Document;
+    expect(updated.status).toBe('active');
+  });
+
+  test('doc list --category filters by category', async () => {
+    await createTestDocument('Spec document', { category: 'spec' });
+    await createTestDocument('Reference document', { category: 'reference' });
+    await createTestDocument('Another spec', { category: 'spec' });
+
+    const result = await documentCommand.subcommands!.list.handler!(
+      [],
+      createTestOptions({ json: true, category: 'spec' })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const docs = result.data as Document[];
+    expect(docs.length).toBe(2);
+    for (const d of docs) {
+      expect(d.category).toBe('spec');
+    }
+  });
+
+  test('doc list --status archived shows only archived docs', async () => {
+    const doc1 = await createTestDocument('Active doc');
+    const doc2 = await createTestDocument('Will archive');
+
+    // Archive doc2
+    await documentCommand.subcommands!.archive.handler!(
+      [doc2.id],
+      createTestOptions()
+    );
+
+    const result = await documentCommand.subcommands!.list.handler!(
+      [],
+      createTestOptions({ json: true, status: 'archived' })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const docs = result.data as Document[];
+    expect(docs.length).toBe(1);
+    expect(docs[0].id).toBe(doc2.id);
+  });
+
+  test('doc list --all includes both active and archived documents', async () => {
+    const doc1 = await createTestDocument('Active doc');
+    const doc2 = await createTestDocument('Archived doc');
+
+    // Archive doc2
+    await documentCommand.subcommands!.archive.handler!(
+      [doc2.id],
+      createTestOptions()
+    );
+
+    // Without --all, only active
+    const activeOnly = await documentCommand.subcommands!.list.handler!(
+      [],
+      createTestOptions({ json: true })
+    );
+    expect(activeOnly.exitCode).toBe(ExitCode.SUCCESS);
+    expect((activeOnly.data as Document[]).length).toBe(1);
+
+    // With --all, both
+    const allDocs = await documentCommand.subcommands!.list.handler!(
+      [],
+      createTestOptions({ json: true, all: true })
+    );
+    expect(allDocs.exitCode).toBe(ExitCode.SUCCESS);
+    const docs = allDocs.data as Document[];
+    expect(docs.length).toBe(2);
+    const ids = docs.map((d) => d.id);
+    expect(ids).toContain(doc1.id);
+    expect(ids).toContain(doc2.id);
+  });
+});

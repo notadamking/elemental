@@ -141,19 +141,17 @@ const results = await api.search('keyword', {
 
 ```typescript
 const results = await api.searchDocumentsFTS('search query', {
-  mode: 'relevance',     // 'relevance' (default) | 'semantic' | 'hybrid'
-  category: 'spec',      // Optional category filter
-  status: 'active',      // Optional status filter (default: 'active')
-  limit: 20,             // Optional result limit
+  category: 'spec',          // Optional category filter
+  status: 'active',          // Optional status filter (default: 'active')
+  hardCap: 50,               // Max results before adaptive filtering (default: 50)
+  elbowSensitivity: 1.5,     // Adaptive top-K sensitivity (default: 1.5)
+  minResults: 1,             // Minimum results to return (default: 1)
 });
 ```
 
-Uses FTS5 with BM25 ranking, snippet generation, and adaptive elbow detection for top-K result filtering.
+Uses FTS5 with BM25 ranking, snippet generation, and adaptive elbow detection for top-K result filtering. Throws `StorageError` if the FTS5 table has not been created (run schema migrations).
 
-**Search modes:**
-- `relevance` - FTS5 full-text search with BM25 ranking (default)
-- `semantic` - Embedding-based vector similarity search (requires embeddings)
-- `hybrid` - Reciprocal rank fusion of FTS5 + semantic results
+**Note:** Search mode (`relevance`, `semantic`, `hybrid`) is a route-level parameter, not an API parameter. The API method always performs FTS5 search. Semantic and hybrid modes are handled at the route/CLI layer via `EmbeddingService`.
 
 ### Search channels
 
@@ -329,14 +327,30 @@ const chart = await api.getOrgChart();
 ### Archive / Unarchive
 
 ```typescript
-// Archive a document (sets status to 'archived')
+// Convenience methods (verify document exists, throw NotFoundError if not)
 await api.archiveDocument(docId);
-
-// Unarchive a document (sets status back to 'active')
 await api.unarchiveDocument(docId);
+
+// Equivalent using update() directly
+await api.update(docId, { status: 'archived' });
+await api.update(docId, { status: 'active' });
 ```
 
 Archived documents are excluded from default list and search results.
+
+### Register Embedding Service
+
+```typescript
+import { EmbeddingService, LocalEmbeddingProvider } from '@elemental/sdk';
+
+const provider = new LocalEmbeddingProvider('/path/to/model');
+const embeddingService = new EmbeddingService(storage, { provider });
+
+// Register for auto-embedding on document create/update/delete
+api.registerEmbeddingService(embeddingService);
+```
+
+Once registered, documents are automatically embedded on create/update and removed on delete (fire-and-forget, best-effort).
 
 ---
 

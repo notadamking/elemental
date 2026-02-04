@@ -55,6 +55,7 @@ import {
   NotFoundError,
   ConflictError,
   ConstraintError,
+  StorageError,
   ValidationError,
   ErrorCode,
   ChannelTypeValue,
@@ -146,6 +147,7 @@ import {
   type SendDirectMessageResult,
 } from './types.js';
 import { applyAdaptiveTopK, escapeFts5Query } from '../services/search-utils.js';
+import type { EmbeddingService } from '../services/embeddings/service.js';
 
 // ============================================================================
 // Database Row Types
@@ -549,6 +551,8 @@ export class ElementalAPIImpl implements ElementalAPI {
   private priorityService: PriorityService;
   private syncService: SyncService;
   private inboxService: InboxService;
+  private embeddingService?: EmbeddingService;
+  private ftsAvailable: boolean | null = null;
 
   constructor(private backend: StorageBackend) {
     this.blockedCache = createBlockedCacheService(backend);
@@ -4139,6 +4143,59 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   // --------------------------------------------------------------------------
+  // Document Convenience Methods
+  // --------------------------------------------------------------------------
+
+  async archiveDocument(id: ElementId): Promise<Document> {
+    const doc = await this.get<Document>(id);
+    if (!doc || doc.type !== 'document') {
+      throw new NotFoundError(
+        `Document not found: ${id}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: id }
+      );
+    }
+    return this.update<Document>(id, { status: 'archived' } as Partial<Document>);
+  }
+
+  async unarchiveDocument(id: ElementId): Promise<Document> {
+    const doc = await this.get<Document>(id);
+    if (!doc || doc.type !== 'document') {
+      throw new NotFoundError(
+        `Document not found: ${id}`,
+        ErrorCode.NOT_FOUND,
+        { elementId: id }
+      );
+    }
+    return this.update<Document>(id, { status: 'active' } as Partial<Document>);
+  }
+
+  // --------------------------------------------------------------------------
+  // Embedding Service Registration
+  // --------------------------------------------------------------------------
+
+  registerEmbeddingService(service: EmbeddingService): void {
+    this.embeddingService = service;
+  }
+
+  // --------------------------------------------------------------------------
+  // FTS Availability Check
+  // --------------------------------------------------------------------------
+
+  private checkFTSAvailable(): boolean {
+    if (this.ftsAvailable !== null) return this.ftsAvailable;
+    try {
+      const row = this.backend.queryOne<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'documents_fts'`
+      );
+      this.ftsAvailable = !!row;
+    } catch {
+      this.ftsAvailable = false;
+    }
+    return this.ftsAvailable;
+  }
+
+  // --------------------------------------------------------------------------
   // FTS Index Maintenance
   // --------------------------------------------------------------------------
 
@@ -4147,6 +4204,7 @@ export class ElementalAPIImpl implements ElementalAPI {
    * Called after document creation and update.
    */
   private indexDocumentForFTS(doc: Document): void {
+    if (!this.checkFTSAvailable()) return;
     try {
       const title = (doc.metadata?.title as string) ?? '';
       // Remove existing entry first (idempotent)
@@ -4169,6 +4227,12 @@ export class ElementalAPIImpl implements ElementalAPI {
     } catch {
       // FTS indexing is best-effort — don't fail the operation if FTS table is unavailable
     }
+
+    // Auto-embed if embedding service is registered
+    if (this.embeddingService) {
+      const text = `${(doc.metadata?.title as string) ?? ''} ${doc.content}`.trim();
+      this.embeddingService.indexDocument(doc.id, text).catch(() => {});
+    }
   }
 
   /**
@@ -4176,6 +4240,7 @@ export class ElementalAPIImpl implements ElementalAPI {
    * Called on document deletion.
    */
   private removeDocumentFromFTS(docId: ElementId): void {
+    if (!this.checkFTSAvailable()) return;
     try {
       this.backend.run(
         `DELETE FROM documents_fts WHERE document_id = ?`,
@@ -4183,6 +4248,15 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     } catch {
       // Best-effort — don't fail the operation if FTS table is unavailable
+    }
+
+    // Remove embedding if embedding service is registered
+    if (this.embeddingService) {
+      try {
+        this.embeddingService.removeDocument(docId);
+      } catch {
+        // Best-effort
+      }
     }
   }
 
@@ -4198,6 +4272,14 @@ export class ElementalAPIImpl implements ElementalAPI {
       elbowSensitivity = 1.5,
       minResults = 1,
     } = options;
+
+    // Check FTS table availability
+    if (!this.checkFTSAvailable()) {
+      throw new StorageError(
+        'FTS5 search is unavailable: the documents_fts table does not exist. Run schema migrations to enable full-text search.',
+        ErrorCode.DATABASE_ERROR,
+      );
+    }
 
     const escaped = escapeFts5Query(query);
     if (!escaped) return [];
@@ -4268,8 +4350,12 @@ export class ElementalAPIImpl implements ElementalAPI {
       });
 
       return filtered.map((f) => f.item);
-    } catch {
-      // FTS5 table may not exist — fall back to empty results
+    } catch (error) {
+      // Re-throw typed errors (e.g., StorageError from FTS check)
+      if (error instanceof StorageError || error instanceof NotFoundError) {
+        throw error;
+      }
+      // Other errors (e.g., malformed query) — fall back to empty results
       return [];
     }
   }

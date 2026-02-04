@@ -34,6 +34,7 @@ import type {
   Team,
   WorkflowStatus,
 } from '@elemental/core';
+import type { EmbeddingService } from '../services/embeddings/service.js';
 
 // Re-export PlanProgress for API consumers
 export type { PlanProgress };
@@ -1135,6 +1136,32 @@ export interface ElementalAPI {
    * @returns Array of search results with scores and snippets
    */
   searchDocumentsFTS(query: string, options?: FTSSearchOptions): Promise<FTSSearchResult[]>;
+
+  /**
+   * Archive a document (sets status to 'archived').
+   *
+   * @param id - Document ID
+   * @returns The updated document
+   * @throws NotFoundError if document doesn't exist or element is not a document
+   */
+  archiveDocument(id: ElementId): Promise<Document>;
+
+  /**
+   * Unarchive a document (sets status back to 'active').
+   *
+   * @param id - Document ID
+   * @returns The updated document
+   * @throws NotFoundError if document doesn't exist or element is not a document
+   */
+  unarchiveDocument(id: ElementId): Promise<Document>;
+
+  /**
+   * Register an EmbeddingService for automatic document embedding on create/update/delete.
+   * This is opt-in: embeddings are only generated when a service is registered.
+   *
+   * @param service - The embedding service to use for auto-indexing
+   */
+  registerEmbeddingService(service: EmbeddingService): void;
 
   // --------------------------------------------------------------------------
   // History Operations

@@ -112,4 +112,46 @@ describe('reciprocalRankFusion', () => {
       expect(fused[i].score).toBeGreaterThanOrEqual(fused[i + 1].score);
     }
   });
+
+  test('handles k=0', () => {
+    const ranking: RankedResult[] = [
+      { documentId: 'a', rank: 1 },
+      { documentId: 'b', rank: 2 },
+    ];
+    // With k=0, score = 1/(0+rank), so rank 1 gets score 1.0
+    const fused = reciprocalRankFusion([ranking], 0);
+    expect(fused[0].documentId).toBe('a');
+    expect(fused[0].score).toBeCloseTo(1.0, 5);
+    expect(fused[1].score).toBeCloseTo(0.5, 5);
+  });
+
+  test('handles ties — same doc ranked #1 in both rankings', () => {
+    const ranking1: RankedResult[] = [
+      { documentId: 'a', rank: 1 },
+      { documentId: 'b', rank: 2 },
+    ];
+    const ranking2: RankedResult[] = [
+      { documentId: 'a', rank: 1 },
+      { documentId: 'c', rank: 2 },
+    ];
+    const fused = reciprocalRankFusion([ranking1, ranking2]);
+    // 'a' should have the highest score (appears as rank 1 in both)
+    expect(fused[0].documentId).toBe('a');
+    // Score for 'a' = 2 * 1/(60+1) ≈ 0.03279
+    expect(fused[0].score).toBeCloseTo(2 / 61, 5);
+  });
+
+  test('handles duplicate document IDs within one ranking', () => {
+    const ranking: RankedResult[] = [
+      { documentId: 'a', rank: 1 },
+      { documentId: 'a', rank: 2 },
+      { documentId: 'b', rank: 3 },
+    ];
+    const fused = reciprocalRankFusion([ranking]);
+    // 'a' should appear once with combined score
+    const aResults = fused.filter(r => r.documentId === 'a');
+    expect(aResults.length).toBe(1);
+    // Score for 'a' = 1/(60+1) + 1/(60+2) ≈ 0.01639 + 0.01613
+    expect(aResults[0].score).toBeCloseTo(1/61 + 1/62, 5);
+  });
 });

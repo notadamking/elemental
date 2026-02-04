@@ -362,11 +362,21 @@ interface EmbeddingProvider {
 }
 ```
 
+### Auto-Embedding via API Registration
+
+Register an `EmbeddingService` with the API to automatically embed documents on create/update and remove embeddings on delete:
+
+```typescript
+api.registerEmbeddingService(embeddingService);
+```
+
+Auto-embedding is fire-and-forget (best-effort). Failures are silently ignored to avoid blocking CRUD operations.
+
 ### LocalEmbeddingProvider
 
 File: `services/embeddings/local-provider.ts`
 
-Local embedding model provider. Install via `el embeddings install`.
+Local embedding model provider (768 dimensions). Install via `el embeddings install`.
 
 ### Reciprocal Rank Fusion
 

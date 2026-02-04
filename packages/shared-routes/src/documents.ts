@@ -150,9 +150,9 @@ export function createDocumentRoutes(services: CollaborateServices) {
         return c.json({ error: { code: 'VALIDATION_ERROR', message: `Invalid mode: ${mode}. Must be relevance, semantic, or hybrid` } }, 400);
       }
 
-      // Semantic and hybrid modes require embeddings service (not yet integrated at route level)
+      // Semantic and hybrid modes require a registered EmbeddingService (currently CLI-only)
       if (mode === 'semantic' || mode === 'hybrid') {
-        return c.json({ error: { code: 'VALIDATION_ERROR', message: `${mode} search requires embeddings to be installed. Use mode=relevance or install embeddings via 'el embeddings install'` } }, 400);
+        return c.json({ error: { code: 'NOT_IMPLEMENTED', message: `${mode} search requires a registered EmbeddingService. Use mode=relevance for FTS5 search, or install embeddings via 'el embeddings install' (CLI only).` } }, 501);
       }
 
       // Validate category if provided

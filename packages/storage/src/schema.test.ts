@@ -907,3 +907,110 @@ describe('Schema Management', () => {
     });
   });
 });
+
+// ============================================================================
+// Migration 7 & 8 Tests
+// ============================================================================
+
+describe('Migration 7 & 8', () => {
+  let backend: StorageBackend;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  it('migration 7 creates documents_fts virtual table', () => {
+    const row = backend.queryOne<{ name: string; type: string }>(
+      `SELECT name, type FROM sqlite_master WHERE name = 'documents_fts'`
+    );
+    expect(row).toBeDefined();
+    expect(row!.name).toBe('documents_fts');
+  });
+
+  it('migration 8 creates document_embeddings table', () => {
+    const row = backend.queryOne<{ name: string }>(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'document_embeddings'`
+    );
+    expect(row).toBeDefined();
+    expect(row!.name).toBe('document_embeddings');
+  });
+
+  it('document_embeddings has correct columns', () => {
+    const columns = backend.query<{ name: string; type: string; notnull: number; pk: number }>(
+      `PRAGMA table_info(document_embeddings)`
+    );
+    const colNames = columns.map(c => c.name);
+    expect(colNames).toContain('document_id');
+    expect(colNames).toContain('embedding');
+    expect(colNames).toContain('dimensions');
+    expect(colNames).toContain('provider');
+    expect(colNames).toContain('model');
+    expect(colNames).toContain('created_at');
+
+    // document_id is PK
+    const pkCol = columns.find(c => c.name === 'document_id');
+    expect(pkCol!.pk).toBe(1);
+  });
+
+  it('FTS5 table accepts INSERT and SELECT', () => {
+    backend.run(
+      `INSERT INTO documents_fts (document_id, title, content, tags, category) VALUES (?, ?, ?, ?, ?)`,
+      ['doc-1', 'Test Title', 'Test content for search', 'tag1 tag2', 'spec']
+    );
+
+    const results = backend.query<{ document_id: string }>(
+      `SELECT document_id FROM documents_fts WHERE documents_fts MATCH ?`,
+      ['"test"']
+    );
+    expect(results.length).toBe(1);
+    expect(results[0].document_id).toBe('doc-1');
+  });
+
+  it('FTS5 table supports BM25 ranking', () => {
+    backend.run(
+      `INSERT INTO documents_fts (document_id, title, content, tags, category) VALUES (?, ?, ?, ?, ?)`,
+      ['doc-1', 'Test', 'test test test', '', 'other']
+    );
+    backend.run(
+      `INSERT INTO documents_fts (document_id, title, content, tags, category) VALUES (?, ?, ?, ?, ?)`,
+      ['doc-2', 'Test', 'test', '', 'other']
+    );
+
+    const results = backend.query<{ document_id: string; score: number }>(
+      `SELECT document_id, bm25(documents_fts) as score FROM documents_fts WHERE documents_fts MATCH ? ORDER BY score`,
+      ['"test"']
+    );
+    expect(results.length).toBe(2);
+  });
+
+  it('document_embeddings supports INSERT and SELECT', () => {
+    // First insert a dummy element so FK constraint is satisfied
+    backend.run(
+      `INSERT INTO elements (id, type, data, created_at, updated_at, created_by)
+       VALUES ('doc-1', 'document', '{}', '2024-01-01', '2024-01-01', 'actor')`
+    );
+
+    const blob = Buffer.from(new Float32Array([0.1, 0.2, 0.3, 0.4]).buffer);
+    backend.run(
+      `INSERT INTO document_embeddings (document_id, embedding, dimensions, provider, model, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      ['doc-1', blob, 4, 'test-provider', 'test-model', '2024-01-01T00:00:00Z']
+    );
+
+    const row = backend.queryOne<{ document_id: string; dimensions: number; provider: string }>(
+      `SELECT document_id, dimensions, provider FROM document_embeddings WHERE document_id = ?`,
+      ['doc-1']
+    );
+    expect(row).toBeDefined();
+    expect(row!.document_id).toBe('doc-1');
+    expect(row!.dimensions).toBe(4);
+    expect(row!.provider).toBe('test-provider');
+  });
+});

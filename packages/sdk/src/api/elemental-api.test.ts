@@ -14,7 +14,7 @@ import { ElementalAPIImpl, createElementalAPI } from './elemental-api.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import type { StorageBackend } from '@elemental/storage';
 import type { Element, ElementId, EntityId, Timestamp, Task, HydratedTask, Document, DocumentId } from '@elemental/core';
-import { createTask, Priority, createDocument, ContentType, NotFoundError, ConstraintError, ConflictError } from '@elemental/core';
+import { createTask, Priority, createDocument, ContentType, NotFoundError, ConstraintError, ConflictError, StorageError } from '@elemental/core';
 
 // ============================================================================
 // Test Helpers
@@ -2152,5 +2152,218 @@ describe('Message Inbox Integration', () => {
       const mentionDeps = deps.filter(d => d.type === 'mentions');
       expect(mentionDeps.length).toBe(0);
     });
+  });
+});
+
+// ============================================================================
+// FTS5 Search Integration Tests
+// ============================================================================
+
+describe('FTS5 Search', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  it('should find documents matching content', async () => {
+    const doc = await createTestDocument({ content: 'The quick brown fox jumps over the lazy dog', contentType: ContentType.MARKDOWN });
+    const created = await api.create(toCreateInput(doc));
+
+    const results = await api.searchDocumentsFTS('fox');
+
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results.some(r => r.document.id === created.id)).toBe(true);
+  });
+
+  it('should return empty for no matches', async () => {
+    const doc = await createTestDocument({ content: 'Hello world document', contentType: ContentType.MARKDOWN });
+    await api.create(toCreateInput(doc));
+
+    const results = await api.searchDocumentsFTS('xylophone');
+
+    expect(results).toEqual([]);
+  });
+
+  it('should exclude archived docs by default (active status filter)', async () => {
+    const doc = await createTestDocument({ content: 'archivable content here', contentType: ContentType.MARKDOWN });
+    const created = await api.create(toCreateInput(doc));
+
+    await api.update(created.id, { status: 'archived' });
+
+    const results = await api.searchDocumentsFTS('archivable');
+
+    expect(results).toEqual([]);
+  });
+
+  it('should return archived docs with explicit status filter', async () => {
+    const doc = await createTestDocument({ content: 'archivable content here', contentType: ContentType.MARKDOWN });
+    const created = await api.create(toCreateInput(doc));
+
+    await api.update(created.id, { status: 'archived' });
+
+    const results = await api.searchDocumentsFTS('archivable', { status: 'archived' });
+
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results.some(r => r.document.id === created.id)).toBe(true);
+  });
+
+  it('should filter by category', async () => {
+    const specDoc = await createTestDocument({ content: 'specification details for filtering', contentType: ContentType.MARKDOWN, category: 'spec' });
+    const prdDoc = await createTestDocument({ content: 'product requirements details for filtering', contentType: ContentType.MARKDOWN, category: 'prd' });
+    const createdSpec = await api.create(toCreateInput(specDoc));
+    await api.create(toCreateInput(prdDoc));
+
+    const results = await api.searchDocumentsFTS('details', { category: 'spec' });
+
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results.every(r => r.document.id === createdSpec.id)).toBe(true);
+  });
+
+  it('should find document in FTS index immediately after create', async () => {
+    const doc = await createTestDocument({ content: 'uniqueword123 in this document', contentType: ContentType.MARKDOWN });
+    await api.create(toCreateInput(doc));
+
+    const results = await api.searchDocumentsFTS('uniqueword123');
+
+    expect(results.length).toBe(1);
+  });
+
+  it('should update FTS index when document content is updated', async () => {
+    const doc = await createTestDocument({ content: 'originalcontent placeholder', contentType: ContentType.MARKDOWN });
+    const created = await api.create(toCreateInput(doc));
+
+    await api.update(created.id, { content: 'replacementcontent placeholder' });
+
+    const newResults = await api.searchDocumentsFTS('replacementcontent');
+    expect(newResults.length).toBeGreaterThanOrEqual(1);
+    expect(newResults.some(r => r.document.id === created.id)).toBe(true);
+
+    const oldResults = await api.searchDocumentsFTS('originalcontent');
+    expect(oldResults).toEqual([]);
+  });
+
+  it('should remove FTS index entry when document is deleted', async () => {
+    const doc = await createTestDocument({ content: 'deletablesearchterm in doc', contentType: ContentType.MARKDOWN });
+    const created = await api.create(toCreateInput(doc));
+
+    await api.delete(created.id);
+
+    const results = await api.searchDocumentsFTS('deletablesearchterm');
+    expect(results).toEqual([]);
+  });
+
+  it('should throw StorageError when FTS table is unavailable', async () => {
+    const limitedBackend = createStorage({ path: ':memory:' });
+    const { MIGRATIONS } = await import('@elemental/storage');
+    for (const migration of MIGRATIONS.filter(m => m.version <= 6)) {
+      limitedBackend.exec(migration.up);
+      limitedBackend.setSchemaVersion(migration.version);
+    }
+    const limitedApi = new ElementalAPIImpl(limitedBackend);
+
+    expect(() => limitedApi.searchDocumentsFTS('test')).toThrow(StorageError);
+
+    limitedBackend.close();
+  });
+});
+
+// ============================================================================
+// Document Filtering Integration Tests
+// ============================================================================
+
+describe('Document Filtering', () => {
+  let backend: StorageBackend;
+  let api: ElementalAPIImpl;
+
+  beforeEach(() => {
+    backend = createStorage({ path: ':memory:' });
+    initializeSchema(backend);
+    api = new ElementalAPIImpl(backend);
+  });
+
+  afterEach(() => {
+    if (backend.isOpen) {
+      backend.close();
+    }
+  });
+
+  it('should filter documents by category', async () => {
+    const specDoc = await createTestDocument({ content: 'Spec document', contentType: ContentType.MARKDOWN, category: 'spec' });
+    const prdDoc = await createTestDocument({ content: 'PRD document', contentType: ContentType.MARKDOWN, category: 'prd' });
+    await api.create(toCreateInput(specDoc));
+    await api.create(toCreateInput(prdDoc));
+
+    const results = await api.list({ type: 'document', category: 'spec' });
+
+    expect(results.length).toBe(1);
+    expect((results[0] as any).category).toBe('spec');
+  });
+
+  it('should filter documents by status', async () => {
+    const doc1 = await createTestDocument({ content: 'Active document', contentType: ContentType.MARKDOWN });
+    const doc2 = await createTestDocument({ content: 'To be archived document', contentType: ContentType.MARKDOWN });
+    await api.create(toCreateInput(doc1));
+    const created2 = await api.create(toCreateInput(doc2));
+
+    await api.update(created2.id, { status: 'archived' });
+
+    const archivedResults = await api.list({ type: 'document', status: 'archived' });
+
+    expect(archivedResults.length).toBe(1);
+    expect(archivedResults[0].id).toBe(created2.id);
+  });
+
+  it('should default to active-only for documents', async () => {
+    const activeDoc = await createTestDocument({ content: 'Active doc content', contentType: ContentType.MARKDOWN });
+    const archivedDoc = await createTestDocument({ content: 'Archived doc content', contentType: ContentType.MARKDOWN });
+    const createdActive = await api.create(toCreateInput(activeDoc));
+    const createdArchived = await api.create(toCreateInput(archivedDoc));
+
+    await api.update(createdArchived.id, { status: 'archived' });
+
+    const results = await api.list({ type: 'document' });
+
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe(createdActive.id);
+  });
+
+  it('should archive a document via archiveDocument convenience method', async () => {
+    const doc = await createTestDocument({ content: 'Document to archive', contentType: ContentType.MARKDOWN });
+    const created = await api.create(toCreateInput(doc));
+
+    const archived = await api.archiveDocument(created.id);
+
+    expect((archived as any).status).toBe('archived');
+  });
+
+  it('should unarchive a document via unarchiveDocument convenience method', async () => {
+    const doc = await createTestDocument({ content: 'Document to unarchive', contentType: ContentType.MARKDOWN });
+    const created = await api.create(toCreateInput(doc));
+
+    await api.archiveDocument(created.id);
+    const unarchived = await api.unarchiveDocument(created.id);
+
+    expect((unarchived as any).status).toBe('active');
+  });
+
+  it('should throw NotFoundError when archiving non-existent document', async () => {
+    expect(() => api.archiveDocument('nonexistent-id' as any)).toThrow(NotFoundError);
+  });
+
+  it('should throw NotFoundError when archiving a non-document element', async () => {
+    const task = await createTestTask({ title: 'A task not a document' });
+    const createdTask = await api.create(toCreateInput(task));
+
+    expect(() => api.archiveDocument(createdTask.id)).toThrow(NotFoundError);
   });
 });
