@@ -105,7 +105,7 @@ type EntityType = 'agent' | 'human' | 'system';
 interface Message extends Element {
   type: 'message';
   senderId: EntityId;
-  channelId?: ChannelId;     // Must have channelId or threadId
+  channelId?: ChannelId;     // Must have channelId or threadId (mutable for channel merges)
   threadId?: MessageId;
   contentRef: DocumentId;    // Reference to content Document
 }
@@ -116,9 +116,10 @@ interface Message extends Element {
 - `isMessage(element)` - Type guard
 
 **Constraints:**
-- Messages are **immutable** after creation
+- Messages are **immutable** after creation (except `channelId`)
 - Content is stored as Document reference, not inline text
 - Must have either `channelId` or `threadId`
+- `channelId` is mutable (not readonly) to support channel merge operations
 
 ---
 
@@ -134,6 +135,7 @@ interface Document extends Element {
   contentType: ContentType;
   category: DocumentCategory; // Defaults to 'other'
   status: DocumentStatus;     // Defaults to 'active'
+  immutable: boolean;         // Defaults to false
   version: number;           // Starts at 1
   attachmentRefs?: DocumentId[];
 }
@@ -162,6 +164,9 @@ type DocumentStatus = 'active' | 'archived';
 - `category` and `status` are required fields (defaults applied at creation)
 - `task-description` and `message-content` are system-managed categories (set automatically)
 - Archived documents (`status: 'archived'`) are hidden from default list/search results
+- When `immutable` is true, `updateDocumentContent()` rejects content updates (throws `ConstraintError` with `IMMUTABLE` code)
+- Documents with `message-content` category are automatically set to `immutable: true`
+- For backward compatibility, a missing `immutable` field is treated as `false`
 
 ---
 
@@ -262,6 +267,7 @@ interface Channel extends Element {
   type: 'channel';
   name: string;
   channelType: ChannelType;
+  description: string | null;  // Plain string (unlike Task/Plan/Library which use descriptionRef)
   memberIds: EntityId[];
   visibility?: 'public' | 'private';
   joinPolicy?: 'open' | 'invite-only';
@@ -271,6 +277,8 @@ type ChannelType = 'direct' | 'group';
 ```
 
 **Direct channels:** Names are deterministic `[entityA:entityB]` (sorted alphabetically).
+
+**Note:** Channel uses a plain `description` string rather than a `descriptionRef` Document reference (as used by Task, Plan, and Library). As a result, `HydratedChannel` is simply a type alias for `Channel` since the description no longer requires hydration.
 
 ### Library
 

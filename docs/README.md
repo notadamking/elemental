@@ -179,6 +179,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details.
 | Handoff service | `runtime/handoff.ts` | `runtime/handoff.test.ts` |
 | Message mapper | `runtime/message-mapper.ts` | - |
 | Prompts | `prompts/index.ts` | - |
+| Message triage prompt | `prompts/message-triage.md` | - |
 | Worktree manager | `git/worktree-manager.ts` | `git/worktree-manager.test.ts` |
 
 ## File Map (Platform)

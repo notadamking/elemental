@@ -300,6 +300,33 @@ For persistent workers and directors:
 - Active session = forward message as user input
 - No active session = message waits
 
+### Triage Spawn
+
+The daemon can spawn triage sessions to evaluate and categorize incoming messages.
+
+```typescript
+// Process a batch of messages awaiting triage
+await daemon.processTriageBatch();
+
+// Spawn a single triage session for a specific message or context
+await daemon.spawnTriageSession(triageContext);
+
+// Build the prompt used by triage sessions
+const prompt = daemon.buildTriagePrompt(triageContext);
+```
+
+#### `processTriageBatch()`
+
+Polls for messages that need triage, groups them, and spawns triage sessions to evaluate them. Called automatically as part of the daemon's polling loops.
+
+#### `spawnTriageSession(context)`
+
+Spawns a headless agent session in a read-only worktree (see `WorktreeManager.createReadOnlyWorktree()`). The session receives the triage prompt and evaluates messages, then cleans up on exit.
+
+#### `buildTriagePrompt(context)`
+
+Constructs the prompt for a triage session using the `message-triage.md` prompt template. Includes the messages to evaluate and any relevant project context.
+
 ---
 
 ## StewardScheduler
@@ -466,3 +493,32 @@ await workerTaskService.completeCurrentTask(workerId, result);
 // Request help
 await workerTaskService.requestHelp(workerId, taskId, message);
 ```
+
+---
+
+## WorktreeManager
+
+**File:** `services/worktree-manager.ts`
+
+Manages Git worktree creation and cleanup for agent sessions.
+
+### createReadOnlyWorktree
+
+Creates a detached HEAD worktree on the default branch without creating a new branch. Used for triage sessions and other read-only operations where the agent needs repository access but should not make commits.
+
+```typescript
+import { createWorktreeManager } from '@elemental/orchestrator-sdk';
+
+const worktreeManager = createWorktreeManager(projectRoot);
+
+const worktreePath = await worktreeManager.createReadOnlyWorktree(agentName, purpose);
+// Returns path: .elemental/.worktrees/{agent-name}-{purpose}/
+```
+
+**Path pattern:** `.elemental/.worktrees/{agent-name}-{purpose}/`
+
+**Behavior:**
+- Checks out a detached HEAD at the tip of the default branch
+- Does not create a new Git branch (unlike standard worktree creation)
+- Suitable for triage sessions that only need to read the codebase
+- The worktree should be cleaned up when the session exits

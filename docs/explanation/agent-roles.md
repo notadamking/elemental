@@ -85,11 +85,13 @@ Workers are the implementers. Multiple Workers operate in parallel.
 - **Blocker Escalation** - Alert Director when stuck
 - **Quality** - Ensure work meets requirements
 - **Git Workflow** - Commit and push work with meaningful messages
+- **Spontaneous Observation** - Proactively report issues discovered while working (security vulnerabilities, code quality problems, performance concerns, architecture issues) by sending channel messages, without waiting to be asked
 
 ### Authority
 - Update tasks assigned to them
 - Create subtasks under assigned tasks
 - Send messages to Director and other Workers
+- Send spontaneous channel messages to report observed issues (security, quality, performance, architecture)
 - Request help via inbox
 
 ### What Workers Don't Do

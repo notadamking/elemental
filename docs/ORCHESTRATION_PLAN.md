@@ -7,6 +7,7 @@
 - [Agent Roles and Responsibilities](#agent-roles-and-responsibilities)
 - [End-to-End Automation Flow](#end-to-end-automation-flow)
 - [Dispatch Daemon Behavior](#dispatch-daemon-behavior)
+- [Message Triage](#message-triage)
 - [Worktree and Branch Management](#worktree-and-branch-management)
 - [Message Formats](#message-formats)
 - [Handoff Mechanism](#handoff-mechanism)
@@ -196,16 +197,15 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
 
 ### Inbox Polling
 
-**Purpose:** Deliver messages to agents and spawn sessions when needed.
+**Purpose:** Route messages and trigger agent sessions when needed.
 
 **Process for Ephemeral Workers and Stewards:**
 1. Poll for unread messages in inbox
 2. For each unread message:
-   - Check if agent has active session
-   - **If dispatch message AND no active session:** Spawn agent, send message
-   - **If NOT dispatch message AND active session:** Forward to session
-   - **If NOT dispatch message AND no active session:** Silently drop (mark as read)
-3. Mark all processed messages as read
+   - **Path 1 — Dispatch message:** Mark as read (task dispatch and session spawn are handled by Worker Availability Polling, not inbox polling)
+   - **Path 2 — Non-dispatch message:**
+     - **If agent has active session:** Leave unread (the active session will handle it; do NOT forward)
+     - **If agent is idle (no active session):** Leave unread to accumulate for triage batch (see [Message Triage](#message-triage))
 
 **Process for Persistent Workers and Directors:**
 1. Poll for unread messages in inbox
@@ -235,6 +235,31 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
 3. For each available steward:
    - Assign highest priority workflow task
    - Send dispatch message to steward's inbox
+
+---
+
+## Message Triage
+
+When an idle agent (no active session) has accumulated unread non-dispatch messages, the Dispatch Daemon spawns a **triage session** to process them.
+
+### Triage Spawn Lifecycle
+
+1. **Detection:** During inbox polling, non-dispatch messages for idle agents are left unread. When at least one such message exists, the agent becomes a triage candidate.
+2. **Task dispatch takes priority:** If unassigned tasks exist for the agent, triage is skipped for that cycle. Worker Availability Polling handles task dispatch first.
+3. **Grouping by channel:** Deferred messages are grouped by originating channel. Each triage session handles one channel batch.
+4. **Single-session constraint:** Only one triage session is spawned per agent per poll cycle. If the agent has deferred messages across multiple channels, the remaining channels are processed in subsequent poll cycles.
+5. **Session spawn:** A triage session is started for the agent with the selected channel batch.
+6. **Active session semantics:** The triage session counts as an active session for the agent. This prevents double-spawn (no additional triage or task sessions will be started while the triage session is running).
+
+### Worktree for Triage Sessions
+
+Triage sessions operate in a **temporary detached worktree** checked out on the repository's default branch. The worktree is cleaned up automatically when the triage session exits.
+
+### Interaction with Other Polling Loops
+
+- **Worker Availability Polling** runs before triage evaluation. If it dispatches a task and spawns a session, the agent is no longer idle and triage is deferred.
+- **Inbox Polling** leaves non-dispatch messages unread for idle agents specifically so triage can batch them.
+- **Subsequent cycles:** After a triage session completes and the agent becomes idle again, remaining channel batches are eligible for the next triage spawn.
 
 ---
 

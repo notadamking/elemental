@@ -28,6 +28,7 @@ import {
 import {
   createDocument,
   ContentType,
+  DocumentCategory,
   type DocumentId,
 } from '@elemental/core';
 import type { Channel } from '@elemental/core';
@@ -199,11 +200,13 @@ async function msgSendHandler(
       content = readFileSync(filePath, 'utf-8');
     }
 
-    // Create content document
+    // Create content document (immutable, categorized as message content)
     const contentDoc = await createDocument({
       content,
       contentType: ContentType.TEXT,
       createdBy: actor,
+      category: DocumentCategory.MESSAGE_CONTENT,
+      immutable: true,
     });
     const createdContentDoc = await api.create(contentDoc as unknown as Element & Record<string, unknown>);
 

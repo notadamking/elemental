@@ -233,13 +233,46 @@ el workflow gc --days 14
 
 | Command | Description |
 |---------|-------------|
-| `el channel create` | Create channel |
+| `el channel create` | Create channel (`--description, -D` to set description) |
 | `el channel list` | List channels |
 | `el channel join <id>` | Join channel |
 | `el channel leave <id>` | Leave channel |
 | `el channel members <id>` | List members |
 | `el channel add <ch> <entity>` | Add member |
 | `el channel remove <ch> <entity>` | Remove member |
+| `el channel merge` | Merge two channels |
+
+#### channel create
+
+| Option | Description |
+|--------|-------------|
+| `-D, --description <text>` | Plain string description for the channel |
+
+```bash
+el channel create --name general --description "General discussion"
+```
+
+#### channel merge
+
+Merge all messages from a source channel into a target channel. Both channels must be group channels. The source channel is archived after the merge.
+
+```bash
+el channel merge --source <id> --target <id> [--name <new-name>]
+```
+
+| Option | Description |
+|--------|-------------|
+| `-s, --source <id>` | Source channel ID (required) |
+| `-t, --target <id>` | Target channel ID (required) |
+| `-n, --name <new-name>` | Optional new name for the merged channel |
+
+```bash
+# Merge source into target
+el channel merge --source el-ch111 --target el-ch222
+
+# Merge and rename the target channel
+el channel merge -s el-ch111 -t el-ch222 --name "combined-channel"
+```
 
 ## Message Commands
 

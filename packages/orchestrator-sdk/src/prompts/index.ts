@@ -41,6 +41,7 @@ const PROMPT_FILES = {
   'steward-health': 'steward-health.md',
   'steward-ops': 'steward-ops.md',
   'steward-reminder': 'steward-reminder.md',
+  'message-triage': 'message-triage.md',
 } as const;
 
 // ============================================================================
@@ -168,6 +169,43 @@ export function loadRolePrompt(
   }
 
   const filename = PROMPT_FILES[role];
+
+  // Try project override first
+  if (projectRoot && !builtInOnly) {
+    const projectPath = getProjectPromptPath(projectRoot, filename);
+    const projectContent = loadPromptFile(projectPath);
+    if (projectContent) {
+      return {
+        prompt: projectContent,
+        source: projectPath,
+      };
+    }
+  }
+
+  // Fall back to built-in
+  const builtInPath = getBuiltInPromptPath(filename);
+  const builtInContent = loadPromptFile(builtInPath);
+  if (builtInContent) {
+    return {
+      prompt: builtInContent,
+      source: 'built-in',
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Loads the message triage prompt, checking for project-level overrides first.
+ *
+ * @param options - Loading options
+ * @returns The prompt result with content and source information
+ */
+export function loadTriagePrompt(
+  options: LoadPromptOptions = {}
+): RolePromptResult | undefined {
+  const { projectRoot, builtInOnly } = options;
+  const filename = PROMPT_FILES['message-triage'];
 
   // Try project override first
   if (projectRoot && !builtInOnly) {

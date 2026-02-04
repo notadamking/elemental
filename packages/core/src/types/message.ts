@@ -63,8 +63,8 @@ export interface Message extends Element {
   readonly type: typeof ElementType.MESSAGE;
 
   // Location
-  /** Channel containing this message */
-  readonly channelId: ChannelId;
+  /** Channel containing this message (mutable for channel merge operations) */
+  channelId: ChannelId;
 
   // Sender
   /** Entity that sent the message */

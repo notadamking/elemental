@@ -230,6 +230,18 @@ export interface WorktreeManager {
   createWorktree(options: CreateWorktreeOptions): Promise<CreateWorktreeResult>;
 
   /**
+   * Creates a read-only worktree detached on the default branch.
+   * Used for triage sessions that should not create new branches.
+   *
+   * @param options - Agent name and purpose for path generation
+   * @returns The created worktree result
+   */
+  createReadOnlyWorktree(options: {
+    agentName: string;
+    purpose: string;
+  }): Promise<CreateWorktreeResult>;
+
+  /**
    * Removes a worktree.
    *
    * @param worktreePath - Path to the worktree (relative or absolute)
@@ -463,6 +475,68 @@ export class WorktreeManagerImpl implements WorktreeManager {
       };
     } catch (error) {
       // Clean up on failure
+      this.worktreeStates.delete(relativePath);
+      if (fs.existsSync(fullPath)) {
+        try {
+          await this.execGit(['worktree', 'remove', '--force', fullPath]);
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Create a read-only (detached HEAD) worktree for triage sessions.
+   * Uses `git worktree add --detach` so no new branch is created.
+   */
+  async createReadOnlyWorktree(options: {
+    agentName: string;
+    purpose: string;
+  }): Promise<CreateWorktreeResult> {
+    this.ensureInitialized();
+
+    const relativePath = `.elemental/.worktrees/${options.agentName}-${options.purpose}`;
+    const fullPath = path.join(this.config.workspaceRoot, relativePath);
+
+    if (fs.existsSync(fullPath)) {
+      throw new WorktreeError(
+        `Worktree already exists at ${relativePath}`,
+        'WORKTREE_EXISTS'
+      );
+    }
+
+    this.worktreeStates.set(relativePath, 'creating');
+
+    try {
+      const baseBranch = await this.getDefaultBranch();
+      await this.execGit(['worktree', 'add', '--detach', fullPath, baseBranch]);
+
+      this.worktreeStates.set(relativePath, 'active');
+
+      const worktree = await this.getWorktree(relativePath);
+      if (!worktree) {
+        throw new WorktreeError(
+          'Failed to get worktree info after creation',
+          'WORKTREE_INFO_FAILED'
+        );
+      }
+
+      const enrichedWorktree: WorktreeInfo = {
+        ...worktree,
+        agentName: options.agentName,
+        createdAt: createTimestamp(),
+        state: 'active',
+      };
+
+      return {
+        worktree: enrichedWorktree,
+        branch: `(detached-${options.purpose})`,
+        path: fullPath,
+        branchCreated: false,
+      };
+    } catch (error) {
       this.worktreeStates.delete(relativePath);
       if (fs.existsSync(fullPath)) {
         try {

@@ -16,13 +16,14 @@ The prompts system provides:
 
 ```
 packages/orchestrator-sdk/src/prompts/
-├── index.ts           # Loading and composition API
-├── director.md        # Director role prompt
-├── worker.md          # Worker role prompt
-├── steward-base.md    # Base steward prompt
-├── steward-merge.md   # Merge focus addendum
-├── steward-health.md  # Health focus addendum
-├── steward-ops.md     # Ops focus addendum
+├── index.ts            # Loading and composition API
+├── director.md         # Director role prompt
+├── worker.md           # Worker role prompt
+├── message-triage.md   # Message triage prompt (used by triage sessions)
+├── steward-base.md     # Base steward prompt
+├── steward-merge.md    # Merge focus addendum
+├── steward-health.md   # Health focus addendum
+├── steward-ops.md      # Ops focus addendum
 └── steward-reminder.md # Reminder focus addendum
 ```
 
@@ -198,6 +199,24 @@ You are a {role} agent in the Elemental system.
 | `el ready` | List ready tasks |
 | `el close <id>` | Close task |
 ```
+
+## Notable Prompt Sections
+
+### message-triage.md
+
+Used by triage sessions spawned by the dispatch daemon. Provides instructions for evaluating incoming messages, categorizing them by urgency and type, and producing structured triage results. Triage sessions run in read-only worktrees and do not perform any task execution.
+
+### Worker Prompt: Proactive Communication
+
+The worker prompt (`worker.md`) includes a **Proactive Communication** section that instructs workers on when and how to proactively send status updates to the director. This covers situations such as reporting progress on long-running tasks, flagging potential blockers early, and communicating completion status.
+
+### Worker Prompt: Channel Discipline
+
+The worker prompt (`worker.md`) includes a **Channel Discipline** section that defines rules for which communication channels workers should use. Workers are instructed to keep task-related communication in the appropriate channels and avoid cross-posting or using incorrect channels for status updates, help requests, or task completion notifications.
+
+### Director Prompt: Channel Management
+
+The director prompt (`director.md`) includes a **Channel Management** section that provides the director with guidelines for managing communication channels across the team. This covers creating and organizing channels, routing messages to the correct recipients, and ensuring workers and stewards use appropriate channels for their communications.
 
 ## Integration with Spawner
 

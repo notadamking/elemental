@@ -95,6 +95,7 @@ function createAPI(options: GlobalOptions, createDb: boolean = false): { api: El
 
 interface ChannelCreateOptions {
   name?: string;
+  description?: string;
   type?: string;
   visibility?: string;
   policy?: string;
@@ -108,6 +109,12 @@ const channelCreateOptions: CommandOption[] = [
     name: 'name',
     short: 'n',
     description: 'Channel name (required for group channels)',
+    hasValue: true,
+  },
+  {
+    name: 'description',
+    short: 'D',
+    description: 'Channel description',
     hasValue: true,
   },
   {
@@ -184,6 +191,7 @@ async function channelCreateHandler(
         entityA: actor,
         entityB: options.direct as EntityId,
         createdBy: actor,
+        ...(options.description && { description: options.description }),
         ...(tags && { tags }),
       };
 
@@ -220,6 +228,7 @@ async function channelCreateHandler(
       const input: CreateGroupChannelInput = {
         name: options.name,
         createdBy: actor,
+        description: options.description ?? null,
         visibility,
         joinPolicy,
         ...(members && { members }),
@@ -251,6 +260,7 @@ const channelCreateCommand: Command = {
 
 Options:
   -n, --name <name>         Channel name (required for group)
+  -D, --description <desc>  Channel description
   -t, --type <type>         Type: group (default) or direct
   -V, --visibility <vis>    Visibility: public or private (default)
   -p, --policy <policy>     Join policy: open, invite-only (default), request
@@ -259,7 +269,7 @@ Options:
       --tag <tag>           Add tag (can be repeated)
 
 Examples:
-  el channel create --name general
+  el channel create --name general --description "General discussion"
   el channel create -n announcements -V public -p open
   el channel create --type direct --direct el-user123
   el channel create -n team -m el-user1 -m el-user2`,
@@ -502,15 +512,20 @@ async function channelListHandler(
     }
 
     // Build table
-    const headers = ['ID', 'NAME', 'TYPE', 'MEMBERS', 'VISIBILITY', 'CREATED'];
-    const rows = items.map((c) => [
-      c.id,
-      c.name.length > 25 ? c.name.substring(0, 22) + '...' : c.name,
-      c.channelType,
-      String(c.members.length),
-      c.permissions.visibility,
-      c.createdAt.split('T')[0],
-    ]);
+    const headers = ['ID', 'NAME', 'TYPE', 'MEMBERS', 'VISIBILITY', 'DESCRIPTION', 'CREATED'];
+    const rows = items.map((c) => {
+      const desc = c.description ?? '';
+      const truncDesc = desc.length > 30 ? desc.substring(0, 27) + '...' : desc;
+      return [
+        c.id,
+        c.name.length > 25 ? c.name.substring(0, 22) + '...' : c.name,
+        c.channelType,
+        String(c.members.length),
+        c.permissions.visibility,
+        truncDesc,
+        c.createdAt.split('T')[0],
+      ];
+    });
 
     const table = formatter.table(headers, rows);
     const summary = `\nShowing ${items.length} of ${result.total} channels`;
@@ -757,6 +772,79 @@ Examples:
 };
 
 // ============================================================================
+// Channel Merge Command
+// ============================================================================
+
+async function channelMergeHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const sourceId = (options as Record<string, unknown>).source as string | undefined;
+  const targetId = (options as Record<string, unknown>).target as string | undefined;
+  const newName = (options as Record<string, unknown>).name as string | undefined;
+
+  if (!sourceId || !targetId) {
+    return failure('Usage: el channel merge --source <id> --target <id> [--name <new-name>]', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const actor = resolveActor(options);
+    const result = await api.mergeChannels(
+      sourceId as ElementId,
+      targetId as ElementId,
+      { newName, actor }
+    );
+
+    return success(result, `Merged channel ${sourceId} into ${targetId} (${result.messagesMoved} messages moved)`);
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.message.includes('not found')) {
+        return failure(`Channel not found`, ExitCode.NOT_FOUND);
+      }
+      if (err.message.includes('not a group')) {
+        return failure('Only group channels can be merged', ExitCode.VALIDATION);
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to merge channels: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const channelMergeOptions: CommandOption[] = [
+  { name: 'source', short: 's', hasValue: true, description: 'Source channel ID (will be archived)', required: true },
+  { name: 'target', short: 't', hasValue: true, description: 'Target channel ID (will receive messages)', required: true },
+  { name: 'name', short: 'n', hasValue: true, description: 'Optional new name for the target channel' },
+];
+
+const channelMergeCommand: Command = {
+  name: 'merge',
+  description: 'Merge two group channels',
+  usage: 'el channel merge --source <id> --target <id> [--name <new-name>]',
+  options: channelMergeOptions,
+  help: `Merge a source channel into a target channel.
+
+All messages from the source channel are moved to the target channel.
+Members from both channels are combined. The source channel is archived.
+
+Only group channels can be merged. Direct channels are not supported.
+
+Options:
+  --source, -s    Source channel ID (will be archived after merge)
+  --target, -t    Target channel ID (will receive all messages and members)
+  --name, -n      Optional new name for the merged target channel
+
+Examples:
+  el channel merge --source el-abc123 --target el-def456
+  el channel merge -s el-abc123 -t el-def456 --name combined-channel`,
+  handler: channelMergeHandler as Command['handler'],
+};
+
+// ============================================================================
 // Channel Root Command
 // ============================================================================
 
@@ -777,6 +865,7 @@ Subcommands:
   members   List channel members
   add       Add a member to a channel
   remove    Remove a member from a channel
+  merge     Merge two group channels
 
 Examples:
   el channel create --name general
@@ -784,7 +873,8 @@ Examples:
   el channel join el-abc123
   el channel members el-abc123
   el channel add el-abc123 el-user456
-  el channel remove el-abc123 el-user456`,
+  el channel remove el-abc123 el-user456
+  el channel merge --source el-abc123 --target el-def456`,
   subcommands: {
     create: channelCreateCommand,
     join: channelJoinCommand,
@@ -793,6 +883,7 @@ Examples:
     members: channelMembersCommand,
     add: channelAddCommand,
     remove: channelRemoveCommand,
+    merge: channelMergeCommand,
   },
   handler: async (args, options): Promise<CommandResult> => {
     // Default to list if no subcommand

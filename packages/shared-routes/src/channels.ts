@@ -116,6 +116,7 @@ export function createChannelRoutes(services: CollaborateServices) {
         name?: string;
         createdBy: string;
         members?: string[];
+        description?: string | null;
         visibility?: Visibility;
         joinPolicy?: JoinPolicy;
         entityA?: string;
@@ -149,6 +150,7 @@ export function createChannelRoutes(services: CollaborateServices) {
           name: body.name,
           createdBy: body.createdBy as EntityId,
           members: body.members as EntityId[] | undefined,
+          description: body.description,
           visibility: body.visibility,
           joinPolicy: body.joinPolicy,
           tags: body.tags,
@@ -169,6 +171,7 @@ export function createChannelRoutes(services: CollaborateServices) {
           entityA: body.entityA as EntityId,
           entityB: body.entityB as EntityId,
           createdBy: body.createdBy as EntityId,
+          description: body.description,
           tags: body.tags,
           metadata: body.metadata,
         };
@@ -409,6 +412,43 @@ export function createChannelRoutes(services: CollaborateServices) {
       }
       console.error('[elemental] Failed to leave channel:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to leave channel' } }, 500);
+    }
+  });
+
+  // POST /api/channels/:id/merge - Merge another channel into this one
+  app.post('/api/channels/:id/merge', async (c) => {
+    try {
+      const targetId = c.req.param('id') as ElementId;
+      const body = (await c.req.json()) as {
+        sourceChannelId: string;
+        newName?: string;
+        actor: string;
+      };
+
+      if (!body.sourceChannelId || typeof body.sourceChannelId !== 'string') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'sourceChannelId is required' } }, 400);
+      }
+      if (!body.actor || typeof body.actor !== 'string') {
+        return c.json({ error: { code: 'VALIDATION_ERROR', message: 'actor is required' } }, 400);
+      }
+
+      const result = await api.mergeChannels(
+        body.sourceChannelId as ElementId,
+        targetId,
+        { newName: body.newName, actor: body.actor as EntityId }
+      );
+
+      return c.json(result);
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === 'NOT_FOUND') {
+        return c.json({ error: { code: 'NOT_FOUND', message: err.message || 'Channel not found' } }, 404);
+      }
+      if (err.code === 'IMMUTABLE') {
+        return c.json({ error: { code: 'FORBIDDEN', message: err.message || 'Cannot merge non-group channels' } }, 403);
+      }
+      console.error('[elemental] Failed to merge channels:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to merge channels' } }, 500);
     }
   });
 

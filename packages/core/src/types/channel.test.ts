@@ -27,8 +27,8 @@ import {
   validateChannelId,
   isValidMemberId,
   validateMemberId,
-  isValidDescriptionRef,
-  validateDescriptionRef,
+  isValidDescription,
+  validateDescription,
   isValidMembers,
   validateMembers,
   isValidModifyMembers,
@@ -72,7 +72,6 @@ import {
   validateDirectChannelConstraints,
 } from './channel.js';
 import { EntityId, ElementType, Timestamp } from './element.js';
-import { DocumentId } from './document.js';
 import { ValidationError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
 
@@ -87,7 +86,7 @@ function createTestChannel(overrides: Partial<Channel> = {}): Channel {
     tags: [],
     metadata: {},
     name: 'test-channel',
-    descriptionRef: null,
+    description: null,
     channelType: ChannelTypeValue.GROUP,
     members: ['el-user01' as EntityId, 'el-user02' as EntityId],
     permissions: {
@@ -109,7 +108,7 @@ function createTestDirectChannel(overrides: Partial<Channel> = {}): Channel {
     tags: [],
     metadata: {},
     name: 'el-user01:el-user02',
-    descriptionRef: null,
+    description: null,
     channelType: ChannelTypeValue.DIRECT,
     members: ['el-user01' as EntityId, 'el-user02' as EntityId],
     permissions: {
@@ -378,33 +377,35 @@ describe('validateMemberId', () => {
 // Description Ref Validation Tests
 // ============================================================================
 
-describe('isValidDescriptionRef', () => {
+describe('isValidDescription', () => {
   test('accepts null', () => {
-    expect(isValidDescriptionRef(null)).toBe(true);
+    expect(isValidDescription(null)).toBe(true);
   });
 
-  test('accepts valid document IDs', () => {
-    expect(isValidDescriptionRef('el-doc001')).toBe(true);
+  test('accepts valid strings', () => {
+    expect(isValidDescription('A channel description')).toBe(true);
+    expect(isValidDescription('')).toBe(true);
   });
 
-  test('rejects invalid document IDs', () => {
-    expect(isValidDescriptionRef('invalid')).toBe(false);
-    expect(isValidDescriptionRef('')).toBe(false);
+  test('rejects non-string, non-null values', () => {
+    expect(isValidDescription(123)).toBe(false);
+    expect(isValidDescription(undefined)).toBe(false);
+    expect(isValidDescription({})).toBe(false);
   });
 });
 
-describe('validateDescriptionRef', () => {
+describe('validateDescription', () => {
   test('returns null for null/undefined', () => {
-    expect(validateDescriptionRef(null)).toBe(null);
-    expect(validateDescriptionRef(undefined)).toBe(null);
+    expect(validateDescription(null)).toBe(null);
+    expect(validateDescription(undefined)).toBe(null);
   });
 
-  test('returns valid document ID', () => {
-    expect(validateDescriptionRef('el-doc001')).toBe('el-doc001' as DocumentId);
+  test('returns valid string', () => {
+    expect(validateDescription('A description')).toBe('A description');
   });
 
-  test('throws for invalid format', () => {
-    expect(() => validateDescriptionRef('invalid')).toThrow(ValidationError);
+  test('throws for non-string', () => {
+    expect(() => validateDescription(123)).toThrow(ValidationError);
   });
 });
 
@@ -531,7 +532,7 @@ describe('isChannel', () => {
   test('accepts channel with description', () => {
     expect(
       isChannel(
-        createTestChannel({ descriptionRef: 'el-doc001' as DocumentId })
+        createTestChannel({ description: 'A test channel description' })
       )
     ).toBe(true);
   });
@@ -756,10 +757,10 @@ describe('createGroupChannel', () => {
   test('creates channel with description', async () => {
     const channel = await createGroupChannel({
       ...validInput,
-      descriptionRef: 'el-doc001' as DocumentId,
+      description: 'A group channel description',
     });
 
-    expect(channel.descriptionRef).toBe('el-doc001' as DocumentId);
+    expect(channel.description).toBe('A group channel description');
   });
 
   test('creates channel with tags and metadata', async () => {
@@ -868,10 +869,10 @@ describe('createDirectChannel', () => {
   test('creates channel with description', async () => {
     const channel = await createDirectChannel({
       ...validInput,
-      descriptionRef: 'el-doc001' as DocumentId,
+      description: 'A direct channel description',
     });
 
-    expect(channel.descriptionRef).toBe('el-doc001' as DocumentId);
+    expect(channel.description).toBe('A direct channel description');
   });
 
   test('creates channel with tags and metadata', async () => {
@@ -1077,7 +1078,7 @@ describe('getMemberCount', () => {
 describe('hasDescription', () => {
   test('returns true when has description', () => {
     const channel = createTestChannel({
-      descriptionRef: 'el-doc001' as DocumentId,
+      description: 'A test description',
     });
     expect(hasDescription(channel)).toBe(true);
   });
@@ -1495,22 +1496,17 @@ describe('validateDirectChannelConstraints', () => {
 // ============================================================================
 
 describe('HydratedChannel', () => {
-  test('extends Channel with optional description field', () => {
-    const hydrated: HydratedChannel = {
-      ...createTestChannel(),
-      description: 'This is a test channel',
-    };
+  test('is an alias for Channel', () => {
+    const channel: HydratedChannel = createTestChannel({ description: 'A test channel' });
 
-    expect(hydrated.description).toBe('This is a test channel');
-    expect(isChannel(hydrated)).toBe(true);
+    expect(channel.description).toBe('A test channel');
+    expect(isChannel(channel)).toBe(true);
   });
 
-  test('allows undefined hydrated field', () => {
-    const hydrated: HydratedChannel = {
-      ...createTestChannel(),
-    };
+  test('description defaults to null', () => {
+    const channel: HydratedChannel = createTestChannel();
 
-    expect(hydrated.description).toBeUndefined();
+    expect(channel.description).toBe(null);
   });
 });
 
@@ -1546,7 +1542,7 @@ describe('Edge cases', () => {
       name: 'test-channel',
       createdBy: 'el-user01' as EntityId,
       members: ['el-user02' as EntityId, 'el-user03' as EntityId],
-      descriptionRef: 'el-doc001' as DocumentId,
+      description: 'A channel description',
       visibility: VisibilityValue.PUBLIC,
       joinPolicy: JoinPolicyValue.OPEN,
       tags: ['important'],

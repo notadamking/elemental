@@ -64,6 +64,10 @@ Common pitfalls and their solutions, organized by severity and category.
 - Must have either `channelId` or `threadId`
 - Content is stored as `DocumentId` reference (`contentRef`), not inline
 
+## Channels
+
+- **Channel uses plain `description: string | null`, not `descriptionRef: DocumentId | null`** like Task, Plan, and Library. This means channel descriptions don't need hydration.
+
 ## Direct Channels
 
 - Direct channel names are deterministic: `[entityA:entityB]` sorted alphabetically

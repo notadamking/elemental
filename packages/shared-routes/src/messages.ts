@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import type { ElementId, EntityId, Channel, Message, Element, CreateMessageInput } from '@elemental/core';
-import { createDocument, createMessage } from '@elemental/core';
+import { createDocument, createMessage, DocumentCategory } from '@elemental/core';
 import type { CollaborateServicesWithBroadcast } from './types.js';
 
 export function createMessageRoutes(services: CollaborateServicesWithBroadcast) {
@@ -57,6 +57,8 @@ export function createMessageRoutes(services: CollaborateServicesWithBroadcast) 
         contentType: 'text',
         content: body.content,
         createdBy: body.sender as EntityId,
+        category: DocumentCategory.MESSAGE_CONTENT,
+        immutable: true,
       });
       const createdDoc = await api.create(contentDoc as unknown as Element & Record<string, unknown>);
 

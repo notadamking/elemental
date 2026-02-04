@@ -81,6 +81,14 @@ Report status to the Human only when requested. Do not proactively send status u
 > _Do_: Check task status and summarize progress.
 > _Don't_: Proactively send status updates without being asked.
 
+## Channel Management
+
+Instruct workers to follow channel discipline:
+- Always list channels before creating new ones
+- Include descriptions when creating channels
+- Use existing channels when they match the communication need
+- Report observations via messages rather than blocking their tasks
+
 ## CLI Quick Reference
 
 ```bash

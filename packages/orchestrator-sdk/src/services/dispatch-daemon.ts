@@ -25,9 +25,11 @@ import type {
   Task,
   Message,
   InboxItem,
+  Document,
 } from '@elemental/core';
 import { InboxStatus, createTimestamp, TaskStatus } from '@elemental/core';
 import type { ElementalAPI, InboxService } from '@elemental/sdk';
+import { loadTriagePrompt } from '../prompts/index.js';
 
 import type { AgentRegistry, AgentEntity } from './agent-registry.js';
 import { getAgentMetadata } from './agent-registry.js';
@@ -411,6 +413,9 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     this.emitter.emit('poll:start', 'inbox');
 
+    // Accumulate deferred items per agent for triage processing
+    const deferredItems = new Map<string, { agent: AgentEntity; items: InboxItem[] }>();
+
     try {
       // Get all agents
       const agents = await this.agentRegistry.listAgents();
@@ -432,6 +437,16 @@ export class DispatchDaemonImpl implements DispatchDaemon {
               const messageProcessed = await this.processInboxItem(agent, item, meta);
               if (messageProcessed) {
                 processed++;
+              } else {
+                // Item was not processed (deferred for triage)
+                // Check if agent has no active session (idle) — eligible for triage
+                const activeSession = this.sessionManager.getActiveSession(agentId);
+                if (!activeSession) {
+                  if (!deferredItems.has(agentId)) {
+                    deferredItems.set(agentId, { agent, items: [] });
+                  }
+                  deferredItems.get(agentId)!.items.push(item);
+                }
               }
             } catch (error) {
               errors++;
@@ -444,6 +459,12 @@ export class DispatchDaemonImpl implements DispatchDaemon {
           const errorMessage = error instanceof Error ? error.message : String(error);
           errorMessages.push(`Agent ${agent.name}: ${errorMessage}`);
         }
+      }
+
+      // Process triage batches for idle agents with deferred messages
+      if (deferredItems.size > 0) {
+        const triageResult = await this.processTriageBatch(deferredItems);
+        processed += triageResult;
       }
     } catch (error) {
       errors++;
@@ -614,6 +635,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   on(event: 'task:dispatched', listener: (taskId: ElementId, agentId: EntityId) => void): void;
   on(event: 'message:forwarded', listener: (messageId: string, agentId: EntityId) => void): void;
   on(event: 'agent:spawned', listener: (agentId: EntityId, worktree?: string) => void): void;
+  on(event: 'agent:triage-spawned', listener: (agentId: EntityId, channelId: string, worktree: string) => void): void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on(event: string, listener: (...args: any[]) => void): void {
     this.emitter.on(event, listener);
@@ -885,60 +907,35 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   }
 
   /**
-   * Process message for ephemeral workers and stewards.
-   * - Dispatch message + no session -> spawn agent in worktree
-   * - Non-dispatch + in session -> forward as user input
-   * - Non-dispatch + no session -> mark read, drop silently
+   * Two-path model for ephemeral worker messages:
+   * 1. Dispatch message → mark as read (task dispatch handled by pollWorkerAvailability)
+   * 2. Non-dispatch message → leave unread if active session (don't forward/interrupt),
+   *    or accumulate as deferred item for triage if idle
+   *
+   * Returns { processed: boolean, deferredItem?: ... } so pollInboxes can batch triage.
    */
   private async processEphemeralWorkerMessage(
-    agent: AgentEntity,
-    message: Message,
+    _agent: AgentEntity,
+    _message: Message,
     item: InboxItem,
     activeSession: SessionRecord | undefined,
     isDispatchMessage: boolean
   ): Promise<boolean> {
-    const agentId = agent.id as unknown as EntityId;
-
-    if (isDispatchMessage && !activeSession) {
-      // Dispatch message + no session -> spawn agent
-      // The task dispatch should have already been handled by pollWorkerAvailability
-      // Just mark as read
+    if (isDispatchMessage) {
+      // Dispatch message → mark as read (spawn handled elsewhere)
       this.inboxService.markAsRead(item.id);
       return true;
     }
 
-    if (!isDispatchMessage && activeSession) {
-      // Non-dispatch + in session -> forward as user input
-      const forwardedContent = this.formatForwardedMessage(message);
-      await this.sessionManager.messageSession(activeSession.id, {
-        content: forwardedContent,
-        senderId: message.sender,
-      });
-
-      this.inboxService.markAsRead(item.id);
-      this.emitter.emit('message:forwarded', message.id, agentId);
-      return true;
-    }
-
-    if (!isDispatchMessage && !activeSession) {
-      // Non-dispatch + no session -> mark read, drop silently
-      this.inboxService.markAsRead(item.id);
+    // Non-dispatch message:
+    if (activeSession) {
+      // Agent is busy → leave message unread for next poll cycle
+      // Do NOT forward to active session (keeps task-focused sessions uninterrupted)
       return false;
     }
 
-    // isDispatchMessage && activeSession -> forward as user input
-    if (isDispatchMessage && activeSession) {
-      const forwardedContent = this.formatForwardedMessage(message);
-      await this.sessionManager.messageSession(activeSession.id, {
-        content: forwardedContent,
-        senderId: message.sender,
-      });
-
-      this.inboxService.markAsRead(item.id);
-      this.emitter.emit('message:forwarded', message.id, agentId);
-      return true;
-    }
-
+    // Agent is idle → leave unread, will be picked up by triage batch
+    // The caller (pollInboxes) accumulates these for processTriageBatch
     return false;
   }
 
@@ -970,6 +967,179 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     // No session -> leave message unread for next session
     return false;
+  }
+
+  /**
+   * Processes deferred inbox items for idle agents by spawning triage sessions.
+   *
+   * Groups items by agentId then channelId. For each agent:
+   * - Skips if agent now has an active session (messages stay unread for next cycle)
+   * - Skips if agent has unassigned tasks (task dispatch takes priority)
+   * - Spawns triage session for the first channel group only (single-session constraint)
+   * - Marks those items as read
+   *
+   * @returns Number of items processed
+   */
+  private async processTriageBatch(
+    deferredItems: Map<string, { agent: AgentEntity; items: InboxItem[] }>
+  ): Promise<number> {
+    let processed = 0;
+
+    for (const [agentId, { agent, items }] of deferredItems) {
+      // Re-check: agent may have had a session started by task dispatch
+      const activeSession = this.sessionManager.getActiveSession(agentId as unknown as EntityId);
+      if (activeSession) {
+        // Agent is now busy — leave messages unread for next cycle
+        continue;
+      }
+
+      // Check for unassigned tasks — task dispatch takes priority over triage
+      const unassignedTasks = await this.taskAssignment.getUnassignedTasks({
+        taskStatus: [TaskStatus.OPEN],
+      });
+      if (unassignedTasks.length > 0) {
+        // Tasks waiting to be dispatched — skip triage this cycle
+        continue;
+      }
+
+      // Group items by channelId
+      const byChannel = new Map<string, InboxItem[]>();
+      for (const item of items) {
+        const channelKey = String(item.channelId);
+        if (!byChannel.has(channelKey)) {
+          byChannel.set(channelKey, []);
+        }
+        byChannel.get(channelKey)!.push(item);
+      }
+
+      // Spawn triage for the first channel group only (single-session constraint)
+      const [channelId, channelItems] = byChannel.entries().next().value as [string, InboxItem[]];
+
+      try {
+        await this.spawnTriageSession(agent, channelItems, channelId);
+
+        // Mark processed items as read
+        for (const item of channelItems) {
+          this.inboxService.markAsRead(item.id);
+        }
+
+        processed += channelItems.length;
+      } catch (error) {
+        console.error(
+          `[dispatch-daemon] Failed to spawn triage session for agent ${agent.name}:`,
+          error
+        );
+      }
+
+      // Only one triage session per poll cycle per agent — remaining channels
+      // will be picked up in subsequent cycles
+    }
+
+    return processed;
+  }
+
+  /**
+   * Spawns a triage session for an agent to process deferred messages.
+   *
+   * Creates a read-only worktree on the default branch, builds the triage prompt
+   * with hydrated message contents, starts a headless session, and registers
+   * worktree cleanup on session exit.
+   */
+  private async spawnTriageSession(
+    agent: AgentEntity,
+    items: InboxItem[],
+    channelId: string
+  ): Promise<void> {
+    const agentId = agent.id as unknown as EntityId;
+
+    // Create a read-only worktree (detached HEAD on default branch)
+    const worktreeResult = await this.worktreeManager.createReadOnlyWorktree({
+      agentName: agent.name,
+      purpose: 'triage',
+    });
+
+    // Fetch messages and build the triage prompt
+    const messages: Message[] = [];
+    for (const item of items) {
+      const message = await this.api.get<Message>(item.messageId as unknown as ElementId);
+      if (message) {
+        messages.push(message);
+      }
+    }
+
+    const initialPrompt = await this.buildTriagePrompt(agent, messages, channelId);
+
+    // Start a headless session in the read-only worktree
+    const { session, events } = await this.sessionManager.startSession(agentId, {
+      workingDirectory: worktreeResult.path,
+      worktree: worktreeResult.path,
+      initialPrompt,
+      interactive: false,
+    });
+
+    // Call the onSessionStarted callback if provided
+    if (this.config.onSessionStarted) {
+      this.config.onSessionStarted(session, events, agentId, initialPrompt);
+    }
+
+    // Register worktree cleanup on session exit
+    events.on('session:exit', async () => {
+      try {
+        await this.worktreeManager.removeWorktree(worktreeResult.path);
+      } catch {
+        // Ignore cleanup errors — worktree may already be removed
+      }
+    });
+
+    this.emitter.emit('agent:triage-spawned', agentId, channelId, worktreeResult.path);
+  }
+
+  /**
+   * Builds the triage prompt by loading the message-triage template and
+   * hydrating it with the actual message contents.
+   */
+  private async buildTriagePrompt(
+    agent: AgentEntity,
+    messages: Message[],
+    channelId: string
+  ): Promise<string> {
+    // Load the triage prompt template
+    const triageResult = loadTriagePrompt();
+    if (!triageResult) {
+      throw new Error('Failed to load message-triage prompt template');
+    }
+
+    // Hydrate each message's content
+    const formattedMessages: string[] = [];
+    for (const message of messages) {
+      const senderId = message.sender ?? 'unknown';
+      const timestamp = message.createdAt ?? 'unknown';
+
+      // Fetch content document if contentRef is available
+      let content = '[No content available]';
+      if (message.contentRef) {
+        try {
+          const doc = await this.api.get<Document>(message.contentRef as unknown as ElementId);
+          if (doc?.content) {
+            content = doc.content;
+          }
+        } catch {
+          // Content fetch failed — use placeholder
+        }
+      }
+
+      formattedMessages.push(
+        `--- Message from ${senderId} at ${timestamp} ---`,
+        content,
+        ''
+      );
+    }
+
+    // Replace the {{MESSAGES}} placeholder with hydrated content
+    const messagesBlock = formattedMessages.join('\n');
+    const prompt = triageResult.prompt.replace('{{MESSAGES}}', messagesBlock);
+
+    return `${prompt}\n\n---\n\n**Channel:** ${channelId}\n**Agent:** ${agent.name}\n**Message count:** ${messages.length}`;
   }
 
   /**

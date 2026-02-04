@@ -18,7 +18,6 @@ import {
   validateMetadata,
 } from './element.js';
 import { generateId, type IdGeneratorConfig } from '../id/generator.js';
-import { DocumentId } from './document.js';
 
 // ============================================================================
 // Channel Type Definitions
@@ -117,8 +116,8 @@ export interface Channel extends Element {
   // Content
   /** Channel name (unique constraints vary by type) */
   readonly name: string;
-  /** Reference to description Document (optional) */
-  readonly descriptionRef: DocumentId | null;
+  /** Channel description (optional) */
+  readonly description: string | null;
 
   // Channel Type
   /** Direct (1:1) or Group channel */
@@ -134,12 +133,9 @@ export interface Channel extends Element {
 }
 
 /**
- * Channel with hydrated document references
+ * Channel with hydrated document references (kept as alias for backward compat)
  */
-export interface HydratedChannel extends Channel {
-  /** Hydrated description Document content */
-  description?: string;
-}
+export type HydratedChannel = Channel;
 
 // ============================================================================
 // Validation Functions
@@ -338,43 +334,32 @@ export function validateMemberId(value: unknown, field: string): EntityId {
 }
 
 /**
- * Validates a document ID format (for descriptionRef)
+ * Validates a description value
  */
-export function isValidDescriptionRef(value: unknown): value is DocumentId | null {
+export function isValidDescription(value: unknown): value is string | null {
   if (value === null) {
     return true;
   }
-  if (typeof value !== 'string') {
-    return false;
-  }
-  return /^el-[0-9a-z]{3,8}$/.test(value);
+  return typeof value === 'string';
 }
 
 /**
- * Validates description ref and throws if invalid
+ * Validates description and throws if invalid
  */
-export function validateDescriptionRef(value: unknown): DocumentId | null {
+export function validateDescription(value: unknown): string | null {
   if (value === null || value === undefined) {
     return null;
   }
 
   if (typeof value !== 'string') {
     throw new ValidationError(
-      'Description reference must be a string or null',
-      ErrorCode.INVALID_ID,
-      { field: 'descriptionRef', value, expected: 'string or null' }
+      'Description must be a string or null',
+      ErrorCode.INVALID_INPUT,
+      { field: 'description', value, expected: 'string or null' }
     );
   }
 
-  if (!/^el-[0-9a-z]{3,8}$/.test(value)) {
-    throw new ValidationError(
-      'Description reference has invalid format',
-      ErrorCode.INVALID_ID,
-      { field: 'descriptionRef', value, expected: 'el-{3-8 base36 chars}' }
-    );
-  }
-
-  return value as DocumentId;
+  return value;
 }
 
 /**
@@ -503,7 +488,7 @@ export function isChannel(value: unknown): value is Channel {
 
   // Check channel-specific properties
   if (!isValidChannelName(obj.name)) return false;
-  if (!isValidDescriptionRef(obj.descriptionRef)) return false;
+  if (!isValidDescription(obj.description)) return false;
   if (!isValidChannelType(obj.channelType)) return false;
   if (!isValidMembers(obj.members)) return false;
   if (!isValidChannelPermissions(obj.permissions)) return false;
@@ -598,7 +583,7 @@ export function validateChannel(value: unknown): Channel {
 
   // Validate channel-specific fields
   validateChannelName(obj.name);
-  validateDescriptionRef(obj.descriptionRef);
+  validateDescription(obj.description);
   validateChannelType(obj.channelType);
   validateMembers(obj.members);
   validateChannelPermissions(obj.permissions);
@@ -659,8 +644,8 @@ export interface CreateGroupChannelInput {
   createdBy: EntityId;
   /** Initial members (creator automatically included) */
   members?: EntityId[];
-  /** Optional: Reference to description Document */
-  descriptionRef?: DocumentId | null;
+  /** Optional: Channel description */
+  description?: string | null;
   /** Optional: Channel visibility */
   visibility?: Visibility;
   /** Optional: Join policy */
@@ -701,8 +686,8 @@ export async function createGroupChannel(
     );
   }
 
-  // Validate description ref
-  const descriptionRef = validateDescriptionRef(input.descriptionRef ?? null);
+  // Validate description
+  const description = validateDescription(input.description ?? null);
 
   // Build permissions
   const visibility = input.visibility ? validateVisibility(input.visibility) : VisibilityValue.PRIVATE;
@@ -742,7 +727,7 @@ export async function createGroupChannel(
     tags,
     metadata,
     name,
-    descriptionRef,
+    description,
     channelType: ChannelTypeValue.GROUP,
     members,
     permissions,
@@ -765,8 +750,8 @@ export interface CreateDirectChannelInput {
   entityAName?: string;
   /** Optional: Display name for second entity (used for channel name) */
   entityBName?: string;
-  /** Optional: Reference to description Document */
-  descriptionRef?: DocumentId | null;
+  /** Optional: Channel description */
+  description?: string | null;
   /** Optional: tags */
   tags?: string[];
   /** Optional: metadata */
@@ -818,8 +803,8 @@ export async function createDirectChannel(
   // Build members (sorted for consistency)
   const members = [entityA, entityB].sort() as EntityId[];
 
-  // Validate description ref
-  const descriptionRef = validateDescriptionRef(input.descriptionRef ?? null);
+  // Validate description
+  const description = validateDescription(input.description ?? null);
 
   // Direct channels have fixed permissions
   const permissions: ChannelPermissions = {
@@ -850,7 +835,7 @@ export async function createDirectChannel(
     tags,
     metadata,
     name,
-    descriptionRef,
+    description,
     channelType: ChannelTypeValue.DIRECT,
     members,
     permissions,
@@ -979,7 +964,7 @@ export function getMemberCount(channel: Channel): number {
  * Checks if a channel has a description
  */
 export function hasDescription(channel: Channel): boolean {
-  return channel.descriptionRef !== null;
+  return channel.description !== null;
 }
 
 /**

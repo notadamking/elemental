@@ -24,13 +24,14 @@ const spawner = createSpawnerService({
 
 | Mode | Use Case | Communication |
 |------|----------|---------------|
-| `headless` | Ephemeral workers, stewards | Stream-JSON over stdin/stdout |
+| `headless` | Ephemeral workers, stewards, triage sessions | Stream-JSON over stdin/stdout |
 | `interactive` | Directors, persistent workers | PTY (node-pty) for terminal |
 
 **Defaults:**
 - Directors → `interactive`
 - Workers → `headless` (override with `mode: 'interactive'` for persistent)
 - Stewards → `headless`
+- Triage sessions → `headless`
 
 ### Spawning Headless Agents
 
@@ -117,6 +118,26 @@ const events = spawner.getEventEmitter(sessionId);
 | `suspended` | Paused for resume | running, terminated |
 | `terminating` | Shutting down | terminated |
 | `terminated` | Process ended | (none) |
+
+### Triage Sessions
+
+Triage sessions are a specialized session type used by the dispatch daemon to evaluate and categorize incoming messages. They differ from standard agent sessions:
+
+| Property | Triage Session | Standard Session |
+|----------|---------------|-----------------|
+| **Mode** | `headless` | `headless` or `interactive` |
+| **Worktree** | Read-only (detached HEAD, no branch) | Standard (dedicated branch) |
+| **Lifecycle** | Spawned on demand, cleanup on exit | Managed by session manager |
+| **Purpose** | Evaluate/categorize messages | Execute tasks |
+
+**Lifecycle:**
+1. Dispatch daemon identifies messages needing triage
+2. A read-only worktree is created via `WorktreeManager.createReadOnlyWorktree()`
+3. A headless session is spawned with the triage prompt (`message-triage.md`)
+4. The session evaluates messages and produces categorization results
+5. On exit, the read-only worktree is cleaned up automatically
+
+Triage sessions do not create branches, do not make commits, and are not resumable.
 
 ### Stream-JSON Events (Headless)
 

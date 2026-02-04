@@ -40,7 +40,7 @@ import {
   getMigrationDescription,
 } from './document.js';
 import { ElementId, EntityId, ElementType, Timestamp } from './element.js';
-import { ValidationError } from '../errors/error.js';
+import { ValidationError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
 
 // Helper to create a valid document for testing
@@ -59,6 +59,7 @@ function createTestDocument(overrides: Partial<Document> = {}): Document {
     previousVersionId: null,
     category: DocumentCategory.OTHER,
     status: DocumentStatus.ACTIVE,
+    immutable: false,
     ...overrides,
   };
 }
@@ -555,6 +556,23 @@ describe('isDocument', () => {
       expect(isDocument(createTestDocument({ status }))).toBe(true);
     }
   });
+
+  test('accepts documents with immutable true or false', () => {
+    expect(isDocument(createTestDocument({ immutable: false }))).toBe(true);
+    expect(isDocument(createTestDocument({ immutable: true }))).toBe(true);
+  });
+
+  test('accepts documents with missing immutable (backward compat)', () => {
+    const doc = { ...createTestDocument() };
+    delete (doc as any).immutable;
+    expect(isDocument(doc)).toBe(true);
+  });
+
+  test('rejects documents with non-boolean immutable', () => {
+    expect(isDocument({ ...createTestDocument(), immutable: 'true' })).toBe(false);
+    expect(isDocument({ ...createTestDocument(), immutable: 1 })).toBe(false);
+    expect(isDocument({ ...createTestDocument(), immutable: null })).toBe(false);
+  });
 });
 
 // ============================================================================
@@ -591,6 +609,19 @@ describe('validateDocument', () => {
       validateDocument({ ...createTestDocument(), type: 'task' });
     } catch (e) {
       expect((e as ValidationError).details.expected).toBe('document');
+    }
+  });
+
+  test('throws for non-boolean immutable', () => {
+    expect(() =>
+      validateDocument({ ...createTestDocument(), immutable: 'true' })
+    ).toThrow(ValidationError);
+    try {
+      validateDocument({ ...createTestDocument(), immutable: 42 });
+    } catch (e) {
+      const err = e as ValidationError;
+      expect(err.code).toBe(ErrorCode.INVALID_INPUT);
+      expect(err.details.field).toBe('immutable');
     }
   });
 
@@ -711,6 +742,16 @@ describe('createDocument', () => {
     expect(doc.content).toBe('');
   });
 
+  test('defaults immutable to false', async () => {
+    const doc = await createDocument(validInput);
+    expect(doc.immutable).toBe(false);
+  });
+
+  test('creates document with explicit immutable true', async () => {
+    const doc = await createDocument({ ...validInput, immutable: true });
+    expect(doc.immutable).toBe(true);
+  });
+
   test('defaults category to other', async () => {
     const doc = await createDocument(validInput);
     expect(doc.category).toBe(DocumentCategory.OTHER);
@@ -825,6 +866,26 @@ describe('updateDocumentContent', () => {
     expect(() =>
       updateDocumentContent(original, { content: '{invalid}' })
     ).toThrow(ValidationError);
+  });
+
+  test('rejects update of immutable document', () => {
+    const original = createTestDocument({ immutable: true });
+
+    expect(() =>
+      updateDocumentContent(original, { content: 'New content' })
+    ).toThrow(ConstraintError);
+    try {
+      updateDocumentContent(original, { content: 'New content' });
+    } catch (e) {
+      const err = e as ConstraintError;
+      expect(err.code).toBe(ErrorCode.IMMUTABLE);
+    }
+  });
+
+  test('allows update of mutable document', () => {
+    const original = createTestDocument({ immutable: false });
+    const updated = updateDocumentContent(original, { content: 'New content' });
+    expect(updated.content).toBe('New content');
   });
 });
 

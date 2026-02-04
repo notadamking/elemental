@@ -18,7 +18,7 @@ Channels provide:
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `name` | `string` | Yes | Channel name (unique constraints vary) |
-| `descriptionRef` | `DocumentId` | No | Reference to description Document |
+| `description` | `string \| null` | No | Plain text description (not a document reference) |
 
 ### Channel Type
 

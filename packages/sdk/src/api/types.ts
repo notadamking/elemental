@@ -1325,6 +1325,16 @@ export interface ElementalAPI {
    */
   searchChannels(query: string, filter?: ChannelFilter): Promise<Channel[]>;
 
+  /**
+   * Merge two group channels: move all messages from source to target,
+   * merge member lists, and archive the source channel.
+   */
+  mergeChannels(
+    sourceId: ElementId,
+    targetId: ElementId,
+    options?: { newName?: string; actor?: EntityId }
+  ): Promise<{ target: Channel; sourceArchived: boolean; messagesMoved: number }>;
+
   // --------------------------------------------------------------------------
   // Team Operations
   // --------------------------------------------------------------------------

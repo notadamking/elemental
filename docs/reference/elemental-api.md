@@ -295,6 +295,37 @@ const result = await api.sendDirectMessage(senderId, {
 });
 ```
 
+### Merge channels
+
+```typescript
+const result = await api.mergeChannels(sourceId, targetId, {
+  newName: 'merged-channel',  // Optional: rename target channel
+  actor: actorEntityId,       // Optional: entity performing the merge
+});
+// result.target        — the updated target Channel
+// result.sourceArchived — whether the source channel was archived
+// result.messagesMoved  — number of messages moved from source to target
+```
+
+**Signature:**
+```typescript
+mergeChannels(
+  sourceId: ElementId,
+  targetId: ElementId,
+  options?: { newName?: string; actor?: EntityId }
+): Promise<{ target: Channel; sourceArchived: boolean; messagesMoved: number }>
+```
+
+**Parameters:**
+- `sourceId` — the source channel to merge from (all messages are moved out of this channel)
+- `targetId` — the target channel to merge into (receives messages and members)
+- `options.newName` — optional new name for the target channel after the merge
+- `options.actor` — the entity performing the merge
+
+**Behavior:** Moves all messages from the source channel to the target channel, merges the member lists of both channels, optionally renames the target channel, and archives the source channel. The entire operation is wrapped in a transaction.
+
+**Constraints:** Both source and target must be group channels. The source channel is archived after the merge completes.
+
 ---
 
 ## Team Operations

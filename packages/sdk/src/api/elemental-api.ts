@@ -3582,6 +3582,162 @@ export class ElementalAPIImpl implements ElementalAPI {
   }
 
   /**
+   * Merge two group channels: move all messages from source to target,
+   * merge member lists, and archive the source channel.
+   *
+   * Only group channels can be merged. Direct channels are rejected.
+   */
+  async mergeChannels(
+    sourceId: ElementId,
+    targetId: ElementId,
+    options?: { newName?: string; actor?: EntityId }
+  ): Promise<{ target: Channel; sourceArchived: boolean; messagesMoved: number }> {
+    // Fetch both channels
+    const source = await this.get<Channel>(sourceId);
+    if (!source || source.type !== 'channel') {
+      throw new NotFoundError(`Source channel not found: ${sourceId}`, ErrorCode.NOT_FOUND, { elementId: sourceId });
+    }
+    const target = await this.get<Channel>(targetId);
+    if (!target || target.type !== 'channel') {
+      throw new NotFoundError(`Target channel not found: ${targetId}`, ErrorCode.NOT_FOUND, { elementId: targetId });
+    }
+
+    const typedSource = source as Channel;
+    const typedTarget = target as Channel;
+
+    // Only group channels can be merged
+    if (typedSource.channelType !== ChannelTypeValue.GROUP) {
+      throw new ConstraintError('Cannot merge: source is not a group channel', ErrorCode.IMMUTABLE, { channelId: sourceId, channelType: typedSource.channelType });
+    }
+    if (typedTarget.channelType !== ChannelTypeValue.GROUP) {
+      throw new ConstraintError('Cannot merge: target is not a group channel', ErrorCode.IMMUTABLE, { channelId: targetId, channelType: typedTarget.channelType });
+    }
+
+    const actor = options?.actor ?? typedTarget.createdBy;
+    const now = createTimestamp();
+
+    // Get all messages from source channel
+    const sourceMessages = this.backend.query<ElementRow>(
+      `SELECT * FROM elements
+       WHERE type = 'message'
+       AND JSON_EXTRACT(data, '$.channelId') = ?
+       AND deleted_at IS NULL`,
+      [sourceId]
+    );
+
+    // Merge members: add source members not already in target
+    const targetMemberSet = new Set(typedTarget.members as readonly string[]);
+    const newMembers = [...typedTarget.members];
+    for (const member of typedSource.members) {
+      if (!targetMemberSet.has(member)) {
+        newMembers.push(member);
+      }
+    }
+
+    // Merge modifyMembers similarly
+    const targetModSet = new Set(typedTarget.permissions.modifyMembers as readonly string[]);
+    const newModifyMembers = [...typedTarget.permissions.modifyMembers];
+    for (const mod of typedSource.permissions.modifyMembers) {
+      if (!targetModSet.has(mod)) {
+        newModifyMembers.push(mod);
+      }
+    }
+
+    const newName = options?.newName ?? typedTarget.name;
+
+    // Execute everything in a transaction
+    this.backend.transaction((tx) => {
+      // 1. Move messages: update channelId in each message's data
+      for (const msgRow of sourceMessages) {
+        const msgData = JSON.parse(msgRow.data);
+        msgData.channelId = targetId;
+        tx.run(
+          `UPDATE elements SET data = ?, updated_at = ? WHERE id = ?`,
+          [JSON.stringify(msgData), now, msgRow.id]
+        );
+      }
+
+      // 2. Update inbox_items channel_id for moved messages
+      const messageIds = sourceMessages.map((m) => m.id);
+      if (messageIds.length > 0) {
+        const placeholders = messageIds.map(() => '?').join(',');
+        tx.run(
+          `UPDATE inbox_items SET channel_id = ? WHERE message_id IN (${placeholders})`,
+          [targetId, ...messageIds]
+        );
+      }
+
+      // 3. Update target channel: merged members, optional rename
+      const targetRow = this.backend.queryOne<ElementRow>(
+        'SELECT data FROM elements WHERE id = ?',
+        [targetId]
+      );
+      if (targetRow) {
+        const targetData = JSON.parse(targetRow.data);
+        targetData.members = newMembers;
+        targetData.permissions = {
+          ...targetData.permissions,
+          modifyMembers: newModifyMembers,
+        };
+        if (options?.newName) {
+          targetData.name = newName;
+        }
+
+        const updatedTarget = {
+          ...typedTarget,
+          members: newMembers,
+          permissions: { ...typedTarget.permissions, modifyMembers: newModifyMembers },
+          name: newName,
+          updatedAt: now,
+        };
+        const { hash: contentHash } = computeContentHashSync(updatedTarget as unknown as Element);
+
+        tx.run(
+          `UPDATE elements SET data = ?, content_hash = ?, updated_at = ? WHERE id = ?`,
+          [JSON.stringify(targetData), contentHash, now, targetId]
+        );
+      }
+
+      // 4. Archive source channel (soft delete)
+      tx.run(
+        `UPDATE elements SET deleted_at = ? WHERE id = ?`,
+        [now, sourceId]
+      );
+
+      // 5. Record merge event on target
+      const event = createEvent({
+        elementId: targetId as unknown as ElementId,
+        eventType: LifecycleEventType.UPDATED,
+        actor,
+        oldValue: { members: typedTarget.members, name: typedTarget.name },
+        newValue: {
+          members: newMembers,
+          name: newName,
+          mergedFrom: sourceId,
+          messagesMoved: sourceMessages.length,
+        },
+      });
+      tx.run(
+        `INSERT INTO events (element_id, event_type, actor, old_value, new_value, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [event.elementId, event.eventType, event.actor, JSON.stringify(event.oldValue), JSON.stringify(event.newValue), event.createdAt]
+      );
+    });
+
+    // Mark both as dirty
+    this.backend.markDirty(sourceId);
+    this.backend.markDirty(targetId);
+
+    // Return updated target
+    const updatedTarget = await this.get<Channel>(targetId);
+    return {
+      target: updatedTarget!,
+      sourceArchived: true,
+      messagesMoved: sourceMessages.length,
+    };
+  }
+
+  /**
    * Send a direct message to another entity
    *
    * This is a convenience method that:

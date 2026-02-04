@@ -6,7 +6,7 @@
  * Documents maintain full version history, enabling audit trails and rollback capabilities.
  */
 
-import { ValidationError } from '../errors/error.js';
+import { ValidationError, ConstraintError } from '../errors/error.js';
 import { ErrorCode } from '../errors/codes.js';
 import { Element, ElementId, EntityId, ElementType, createTimestamp } from './element.js';
 import { generateId, type IdGeneratorConfig } from '../id/generator.js';
@@ -114,6 +114,8 @@ export interface Document extends Element {
   category: DocumentCategory;
   /** Document lifecycle status */
   status: DocumentStatus;
+  /** Whether this document is immutable (content cannot be updated) */
+  immutable: boolean;
 }
 
 // ============================================================================
@@ -406,6 +408,9 @@ export function isDocument(value: unknown): value is Document {
   if (!isValidDocumentCategory(obj.category)) return false;
   if (!isValidDocumentStatus(obj.status)) return false;
 
+  // Backward compat: treat missing immutable as false
+  if (obj.immutable !== undefined && typeof obj.immutable !== 'boolean') return false;
+
   // For JSON content type, validate content is valid JSON
   if (obj.contentType === ContentType.JSON && !isValidJsonContent(obj.content as string)) {
     return false;
@@ -493,6 +498,15 @@ export function validateDocument(value: unknown): Document {
   validateDocumentCategory(obj.category);
   validateDocumentStatus(obj.status);
 
+  // Validate immutable field if present (backward compat: missing = false)
+  if (obj.immutable !== undefined && typeof obj.immutable !== 'boolean') {
+    throw new ValidationError(
+      'Document immutable must be a boolean',
+      ErrorCode.INVALID_INPUT,
+      { field: 'immutable', value: obj.immutable, expected: 'boolean' }
+    );
+  }
+
   // For JSON content, validate the content is valid JSON
   if (obj.contentType === ContentType.JSON) {
     validateJsonContent(obj.content as string);
@@ -523,6 +537,8 @@ export interface CreateDocumentInput {
   category?: DocumentCategory;
   /** Optional: Document status (default: 'active') */
   status?: DocumentStatus;
+  /** Optional: Whether document is immutable (default: false) */
+  immutable?: boolean;
 }
 
 /**
@@ -571,6 +587,7 @@ export async function createDocument(
     previousVersionId: null,
     category,
     status,
+    immutable: input.immutable ?? false,
   };
 
   return document;
@@ -605,6 +622,14 @@ export function updateDocumentContent(
   document: Document,
   input: UpdateDocumentInput
 ): Document {
+  if (document.immutable) {
+    throw new ConstraintError(
+      'Cannot update immutable document',
+      ErrorCode.IMMUTABLE,
+      { field: 'immutable', value: document.id }
+    );
+  }
+
   const contentType = input.contentType ?? document.contentType;
   const content = validateContent(input.content, contentType);
 

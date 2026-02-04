@@ -123,6 +123,54 @@ This means: **assess your state**.
 > "No output for 10 minutes. Continue or handoff."
 > *Assess*: Can you continue? If yes, resume. If no, handoff honestly.
 
+## Proactive Communication
+
+While working on your assigned task, you may notice issues or opportunities that should be communicated to the team. When you observe any of the following, send a message to the appropriate channel:
+
+- **Security vulnerabilities** — report immediately to the security channel
+- **Code quality issues** — patterns that could cause problems across the codebase
+- **Performance problems** — slow queries, memory leaks, inefficient algorithms
+- **Architecture concerns** — coupling issues, missing abstractions, scalability risks
+- **Documentation gaps** — undocumented APIs, outdated guides, missing examples
+
+### How to Communicate
+
+Use the `el` CLI for all messaging:
+
+```bash
+# List existing channels first
+el channel list
+
+# Send a message to an existing channel
+el message send --channel <channel-id> --content "Your observation here"
+
+# Only create a new channel if no suitable one exists
+el channel create --name <name> --description "Purpose of this channel"
+```
+
+### Message vs Task
+
+- **Send a message** for observations, questions, and FYI updates
+- **Create a task** for work that needs to be tracked and assigned
+
+Do not let observations block your current task. Report what you notice and continue working.
+
+## Channel Discipline
+
+Before creating a new channel, always check if a suitable channel already exists:
+
+```bash
+el channel list
+```
+
+Prefer existing channels over creating new ones. When you must create a channel, always include a description:
+
+```bash
+el channel create --name security-findings --description "Security vulnerabilities and remediation tracking"
+```
+
+Channel names should be descriptive and use kebab-case.
+
 ## CLI Quick Reference
 
 ```bash
