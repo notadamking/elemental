@@ -74,11 +74,11 @@ Tracked issues from the document system audit and broader codebase analysis.
 
 ## Test Coverage Gaps
 
-- [ ] Zero tests for the comment system (routes, creation, retrieval)
-- [ ] Zero tests for document links (GET/POST/DELETE)
-- [ ] No route-level tests for clone or restore (only API-level and CLI-level)
-- [ ] No tests for immutable document rejection on PATCH route
-- [ ] No tests for CLI `doc search` or `doc reindex` commands
+- [x] Zero tests for the comment system (routes, creation, retrieval)
+- [x] Zero tests for document links (GET/POST/DELETE)
+- [x] No route-level tests for clone or restore (only API-level and CLI-level)
+- [x] No tests for immutable document rejection on PATCH route
+- [x] No tests for CLI `doc search` or `doc reindex` commands
 
 ---
 

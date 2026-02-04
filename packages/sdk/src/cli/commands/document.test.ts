@@ -890,3 +890,199 @@ describe('doc archive and filter commands', () => {
     expect(ids).toContain(doc2.id);
   });
 });
+
+// ============================================================================
+// doc search command
+// ============================================================================
+
+describe('doc search command', () => {
+  test('searches documents by content', async () => {
+    await createTestDocument('The xylophone played beautifully');
+    await createTestDocument('Photosynthesis is essential for plants');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['xylophone'],
+      createTestOptions({ json: true })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const results = result.data as any[];
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results.some((r: any) => r.document.content.includes('xylophone'))).toBe(true);
+  });
+
+  test('returns empty for no matches', async () => {
+    await createTestDocument('Some regular content');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['zzzznonexistenttermzzzz'],
+      createTestOptions()
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+  });
+
+  test('fails when no query provided', async () => {
+    const result = await documentCommand.subcommands!.search.handler!(
+      [],
+      createTestOptions()
+    );
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('respects --limit option', async () => {
+    await createTestDocument('Elephants roam the savanna');
+    await createTestDocument('Elephants are large mammals');
+    await createTestDocument('Elephants have great memory');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['elephants'],
+      createTestOptions({ json: true, limit: '1' })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const results = result.data as any[];
+    expect(results.length).toBeLessThanOrEqual(1);
+  });
+
+  test('filters by --category', async () => {
+    await createTestDocument('Quantum computing overview', { category: 'spec' });
+    await createTestDocument('Quantum physics notes', { category: 'reference' });
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['quantum'],
+      createTestOptions({ json: true, category: 'spec' })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const results = result.data as any[];
+    for (const r of results) {
+      expect(r.document.category).toBe('spec');
+    }
+  });
+
+  test('returns results in json mode', async () => {
+    await createTestDocument('Bioluminescence in deep sea creatures');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['bioluminescence'],
+      createTestOptions({ json: true })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const results = result.data as any[];
+    if (results.length > 0) {
+      expect(results[0]).toHaveProperty('document');
+      expect(results[0]).toHaveProperty('score');
+      expect(results[0]).toHaveProperty('snippet');
+    }
+  });
+
+  test('returns IDs in quiet mode', async () => {
+    await createTestDocument('Metamorphosis in amphibians explained');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['metamorphosis'],
+      createTestOptions({ quiet: true })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    if (typeof result.data === 'string' && result.data.length > 0) {
+      const ids = result.data.split('\n');
+      for (const id of ids) {
+        expect(id).toMatch(/^el-/);
+      }
+    }
+  });
+
+  test('rejects invalid category', async () => {
+    // Ensure DB exists first
+    await createTestDocument('some content');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['test'],
+      createTestOptions({ category: 'invalidcategory' })
+    );
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+  });
+
+  test('rejects invalid status', async () => {
+    await createTestDocument('some content');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['test'],
+      createTestOptions({ status: 'invalidstatus' })
+    );
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+  });
+
+  test('rejects invalid limit', async () => {
+    await createTestDocument('some content');
+
+    const result = await documentCommand.subcommands!.search.handler!(
+      ['test'],
+      createTestOptions({ limit: '-5' })
+    );
+    expect(result.exitCode).toBe(ExitCode.VALIDATION);
+  });
+});
+
+// ============================================================================
+// doc reindex command
+// ============================================================================
+
+describe('doc reindex command', () => {
+  test('reindexes all documents → message contains count', async () => {
+    await createTestDocument('First document for indexing');
+    await createTestDocument('Second document for indexing');
+
+    const result = await documentCommand.subcommands!.reindex.handler!(
+      [],
+      createTestOptions()
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toMatch(/Reindexed \d+ documents/);
+  });
+
+  test('returns json with { indexed, errors } shape', async () => {
+    await createTestDocument('Doc to reindex');
+
+    const result = await documentCommand.subcommands!.reindex.handler!(
+      [],
+      createTestOptions({ json: true })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as any;
+    expect(data).toHaveProperty('indexed');
+    expect(data).toHaveProperty('errors');
+    expect(typeof data.indexed).toBe('number');
+    expect(typeof data.errors).toBe('number');
+  });
+
+  test('search works after reindex', async () => {
+    await createTestDocument('Supercalifragilistic content here');
+
+    // Reindex
+    const reindexResult = await documentCommand.subcommands!.reindex.handler!(
+      [],
+      createTestOptions()
+    );
+    expect(reindexResult.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Search should find the doc
+    const searchResult = await documentCommand.subcommands!.search.handler!(
+      ['supercalifragilistic'],
+      createTestOptions({ json: true })
+    );
+    expect(searchResult.exitCode).toBe(ExitCode.SUCCESS);
+    const results = searchResult.data as any[];
+    expect(results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('handles empty database', async () => {
+    // Ensure DB exists (create and close a backend) so the handler can open it
+    const { backend: b } = createTestAPI();
+    b.close();
+
+    const result = await documentCommand.subcommands!.reindex.handler!(
+      [],
+      createTestOptions()
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toMatch(/Reindexed 0/);
+  });
+});
