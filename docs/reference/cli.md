@@ -517,7 +517,9 @@ export const cliPlugin: CLIPlugin = {
 
 - Built-in commands always take priority over plugin commands
 - If multiple plugins define the same command, the first loaded wins
-- Conflicts are logged as warnings in verbose mode
+- **Subcommand merging**: When a plugin provides a command with the same name as an existing command, and both have subcommands, the subcommands are merged instead of skipping the entire plugin command. This allows plugins to extend built-in commands with additional subcommands.
+- Subcommand conflicts (same subcommand name in both) are skipped with a warning
+- Top-level command conflicts (no subcommands to merge) are logged as warnings
 
 ## Orchestrator Commands (Plugin)
 

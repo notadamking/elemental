@@ -1337,16 +1337,17 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     }
 
     // Fetch messages and build the triage prompt
-    const messages: Message[] = [];
+    // Pair each message with its inbox item ID for the triage prompt
+    const triageItems: Array<{ message: Message; inboxItemId: string }> = [];
     for (const item of items) {
       const message = await this.api.get<Message>(asElementId(item.messageId));
       if (message) {
-        messages.push(message);
+        triageItems.push({ message, inboxItemId: item.id });
       }
     }
 
     // All message fetches failed — nothing to triage; clean up worktree
-    if (messages.length === 0) {
+    if (triageItems.length === 0) {
       try {
         await this.worktreeManager.removeWorktree(worktreeResult.path);
       } catch {
@@ -1355,7 +1356,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       return;
     }
 
-    const initialPrompt = await this.buildTriagePrompt(agent, messages, channelId);
+    const initialPrompt = await this.buildTriagePrompt(agent, triageItems, channelId);
 
     // Start a headless session in the read-only worktree
     const { session, events } = await this.sessionManager.startSession(agentId, {
@@ -1397,7 +1398,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
    */
   private async buildTriagePrompt(
     agent: AgentEntity,
-    messages: Message[],
+    triageItems: Array<{ message: Message; inboxItemId: string }>,
     channelId: string
   ): Promise<string> {
     // Load the triage prompt template
@@ -1408,7 +1409,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
     // Hydrate each message's content
     const formattedMessages: string[] = [];
-    for (const message of messages) {
+    for (const { message, inboxItemId } of triageItems) {
       const senderId = message.sender ?? 'unknown';
       const timestamp = message.createdAt ?? 'unknown';
 
@@ -1426,7 +1427,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
 
       formattedMessages.push(
-        `--- Message ID: ${message.id} | From: ${senderId} | At: ${timestamp} ---`,
+        `--- Inbox Item ID: ${inboxItemId} | Message ID: ${message.id} | From: ${senderId} | At: ${timestamp} ---`,
         content,
         ''
       );
@@ -1440,7 +1441,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const director = await this.agentRegistry.getDirector();
     const directorId = director?.id ?? 'unknown';
 
-    return `${prompt}\n\n---\n\n**Worker ID:** ${agent.id}\n**Director ID:** ${directorId}\n**Channel:** ${channelId}\n**Agent:** ${agent.name}\n**Message count:** ${messages.length}`;
+    return `${prompt}\n\n---\n\n**Worker ID:** ${agent.id}\n**Director ID:** ${directorId}\n**Channel:** ${channelId}\n**Agent:** ${agent.name}\n**Message count:** ${triageItems.length}`;
   }
 
   /**

@@ -366,6 +366,236 @@ describe('logConflictWarnings', () => {
   });
 });
 
+describe('subcommand merging', () => {
+  it('should merge subcommands when both commands have subcommands', () => {
+    // First register a command with subcommands
+    const commandName = uniqueCommandName('merge-base');
+    const existingCommand: Command = {
+      name: commandName,
+      description: 'Existing command',
+      usage: `el ${commandName}`,
+      handler: () => success(),
+      subcommands: {
+        existing: {
+          name: 'existing',
+          description: 'Existing subcommand',
+          usage: `el ${commandName} existing`,
+          handler: () => success(),
+        },
+      },
+    };
+    registerCommand(existingCommand);
+
+    // Now try to register a plugin with the same command name but different subcommands
+    const plugin: CLIPlugin = {
+      name: 'merge-plugin',
+      version: '1.0.0',
+      commands: [
+        {
+          name: commandName,
+          description: 'Plugin command',
+          usage: `el ${commandName}`,
+          handler: () => success(),
+          subcommands: {
+            newSub: {
+              name: 'newSub',
+              description: 'New subcommand from plugin',
+              usage: `el ${commandName} newSub`,
+              handler: () => success(),
+            },
+          },
+        },
+      ],
+    };
+
+    const result = registerPluginCommands(plugin);
+
+    // Should have merged the subcommand
+    expect(result.registeredCommands).toContain(`${commandName} (subcommands: newSub)`);
+    // The existing command should now have both subcommands
+    const updatedCommand = getCommand(commandName);
+    expect(updatedCommand?.subcommands?.existing).toBeDefined();
+    expect(updatedCommand?.subcommands?.newSub).toBeDefined();
+  });
+
+  it('should skip conflicting subcommands while merging others', () => {
+    const commandName = uniqueCommandName('partial-merge');
+    const existingCommand: Command = {
+      name: commandName,
+      description: 'Existing command',
+      usage: `el ${commandName}`,
+      handler: () => success(),
+      subcommands: {
+        shared: {
+          name: 'shared',
+          description: 'Shared subcommand',
+          usage: `el ${commandName} shared`,
+          handler: () => success(),
+        },
+      },
+    };
+    registerCommand(existingCommand);
+
+    const plugin: CLIPlugin = {
+      name: 'partial-merge-plugin',
+      version: '1.0.0',
+      commands: [
+        {
+          name: commandName,
+          description: 'Plugin command',
+          usage: `el ${commandName}`,
+          handler: () => success(),
+          subcommands: {
+            shared: {
+              name: 'shared',
+              description: 'Plugin shared subcommand',
+              usage: `el ${commandName} shared`,
+              handler: () => success(),
+            },
+            unique: {
+              name: 'unique',
+              description: 'Unique subcommand',
+              usage: `el ${commandName} unique`,
+              handler: () => success(),
+            },
+          },
+        },
+      ],
+    };
+
+    const result = registerPluginCommands(plugin);
+
+    // Should have merged the unique subcommand
+    expect(result.registeredCommands).toContain(`${commandName} (subcommands: unique)`);
+    // Should have recorded the skipped subcommand
+    const skipped = result.skippedCommands.find(s => s.commandName === commandName);
+    expect(skipped?.subcommandsMerged?.merged).toContain('unique');
+    expect(skipped?.subcommandsMerged?.skipped).toContain('shared');
+  });
+
+  it('should not warn when subcommands are successfully merged', () => {
+    const commandName = uniqueCommandName('no-warn-merge');
+    const existingCommand: Command = {
+      name: commandName,
+      description: 'Existing command',
+      usage: `el ${commandName}`,
+      handler: () => success(),
+      subcommands: {
+        existing: {
+          name: 'existing',
+          description: 'Existing subcommand',
+          usage: `el ${commandName} existing`,
+          handler: () => success(),
+        },
+      },
+    };
+    registerCommand(existingCommand);
+
+    const plugin: CLIPlugin = {
+      name: 'no-warn-plugin',
+      version: '1.0.0',
+      commands: [
+        {
+          name: commandName,
+          description: 'Plugin command',
+          usage: `el ${commandName}`,
+          handler: () => success(),
+          subcommands: {
+            newSub: {
+              name: 'newSub',
+              description: 'New subcommand',
+              usage: `el ${commandName} newSub`,
+              handler: () => success(),
+            },
+          },
+        },
+      ],
+    };
+
+    const result = registerPluginCommands(plugin);
+    consoleErrors = []; // Clear any previous output
+    logConflictWarnings([result]);
+
+    // Should not have logged any warnings
+    expect(consoleErrors).toHaveLength(0);
+  });
+
+  it('should still skip entirely when existing command has no subcommands', () => {
+    const commandName = uniqueCommandName('no-sub-existing');
+    const existingCommand: Command = {
+      name: commandName,
+      description: 'Existing command without subcommands',
+      usage: `el ${commandName}`,
+      handler: () => success(),
+    };
+    registerCommand(existingCommand);
+
+    const plugin: CLIPlugin = {
+      name: 'has-sub-plugin',
+      version: '1.0.0',
+      commands: [
+        {
+          name: commandName,
+          description: 'Plugin command with subcommands',
+          usage: `el ${commandName}`,
+          handler: () => success(),
+          subcommands: {
+            sub: {
+              name: 'sub',
+              description: 'Subcommand',
+              usage: `el ${commandName} sub`,
+              handler: () => success(),
+            },
+          },
+        },
+      ],
+    };
+
+    const result = registerPluginCommands(plugin);
+
+    // Should have skipped the entire command
+    expect(result.skippedCommands.some(s => s.commandName === commandName && s.conflictReason?.includes('already registered'))).toBe(true);
+    expect(result.registeredCommands).not.toContain(commandName);
+  });
+
+  it('should still skip entirely when plugin command has no subcommands', () => {
+    const commandName = uniqueCommandName('no-sub-plugin');
+    const existingCommand: Command = {
+      name: commandName,
+      description: 'Existing command with subcommands',
+      usage: `el ${commandName}`,
+      handler: () => success(),
+      subcommands: {
+        sub: {
+          name: 'sub',
+          description: 'Subcommand',
+          usage: `el ${commandName} sub`,
+          handler: () => success(),
+        },
+      },
+    };
+    registerCommand(existingCommand);
+
+    const plugin: CLIPlugin = {
+      name: 'no-sub-plugin',
+      version: '1.0.0',
+      commands: [
+        {
+          name: commandName,
+          description: 'Plugin command without subcommands',
+          usage: `el ${commandName}`,
+          handler: () => success(),
+        },
+      ],
+    };
+
+    const result = registerPluginCommands(plugin);
+
+    // Should have skipped the entire command
+    expect(result.skippedCommands.some(s => s.commandName === commandName && s.conflictReason?.includes('already registered'))).toBe(true);
+  });
+});
+
 describe('getPluginCommandSummary', () => {
   it('should return summary of registered commands', () => {
     const results = [

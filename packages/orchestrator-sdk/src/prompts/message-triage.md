@@ -8,7 +8,7 @@ Review each message below and take appropriate action. You should process ALL me
 
 For each message, choose one of the following:
 
-1. **Respond** — Send a reply using `el msg send --from <Worker ID> --reply-to {Message ID} --content "..."`
+1. **Respond** — Send a reply using `el msg send --reply-to {Message ID} --content "..."`
 2. **Create Task** — If the message requests work, create a task with `el task create`
 3. **Escalate** — Forward to the director if you cannot handle it, using `el msg send --from <Worker ID> --to <Director ID> --content "..."`
 4. **Investigate** — Read files or gather context before deciding (but do NOT edit files in this session)
@@ -16,6 +16,14 @@ For each message, choose one of the following:
 6. **Skip** — No action needed (e.g., FYI messages, notifications)
 
 > **Note:** Your Worker ID and the Director ID are provided in the session context at the end of this prompt.
+
+## CRITICAL
+
+ALWAYS mark each message as read once you've finished taking action:
+
+```bash
+el inbox read <inbox-item-id>
+```
 
 ## Rules
 
@@ -33,7 +41,7 @@ For each message, choose one of the following:
 Messages are provided below in the format:
 
 ```
---- Message ID: <id> | From: <sender> | At: <timestamp> ---
+--- Inbox Item ID: <inbox-item-id> | Message ID: <id> | From: <sender> | At: <timestamp> ---
 <content>
 ```
 

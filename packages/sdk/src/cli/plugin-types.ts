@@ -92,6 +92,17 @@ export interface PluginDiscoveryResult {
 // ============================================================================
 
 /**
+ * Result of merging subcommands from a plugin command into an existing command
+ */
+export interface SubcommandMergeResult {
+  /** Subcommand names that were successfully merged */
+  merged: string[];
+
+  /** Subcommand names that were skipped due to conflicts */
+  skipped: string[];
+}
+
+/**
  * Result of registering a command
  */
 export interface CommandRegistrationResult {
@@ -103,6 +114,9 @@ export interface CommandRegistrationResult {
 
   /** Conflict reason if registration failed */
   conflictReason?: string;
+
+  /** Result of subcommand merging (when both commands have subcommands) */
+  subcommandsMerged?: SubcommandMergeResult;
 }
 
 /**

@@ -5,8 +5,9 @@
  * Built-in commands always take precedence over plugin commands.
  */
 
-import type { CLIPlugin, PluginRegistrationResult, CommandRegistrationResult } from './plugin-types.js';
+import type { CLIPlugin, PluginRegistrationResult, CommandRegistrationResult, SubcommandMergeResult } from './plugin-types.js';
 import { registerCommand, registerAlias, getCommand, getAllAliases } from './runner.js';
+import type { Command } from './types.js';
 
 // ============================================================================
 // Plugin Registration
@@ -18,6 +19,47 @@ import { registerCommand, registerAlias, getCommand, getAllAliases } from './run
 export interface RegisterPluginOptions {
   /** Enable verbose logging */
   verbose?: boolean;
+}
+
+/**
+ * Merges subcommands from a plugin command into an existing command.
+ *
+ * @param existingCommand - The existing command to merge into
+ * @param pluginCommand - The plugin command with subcommands to merge
+ * @param pluginName - Name of the plugin (for logging)
+ * @param verbose - Whether to log verbose output
+ * @returns Result of the merge operation
+ */
+function mergeSubcommands(
+  existingCommand: Command,
+  pluginCommand: Command,
+  pluginName: string,
+  verbose: boolean
+): SubcommandMergeResult {
+  const merged: string[] = [];
+  const skipped: string[] = [];
+
+  for (const [name, subCmd] of Object.entries(pluginCommand.subcommands || {})) {
+    if (existingCommand.subcommands?.[name]) {
+      skipped.push(name);
+      if (verbose) {
+        console.error(
+          `[plugin:${pluginName}] Skipping subcommand '${existingCommand.name} ${name}': already exists`
+        );
+      }
+    } else {
+      existingCommand.subcommands = existingCommand.subcommands || {};
+      existingCommand.subcommands[name] = subCmd;
+      merged.push(name);
+      if (verbose) {
+        console.error(
+          `[plugin:${pluginName}] Merged subcommand '${existingCommand.name} ${name}'`
+        );
+      }
+    }
+  }
+
+  return { merged, skipped };
 }
 
 /**
@@ -45,18 +87,43 @@ export function registerPluginCommands(
     const existingCommand = getCommand(command.name);
 
     if (existingCommand) {
-      // Command already exists - skip with conflict info
-      const result: CommandRegistrationResult = {
-        commandName: command.name,
-        success: false,
-        conflictReason: `Command '${command.name}' already registered`,
-      };
-      skippedCommands.push(result);
+      // Check if both have subcommands - can merge
+      if (existingCommand.subcommands && command.subcommands) {
+        const mergeResult = mergeSubcommands(existingCommand, command, plugin.name, verbose);
 
-      if (verbose) {
-        console.error(
-          `[plugin:${plugin.name}] Skipping command '${command.name}': already registered`
-        );
+        if (mergeResult.merged.length > 0) {
+          registeredCommands.push(`${command.name} (subcommands: ${mergeResult.merged.join(', ')})`);
+        }
+
+        if (mergeResult.skipped.length > 0) {
+          skippedCommands.push({
+            commandName: command.name,
+            success: false,
+            conflictReason: `Subcommand(s) '${mergeResult.skipped.join(', ')}' already exist`,
+            subcommandsMerged: mergeResult,
+          });
+        } else if (mergeResult.merged.length > 0) {
+          // Track successful merge without conflicts for logging purposes
+          skippedCommands.push({
+            commandName: command.name,
+            success: true,
+            subcommandsMerged: mergeResult,
+          });
+        }
+      } else {
+        // Cannot merge - skip entirely (existing behavior)
+        const result: CommandRegistrationResult = {
+          commandName: command.name,
+          success: false,
+          conflictReason: `Command '${command.name}' already registered`,
+        };
+        skippedCommands.push(result);
+
+        if (verbose) {
+          console.error(
+            `[plugin:${plugin.name}] Skipping command '${command.name}': already registered`
+          );
+        }
       }
     } else {
       // Register the command
@@ -160,6 +227,10 @@ export function logConflictWarnings(results: PluginRegistrationResult[]): void {
   for (const result of results) {
     // Log skipped commands
     for (const skipped of result.skippedCommands) {
+      // Skip warning if subcommands were successfully merged (partial or full success)
+      if (skipped.subcommandsMerged?.merged.length) {
+        continue;
+      }
       if (skipped.conflictReason) {
         console.error(
           `[plugin:${result.pluginName}] Warning: ${skipped.conflictReason}`
