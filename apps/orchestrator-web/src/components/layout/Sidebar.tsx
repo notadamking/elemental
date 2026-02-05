@@ -21,6 +21,7 @@ import {
   MessageSquare,
   FileText,
   GitMerge,
+  Code,
   type LucideIcon,
 } from 'lucide-react';
 import { useShortcutVersion } from '@elemental/ui';
@@ -53,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/activity', icon: Activity, label: 'Activity', testId: 'nav-activity', actionId: 'nav.activity' },
       { to: '/inbox', icon: Inbox, label: 'Inbox', testId: 'nav-inbox', search: { message: undefined }, actionId: 'nav.inbox' },
+      { to: '/editor', icon: Code, label: 'File Editor', testId: 'nav-editor', actionId: 'nav.editor' },
     ],
   },
   {
