@@ -47,11 +47,6 @@ export function DocumentSortDropdown({
         >
           <ArrowUpDown className="w-4 h-4" />
           <span>Sort: {currentOption?.label || 'Updated'}</span>
-          {sortDirection === 'asc' ? (
-            <ArrowUp className="w-3 h-3" />
-          ) : (
-            <ArrowDown className="w-3 h-3" />
-          )}
         </button>
 
         {/* Dropdown menu */}

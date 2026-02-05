@@ -123,45 +123,76 @@ export function DocumentFilterBar({
             </div>
           </div>
 
-          {/* Tags filter */}
+          {/* Tags filter - multi-tag input */}
           {availableTags.length > 0 && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                 Tags
               </label>
               <div className="relative">
-                <button
-                  onClick={() => setIsTagsDropdownOpen(!isTagsDropdownOpen)}
-                  className="flex items-center justify-between w-full max-w-xs px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
-                  data-testid="tags-dropdown-trigger"
+                {/* Selected tags as chips + input */}
+                <div
+                  className="flex flex-wrap items-center gap-1.5 min-h-[38px] px-2 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 cursor-text"
+                  onClick={() => setIsTagsDropdownOpen(true)}
                 >
-                  <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-200">
-                    <Tag className="w-4 h-4" />
-                    {filters.tags.length > 0
-                      ? `${filters.tags.length} selected`
-                      : 'Select tags...'}
-                  </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isTagsDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
+                  {/* Selected tag chips */}
+                  {filters.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 rounded"
+                    >
+                      {tag}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTagToggle(tag);
+                        }}
+                        className="hover:opacity-70 transition-opacity"
+                        data-testid={`remove-tag-input-${tag}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {/* Placeholder when empty */}
+                  {filters.tags.length === 0 && (
+                    <span className="text-sm text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                      <Tag className="w-4 h-4" />
+                      Click to select tags...
+                    </span>
+                  )}
+                </div>
 
                 {/* Tags dropdown */}
                 {isTagsDropdownOpen && (
-                  <div className="absolute left-0 top-full mt-1 w-full max-w-xs max-h-48 overflow-y-auto py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
-                    {availableTags.map((tag) => {
-                      const isSelected = filters.tags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          onClick={() => handleTagToggle(tag)}
-                          className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          data-testid={`filter-tag-${tag}`}
-                        >
-                          <span>{tag}</span>
-                          {isSelected && <Check className="w-4 h-4 text-blue-600" />}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <>
+                    {/* Backdrop to close dropdown */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setIsTagsDropdownOpen(false)}
+                    />
+                    <div className="absolute left-0 top-full mt-1 w-full max-h-48 overflow-y-auto py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
+                      {availableTags.filter((tag) => !filters.tags.includes(tag)).length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                          All tags selected
+                        </div>
+                      ) : (
+                        availableTags
+                          .filter((tag) => !filters.tags.includes(tag))
+                          .map((tag) => (
+                            <button
+                              key={tag}
+                              onClick={() => handleTagToggle(tag)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                              data-testid={`filter-tag-${tag}`}
+                            >
+                              <Tag className="w-3 h-3 text-gray-400" />
+                              <span>{tag}</span>
+                            </button>
+                          ))
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
