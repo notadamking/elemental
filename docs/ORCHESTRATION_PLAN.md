@@ -322,6 +322,7 @@ interface DispatchMessage {
 ```
 ## Task Assignment
 
+**Worker ID:** {workerId}
 **Task ID:** {taskId}
 **Title:** {title}
 **Priority:** {priority}

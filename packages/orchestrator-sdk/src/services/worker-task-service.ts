@@ -199,11 +199,13 @@ export interface WorkerTaskService {
    * Builds the task context prompt for a worker.
    *
    * @param taskId - The task
+   * @param workerId - The worker entity ID
    * @param additionalInstructions - Additional instructions to include
    * @returns The formatted task context prompt
    */
   buildTaskContextPrompt(
     taskId: ElementId,
+    workerId: EntityId,
     additionalInstructions?: string
   ): Promise<string>;
 
@@ -334,6 +336,7 @@ export class WorkerTaskServiceImpl implements WorkerTaskService {
     // 5. Build task context prompt
     const taskContextPrompt = await this.buildTaskContextPrompt(
       taskId,
+      agentId,
       options.additionalPrompt
     );
 
@@ -402,6 +405,7 @@ export class WorkerTaskServiceImpl implements WorkerTaskService {
 
   async buildTaskContextPrompt(
     taskId: ElementId,
+    workerId: EntityId,
     additionalInstructions?: string
   ): Promise<string> {
     const context = await this.getTaskContext(taskId);
@@ -409,6 +413,7 @@ export class WorkerTaskServiceImpl implements WorkerTaskService {
     const lines: string[] = [
       '# Task Assignment',
       '',
+      `**Worker ID:** ${workerId}`,
       `**Task ID:** ${context.taskId}`,
       `**Title:** ${context.title}`,
     ];

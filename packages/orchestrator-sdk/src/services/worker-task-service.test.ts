@@ -570,13 +570,14 @@ describe('WorkerTaskService', () => {
         },
       },
     });
+    const testWorkerId = 'agent-worker-001' as EntityId;
 
     beforeEach(() => {
       (mockApi.get as MockInstance).mockResolvedValue(mockTask);
     });
 
     it('should build a task context prompt', async () => {
-      const prompt = await service.buildTaskContextPrompt(mockTask.id);
+      const prompt = await service.buildTaskContextPrompt(mockTask.id, testWorkerId);
 
       expect(prompt).toContain('# Task Assignment');
       expect(prompt).toContain(mockTask.id);
@@ -584,8 +585,14 @@ describe('WorkerTaskService', () => {
       expect(prompt).toContain('Implement the user authentication feature');
     });
 
+    it('should include worker ID in prompt', async () => {
+      const prompt = await service.buildTaskContextPrompt(mockTask.id, testWorkerId);
+
+      expect(prompt).toContain(`**Worker ID:** ${testWorkerId}`);
+    });
+
     it('should include git information if available', async () => {
-      const prompt = await service.buildTaskContextPrompt(mockTask.id);
+      const prompt = await service.buildTaskContextPrompt(mockTask.id, testWorkerId);
 
       expect(prompt).toContain('## Git Information');
       expect(prompt).toContain('agent/worker/task-001-test');
@@ -595,6 +602,7 @@ describe('WorkerTaskService', () => {
     it('should include additional instructions if provided', async () => {
       const prompt = await service.buildTaskContextPrompt(
         mockTask.id,
+        testWorkerId,
         'Focus on test coverage'
       );
 
@@ -603,7 +611,7 @@ describe('WorkerTaskService', () => {
     });
 
     it('should include tags if present', async () => {
-      const prompt = await service.buildTaskContextPrompt(mockTask.id);
+      const prompt = await service.buildTaskContextPrompt(mockTask.id, testWorkerId);
 
       expect(prompt).toContain('test, feature');
     });
@@ -612,7 +620,7 @@ describe('WorkerTaskService', () => {
       (mockApi.get as MockInstance).mockResolvedValue(null);
 
       await expect(
-        service.buildTaskContextPrompt('unknown-task' as ElementId)
+        service.buildTaskContextPrompt('unknown-task' as ElementId, testWorkerId)
       ).rejects.toThrow('Task not found');
     });
   });

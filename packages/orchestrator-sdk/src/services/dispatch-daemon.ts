@@ -907,7 +907,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     this.emitter.emit('task:dispatched', task.id, workerId);
 
     // Build initial prompt with task context
-    const initialPrompt = await this.buildTaskPrompt(task);
+    const initialPrompt = await this.buildTaskPrompt(task, workerId);
 
     // Spawn worker INSIDE the worktree
     const { session, events } = await this.sessionManager.startSession(workerId, {
@@ -943,7 +943,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
    * Fetches the description Document content so handoff notes (appended to
    * description) are automatically included.
    */
-  private async buildTaskPrompt(task: Task): Promise<string> {
+  private async buildTaskPrompt(task: Task, workerId: EntityId): Promise<string> {
     const parts: string[] = [];
 
     // Load and include the worker role prompt, framed as operating instructions
@@ -963,6 +963,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     parts.push(
       '## Task Assignment',
       '',
+      `**Worker ID:** ${workerId}`,
       `**Task ID:** ${task.id}`,
       `**Title:** ${task.title}`,
     );
@@ -1006,7 +1007,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
    * Builds the initial prompt for a merge steward session.
    * Includes the steward role prompt (steward-merge.md) followed by task context.
    */
-  private async buildStewardPrompt(task: Task, stewardFocus: 'merge' | 'health' = 'merge'): Promise<string> {
+  private async buildStewardPrompt(task: Task, stewardId: EntityId, stewardFocus: 'merge' | 'health' = 'merge'): Promise<string> {
     const parts: string[] = [];
 
     // Load and include the steward role prompt
@@ -1031,6 +1032,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     parts.push(
       '## Merge Request Assignment',
       '',
+      `**Worker ID:** ${stewardId}`,
       `**Task ID:** ${task.id}`,
       `**Title:** ${task.title}`,
     );
@@ -1086,7 +1088,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const stewardFocus = meta?.stewardFocus ?? 'merge';
 
     // Build the steward prompt with full context
-    const initialPrompt = await this.buildStewardPrompt(task, stewardFocus as 'merge' | 'health');
+    const initialPrompt = await this.buildStewardPrompt(task, stewardId, stewardFocus as 'merge' | 'health');
 
     // Get task metadata for worktree path
     const taskMeta = task.metadata as Record<string, unknown> | undefined;
