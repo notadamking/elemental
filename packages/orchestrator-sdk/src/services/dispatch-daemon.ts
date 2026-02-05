@@ -29,7 +29,7 @@ import type {
 } from '@elemental/core';
 import { InboxStatus, createTimestamp, TaskStatus, asEntityId, asElementId } from '@elemental/core';
 import type { ElementalAPI, InboxService } from '@elemental/sdk';
-import { loadTriagePrompt } from '../prompts/index.js';
+import { loadTriagePrompt, loadRolePrompt } from '../prompts/index.js';
 
 import type { AgentRegistry, AgentEntity } from './agent-registry.js';
 import { getAgentMetadata } from './agent-registry.js';
@@ -895,16 +895,33 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Builds the initial prompt for a task assignment.
+   * Includes the worker role prompt followed by task-specific details.
    * Fetches the description Document content so handoff notes (appended to
    * description) are automatically included.
    */
   private async buildTaskPrompt(task: Task): Promise<string> {
-    const parts = [
+    const parts: string[] = [];
+
+    // Load and include the worker role prompt, framed as operating instructions
+    // so Claude understands this is its role definition, not file content
+    const roleResult = loadRolePrompt('worker', undefined, { projectRoot: this.config.projectRoot });
+    if (roleResult) {
+      parts.push(
+        'Please read and internalize the following operating instructions. These define your role and how you should behave:',
+        '',
+        roleResult.prompt,
+        '',
+        '---',
+        ''
+      );
+    }
+
+    parts.push(
       '## Task Assignment',
       '',
       `**Task ID:** ${task.id}`,
       `**Title:** ${task.title}`,
-    ];
+    );
 
     if (task.priority !== undefined) {
       parts.push(`**Priority:** ${task.priority}`);

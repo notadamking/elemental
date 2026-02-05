@@ -7,6 +7,7 @@
 export {
   type AgentEntity,
   isAgentEntity,
+  getAgentMetadata,
   type OrchestratorAPI,
   OrchestratorAPIImpl,
   createOrchestratorAPI,

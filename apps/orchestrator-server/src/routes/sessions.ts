@@ -8,7 +8,8 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { EntityId, ElementId, Task } from '@elemental/core';
 import { createTimestamp, ElementType } from '@elemental/core';
-import type { SessionFilter, SpawnedSessionEvent } from '@elemental/orchestrator-sdk';
+import type { SessionFilter, SpawnedSessionEvent, AgentRole } from '@elemental/orchestrator-sdk';
+import { loadRolePrompt, getAgentMetadata } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { formatSessionRecord } from '../formatters.js';
 
@@ -237,6 +238,23 @@ export function createSessionRoutes(
         );
       }
 
+      // Get agent metadata to determine role
+      const agentMeta = getAgentMetadata(agent);
+      const agentRole = agentMeta?.agentRole as AgentRole | undefined;
+
+      console.log('[sessions] Agent metadata:', agentMeta ? `role=${agentMeta.agentRole}` : 'undefined');
+
+      // Load role-specific prompt for interactive agents (Director, persistent workers)
+      // This is prepended to any other prompt content
+      let rolePrompt: string | undefined;
+      if (agentRole) {
+        const roleResult = loadRolePrompt(agentRole, undefined, { projectRoot: process.cwd() });
+        console.log('[sessions] Role prompt result:', roleResult ? `${roleResult.prompt.length} chars from ${roleResult.source}` : 'undefined');
+        if (roleResult) {
+          rolePrompt = roleResult.prompt;
+        }
+      }
+
       let effectivePrompt = body.initialPrompt;
       let assignedTask: { id: string; title: string } | undefined;
 
@@ -268,6 +286,15 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
         effectivePrompt = body.initialPrompt
           ? `${body.initialMessage}\n\n${body.initialPrompt}`
           : body.initialMessage;
+      }
+
+      // Prepend role prompt if available, wrapped with clear instructions
+      // so Claude understands this is its operating instructions, not a file being opened
+      if (rolePrompt) {
+        const framedRolePrompt = `Please read and internalize the following operating instructions. These define your role and how you should behave in this session:\n\n${rolePrompt}`;
+        effectivePrompt = effectivePrompt
+          ? `${framedRolePrompt}\n\n---\n\n${effectivePrompt}`
+          : framedRolePrompt;
       }
 
       const { session, events } = await sessionManager.startSession(agentId, {

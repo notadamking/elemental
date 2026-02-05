@@ -508,6 +508,8 @@ export class SessionManagerImpl implements SessionManager {
       mode: useInteractive ? 'interactive' : 'headless',
     };
 
+    console.log('[session-manager] Starting session for agent', agentId, 'mode:', spawnOptions.mode, 'prompt length:', options?.initialPrompt?.length ?? 0);
+
     // Spawn the session
     const result = await this.spawner.spawn(agentId, meta.agentRole, spawnOptions);
 

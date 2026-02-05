@@ -32,7 +32,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/prompts/*.md dist/prompts/",
     "test": "bun test src",
     "test:node": "vitest run",
     "test:all": "pnpm run test && pnpm run test:node",

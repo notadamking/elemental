@@ -1231,6 +1231,31 @@ export class SpawnerServiceImpl implements SpawnerService {
       // Give the shell a moment to initialize before running claude
       setTimeout(startClaude, 100);
     });
+
+    // If there's an initial prompt, send it as user input after Claude starts.
+    // This avoids shell quoting issues that corrupt large multi-line prompts
+    // when passed as CLI arguments through PTY.
+    if (options?.initialPrompt) {
+      console.log('[spawner] Has initial prompt, length:', options.initialPrompt.length);
+
+      // Wait for Claude to fully initialize before sending prompt.
+      // Timing is important - too early and Claude won't be ready.
+      const prompt = options.initialPrompt;
+      setTimeout(() => {
+        console.log('[spawner] Sending initial prompt to PTY...');
+        // Write the prompt content first
+        ptyProcess.write(prompt);
+        // Wait for Claude to process the pasted content before sending Enter.
+        // Use a longer delay to ensure large prompts are fully received.
+        setTimeout(() => {
+          console.log('[spawner] Sending Enter...');
+          ptyProcess.write('\r');
+          console.log('[spawner] Initial prompt sent');
+        }, 500);
+      }, 3000);
+    } else {
+      console.log('[spawner] No initial prompt provided');
+    }
   }
 
   private buildHeadlessArgs(options?: SpawnOptions): string[] {
@@ -1250,10 +1275,10 @@ export class SpawnerServiceImpl implements SpawnerService {
       args.push('--resume', shellQuote(options.resumeSessionId));
     }
 
-    // For interactive mode, we can add an initial prompt as a positional arg
-    if (options?.initialPrompt) {
-      args.push(shellQuote(options.initialPrompt));
-    }
+    // NOTE: initialPrompt is NOT added as a CLI argument here.
+    // Large multi-line prompts get corrupted when passed through shell quoting
+    // and PTY write operations. Instead, the prompt is sent as user input
+    // after Claude starts. See spawnInteractive() for implementation.
 
     return args;
   }
