@@ -5,6 +5,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { Toaster } from 'sonner';
 import { router } from './router';
 import { TooltipProvider } from './components/ui/Tooltip';
+import { DataPreloader } from './components/shared/DataPreloader';
 import { CurrentUserProvider } from './contexts';
 import './index.css';
 
@@ -44,7 +45,9 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <CurrentUserProvider>
         <TooltipProvider>
-          <RouterProvider router={router} />
+          <DataPreloader>
+            <RouterProvider router={router} />
+          </DataPreloader>
           <Toaster
             position="bottom-right"
             duration={5000}
