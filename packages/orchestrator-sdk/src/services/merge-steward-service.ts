@@ -342,7 +342,29 @@ export class MergeStewardServiceImpl implements MergeStewardService {
   // ----------------------------------------
 
   async getTasksAwaitingMerge(): Promise<TaskAssignment[]> {
-    return this.taskAssignment.getTasksAwaitingMerge();
+    // Query for tasks in REVIEW status (awaiting merge)
+    // The TaskAssignmentService.getTasksAwaitingMerge() queries for CLOSED + pending/testing merge status
+    // We also need to include tasks in REVIEW status since that's the new intermediate state
+    const reviewTasks = await this.taskAssignment.listAssignments({
+      taskStatus: TaskStatus.REVIEW,
+      mergeStatus: ['pending'],
+    });
+
+    // Also include legacy tasks that may be CLOSED with pending merge status
+    const legacyTasks = await this.taskAssignment.getTasksAwaitingMerge();
+
+    // Combine and dedupe by taskId
+    const allTasks = new Map<string, TaskAssignment>();
+    for (const task of reviewTasks) {
+      allTasks.set(String(task.taskId), task);
+    }
+    for (const task of legacyTasks) {
+      if (!allTasks.has(String(task.taskId))) {
+        allTasks.set(String(task.taskId), task);
+      }
+    }
+
+    return Array.from(allTasks.values());
   }
 
   // ----------------------------------------
@@ -896,7 +918,15 @@ export class MergeStewardServiceImpl implements MergeStewardService {
       updates
     );
 
-    return this.api.update<Task>(taskId, { metadata: newMetadata });
+    // When merge succeeds, transition task from REVIEW to CLOSED
+    // This unblocks dependent tasks via the blocked cache
+    const taskUpdates: Partial<Task> & { metadata: Record<string, unknown> } = { metadata: newMetadata };
+    if (status === 'merged') {
+      taskUpdates.status = TaskStatus.CLOSED;
+      taskUpdates.closedAt = createTimestamp();
+    }
+
+    return this.api.update<Task>(taskId, taskUpdates);
   }
 
   // ----------------------------------------

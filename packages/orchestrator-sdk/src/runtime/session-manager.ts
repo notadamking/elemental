@@ -1176,6 +1176,8 @@ export class SessionManagerImpl implements SessionManager {
     });
 
     spawnerEvents.on('exit', async (code, signal) => {
+      console.log(`[session-manager] Exit event received for session ${session.id}, agent ${session.agentId}, code=${code}, signal=${signal}`);
+
       const exitingSession = this.sessions.get(session.id);
       if (exitingSession) {
         exitingSession.events.emit('exit', code, signal);
@@ -1184,6 +1186,8 @@ export class SessionManagerImpl implements SessionManager {
       // Update session status if not already updated
       const currentSession = this.sessions.get(session.id);
       if (currentSession && currentSession.status === 'running') {
+        console.log(`[session-manager] Cleaning up running session ${session.id} for agent ${session.agentId}`);
+
         const updatedSession: InternalSessionState = {
           ...currentSession,
           status: 'terminated',
@@ -1192,24 +1196,36 @@ export class SessionManagerImpl implements SessionManager {
         };
         this.sessions.set(session.id, updatedSession);
 
-        // Clear active session
+        // Clear active session mapping
         if (this.agentSessions.get(session.agentId) === session.id) {
           this.agentSessions.delete(session.agentId);
+          console.log(`[session-manager] Cleared active session mapping for agent ${session.agentId}`);
         }
 
         // Add to history
         this.addToHistory(session.agentId, updatedSession);
 
-        // Update agent status
-        await this.registry.updateAgentSession(session.agentId, undefined, 'idle');
+        // Update agent status in registry to 'idle'
+        try {
+          await this.registry.updateAgentSession(session.agentId, undefined, 'idle');
+          console.log(`[session-manager] Updated agent ${session.agentId} status to idle in registry`);
+        } catch (error) {
+          console.error(`[session-manager] Failed to update agent ${session.agentId} status:`, error);
+        }
 
-        // Persist
-        await this.persistSession(session.id);
+        // Persist session state
+        try {
+          await this.persistSession(session.id);
+        } catch (error) {
+          console.error(`[session-manager] Failed to persist session ${session.id}:`, error);
+        }
 
         // Schedule cleanup of terminated session from memory (M-1)
         this.scheduleTerminatedSessionCleanup(session.id);
 
         updatedSession.events.emit('status', 'terminated');
+      } else {
+        console.log(`[session-manager] Session ${session.id} already in status: ${currentSession?.status ?? 'not found'}`);
       }
     });
 

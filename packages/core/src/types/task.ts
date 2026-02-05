@@ -36,7 +36,9 @@ export const TaskStatus = {
   BLOCKED: 'blocked',
   /** Deliberately postponed */
   DEFERRED: 'deferred',
-  /** Completed */
+  /** Work complete, awaiting merge/review */
+  REVIEW: 'review',
+  /** Completed and merged */
   CLOSED: 'closed',
   /** Soft-deleted */
   TOMBSTONE: 'tombstone',
@@ -64,6 +66,7 @@ export const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
     TaskStatus.OPEN,
     TaskStatus.BLOCKED,
     TaskStatus.DEFERRED,
+    TaskStatus.REVIEW,
     TaskStatus.CLOSED,
   ],
   [TaskStatus.BLOCKED]: [
@@ -73,6 +76,7 @@ export const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
     TaskStatus.CLOSED,
   ],
   [TaskStatus.DEFERRED]: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS],
+  [TaskStatus.REVIEW]: [TaskStatus.CLOSED, TaskStatus.IN_PROGRESS], // Merge completes or reopen for fixes
   [TaskStatus.CLOSED]: [TaskStatus.OPEN], // Reopen
   [TaskStatus.TOMBSTONE]: [], // Terminal state
 };
@@ -936,6 +940,8 @@ export function getStatusDisplayName(status: TaskStatus): string {
       return 'Blocked';
     case TaskStatus.DEFERRED:
       return 'Deferred';
+    case TaskStatus.REVIEW:
+      return 'In Review';
     case TaskStatus.CLOSED:
       return 'Closed';
     case TaskStatus.TOMBSTONE:

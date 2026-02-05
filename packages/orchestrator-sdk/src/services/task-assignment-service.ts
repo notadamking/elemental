@@ -495,34 +495,35 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       metaUpdates.lastCommitHash = options.commitHash;
     }
 
-    // Try to create a merge request if we have a branch, a provider, and it's not explicitly disabled
+    // PR creation is REQUIRED - task completion fails if PR can't be created
     let mergeRequestUrl: string | undefined;
     let mergeRequestId: number | undefined;
 
     if (branch && this.mergeRequestProvider && options?.createMergeRequest !== false) {
-      try {
-        const baseBranch = options?.baseBranch || 'main';
-        let body = `## Task\n\n**ID:** ${task.id}\n**Title:** ${task.title}\n\n`;
-        if (options?.summary) {
-          body += `## Summary\n\n${options.summary}\n\n`;
-        }
-        body += `---\n_Created by Elemental Orchestrator_`;
-
-        const mrResult = await this.mergeRequestProvider.createMergeRequest(task, {
-          title: options?.mergeRequestTitle || task.title,
-          body: options?.mergeRequestBody || body,
-          sourceBranch: branch,
-          targetBranch: baseBranch,
-        });
-        mergeRequestUrl = mrResult.url;
-        mergeRequestId = mrResult.id;
-        metaUpdates.mergeRequestUrl = mergeRequestUrl;
-        metaUpdates.mergeRequestId = mergeRequestId;
-        metaUpdates.mergeRequestProvider = this.mergeRequestProvider.name;
-      } catch (err) {
-        // Log but don't fail completion if MR creation fails
-        console.warn(`Failed to create merge request for task ${taskId}:`, err);
+      const baseBranch = options?.baseBranch || 'main';
+      let body = `## Task\n\n**ID:** ${task.id}\n**Title:** ${task.title}\n\n`;
+      if (options?.summary) {
+        body += `## Summary\n\n${options.summary}\n\n`;
       }
+      body += `---\n_Created by Elemental Orchestrator_`;
+
+      const mrResult = await this.mergeRequestProvider.createMergeRequest(task, {
+        title: options?.mergeRequestTitle || task.title,
+        body: options?.mergeRequestBody || body,
+        sourceBranch: branch,
+        targetBranch: baseBranch,
+      });
+      mergeRequestUrl = mrResult.url;
+      mergeRequestId = mrResult.id;
+      metaUpdates.mergeRequestUrl = mergeRequestUrl;
+      metaUpdates.mergeRequestId = mergeRequestId;
+      metaUpdates.mergeRequestProvider = this.mergeRequestProvider.name;
+    } else if (branch && options?.createMergeRequest !== false) {
+      // Branch exists but no provider configured - fail task completion
+      throw new Error(
+        `PR creation required but no merge request provider configured. ` +
+        `Cannot complete task ${taskId} without creating a PR for branch ${branch}.`
+      );
     }
 
     const newMeta = updateOrchestratorTaskMeta(
@@ -530,8 +531,9 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       metaUpdates as Partial<OrchestratorTaskMeta>
     );
 
+    // Set status to REVIEW (not CLOSED) - merge steward will set CLOSED after merge
     const updatedTask = await this.api.update<Task>(taskId, {
-      status: TaskStatus.CLOSED,
+      status: TaskStatus.REVIEW,
       metadata: newMeta,
     });
 
@@ -644,6 +646,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       in_progress: 0,
       blocked: 0,
       deferred: 0,
+      review: 0,
       closed: 0,
       tombstone: 0,
     };

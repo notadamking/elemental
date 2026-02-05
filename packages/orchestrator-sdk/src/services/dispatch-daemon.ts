@@ -403,6 +403,16 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         });
         if (unreadItems.length > 0) continue;
 
+        // Defense in depth: Check if worker already has an assigned task
+        // (protects against race conditions where session terminated but assignment wasn't cleared)
+        const workerTasks = await this.taskAssignment.getAgentTasks(asEntityId(worker.id), {
+          taskStatus: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW],
+        });
+        if (workerTasks.length > 0) {
+          console.log(`[dispatch-daemon] Worker ${worker.name} already has ${workerTasks.length} assigned task(s), skipping`);
+          continue;
+        }
+
         availableWorkers.push(worker);
       }
 
@@ -576,8 +586,6 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     this.emitter.emit('poll:start', 'workflow-task');
 
     try {
-      // 1. Find incomplete workflows without an assigned steward
-      // For now, we look for tasks with workflow-related tags that are unassigned
       const stewards = await this.agentRegistry.getStewards();
 
       // Find available stewards (no active session)
@@ -589,15 +597,51 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         }
       }
 
-      // For each available steward, check for workflow tasks they can handle
-      for (const steward of availableStewards) {
+      // Separate merge stewards from other stewards
+      const mergeStewards = availableStewards.filter((s) => {
+        const meta = getAgentMetadata(s) as StewardMetadata | undefined;
+        return meta?.stewardFocus === 'merge';
+      });
+
+      const otherStewards = availableStewards.filter((s) => {
+        const meta = getAgentMetadata(s) as StewardMetadata | undefined;
+        return meta?.stewardFocus !== 'merge';
+      });
+
+      // 1. Handle REVIEW tasks - spawn merge stewards with full context
+      // Find tasks in REVIEW status that need merge processing
+      const reviewTasks = await this.taskAssignment.listAssignments({
+        taskStatus: [TaskStatus.REVIEW],
+        mergeStatus: ['pending'],
+      });
+
+      for (const steward of mergeStewards) {
+        if (reviewTasks.length === 0) break;
+
+        // Get the highest priority REVIEW task
+        const sortedTasks = [...reviewTasks].sort((a, b) => (b.task.priority ?? 0) - (a.task.priority ?? 0));
+        const taskAssignment = sortedTasks.shift(); // Remove from list so next steward gets different task
+        if (!taskAssignment) continue;
+
+        try {
+          // Spawn merge steward with full context prompt
+          await this.spawnMergeStewardForTask(steward, taskAssignment.task);
+          processed++;
+          this.emitter.emit('task:dispatched', taskAssignment.taskId, asEntityId(steward.id));
+        } catch (error) {
+          errors++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errorMessages.push(`Merge steward ${steward.name}: ${errorMessage}`);
+        }
+      }
+
+      // 2. Handle other workflow tasks (tag-based matching for non-merge stewards)
+      for (const steward of otherStewards) {
         try {
           const meta = getAgentMetadata(steward) as StewardMetadata | undefined;
           if (!meta) continue;
 
           // Look for unassigned tasks that match this steward's focus
-          // For merge stewards, look for tasks with 'merge' or 'review' tags
-          // For health stewards, look for tasks with 'health' or 'check' tags
           const focusTag = meta.stewardFocus;
 
           const unassignedTasks = await this.taskAssignment.getUnassignedTasks({
@@ -956,6 +1000,117 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     );
 
     return parts.join('\n');
+  }
+
+  /**
+   * Builds the initial prompt for a merge steward session.
+   * Includes the steward role prompt (steward-merge.md) followed by task context.
+   */
+  private async buildStewardPrompt(task: Task, stewardFocus: 'merge' | 'health' = 'merge'): Promise<string> {
+    const parts: string[] = [];
+
+    // Load and include the steward role prompt
+    const roleResult = loadRolePrompt('steward', stewardFocus, { projectRoot: this.config.projectRoot });
+    if (roleResult) {
+      parts.push(
+        'Please read and internalize the following operating instructions. These define your role and how you should behave:',
+        '',
+        roleResult.prompt,
+        '',
+        '---',
+        ''
+      );
+    }
+
+    // Get orchestrator metadata for PR/branch info
+    const taskMeta = task.metadata as Record<string, unknown> | undefined;
+    const orchestratorMeta = taskMeta?.orchestrator as Record<string, unknown> | undefined;
+    const prUrl = orchestratorMeta?.mergeRequestUrl as string | undefined;
+    const branch = orchestratorMeta?.branch as string | undefined;
+
+    parts.push(
+      '## Merge Request Assignment',
+      '',
+      `**Task ID:** ${task.id}`,
+      `**Title:** ${task.title}`,
+    );
+
+    if (branch) {
+      parts.push(`**Branch:** ${branch}`);
+    }
+
+    if (prUrl) {
+      parts.push(`**PR URL:** ${prUrl}`);
+    }
+
+    if (task.priority !== undefined) {
+      parts.push(`**Priority:** ${task.priority}`);
+    }
+
+    // Fetch and include the description content
+    if (task.descriptionRef) {
+      try {
+        const doc = await this.api.get<Document>(asElementId(task.descriptionRef));
+        if (doc?.content) {
+          parts.push('', '### Task Description', doc.content);
+        }
+      } catch {
+        parts.push('', `**Description Document:** ${task.descriptionRef}`);
+      }
+    }
+
+    // Include acceptance criteria if any
+    if (task.acceptanceCriteria) {
+      parts.push('', '### Acceptance Criteria', task.acceptanceCriteria);
+    }
+
+    // Instructions for the merge steward
+    parts.push(
+      '',
+      '### Instructions',
+      '1. Review the PR at the URL above (if available) or check the branch directly.',
+      '2. Run tests on the branch to verify the changes.',
+      `3. If tests pass and the code meets acceptance criteria: merge the PR and run \`el task close ${task.id}\`.`,
+      `4. If issues are found: create a fix task with \`el task create-fix ${task.id} --reason "description of the issue"\`.`,
+    );
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Spawns a merge steward session for a task in REVIEW status.
+   */
+  private async spawnMergeStewardForTask(steward: AgentEntity, task: Task): Promise<void> {
+    const stewardId = asEntityId(steward.id);
+    const meta = getAgentMetadata(steward) as StewardMetadata | undefined;
+    const stewardFocus = meta?.stewardFocus ?? 'merge';
+
+    // Build the steward prompt with full context
+    const initialPrompt = await this.buildStewardPrompt(task, stewardFocus as 'merge' | 'health');
+
+    // Get task metadata for worktree path
+    const taskMeta = task.metadata as Record<string, unknown> | undefined;
+    const orchestratorMeta = taskMeta?.orchestrator as Record<string, unknown> | undefined;
+    const worktreePath = orchestratorMeta?.worktree as string | undefined;
+
+    // Use the task's worktree if available, otherwise use project root
+    const workingDirectory = worktreePath ?? this.config.projectRoot;
+
+    // Start the steward session
+    const { session, events } = await this.sessionManager.startSession(stewardId, {
+      workingDirectory,
+      worktree: worktreePath,
+      initialPrompt,
+      interactive: false, // Stewards use headless mode
+    });
+
+    // Call the onSessionStarted callback if provided
+    if (this.config.onSessionStarted) {
+      this.config.onSessionStarted(session, events, stewardId, initialPrompt);
+    }
+
+    this.emitter.emit('agent:spawned', stewardId, worktreePath);
+    console.log(`[dispatch-daemon] Spawned merge steward ${steward.name} for task ${task.id}`);
   }
 
   /**
