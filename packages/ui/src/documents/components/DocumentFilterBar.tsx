@@ -139,7 +139,7 @@ export function DocumentFilterBar({
                   {filters.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 rounded"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 rounded"
                     >
                       {tag}
                       <button
@@ -226,7 +226,7 @@ export function DocumentFilterBar({
           {filters.tags.map((tag) => (
             <span
               key={`tag-${tag}`}
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 rounded-full"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 rounded-full"
             >
               <Tag className="w-3 h-3" />
               {tag}

@@ -227,7 +227,7 @@ export function MobileDocumentFilter({
                       onClick={() => handleTagToggle(tag)}
                       className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors touch-target ${
                         isSelected
-                          ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-transparent font-medium'
+                          ? 'bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-100 border-transparent font-medium'
                           : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
                       }`}
                       data-testid={`mobile-filter-tag-${tag}`}
