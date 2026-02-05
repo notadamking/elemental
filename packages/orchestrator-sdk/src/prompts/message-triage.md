@@ -10,10 +10,12 @@ For each message, choose one of the following:
 
 1. **Respond** — Send a reply using `el msg send --reply-to {Message ID}`
 2. **Create Task** — If the message requests work, create a task with `el task create`
-3. **Escalate** — Forward to the director channel if you cannot handle it
+3. **Escalate** — Forward to the director if you cannot handle it (use the Worker ID and Director ID from the session context below)
 4. **Investigate** — Read files or gather context before deciding (but do NOT edit files in this session)
 5. **Acknowledge** — Send a brief acknowledgment if no other action is needed
 6. **Skip** — No action needed (e.g., FYI messages, notifications)
+
+> **Note:** Your Worker ID and the Director ID are provided in the session context at the end of this prompt.
 
 ## Rules
 
