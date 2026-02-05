@@ -1416,7 +1416,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
 
       formattedMessages.push(
-        `--- Message from ${senderId} at ${timestamp} ---`,
+        `--- Message ID: ${message.id} | From: ${senderId} | At: ${timestamp} ---`,
         content,
         ''
       );

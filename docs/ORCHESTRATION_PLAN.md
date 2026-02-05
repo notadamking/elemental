@@ -263,11 +263,16 @@ Triage sessions operate in a **temporary detached worktree** checked out on the 
 
 ### Triage Prompt Format
 
-The triage prompt includes the message-triage template with hydrated message contents, followed by session context:
+The triage prompt includes the message-triage template with hydrated message contents, followed by session context.
 
+**Message format** (each message in the batch):
 ```
-{message-triage.md template with {{MESSAGES}} replaced by formatted messages}
+--- Message ID: {messageId} | From: {senderId} | At: {timestamp} ---
+{message content}
+```
 
+**Session context** (appended after the template):
+```
 ---
 
 **Worker ID:** {agentId}
