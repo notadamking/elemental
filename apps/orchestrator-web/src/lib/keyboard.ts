@@ -80,6 +80,18 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutDefinition> = {
     description: 'Go to Documents',
     category: 'navigation',
   },
+  'nav.plans': {
+    keys: 'G P',
+    path: '/plans',
+    description: 'Go to Plans',
+    category: 'navigation',
+  },
+  'nav.mergeRequests': {
+    keys: 'G R',
+    path: '/merge-requests',
+    description: 'Go to Merge Requests',
+    category: 'navigation',
+  },
 
   // Action shortcuts (C prefix = "Create", Cmd+ for global actions)
   'action.commandPalette': {

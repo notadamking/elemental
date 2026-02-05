@@ -62,7 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/tasks', icon: CheckSquare, label: 'Tasks', testId: 'nav-tasks', actionId: 'nav.tasks' },
       { to: '/merge-requests', icon: GitMerge, label: 'Merge Requests', testId: 'nav-merge-requests', actionId: 'nav.mergeRequests' },
-      { to: '/plans', icon: ClipboardList, label: 'Plans', testId: 'nav-plans' },
+      { to: '/plans', icon: ClipboardList, label: 'Plans', testId: 'nav-plans', actionId: 'nav.plans' },
       { to: '/workflows', icon: Workflow, label: 'Workflows', testId: 'nav-workflows', actionId: 'nav.workflows' },
     ],
   },
