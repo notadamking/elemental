@@ -258,6 +258,13 @@ export function createSessionRoutes(
       let effectivePrompt = body.initialPrompt;
       let assignedTask: { id: string; title: string } | undefined;
 
+      // Get director ID for worker prompts
+      let directorId: string | undefined;
+      if (agentRole === 'worker') {
+        const director = await agentRegistry.getDirector();
+        directorId = director?.id ?? 'unknown';
+      }
+
       if (body.taskId) {
         const taskResult = await api.get<Task>(body.taskId as ElementId);
         if (!taskResult || taskResult.type !== ElementType.TASK) {
@@ -268,6 +275,8 @@ export function createSessionRoutes(
 
         const taskPrompt = `You have been assigned the following task:
 
+**Worker ID:** ${agentId}
+**Director ID:** ${directorId ?? 'unknown'}
 **Task ID**: ${taskResult.id}
 **Title**: ${taskResult.title}
 **Priority**: ${taskResult.priority ?? 'Not set'}
@@ -292,8 +301,14 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       // so Claude understands this is its operating instructions, not a file being opened
       if (rolePrompt) {
         const framedRolePrompt = `Please read and internalize the following operating instructions. These define your role and how you should behave in this session:\n\n${rolePrompt}`;
-        // Add Director ID after the role prompt for directors (similar to Worker ID for workers)
-        const idSection = agentRole === 'director' ? `\n\n**Director ID:** ${agentId}` : '';
+        // Add identity section after the role prompt for directors and workers (when not already in task prompt)
+        let idSection = '';
+        if (agentRole === 'director') {
+          idSection = `\n\n**Director ID:** ${agentId}`;
+        } else if (agentRole === 'worker' && !body.taskId) {
+          // Only add here if no taskId (task prompt already includes IDs)
+          idSection = `\n\n**Worker ID:** ${agentId}\n**Director ID:** ${directorId ?? 'unknown'}`;
+        }
         effectivePrompt = effectivePrompt
           ? `${framedRolePrompt}${idSection}\n\n---\n\n${effectivePrompt}`
           : `${framedRolePrompt}${idSection}`;
