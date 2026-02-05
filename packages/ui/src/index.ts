@@ -38,3 +38,6 @@ export * from './plans';
 
 // Settings Module (also available via '@elemental/ui/settings')
 export * from './settings';
+
+// Documents Module (also available via '@elemental/ui/documents')
+export * from './documents';

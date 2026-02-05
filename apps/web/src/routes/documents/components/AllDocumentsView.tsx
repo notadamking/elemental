@@ -1,17 +1,31 @@
 /**
- * AllDocumentsView - Shows all documents with search and filtering
+ * AllDocumentsView - Shows all documents with search, sorting, and filtering
  */
 
-import { useState, useMemo, useCallback } from 'react';
-import { FileText, Search, Plus } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { FileText, Search, Plus, Filter } from 'lucide-react';
 import { useShortcutVersion } from '../../../hooks';
 import { getCurrentBinding } from '../../../lib/keyboard';
 import { VirtualizedList } from '../../../components/shared/VirtualizedList';
 import { useAllDocuments as useAllDocumentsPreloaded } from '../../../api/hooks/useAllElements';
-import { sortData, createSimpleDocumentSearchFilter } from '../../../hooks/usePaginatedData';
+import { sortData } from '../../../hooks/usePaginatedData';
 import { DocumentListItem } from './DocumentListItem';
 import { DOCUMENT_ITEM_HEIGHT } from '../constants';
 import type { DocumentType } from '../types';
+import {
+  type DocumentSortField,
+  type SortDirection,
+  type DocumentFilterConfig,
+  DocumentSortDropdown,
+  DocumentFilterBar,
+  MobileDocumentFilter,
+  getStoredSort,
+  setStoredSort,
+  createDocumentFilter,
+  EMPTY_DOCUMENT_FILTER,
+  hasActiveFilters,
+  getActiveFilterCount,
+} from '@elemental/ui/documents';
 
 interface AllDocumentsViewProps {
   selectedDocumentId: string | null;
@@ -27,10 +41,52 @@ export function AllDocumentsView({
   isMobile = false,
 }: AllDocumentsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  // Sort state (persisted to localStorage)
+  const [sortField, setSortField] = useState<DocumentSortField>('updatedAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Filter state (session only)
+  const [filters, setFilters] = useState<DocumentFilterConfig>(EMPTY_DOCUMENT_FILTER);
+
   useShortcutVersion();
+
+  // Load stored sort on mount
+  useEffect(() => {
+    const stored = getStoredSort();
+    setSortField(stored.field);
+    setSortDirection(stored.direction);
+  }, []);
+
+  // Persist sort changes
+  const handleSortFieldChange = (field: DocumentSortField) => {
+    setSortField(field);
+    setStoredSort(field, sortDirection);
+  };
+
+  const handleSortDirectionChange = (direction: SortDirection) => {
+    setSortDirection(direction);
+    setStoredSort(sortField, direction);
+  };
+
+  const handleClearFilters = () => {
+    setFilters(EMPTY_DOCUMENT_FILTER);
+  };
 
   // Use upfront-loaded data
   const { data: allDocuments, isLoading: isDocumentsLoading } = useAllDocumentsPreloaded();
+
+  // Extract all unique tags from documents
+  const availableTags = useMemo(() => {
+    if (!allDocuments) return [];
+    const docs = allDocuments as unknown as DocumentType[];
+    const tagSet = new Set<string>();
+    docs.forEach((doc) => {
+      (doc.tags || []).forEach((tag) => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [allDocuments]);
 
   // Client-side filtering with instant results
   const filteredDocuments = useMemo((): DocumentType[] => {
@@ -38,15 +94,18 @@ export function AllDocumentsView({
 
     // Cast to DocumentType[]
     const docs = allDocuments as unknown as DocumentType[];
-    const filterFn = createSimpleDocumentSearchFilter(searchQuery);
-    const filtered = filterFn ? docs.filter(filterFn) : docs;
 
-    // Sort by updatedAt descending
-    return sortData(filtered, { field: 'updatedAt', direction: 'desc' });
-  }, [allDocuments, searchQuery]);
+    // Apply search + filters
+    const filterFn = createDocumentFilter(filters, searchQuery);
+    const filtered = docs.filter(filterFn);
+
+    // Sort by selected field and direction
+    return sortData(filtered, { field: sortField, direction: sortDirection });
+  }, [allDocuments, searchQuery, filters, sortField, sortDirection]);
 
   const totalItems = filteredDocuments.length;
   const isLoading = isDocumentsLoading;
+  const activeFilterCount = getActiveFilterCount(filters);
 
   // Render function for virtualized document list item
   const renderDocumentItem = useCallback((doc: DocumentType) => (
@@ -92,6 +151,7 @@ export function AllDocumentsView({
             </button>
           )}
         </div>
+
         {/* Search box */}
         <div className="mt-3 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -103,6 +163,56 @@ export function AllDocumentsView({
             className={`w-full pl-9 pr-4 ${isMobile ? 'py-3' : 'py-2'} text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
             data-testid="documents-search-input"
           />
+        </div>
+
+        {/* Sort and Filter controls */}
+        <div className="mt-3">
+          {isMobile ? (
+            // Mobile: simple filter button
+            <div className="flex items-center gap-2">
+              <DocumentSortDropdown
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSortFieldChange={handleSortFieldChange}
+                onSortDirectionChange={handleSortDirectionChange}
+              />
+              <button
+                onClick={() => setMobileFilterOpen(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  hasActiveFilters(filters)
+                    ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50'
+                    : 'text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800'
+                }`}
+                data-testid="mobile-filter-button"
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="px-1.5 py-0.5 text-xs font-semibold bg-blue-600 text-white rounded-full">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          ) : (
+            // Desktop: sort dropdown + filter bar
+            <div className="flex items-start gap-3">
+              <DocumentSortDropdown
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSortFieldChange={handleSortFieldChange}
+                onSortDirectionChange={handleSortDirectionChange}
+              />
+              <div className="flex-1">
+                <DocumentFilterBar
+                  filters={filters}
+                  onFilterChange={setFilters}
+                  onClearFilters={handleClearFilters}
+                  availableTags={availableTags}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -124,9 +234,15 @@ export function AllDocumentsView({
             className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 px-4"
           >
             <FileText className="w-12 h-12 mb-3 text-gray-300 dark:text-gray-600" />
-            <p className="text-sm text-center">{searchQuery ? 'No documents match your search' : 'No documents yet'}</p>
+            <p className="text-sm text-center">
+              {searchQuery || hasActiveFilters(filters)
+                ? 'No documents match your search or filters'
+                : 'No documents yet'}
+            </p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-center">
-              {searchQuery ? 'Try a different search term' : 'Create documents to build your knowledge base'}
+              {searchQuery || hasActiveFilters(filters)
+                ? 'Try adjusting your search or filters'
+                : 'Create documents to build your knowledge base'}
             </p>
           </div>
         ) : (
@@ -143,6 +259,18 @@ export function AllDocumentsView({
           />
         )}
       </div>
+
+      {/* Mobile filter sheet */}
+      {isMobile && (
+        <MobileDocumentFilter
+          open={mobileFilterOpen}
+          onClose={() => setMobileFilterOpen(false)}
+          filters={filters}
+          onFilterChange={setFilters}
+          onClearFilters={handleClearFilters}
+          availableTags={availableTags}
+        />
+      )}
     </div>
   );
 }

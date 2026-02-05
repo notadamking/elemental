@@ -1,16 +1,31 @@
 /**
- * LibraryView - Displays documents within a selected library
+ * LibraryView - Displays documents within a selected library with search, sorting, and filtering
  */
 
-import { useMemo, useCallback } from 'react';
-import { FolderOpen, Folder, FileText, Plus } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { FolderOpen, Folder, FileText, Plus, Search, Filter } from 'lucide-react';
 import { useShortcutVersion } from '../../../hooks';
 import { getCurrentBinding } from '../../../lib/keyboard';
 import { VirtualizedList } from '../../../components/shared/VirtualizedList';
 import { useLibrary, useLibraryDocuments } from '../hooks';
+import { sortData } from '../../../hooks/usePaginatedData';
 import { DocumentListItem } from './DocumentListItem';
 import { DOCUMENT_ITEM_HEIGHT } from '../constants';
 import type { DocumentType } from '../types';
+import {
+  type DocumentSortField,
+  type SortDirection,
+  type DocumentFilterConfig,
+  DocumentSortDropdown,
+  DocumentFilterBar,
+  MobileDocumentFilter,
+  getStoredSort,
+  setStoredSort,
+  createDocumentFilter,
+  EMPTY_DOCUMENT_FILTER,
+  hasActiveFilters,
+  getActiveFilterCount,
+} from '@elemental/ui/documents';
 
 interface LibraryViewProps {
   libraryId: string;
@@ -29,9 +44,47 @@ export function LibraryView({
   onNewDocument,
   isMobile = false,
 }: LibraryViewProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  // Sort state (persisted to localStorage)
+  const [sortField, setSortField] = useState<DocumentSortField>('updatedAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Filter state (session only)
+  const [filters, setFilters] = useState<DocumentFilterConfig>(EMPTY_DOCUMENT_FILTER);
+
   const { data: library, isLoading: libraryLoading } = useLibrary(libraryId);
   const { data: documents = [], isLoading: docsLoading, error } = useLibraryDocuments(libraryId);
   useShortcutVersion();
+
+  // Load stored sort on mount
+  useEffect(() => {
+    const stored = getStoredSort();
+    setSortField(stored.field);
+    setSortDirection(stored.direction);
+  }, []);
+
+  // Reset filters when library changes
+  useEffect(() => {
+    setFilters(EMPTY_DOCUMENT_FILTER);
+    setSearchQuery('');
+  }, [libraryId]);
+
+  // Persist sort changes
+  const handleSortFieldChange = (field: DocumentSortField) => {
+    setSortField(field);
+    setStoredSort(field, sortDirection);
+  };
+
+  const handleSortDirectionChange = (direction: SortDirection) => {
+    setSortDirection(direction);
+    setStoredSort(sortField, direction);
+  };
+
+  const handleClearFilters = () => {
+    setFilters(EMPTY_DOCUMENT_FILTER);
+  };
 
   const isLoading = libraryLoading || docsLoading;
 
@@ -42,6 +95,27 @@ export function LibraryView({
   ].filter((doc, index, self) =>
     index === self.findIndex((d) => d.id === doc.id)
   ), [documents, library?._documents]);
+
+  // Extract all unique tags from documents
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    allDocuments.forEach((doc) => {
+      ((doc as DocumentType).tags || []).forEach((tag) => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [allDocuments]);
+
+  // Client-side filtering with instant results
+  const filteredDocuments = useMemo((): DocumentType[] => {
+    // Apply search + filters
+    const filterFn = createDocumentFilter(filters, searchQuery);
+    const filtered = (allDocuments as DocumentType[]).filter(filterFn);
+
+    // Sort by selected field and direction
+    return sortData(filtered, { field: sortField, direction: sortDirection });
+  }, [allDocuments, searchQuery, filters, sortField, sortDirection]);
+
+  const activeFilterCount = getActiveFilterCount(filters);
 
   // Render function for virtualized document list item
   const renderDocumentItem = useCallback((doc: DocumentType) => (
@@ -79,7 +153,7 @@ export function LibraryView({
                   data-testid="library-doc-count"
                   className={`text-gray-400 dark:text-gray-500 flex-shrink-0 ${isMobile ? 'text-xs' : 'text-sm'}`}
                 >
-                  {allDocuments.length} {allDocuments.length === 1 ? 'doc' : 'docs'}
+                  {filteredDocuments.length} {filteredDocuments.length === 1 ? 'doc' : 'docs'}
                 </span>
               </>
             ) : (
@@ -109,6 +183,69 @@ export function LibraryView({
             {library.description}
           </p>
         )}
+
+        {/* Search box */}
+        <div className="mt-3 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search documents..."
+            className={`w-full pl-9 pr-4 ${isMobile ? 'py-3' : 'py-2'} text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+            data-testid="library-search-input"
+          />
+        </div>
+
+        {/* Sort and Filter controls */}
+        <div className="mt-3">
+          {isMobile ? (
+            // Mobile: simple filter button
+            <div className="flex items-center gap-2">
+              <DocumentSortDropdown
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSortFieldChange={handleSortFieldChange}
+                onSortDirectionChange={handleSortDirectionChange}
+              />
+              <button
+                onClick={() => setMobileFilterOpen(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  hasActiveFilters(filters)
+                    ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50'
+                    : 'text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800'
+                }`}
+                data-testid="mobile-filter-button"
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="px-1.5 py-0.5 text-xs font-semibold bg-blue-600 text-white rounded-full">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          ) : (
+            // Desktop: sort dropdown + filter bar
+            <div className="flex items-start gap-3">
+              <DocumentSortDropdown
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSortFieldChange={handleSortFieldChange}
+                onSortDirectionChange={handleSortDirectionChange}
+              />
+              <div className="flex-1">
+                <DocumentFilterBar
+                  filters={filters}
+                  onFilterChange={setFilters}
+                  onClearFilters={handleClearFilters}
+                  availableTags={availableTags}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sub-libraries section */}
@@ -152,20 +289,26 @@ export function LibraryView({
           >
             Failed to load documents
           </div>
-        ) : allDocuments.length === 0 ? (
+        ) : filteredDocuments.length === 0 ? (
           <div
             data-testid="documents-empty"
             className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 px-4"
           >
             <FileText className="w-12 h-12 mb-3 text-gray-300 dark:text-gray-600" />
-            <p className="text-sm">No documents in this library</p>
+            <p className="text-sm">
+              {searchQuery || hasActiveFilters(filters)
+                ? 'No documents match your search or filters'
+                : 'No documents in this library'}
+            </p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              Add documents to organize your knowledge
+              {searchQuery || hasActiveFilters(filters)
+                ? 'Try adjusting your search or filters'
+                : 'Add documents to organize your knowledge'}
             </p>
           </div>
         ) : (
           <VirtualizedList
-            items={allDocuments}
+            items={filteredDocuments}
             getItemKey={(doc) => doc.id}
             estimateSize={isMobile ? 72 : DOCUMENT_ITEM_HEIGHT}
             renderItem={renderDocumentItem}
@@ -177,6 +320,18 @@ export function LibraryView({
           />
         )}
       </div>
+
+      {/* Mobile filter sheet */}
+      {isMobile && (
+        <MobileDocumentFilter
+          open={mobileFilterOpen}
+          onClose={() => setMobileFilterOpen(false)}
+          filters={filters}
+          onFilterChange={setFilters}
+          onClearFilters={handleClearFilters}
+          availableTags={availableTags}
+        />
+      )}
     </div>
   );
 }
