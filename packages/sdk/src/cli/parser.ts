@@ -40,6 +40,7 @@ export function unescapeShellArtifacts(value: string): string {
 const GLOBAL_OPTIONS: Record<string, { short?: string; hasValue?: boolean; key: keyof GlobalOptions }> = {
   '--db': { hasValue: true, key: 'db' },
   '--actor': { hasValue: true, key: 'actor' },
+  '--from': { short: '-f', hasValue: true, key: 'actor' }, // Alias for --actor
   '--sign-key': { hasValue: true, key: 'signKey' },
   '--sign-key-file': { hasValue: true, key: 'signKeyFile' },
   '--json': { key: 'json' },
@@ -251,6 +252,7 @@ export function getGlobalOptionsHelp(): string {
   return `Global Options:
   --db <path>            Database file path
   --actor <name>         Actor name for operations
+  -f, --from <name>      Alias for --actor
   --sign-key <key>       Private key for signing (base64 PKCS8)
   --sign-key-file <path> Path to file containing private key
   --json                 Output in JSON format

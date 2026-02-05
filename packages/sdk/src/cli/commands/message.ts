@@ -32,7 +32,12 @@ import {
   type DocumentId,
 } from '@elemental/core';
 import type { Channel } from '@elemental/core';
-import { isMember } from '@elemental/core';
+import {
+  isMember,
+  isDirectChannel,
+  findDirectChannel,
+  createDirectChannel,
+} from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
 import { OPERATOR_ENTITY_ID } from './init.js';
@@ -100,7 +105,9 @@ function createAPI(options: GlobalOptions, createDb: boolean = false): { api: El
 // ============================================================================
 
 interface MsgSendOptions {
-  channel: string;
+  channel?: string;
+  to?: string;
+  replyTo?: string;
   content?: string;
   file?: string;
   thread?: string;
@@ -112,9 +119,20 @@ const msgSendOptions: CommandOption[] = [
   {
     name: 'channel',
     short: 'c',
-    description: 'Channel ID to send to (required)',
+    description: 'Channel ID to send to (required unless --to or --reply-to is used)',
     hasValue: true,
-    required: true,
+  },
+  {
+    name: 'to',
+    short: 'T',
+    description: 'Entity ID to send DM to (finds or creates DM channel)',
+    hasValue: true,
+  },
+  {
+    name: 'replyTo',
+    short: 'r',
+    description: 'Message ID to reply to (auto-sets channel, thread, and swaps sender/recipient in DM)',
+    hasValue: true,
   },
   {
     name: 'content',
@@ -124,7 +142,6 @@ const msgSendOptions: CommandOption[] = [
   },
   {
     name: 'file',
-    short: 'f',
     description: 'Read content from file',
     hasValue: true,
   },
@@ -153,11 +170,6 @@ async function msgSendHandler(
   _args: string[],
   options: GlobalOptions & MsgSendOptions
 ): Promise<CommandResult> {
-  // Must have channel
-  if (!options.channel) {
-    return failure('--channel is required', ExitCode.INVALID_ARGUMENTS);
-  }
-
   // Must specify either --content or --file
   if (!options.content && !options.file) {
     return failure('Either --content or --file is required', ExitCode.INVALID_ARGUMENTS);
@@ -167,14 +179,83 @@ async function msgSendHandler(
     return failure('Cannot specify both --content and --file', ExitCode.INVALID_ARGUMENTS);
   }
 
+  // Must have one of: --channel, --to, or --reply-to
+  if (!options.channel && !options.to && !options.replyTo) {
+    return failure('One of --channel, --to, or --reply-to is required', ExitCode.INVALID_ARGUMENTS);
+  }
+
   const { api, error } = createAPI(options, true);
   if (error) {
     return failure(error, ExitCode.GENERAL_ERROR);
   }
 
   try {
-    const actor = resolveActor(options);
-    const channelId = options.channel as ChannelId;
+    let actor = resolveActor(options);
+    let channelId: ChannelId | undefined = options.channel as ChannelId | undefined;
+    let threadId: MessageId | null = options.thread ? (options.thread as MessageId) : null;
+
+    // Handle --reply-to: auto-set channel, thread, and swap sender/recipient in DM
+    if (options.replyTo) {
+      const replyToMessage = await api.get<Message>(options.replyTo as ElementId);
+      if (!replyToMessage) {
+        return failure(`Reply-to message not found: ${options.replyTo}`, ExitCode.NOT_FOUND);
+      }
+      if (replyToMessage.type !== 'message') {
+        return failure(`Element ${options.replyTo} is not a message (type: ${replyToMessage.type})`, ExitCode.VALIDATION);
+      }
+
+      // Set channel from replied-to message
+      channelId = replyToMessage.channelId;
+
+      // Set thread: use replied-to message's thread, or if not in a thread, use the message itself
+      threadId = replyToMessage.threadId ?? (replyToMessage.id as MessageId);
+
+      // If in a DM channel and --from/--actor not explicitly set, swap sender/recipient
+      if (!options.actor) {
+        const replyChannel = await api.get<Channel>(channelId as unknown as ElementId);
+        if (replyChannel && isDirectChannel(replyChannel)) {
+          // Get the other party in the DM channel
+          const otherParty = replyChannel.members.find((m) => m !== replyToMessage.sender);
+          if (otherParty) {
+            actor = otherParty;
+          }
+        }
+      }
+    }
+
+    // Handle --to: find or create DM channel between actor and target
+    if (options.to) {
+      const toEntity = options.to as EntityId;
+
+      // Validate target entity exists
+      const targetEntity = await api.get(toEntity as unknown as ElementId);
+      if (!targetEntity) {
+        return failure(`Target entity not found: ${toEntity}`, ExitCode.NOT_FOUND);
+      }
+      if (targetEntity.type !== 'entity') {
+        return failure(`Element ${toEntity} is not an entity (type: ${targetEntity.type})`, ExitCode.VALIDATION);
+      }
+
+      // Find existing DM channel
+      const allChannels = await api.list<Channel>({ type: 'channel' });
+      let dmChannel = findDirectChannel(allChannels, actor, toEntity);
+
+      // Create DM channel if not found
+      if (!dmChannel) {
+        const newDmChannel = await createDirectChannel({
+          entityA: actor,
+          entityB: toEntity,
+          createdBy: actor,
+        });
+        dmChannel = await api.create<Channel>(newDmChannel as unknown as Channel & Record<string, unknown>);
+      }
+
+      channelId = dmChannel.id as unknown as ChannelId;
+    }
+
+    if (!channelId) {
+      return failure('Could not determine channel', ExitCode.GENERAL_ERROR);
+    }
 
     // Validate channel exists and sender is a member
     const channel = await api.get<Channel>(channelId as unknown as ElementId);
@@ -210,9 +291,8 @@ async function msgSendHandler(
     });
     const createdContentDoc = await api.create(contentDoc as unknown as Element & Record<string, unknown>);
 
-    // Validate thread parent if specified
-    let threadId: MessageId | null = null;
-    if (options.thread) {
+    // Validate thread parent if specified (and not already set by --reply-to)
+    if (options.thread && !options.replyTo) {
       const threadParent = await api.get<Message>(options.thread as unknown as ElementId);
       if (!threadParent) {
         return failure(`Thread parent message not found: ${options.thread}`, ExitCode.NOT_FOUND);
@@ -280,21 +360,28 @@ async function msgSendHandler(
 
 const msgSendCommand: Command = {
   name: 'send',
-  description: 'Send a message to a channel',
-  usage: 'el msg send --channel <id> --content <text> | --file <path> [options]',
-  help: `Send a message to a channel.
+  description: 'Send a message to a channel or entity',
+  usage: 'el msg send (--channel <id> | --to <entity> | --reply-to <msg>) --content <text> | --file <path> [options]',
+  help: `Send a message to a channel, entity (DM), or as a reply.
 
 Options:
-  -c, --channel <id>     Channel to send to (required)
-  -m, --content <text>   Message content
-  -f, --file <path>      Read content from file
-  -t, --thread <id>      Reply to message (creates thread)
-  -a, --attachment <id>  Attach document (can be repeated)
-      --tag <tag>        Add tag (can be repeated)
+  -c, --channel <id>      Channel to send to
+  -T, --to <entity>       Entity to send DM to (finds or creates DM channel)
+  -r, --reply-to <msg>    Message ID to reply to (auto-sets channel, thread, swaps sender/recipient in DM)
+  -m, --content <text>    Message content
+      --file <path>       Read content from file
+  -t, --thread <id>       Reply to message (creates thread)
+  -a, --attachment <id>   Attach document (can be repeated)
+      --tag <tag>         Add tag (can be repeated)
+
+When using --to, a DM channel is found or created between you and the target entity.
+When using --reply-to in a DM channel, sender/recipient are automatically swapped.
 
 Examples:
   el msg send --channel el-abc123 --content "Hello!"
-  el msg send -c el-abc123 -m "My message" --tag important
+  el msg send --to el-user456 -m "Direct message"
+  el msg send --reply-to el-msg789 -m "Reply to your message"
+  el --from agent-1 msg send --to agent-2 -m "Message from agent-1"
   el msg send -c el-abc123 --file message.txt
   el msg send -c el-abc123 -m "Reply" --thread el-msg456`,
   options: msgSendOptions,
@@ -590,6 +677,91 @@ Examples:
 };
 
 // ============================================================================
+// Message Reply Command
+// ============================================================================
+
+interface MsgReplyOptions {
+  content?: string;
+  file?: string;
+  attachment?: string | string[];
+  tag?: string[];
+}
+
+const msgReplyOptions: CommandOption[] = [
+  {
+    name: 'content',
+    short: 'm',
+    description: 'Message content (text)',
+    hasValue: true,
+  },
+  {
+    name: 'file',
+    description: 'Read content from file',
+    hasValue: true,
+  },
+  {
+    name: 'attachment',
+    short: 'a',
+    description: 'Attach document ID (can be repeated)',
+    hasValue: true,
+    array: true,
+  },
+  {
+    name: 'tag',
+    description: 'Add tag (can be repeated)',
+    hasValue: true,
+    array: true,
+  },
+];
+
+async function msgReplyHandler(
+  args: string[],
+  options: GlobalOptions & MsgReplyOptions
+): Promise<CommandResult> {
+  const [messageId] = args;
+
+  if (!messageId) {
+    return failure('Usage: el msg reply <message-id> --content <text> | --file <path>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  // Delegate to send handler with --reply-to set
+  return msgSendHandler([], {
+    ...options,
+    replyTo: messageId,
+  } as GlobalOptions & MsgSendOptions);
+}
+
+const msgReplyCommand: Command = {
+  name: 'reply',
+  description: 'Reply to a message (shorthand for send --reply-to)',
+  usage: 'el msg reply <message-id> --content <text> | --file <path> [options]',
+  help: `Reply to a message.
+
+This is a shorthand for "el msg send --reply-to <message-id>".
+It automatically sets the channel and thread from the replied-to message.
+In DM channels, sender/recipient are automatically swapped unless --from is specified.
+
+Arguments:
+  message-id   Message to reply to
+
+Options:
+  -m, --content <text>    Message content
+      --file <path>       Read content from file
+  -a, --attachment <id>   Attach document (can be repeated)
+      --tag <tag>         Add tag (can be repeated)
+
+Use --from (or --actor) to override the sender:
+  el --from agent-1 msg reply el-msg123 -m "Reply as agent-1"
+
+Examples:
+  el msg reply el-msg123 --content "Thanks for the update!"
+  el msg reply el-msg123 --file response.txt
+  el --from bot msg reply el-msg123 -m "Automated response"`,
+  options: msgReplyOptions,
+  handler: msgReplyHandler as Command['handler'],
+};
+
+// ============================================================================
 // Message Root Command
 // ============================================================================
 
@@ -603,16 +775,20 @@ Messages are immutable - once sent, they cannot be edited or deleted.
 This ensures a reliable audit trail of all communication.
 
 Subcommands:
-  send     Send a message to a channel
+  send     Send a message to a channel, entity, or as a reply
+  reply    Reply to a message (shorthand for send --reply-to)
   list     List messages in a channel
   thread   View a message thread
 
 Examples:
   el msg send --channel el-abc123 --content "Hello!"
+  el msg send --to el-user456 -m "Direct message"
+  el msg reply el-msg789 -m "Reply to your message"
   el msg list --channel el-abc123
   el msg thread el-msg456`,
   subcommands: {
     send: msgSendCommand,
+    reply: msgReplyCommand,
     list: msgListCommand,
     thread: msgThreadCommand,
   },

@@ -22,6 +22,7 @@ bun packages/sdk/src/bin/el.ts
 | `--quiet, -q` | Minimal output |
 | `--verbose, -v` | Verbose output |
 | `--actor <name>` | Specify acting entity |
+| `--from, -f <name>` | Alias for `--actor` |
 | `--db <path>` | Override database path |
 
 ## Basic Commands
@@ -331,9 +332,53 @@ el channel merge -s el-ch111 -t el-ch222 --name "combined-channel"
 
 | Command | Description |
 |---------|-------------|
-| `el msg send` | Send message |
-| `el msg thread <id>` | Reply in thread |
+| `el msg send` | Send message to channel, entity, or as reply |
+| `el msg reply <id>` | Reply to a message (shorthand for send --reply-to) |
+| `el msg thread <id>` | View thread messages |
 | `el msg list` | List messages |
+
+#### msg send
+
+| Option | Description |
+|--------|-------------|
+| `-c, --channel <id>` | Channel to send to |
+| `-T, --to <entity>` | Entity to send DM to (finds or creates DM channel) |
+| `-r, --replyTo <msg>` | Message ID to reply to (auto-sets channel, thread, swaps sender/recipient in DM) |
+| `-m, --content <text>` | Message content |
+| `--file <path>` | Read content from file |
+| `-t, --thread <id>` | Reply to message (creates thread) |
+| `-a, --attachment <id>` | Attach document (can be repeated) |
+| `--tag <tag>` | Add tag (can be repeated) |
+
+```bash
+# Send to channel
+el msg send --channel el-abc123 --content "Hello!"
+
+# Send DM to entity (finds or creates DM channel)
+el msg send --to el-user456 -m "Direct message"
+
+# Send DM with explicit sender
+el --from agent-1 msg send --to agent-2 -m "Message from agent-1"
+
+# Reply to a message (auto-swaps sender/recipient in DM)
+el msg send --reply-to el-msg789 -m "Reply to your message"
+```
+
+#### msg reply
+
+Shorthand for `el msg send --reply-to`. Automatically sets channel and thread from the replied-to message. In DM channels, sender/recipient are swapped unless `--from` is specified.
+
+| Option | Description |
+|--------|-------------|
+| `-m, --content <text>` | Message content |
+| `--file <path>` | Read content from file |
+| `-a, --attachment <id>` | Attach document (can be repeated) |
+| `--tag <tag>` | Add tag (can be repeated) |
+
+```bash
+el msg reply el-msg123 --content "Thanks for the update!"
+el --from bot msg reply el-msg123 -m "Automated response"
+```
 
 ## Team Commands
 

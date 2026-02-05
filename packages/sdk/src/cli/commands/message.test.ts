@@ -591,7 +591,22 @@ describe('msg send command options', () => {
     const channelOption = messageCommand.subcommands!.send.options?.find((o) => o.name === 'channel');
     expect(channelOption).toBeDefined();
     expect(channelOption!.short).toBe('c');
-    expect(channelOption!.required).toBe(true);
+    // Not required since --to or --reply-to can be used instead
+    expect(channelOption!.required).toBeUndefined();
+  });
+
+  test('has --to option', () => {
+    const toOption = messageCommand.subcommands!.send.options?.find((o) => o.name === 'to');
+    expect(toOption).toBeDefined();
+    expect(toOption!.short).toBe('T');
+    expect(toOption!.hasValue).toBe(true);
+  });
+
+  test('has --replyTo option', () => {
+    const replyToOption = messageCommand.subcommands!.send.options?.find((o) => o.name === 'replyTo');
+    expect(replyToOption).toBeDefined();
+    expect(replyToOption!.short).toBe('r');
+    expect(replyToOption!.hasValue).toBe(true);
   });
 
   test('has --content option', () => {
@@ -603,7 +618,8 @@ describe('msg send command options', () => {
   test('has --file option', () => {
     const fileOption = messageCommand.subcommands!.send.options?.find((o) => o.name === 'file');
     expect(fileOption).toBeDefined();
-    expect(fileOption!.short).toBe('f');
+    // No short form since -f is now global --from alias
+    expect(fileOption!.short).toBeUndefined();
   });
 
   test('has --thread option', () => {
@@ -621,6 +637,49 @@ describe('msg send command options', () => {
   test('has --tag option', () => {
     const tagOption = messageCommand.subcommands!.send.options?.find((o) => o.name === 'tag');
     expect(tagOption).toBeDefined();
+  });
+});
+
+// ============================================================================
+// Reply Command Tests
+// ============================================================================
+
+describe('msg reply command', () => {
+  test('is registered as subcommand', () => {
+    expect(messageCommand.subcommands!.reply).toBeDefined();
+    expect(messageCommand.subcommands!.reply.name).toBe('reply');
+  });
+
+  test('has --content option', () => {
+    const contentOption = messageCommand.subcommands!.reply.options?.find((o) => o.name === 'content');
+    expect(contentOption).toBeDefined();
+    expect(contentOption!.short).toBe('m');
+  });
+
+  test('has --file option', () => {
+    const fileOption = messageCommand.subcommands!.reply.options?.find((o) => o.name === 'file');
+    expect(fileOption).toBeDefined();
+  });
+
+  test('has --attachment option', () => {
+    const attachmentOption = messageCommand.subcommands!.reply.options?.find((o) => o.name === 'attachment');
+    expect(attachmentOption).toBeDefined();
+    expect(attachmentOption!.short).toBe('a');
+  });
+
+  test('does not have --channel option', () => {
+    const channelOption = messageCommand.subcommands!.reply.options?.find((o) => o.name === 'channel');
+    expect(channelOption).toBeUndefined();
+  });
+
+  test('does not have --to option', () => {
+    const toOption = messageCommand.subcommands!.reply.options?.find((o) => o.name === 'to');
+    expect(toOption).toBeUndefined();
+  });
+
+  test('does not have --thread option', () => {
+    const threadOption = messageCommand.subcommands!.reply.options?.find((o) => o.name === 'thread');
+    expect(threadOption).toBeUndefined();
   });
 });
 

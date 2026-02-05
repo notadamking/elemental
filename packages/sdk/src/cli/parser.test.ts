@@ -113,6 +113,21 @@ describe('parseArgs', () => {
       expect(result.options.actor).toBe('myagent');
     });
 
+    it('should parse --from as alias for --actor', () => {
+      const result = parseArgs(['--from', 'sender', 'list']);
+      expect(result.options.actor).toBe('sender');
+    });
+
+    it('should parse -f as short form of --from', () => {
+      const result = parseArgs(['-f', 'sender', 'list']);
+      expect(result.options.actor).toBe('sender');
+    });
+
+    it('should parse --from=value syntax', () => {
+      const result = parseArgs(['--from=sender', 'list']);
+      expect(result.options.actor).toBe('sender');
+    });
+
     it('should parse multiple global options', () => {
       const result = parseArgs(['--json', '--verbose', '--db', 'test.db', 'list']);
       expect(result.options.json).toBe(true);
@@ -323,6 +338,7 @@ describe('getGlobalOptionsHelp', () => {
     const help = getGlobalOptionsHelp();
     expect(help).toContain('--db');
     expect(help).toContain('--actor');
+    expect(help).toContain('--from');
     expect(help).toContain('--json');
     expect(help).toContain('--quiet');
     expect(help).toContain('--verbose');
@@ -332,6 +348,7 @@ describe('getGlobalOptionsHelp', () => {
 
   it('should include short options', () => {
     const help = getGlobalOptionsHelp();
+    expect(help).toContain('-f');
     expect(help).toContain('-q');
     expect(help).toContain('-v');
     expect(help).toContain('-h');
