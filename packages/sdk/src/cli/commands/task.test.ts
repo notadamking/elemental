@@ -9,10 +9,11 @@
  * - assign: Assign a task
  * - defer: Defer a task
  * - undefer: Remove deferral
+ * - describe: Set or show task description
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   readyCommand,
@@ -22,6 +23,8 @@ import {
   assignCommand,
   deferCommand,
   undeferCommand,
+  describeCommand,
+  taskCommand,
 } from './task.js';
 import { createCommand, showCommand } from './crud.js';
 import type { GlobalOptions } from '../types.js';
@@ -1315,5 +1318,240 @@ describe('task lifecycle E2E scenarios', () => {
     expect(task.closeReason).toBe('Fixed in commit abc123, verified in staging');
     expect(task.closedAt).toBeDefined();
     expect(task.assignee).toBe('developer-1');
+  });
+});
+
+// ============================================================================
+// Describe Command Tests
+// ============================================================================
+
+describe('describe command', () => {
+  test('sets task description with inline content', async () => {
+    const taskId = await createTestTask('Task needing description');
+
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'This is the task description', json: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { taskId: string; descriptionRef: string; document: { content: string } };
+    expect(data.document.content).toBe('This is the task description');
+  });
+
+  test('sets task description from file', async () => {
+    const taskId = await createTestTask('Task with file description');
+    const filePath = join(TEST_DIR, 'description.md');
+    writeFileSync(filePath, '# Task Description\n\nDetailed description here.');
+
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ file: filePath, json: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { document: { content: string } };
+    expect(data.document.content).toBe('# Task Description\n\nDetailed description here.');
+  });
+
+  test('shows task description with --show', async () => {
+    const taskId = await createTestTask('Task to show description');
+
+    // Set description first
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Original description' })
+    );
+
+    // Show it
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ show: true, json: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { content: string };
+    expect(data.content).toBe('Original description');
+  });
+
+  test('updates existing description', async () => {
+    const taskId = await createTestTask('Task with updatable description');
+
+    // Set initial description
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Version 1' })
+    );
+
+    // Update description
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Version 2', json: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { document: { content: string; version: number } };
+    expect(data.document.content).toBe('Version 2');
+    expect(data.document.version).toBe(2);
+  });
+
+  test('fails without task ID', async () => {
+    const result = await describeCommand.handler(
+      [],
+      createTestOptions({ content: 'Some content' })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('fails without content, file, or show', async () => {
+    const taskId = await createTestTask('Task without options');
+
+    const result = await describeCommand.handler([taskId], createTestOptions());
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('fails with both content and file', async () => {
+    const taskId = await createTestTask('Task with conflicting options');
+    const filePath = join(TEST_DIR, 'desc.md');
+    writeFileSync(filePath, 'File content');
+
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Inline content', file: filePath })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('fails for non-existent task', async () => {
+    // Initialize database first
+    const { backend } = createTestAPI();
+    backend.close();
+
+    const result = await describeCommand.handler(
+      ['el-nonexistent'],
+      createTestOptions({ content: 'Description' })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('shows message when task has no description', async () => {
+    const taskId = await createTestTask('Task without description');
+
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ show: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    expect(result.message).toContain('has no description');
+  });
+
+  test('appends to existing description with --append', async () => {
+    const taskId = await createTestTask('Task for append test');
+
+    // Set initial description
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Initial description' })
+    );
+
+    // Append to it
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Appended content', append: true, json: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { document: { content: string }; appended: boolean };
+    expect(data.document.content).toBe('Initial description\n\nAppended content');
+    expect(data.appended).toBe(true);
+  });
+
+  test('append creates description if none exists', async () => {
+    const taskId = await createTestTask('Task without initial description');
+
+    // Append to non-existent description (should create it)
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'First content via append', append: true, json: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { document: { content: string } };
+    expect(data.document.content).toBe('First content via append');
+  });
+
+  test('append with file content', async () => {
+    const taskId = await createTestTask('Task for file append');
+    const filePath = join(TEST_DIR, 'append.md');
+    writeFileSync(filePath, 'Content from file');
+
+    // Set initial description
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Base description' })
+    );
+
+    // Append from file
+    const result = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ file: filePath, append: true, json: true })
+    );
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { document: { content: string } };
+    expect(data.document.content).toBe('Base description\n\nContent from file');
+  });
+
+  test('multiple appends accumulate', async () => {
+    const taskId = await createTestTask('Task for multiple appends');
+
+    // Initial description
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Part 1' })
+    );
+
+    // First append
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Part 2', append: true })
+    );
+
+    // Second append
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Part 3', append: true })
+    );
+
+    // Verify final content
+    const showResult = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ show: true, json: true })
+    );
+
+    const data = showResult.data as { content: string };
+    expect(data.content).toBe('Part 1\n\nPart 2\n\nPart 3');
+  });
+});
+
+// ============================================================================
+// Task Root Command Tests
+// ============================================================================
+
+describe('task command', () => {
+  test('has describe subcommand', () => {
+    expect(taskCommand.subcommands).toBeDefined();
+    expect(taskCommand.subcommands!.describe).toBe(describeCommand);
+  });
+
+  test('fails without subcommand', async () => {
+    const result = await taskCommand.handler!([], createTestOptions());
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
   });
 });

@@ -617,6 +617,131 @@ Examples:
 };
 
 // ============================================================================
+// Document Update Command
+// ============================================================================
+
+interface DocUpdateOptions {
+  content?: string;
+  file?: string;
+}
+
+const docUpdateOptions: CommandOption[] = [
+  {
+    name: 'content',
+    short: 'c',
+    description: 'New document content (text)',
+    hasValue: true,
+  },
+  {
+    name: 'file',
+    short: 'f',
+    description: 'Read new content from file',
+    hasValue: true,
+  },
+];
+
+async function docUpdateHandler(
+  args: string[],
+  options: GlobalOptions & DocUpdateOptions
+): Promise<CommandResult> {
+  const [docId] = args;
+
+  if (!docId) {
+    return failure('Usage: el doc update <document-id> --content <text> | --file <path>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  // Must specify either --content or --file
+  if (!options.content && !options.file) {
+    return failure('Either --content or --file is required', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  if (options.content && options.file) {
+    return failure('Cannot specify both --content and --file', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Verify document exists
+    const existing = await api.get<Document>(docId as ElementId);
+    if (!existing) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
+    }
+    if (existing.type !== 'document') {
+      return failure(`Element ${docId} is not a document (type: ${existing.type})`, ExitCode.VALIDATION);
+    }
+
+    // Check if document is deleted (tombstone)
+    const data = existing as unknown as Record<string, unknown>;
+    if (data.status === 'tombstone' || data.deletedAt) {
+      return failure(`Document not found: ${docId}`, ExitCode.NOT_FOUND);
+    }
+
+    const actor = resolveActor(options);
+
+    // Get new content
+    let content: string;
+    if (options.content) {
+      content = options.content;
+    } else {
+      const filePath = resolve(options.file!);
+      if (!existsSync(filePath)) {
+        return failure(`File not found: ${filePath}`, ExitCode.NOT_FOUND);
+      }
+      content = readFileSync(filePath, 'utf-8');
+    }
+
+    // Update the document (creates a new version)
+    const updated = await api.update<Document>(
+      docId as ElementId,
+      { content },
+      { actor }
+    );
+
+    const mode = getOutputMode(options);
+    if (mode === 'json') {
+      return success(updated);
+    }
+    if (mode === 'quiet') {
+      return success(updated.id);
+    }
+
+    return success(updated, `Updated document ${docId} (now at version ${updated.version})`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to update document: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const docUpdateCommand: Command = {
+  name: 'update',
+  description: 'Update document content',
+  usage: 'el doc update <document-id> --content <text> | --file <path>',
+  help: `Update a document's content, creating a new version.
+
+Documents are versioned - each update creates a new version while preserving
+the history. Use 'el doc history' to view versions and 'el doc rollback' to
+revert to a previous version.
+
+Arguments:
+  document-id   Document identifier
+
+Options:
+  -c, --content <text>  New content (inline)
+  -f, --file <path>     Read new content from file
+
+Examples:
+  el doc update el-doc123 --content "Updated content"
+  el doc update el-doc123 --file updated-spec.md
+  el doc update el-doc123 -c "Quick fix"`,
+  options: docUpdateOptions,
+  handler: docUpdateHandler as Command['handler'],
+};
+
+// ============================================================================
 // Document Show Command
 // ============================================================================
 
@@ -1128,6 +1253,7 @@ Subcommands:
   list        List documents (active only by default)
   search      Full-text search documents
   show        Show document details
+  update      Update document content (creates new version)
   history     Show version history
   rollback    Rollback to a previous version
   archive     Archive a document
@@ -1143,6 +1269,8 @@ Examples:
   el doc search "API authentication"
   el doc search "migration" --category spec
   el doc show el-doc123
+  el doc update el-doc123 --content "New content"
+  el doc update el-doc123 --file updated.md
   el doc history el-doc123
   el doc rollback el-doc123 2
   el doc archive el-doc123
@@ -1154,6 +1282,7 @@ Examples:
     list: docListCommand,
     search: docSearchCommand,
     show: docShowCommand,
+    update: docUpdateCommand,
     history: docHistoryCommand,
     rollback: docRollbackCommand,
     archive: docArchiveCommand,

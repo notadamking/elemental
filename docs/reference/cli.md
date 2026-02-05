@@ -72,6 +72,7 @@ el delete abc123
 | `el assign <task> <entity>` | Assign task |
 | `el defer <id>` | Defer task |
 | `el undefer <id>` | Remove deferral |
+| `el task describe <id>` | Set or show task description |
 
 ```bash
 # List ready tasks
@@ -82,6 +83,39 @@ el close abc123 --reason "Fixed in commit xyz"
 
 # Assign task
 el assign abc123 worker-1
+
+# Set task description
+el task describe el-abc123 --content "Implement login feature"
+el task describe el-abc123 --file description.md
+
+# Show task description
+el task describe el-abc123 --show
+```
+
+#### task describe
+
+Set or show a task's description. Descriptions are stored as versioned documents.
+
+| Option | Description |
+|--------|-------------|
+| `-c, --content <text>` | Description content (inline) |
+| `-f, --file <path>` | Read description from file |
+| `-s, --show` | Show current description instead of setting |
+| `-a, --append` | Append to existing description instead of replacing |
+
+```bash
+# Set description inline
+el task describe el-abc123 --content "Implement the login feature with OAuth support"
+
+# Set description from file
+el task describe el-abc123 --file specs/login.md
+
+# Show current description
+el task describe el-abc123 --show
+
+# Append to existing description
+el task describe el-abc123 --append --content "Additional implementation notes"
+el task describe el-abc123 -a -f additional-notes.md
 ```
 
 ## Dependency Commands
@@ -131,6 +165,7 @@ el dep tree abc123
 | `el doc list` | List documents |
 | `el doc search <query>` | Full-text search documents |
 | `el doc show <id>` | Show document |
+| `el doc update <id>` | Update document content (creates new version) |
 | `el doc history <id>` | Show version history |
 | `el doc rollback <id> <version>` | Rollback to version |
 | `el doc archive <id>` | Archive document |
@@ -152,12 +187,30 @@ el doc search "API authentication"
 el doc search "migration" --category spec
 el doc search "config" --limit 5
 
+# Update document content (creates new version)
+el doc update el-doc123 --content "Updated content"
+el doc update el-doc123 --file updated-spec.md
+
 # Archive / unarchive
 el doc archive abc123
 el doc unarchive abc123
 
 # Reindex FTS5
 el doc reindex
+```
+
+#### doc update
+
+Update a document's content, creating a new version. Documents are versioned - each update preserves history.
+
+| Option | Description |
+|--------|-------------|
+| `-c, --content <text>` | New content (inline) |
+| `-f, --file <path>` | Read new content from file |
+
+```bash
+el doc update el-doc123 --content "New content here"
+el doc update el-doc123 --file path/to/updated.md
 ```
 
 ## Embeddings Commands

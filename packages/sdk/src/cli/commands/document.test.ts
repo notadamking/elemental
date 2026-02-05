@@ -5,6 +5,7 @@
  * - doc create: Create a new document
  * - doc list: List documents
  * - doc show: Show document details
+ * - doc update: Update document content (creates new version)
  * - doc history: Show version history
  * - doc rollback: Rollback to a previous version
  */
@@ -267,6 +268,109 @@ describe('doc show command', () => {
     const result = await documentCommand.subcommands!.show.handler!([doc.id], options);
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+});
+
+// ============================================================================
+// Document Update Command Tests
+// ============================================================================
+
+describe('doc update command', () => {
+  test('updates document content with inline content', async () => {
+    const doc = await createTestDocument('Original content');
+
+    const options = createTestOptions({ content: 'Updated content', json: true });
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const updated = result.data as Document;
+    expect(updated.content).toBe('Updated content');
+    expect(updated.version).toBe(2);
+  });
+
+  test('updates document content from file', async () => {
+    const doc = await createTestDocument('Original content');
+    const filePath = join(TEST_DIR, 'update.txt');
+    writeFileSync(filePath, 'Content from file');
+
+    const options = createTestOptions({ file: filePath, json: true });
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const updated = result.data as Document;
+    expect(updated.content).toBe('Content from file');
+    expect(updated.version).toBe(2);
+  });
+
+  test('fails without document ID', async () => {
+    const options = createTestOptions({ content: 'New content' });
+    const result = await documentCommand.subcommands!.update.handler!([], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('fails without content or file', async () => {
+    const doc = await createTestDocument('Original');
+
+    const options = createTestOptions();
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('fails with both content and file', async () => {
+    const doc = await createTestDocument('Original');
+    const filePath = join(TEST_DIR, 'update.txt');
+    writeFileSync(filePath, 'Content');
+
+    const options = createTestOptions({ content: 'Inline', file: filePath });
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
+  });
+
+  test('fails for non-existent document', async () => {
+    // Initialize database first
+    const { backend } = createTestAPI();
+    backend.close();
+
+    const options = createTestOptions({ content: 'New content' });
+    const result = await documentCommand.subcommands!.update.handler!(['el-nonexistent'], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('fails for non-existent file', async () => {
+    const doc = await createTestDocument('Original');
+
+    const options = createTestOptions({ file: '/nonexistent/path.txt' });
+    const result = await documentCommand.subcommands!.update.handler!([doc.id], options);
+
+    expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
+  });
+
+  test('preserves version history', async () => {
+    const doc = await createTestDocument('V1');
+
+    // Update twice
+    await documentCommand.subcommands!.update.handler!(
+      [doc.id],
+      createTestOptions({ content: 'V2' })
+    );
+    await documentCommand.subcommands!.update.handler!(
+      [doc.id],
+      createTestOptions({ content: 'V3' })
+    );
+
+    // Check history
+    const historyOptions = createTestOptions({ json: true });
+    const historyResult = await documentCommand.subcommands!.history.handler!([doc.id], historyOptions);
+
+    expect(historyResult.exitCode).toBe(ExitCode.SUCCESS);
+    const history = historyResult.data as Document[];
+    expect(history.length).toBe(3);
+    expect(history[0].version).toBe(3);
+    expect(history[0].content).toBe('V3');
   });
 });
 

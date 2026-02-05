@@ -241,6 +241,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
     assignCommand,
     deferCommand,
     undeferCommand,
+    taskCommand,
   } = await import('./commands/task.js');
   const { depCommand } = await import('./commands/dep.js');
   const { syncCommand, exportCommand, importCommand, statusCommand } = await import('./commands/sync.js');
@@ -282,6 +283,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(assignCommand);
   registerCommand(deferCommand);
   registerCommand(undeferCommand);
+  registerCommand(taskCommand);
 
   // Dependency commands
   registerCommand(depCommand);

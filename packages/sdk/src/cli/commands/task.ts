@@ -23,10 +23,16 @@ import {
   TaskTypeValue,
   updateTaskStatus,
   isValidStatusTransition,
+  createDocument,
+  ContentType,
   type Task,
   type Priority,
+  type Document,
+  type DocumentId,
 } from '@elemental/core';
 import type { ElementId, EntityId } from '@elemental/core';
+import { existsSync as fileExists, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { ElementalAPI, TaskFilter, BlockedTask } from '../../api/types.js';
 
 // ============================================================================
@@ -825,4 +831,244 @@ Examples:
   el undefer el-abc123`,
   options: [],
   handler: undeferHandler as Command['handler'],
+};
+
+// ============================================================================
+// Describe Command
+// ============================================================================
+
+interface DescribeOptions {
+  content?: string;
+  file?: string;
+  show?: boolean;
+  append?: boolean;
+}
+
+const describeOptions: CommandOption[] = [
+  {
+    name: 'content',
+    short: 'c',
+    description: 'Description content (text)',
+    hasValue: true,
+  },
+  {
+    name: 'file',
+    short: 'f',
+    description: 'Read description from file',
+    hasValue: true,
+  },
+  {
+    name: 'show',
+    short: 's',
+    description: 'Show current description instead of setting it',
+  },
+  {
+    name: 'append',
+    short: 'a',
+    description: 'Append to existing description instead of replacing',
+  },
+];
+
+async function describeHandler(
+  args: string[],
+  options: GlobalOptions & DescribeOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el task describe <id> --content <text> | --file <path> | --show', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // Get the task
+    const task = await api.get<Task>(id as ElementId);
+    if (!task) {
+      return failure(`Task not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    if (task.type !== 'task') {
+      return failure(`Element is not a task: ${id}`, ExitCode.VALIDATION);
+    }
+
+    // Show mode - display current description
+    if (options.show) {
+      const mode = getOutputMode(options);
+
+      if (!task.descriptionRef) {
+        if (mode === 'json') {
+          return success({ taskId: id, description: null });
+        }
+        return success(null, `Task ${id} has no description`);
+      }
+
+      // Get the description document
+      const doc = await api.get<Document>(task.descriptionRef as ElementId);
+      if (!doc) {
+        return failure(`Description document not found: ${task.descriptionRef}`, ExitCode.NOT_FOUND);
+      }
+
+      if (mode === 'json') {
+        return success({ taskId: id, descriptionRef: task.descriptionRef, content: doc.content });
+      }
+
+      if (mode === 'quiet') {
+        return success(doc.content);
+      }
+
+      return success(doc, `Description for task ${id}:\n\n${doc.content}`);
+    }
+
+    // Set mode - must specify either --content or --file
+    if (!options.content && !options.file) {
+      return failure('Either --content, --file, or --show is required', ExitCode.INVALID_ARGUMENTS);
+    }
+
+    if (options.content && options.file) {
+      return failure('Cannot specify both --content and --file', ExitCode.INVALID_ARGUMENTS);
+    }
+
+    // Get new content
+    let content: string;
+    if (options.content) {
+      content = options.content;
+    } else {
+      const filePath = resolve(options.file!);
+      if (!fileExists(filePath)) {
+        return failure(`File not found: ${filePath}`, ExitCode.NOT_FOUND);
+      }
+      content = readFileSync(filePath, 'utf-8');
+    }
+
+    const actor = options.actor as EntityId | undefined;
+
+    // Check if task already has a description document
+    if (task.descriptionRef) {
+      let finalContent = content;
+
+      // If appending, fetch existing content and combine
+      if (options.append) {
+        const existingDoc = await api.get<Document>(task.descriptionRef as ElementId);
+        if (existingDoc) {
+          finalContent = existingDoc.content + '\n\n' + content;
+        }
+      }
+
+      // Update existing document
+      const updated = await api.update<Document>(
+        task.descriptionRef as ElementId,
+        { content: finalContent },
+        { actor }
+      );
+
+      const mode = getOutputMode(options);
+      if (mode === 'json') {
+        return success({ taskId: id, descriptionRef: task.descriptionRef, document: updated, appended: options.append ?? false });
+      }
+      if (mode === 'quiet') {
+        return success(task.descriptionRef);
+      }
+
+      const action = options.append ? 'Appended to' : 'Updated';
+      return success(updated, `${action} description for task ${id} (document ${task.descriptionRef}, version ${updated.version})`);
+    } else {
+      // Create new description document
+      const docInput = {
+        content,
+        contentType: ContentType.MARKDOWN,
+        createdBy: actor ?? ('operator' as EntityId),
+      };
+
+      const newDoc = await createDocument(docInput);
+      const created = await api.create(newDoc as unknown as Document & Record<string, unknown>);
+
+      // Update task with description reference
+      await api.update<Task>(
+        id as ElementId,
+        { descriptionRef: created.id as DocumentId },
+        { actor, expectedUpdatedAt: task.updatedAt }
+      );
+
+      const mode = getOutputMode(options);
+      if (mode === 'json') {
+        return success({ taskId: id, descriptionRef: created.id, document: created });
+      }
+      if (mode === 'quiet') {
+        return success(created.id);
+      }
+
+      return success(created, `Created description for task ${id} (document ${created.id})`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to update task description: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const describeCommand: Command = {
+  name: 'describe',
+  description: 'Set or show task description',
+  usage: 'el task describe <id> --content <text> | --file <path> | --show',
+  help: `Set or show the description for a task.
+
+Task descriptions are stored as separate versioned documents. If the task
+already has a description, it will be updated (creating a new version).
+If not, a new document will be created and linked to the task.
+
+Arguments:
+  id    Task identifier (e.g., el-abc123)
+
+Options:
+  -c, --content <text>  Description content (inline)
+  -f, --file <path>     Read description from file
+  -s, --show            Show current description instead of setting it
+  -a, --append          Append to existing description instead of replacing
+
+Examples:
+  el task describe el-abc123 --content "Implement the login feature"
+  el task describe el-abc123 --file description.md
+  el task describe el-abc123 --show
+  el task describe el-abc123 --append --content "Additional notes"`,
+  options: describeOptions,
+  handler: describeHandler as Command['handler'],
+};
+
+// ============================================================================
+// Task Root Command
+// ============================================================================
+
+export const taskCommand: Command = {
+  name: 'task',
+  description: 'Task-specific operations',
+  usage: 'el task <subcommand> [options]',
+  help: `Task-specific operations.
+
+Subcommands:
+  describe    Set or show task description
+
+Note: Common task operations are available as top-level commands:
+  el ready      List tasks ready for work
+  el blocked    List blocked tasks
+  el close      Close a task
+  el reopen     Reopen a closed task
+  el assign     Assign a task
+  el defer      Defer a task
+  el undefer    Remove deferral
+
+Examples:
+  el task describe el-abc123 --content "Description text"
+  el task describe el-abc123 --show`,
+  subcommands: {
+    describe: describeCommand,
+  },
+  handler: async (_args, _options): Promise<CommandResult> => {
+    return failure(
+      'Usage: el task <subcommand>. Use "el task --help" for available subcommands.',
+      ExitCode.INVALID_ARGUMENTS
+    );
+  },
 };
