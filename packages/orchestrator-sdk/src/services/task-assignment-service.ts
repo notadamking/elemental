@@ -532,8 +532,10 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
     );
 
     // Set status to REVIEW (not CLOSED) - merge steward will set CLOSED after merge
+    // Clear assignee - task is now awaiting merge review, not actively being worked on
     const updatedTask = await this.api.update<Task>(taskId, {
       status: TaskStatus.REVIEW,
+      assignee: undefined,
       metadata: newMeta,
     });
 
@@ -663,8 +665,8 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
         inProgressCount++;
       }
 
-      // Count awaiting merge (closed with pending merge status)
-      if (task.status === TaskStatus.CLOSED) {
+      // Count awaiting merge (review status with pending merge status)
+      if (task.status === TaskStatus.REVIEW) {
         const mergeStatus = orchestratorMeta?.mergeStatus;
         if (!mergeStatus || mergeStatus === 'pending' || mergeStatus === 'testing') {
           awaitingMergeCount++;
@@ -788,7 +790,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
   async getTasksAwaitingMerge(): Promise<TaskAssignment[]> {
     return this.listAssignments({
-      taskStatus: TaskStatus.CLOSED,
+      taskStatus: TaskStatus.REVIEW,
       mergeStatus: ['pending', 'testing'],
     });
   }
@@ -803,19 +805,25 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
   private determineAssignmentStatus(assignment: TaskAssignment): AssignmentStatus {
     const { task, orchestratorMeta } = assignment;
 
-    // Check if unassigned
-    const hasAssignment = task.assignee || orchestratorMeta?.assignedAgent;
-    if (!hasAssignment) {
-      return 'unassigned';
+    // Check status-based assignment states first (regardless of assignee)
+    // REVIEW status = task completed, awaiting merge review
+    if (task.status === TaskStatus.REVIEW) {
+      return 'completed';
     }
-
-    // Check merge status for completed tasks
+    // CLOSED status = either merged or completed
     if (task.status === TaskStatus.CLOSED) {
       const mergeStatus = orchestratorMeta?.mergeStatus;
       if (mergeStatus === 'merged') {
         return 'merged';
       }
+      // CLOSED without 'merged' status is still 'completed'
       return 'completed';
+    }
+
+    // Check if unassigned (only for tasks not in terminal states)
+    const hasAssignment = task.assignee || orchestratorMeta?.assignedAgent;
+    if (!hasAssignment) {
+      return 'unassigned';
     }
 
     // Check if actively being worked on

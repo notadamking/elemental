@@ -342,29 +342,9 @@ export class MergeStewardServiceImpl implements MergeStewardService {
   // ----------------------------------------
 
   async getTasksAwaitingMerge(): Promise<TaskAssignment[]> {
-    // Query for tasks in REVIEW status (awaiting merge)
-    // The TaskAssignmentService.getTasksAwaitingMerge() queries for CLOSED + pending/testing merge status
-    // We also need to include tasks in REVIEW status since that's the new intermediate state
-    const reviewTasks = await this.taskAssignment.listAssignments({
-      taskStatus: TaskStatus.REVIEW,
-      mergeStatus: ['pending'],
-    });
-
-    // Also include legacy tasks that may be CLOSED with pending merge status
-    const legacyTasks = await this.taskAssignment.getTasksAwaitingMerge();
-
-    // Combine and dedupe by taskId
-    const allTasks = new Map<string, TaskAssignment>();
-    for (const task of reviewTasks) {
-      allTasks.set(String(task.taskId), task);
-    }
-    for (const task of legacyTasks) {
-      if (!allTasks.has(String(task.taskId))) {
-        allTasks.set(String(task.taskId), task);
-      }
-    }
-
-    return Array.from(allTasks.values());
+    // Query for tasks in REVIEW status with pending/testing merge status
+    // TaskAssignmentService.getTasksAwaitingMerge() now handles this correctly
+    return this.taskAssignment.getTasksAwaitingMerge();
   }
 
   // ----------------------------------------

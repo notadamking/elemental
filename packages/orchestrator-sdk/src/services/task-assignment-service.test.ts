@@ -238,7 +238,7 @@ describe('TaskAssignmentService', () => {
   });
 
   describe('completeTask', () => {
-    test('marks a task as completed', async () => {
+    test('marks a task as completed with REVIEW status', async () => {
       const task = await createTestTask('Task to complete', TaskStatus.IN_PROGRESS);
       const worker = await createTestWorker('grace');
       const agentId = worker.id as unknown as EntityId;
@@ -247,14 +247,35 @@ describe('TaskAssignmentService', () => {
       await service.assignToAgent(task.id, agentId, { markAsStarted: true });
 
       // Complete - returns { task, mergeRequestUrl?, mergeRequestId? }
-      const result = await service.completeTask(task.id);
+      // Skip MR creation since we don't have a provider
+      const result = await service.completeTask(task.id, { createMergeRequest: false });
       const completed = result.task;
 
-      expect(completed.status).toBe(TaskStatus.CLOSED);
+      // Status should be REVIEW (merge steward will set to CLOSED after merge)
+      expect(completed.status).toBe(TaskStatus.REVIEW);
 
       const meta = getOrchestratorTaskMeta(completed.metadata as Record<string, unknown>);
       expect(meta?.completedAt).toBeDefined();
       expect(meta?.mergeStatus).toBe('pending');
+    });
+
+    test('clears assignee when task is completed', async () => {
+      const task = await createTestTask('Task to complete', TaskStatus.IN_PROGRESS);
+      const worker = await createTestWorker('grace2');
+      const agentId = worker.id as unknown as EntityId;
+
+      // Assign and start
+      await service.assignToAgent(task.id, agentId, { markAsStarted: true });
+
+      // Verify assignee is set
+      const assignedTask = await api.get<Task>(task.id);
+      expect(assignedTask?.assignee).toBe(agentId);
+
+      // Complete
+      const result = await service.completeTask(task.id, { createMergeRequest: false });
+
+      // Assignee should be cleared (task is now awaiting review, not actively worked on)
+      expect(result.task.assignee).toBeUndefined();
     });
 
     test('throws error when task does not exist', async () => {
@@ -383,22 +404,21 @@ describe('TaskAssignmentService', () => {
       // Create tasks in different states
       const openTask = await createTestTask('Open task');
       const inProgressTask = await createTestTask('In progress task');
-      const closedTask = await createTestTask('Closed task');
+      const reviewTask = await createTestTask('Review task');
 
       // Assign all to worker
       await service.assignToAgent(openTask.id, agentId);
       await service.assignToAgent(inProgressTask.id, agentId, { markAsStarted: true });
-      await service.assignToAgent(closedTask.id, agentId);
-      await service.completeTask(closedTask.id);
+      await service.assignToAgent(reviewTask.id, agentId);
+      await service.completeTask(reviewTask.id, { createMergeRequest: false });
 
       const workload = await service.getAgentWorkload(agentId);
 
       expect(workload.agentId).toBe(agentId);
-      expect(workload.totalTasks).toBe(3);
+      // Note: completeTask clears assignee, so reviewTask is no longer assigned to this agent
+      expect(workload.totalTasks).toBe(2);
       expect(workload.inProgressCount).toBe(1);
-      expect(workload.awaitingMergeCount).toBe(1);
       expect(workload.byStatus.in_progress).toBe(1);
-      expect(workload.byStatus.closed).toBe(1);
     });
   });
 
@@ -469,9 +489,9 @@ describe('TaskAssignmentService', () => {
       await service.assignToAgent(assignedTask.id, agentId);
       await service.assignToAgent(inProgressTask.id, agentId, { markAsStarted: true });
       await service.assignToAgent(completedTask.id, agentId, { markAsStarted: true });
-      await service.completeTask(completedTask.id);
+      await service.completeTask(completedTask.id, { createMergeRequest: false });
 
-      // Check unassigned
+      // Check unassigned (includes completedTask since completeTask clears assignee)
       const unassignedTasks = await service.getTasksByAssignmentStatus('unassigned');
       expect(unassignedTasks.map(t => t.taskId)).toContain(unassignedTask.id);
 
@@ -483,7 +503,8 @@ describe('TaskAssignmentService', () => {
       const inProgressTasks = await service.getTasksByAssignmentStatus('in_progress');
       expect(inProgressTasks.map(t => t.taskId)).toContain(inProgressTask.id);
 
-      // Check completed
+      // Check completed - note: completeTask clears assignee, so task appears unassigned
+      // but has REVIEW status which makes it 'completed' in determineAssignmentStatus
       const completedTasks = await service.getTasksByAssignmentStatus('completed');
       expect(completedTasks.map(t => t.taskId)).toContain(completedTask.id);
     });
@@ -532,7 +553,7 @@ describe('TaskAssignmentService', () => {
 
       const task = await createTestTask('Task to complete');
       await service.assignToAgent(task.id, agentId, { markAsStarted: true });
-      await service.completeTask(task.id);
+      await service.completeTask(task.id, { createMergeRequest: false });
 
       const pendingMerge = await service.listAssignments({ mergeStatus: 'pending' });
       expect(pendingMerge.map(t => t.taskId)).toContain(task.id);
@@ -574,8 +595,8 @@ describe('TaskAssignmentService', () => {
       await service.assignToAgent(task2.id, agentId, { markAsStarted: true });
       await service.assignToAgent(task3.id, agentId, { markAsStarted: true });
 
-      await service.completeTask(task1.id);
-      await service.completeTask(task2.id);
+      await service.completeTask(task1.id, { createMergeRequest: false });
+      await service.completeTask(task2.id, { createMergeRequest: false });
       // task3 not completed
 
       const awaitingMerge = await service.getTasksAwaitingMerge();

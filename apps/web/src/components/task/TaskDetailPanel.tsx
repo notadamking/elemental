@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, Save, Bot, Server } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Eye, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, Save, Bot, Server } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { EntityLink } from '../entity/EntityLink';
 import { MarkdownRenderer } from '../shared/MarkdownRenderer';
@@ -357,6 +357,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   open: { label: 'Open', color: 'bg-blue-100 text-blue-800', icon: null },
   in_progress: { label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', icon: null },
   blocked: { label: 'Blocked', color: 'bg-red-100 text-red-800', icon: <AlertTriangle className="w-3 h-3" /> },
+  review: { label: 'Review', color: 'bg-purple-100 text-purple-800', icon: <Eye className="w-3 h-3" /> },
   completed: { label: 'Completed', color: 'bg-green-100 text-green-800', icon: <CheckCircle2 className="w-3 h-3" /> },
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-800', icon: null },
   deferred: { label: 'Deferred', color: 'bg-purple-100 text-purple-800', icon: null },
@@ -370,7 +371,7 @@ const COMPLEXITY_LABELS: Record<number, string> = {
   5: 'Very Complex',
 };
 
-const STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'completed', 'cancelled', 'deferred'];
+const STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'review', 'completed', 'cancelled', 'deferred'];
 const PRIORITY_OPTIONS = [1, 2, 3, 4, 5];
 const COMPLEXITY_OPTIONS = [1, 2, 3, 4, 5];
 

@@ -20,7 +20,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, CheckCircle2, Clock, PlayCircle, User, Filter, ArrowUpDown, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Eye, PlayCircle, User, Filter, ArrowUpDown, Loader2 } from 'lucide-react';
 import { formatCompactTime } from '../../lib/time';
 import { useAllTasks, type Task } from '../../api/hooks/useAllElements';
 
@@ -99,6 +99,7 @@ const COLUMNS = [
   { id: 'open', title: 'Open', status: 'open', color: 'bg-green-500', icon: CheckCircle2, iconColor: 'text-green-600 dark:text-green-400' },
   { id: 'in-progress', title: 'In Progress', status: 'in_progress', color: 'bg-yellow-500', icon: PlayCircle, iconColor: 'text-yellow-600 dark:text-yellow-400' },
   { id: 'blocked', title: 'Blocked', status: 'blocked', color: 'bg-red-500', icon: AlertTriangle, iconColor: 'text-red-600 dark:text-red-400' },
+  { id: 'review', title: 'Review', status: 'review', color: 'bg-purple-500', icon: Eye, iconColor: 'text-purple-600 dark:text-purple-400' },
   { id: 'closed', title: 'Completed', status: 'closed', color: 'bg-blue-500', icon: Clock, iconColor: 'text-blue-600 dark:text-blue-400' },
 ] as const;
 
@@ -862,12 +863,14 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
   const [openPrefs, setOpenPrefs] = useColumnPreferences('open');
   const [inProgressPrefs, setInProgressPrefs] = useColumnPreferences('in-progress');
   const [blockedPrefs, setBlockedPrefs] = useColumnPreferences('blocked');
+  const [reviewPrefs, setReviewPrefs] = useColumnPreferences('review');
   const [closedPrefs, setClosedPrefs] = useColumnPreferences('closed');
 
   // Compute effective sort for each column (sortOverride or pageSort)
   const openEffectiveSort = openPrefs.sortOverride || normalizedPageSort;
   const inProgressEffectiveSort = inProgressPrefs.sortOverride || normalizedPageSort;
   const blockedEffectiveSort = blockedPrefs.sortOverride || normalizedPageSort;
+  const reviewEffectiveSort = reviewPrefs.sortOverride || normalizedPageSort;
   const closedEffectiveSort = closedPrefs.sortOverride || normalizedPageSort;
 
   // Collect unique assignees and tags from all tasks
@@ -876,12 +879,13 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
 
   // Group tasks by status
   const tasksByStatus = useMemo(() => {
-    if (!allTasks) return { open: [], in_progress: [], blocked: [], closed: [] };
+    if (!allTasks) return { open: [], in_progress: [], blocked: [], review: [], closed: [] };
 
     const groups: Record<string, Task[]> = {
       open: [],
       in_progress: [],
       blocked: [],
+      review: [],
       closed: [],
     };
 
@@ -912,6 +916,11 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
     [tasksByStatus.blocked, blockedPrefs.filters.assignee, blockedPrefs.filters.priority, blockedPrefs.filters.tag, blockedEffectiveSort.field, blockedEffectiveSort.direction, searchQuery]
   );
 
+  const filteredReviewTasks = useMemo(
+    () => applyFiltersAndSort(tasksByStatus.review, reviewPrefs.filters, reviewEffectiveSort, searchQuery),
+    [tasksByStatus.review, reviewPrefs.filters.assignee, reviewPrefs.filters.priority, reviewPrefs.filters.tag, reviewEffectiveSort.field, reviewEffectiveSort.direction, searchQuery]
+  );
+
   const filteredClosedTasks = useMemo(
     () => applyFiltersAndSort(tasksByStatus.closed, closedPrefs.filters, closedEffectiveSort, searchQuery),
     [tasksByStatus.closed, closedPrefs.filters.assignee, closedPrefs.filters.priority, closedPrefs.filters.tag, closedEffectiveSort.field, closedEffectiveSort.direction, searchQuery]
@@ -934,6 +943,7 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
     'open': 'open',
     'in-progress': 'in_progress',
     'blocked': 'blocked',
+    'review': 'review',
     'closed': 'closed',
   };
 
@@ -990,6 +1000,7 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
     open: { prefs: openPrefs, setPrefs: setOpenPrefs, tasks: filteredOpenTasks },
     'in-progress': { prefs: inProgressPrefs, setPrefs: setInProgressPrefs, tasks: filteredInProgressTasks },
     blocked: { prefs: blockedPrefs, setPrefs: setBlockedPrefs, tasks: filteredBlockedTasks },
+    review: { prefs: reviewPrefs, setPrefs: setReviewPrefs, tasks: filteredReviewTasks },
     closed: { prefs: closedPrefs, setPrefs: setClosedPrefs, tasks: filteredClosedTasks },
   };
 

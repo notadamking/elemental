@@ -66,6 +66,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Open' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'blocked', label: 'Blocked' },
+  { value: 'review', label: 'Review' },
   { value: 'deferred', label: 'Deferred' },
   { value: 'closed', label: 'Closed' },
 ];

@@ -25,9 +25,11 @@ export interface BaseElement {
  */
 export type TaskStatus =
   | 'todo'
+  | 'open'
   | 'in_progress'
   | 'done'
   | 'blocked'
+  | 'review'
   | 'closed'
   | 'cancelled'
   | 'deferred';
@@ -234,6 +236,8 @@ export function getStatusDisplayName(status: TaskStatus | string): string {
       return 'Done';
     case 'blocked':
       return 'Blocked';
+    case 'review':
+      return 'Review';
     case 'closed':
       return 'Closed';
     case 'cancelled':
@@ -260,6 +264,8 @@ export function getStatusColor(status: TaskStatus | string): string {
       return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
     case 'blocked':
       return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
+    case 'review':
+      return 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30';
     case 'closed':
       return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
     case 'cancelled':

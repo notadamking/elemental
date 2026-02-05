@@ -226,7 +226,7 @@ export function groupTasks(tasks: Task[], groupBy: GroupByField, agents: Agent[]
   const result: TaskGroup[] = [];
 
   if (groupBy === 'status') {
-    const statusOrder = ['open', 'in_progress', 'blocked', 'deferred', 'closed', 'tombstone'];
+    const statusOrder = ['open', 'in_progress', 'blocked', 'review', 'deferred', 'closed', 'tombstone'];
     for (const status of statusOrder) {
       if (groups.has(status)) {
         const option = STATUS_OPTIONS.find(o => o.value === status);

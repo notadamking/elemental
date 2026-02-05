@@ -195,7 +195,7 @@ export interface CreateAgentInput {
 // Task Types
 // ============================================================================
 
-export type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed' | 'tombstone';
+export type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'review' | 'deferred' | 'closed' | 'tombstone';
 export type Priority = 1 | 2 | 3 | 4 | 5;
 export type Complexity = 1 | 2 | 3 | 4 | 5;
 export type TaskTypeValue = 'bug' | 'feature' | 'task' | 'chore';

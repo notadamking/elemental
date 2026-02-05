@@ -63,6 +63,7 @@ export const STATUS_OPTIONS = [
   { value: 'open', label: 'Open', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200' },
   { value: 'blocked', label: 'Blocked', color: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' },
+  { value: 'review', label: 'Review', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200' },
   { value: 'deferred', label: 'Deferred', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200' },
   { value: 'closed', label: 'Closed', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
 ] as const;
@@ -105,6 +106,7 @@ export const STATUS_COLORS: Record<string, string> = {
   open: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200',
   in_progress: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
   blocked: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
+  review: 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200',
   deferred: 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200',
   closed: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
   tombstone: 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
@@ -115,8 +117,8 @@ export const KANBAN_COLUMNS = [
   { id: 'unassigned', title: 'Unassigned', status: 'open', filter: 'unassigned', color: 'border-gray-400' },
   { id: 'assigned', title: 'Assigned', status: 'open', filter: 'assigned', color: 'border-blue-400' },
   { id: 'in_progress', title: 'In Progress', status: 'in_progress', filter: null, color: 'border-yellow-400' },
+  { id: 'awaiting_merge', title: 'Awaiting Merge', status: 'review', filter: null, color: 'border-purple-400' },
   { id: 'done', title: 'Done', status: 'closed', filter: null, color: 'border-green-400' },
-  { id: 'awaiting_merge', title: 'Awaiting Merge', status: 'closed', filter: 'awaiting_merge', color: 'border-purple-400' },
 ] as const;
 
 // Task type options

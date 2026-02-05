@@ -82,6 +82,7 @@ export const STATUS_OPTIONS = [
   { value: 'open', label: 'Open', color: 'bg-green-100 text-green-800' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
   { value: 'blocked', label: 'Blocked', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 'review', label: 'Review', color: 'bg-purple-100 text-purple-800' },
   { value: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-800' },
   { value: 'deferred', label: 'Deferred', color: 'bg-purple-100 text-purple-800' },
 ] as const;
@@ -124,6 +125,8 @@ export const STATUS_COLORS: Record<string, string> = {
   open: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
   in_progress: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
   blocked: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
+  review: 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200',
   completed: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
   cancelled: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200',
+  closed: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200',
 };
