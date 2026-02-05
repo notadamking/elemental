@@ -406,6 +406,7 @@ export function AgentsPage() {
           stewards={filteredAgents.stewards}
           onStart={handleStartAgent}
           onStop={handleStopAgent}
+          onOpenTerminal={handleOpenTerminal}
           onRename={openRenameDialog}
           pendingStart={pendingStart}
           pendingStop={pendingStop}
@@ -585,6 +586,7 @@ interface StewardsTabProps {
   stewards: Agent[];
   onStart: (agentId: string) => void;
   onStop: (agentId: string) => void;
+  onOpenTerminal: (agentId: string) => void;
   onRename: (agent: { id: string; name: string }) => void;
   pendingStart: Set<string>;
   pendingStop: Set<string>;
@@ -592,7 +594,7 @@ interface StewardsTabProps {
   getActiveSessionStatus: (agentId: string) => SessionStatus | undefined;
 }
 
-function StewardsTab({ stewards, onStart, onStop, onRename, pendingStart, pendingStop, onCreateSteward, getActiveSessionStatus }: StewardsTabProps) {
+function StewardsTab({ stewards, onStart, onStop, onOpenTerminal, onRename, pendingStart, pendingStop, onCreateSteward, getActiveSessionStatus }: StewardsTabProps) {
   if (stewards.length === 0) {
     return (
       <EmptyState
@@ -642,6 +644,7 @@ function StewardsTab({ stewards, onStart, onStop, onRename, pendingStart, pendin
                 activeSessionStatus={getActiveSessionStatus(agent.id)}
                 onStart={() => onStart(agent.id)}
                 onStop={() => onStop(agent.id)}
+                onOpenTerminal={() => onOpenTerminal(agent.id)}
                 onRename={() => onRename({ id: agent.id, name: agent.name })}
                 isStarting={pendingStart.has(agent.id)}
                 isStopping={pendingStop.has(agent.id)}
