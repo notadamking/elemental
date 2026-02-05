@@ -14,6 +14,8 @@ import {
   Eye,
   Maximize2,
   Minimize2,
+  Expand,
+  Shrink,
   Copy,
 } from 'lucide-react';
 import { DocumentTagInput } from '@elemental/ui/documents';
@@ -337,7 +339,7 @@ export function DocumentDetailPanel({
               aria-label="Exit fullscreen"
               title="Exit fullscreen (Escape)"
             >
-              <Minimize2 className="w-5 h-5" />
+              <Shrink className="w-5 h-5" />
             </button>
           ) : (
             !isMobile && onEnterFullscreen && (
@@ -348,7 +350,7 @@ export function DocumentDetailPanel({
                 aria-label="Enter fullscreen"
                 title="Focus mode (fullscreen)"
               >
-                <Maximize2 className="w-5 h-5" />
+                <Expand className="w-5 h-5" />
               </button>
             )
           )}
