@@ -39,5 +39,9 @@ export {
 
 export type { Breakpoint, DeviceType } from './useBreakpoint';
 
+// Deep-link navigation hook
+export { useDeepLink } from './useDeepLink';
+export type { UseDeepLinkOptions, UseDeepLinkResult } from './useDeepLink';
+
 // Paginated data hook
 export { usePaginatedData } from './usePaginatedData';
