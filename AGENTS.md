@@ -2,198 +2,202 @@
 
 Context and instructions for AI coding agents working on the Elemental repository.
 
-## Documentation
+## Quick Start
 
-**IMPORTANT:** Start with `docs/README.md` for file paths and quick reference.
+**Start by reading `docs/README.md`** for file paths and navigation tables.
 
-- **`docs/`** is the primary documentation for AI agents - concise, file-path-centric, optimized for minimal context usage
-- **`specs/`** contains historical design rationale and detailed specifications for humans who want background
-
-### Quick Reference
-
-| I need... | Go to |
-|-----------|-------|
-| File paths for any concept | `docs/README.md` (File Map tables) |
-| How to add a feature | `docs/platform/README.md` (Quick Tasks) |
-| Core type details | `docs/core/types.md` |
-| API usage | `docs/api/elemental-api.md` |
-| CLI commands | `docs/api/cli.md` |
-| Critical pitfalls | `docs/gotchas.md` |
-| Design rationale | `specs/README.md` |
-
----
-
-## Project Overview
-
-Elemental is a TypeScript library providing primitive abstractions for organizing and orchestrating work. It serves as a complete memory system for teams of AI agents with humans in the loop.
-
-### Core Concepts
-
-- **Elements**: Base data type with shared properties (id, type, timestamps, tags, metadata, createdBy)
-- **Core Types**: Task, Message, Document, Entity
-- **Collection Types**: Plan, Workflow, Playbook, Channel, Library, Team
-- **Dependencies**: Relationships between elements (blocking, associative, attribution, threading)
-- **Dual Storage**: SQLite for fast queries, JSONL as git-tracked source of truth
-
-### Key Design Principles
-
-- Element-based architecture where everything inherits from Element
-- Hash-based IDs for collision-resistant concurrent multi-agent creation
-- Immutable messages that cannot be altered after creation
-- Full version history for documents
-- Hybrid identity (soft local identity by default, optional cryptographic signing)
+| I need...                  | Go to                                |
+| -------------------------- | ------------------------------------ |
+| File paths for any concept | `docs/README.md` (File Map tables)   |
+| Core type details          | `docs/reference/core-types.md`       |
+| API usage                  | `docs/reference/elemental-api.md`    |
+| CLI commands               | `docs/reference/cli.md`              |
+| Critical pitfalls          | `docs/GOTCHAS.md`                    |
+| Architecture overview      | `docs/ARCHITECTURE.md`               |
+| Agent orchestration        | `docs/reference/orchestrator-api.md` |
 
 ---
 
 ## Repository Structure
 
 ```
-src/
-├── types/           # TypeScript type definitions (Task, Entity, Message, etc.)
-├── api/             # ElementalAPI implementation (elemental-api.ts)
-├── storage/         # SQLite backends (Bun, Node.js, Browser)
-├── services/        # Business logic (dependency, blocked-cache, inbox, priority)
-├── cli/             # CLI runner and formatting
-│   └── commands/    # Individual command implementations (44 files)
-├── id/              # Hash-based ID generation
-├── sync/            # JSONL export/import/merge
-├── systems/         # Identity system (Ed25519 signing)
-├── config/          # Configuration loading and validation
-├── errors/          # Error codes and factories
-├── http/            # HTTP sync handlers
-├── utils/           # Utilities (mentions parsing)
-└── bin/             # CLI entry point (el.ts)
+packages/
+├── core/              # @elemental/core - types, errors, ID generation
+├── storage/           # @elemental/storage - SQLite backends (Bun, Node, Browser)
+├── sdk/               # @elemental/sdk - ElementalAPI, services, sync, CLI
+├── ui/                # @elemental/ui - React components, hooks, design tokens
+├── shared-routes/     # @elemental/shared-routes - HTTP route factories
+└── orchestrator-sdk/  # @elemental/orchestrator-sdk - agent orchestration
 
 apps/
-├── server/          # Hono HTTP server + WebSocket
-│   └── src/
-│       ├── index.ts # Server entry (all endpoints)
-│       └── ws/      # WebSocket broadcaster, handler, types
-└── web/             # React SPA
-    └── src/
-        ├── routes/  # Page components
-        ├── components/ # UI components
-        ├── api/hooks/  # TanStack Query hooks
-        └── hooks/   # Custom React hooks
+├── server/            # Platform HTTP + WebSocket (port 3456)
+├── web/               # Platform React SPA (port 5173)
+├── orchestrator-server/  # Orchestrator API (port 3457)
+└── orchestrator-web/     # Orchestrator dashboard (port 5174)
 
-specs/               # Historical design specifications
+docs/                  # Diátaxis documentation (primary reference for agents)
+.elemental/            # Project data (elements.db, elements.jsonl, config.yaml)
+```
+
+### Package Dependency Graph
+
+```
+@elemental/core        (shared types, no dependencies)
+       ↓
+@elemental/storage     (SQLite backends)
+       ↓
+@elemental/sdk         (API, services, sync, CLI)
+       ↓
+@elemental/orchestrator-sdk  (agent orchestration)
 ```
 
 ---
 
-## Workflow
+## Core Concepts
 
-### Quick Reference
+### Element Types
 
-| Action             | Command                                                               |
-| ------------------ | --------------------------------------------------------------------- |
-| List ready tasks   | `el ready`                                                            |
-| List blocked tasks | `el blocked`                                                          |
-| Show task          | `el show <id>`                                                        |
-| Assign task        | `el assign <task-id> <entity-id>`                                     |
-| Close task         | `el close <id> --reason "..."`                                        |
-| Create task        | `el create task --title "..." --priority <1-5> --type <feature\|bug>` |
-| Add dependency     | `el dep add --type=blocks <blocked> <blocker>`                        |
-| View progress      | `el stats` or `el show <plan-id>`                                     |
+- **Core Types**: Task, Message, Document, Entity
+- **Collection Types**: Plan, Workflow, Playbook, Channel, Library, Team
+- **All inherit from Element** (id, type, timestamps, tags, metadata, createdBy)
 
-### Running Tests
+### Dual Storage Model
 
-- Use `bun test` to run the test suite
-- Tests are colocated with source files or in the `tests/` directory
-- Integration tests use real SQLite databases
+- **SQLite**: Fast queries, indexes, FTS - the **cache**
+- **JSONL**: Git-tracked, append-only - the **source of truth**
 
-### Building
+### Dependencies
 
-- Use `bun run build` to compile TypeScript
-- CLI entry point: `dist/bin/el.js` (`el` is symlinked)
+- **Blocking types**: `blocks`, `awaits`, `parent-child` - affect task status
+- **Non-blocking**: `relates-to`, `mentions`, `references` - informational only
+- `blocked` status is **computed** from dependencies, never set directly
 
-### Creating Tasks
+### Agent Roles (Orchestrator)
 
-When you discover work that needs to be done, create a task for it:
+- **Director**: Owns task backlog, spawns workers, makes strategic decisions
+- **Worker**: Executes assigned tasks (ephemeral or persistent)
+- **Steward**: Handles code merges, health checks, maintenance
 
-```bash
-el create task --title "<description>" --priority <1-5> --type <feature|bug|task|chore> --tag <tag>
-```
+---
 
-### Adding Dependencies
+## Development Workflow
 
-When a task depends on another:
+### Build & Test
 
 ```bash
-el dep add --type=blocks <blocked-id> <blocker-id>
+bun install           # Install dependencies
+bun run build         # Build all packages
+bun test              # Run test suite
+bun test --watch      # Watch mode
 ```
-
-This means `blocked-id` is blocked by `blocker-id` (blocker must complete first).
-
-### Notes
-
-- Specs are in `specs/` — task notes reference them
-- Priority: 1=critical, 2=high, 3=medium, 4=low, 5=minimal
-- Claim tasks before starting to prevent conflicts
-- Task tracking has moved from markdown checklists to elemental's task system
-- The implementation checklist in `specs/PLAN.md` is now for historical reference only
 
 ### CLI Usage
 
-- Primary command: `el` (alias: `elemental`)
-- View ready tasks: `el ready`
-- Common commands: `init`, `create`, `list`, `show`, `update`, `delete`
-- Task operations: `ready`, `blocked`, `close`, `reopen`, `assign`, `defer`
-- Dependencies: `dep add`, `dep remove`, `dep list`, `dep tree`
-- Sync: `export`, `import`, `status`
+```bash
+el ready              # List ready tasks
+el blocked            # List blocked tasks
+el show <id>          # Show element details
+el create task --title "..." --priority 3 --type feature
+el dep add --type=blocks <blocked-id> <blocker-id>
+el close <id> --reason "..."
+el stats              # View progress stats
+```
+
+### Running Apps
+
+```bash
+bun run --filter @elemental/server dev       # Platform server (port 3456)
+bun run --filter @elemental/web dev          # Platform web (port 5173)
+bun run --filter @elemental/orchestrator-server dev  # Orchestrator (port 3457)
+bun run --filter @elemental/orchestrator-web dev     # Orchestrator UI (port 5174)
+```
+
+---
+
+## Critical Gotchas
+
+See `docs/GOTCHAS.md` for the complete list. **Top 10 for agents:**
+
+1. **`blocked` is computed** - Never set `status: 'blocked'` directly; it's derived from dependencies
+2. **`blocks` direction** - `el dep add --type=blocks A B` means A is blocked BY B (B completes first)
+3. **Messages need `contentRef`** - `sendDirectMessage()` requires a `DocumentId`, not raw text
+4. **`sortByEffectivePriority()` mutates** - Returns same array reference, modifies in place
+5. **SQLite is cache** - JSONL is the source of truth; SQLite can be rebuilt
+6. **No auto cycle detection** - `api.addDependency()` doesn't check cycles; use `DependencyService.detectCycle()`
+7. **FTS not indexed on import** - After `el import`, run `el doc reindex` to rebuild search index
+8. **`relates-to` is bidirectional** - Query both directions: `getDependencies()` AND `getDependents()`
+9. **Closed/tombstone always wins** - In merge conflicts, these statuses take precedence
+10. **Server ports** - Platform: 3456, Orchestrator: 3457 (not 3000)
+
+---
+
+## Navigation Quick Reference
+
+| I want to...                   | Key Files                                                           |
+| ------------------------------ | ------------------------------------------------------------------- |
+| Add a new core type            | `packages/core/src/types/`, `docs/how-to/add-core-type.md`          |
+| Add an API endpoint            | `apps/server/src/index.ts`, `docs/how-to/add-api-endpoint.md`       |
+| Add a React component          | `packages/ui/src/components/`, `docs/how-to/add-react-component.md` |
+| Work with dependencies         | `packages/sdk/src/services/dependency.ts`                           |
+| Understand task status         | `packages/core/src/types/task.ts`                                   |
+| Configure identity/signing     | `packages/sdk/src/systems/identity.ts`                              |
+| Work with the Orchestrator API | `packages/orchestrator-sdk/src/api/orchestrator-api.ts`             |
+| Customize agent prompts        | `.elemental/prompts/`, `docs/how-to/customize-agent-prompts.md`     |
+| Debug sync issues              | `packages/sdk/src/sync/service.ts`                                  |
+| Add a CLI command              | `packages/sdk/src/cli/commands/`                                    |
 
 ---
 
 ## Implementation Guidelines
 
-### When Adding New Features
-
-1. Check if a spec exists in `specs/` for the feature
-2. Follow the types and interfaces defined in the spec
-3. Add validators and type guards following existing patterns
-4. Include unit / property-based tests alongside the implementation
-5. Update the spec's implementation checklist when complete
-
 ### Type Safety
 
-- Use branded types for IDs (ElementId, TaskId, etc.)
-- Implement type guards (`isTask`, `isElement`, etc.)
-- Add validators that throw `ElementalError` with appropriate codes
-- Follow the validation rules in `specs/api/errors.md`
+- Use branded types: `ElementId`, `TaskId`, `EntityId`, `DocumentId`
+- Implement type guards: `isTask()`, `isElement()`, etc.
+- Use `asEntityId()`, `asElementId()` casts only at trust boundaries
 
 ### Storage Operations
 
-- All mutations go through the ElementalAPI
+- All mutations through `ElementalAPI` - never modify SQLite directly
 - Dirty tracking marks elements for incremental export
 - Content hashing enables merge conflict detection
-- Blocked cache optimizes ready-work queries
+
+### Testing
+
+- Tests colocated with source: `*.test.ts` next to `*.ts`
+- Integration tests use real SQLite (`:memory:` or temp files)
+- Run `bun test <path>` for specific tests
 
 ### Error Handling
 
 - Use `ElementalError` with appropriate `ErrorCode`
-- Handle SQLite errors via `mapStorageError`
 - CLI formats errors based on output mode (standard, verbose, quiet)
 
 ---
 
-## Key Specifications Reference
+## Agent Orchestration Overview
 
-| Topic        | Primary Spec                    | Description                                    |
-| ------------ | ------------------------------- | ---------------------------------------------- |
-| Base types   | `specs/types/element.md`        | Element interface, ID format, timestamps       |
-| Tasks        | `specs/types/task.md`           | Task status, priority, complexity, hydration   |
-| Dependencies | `specs/systems/dependencies.md` | Blocking types, cycle detection, blocked cache |
-| Storage      | `specs/systems/storage.md`      | SQLite schema, backends, dirty tracking        |
-| Identity     | `specs/systems/identity.md`     | Soft identity, Ed25519 signing                 |
-| Query API    | `specs/api/query-api.md`        | CRUD operations, filters, hydration            |
-| CLI          | `specs/api/cli.md`              | Commands, flags, output formatting             |
-| Sync         | `specs/api/sync.md`             | JSONL format, merge strategy                   |
-| Errors       | `specs/api/errors.md`           | Error codes, validation rules                  |
+The orchestrator manages AI agent lifecycles for multi-agent task execution:
+
+```
+Director → creates tasks, assigns priorities → dispatches to Workers
+Workers  → execute tasks in git worktrees → update status, handoff
+Stewards → merge completed work, health checks, cleanup
+```
+
+**Key Services:**
+
+- `OrchestratorAPI` - Agent registration and management
+- `DispatchService` - Task assignment with inbox notifications
+- `SpawnerService` - Process spawning (headless/interactive modes)
+- `SessionManager` - Agent session lifecycle tracking
+
+**Prompts:** Built-in prompts in `packages/orchestrator-sdk/src/prompts/`, override with `.elemental/prompts/`
 
 ---
 
-**IMPORTANT:**
+## Commit Guidelines
 
-- Always follow the Development Workflow
-- Any time a feature, refactor, or significant code change has been completed you MUST create a commit
-- Only commit the files you changed
+- Create commits after completing features, refactors, or significant changes
+- Only commit files you changed
+- Use conventional commit format: `feat:`, `fix:`, `chore:`, `docs:`
