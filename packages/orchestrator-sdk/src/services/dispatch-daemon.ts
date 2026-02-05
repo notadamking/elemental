@@ -960,10 +960,15 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       );
     }
 
+    // Get the director ID for context
+    const director = await this.agentRegistry.getDirector();
+    const directorId = director?.id ?? 'unknown';
+
     parts.push(
       '## Task Assignment',
       '',
       `**Worker ID:** ${workerId}`,
+      `**Director ID:** ${directorId}`,
       `**Task ID:** ${task.id}`,
       `**Title:** ${task.title}`,
     );
@@ -1029,10 +1034,15 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const prUrl = orchestratorMeta?.mergeRequestUrl as string | undefined;
     const branch = orchestratorMeta?.branch as string | undefined;
 
+    // Get the director ID for context
+    const director = await this.agentRegistry.getDirector();
+    const directorId = director?.id ?? 'unknown';
+
     parts.push(
       '## Merge Request Assignment',
       '',
       `**Worker ID:** ${stewardId}`,
+      `**Director ID:** ${directorId}`,
       `**Task ID:** ${task.id}`,
       `**Title:** ${task.title}`,
     );
@@ -1426,7 +1436,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const messagesBlock = formattedMessages.join('\n');
     const prompt = triageResult.prompt.replace('{{MESSAGES}}', messagesBlock);
 
-    return `${prompt}\n\n---\n\n**Worker ID:** ${agent.id}\n**Channel:** ${channelId}\n**Agent:** ${agent.name}\n**Message count:** ${messages.length}`;
+    // Get the director ID for context
+    const director = await this.agentRegistry.getDirector();
+    const directorId = director?.id ?? 'unknown';
+
+    return `${prompt}\n\n---\n\n**Worker ID:** ${agent.id}\n**Director ID:** ${directorId}\n**Channel:** ${channelId}\n**Agent:** ${agent.name}\n**Message count:** ${messages.length}`;
   }
 
   /**

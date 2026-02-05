@@ -276,6 +276,7 @@ The triage prompt includes the message-triage template with hydrated message con
 ---
 
 **Worker ID:** {agentId}
+**Director ID:** {directorId}
 **Channel:** {channelId}
 **Agent:** {agentName}
 **Message count:** {count}
@@ -343,6 +344,7 @@ interface DispatchMessage {
 ## Task Assignment
 
 **Worker ID:** {workerId}
+**Director ID:** {directorId}
 **Task ID:** {taskId}
 **Title:** {title}
 **Priority:** {priority}

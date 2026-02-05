@@ -250,16 +250,16 @@ Steward prompts are combined: `steward-base.md` + `steward-{focus}.md`
 
 ## Agent Identity in Prompts
 
-When agents are spawned, their entity ID is automatically included in the prompt for traceability:
+When agents are spawned, their entity ID and the director's ID are automatically included in the prompt for traceability:
 
-| Role | Field | Location |
-|------|-------|----------|
+| Role | Fields | Location |
+|------|--------|----------|
 | Director | `**Director ID:** {agentId}` | After role prompt |
-| Worker | `**Worker ID:** {agentId}` | In task assignment section |
-| Steward | `**Worker ID:** {agentId}` | In task/merge assignment section |
-| Triage | `**Worker ID:** {agentId}` | In session context section |
+| Worker | `**Worker ID:** {agentId}`, `**Director ID:** {directorId}` | In task assignment section |
+| Steward | `**Worker ID:** {agentId}`, `**Director ID:** {directorId}` | In task/merge assignment section |
+| Triage | `**Worker ID:** {agentId}`, `**Director ID:** {directorId}` | In session context section |
 
-This allows agents to identify themselves in logs, messages, and debugging.
+This allows agents to identify themselves and know their director for escalation and communication.
 
 ## Best Practices
 
