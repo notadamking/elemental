@@ -244,6 +244,18 @@ export function StreamViewer({
   // Track last activity time for working timeout
   const lastActivityRef = useRef<number>(0);
   const workingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track the previous session ID to detect session changes
+  const prevSessionIdRef = useRef<string | undefined>(undefined);
+
+  // Clear events when sessionId changes to a different session
+  useEffect(() => {
+    if (sessionId && prevSessionIdRef.current && sessionId !== prevSessionIdRef.current) {
+      // Session changed to a different session - clear old events
+      setEvents([]);
+      setIsWorking(false);
+    }
+    prevSessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   // Load transcript from server when sessionId changes (to restore after remount/refresh)
   useEffect(() => {
