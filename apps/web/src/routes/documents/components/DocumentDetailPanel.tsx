@@ -6,7 +6,6 @@ import { useState, useMemo } from 'react';
 import {
   X,
   User,
-  Tag,
   Clock,
   Edit3,
   Save,
@@ -19,6 +18,7 @@ import {
   MessageSquare,
   Smile,
 } from 'lucide-react';
+import { DocumentTagInput } from '@elemental/ui/documents';
 import { useAllEntities } from '../../../api/hooks/useAllElements';
 import { EmojiPickerModal } from '../../../components/editor/EmojiPickerModal';
 import { BlockEditor } from '../../../components/editor/BlockEditor';
@@ -582,24 +582,23 @@ export function DocumentDetailPanel({
             )}
           </div>
 
-          {/* Tags - only show for current version, not preview */}
-          {!previewingVersion && document.tags && document.tags.length > 0 && (
+          {/* Tags - editable, only show for current version, not preview */}
+          {!previewingVersion && (
             <div className="mb-6">
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-                <Tag className="w-3 h-3" />
-                Tags
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {document.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    data-testid={`document-tag-${tag}`}
-                    className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
+              <DocumentTagInput
+                tags={document.tags || []}
+                onTagsChange={async (newTags: string[]) => {
+                  try {
+                    await updateDocument.mutateAsync({
+                      id: documentId,
+                      updates: { tags: newTags },
+                    });
+                  } catch {
+                    // Error handling is done by the mutation
+                  }
+                }}
+                disabled={updateDocument.isPending}
+              />
             </div>
           )}
 
