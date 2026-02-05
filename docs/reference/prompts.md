@@ -248,6 +248,19 @@ const result = await spawner.spawn(agentId, 'worker', {
 
 Steward prompts are combined: `steward-base.md` + `steward-{focus}.md`
 
+## Agent Identity in Prompts
+
+When agents are spawned, their entity ID is automatically included in the prompt for traceability:
+
+| Role | Field | Location |
+|------|-------|----------|
+| Director | `**Director ID:** {agentId}` | After role prompt |
+| Worker | `**Worker ID:** {agentId}` | In task assignment section |
+| Steward | `**Worker ID:** {agentId}` | In task/merge assignment section |
+| Triage | `**Worker ID:** {agentId}` | In session context section |
+
+This allows agents to identify themselves in logs, messages, and debugging.
+
 ## Best Practices
 
 1. **Keep prompts concise:** Built-in prompts are additive to Claude Code's system prompt. Focus on role-specific guidance.

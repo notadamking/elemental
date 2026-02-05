@@ -292,9 +292,11 @@ Please begin working on this task. Use \`el task get ${taskResult.id}\` to see f
       // so Claude understands this is its operating instructions, not a file being opened
       if (rolePrompt) {
         const framedRolePrompt = `Please read and internalize the following operating instructions. These define your role and how you should behave in this session:\n\n${rolePrompt}`;
+        // Add Director ID after the role prompt for directors (similar to Worker ID for workers)
+        const idSection = agentRole === 'director' ? `\n\n**Director ID:** ${agentId}` : '';
         effectivePrompt = effectivePrompt
-          ? `${framedRolePrompt}\n\n---\n\n${effectivePrompt}`
-          : framedRolePrompt;
+          ? `${framedRolePrompt}${idSection}\n\n---\n\n${effectivePrompt}`
+          : `${framedRolePrompt}${idSection}`;
       }
 
       const { session, events } = await sessionManager.startSession(agentId, {
