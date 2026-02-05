@@ -20,7 +20,9 @@ interface TaskActionsDropdownProps {
 export function TaskActionsDropdown({ task, onDeleted }: TaskActionsDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const deleteTaskMutation = useDeleteTask();
 
   // Close dropdown when clicking outside
@@ -73,8 +75,13 @@ export function TaskActionsDropdown({ task, onDeleted }: TaskActionsDropdownProp
     <>
       <div className="relative" ref={dropdownRef}>
         <button
+          ref={buttonRef}
           onClick={(e) => {
             e.stopPropagation();
+            if (!isOpen && buttonRef.current) {
+              const rect = buttonRef.current.getBoundingClientRect();
+              setMenuPosition({ top: rect.bottom, left: rect.right });
+            }
             setIsOpen(!isOpen);
           }}
           className="p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-elevated)] rounded transition-colors"
@@ -84,9 +91,10 @@ export function TaskActionsDropdown({ task, onDeleted }: TaskActionsDropdownProp
           <MoreHorizontal className="w-4 h-4" />
         </button>
 
-        {isOpen && (
+        {isOpen && menuPosition && (
           <div
-            className="absolute z-30 right-0 top-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-36"
+            className="fixed z-30 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-36"
+            style={{ top: menuPosition.top, left: menuPosition.left, transform: 'translateX(-100%)' }}
             data-testid="task-actions-menu"
           >
             <button
