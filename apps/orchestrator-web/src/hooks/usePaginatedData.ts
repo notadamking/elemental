@@ -197,6 +197,175 @@ export function usePaginatedData<T>({
 }
 
 // ============================================================================
+// Task-Specific Filtering Utilities
+// ============================================================================
+
+export interface TaskFilterConfig {
+  status?: string[];
+  priority?: number[];
+  assignee?: string;
+  search?: string;
+}
+
+export function createTaskFilter(filters: TaskFilterConfig): ((task: {
+  status: string;
+  priority: number;
+  assignee?: string;
+  title: string;
+}) => boolean) | undefined {
+  const hasFilters =
+    (filters.status && filters.status.length > 0) ||
+    (filters.priority && filters.priority.length > 0) ||
+    filters.assignee ||
+    filters.search;
+
+  if (!hasFilters) return undefined;
+
+  return (task) => {
+    // Status filter
+    if (filters.status && filters.status.length > 0) {
+      if (!filters.status.includes(task.status)) return false;
+    }
+
+    // Priority filter
+    if (filters.priority && filters.priority.length > 0) {
+      if (!filters.priority.includes(task.priority)) return false;
+    }
+
+    // Assignee filter
+    if (filters.assignee) {
+      if (task.assignee !== filters.assignee) return false;
+    }
+
+    // Search filter (title)
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      if (!task.title.toLowerCase().includes(searchLower)) return false;
+    }
+
+    return true;
+  };
+}
+
+// ============================================================================
+// Entity-Specific Filtering Utilities
+// ============================================================================
+
+export interface EntityFilterConfig {
+  entityType?: 'all' | 'agent' | 'human' | 'system';
+  search?: string;
+  active?: boolean;
+}
+
+export function createEntityFilter(filters: EntityFilterConfig): ((entity: {
+  entityType: string;
+  name: string;
+  active?: boolean;
+}) => boolean) | undefined {
+  const hasFilters =
+    (filters.entityType && filters.entityType !== 'all') ||
+    filters.search ||
+    filters.active !== undefined;
+
+  if (!hasFilters) return undefined;
+
+  return (entity) => {
+    // Entity type filter
+    if (filters.entityType && filters.entityType !== 'all') {
+      if (entity.entityType !== filters.entityType) return false;
+    }
+
+    // Search filter (name)
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      if (!entity.name.toLowerCase().includes(searchLower)) return false;
+    }
+
+    // Active filter
+    if (filters.active !== undefined) {
+      if (entity.active !== filters.active) return false;
+    }
+
+    return true;
+  };
+}
+
+// ============================================================================
+// Team-Specific Filtering Utilities
+// ============================================================================
+
+export interface TeamFilterConfig {
+  search?: string;
+}
+
+export function createTeamFilter(filters: TeamFilterConfig): ((team: {
+  name: string;
+}) => boolean) | undefined {
+  if (!filters.search) return undefined;
+
+  return (team) => {
+    const searchLower = filters.search!.toLowerCase();
+    return team.name.toLowerCase().includes(searchLower);
+  };
+}
+
+// ============================================================================
+// Document-Specific Filtering Utilities
+// ============================================================================
+
+export interface DocumentFilterConfig {
+  search?: string;
+  contentType?: string;
+  libraryId?: string;
+}
+
+export function createDocumentFilter<T extends {
+  title?: string;
+  contentType?: string;
+  libraryId?: string;
+}>(filters: DocumentFilterConfig): ((doc: T) => boolean) | undefined {
+  const hasFilters = filters.search || filters.contentType || filters.libraryId;
+
+  if (!hasFilters) return undefined;
+
+  return (doc) => {
+    // Search filter (title)
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const title = doc.title || '';
+      if (!title.toLowerCase().includes(searchLower)) return false;
+    }
+
+    // Content type filter
+    if (filters.contentType) {
+      if (doc.contentType !== filters.contentType) return false;
+    }
+
+    // Library filter
+    if (filters.libraryId) {
+      if (doc.libraryId !== filters.libraryId) return false;
+    }
+
+    return true;
+  };
+}
+
+/**
+ * Simple document filter for search only (generic version)
+ */
+export function createSimpleDocumentSearchFilter(
+  searchQuery: string
+): (<T extends { title?: string }>(doc: T) => boolean) | undefined {
+  if (!searchQuery || !searchQuery.trim()) return undefined;
+
+  const searchLower = searchQuery.toLowerCase();
+  return (doc) => {
+    const title = doc.title || '';
+    return title.toLowerCase().includes(searchLower);
+  };
+}
+
+// ============================================================================
 // Channel-Specific Filtering Utilities
 // ============================================================================
 
