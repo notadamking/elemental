@@ -261,6 +261,21 @@ Triage sessions operate in a **temporary detached worktree** checked out on the 
 - **Worker Availability Polling** runs after inbox polling. It skips workers with active sessions (including triage) and workers with remaining unread items.
 - **Subsequent cycles:** After a triage session completes and the agent becomes idle again, remaining channel batches are eligible for the next triage spawn.
 
+### Triage Prompt Format
+
+The triage prompt includes the message-triage template with hydrated message contents, followed by session context:
+
+```
+{message-triage.md template with {{MESSAGES}} replaced by formatted messages}
+
+---
+
+**Worker ID:** {agentId}
+**Channel:** {channelId}
+**Agent:** {agentName}
+**Message count:** {count}
+```
+
 ---
 
 ## Worktree and Branch Management
