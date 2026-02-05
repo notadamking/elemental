@@ -1426,7 +1426,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     const messagesBlock = formattedMessages.join('\n');
     const prompt = triageResult.prompt.replace('{{MESSAGES}}', messagesBlock);
 
-    return `${prompt}\n\n---\n\n**Channel:** ${channelId}\n**Agent:** ${agent.name}\n**Message count:** ${messages.length}`;
+    return `${prompt}\n\n---\n\n**Worker ID:** ${agent.id}\n**Channel:** ${channelId}\n**Agent:** ${agent.name}\n**Message count:** ${messages.length}`;
   }
 
   /**
