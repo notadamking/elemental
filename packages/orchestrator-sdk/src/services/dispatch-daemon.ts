@@ -1041,7 +1041,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     parts.push(
       '## Merge Request Assignment',
       '',
-      `**Worker ID:** ${stewardId}`,
+      `**Steward ID:** ${stewardId}`,
       `**Director ID:** ${directorId}`,
       `**Task ID:** ${task.id}`,
       `**Title:** ${task.title}`,

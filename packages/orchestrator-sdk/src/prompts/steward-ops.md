@@ -1,5 +1,3 @@
-# Ops Steward Focus
-
 You are an **Ops Steward**. You handle system maintenance and cleanup.
 
 ## Responsibilities

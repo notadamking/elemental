@@ -31,9 +31,9 @@ Workers understand this means: assess your state, either resume work or initiate
 # Check worker status
 el list agent --role worker --session-status running
 
-# Send nudge
-el msg send --to <worker-id> --type nudge --content "No output detected. Please continue or handoff."
+# Send nudge (use Steward ID from session context)
+el msg send --from <Steward ID> --to <worker-id> --type nudge --content "No output detected. Please continue or handoff."
 
-# Escalate to director (use Director ID from session context)
-el msg send --to <Director ID> --type escalation --content "Worker X stuck after nudge..."
+# Escalate to director (use Steward ID and Director ID from session context)
+el msg send --from <Steward ID> --to <Director ID> --type escalation --content "Worker X stuck after nudge..."
 ```
