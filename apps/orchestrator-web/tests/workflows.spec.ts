@@ -879,7 +879,8 @@ test.describe('TB-O32: Workflows Page', () => {
         // Check workflow title input
         const titleInput = page.getByTestId('pour-title-input');
         await expect(titleInput).toBeVisible();
-        await expect(titleInput).toHaveAttribute('placeholder', /Test Playbook - Run/);
+        // Placeholder shows the playbook title (user can customize the workflow name)
+        await expect(titleInput).toHaveAttribute('placeholder', 'Test Playbook');
       });
 
       test('modal displays variable inputs when playbook has variables', async ({ page }) => {
@@ -2091,7 +2092,7 @@ test.describe('TB-O32: Workflows Page', () => {
 
         // Editor modal should be visible
         await expect(page.getByTestId('workflow-editor-dialog')).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Create Playbook' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Create Template' })).toBeVisible();
       });
 
       test('clicking Create Template in empty state opens editor modal', async ({ page }) => {
@@ -2170,7 +2171,7 @@ test.describe('TB-O32: Workflows Page', () => {
 
         // Editor modal should be visible with Edit title
         await expect(page.getByTestId('workflow-editor-dialog')).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Edit Playbook' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Edit Template' })).toBeVisible();
 
         // Name field should be disabled (can't change name)
         const nameInput = page.getByTestId('playbook-name-input');
