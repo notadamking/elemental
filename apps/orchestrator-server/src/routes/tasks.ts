@@ -785,5 +785,95 @@ export function createTaskRoutes(services: Services) {
     }
   });
 
+  // POST /api/tasks/:id/dependencies - Add a blocking dependency to a task
+  app.post('/api/tasks/:id/dependencies', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+      const body = (await c.req.json()) as {
+        blockerId: string;
+        type?: 'blocks' | 'parent-child' | 'awaits';
+      };
+
+      if (!body.blockerId) {
+        return c.json({ error: { code: 'INVALID_INPUT', message: 'blockerId is required' } }, 400);
+      }
+
+      const blockerId = body.blockerId as ElementId;
+      const dependencyType = body.type || 'blocks';
+
+      // Verify both tasks exist
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      const blockerTask = await api.get<Task>(blockerId);
+      if (!blockerTask || blockerTask.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Blocker task not found' } }, 404);
+      }
+
+      // Prevent self-reference
+      if (taskId === blockerId) {
+        return c.json({ error: { code: 'INVALID_INPUT', message: 'A task cannot block itself' } }, 400);
+      }
+
+      // Add the dependency (blocker blocks this task)
+      await api.addDependency({
+        blockedId: taskId,
+        blockerId: blockerId,
+        type: dependencyType,
+        actor: 'el-0000' as EntityId, // System actor for UI operations
+      });
+
+      return c.json({
+        success: true,
+        dependency: {
+          blockedId: taskId,
+          blockerId: blockerId,
+          type: dependencyType,
+        },
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to add dependency:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // DELETE /api/tasks/:id/dependencies/:blockerId - Remove a blocking dependency from a task
+  app.delete('/api/tasks/:id/dependencies/:blockerId', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+      const blockerId = c.req.param('blockerId') as ElementId;
+
+      // Verify task exists
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      // Find the dependency to get its type
+      const dependencies = await api.getDependencies(taskId);
+      const dependency = dependencies.find(
+        (dep) => dep.blockerId === blockerId && BLOCKING_DEPENDENCY_TYPES.includes(dep.type)
+      );
+
+      if (!dependency) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Dependency not found' } }, 404);
+      }
+
+      // Remove the dependency with the correct type
+      await api.removeDependency(taskId, blockerId, dependency.type, 'el-0000' as EntityId);
+
+      return c.json({
+        success: true,
+        taskId,
+        blockerId,
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to remove dependency:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   return app;
 }
