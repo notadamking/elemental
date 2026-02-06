@@ -72,6 +72,7 @@ const tasksRoute = createRoute({
              typeof search.limit === 'string' ? parseInt(search.limit, 10) || 25 : 25,
       status: typeof search.status === 'string' ? search.status : undefined,
       assignee: typeof search.assignee === 'string' ? search.assignee : undefined,
+      showClosed: search.showClosed === true || search.showClosed === 'true' ? true : undefined,
     };
   },
 });
