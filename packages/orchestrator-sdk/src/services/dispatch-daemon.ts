@@ -674,12 +674,14 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       // (in spawnMergeStewardForTask), so an unset assignee means no steward has it.
       const unclaimedReviewTasks = reviewTasks.filter((ta) => !ta.task.assignee);
 
-      for (const steward of mergeStewards) {
-        if (unclaimedReviewTasks.length === 0) break;
+      const sortedReviewTasks = [...unclaimedReviewTasks].sort(
+        (a, b) => (b.task.priority ?? 0) - (a.task.priority ?? 0)
+      );
 
-        // Get the highest priority REVIEW task
-        const sortedTasks = [...unclaimedReviewTasks].sort((a, b) => (b.task.priority ?? 0) - (a.task.priority ?? 0));
-        const taskAssignment = sortedTasks.shift(); // Remove from list so next steward gets different task
+      for (const steward of mergeStewards) {
+        if (sortedReviewTasks.length === 0) break;
+
+        const taskAssignment = sortedReviewTasks.shift();
         if (!taskAssignment) continue;
 
         try {

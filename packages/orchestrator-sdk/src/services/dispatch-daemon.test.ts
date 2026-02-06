@@ -736,6 +736,32 @@ describe('pollWorkflowTasks - merge steward dispatch', () => {
     expect(result.processed).toBe(0);
   });
 
+  test('dispatches different REVIEW tasks to different stewards in same cycle', async () => {
+    await createTestSteward('merge-steward-multi-a');
+    await createTestSteward('merge-steward-multi-b');
+    const taskA = await createReviewTask('Review task X');
+    const taskB = await createReviewTask('Review task Y');
+
+    const result = await daemon.pollWorkflowTasks();
+    expect(result.processed).toBe(2);
+
+    // Each task should be assigned to a different steward
+    const updatedA = await api.get<Task>(taskA.id);
+    const updatedB = await api.get<Task>(taskB.id);
+    expect(updatedA!.assignee).toBeDefined();
+    expect(updatedB!.assignee).toBeDefined();
+    expect(updatedA!.assignee).not.toBe(updatedB!.assignee);
+  });
+
+  test('only dispatches one task when two stewards compete for a single task', async () => {
+    await createTestSteward('merge-steward-solo-a');
+    await createTestSteward('merge-steward-solo-b');
+    await createReviewTask('Only review task');
+
+    const result = await daemon.pollWorkflowTasks();
+    expect(result.processed).toBe(1);
+  });
+
   test('records assignee, assignedAgent, sessionId, mergeStatus on task', async () => {
     const steward = await createTestSteward('merge-steward-3');
     const stewardId = steward.id as unknown as EntityId;
