@@ -242,10 +242,17 @@ async function msgSendHandler(
 
       // Create DM channel if not found
       if (!dmChannel) {
+        // Look up entity names for channel naming
+        const actorEntity = await api.get(actor as unknown as ElementId);
+        const actorName = (actorEntity as { name?: string } | null)?.name;
+        const targetName = (targetEntity as { name?: string }).name;
+
         const newDmChannel = await createDirectChannel({
           entityA: actor,
           entityB: toEntity,
           createdBy: actor,
+          ...(actorName && { entityAName: actorName }),
+          ...(targetName && { entityBName: targetName }),
         });
         dmChannel = await api.create<Channel>(newDmChannel as unknown as Channel & Record<string, unknown>);
       }

@@ -57,7 +57,6 @@ import {
   ValidationError,
   ErrorCode,
   ChannelTypeValue,
-  generateDirectChannelName,
   createDirectChannel,
   isMember,
   canModifyMembers,
@@ -3256,17 +3255,16 @@ export class ElementalAPIImpl implements ElementalAPI {
       );
     }
 
-    // Generate deterministic name for the direct channel
-    const channelName = generateDirectChannelName(entityA, entityB);
-
-    // Try to find existing channel
+    // Search by members for backward compatibility with both ID-named and name-named channels
+    const sortedMembers = [entityA, entityB].sort();
     const existingRow = this.backend.queryOne<ElementRow>(
       `SELECT * FROM elements
        WHERE type = 'channel'
        AND JSON_EXTRACT(data, '$.channelType') = 'direct'
-       AND JSON_EXTRACT(data, '$.name') = ?
+       AND JSON_EXTRACT(data, '$.members[0]') = ?
+       AND JSON_EXTRACT(data, '$.members[1]') = ?
        AND deleted_at IS NULL`,
-      [channelName]
+      [sortedMembers[0], sortedMembers[1]]
     );
 
     if (existingRow) {
@@ -3283,11 +3281,19 @@ export class ElementalAPIImpl implements ElementalAPI {
       return { channel, created: false };
     }
 
-    // No existing channel, create a new one
+    // Look up entity names for channel naming
+    const entityAData = await this.get<Entity>(entityA as unknown as ElementId);
+    const entityBData = await this.get<Entity>(entityB as unknown as ElementId);
+    const entityAName = (entityAData as Entity | null)?.name;
+    const entityBName = (entityBData as Entity | null)?.name;
+
+    // No existing channel, create a new one with entity names
     const newChannel = await createDirectChannel({
       entityA,
       entityB,
       createdBy: actor,
+      ...(entityAName && { entityAName }),
+      ...(entityBName && { entityBName }),
     });
 
     const createdChannel = await this.create<Channel>(

@@ -5,7 +5,7 @@
  */
 
 import { Hono } from 'hono';
-import type { ElementId, EntityId, Channel, Visibility, JoinPolicy } from '@elemental/core';
+import type { ElementId, EntityId, Channel, Entity, Visibility, JoinPolicy } from '@elemental/core';
 import { createGroupChannel, createDirectChannel } from '@elemental/core';
 import type { CreateGroupChannelInput, CreateDirectChannelInput, Element } from '@elemental/core';
 import type { CollaborateServices } from './types.js';
@@ -167,10 +167,18 @@ export function createChannelRoutes(services: CollaborateServices) {
           return c.json({ error: { code: 'VALIDATION_ERROR', message: 'entityB is required for direct channels' } }, 400);
         }
 
+        // Look up entity names for channel naming
+        const entityAData = await api.get<Entity>(body.entityA as ElementId);
+        const entityBData = await api.get<Entity>(body.entityB as ElementId);
+        const entityAName = (entityAData as Entity | null)?.name;
+        const entityBName = (entityBData as Entity | null)?.name;
+
         const directInput: CreateDirectChannelInput = {
           entityA: body.entityA as EntityId,
           entityB: body.entityB as EntityId,
           createdBy: body.createdBy as EntityId,
+          ...(entityAName && { entityAName }),
+          ...(entityBName && { entityBName }),
           description: body.description,
           tags: body.tags,
           metadata: body.metadata,
