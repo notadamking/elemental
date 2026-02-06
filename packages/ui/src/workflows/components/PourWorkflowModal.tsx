@@ -473,8 +473,8 @@ export function PourWorkflowModal({
                 <StepsPreview steps={playbook.steps} />
 
                 {/* Advanced Options */}
-                <details className="text-sm">
-                  <summary className="text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text)]">
+                <details className="text-sm" data-testid="advanced-options">
+                  <summary className="text-[var(--color-text-secondary)] cursor-pointer hover:text-[var(--color-text)]" data-testid="toggle-advanced">
                     Advanced options
                   </summary>
                   <div className="mt-2 p-3 bg-[var(--color-surface)] rounded-lg space-y-2">
@@ -484,14 +484,14 @@ export function PourWorkflowModal({
                         checked={ephemeral}
                         onChange={(e) => setEphemeral(e.target.checked)}
                         className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary)]"
-                        data-testid="pour-ephemeral-checkbox"
+                        data-testid="ephemeral-checkbox"
                       />
                       <div>
                         <span className="text-sm text-[var(--color-text)]">
                           Ephemeral workflow
                         </span>
                         <p className="text-xs text-[var(--color-text-tertiary)]">
-                          Ephemeral workflows can be burned to delete all tasks
+                          Ephemeral workflows are automatically cleaned up after completion
                         </p>
                       </div>
                     </label>

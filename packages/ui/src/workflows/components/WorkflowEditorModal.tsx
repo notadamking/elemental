@@ -950,10 +950,127 @@ export function WorkflowEditorModal({
     setSelectedVariableIndex(null);
   }, []);
 
-  const handleImportYaml = useCallback(() => {
-    // Simple YAML import - just set defaults for now
-    // Full YAML parsing would require a proper parser
-    setError('YAML import is not yet fully implemented. Please use the UI to edit.');
+  const handleImportYaml = useCallback((yamlText: string) => {
+    try {
+      // Simple YAML parser for playbook format
+      const lines = yamlText.split('\n');
+      let parsedName = '';
+      let parsedTitle = '';
+      const parsedSteps: StepFormData[] = [];
+      const parsedVariables: VariableFormData[] = [];
+
+      let currentSection: 'root' | 'steps' | 'variables' = 'root';
+      let currentItem: Partial<StepFormData> | Partial<VariableFormData> | null = null;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+
+        // Check for section headers
+        if (trimmed === 'steps:') {
+          currentSection = 'steps';
+          currentItem = null;
+          continue;
+        }
+        if (trimmed === 'variables:') {
+          currentSection = 'variables';
+          currentItem = null;
+          continue;
+        }
+
+        // Parse key-value pairs
+        const match = trimmed.match(/^-?\s*(\w+):\s*(.*)$/);
+        if (!match) continue;
+
+        const [, key, rawValue] = match;
+        // Remove quotes from value
+        const value = rawValue.replace(/^["']|["']$/g, '');
+
+        if (currentSection === 'root') {
+          if (key === 'name') parsedName = value;
+          else if (key === 'title') parsedTitle = value;
+        } else if (currentSection === 'steps') {
+          if (trimmed.startsWith('-')) {
+            // New step item
+            if (currentItem && 'id' in currentItem) {
+              parsedSteps.push({
+                id: currentItem.id || generateStepId(),
+                title: currentItem.title || '',
+                description: currentItem.description || '',
+                taskType: '',
+                priority: '',
+                complexity: '',
+                assignee: '',
+                dependsOn: [],
+                condition: '',
+              } as StepFormData);
+            }
+            currentItem = { id: value };
+          } else if (currentItem) {
+            if (key === 'title') (currentItem as Partial<StepFormData>).title = value;
+            else if (key === 'description') (currentItem as Partial<StepFormData>).description = value;
+          }
+        } else if (currentSection === 'variables') {
+          if (trimmed.startsWith('-')) {
+            // New variable item
+            if (currentItem && 'name' in currentItem && currentItem.name) {
+              parsedVariables.push({
+                name: currentItem.name || '',
+                description: (currentItem as Partial<VariableFormData>).description || '',
+                type: (currentItem as Partial<VariableFormData>).type || 'string',
+                required: (currentItem as Partial<VariableFormData>).required || false,
+                default: (currentItem as Partial<VariableFormData>).default || '',
+                enum: [],
+              } as VariableFormData);
+            }
+            currentItem = { name: value };
+          } else if (currentItem) {
+            if (key === 'type') (currentItem as Partial<VariableFormData>).type = value as VariableType;
+            else if (key === 'required') (currentItem as Partial<VariableFormData>).required = value === 'true';
+            else if (key === 'description') (currentItem as Partial<VariableFormData>).description = value;
+            else if (key === 'default') (currentItem as Partial<VariableFormData>).default = value;
+          }
+        }
+      }
+
+      // Don't forget the last item
+      if (currentItem) {
+        if (currentSection === 'steps' && 'id' in currentItem) {
+          parsedSteps.push({
+            id: currentItem.id || generateStepId(),
+            title: currentItem.title || '',
+            description: currentItem.description || '',
+            taskType: '',
+            priority: '',
+            complexity: '',
+            assignee: '',
+            dependsOn: [],
+            condition: '',
+          } as StepFormData);
+        } else if (currentSection === 'variables' && 'name' in currentItem && currentItem.name) {
+          parsedVariables.push({
+            name: currentItem.name || '',
+            description: (currentItem as Partial<VariableFormData>).description || '',
+            type: (currentItem as Partial<VariableFormData>).type || 'string',
+            required: (currentItem as Partial<VariableFormData>).required || false,
+            default: (currentItem as Partial<VariableFormData>).default || '',
+            enum: [],
+          } as VariableFormData);
+        }
+      }
+
+      // Apply imported values
+      if (parsedName) setName(parsedName);
+      if (parsedTitle) setTitle(parsedTitle);
+      if (parsedSteps.length > 0) setSteps(parsedSteps);
+      if (parsedVariables.length > 0) setVariables(parsedVariables);
+
+      // Switch to steps tab to show imported content
+      setActiveTab('steps');
+      setError(null);
+    } catch (err) {
+      setError('Failed to parse YAML. Please check the format and try again.');
+    }
   }, []);
 
   const handleSave = async () => {
