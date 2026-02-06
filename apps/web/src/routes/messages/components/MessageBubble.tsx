@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { EntityLink } from '../../../components/entity/EntityLink';
 import { renderMessageContent } from '../../../lib/message-content';
+import { useEntities } from '../../../api/hooks/useMessages';
 import type { Message } from '../types';
 
 // ============================================================================
@@ -70,6 +71,13 @@ export function MessageBubble({
   const [showMobileActions, setShowMobileActions] = useState(false);
   const messageRef = useRef<HTMLDivElement>(null);
   const touchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: entities } = useEntities();
+  const senderEntity = entities?.find((e) => e.id === message.sender);
+  const senderName = senderEntity?.name;
+  const avatarInitials = senderName
+    ? senderName.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+    : message.sender.slice(-2).toUpperCase();
 
   const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
     hour: '2-digit',
@@ -155,7 +163,7 @@ export function MessageBubble({
               isMobile ? 'text-xs' : 'text-sm'
             }`}
           >
-            {message.sender.slice(-2).toUpperCase()}
+            {avatarInitials}
           </span>
         </div>
 
@@ -166,7 +174,9 @@ export function MessageBubble({
               entityRef={message.sender}
               className={`font-semibold ${isMobile ? 'text-sm' : ''}`}
               data-testid={`message-sender-${message.id}`}
-            />
+            >
+              {senderName}
+            </EntityLink>
             <span
               data-testid={`message-time-${message.id}`}
               className={`text-gray-400 dark:text-gray-500 ${
