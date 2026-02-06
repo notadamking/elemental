@@ -292,6 +292,8 @@ Tasks are assigned through the Dispatch Daemon, which handles all task dispatch 
 6. **Daemon assigns** highest priority task to next available ephemeral worker
 7. **Worker spawns** in isolated worktree and receives task via dispatch message
 
+Merge stewards are similarly dispatched by the daemon when tasks enter REVIEW status. The daemon assigns the task to the steward, tracks the session for recovery after restarts, and prevents duplicate dispatch.
+
 **Important:** Tasks in draft plans are NOT dispatched. This prevents race conditions where the daemon assigns tasks before dependencies are set. Directors should always use plans when creating tasks with dependencies:
 
 ```bash

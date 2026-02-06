@@ -10,16 +10,15 @@ You are a **Merge Steward**. You review and merge completed work into the main b
 ## Workflow
 
 1. **Detect**: New PR created from task completion (`el task complete`)
-2. **Signal start**: Run `el task review-start <task-id>` to mark the task as under active review. This updates the merge status so the dashboard shows the task is being reviewed.
-3. **Review**: Examine the changes in the pull request
-4. **If approved**:
+2. **Review**: Examine the changes in the pull request
+3. **If approved**:
    - Merge the branch to main
    - Delete the branch and worktree
    - Mark task as merged
-5. **If changes needed**:
+4. **If changes needed**:
    - Create handoff with review comments
    - Reference the original branch/worktree so next worker can continue
-6. **Close**: Mark your workflow task as complete when review is done
+5. **Close**: Mark your workflow task as complete when review is done
 
 ## Review Criteria
 
@@ -59,9 +58,6 @@ You are a **Merge Steward**. You review and merge completed work into the main b
 ```bash
 # Find PRs awaiting review
 el list task --status pr_pending
-
-# Signal that you are starting review (updates dashboard indicator)
-el task review-start <task-id>
 
 # Review PR
 gh pr view <pr-number>

@@ -592,6 +592,322 @@ describe('recoverOrphanedAssignments', () => {
   });
 });
 
+describe('pollWorkflowTasks - merge steward dispatch', () => {
+  let api: ElementalAPI;
+  let inboxService: InboxService;
+  let agentRegistry: AgentRegistry;
+  let taskAssignment: TaskAssignmentService;
+  let dispatchService: DispatchService;
+  let sessionManager: SessionManager;
+  let worktreeManager: WorktreeManager;
+  let stewardScheduler: StewardScheduler;
+  let daemon: DispatchDaemon;
+  let testDbPath: string;
+  let systemEntity: EntityId;
+
+  beforeEach(async () => {
+    testDbPath = `/tmp/dispatch-daemon-steward-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
+    const storage = createStorage({ path: testDbPath, create: true });
+    initializeSchema(storage);
+
+    api = createElementalAPI(storage);
+    inboxService = createInboxService(storage);
+    agentRegistry = createAgentRegistry(api);
+    taskAssignment = createTaskAssignmentService(api);
+    dispatchService = createDispatchService(api, taskAssignment, agentRegistry);
+    sessionManager = createMockSessionManager();
+    worktreeManager = createMockWorktreeManager();
+    stewardScheduler = createMockStewardScheduler();
+
+    const { createEntity, EntityTypeValue } = await import('@elemental/core');
+    const entity = await createEntity({
+      name: 'test-system',
+      entityType: EntityTypeValue.SYSTEM,
+      createdBy: 'system:test' as EntityId,
+    });
+    const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
+    systemEntity = saved.id as unknown as EntityId;
+
+    const config: DispatchDaemonConfig = {
+      pollIntervalMs: 100,
+      workerAvailabilityPollEnabled: false,
+      inboxPollEnabled: false,
+      stewardTriggerPollEnabled: false,
+      workflowTaskPollEnabled: true,
+      orphanRecoveryEnabled: false,
+    };
+
+    daemon = createDispatchDaemon(
+      api,
+      agentRegistry,
+      sessionManager,
+      dispatchService,
+      worktreeManager,
+      taskAssignment,
+      stewardScheduler,
+      inboxService,
+      config
+    );
+  });
+
+  afterEach(async () => {
+    await daemon.stop();
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  });
+
+  async function createTestSteward(name: string): Promise<AgentEntity> {
+    return agentRegistry.registerSteward({
+      name,
+      stewardFocus: 'merge',
+      createdBy: systemEntity,
+      maxConcurrentTasks: 1,
+    });
+  }
+
+  async function createReviewTask(
+    title: string,
+    meta?: Partial<import('../types/task-meta.js').OrchestratorTaskMeta>
+  ): Promise<Task> {
+    const task = await createTask({
+      title,
+      createdBy: systemEntity,
+      status: TaskStatus.REVIEW,
+    });
+    const saved = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Task;
+
+    // Set orchestrator metadata with mergeStatus: 'pending' (default for new review tasks)
+    await api.update(saved.id, {
+      metadata: updateOrchestratorTaskMeta(undefined, {
+        mergeStatus: 'pending',
+        branch: 'agent/worker/task-branch',
+        ...meta,
+      }),
+    });
+
+    return (await api.get<Task>(saved.id))!;
+  }
+
+  test('does not double-dispatch same REVIEW task across cycles', async () => {
+    await createTestSteward('merge-steward-1');
+    await createReviewTask('Review task A');
+
+    // First poll — should dispatch
+    const result1 = await daemon.pollWorkflowTasks();
+    expect(result1.processed).toBe(1);
+
+    // Reset session manager mock so getActiveSession returns null for second poll
+    // (simulating steward session completed between cycles)
+    (sessionManager.getActiveSession as ReturnType<typeof mock>).mockImplementation(() => null);
+
+    // Second poll — should NOT dispatch again because mergeStatus is now 'testing'
+    const result2 = await daemon.pollWorkflowTasks();
+    expect(result2.processed).toBe(0);
+  });
+
+  test('skips REVIEW tasks already assigned to a steward', async () => {
+    await createTestSteward('merge-steward-2');
+
+    // Create a REVIEW task that already has assignedAgent and mergeStatus: 'testing'
+    await createReviewTask('Already assigned review task', {
+      assignedAgent: 'some-other-steward' as EntityId,
+      mergeStatus: 'testing',
+    });
+
+    const result = await daemon.pollWorkflowTasks();
+    // mergeStatus filter should exclude 'testing' tasks; assignedAgent filter is defense-in-depth
+    expect(result.processed).toBe(0);
+  });
+
+  test('records assignee, assignedAgent, sessionId, mergeStatus on task', async () => {
+    const steward = await createTestSteward('merge-steward-3');
+    const stewardId = steward.id as unknown as EntityId;
+    const reviewTask = await createReviewTask('Task to verify metadata');
+
+    await daemon.pollWorkflowTasks();
+
+    // Verify task metadata was updated
+    const updatedTask = await api.get<Task>(reviewTask.id);
+    expect(updatedTask).toBeDefined();
+    expect(updatedTask!.assignee as unknown as string).toBe(stewardId as unknown as string);
+
+    const meta = getOrchestratorTaskMeta(updatedTask!.metadata as Record<string, unknown> | undefined);
+    expect(meta).toBeDefined();
+    expect(meta!.assignedAgent).toBe(stewardId);
+    expect(meta!.mergeStatus).toBe('testing');
+    expect(meta!.sessionId).toBeDefined();
+  });
+});
+
+describe('recoverOrphanedAssignments - merge steward recovery', () => {
+  let api: ElementalAPI;
+  let inboxService: InboxService;
+  let agentRegistry: AgentRegistry;
+  let taskAssignment: TaskAssignmentService;
+  let dispatchService: DispatchService;
+  let sessionManager: SessionManager;
+  let worktreeManager: WorktreeManager;
+  let stewardScheduler: StewardScheduler;
+  let daemon: DispatchDaemon;
+  let testDbPath: string;
+  let systemEntity: EntityId;
+
+  beforeEach(async () => {
+    testDbPath = `/tmp/dispatch-daemon-steward-orphan-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
+    const storage = createStorage({ path: testDbPath, create: true });
+    initializeSchema(storage);
+
+    api = createElementalAPI(storage);
+    inboxService = createInboxService(storage);
+    agentRegistry = createAgentRegistry(api);
+    taskAssignment = createTaskAssignmentService(api);
+    dispatchService = createDispatchService(api, taskAssignment, agentRegistry);
+    sessionManager = createMockSessionManager();
+    worktreeManager = createMockWorktreeManager();
+    stewardScheduler = createMockStewardScheduler();
+
+    const { createEntity, EntityTypeValue } = await import('@elemental/core');
+    const entity = await createEntity({
+      name: 'test-system',
+      entityType: EntityTypeValue.SYSTEM,
+      createdBy: 'system:test' as EntityId,
+    });
+    const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
+    systemEntity = saved.id as unknown as EntityId;
+
+    const config: DispatchDaemonConfig = {
+      pollIntervalMs: 100,
+      workerAvailabilityPollEnabled: false,
+      inboxPollEnabled: false,
+      stewardTriggerPollEnabled: false,
+      workflowTaskPollEnabled: false,
+      orphanRecoveryEnabled: true,
+    };
+
+    daemon = createDispatchDaemon(
+      api,
+      agentRegistry,
+      sessionManager,
+      dispatchService,
+      worktreeManager,
+      taskAssignment,
+      stewardScheduler,
+      inboxService,
+      config
+    );
+  });
+
+  afterEach(async () => {
+    await daemon.stop();
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  });
+
+  async function createTestSteward(name: string): Promise<AgentEntity> {
+    return agentRegistry.registerSteward({
+      name,
+      stewardFocus: 'merge',
+      createdBy: systemEntity,
+      maxConcurrentTasks: 1,
+    });
+  }
+
+  async function createOrphanedStewardTask(
+    title: string,
+    stewardId: EntityId,
+    meta?: { sessionId?: string; worktree?: string }
+  ): Promise<Task> {
+    const task = await createTask({
+      title,
+      createdBy: systemEntity,
+      status: TaskStatus.REVIEW,
+      assignee: stewardId,
+    });
+    const saved = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Task;
+
+    await api.update(saved.id, {
+      metadata: updateOrchestratorTaskMeta(undefined, {
+        assignedAgent: stewardId,
+        mergeStatus: 'testing',
+        sessionId: meta?.sessionId ?? 'steward-session-123',
+        worktree: meta?.worktree,
+        branch: 'agent/worker/task-branch',
+      }),
+    });
+
+    return (await api.get<Task>(saved.id))!;
+  }
+
+  test('recovers orphaned merge steward', async () => {
+    const steward = await createTestSteward('orphan-merge-steward');
+    const stewardId = steward.id as unknown as EntityId;
+
+    await createOrphanedStewardTask('Orphaned review task', stewardId, {
+      sessionId: 'steward-prev-session',
+      worktree: '/worktrees/worker/task',
+    });
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.pollType).toBe('orphan-recovery');
+    expect(result.processed).toBe(1);
+    expect(result.errors).toBe(0);
+
+    // Should have tried to resume the previous steward session
+    expect(sessionManager.resumeSession).toHaveBeenCalledWith(
+      stewardId,
+      expect.objectContaining({
+        claudeSessionId: 'steward-prev-session',
+        checkReadyQueue: false,
+      })
+    );
+  });
+
+  test('skips steward with active session', async () => {
+    const steward = await createTestSteward('active-merge-steward');
+    const stewardId = steward.id as unknown as EntityId;
+
+    // Start a session for this steward
+    await sessionManager.startSession(stewardId, {});
+
+    await createOrphanedStewardTask('Review task with active session', stewardId);
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    // Steward has active session, so no recovery needed
+    expect(result.processed).toBe(0);
+  });
+
+  test('falls back to fresh spawn when steward resume fails', async () => {
+    const steward = await createTestSteward('resume-fail-steward');
+    const stewardId = steward.id as unknown as EntityId;
+
+    await createOrphanedStewardTask('Review task with stale session', stewardId, {
+      sessionId: 'stale-steward-session',
+    });
+
+    // Mock resumeSession to throw
+    (sessionManager.resumeSession as ReturnType<typeof mock>).mockImplementation(async () => {
+      throw new Error('Session not found: stale-steward-session');
+    });
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.processed).toBe(1);
+    // Should have tried resume first
+    expect(sessionManager.resumeSession).toHaveBeenCalled();
+    // Then fallen back to startSession (via spawnMergeStewardForTask)
+    expect(sessionManager.startSession).toHaveBeenCalledWith(
+      stewardId,
+      expect.objectContaining({
+        interactive: false,
+      })
+    );
+  });
+});
+
 describe('E2E Orchestration Flow', () => {
   // This test demonstrates the full orchestration flow
   // In a real E2E test, you would use actual Claude Code sessions

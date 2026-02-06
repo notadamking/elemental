@@ -163,6 +163,8 @@ Workers do NOT check their own queue for tasks. The Dispatch Daemon handles all 
 
 This separation ensures workers focus solely on execution while the daemon coordinates all dispatch logic.
 
+Similarly, merge stewards are dispatched automatically when tasks reach REVIEW status. The daemon assigns the steward to the task, sets `mergeStatus` to `'testing'`, and tracks the session ID for recovery after server restarts.
+
 ---
 
 ## SessionManager

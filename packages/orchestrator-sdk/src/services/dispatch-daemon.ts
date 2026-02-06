@@ -643,11 +643,16 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         mergeStatus: ['pending'],
       });
 
+      // Filter out tasks that already have a merge steward assigned
+      // (defense-in-depth: mergeStatus should already be 'testing', but guard
+      // against races where metadata update hasn't persisted yet)
+      const unclaimedReviewTasks = reviewTasks.filter((ta) => !ta.orchestratorMeta?.assignedAgent);
+
       for (const steward of mergeStewards) {
-        if (reviewTasks.length === 0) break;
+        if (unclaimedReviewTasks.length === 0) break;
 
         // Get the highest priority REVIEW task
-        const sortedTasks = [...reviewTasks].sort((a, b) => (b.task.priority ?? 0) - (a.task.priority ?? 0));
+        const sortedTasks = [...unclaimedReviewTasks].sort((a, b) => (b.task.priority ?? 0) - (a.task.priority ?? 0));
         const taskAssignment = sortedTasks.shift(); // Remove from list so next steward gets different task
         if (!taskAssignment) continue;
 
@@ -760,6 +765,37 @@ export class DispatchDaemonImpl implements DispatchDaemon {
           const errorMessage = error instanceof Error ? error.message : String(error);
           errorMessages.push(`Worker ${worker.name}: ${errorMessage}`);
           console.error(`[dispatch-daemon] Error recovering orphaned task for worker ${worker.name}:`, error);
+        }
+      }
+
+      // --- Phase 2: Recover orphaned merge steward assignments ---
+      const mergeStewards = await this.agentRegistry.listAgents({
+        role: 'steward',
+        stewardFocus: 'merge',
+      });
+
+      for (const steward of mergeStewards) {
+        const stewardId = asEntityId(steward.id);
+
+        // Skip if steward has an active session
+        const stewardSession = this.sessionManager.getActiveSession(stewardId);
+        if (stewardSession) continue;
+
+        // Find REVIEW tasks assigned to this steward
+        const stewardTasks = await this.taskAssignment.getAgentTasks(stewardId, {
+          taskStatus: [TaskStatus.REVIEW],
+        });
+        if (stewardTasks.length === 0) continue;
+
+        const orphanedAssignment = stewardTasks[0];
+        try {
+          await this.recoverOrphanedStewardTask(steward, orphanedAssignment.task, orphanedAssignment.orchestratorMeta);
+          processed++;
+        } catch (error) {
+          errors++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errorMessages.push(`Merge steward ${steward.name}: ${errorMessage}`);
+          console.error(`[dispatch-daemon] Error recovering orphaned steward task for ${steward.name}:`, error);
         }
       }
 
@@ -1024,6 +1060,54 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   }
 
   /**
+   * Recovers a single orphaned merge steward task by resuming or re-spawning.
+   * Tries to resume the previous Claude session first (preserves context),
+   * falls back to a fresh spawn via spawnMergeStewardForTask.
+   */
+  private async recoverOrphanedStewardTask(
+    steward: AgentEntity,
+    task: Task,
+    taskMeta: import('../types/task-meta.js').OrchestratorTaskMeta | undefined
+  ): Promise<void> {
+    const stewardId = asEntityId(steward.id);
+
+    // 1. Try resume first if we have a previous session ID
+    const previousSessionId = taskMeta?.sessionId;
+    if (previousSessionId) {
+      try {
+        const workingDirectory = taskMeta?.worktree ?? this.config.projectRoot;
+        const { session, events } = await this.sessionManager.resumeSession(stewardId, {
+          claudeSessionId: previousSessionId,
+          workingDirectory,
+          worktree: taskMeta?.worktree,
+          checkReadyQueue: false,
+          resumePrompt: [
+            'Your previous session was interrupted by a server restart.',
+            `You are still assigned to review/merge task ${task.id}: "${task.title}".`,
+            'Please continue the merge review from where you left off.',
+          ].join('\n'),
+        });
+
+        if (this.config.onSessionStarted) {
+          this.config.onSessionStarted(session, events, stewardId, `[resumed steward session for task ${task.id}]`);
+        }
+        this.emitter.emit('agent:spawned', stewardId, taskMeta?.worktree);
+        console.log(`[dispatch-daemon] Resumed steward session for orphaned task ${task.id} on ${steward.name}`);
+        return;
+      } catch (error) {
+        console.warn(
+          `[dispatch-daemon] Failed to resume steward session ${previousSessionId} for ${steward.name}, falling back to fresh spawn:`,
+          error
+        );
+      }
+    }
+
+    // 2. Fall back to fresh spawn (spawnMergeStewardForTask handles metadata update)
+    await this.spawnMergeStewardForTask(steward, task);
+    console.log(`[dispatch-daemon] Spawned fresh steward session for orphaned task ${task.id} on ${steward.name}`);
+  }
+
+  /**
    * Assigns the highest priority unassigned task to a worker.
    * Handles handoff branches by reusing existing worktrees.
    */
@@ -1272,11 +1356,10 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     parts.push(
       '',
       '### Instructions',
-      `1. Signal that you are starting review: run \`el task review-start ${task.id}\`.`,
-      '2. Review the PR at the URL above (if available) or check the branch directly.',
-      '3. Run tests on the branch to verify the changes.',
-      `4. If tests pass and the code meets acceptance criteria: merge the PR and run \`el task close ${task.id}\`.`,
-      `5. If issues are found: create a fix task with \`el task create-fix ${task.id} --reason "description of the issue"\`.`,
+      '1. Review the PR at the URL above (if available) or check the branch directly.',
+      '2. Run tests on the branch to verify the changes.',
+      `3. If tests pass and the code meets acceptance criteria: merge the PR and run \`el task close ${task.id}\`.`,
+      `4. If issues are found: create a fix task with \`el task create-fix ${task.id} --reason "description of the issue"\`.`,
     );
 
     return parts.join('\n');
@@ -1307,6 +1390,21 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       worktree: worktreePath,
       initialPrompt,
       interactive: false, // Stewards use headless mode
+    });
+
+    // Record steward assignment on the task to prevent double-dispatch and enable recovery.
+    // Setting task.assignee makes the steward visible in the UI and enables
+    // getAgentTasks() lookups for orphan recovery.
+    await this.api.update<Task>(task.id, {
+      assignee: stewardId,
+      metadata: updateOrchestratorTaskMeta(
+        task.metadata as Record<string, unknown> | undefined,
+        {
+          assignedAgent: stewardId,
+          mergeStatus: 'testing' as const,
+          sessionId: session.claudeSessionId ?? session.id,
+        }
+      ),
     });
 
     // Call the onSessionStarted callback if provided
