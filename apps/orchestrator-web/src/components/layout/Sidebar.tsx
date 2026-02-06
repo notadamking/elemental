@@ -20,6 +20,7 @@ import {
   Inbox,
   MessageSquare,
   FileText,
+  FileCode,
   GitMerge,
   type LucideIcon,
 } from 'lucide-react';
@@ -53,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/activity', icon: Activity, label: 'Activity', testId: 'nav-activity', actionId: 'nav.activity' },
       { to: '/inbox', icon: Inbox, label: 'Inbox', testId: 'nav-inbox', search: { message: undefined }, actionId: 'nav.inbox' },
+      { to: '/editor', icon: FileCode, label: 'Editor', testId: 'nav-editor', actionId: 'nav.editor' },
     ],
   },
   {

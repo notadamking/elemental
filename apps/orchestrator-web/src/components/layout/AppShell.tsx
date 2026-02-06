@@ -30,6 +30,7 @@ import {
   Inbox,
   MessageSquare,
   FileText,
+  FileCode,
   ClipboardList,
   GitMerge,
 } from 'lucide-react';
@@ -133,6 +134,7 @@ const ROUTE_CONFIG: Record<string, RouteConfig> = {
   '/inbox': { label: 'Inbox', icon: Inbox },
   '/messages': { label: 'Messages', icon: MessageSquare },
   '/documents': { label: 'Documents', icon: FileText },
+  '/editor': { label: 'Editor', icon: FileCode },
 };
 
 interface BreadcrumbItem {
