@@ -370,7 +370,7 @@ test.describe('TB-O18: Orchestrator Task List Page', () => {
       const hasTable = await table.isVisible().catch(() => false);
 
       if (hasTable) {
-        await expect(page.getByRole('columnheader', { name: /Task/i })).toBeVisible();
+        await expect(page.getByRole('columnheader', { name: 'Task', exact: true })).toBeVisible();
         await expect(page.getByRole('columnheader', { name: /Status/i })).toBeVisible();
         await expect(page.getByRole('columnheader', { name: /Priority/i })).toBeVisible();
         await expect(page.getByRole('columnheader', { name: /Type/i })).toBeVisible();
