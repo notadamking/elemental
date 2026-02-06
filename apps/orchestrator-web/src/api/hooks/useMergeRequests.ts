@@ -75,12 +75,13 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 // ============================================================================
 
 /**
- * Filter function to get tasks that are merge requests
- * A merge request is a closed task with merge status that's not yet merged
+ * Filter function to get tasks that are merge requests.
+ * Active merge requests have status 'review' (awaiting merge).
+ * Merged requests have status 'closed' (merge complete).
  */
 function isMergeRequest(task: Task): boolean {
   const meta = task.metadata?.orchestrator;
-  return task.status === 'closed' && !!meta?.mergeStatus;
+  return (task.status === 'review' || task.status === 'closed') && !!meta?.mergeStatus;
 }
 
 /**
@@ -122,9 +123,14 @@ export function useMergeRequests(filter?: MergeRequestFilter) {
   return useQuery<Task[], Error>({
     queryKey: ['merge-requests', filter],
     queryFn: async () => {
-      // Fetch all closed tasks
-      const data = await fetchApi<TasksResponse>('/tasks?status=closed');
-      let mergeRequests = data.tasks.filter(isMergeRequest);
+      // Fetch tasks in review status (active merge requests)
+      // and closed status (merged requests, shown when showMerged is toggled)
+      const [reviewData, closedData] = await Promise.all([
+        fetchApi<TasksResponse>('/tasks?status=review'),
+        fetchApi<TasksResponse>('/tasks?status=closed'),
+      ]);
+      const allTasks = [...reviewData.tasks, ...closedData.tasks];
+      let mergeRequests = allTasks.filter(isMergeRequest);
 
       // Apply filter status
       const filterStatus = filter?.status || 'all';
@@ -170,8 +176,12 @@ export function useMergeRequestCounts() {
   const { data: allTasks, isLoading, error } = useQuery<Task[], Error>({
     queryKey: ['merge-requests', 'counts'],
     queryFn: async () => {
-      const data = await fetchApi<TasksResponse>('/tasks?status=closed');
-      return data.tasks.filter(isMergeRequest);
+      const [reviewData, closedData] = await Promise.all([
+        fetchApi<TasksResponse>('/tasks?status=review'),
+        fetchApi<TasksResponse>('/tasks?status=closed'),
+      ]);
+      const allTasks = [...reviewData.tasks, ...closedData.tasks];
+      return allTasks.filter(isMergeRequest);
     },
     refetchInterval: 10000,
   });
