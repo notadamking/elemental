@@ -20,6 +20,8 @@ import { CreatePlanModal } from '@elemental/ui/plans';
 interface GlobalQuickActionsContextValue {
   /** Open the create task modal */
   openCreateTaskModal: () => void;
+  /** Open the create backlog task modal */
+  openCreateBacklogTaskModal: () => void;
   /** Open the create workflow modal */
   openCreateWorkflowModal: () => void;
   /** @deprecated Use openCreateWorkflowModal instead */
@@ -34,6 +36,8 @@ interface GlobalQuickActionsContextValue {
   openCreatePlanModal: () => void;
   /** Whether the create task modal is open */
   isCreateTaskModalOpen: boolean;
+  /** Whether the create backlog task modal is open */
+  isCreateBacklogTaskModalOpen: boolean;
   /** Whether the create workflow modal is open */
   isCreateWorkflowModalOpen: boolean;
   /** @deprecated Use isCreateWorkflowModalOpen instead */
@@ -57,6 +61,7 @@ interface GlobalQuickActionsProviderProps {
 export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProviderProps) {
   const navigate = useNavigate();
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [isCreateBacklogTaskModalOpen, setIsCreateBacklogTaskModalOpen] = useState(false);
   const [isCreateWorkflowModalOpen, setIsCreateWorkflowModalOpen] = useState(false);
   const [isCreateEntityModalOpen, setIsCreateEntityModalOpen] = useState(false);
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
@@ -78,11 +83,15 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
   }, []);
 
   // Check if any modal is open
-  const isAnyModalOpen = isCreateTaskModalOpen || isCreateWorkflowModalOpen || isCreateEntityModalOpen || isCreateTeamModalOpen || isCreateDocumentModalOpen || isCreatePlanModalOpen;
+  const isAnyModalOpen = isCreateTaskModalOpen || isCreateBacklogTaskModalOpen || isCreateWorkflowModalOpen || isCreateEntityModalOpen || isCreateTeamModalOpen || isCreateDocumentModalOpen || isCreatePlanModalOpen;
 
   // Handlers for opening modals
   const openCreateTaskModal = useCallback(() => {
     setIsCreateTaskModalOpen(true);
+  }, []);
+
+  const openCreateBacklogTaskModal = useCallback(() => {
+    setIsCreateBacklogTaskModalOpen(true);
   }, []);
 
   const openCreateWorkflowModal = useCallback(() => {
@@ -176,6 +185,13 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
       }
     };
 
+    const createBacklogTaskHandler = () => {
+      // Don't open if another modal is already open
+      if (!isAnyModalOpen) {
+        setIsCreateBacklogTaskModalOpen(true);
+      }
+    };
+
     const createWorkflowHandler = () => {
       // Don't open if another modal is already open
       if (!isAnyModalOpen) {
@@ -213,6 +229,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
 
     // Get current bindings (respects custom shortcuts from settings)
     const createTaskKeys = getCurrentBinding('action.createTask');
+    const createBacklogTaskKeys = getCurrentBinding('action.createBacklogTask');
     const createWorkflowKeys = getCurrentBinding('action.createWorkflow');
     const createEntityKeys = getCurrentBinding('action.createEntity');
     const createTeamKeys = getCurrentBinding('action.createTeam');
@@ -225,6 +242,10 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     if (createTaskKeys) {
       keyboardManager.register(createTaskKeys, createTaskHandler, 'Create Task');
       registeredKeys.push(createTaskKeys);
+    }
+    if (createBacklogTaskKeys) {
+      keyboardManager.register(createBacklogTaskKeys, createBacklogTaskHandler, 'Create Backlog Task');
+      registeredKeys.push(createBacklogTaskKeys);
     }
     if (createWorkflowKeys) {
       keyboardManager.register(createWorkflowKeys, createWorkflowHandler, 'Create Workflow');
@@ -265,6 +286,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
 
   const contextValue: GlobalQuickActionsContextValue = {
     openCreateTaskModal,
+    openCreateBacklogTaskModal,
     openCreateWorkflowModal,
     openPourWorkflowModal: openCreateWorkflowModal, // deprecated alias
     openCreateEntityModal,
@@ -272,6 +294,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     openCreateDocumentModal,
     openCreatePlanModal,
     isCreateTaskModalOpen,
+    isCreateBacklogTaskModalOpen,
     isCreateWorkflowModalOpen,
     isPourWorkflowModalOpen: isCreateWorkflowModalOpen, // deprecated alias
     isCreateEntityModalOpen,
@@ -289,6 +312,14 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
         isOpen={isCreateTaskModalOpen}
         onClose={() => setIsCreateTaskModalOpen(false)}
         onSuccess={handleTaskCreated}
+      />
+
+      {/* Global Create Backlog Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateBacklogTaskModalOpen}
+        onClose={() => setIsCreateBacklogTaskModalOpen(false)}
+        onSuccess={handleTaskCreated}
+        defaultToBacklog={true}
       />
 
       {/* Global Create Workflow Modal */}

@@ -2509,6 +2509,36 @@ export class ElementalAPIImpl implements ElementalAPI {
     return tasksWithPriority;
   }
 
+  /**
+   * Get tasks in backlog (not ready for work, needs triage)
+   */
+  async backlog(filter?: TaskFilter): Promise<Task[]> {
+    const limit = filter?.limit;
+
+    const effectiveFilter: TaskFilter = {
+      ...filter,
+      type: 'task',
+      status: TaskStatusEnum.BACKLOG,
+      limit: undefined, // Don't limit at DB level
+    };
+
+    let tasks = await this.list<Task>(effectiveFilter);
+
+    // Sort by priority (highest first), then by creation date (oldest first)
+    tasks.sort((a, b) => {
+      const priorityDiff = a.priority - b.priority;
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    // Apply limit after sorting
+    if (limit) {
+      tasks = tasks.slice(0, limit);
+    }
+
+    return tasks;
+  }
+
   async blocked(filter?: TaskFilter): Promise<BlockedTask[]> {
     // Extract limit to apply after filtering
     const limit = filter?.limit;

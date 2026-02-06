@@ -90,7 +90,8 @@ export function useTasksByStatus() {
   const tasks = data?.tasks ?? [];
 
   // Group tasks by status
-  const unassigned = tasks.filter(t => !t.assignee && t.status !== 'closed' && t.status !== 'tombstone');
+  const backlog = tasks.filter(t => t.status === 'backlog');
+  const unassigned = tasks.filter(t => !t.assignee && t.status !== 'closed' && t.status !== 'tombstone' && t.status !== 'backlog');
   const assigned = tasks.filter(t => t.assignee && t.status === 'open');
   const inProgress = tasks.filter(t => t.status === 'in_progress');
   const blocked = tasks.filter(t => t.status === 'blocked');
@@ -105,6 +106,7 @@ export function useTasksByStatus() {
   });
 
   return {
+    backlog,
     unassigned,
     assigned,
     inProgress,
@@ -159,6 +161,7 @@ interface CreateTaskInput {
   deadline?: string;
   scheduledFor?: string;
   tags?: string[];
+  status?: TaskStatus;
 }
 
 /**

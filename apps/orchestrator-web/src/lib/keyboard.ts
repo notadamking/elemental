@@ -115,6 +115,12 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutDefinition> = {
     description: 'Create Task',
     category: 'actions',
   },
+  'action.createBacklogTask': {
+    keys: 'C B',
+    path: '/tasks?backlog=true',
+    description: 'Create Backlog Task',
+    category: 'actions',
+  },
   'action.createAgent': {
     keys: 'C A',
     path: '/agents?action=create',

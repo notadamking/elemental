@@ -46,6 +46,7 @@ export const DEFAULT_SHORTCUTS: Record<string, { keys: string; description: stri
   'action.createTeam': { keys: 'C M', description: 'Create Team', category: 'actions' },
   'action.createDocument': { keys: 'C D', description: 'Create Document', category: 'actions' },
   'action.createPlan': { keys: 'C P', description: 'Create Plan', category: 'actions' },
+  'action.createBacklogTask': { keys: 'C B', description: 'Create Backlog Task', category: 'actions' },
   // Views
   'view.list': { keys: 'V L', description: 'List View', category: 'views' },
   'view.kanban': { keys: 'V K', description: 'Kanban View', category: 'views' },

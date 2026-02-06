@@ -642,6 +642,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       in_progress: 0,
       blocked: 0,
       deferred: 0,
+      backlog: 0,
       review: 0,
       closed: 0,
       tombstone: 0,

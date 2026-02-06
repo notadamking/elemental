@@ -31,6 +31,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  Archive,
   Inbox,
   UserCheck,
   Play,
@@ -100,11 +101,12 @@ const DEFAULT_PAGE_SORT: ColumnSort = {
 
 // Orchestrator-specific columns
 const COLUMNS = [
+  { id: 'backlog', title: 'Backlog', icon: Archive, color: 'border-slate-400', iconColor: 'text-slate-500' },
   { id: 'unassigned', title: 'Unassigned', icon: Inbox, color: 'border-gray-400', iconColor: 'text-gray-500' },
   { id: 'assigned', title: 'Assigned', icon: UserCheck, color: 'border-blue-400', iconColor: 'text-blue-500' },
   { id: 'in_progress', title: 'In Progress', icon: Play, color: 'border-yellow-400', iconColor: 'text-yellow-500' },
-  { id: 'done', title: 'Done', icon: CheckCircle2, color: 'border-green-400', iconColor: 'text-green-500' },
   { id: 'awaiting_merge', title: 'Awaiting Merge', icon: GitMerge, color: 'border-purple-400', iconColor: 'text-purple-500' },
+  { id: 'done', title: 'Done', icon: CheckCircle2, color: 'border-green-400', iconColor: 'text-green-500' },
 ] as const;
 
 const TASK_CARD_HEIGHT = 120;
@@ -829,6 +831,7 @@ export function KanbanBoard({
   }, [pageSort?.field, pageSort?.direction]);
 
   // Column preferences
+  const [backlogPrefs, setBacklogPrefs] = useColumnPreferences('backlog');
   const [unassignedPrefs, setUnassignedPrefs] = useColumnPreferences('unassigned');
   const [assignedPrefs, setAssignedPrefs] = useColumnPreferences('assigned');
   const [inProgressPrefs, setInProgressPrefs] = useColumnPreferences('in_progress');
@@ -842,6 +845,7 @@ export function KanbanBoard({
   // Group tasks by orchestrator-specific columns
   const tasksByColumn = useMemo(() => {
     const groups: Record<string, Task[]> = {
+      backlog: [],
       unassigned: [],
       assigned: [],
       in_progress: [],
@@ -855,7 +859,9 @@ export function KanbanBoard({
 
       const mergeStatus = task.metadata?.orchestrator?.mergeStatus;
 
-      if (task.status === 'closed') {
+      if (task.status === 'backlog') {
+        groups.backlog.push(task);
+      } else if (task.status === 'closed') {
         // Check if awaiting merge
         if (mergeStatus && mergeStatus !== 'merged') {
           groups.awaiting_merge.push(task);
@@ -877,6 +883,11 @@ export function KanbanBoard({
   }, [tasks]);
 
   // Apply filters and sorting to each column
+  const filteredBacklog = useMemo(
+    () => applyFiltersAndSort(tasksByColumn.backlog, backlogPrefs.filters, backlogPrefs.sortOverride || normalizedPageSort, searchQuery),
+    [tasksByColumn.backlog, backlogPrefs.filters, backlogPrefs.sortOverride, normalizedPageSort, searchQuery]
+  );
+
   const filteredUnassigned = useMemo(
     () => applyFiltersAndSort(tasksByColumn.unassigned, unassignedPrefs.filters, unassignedPrefs.sortOverride || normalizedPageSort, searchQuery),
     [tasksByColumn.unassigned, unassignedPrefs.filters, unassignedPrefs.sortOverride, normalizedPageSort, searchQuery]
@@ -955,6 +966,7 @@ export function KanbanBoard({
 
       // Map column to status
       const statusMap: Record<string, string> = {
+        backlog: 'backlog',
         unassigned: 'open',
         assigned: 'open',
         in_progress: 'in_progress',
@@ -983,11 +995,12 @@ export function KanbanBoard({
   const isDragActive = activeTask !== null;
 
   const columnData = [
+    { id: 'backlog', prefs: backlogPrefs, setPrefs: setBacklogPrefs, tasks: filteredBacklog },
     { id: 'unassigned', prefs: unassignedPrefs, setPrefs: setUnassignedPrefs, tasks: filteredUnassigned },
     { id: 'assigned', prefs: assignedPrefs, setPrefs: setAssignedPrefs, tasks: filteredAssigned },
     { id: 'in_progress', prefs: inProgressPrefs, setPrefs: setInProgressPrefs, tasks: filteredInProgress },
-    { id: 'done', prefs: donePrefs, setPrefs: setDonePrefs, tasks: filteredDone },
     { id: 'awaiting_merge', prefs: awaitingMergePrefs, setPrefs: setAwaitingMergePrefs, tasks: filteredAwaitingMerge },
+    { id: 'done', prefs: donePrefs, setPrefs: setDonePrefs, tasks: filteredDone },
   ];
 
   return (

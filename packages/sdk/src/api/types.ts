@@ -1010,6 +1010,14 @@ export interface ElementalAPI {
   ready(filter?: TaskFilter): Promise<Task[]>;
 
   /**
+   * Get tasks in backlog (not ready for work, needs triage)
+   *
+   * @param filter - Optional task filter constraints
+   * @returns Array of backlog tasks
+   */
+  backlog(filter?: TaskFilter): Promise<Task[]>;
+
+  /**
    * Get blocked tasks with blocking details.
    *
    * @param filter - Optional task filter constraints

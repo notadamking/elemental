@@ -91,10 +91,11 @@ describe('TaskStatus', () => {
     expect(TaskStatus.REVIEW).toBe('review');
     expect(TaskStatus.CLOSED).toBe('closed');
     expect(TaskStatus.TOMBSTONE).toBe('tombstone');
+    expect(TaskStatus.BACKLOG).toBe('backlog');
   });
 
-  test('has exactly 7 statuses', () => {
-    expect(Object.keys(TaskStatus)).toHaveLength(7);
+  test('has exactly 8 statuses', () => {
+    expect(Object.keys(TaskStatus)).toHaveLength(8);
   });
 });
 
@@ -104,11 +105,12 @@ describe('READY_STATUSES', () => {
     expect(READY_STATUSES).toContain(TaskStatus.IN_PROGRESS);
   });
 
-  test('does not contain blocked, deferred, closed, tombstone', () => {
+  test('does not contain blocked, deferred, closed, tombstone, backlog', () => {
     expect(READY_STATUSES).not.toContain(TaskStatus.BLOCKED);
     expect(READY_STATUSES).not.toContain(TaskStatus.DEFERRED);
     expect(READY_STATUSES).not.toContain(TaskStatus.CLOSED);
     expect(READY_STATUSES).not.toContain(TaskStatus.TOMBSTONE);
+    expect(READY_STATUSES).not.toContain(TaskStatus.BACKLOG);
   });
 });
 
@@ -134,10 +136,11 @@ describe('STATUS_TRANSITIONS', () => {
     expect(STATUS_TRANSITIONS[TaskStatus.BLOCKED]).toContain(TaskStatus.CLOSED);
   });
 
-  test('deferred can transition to open, in_progress', () => {
+  test('deferred can transition to open, in_progress, backlog', () => {
     expect(STATUS_TRANSITIONS[TaskStatus.DEFERRED]).toContain(TaskStatus.OPEN);
     expect(STATUS_TRANSITIONS[TaskStatus.DEFERRED]).toContain(TaskStatus.IN_PROGRESS);
-    expect(STATUS_TRANSITIONS[TaskStatus.DEFERRED]).toHaveLength(2);
+    expect(STATUS_TRANSITIONS[TaskStatus.DEFERRED]).toContain(TaskStatus.BACKLOG);
+    expect(STATUS_TRANSITIONS[TaskStatus.DEFERRED]).toHaveLength(3);
   });
 
   test('closed can only transition to open (reopen)', () => {
@@ -146,6 +149,17 @@ describe('STATUS_TRANSITIONS', () => {
 
   test('tombstone has no valid transitions (terminal)', () => {
     expect(STATUS_TRANSITIONS[TaskStatus.TOMBSTONE]).toEqual([]);
+  });
+
+  test('backlog can transition to open, deferred, closed', () => {
+    expect(STATUS_TRANSITIONS[TaskStatus.BACKLOG]).toContain(TaskStatus.OPEN);
+    expect(STATUS_TRANSITIONS[TaskStatus.BACKLOG]).toContain(TaskStatus.DEFERRED);
+    expect(STATUS_TRANSITIONS[TaskStatus.BACKLOG]).toContain(TaskStatus.CLOSED);
+    expect(STATUS_TRANSITIONS[TaskStatus.BACKLOG]).toHaveLength(3);
+  });
+
+  test('open can also transition to backlog', () => {
+    expect(STATUS_TRANSITIONS[TaskStatus.OPEN]).toContain(TaskStatus.BACKLOG);
   });
 });
 
@@ -157,6 +171,7 @@ describe('isValidTaskStatus', () => {
     expect(isValidTaskStatus('deferred')).toBe(true);
     expect(isValidTaskStatus('closed')).toBe(true);
     expect(isValidTaskStatus('tombstone')).toBe(true);
+    expect(isValidTaskStatus('backlog')).toBe(true);
   });
 
   test('rejects invalid statuses', () => {

@@ -82,7 +82,7 @@ import {
 } from '../../lib/task-utils';
 import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
 
-type TabValue = 'all' | 'unassigned' | 'assigned' | 'in_progress' | 'done' | 'awaiting_merge';
+type TabValue = 'all' | 'backlog' | 'unassigned' | 'assigned' | 'in_progress' | 'done' | 'awaiting_merge';
 
 export function TasksPage() {
   const search = useSearch({ from: '/tasks' }) as {
@@ -152,6 +152,7 @@ export function TasksPage() {
 
   // Fetch data
   const {
+    backlog,
     unassigned,
     assigned,
     inProgress,
@@ -257,6 +258,9 @@ export function TasksPage() {
   const tabFilteredTasks = useMemo(() => {
     let tasks: Task[];
     switch (currentTab) {
+      case 'backlog':
+        tasks = backlog;
+        break;
       case 'unassigned':
         tasks = unassigned;
         break;
@@ -276,7 +280,7 @@ export function TasksPage() {
         tasks = allTasks.filter((t) => t.status !== 'tombstone' && (showClosed || t.status !== 'closed'));
     }
     return tasks;
-  }, [currentTab, allTasks, unassigned, assigned, inProgress, done, awaitingMerge, showClosed]);
+  }, [currentTab, allTasks, backlog, unassigned, assigned, inProgress, done, awaitingMerge, showClosed]);
 
   // Apply filters and search
   const filteredTasks = useMemo(() => {
@@ -524,6 +528,7 @@ export function TasksPage() {
   // Tab counts
   const counts = {
     all: allTasks.filter((t) => t.status !== 'tombstone' && (showClosed || t.status !== 'closed')).length,
+    backlog: backlog.length,
     unassigned: unassigned.length,
     assigned: assigned.length,
     in_progress: inProgress.length,
@@ -644,6 +649,14 @@ export function TasksPage() {
               onClick={() => setTab('all')}
             />
             <TabButton
+              label="Backlog"
+              value="backlog"
+              current={currentTab}
+              count={counts.backlog}
+              icon={Inbox}
+              onClick={() => setTab('backlog')}
+            />
+            <TabButton
               label="Unassigned"
               value="unassigned"
               current={currentTab}
@@ -668,20 +681,20 @@ export function TasksPage() {
               onClick={() => setTab('in_progress')}
             />
             <TabButton
-              label="Done"
-              value="done"
-              current={currentTab}
-              count={counts.done}
-              icon={CheckCircle2}
-              onClick={() => setTab('done')}
-            />
-            <TabButton
               label="Awaiting Merge"
               value="awaiting_merge"
               current={currentTab}
               count={counts.awaiting_merge}
               icon={GitMerge}
               onClick={() => setTab('awaiting_merge')}
+            />
+            <TabButton
+              label="Done"
+              value="done"
+              current={currentTab}
+              count={counts.done}
+              icon={CheckCircle2}
+              onClick={() => setTab('done')}
             />
           </nav>
 
@@ -1188,6 +1201,10 @@ function EmptyState({ searchQuery, currentTab, onCreateClick }: EmptyStateProps)
     all: {
       title: 'No tasks yet',
       description: 'Create your first task to get started. Tasks can be assigned to agents and tracked through completion.',
+    },
+    backlog: {
+      title: 'No backlog tasks',
+      description: 'No tasks are currently in the backlog. Create a task with backlog status to see it here.',
     },
     unassigned: {
       title: 'No unassigned tasks',

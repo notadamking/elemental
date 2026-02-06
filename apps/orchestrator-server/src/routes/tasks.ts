@@ -206,9 +206,11 @@ export function createTaskRoutes(services: Services) {
       }
       if (body.status !== undefined) {
         const statusMap: Record<string, TaskStatus> = {
+          backlog: TaskStatus.BACKLOG,
           open: TaskStatus.OPEN,
           in_progress: TaskStatus.IN_PROGRESS,
           blocked: TaskStatus.BLOCKED,
+          review: TaskStatus.REVIEW,
           deferred: TaskStatus.DEFERRED,
           closed: TaskStatus.CLOSED,
         };

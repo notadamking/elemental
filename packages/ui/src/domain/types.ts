@@ -32,7 +32,8 @@ export type TaskStatus =
   | 'review'
   | 'closed'
   | 'cancelled'
-  | 'deferred';
+  | 'deferred'
+  | 'backlog';
 
 /**
  * Task priority values (1-5, 1 being highest)
@@ -244,6 +245,8 @@ export function getStatusDisplayName(status: TaskStatus | string): string {
       return 'Cancelled';
     case 'deferred':
       return 'Deferred';
+    case 'backlog':
+      return 'Backlog';
     default:
       return status;
   }
@@ -272,6 +275,8 @@ export function getStatusColor(status: TaskStatus | string): string {
       return 'text-gray-500 bg-gray-50 dark:text-gray-500 dark:bg-gray-800/30';
     case 'deferred':
       return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
+    case 'backlog':
+      return 'text-gray-700 bg-gray-200 dark:text-gray-300 dark:bg-gray-700';
     default:
       return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50';
   }

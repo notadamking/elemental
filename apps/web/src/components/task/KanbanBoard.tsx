@@ -20,7 +20,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, CheckCircle2, Clock, Eye, PlayCircle, User, Filter, ArrowUpDown, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Eye, PlayCircle, User, Filter, ArrowUpDown, Loader2, Inbox } from 'lucide-react';
 import { formatCompactTime } from '../../lib/time';
 import { useAllTasks, type Task } from '../../api/hooks/useAllElements';
 
@@ -96,6 +96,7 @@ const PRIORITY_FILTER_OPTIONS = [
 
 // Column configuration - maps status values to column definitions
 const COLUMNS = [
+  { id: 'backlog', title: 'Backlog', status: 'backlog', color: 'bg-slate-500', icon: Inbox, iconColor: 'text-slate-600 dark:text-slate-400' },
   { id: 'open', title: 'Open', status: 'open', color: 'bg-green-500', icon: CheckCircle2, iconColor: 'text-green-600 dark:text-green-400' },
   { id: 'in-progress', title: 'In Progress', status: 'in_progress', color: 'bg-yellow-500', icon: PlayCircle, iconColor: 'text-yellow-600 dark:text-yellow-400' },
   { id: 'blocked', title: 'Blocked', status: 'blocked', color: 'bg-red-500', icon: AlertTriangle, iconColor: 'text-red-600 dark:text-red-400' },
@@ -860,6 +861,7 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
   }, [pageSort?.field, pageSort?.direction]);
 
   // Column preferences
+  const [backlogPrefs, setBacklogPrefs] = useColumnPreferences('backlog');
   const [openPrefs, setOpenPrefs] = useColumnPreferences('open');
   const [inProgressPrefs, setInProgressPrefs] = useColumnPreferences('in-progress');
   const [blockedPrefs, setBlockedPrefs] = useColumnPreferences('blocked');
@@ -867,6 +869,7 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
   const [closedPrefs, setClosedPrefs] = useColumnPreferences('closed');
 
   // Compute effective sort for each column (sortOverride or pageSort)
+  const backlogEffectiveSort = backlogPrefs.sortOverride || normalizedPageSort;
   const openEffectiveSort = openPrefs.sortOverride || normalizedPageSort;
   const inProgressEffectiveSort = inProgressPrefs.sortOverride || normalizedPageSort;
   const blockedEffectiveSort = blockedPrefs.sortOverride || normalizedPageSort;
@@ -879,9 +882,10 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
 
   // Group tasks by status
   const tasksByStatus = useMemo(() => {
-    if (!allTasks) return { open: [], in_progress: [], blocked: [], review: [], closed: [] };
+    if (!allTasks) return { backlog: [], open: [], in_progress: [], blocked: [], review: [], closed: [] };
 
     const groups: Record<string, Task[]> = {
+      backlog: [],
       open: [],
       in_progress: [],
       blocked: [],
@@ -901,6 +905,11 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
 
   // Apply filters and sorting to each column
   // Use primitive values in dependencies to ensure proper memoization
+  const filteredBacklogTasks = useMemo(
+    () => applyFiltersAndSort(tasksByStatus.backlog, backlogPrefs.filters, backlogEffectiveSort, searchQuery),
+    [tasksByStatus.backlog, backlogPrefs.filters.assignee, backlogPrefs.filters.priority, backlogPrefs.filters.tag, backlogEffectiveSort.field, backlogEffectiveSort.direction, searchQuery]
+  );
+
   const filteredOpenTasks = useMemo(
     () => applyFiltersAndSort(tasksByStatus.open, openPrefs.filters, openEffectiveSort, searchQuery),
     [tasksByStatus.open, openPrefs.filters.assignee, openPrefs.filters.priority, openPrefs.filters.tag, openEffectiveSort.field, openEffectiveSort.direction, searchQuery]
@@ -940,6 +949,7 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
 
   // Map column IDs to target statuses
   const COLUMN_STATUS_MAP: Record<string, string> = {
+    'backlog': 'backlog',
     'open': 'open',
     'in-progress': 'in_progress',
     'blocked': 'blocked',
@@ -973,9 +983,11 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
     if (overTask) {
       // Map status to column ID
       const statusToColumnMap: Record<string, string> = {
+        'backlog': 'backlog',
         'open': 'open',
         'in_progress': 'in-progress',
         'blocked': 'blocked',
+        'review': 'review',
         'closed': 'closed',
       };
       targetColumnId = statusToColumnMap[overTask.status] || null;
@@ -997,6 +1009,7 @@ export function KanbanBoard({ entities, selectedTaskId, onTaskClick, searchQuery
   const isDragActive = activeTask !== null;
 
   const columnPrefsMap = {
+    backlog: { prefs: backlogPrefs, setPrefs: setBacklogPrefs, tasks: filteredBacklogTasks },
     open: { prefs: openPrefs, setPrefs: setOpenPrefs, tasks: filteredOpenTasks },
     'in-progress': { prefs: inProgressPrefs, setPrefs: setInProgressPrefs, tasks: filteredInProgressTasks },
     blocked: { prefs: blockedPrefs, setPrefs: setBlockedPrefs, tasks: filteredBlockedTasks },

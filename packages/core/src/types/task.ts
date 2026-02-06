@@ -36,6 +36,8 @@ export const TaskStatus = {
   BLOCKED: 'blocked',
   /** Deliberately postponed */
   DEFERRED: 'deferred',
+  /** In backlog - not ready for work, needs triage */
+  BACKLOG: 'backlog',
   /** Work complete, awaiting merge/review */
   REVIEW: 'review',
   /** Completed and merged */
@@ -60,6 +62,7 @@ export const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
     TaskStatus.IN_PROGRESS,
     TaskStatus.BLOCKED,
     TaskStatus.DEFERRED,
+    TaskStatus.BACKLOG,
     TaskStatus.CLOSED,
   ],
   [TaskStatus.IN_PROGRESS]: [
@@ -75,7 +78,8 @@ export const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
     TaskStatus.DEFERRED,
     TaskStatus.CLOSED,
   ],
-  [TaskStatus.DEFERRED]: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS],
+  [TaskStatus.DEFERRED]: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS, TaskStatus.BACKLOG],
+  [TaskStatus.BACKLOG]: [TaskStatus.OPEN, TaskStatus.DEFERRED, TaskStatus.CLOSED],
   [TaskStatus.REVIEW]: [TaskStatus.CLOSED, TaskStatus.IN_PROGRESS], // Merge completes or reopen for fixes
   [TaskStatus.CLOSED]: [TaskStatus.OPEN], // Reopen
   [TaskStatus.TOMBSTONE]: [], // Terminal state
@@ -812,6 +816,13 @@ export function isDeleted(task: Task): boolean {
 }
 
 /**
+ * Checks if a task is in backlog
+ */
+export function isBacklog(task: Task): boolean {
+  return task.status === TaskStatus.BACKLOG;
+}
+
+/**
  * Checks if a task is scheduled for the future
  */
 export function isScheduledForFuture(task: Task): boolean {
@@ -898,6 +909,8 @@ export function getStatusDisplayName(status: TaskStatus): string {
       return 'Blocked';
     case TaskStatus.DEFERRED:
       return 'Deferred';
+    case TaskStatus.BACKLOG:
+      return 'Backlog';
     case TaskStatus.REVIEW:
       return 'In Review';
     case TaskStatus.CLOSED:

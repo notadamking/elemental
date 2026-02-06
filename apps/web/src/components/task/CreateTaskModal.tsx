@@ -20,12 +20,14 @@ interface CreateTaskInput {
   assignee?: string;
   tags?: string[];
   description?: string;
+  status?: string;
 }
 
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (task: { id: string }) => void;
+  defaultToBacklog?: boolean;
 }
 
 function useEntities() {
@@ -97,7 +99,7 @@ const TASK_TYPE_OPTIONS = [
   { value: 'documentation', label: 'Documentation' },
 ];
 
-export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onSuccess, defaultToBacklog = false }: CreateTaskModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState(3);
@@ -105,6 +107,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
   const [taskType, setTaskType] = useState('task');
   const [assignee, setAssignee] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [addToBacklog, setAddToBacklog] = useState(defaultToBacklog);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const createTask = useCreateTask();
@@ -128,9 +131,10 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       setTaskType('task');
       setAssignee('');
       setTags([]);
+      setAddToBacklog(defaultToBacklog);
       createTask.reset();
     }
-  }, [isOpen]);
+  }, [isOpen, defaultToBacklog]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +148,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
       priority,
       complexity,
       taskType,
+      status: addToBacklog ? 'backlog' : 'open',
     };
 
     if (assignee) {
@@ -338,6 +343,21 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
               placeholder="Add tags..."
             />
           </div>
+
+          {/* Add to Backlog */}
+          <div className="mb-4 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="task-backlog-mobile"
+              checked={addToBacklog}
+              onChange={(e) => setAddToBacklog(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              data-testid="create-task-backlog-checkbox"
+            />
+            <label htmlFor="task-backlog-mobile" className="text-sm text-[var(--color-text)]">
+              Add to Backlog
+            </label>
+          </div>
         </form>
       </div>
     );
@@ -497,6 +517,21 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess }: CreateTaskModalP
                 placeholder="Type and press comma to add tags"
                 data-testid="create-task-tags-input"
               />
+            </div>
+
+            {/* Add to Backlog */}
+            <div className="mb-6 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="task-backlog"
+                checked={addToBacklog}
+                onChange={(e) => setAddToBacklog(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                data-testid="create-task-backlog-checkbox"
+              />
+              <label htmlFor="task-backlog" className="text-sm text-gray-700">
+                Add to Backlog
+              </label>
             </div>
 
             {/* Error display */}

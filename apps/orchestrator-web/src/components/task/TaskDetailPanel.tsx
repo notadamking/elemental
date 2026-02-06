@@ -66,6 +66,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
 ];
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
+  { value: 'backlog', label: 'Backlog' },
   { value: 'open', label: 'Open' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'blocked', label: 'Blocked' },
@@ -571,6 +572,18 @@ function EditableTitle({
   );
 }
 
+// Valid status transitions (mirrors core package STATUS_TRANSITIONS)
+const VALID_STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  backlog: ['open', 'deferred', 'closed'],
+  open: ['in_progress', 'blocked', 'deferred', 'backlog', 'closed'],
+  in_progress: ['open', 'blocked', 'deferred', 'review', 'closed'],
+  blocked: ['open', 'in_progress', 'deferred', 'closed'],
+  deferred: ['open', 'in_progress', 'backlog'],
+  review: ['closed', 'in_progress'],
+  closed: ['open'],
+  tombstone: [],
+};
+
 // Status Dropdown
 function StatusDropdown({
   value,
@@ -583,6 +596,12 @@ function StatusDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filter options to only show valid transitions from current status
+  const validTransitions = VALID_STATUS_TRANSITIONS[value] || [];
+  const availableOptions = STATUS_OPTIONS.filter(
+    (opt) => opt.value === value || validTransitions.includes(opt.value)
+  );
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -607,7 +626,7 @@ function StatusDropdown({
       </button>
       {isOpen && (
         <div className="absolute z-10 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg py-1 min-w-[140px]">
-          {STATUS_OPTIONS.map((opt) => (
+          {availableOptions.map((opt) => (
             <button
               key={opt.value}
               onClick={() => {

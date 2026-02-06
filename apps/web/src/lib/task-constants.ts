@@ -85,6 +85,7 @@ export const STATUS_OPTIONS = [
   { value: 'review', label: 'Review', color: 'bg-purple-100 text-purple-800' },
   { value: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-800' },
   { value: 'deferred', label: 'Deferred', color: 'bg-purple-100 text-purple-800' },
+  { value: 'backlog', label: 'Backlog', color: 'bg-slate-100 text-slate-700' },
 ] as const;
 
 export const PRIORITY_OPTIONS = [
@@ -129,4 +130,5 @@ export const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
   cancelled: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200',
   closed: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200',
+  backlog: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
 };

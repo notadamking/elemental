@@ -236,6 +236,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const {
     readyCommand,
     blockedCommand,
+    backlogCommand,
     closeCommand,
     reopenCommand,
     assignCommand,
@@ -278,6 +279,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   // Task commands
   registerCommand(readyCommand);
   registerCommand(blockedCommand);
+  registerCommand(backlogCommand);
   registerCommand(closeCommand);
   registerCommand(reopenCommand);
   registerCommand(assignCommand);

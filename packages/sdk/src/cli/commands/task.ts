@@ -237,6 +237,114 @@ Examples:
 };
 
 // ============================================================================
+// Backlog Command
+// ============================================================================
+
+interface BacklogOptions {
+  priority?: string;
+  limit?: string;
+}
+
+const backlogOptions: CommandOption[] = [
+  {
+    name: 'priority',
+    short: 'p',
+    description: 'Filter by priority (1-5)',
+    hasValue: true,
+  },
+  {
+    name: 'limit',
+    short: 'l',
+    description: 'Maximum number of results',
+    hasValue: true,
+  },
+];
+
+async function backlogHandler(
+  _args: string[],
+  options: GlobalOptions & BacklogOptions
+): Promise<CommandResult> {
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const filter: TaskFilter = {};
+
+    if (options.priority) {
+      const priority = parseInt(options.priority, 10);
+      if (isNaN(priority) || priority < 1 || priority > 5) {
+        return failure('Priority must be a number from 1 to 5', ExitCode.VALIDATION);
+      }
+      filter.priority = priority as Priority;
+    }
+
+    if (options.limit) {
+      const limit = parseInt(options.limit, 10);
+      if (isNaN(limit) || limit < 1) {
+        return failure('Limit must be a positive number', ExitCode.VALIDATION);
+      }
+      filter.limit = limit;
+    }
+
+    const tasks = await api.backlog(filter);
+
+    const mode = getOutputMode(options);
+    const formatter = getFormatter(mode);
+
+    if (mode === 'json') {
+      return success(tasks);
+    }
+
+    if (mode === 'quiet') {
+      return success(tasks.map((t) => t.id).join('\n'));
+    }
+
+    if (tasks.length === 0) {
+      return success(null, 'No backlog tasks found');
+    }
+
+    const headers = ['ID', 'TITLE', 'PRIORITY', 'TYPE', 'CREATED'];
+    const rows = tasks.map((task) => [
+      task.id,
+      task.title.length > 40 ? task.title.substring(0, 37) + '...' : task.title,
+      `P${task.priority}`,
+      task.taskType,
+      new Date(task.createdAt).toLocaleDateString(),
+    ]);
+
+    const table = formatter.table(headers, rows);
+    const summary = `\n${tasks.length} backlog task(s)`;
+
+    return success(tasks, table + summary);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to get backlog tasks: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const backlogCommand: Command = {
+  name: 'backlog',
+  description: 'List tasks in backlog',
+  usage: 'el backlog [options]',
+  help: `List tasks in backlog (not ready for work, needs triage).
+
+Backlog tasks are excluded from ready() and won't be auto-dispatched.
+
+Options:
+  -p, --priority <1-5>   Filter by priority
+  -l, --limit <n>        Maximum number of results
+
+Examples:
+  el backlog
+  el backlog --priority 1
+  el backlog -l 10`,
+  options: backlogOptions,
+  handler: backlogHandler as Command['handler'],
+};
+
+// ============================================================================
 // Blocked Command
 // ============================================================================
 
@@ -1038,6 +1146,79 @@ Examples:
 };
 
 // ============================================================================
+// Activate Command
+// ============================================================================
+
+async function activateHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [id] = args;
+
+  if (!id) {
+    return failure('Usage: el task activate <id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = createAPI(options);
+  if (error) {
+    return failure(error, ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    const task = await api.get<Task>(id as ElementId);
+    if (!task) {
+      return failure(`Task not found: ${id}`, ExitCode.NOT_FOUND);
+    }
+
+    if (task.type !== 'task') {
+      return failure(`Element is not a task: ${id}`, ExitCode.VALIDATION);
+    }
+
+    if (task.status !== TaskStatus.BACKLOG) {
+      return failure(`Task is not in backlog (status: ${task.status})`, ExitCode.VALIDATION);
+    }
+
+    const updated = updateTaskStatus(task, {
+      status: TaskStatus.OPEN,
+    });
+
+    await api.update<Task>(id as ElementId, updated, {
+      expectedUpdatedAt: task.updatedAt,
+    });
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success(updated);
+    }
+
+    if (mode === 'quiet') {
+      return success(updated.id);
+    }
+
+    return success(updated, `Activated task ${id} (moved from backlog to open)`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to activate task: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+const activateCommand: Command = {
+  name: 'activate',
+  description: 'Move a task from backlog to open',
+  usage: 'el task activate <id>',
+  help: `Move a task from backlog status to open status.
+
+Arguments:
+  id    Task identifier
+
+Examples:
+  el task activate el-abc123`,
+  options: [],
+  handler: activateHandler as Command['handler'],
+};
+
+// ============================================================================
 // Task Root Command
 // ============================================================================
 
@@ -1049,10 +1230,12 @@ export const taskCommand: Command = {
 
 Subcommands:
   describe    Set or show task description
+  activate    Move a task from backlog to open
 
 Note: Common task operations are available as top-level commands:
   el ready      List tasks ready for work
   el blocked    List blocked tasks
+  el backlog    List backlog tasks
   el close      Close a task
   el reopen     Reopen a closed task
   el assign     Assign a task
@@ -1061,9 +1244,11 @@ Note: Common task operations are available as top-level commands:
 
 Examples:
   el task describe el-abc123 --content "Description text"
-  el task describe el-abc123 --show`,
+  el task describe el-abc123 --show
+  el task activate el-abc123`,
   subcommands: {
     describe: describeCommand,
+    activate: activateCommand,
   },
   handler: async (_args, _options): Promise<CommandResult> => {
     return failure(

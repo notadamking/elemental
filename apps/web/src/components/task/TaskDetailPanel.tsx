@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Eye, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, Save, Bot, Server } from 'lucide-react';
+import { X, Calendar, User, Tag, Clock, Link2, AlertTriangle, CheckCircle2, Eye, Pencil, Check, Loader2, Trash2, Paperclip, FileText, ChevronDown, ChevronRight, Plus, Search, Circle, ExternalLink, Users, Save, Bot, Server, Inbox } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { EntityLink } from '../entity/EntityLink';
 import { MarkdownRenderer } from '../shared/MarkdownRenderer';
@@ -361,6 +361,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   completed: { label: 'Completed', color: 'bg-green-100 text-green-800', icon: <CheckCircle2 className="w-3 h-3" /> },
   cancelled: { label: 'Cancelled', color: 'bg-gray-100 text-gray-800', icon: null },
   deferred: { label: 'Deferred', color: 'bg-purple-100 text-purple-800', icon: null },
+  backlog: { label: 'Backlog', color: 'bg-slate-100 text-slate-800', icon: <Inbox className="w-3 h-3" /> },
 };
 
 const COMPLEXITY_LABELS: Record<number, string> = {
@@ -371,7 +372,7 @@ const COMPLEXITY_LABELS: Record<number, string> = {
   5: 'Very Complex',
 };
 
-const STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'review', 'completed', 'cancelled', 'deferred'];
+const STATUS_OPTIONS = ['open', 'in_progress', 'blocked', 'review', 'completed', 'cancelled', 'deferred', 'backlog'];
 const PRIORITY_OPTIONS = [1, 2, 3, 4, 5];
 const COMPLEXITY_OPTIONS = [1, 2, 3, 4, 5];
 
@@ -500,6 +501,7 @@ const SUB_ISSUE_STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: st
   completed: { icon: <CheckCircle2 className="w-3 h-3" />, color: 'text-green-600', bgColor: 'bg-green-50' },
   cancelled: { icon: <X className="w-3 h-3" />, color: 'text-gray-500', bgColor: 'bg-gray-50' },
   deferred: { icon: <Clock className="w-3 h-3" />, color: 'text-purple-600', bgColor: 'bg-purple-50' },
+  backlog: { icon: <Inbox className="w-3 h-3" />, color: 'text-slate-600', bgColor: 'bg-slate-50' },
 };
 
 // CircleDot icon component for in_progress status
@@ -1523,6 +1525,19 @@ function EditableTitle({
   );
 }
 
+// Valid status transitions (mirrors core package STATUS_TRANSITIONS)
+const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
+  backlog: ['open', 'deferred', 'closed', 'completed', 'cancelled'],
+  open: ['in_progress', 'blocked', 'deferred', 'backlog', 'closed', 'completed', 'cancelled'],
+  in_progress: ['open', 'blocked', 'deferred', 'review', 'closed', 'completed', 'cancelled'],
+  blocked: ['open', 'in_progress', 'deferred', 'closed', 'completed', 'cancelled'],
+  deferred: ['open', 'in_progress', 'backlog'],
+  review: ['closed', 'in_progress', 'completed', 'cancelled'],
+  closed: ['open'],
+  completed: ['open'],
+  cancelled: ['open'],
+};
+
 // Status dropdown component
 function StatusDropdown({
   value,
@@ -1535,6 +1550,12 @@ function StatusDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filter options to only show valid transitions from current status
+  const validTransitions = VALID_STATUS_TRANSITIONS[value] || [];
+  const availableOptions = STATUS_OPTIONS.filter(
+    (statusOption) => statusOption === value || validTransitions.includes(statusOption)
+  );
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -1562,7 +1583,7 @@ function StatusDropdown({
       </button>
       {isOpen && (
         <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[120px]" data-testid="task-status-options">
-          {STATUS_OPTIONS.map((statusOption) => {
+          {availableOptions.map((statusOption) => {
             const config = STATUS_CONFIG[statusOption] || STATUS_CONFIG.open;
             return (
               <button

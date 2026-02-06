@@ -65,6 +65,7 @@ export const STATUS_OPTIONS = [
   { value: 'blocked', label: 'Blocked', color: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' },
   { value: 'review', label: 'Review', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200' },
   { value: 'deferred', label: 'Deferred', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200' },
+  { value: 'backlog', label: 'Backlog', color: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
   { value: 'closed', label: 'Closed', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' },
 ] as const;
 
@@ -108,12 +109,14 @@ export const STATUS_COLORS: Record<string, string> = {
   blocked: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
   review: 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200',
   deferred: 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200',
+  backlog: 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
   closed: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
   tombstone: 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
 };
 
 // Orchestrator-specific kanban columns
 export const KANBAN_COLUMNS = [
+  { id: 'backlog', title: 'Backlog', status: 'backlog', filter: null, color: 'border-slate-400' },
   { id: 'unassigned', title: 'Unassigned', status: 'open', filter: 'unassigned', color: 'border-gray-400' },
   { id: 'assigned', title: 'Assigned', status: 'open', filter: 'assigned', color: 'border-blue-400' },
   { id: 'in_progress', title: 'In Progress', status: 'in_progress', filter: null, color: 'border-yellow-400' },
