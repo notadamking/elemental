@@ -12,7 +12,6 @@ import {
   Square,
   RefreshCw,
   RotateCcw,
-  Maximize2,
   AlertCircle,
   CirclePause,
 } from 'lucide-react';
@@ -31,10 +30,9 @@ type DirectorStatus = 'idle' | 'running' | 'error' | 'connecting' | 'no-director
 interface DirectorPanelProps {
   collapsed?: boolean;
   onToggle?: () => void;
-  onOpenInWorkspaces?: () => void;
 }
 
-export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces }: DirectorPanelProps) {
+export function DirectorPanel({ collapsed = false, onToggle }: DirectorPanelProps) {
   const [terminalStatus, setTerminalStatus] = useState<TerminalStatus>('disconnected');
   const { director, hasActiveSession, isLoading, error } = useDirector();
   const startSession = useStartAgentSession();
@@ -430,22 +428,6 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
               </>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="px-4 py-3 border-t border-[var(--color-border)]">
-        <div className="flex items-center gap-2">
-          <Tooltip content="Open full terminal in Workspaces" side="top">
-            <button
-              onClick={onOpenInWorkspaces}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150"
-              data-testid="director-expand-terminal"
-            >
-              <Maximize2 className="w-4 h-4" />
-              Open in Workspaces
-            </button>
-          </Tooltip>
         </div>
       </div>
     </aside>

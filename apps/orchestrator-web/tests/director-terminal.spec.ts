@@ -90,17 +90,6 @@ test.describe('TB-O17: Director Terminal Panel', () => {
   });
 
   test.describe('Panel Controls', () => {
-    test('has Open in Workspaces button', async ({ page }) => {
-      await page.goto('/');
-
-      // Expand the director panel
-      await page.getByTestId('director-panel-expand').click();
-
-      // Open in Workspaces button should be visible
-      await expect(page.getByTestId('director-expand-terminal')).toBeVisible();
-      await expect(page.getByTestId('director-expand-terminal')).toHaveText(/Open in Workspaces/);
-    });
-
     test('collapse button returns to collapsed state', async ({ page }) => {
       await page.goto('/');
 
