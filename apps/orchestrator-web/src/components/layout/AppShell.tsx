@@ -11,7 +11,7 @@ import { DirectorPanel } from './DirectorPanel';
 import { UserSelector } from './UserSelector';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationCenter } from '../notification';
-import { CommandPalette, useCommandPalette } from '../command';
+import { CommandPalette, useCommandPalette, QuickFileOpen, useQuickFileOpen } from '../command';
 import { useQuery } from '@tanstack/react-query';
 import { useNotifications } from '../../api/hooks/useNotifications';
 import { useGlobalKeyboardShortcuts } from '../../hooks';
@@ -341,6 +341,9 @@ export function AppShell() {
   // Command palette
   const { open: commandPaletteOpen, setOpen: setCommandPaletteOpen } = useCommandPalette();
 
+  // Quick file open (Ctrl/Cmd+P)
+  const { open: quickFileOpenOpen, setOpen: setQuickFileOpenOpen } = useQuickFileOpen();
+
   // Toggle sidebar (works for both mobile drawer and desktop sidebar)
   const toggleSidebar = useCallback(() => {
     if (isMobile) {
@@ -520,6 +523,12 @@ export function AppShell() {
       <CommandPalette
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}
+      />
+
+      {/* Quick File Open (Cmd+P) */}
+      <QuickFileOpen
+        open={quickFileOpenOpen}
+        onOpenChange={setQuickFileOpenOpen}
       />
     </div>
   );
