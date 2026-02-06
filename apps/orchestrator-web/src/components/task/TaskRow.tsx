@@ -20,6 +20,10 @@ interface TaskRowProps {
   isCompleting?: boolean;
   /** Pre-rendered title with search highlights */
   highlightedTitle?: React.ReactNode;
+  /** Whether the row checkbox is checked */
+  isSelected?: boolean;
+  /** Callback when checkbox is toggled */
+  onToggleSelect?: (taskId: string) => void;
 }
 
 export function TaskRow({
@@ -31,6 +35,8 @@ export function TaskRow({
   isStarting,
   isCompleting,
   highlightedTitle,
+  isSelected,
+  onToggleSelect,
 }: TaskRowProps) {
   const orchestratorMeta = task.metadata?.orchestrator;
   const canStart = task.status === 'open' && task.assignee;
@@ -42,6 +48,23 @@ export function TaskRow({
       onClick={onClick}
       data-testid={`task-row-${task.id}`}
     >
+      {/* Checkbox */}
+      {onToggleSelect && (
+        <td className="pl-4 pr-1 py-3 w-10">
+          <input
+            type="checkbox"
+            checked={isSelected ?? false}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelect(task.id);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+            data-testid={`task-row-checkbox-${task.id}`}
+            aria-label={`Select task ${task.title}`}
+          />
+        </td>
+      )}
       {/* Title */}
       <td className="px-4 py-3">
         <div className="flex flex-col gap-0.5">

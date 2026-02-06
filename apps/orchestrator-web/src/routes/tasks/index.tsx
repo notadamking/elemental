@@ -31,8 +31,11 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Trash2,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
-import { useTasksByStatus, useStartTask, useCompleteTask, useUpdateTask } from '../../api/hooks/useTasks';
+import { useTasksByStatus, useStartTask, useCompleteTask, useUpdateTask, useBulkDeleteTasks } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
 import {
   TaskRow,
@@ -116,6 +119,10 @@ export function TasksPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const selectedTaskId = search.selected;
 
+  // Bulk selection state
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
   // Handle ?action=create from global keyboard shortcuts
   useEffect(() => {
     if (search.action === 'create') {
@@ -170,6 +177,7 @@ export function TasksPage() {
   const startTaskMutation = useStartTask();
   const completeTaskMutation = useCompleteTask();
   const updateTaskMutation = useUpdateTask();
+  const bulkDeleteMutation = useBulkDeleteTasks();
 
   // Setters with persistence
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -307,6 +315,7 @@ export function TasksPage() {
   }, [paginatedTasks, groupBy, agents, viewMode]);
 
   const setTab = (tab: TabValue) => {
+    setSelectedTaskIds(new Set());
     navigate({
       to: '/tasks',
       search: {
@@ -434,6 +443,51 @@ export function TasksPage() {
     setFilters(EMPTY_FILTER);
   };
 
+  // Selection handlers
+  const handleToggleSelect = useCallback((taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAll = useCallback(() => {
+    setSelectedTaskIds((prev) => {
+      const currentPageIds = paginatedTasks.map((t) => t.id);
+      const allSelected = currentPageIds.length > 0 && currentPageIds.every((id) => prev.has(id));
+      if (allSelected) {
+        // Deselect all on current page
+        const next = new Set(prev);
+        currentPageIds.forEach((id) => next.delete(id));
+        return next;
+      } else {
+        // Select all on current page
+        const next = new Set(prev);
+        currentPageIds.forEach((id) => next.add(id));
+        return next;
+      }
+    });
+  }, [paginatedTasks]);
+
+  const handleBulkDelete = async () => {
+    try {
+      await bulkDeleteMutation.mutateAsync({ ids: Array.from(selectedTaskIds) });
+      setSelectedTaskIds(new Set());
+      setShowBulkDeleteConfirm(false);
+    } catch (error) {
+      console.error('Failed to bulk delete tasks:', error);
+    }
+  };
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedTaskIds(new Set());
+  }, []);
+
   const toggleGroupCollapse = (groupKey: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -462,6 +516,10 @@ export function TasksPage() {
     },
     [sortField, sortDirection, setSortField, setSortDirection]
   );
+
+  // Compute select-all state for current page
+  const allPageSelected = paginatedTasks.length > 0 && paginatedTasks.every((t) => selectedTaskIds.has(t.id));
+  const somePageSelected = paginatedTasks.some((t) => selectedTaskIds.has(t.id));
 
   // Tab counts
   const counts = {
@@ -650,6 +708,91 @@ export function TasksPage() {
         </div>
       )}
 
+      {/* Bulk Actions Bar */}
+      {selectedTaskIds.size > 0 && viewMode === 'list' && (
+        <div
+          className="flex items-center justify-between px-4 py-2.5 bg-[var(--color-primary-muted)] border border-[var(--color-primary)] rounded-lg"
+          data-testid="bulk-actions-bar"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-[var(--color-primary)]">
+              {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <button
+              onClick={handleClearSelection}
+              className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors flex items-center gap-1"
+              data-testid="bulk-clear-selection"
+            >
+              <X className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+          <button
+            onClick={() => setShowBulkDeleteConfirm(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 rounded-md transition-colors"
+            data-testid="bulk-delete-button"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setShowBulkDeleteConfirm(false)}
+          data-testid="bulk-delete-confirm-modal"
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[var(--color-surface)] rounded-xl shadow-2xl border border-[var(--color-border)]">
+              <div className="px-5 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--color-text)]">Delete Tasks</h2>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-sm text-[var(--color-text)]">
+                  Are you sure you want to delete <strong>{selectedTaskIds.size}</strong> task{selectedTaskIds.size !== 1 ? 's' : ''}?
+                </p>
+              </div>
+              <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)] rounded-b-xl flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="px-4 py-2 text-sm font-medium text-[var(--color-text)] bg-[var(--color-surface-elevated)] hover:bg-[var(--color-surface-hover)] rounded-md transition-colors disabled:opacity-50"
+                  data-testid="bulk-delete-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                  data-testid="bulk-delete-confirm"
+                >
+                  {bulkDeleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Delete {selectedTaskIds.size} Task{selectedTaskIds.size !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-16">
@@ -690,6 +833,11 @@ export function TasksPage() {
             sortField={sortField}
             sortDirection={sortDirection}
             onSortChange={handleSortChange}
+            selectedTaskIds={selectedTaskIds}
+            onToggleSelect={handleToggleSelect}
+            allPageSelected={allPageSelected}
+            somePageSelected={somePageSelected}
+            onToggleSelectAll={handleToggleSelectAll}
           />
           <Pagination
             currentPage={currentPage}
@@ -813,6 +961,11 @@ interface TaskListViewProps {
   sortField: SortField;
   sortDirection: SortDirection;
   onSortChange: (field: SortField) => void;
+  selectedTaskIds: Set<string>;
+  onToggleSelect: (taskId: string) => void;
+  allPageSelected: boolean;
+  somePageSelected: boolean;
+  onToggleSelectAll: () => void;
 }
 
 function TaskListView({
@@ -829,6 +982,11 @@ function TaskListView({
   sortField,
   sortDirection,
   onSortChange,
+  selectedTaskIds,
+  onToggleSelect,
+  allPageSelected,
+  somePageSelected,
+  onToggleSelectAll,
 }: TaskListViewProps) {
   const showGroups = groups.length > 1 || (groups.length === 1 && groups[0].key !== 'all');
 
@@ -838,6 +996,17 @@ function TaskListView({
         <table className="w-full" data-testid="tasks-table">
           <thead className="bg-[var(--color-surface-elevated)]">
             <tr className="border-b border-[var(--color-border)]">
+              <th className="pl-4 pr-1 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  ref={(el) => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
+                  onChange={onToggleSelectAll}
+                  className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                  data-testid="task-select-all-checkbox"
+                  aria-label="Select all tasks"
+                />
+              </th>
               <SortableHeader
                 label="Task"
                 field="title"
@@ -903,6 +1072,8 @@ function TaskListView({
                 isCollapsed={collapsedGroups.has(group.key)}
                 onToggleCollapse={() => onToggleCollapse(group.key)}
                 searchQuery={searchQuery}
+                selectedTaskIds={selectedTaskIds}
+                onToggleSelect={onToggleSelect}
               />
             ))}
           </tbody>
@@ -924,6 +1095,8 @@ interface GroupSectionProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   searchQuery: string;
+  selectedTaskIds: Set<string>;
+  onToggleSelect: (taskId: string) => void;
 }
 
 function GroupSection({
@@ -938,12 +1111,14 @@ function GroupSection({
   isCollapsed,
   onToggleCollapse,
   searchQuery,
+  selectedTaskIds,
+  onToggleSelect,
 }: GroupSectionProps) {
   return (
     <>
       {showHeader && (
         <tr className="bg-[var(--color-surface-elevated)] border-t border-b border-[var(--color-border)]">
-          <td colSpan={8}>
+          <td colSpan={9}>
             <button
               onClick={onToggleCollapse}
               className="w-full px-4 py-2 flex items-center gap-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
@@ -977,6 +1152,8 @@ function GroupSection({
               isStarting={pendingStart.has(task.id)}
               isCompleting={pendingComplete.has(task.id)}
               highlightedTitle={matchInfo?.indices ? highlightMatches(task.title, matchInfo.indices) : undefined}
+              isSelected={selectedTaskIds.has(task.id)}
+              onToggleSelect={onToggleSelect}
             />
           );
         })}

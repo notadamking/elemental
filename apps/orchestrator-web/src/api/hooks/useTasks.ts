@@ -292,6 +292,29 @@ export function useDeleteTask() {
   });
 }
 
+/**
+ * Hook to bulk delete tasks (soft-delete)
+ */
+export function useBulkDeleteTasks() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { success: boolean; results: { id: string; success: boolean; error?: string }[] },
+    Error,
+    { ids: string[] }
+  >({
+    mutationFn: async ({ ids }) => {
+      return fetchApi('/tasks/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
 // ============================================================================
 // Attachment Hooks
 // ============================================================================
