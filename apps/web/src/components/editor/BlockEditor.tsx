@@ -17,6 +17,7 @@
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
+import type { AnyExtension } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
@@ -226,10 +227,12 @@ export function BlockEditor({
         alignments: ['left', 'center', 'right', 'justify'],
         defaultAlignment: 'left',
       }),
+      // Cast required due to type incompatibility between tiptap-extension-global-drag-handle
+      // (built for TipTap 2.x) and TipTap 3.x's stricter AnyExtension type definition
       GlobalDragHandle.configure({
         dragHandleWidth: 20,
         scrollTreshold: 100,
-      }),
+      }) as AnyExtension,
       SlashCommands.configure({
         embedCallbacks,
       }),
