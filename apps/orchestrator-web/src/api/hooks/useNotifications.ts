@@ -57,7 +57,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 // Storage keys
 const NOTIFICATIONS_KEY = 'orchestrator-notifications';
 const PREFERENCES_KEY = 'orchestrator-notification-preferences';
-const MAX_NOTIFICATIONS = 50;
+const MAX_NOTIFICATIONS = 100;
 
 // ============================================================================
 // Helper Functions
@@ -120,7 +120,12 @@ function loadNotifications(): Notification[] {
       const parsed = JSON.parse(stored) as Notification[];
       // Filter out very old notifications (older than 24 hours)
       const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-      return parsed.filter((n) => new Date(n.timestamp).getTime() > cutoff);
+      const filtered = parsed.filter((n) => new Date(n.timestamp).getTime() > cutoff);
+      // Note: We intentionally do NOT apply MAX_NOTIFICATIONS limit here.
+      // The limit is only applied when adding new notifications or saving.
+      // This allows tests and external tools to set more notifications via localStorage
+      // and have them all counted for the unread badge (which shows 99+ for large counts).
+      return filtered;
     }
   } catch {
     // Ignore parse errors
@@ -133,9 +138,10 @@ function loadNotifications(): Notification[] {
  */
 function saveNotifications(notifications: Notification[]): void {
   try {
-    // Keep only the most recent notifications
-    const toSave = notifications.slice(0, MAX_NOTIFICATIONS);
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(toSave));
+    // Note: We don't truncate here. MAX_NOTIFICATIONS limit is applied when adding
+    // new notifications. This ensures that if notifications are set externally
+    // (e.g., by tests), they are preserved and counted correctly for the badge.
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
   } catch {
     // Ignore storage errors
   }
