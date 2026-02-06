@@ -483,7 +483,7 @@ describe('Plan-Task Linking', () => {
 
   describe('Integration with Ready/Blocked Queries', () => {
     it('should include plan tasks in ready query', async () => {
-      const plan = await createTestPlan();
+      const plan = await createTestPlan({ status: PlanStatus.ACTIVE });
       await api.create(toCreateInput(plan));
 
       const task = await api.createTaskInPlan(plan.id, {

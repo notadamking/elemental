@@ -2439,6 +2439,19 @@ export class ElementalAPIImpl implements ElementalAPI {
       ).map((r) => r.element_id)
     );
 
+    // Filter out tasks whose parent plan is in DRAFT status
+    // Uses a single SQL join to find task IDs that are children of draft plans
+    const draftPlanTaskIds = new Set(
+      this.backend.query<{ blocked_id: string }>(
+        `SELECT d.blocked_id FROM dependencies d
+         JOIN elements e ON d.blocker_id = e.id
+         WHERE d.type = 'parent-child'
+           AND e.deleted_at IS NULL
+           AND e.type = 'plan'
+           AND JSON_EXTRACT(e.data, '$.status') = 'draft'`
+      ).map((r) => r.blocked_id)
+    );
+
     // Get tasks that are children of ephemeral workflows (to exclude from ready list)
     // Find all ephemeral workflows
     const workflows = await this.list<Workflow>({ type: 'workflow' });
@@ -2457,12 +2470,16 @@ export class ElementalAPIImpl implements ElementalAPI {
       }
     }
 
-    // Filter out scheduled-for-future tasks and tasks from ephemeral workflows
+    // Filter out scheduled-for-future tasks, tasks from ephemeral workflows, and draft plan tasks
     const now = new Date();
     const includeEphemeral = filter?.includeEphemeral ?? false;
     const readyTasks = tasks.filter((task) => {
       // Not blocked
       if (blockedIds.has(task.id)) {
+        return false;
+      }
+      // Not in a draft plan
+      if (draftPlanTaskIds.has(task.id)) {
         return false;
       }
       // Not scheduled for future

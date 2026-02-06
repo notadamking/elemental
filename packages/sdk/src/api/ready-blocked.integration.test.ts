@@ -20,8 +20,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ElementalAPIImpl } from './elemental-api.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import type { StorageBackend } from '@elemental/storage';
-import type { Element, ElementId, EntityId, Timestamp, Task } from '@elemental/core';
-import { createTask, Priority, TaskStatus, DependencyType, GateType } from '@elemental/core';
+import type { Element, ElementId, EntityId, Timestamp, Task, Plan } from '@elemental/core';
+import { createTask, createPlan, PlanStatus, Priority, TaskStatus, DependencyType, GateType } from '@elemental/core';
 import type { TaskFilter } from './types.js';
 
 // ============================================================================
@@ -1549,6 +1549,141 @@ describe('Ready/Blocked Work Query Integration', () => {
       for (const task of limited) {
         expect(blockedIds.has(task.id)).toBe(true);
       }
+    });
+  });
+
+  // ==========================================================================
+  // Draft Plan Filtering Tests
+  // ==========================================================================
+
+  describe('Draft Plan Filtering', () => {
+    it('should exclude tasks in a draft plan from ready()', async () => {
+      const plan = await createPlan({
+        title: 'Draft Plan',
+        createdBy: mockEntityId,
+      });
+      await api.create(toCreateInput(plan));
+      expect(plan.status).toBe(PlanStatus.DRAFT);
+
+      const task1 = await createTestTask({ title: 'Task in draft plan 1' });
+      const task2 = await createTestTask({ title: 'Task in draft plan 2' });
+      await api.create(toCreateInput(task1));
+      await api.create(toCreateInput(task2));
+
+      await api.addDependency({
+        blockedId: task1.id,
+        blockerId: plan.id,
+        type: DependencyType.PARENT_CHILD,
+      });
+      await api.addDependency({
+        blockedId: task2.id,
+        blockerId: plan.id,
+        type: DependencyType.PARENT_CHILD,
+      });
+
+      const readyTasks = await api.ready();
+      const readyIds = readyTasks.map((t) => t.id);
+      expect(readyIds).not.toContain(task1.id);
+      expect(readyIds).not.toContain(task2.id);
+    });
+
+    it('should include tasks in an active plan in ready()', async () => {
+      const plan = await createPlan({
+        title: 'Active Plan',
+        createdBy: mockEntityId,
+        status: PlanStatus.ACTIVE,
+      });
+      await api.create(toCreateInput(plan));
+
+      const task = await createTestTask({ title: 'Task in active plan' });
+      await api.create(toCreateInput(task));
+
+      await api.addDependency({
+        blockedId: task.id,
+        blockerId: plan.id,
+        type: DependencyType.PARENT_CHILD,
+      });
+
+      const readyTasks = await api.ready();
+      expect(readyTasks.map((t) => t.id)).toContain(task.id);
+    });
+
+    it('should include tasks after plan is activated from draft', async () => {
+      const plan = await createPlan({
+        title: 'Activatable Plan',
+        createdBy: mockEntityId,
+      });
+      await api.create(toCreateInput(plan));
+
+      const task = await createTestTask({ title: 'Task to activate' });
+      await api.create(toCreateInput(task));
+      await api.addDependency({
+        blockedId: task.id,
+        blockerId: plan.id,
+        type: DependencyType.PARENT_CHILD,
+      });
+
+      // Task is NOT ready while plan is draft
+      let readyTasks = await api.ready();
+      expect(readyTasks.map((t) => t.id)).not.toContain(task.id);
+
+      // Activate the plan
+      await api.update<Plan>(plan.id, { status: PlanStatus.ACTIVE } as Partial<Plan>);
+
+      // Now task SHOULD appear in ready()
+      readyTasks = await api.ready();
+      expect(readyTasks.map((t) => t.id)).toContain(task.id);
+    });
+
+    it('should not affect standalone tasks (not in any plan)', async () => {
+      const task = await createTestTask({ title: 'Standalone task' });
+      await api.create(toCreateInput(task));
+
+      const readyTasks = await api.ready();
+      expect(readyTasks.map((t) => t.id)).toContain(task.id);
+    });
+
+    it('should respect both blocked and draft-plan filters together', async () => {
+      const plan = await createPlan({
+        title: 'Draft Plan with Deps',
+        createdBy: mockEntityId,
+      });
+      await api.create(toCreateInput(plan));
+
+      const blocker = await createTestTask({ title: 'Blocker in draft' });
+      const blocked = await createTestTask({ title: 'Blocked in draft' });
+      await api.create(toCreateInput(blocker));
+      await api.create(toCreateInput(blocked));
+
+      // Add both tasks to plan
+      await api.addDependency({
+        blockedId: blocker.id,
+        blockerId: plan.id,
+        type: DependencyType.PARENT_CHILD,
+      });
+      await api.addDependency({
+        blockedId: blocked.id,
+        blockerId: plan.id,
+        type: DependencyType.PARENT_CHILD,
+      });
+
+      // Add blocks dependency between tasks
+      await api.addDependency({
+        blockedId: blocked.id,
+        blockerId: blocker.id,
+        type: DependencyType.BLOCKS,
+      });
+
+      // Both excluded while draft
+      let readyTasks = await api.ready();
+      expect(readyTasks.map((t) => t.id)).not.toContain(blocker.id);
+      expect(readyTasks.map((t) => t.id)).not.toContain(blocked.id);
+
+      // Activate plan - only blocker should be ready (blocked is still blocked by blocker)
+      await api.update<Plan>(plan.id, { status: PlanStatus.ACTIVE } as Partial<Plan>);
+      readyTasks = await api.ready();
+      expect(readyTasks.map((t) => t.id)).toContain(blocker.id);
+      expect(readyTasks.map((t) => t.id)).not.toContain(blocked.id);
     });
   });
 });

@@ -835,18 +835,17 @@ export class DispatchDaemonImpl implements DispatchDaemon {
    * Handles handoff branches by reusing existing worktrees.
    */
   private async assignTaskToWorker(worker: AgentEntity): Promise<boolean> {
-    // Get highest priority unassigned task
-    const unassignedTasks = await this.taskAssignment.getUnassignedTasks({
-      taskStatus: [TaskStatus.OPEN],
-    });
+    // Get ready tasks (already filtered for blocked, draft plans, future-scheduled, etc.)
+    // and sorted by effective priority via api.ready()
+    const readyTasks = await this.api.ready();
+    const unassignedTasks = readyTasks.filter((t) => !t.assignee);
 
     if (unassignedTasks.length === 0) {
       return false;
     }
 
-    // Sort by priority (higher is more urgent)
-    const sortedTasks = [...unassignedTasks].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-    const task = sortedTasks[0];
+    // ready() already sorts by effective priority, take the first
+    const task = unassignedTasks[0];
     const workerId = asEntityId(worker.id);
 
     // Check for existing worktree/branch in task metadata
