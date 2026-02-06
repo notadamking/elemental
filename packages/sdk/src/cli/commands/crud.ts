@@ -14,7 +14,7 @@ import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode, getStatusIcon, formatEventsTable, type EventData } from '../formatter.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import { createElementalAPI } from '../../api/elemental-api.js';
-import { createTask, TaskStatus, TaskTypeValue, PlanStatus, type CreateTaskInput, type Priority, type Complexity, type Plan } from '@elemental/core';
+import { createTask, createDocument, ContentType, TaskStatus, TaskTypeValue, PlanStatus, type CreateTaskInput, type Priority, type Complexity, type Plan, type DocumentId } from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI, TaskFilter } from '../../api/types.js';
 import type { PlanProgress } from '@elemental/core';
@@ -115,6 +115,7 @@ interface CreateOptions {
   assignee?: string;
   tag?: string[];
   plan?: string;
+  description?: string;
 }
 
 const createOptions: CommandOption[] = [
@@ -162,6 +163,12 @@ const createOptions: CommandOption[] = [
   {
     name: 'plan',
     description: 'Plan ID or name to attach this task to',
+    hasValue: true,
+  },
+  {
+    name: 'description',
+    short: 'd',
+    description: 'Task description (creates a linked document)',
     hasValue: true,
   },
 ];
@@ -242,6 +249,19 @@ async function createHandler(
       tags = Array.isArray(options.tag) ? options.tag : [options.tag];
     }
 
+    // Handle description: create a document and link it to the task
+    let descriptionRef: DocumentId | undefined;
+    if (options.description) {
+      const docInput = {
+        content: options.description,
+        contentType: ContentType.MARKDOWN,
+        createdBy: actor,
+      };
+      const newDoc = await createDocument(docInput);
+      const createdDoc = await api.create(newDoc as unknown as Element & Record<string, unknown>);
+      descriptionRef = createdDoc.id as DocumentId;
+    }
+
     // Create task input (title is guaranteed non-null from validation above)
     const input: CreateTaskInput = {
       title: title!,
@@ -251,6 +271,7 @@ async function createHandler(
       ...(taskType !== undefined && { taskType }),
       ...(options.assignee && { assignee: options.assignee as EntityId }),
       ...(tags && { tags }),
+      ...(descriptionRef !== undefined && { descriptionRef }),
     };
 
     // Create the task
@@ -310,6 +331,7 @@ Supported types:
 
 Task options:
   -t, --title <text>      Task title (required)
+  -d, --description <text> Task description (creates a linked document)
   -p, --priority <1-5>    Priority (1=critical, 5=minimal, default=3)
   -c, --complexity <1-5>  Complexity (1=trivial, 5=very complex, default=3)
       --type <type>       Task type: bug, feature, task, chore
@@ -321,7 +343,8 @@ Examples:
   el create task --title "Fix login bug" --priority 1 --type bug
   el create task -t "Add dark mode" --tag ui --tag feature
   el create task -t "Implement feature X" --plan el-plan123
-  el create task -t "Implement feature X" --plan "My Plan Name"`,
+  el create task -t "Implement feature X" --plan "My Plan Name"
+  el create task -t "New feature" -d "Detailed description here"`,
   options: createOptions,
   handler: createHandler as Command['handler'],
 };
