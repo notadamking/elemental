@@ -1,9 +1,11 @@
 import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import { createElementalAPI } from '@elemental/sdk';
 import { ElementType, createTimestamp, EntityTypeValue } from '@elemental/core';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, '../../..');
 const TEST_ELEMENTAL_DIR = resolve(PROJECT_ROOT, '.elemental-test');
 const TEST_DB_PATH = resolve(TEST_ELEMENTAL_DIR, 'elemental.db');

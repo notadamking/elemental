@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
-import { resolve } from 'path';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '../..');
 const testDbPath = resolve(projectRoot, '.elemental-test/elemental.db');
 

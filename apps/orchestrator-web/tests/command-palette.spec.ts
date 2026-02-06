@@ -367,8 +367,11 @@ test.describe('TB-O25b: Command Palette', () => {
     test('displays icons for commands', async ({ page }) => {
       await openCommandPaletteWithKeyboard(page);
 
-      // Each command item should have an icon container
+      // Wait for the activity item to be visible first (ensures command palette is fully rendered)
       const activityItem = page.getByTestId('command-item-nav-activity');
+      await expect(activityItem).toBeVisible();
+
+      // Each command item should have an icon container (the first div child contains the icon)
       const iconContainer = activityItem.locator('div').first();
       await expect(iconContainer).toBeVisible();
     });
