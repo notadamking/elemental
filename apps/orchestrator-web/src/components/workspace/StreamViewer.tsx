@@ -235,6 +235,7 @@ export function StreamViewer({
   const [isUploading, setIsUploading] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttempts = useRef(0);
@@ -255,6 +256,11 @@ export function StreamViewer({
       setIsWorking(false);
     }
     prevSessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // Reset auto-scroll to "on" when session changes (user expects to start at the bottom)
+  useEffect(() => {
+    shouldAutoScrollRef.current = true;
   }, [sessionId]);
 
   // Load transcript from server when sessionId changes (to restore after remount/refresh)
@@ -368,6 +374,15 @@ export function StreamViewer({
     }
   }, [isWorking]);
 
+  // Handle scroll events to detect if user has scrolled away from bottom
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    // Consider "near bottom" if within 80px of the bottom
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 80;
+    shouldAutoScrollRef.current = isNearBottom;
+  }, []);
+
   // Cleanup working timeout on unmount
   useEffect(() => {
     return () => {
@@ -377,9 +392,9 @@ export function StreamViewer({
     };
   }, []);
 
-  // Auto-scroll to bottom when new events arrive
+  // Auto-scroll to bottom when new events arrive, but only if user hasn't scrolled up
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && shouldAutoScrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [events]);
@@ -937,6 +952,7 @@ export function StreamViewer({
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-3 space-y-1"
+        onScroll={handleScroll}
         data-testid="stream-events"
       >
         {events.length === 0 ? (
