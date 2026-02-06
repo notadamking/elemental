@@ -35,7 +35,7 @@ import { createDispatchService, type DispatchService } from './dispatch-service.
 import type { SessionManager, SessionRecord, StartSessionOptions } from '../runtime/session-manager.js';
 import type { WorktreeManager, CreateWorktreeResult, CreateWorktreeOptions } from '../git/worktree-manager.js';
 import type { StewardScheduler } from './steward-scheduler.js';
-import { getOrchestratorTaskMeta } from '../types/task-meta.js';
+import { getOrchestratorTaskMeta, updateOrchestratorTaskMeta } from '../types/task-meta.js';
 
 // ============================================================================
 // Mock Factories
@@ -367,6 +367,228 @@ describe('DispatchDaemon Integration', () => {
       const result = await daemon.pollWorkerAvailability();
       expect(result.errors).toBeGreaterThan(0);
     });
+  });
+});
+
+describe('recoverOrphanedAssignments', () => {
+  let api: ElementalAPI;
+  let inboxService: InboxService;
+  let agentRegistry: AgentRegistry;
+  let taskAssignment: TaskAssignmentService;
+  let dispatchService: DispatchService;
+  let sessionManager: SessionManager;
+  let worktreeManager: WorktreeManager;
+  let stewardScheduler: StewardScheduler;
+  let daemon: DispatchDaemon;
+  let testDbPath: string;
+  let systemEntity: EntityId;
+
+  beforeEach(async () => {
+    testDbPath = `/tmp/dispatch-daemon-orphan-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
+    const storage = createStorage({ path: testDbPath, create: true });
+    initializeSchema(storage);
+
+    api = createElementalAPI(storage);
+    inboxService = createInboxService(storage);
+    agentRegistry = createAgentRegistry(api);
+    taskAssignment = createTaskAssignmentService(api);
+    dispatchService = createDispatchService(api, taskAssignment, agentRegistry);
+    sessionManager = createMockSessionManager();
+    worktreeManager = createMockWorktreeManager();
+    stewardScheduler = createMockStewardScheduler();
+
+    const { createEntity, EntityTypeValue } = await import('@elemental/core');
+    const entity = await createEntity({
+      name: 'test-system',
+      entityType: EntityTypeValue.SYSTEM,
+      createdBy: 'system:test' as EntityId,
+    });
+    const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
+    systemEntity = saved.id as unknown as EntityId;
+
+    const config: DispatchDaemonConfig = {
+      pollIntervalMs: 100,
+      workerAvailabilityPollEnabled: false,
+      inboxPollEnabled: false,
+      stewardTriggerPollEnabled: false,
+      workflowTaskPollEnabled: false,
+      orphanRecoveryEnabled: true,
+    };
+
+    daemon = createDispatchDaemon(
+      api,
+      agentRegistry,
+      sessionManager,
+      dispatchService,
+      worktreeManager,
+      taskAssignment,
+      stewardScheduler,
+      inboxService,
+      config
+    );
+  });
+
+  afterEach(async () => {
+    await daemon.stop();
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  });
+
+  async function createTestWorker(name: string): Promise<AgentEntity> {
+    return agentRegistry.registerWorker({
+      name,
+      workerMode: 'ephemeral',
+      createdBy: systemEntity,
+      maxConcurrentTasks: 1,
+    });
+  }
+
+  /** Creates a task already assigned to a worker with orchestrator metadata (simulates post-restart state). */
+  async function createAssignedTask(
+    title: string,
+    workerId: EntityId,
+    meta?: { sessionId?: string; worktree?: string; branch?: string }
+  ): Promise<Task> {
+    const task = await createTask({
+      title,
+      createdBy: systemEntity,
+      status: TaskStatus.IN_PROGRESS,
+      assignee: workerId,
+    });
+    const saved = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Task;
+
+    // Set orchestrator metadata
+    if (meta) {
+      await api.update(saved.id, {
+        metadata: updateOrchestratorTaskMeta(undefined, {
+          assignedAgent: workerId,
+          branch: meta.branch ?? 'agent/test/task-branch',
+          worktree: meta.worktree ?? '/worktrees/test/task',
+          sessionId: meta.sessionId,
+        }),
+      });
+    }
+
+    return (await api.get<Task>(saved.id))!;
+  }
+
+  test('recovers worker with assigned task but no active session', async () => {
+    const worker = await createTestWorker('orphan-alice');
+    const workerId = worker.id as unknown as EntityId;
+    await createAssignedTask('Orphaned task', workerId, {
+      sessionId: 'prev-session-123',
+      worktree: '/worktrees/orphan-alice/task',
+      branch: 'agent/orphan-alice/task-branch',
+    });
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.pollType).toBe('orphan-recovery');
+    expect(result.processed).toBe(1);
+    expect(result.errors).toBe(0);
+
+    // Should have tried to resume the previous session
+    expect(sessionManager.resumeSession).toHaveBeenCalledWith(
+      workerId,
+      expect.objectContaining({
+        claudeSessionId: 'prev-session-123',
+        checkReadyQueue: false,
+      })
+    );
+  });
+
+  test('skips worker with active session', async () => {
+    const worker = await createTestWorker('active-bob');
+    const workerId = worker.id as unknown as EntityId;
+
+    // Start a session for this worker (adds to mock's internal map)
+    await sessionManager.startSession(workerId, {});
+
+    await createAssignedTask('Task with active session', workerId, {
+      sessionId: 'session-456',
+      worktree: '/worktrees/active-bob/task',
+    });
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.processed).toBe(0);
+    // Should NOT have tried to resume or start
+    expect(sessionManager.resumeSession).not.toHaveBeenCalled();
+  });
+
+  test('skips worker with no assigned tasks', async () => {
+    await createTestWorker('idle-carol');
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.processed).toBe(0);
+  });
+
+  test('creates new worktree when original is missing', async () => {
+    const worker = await createTestWorker('missing-wt-dave');
+    const workerId = worker.id as unknown as EntityId;
+    await createAssignedTask('Task with missing worktree', workerId, {
+      worktree: '/worktrees/missing-wt-dave/task',
+      branch: 'agent/missing-wt-dave/task-branch',
+    });
+
+    // Mock worktreeExists to return false (worktree was cleaned up)
+    (worktreeManager.worktreeExists as ReturnType<typeof mock>).mockImplementation(async () => false);
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.processed).toBe(1);
+    // Should have created a new worktree
+    expect(worktreeManager.createWorktree).toHaveBeenCalled();
+    // Should have started a fresh session (no sessionId in meta)
+    expect(sessionManager.startSession).toHaveBeenCalled();
+  });
+
+  test('falls back to fresh spawn when resume fails', async () => {
+    const worker = await createTestWorker('resume-fail-eve');
+    const workerId = worker.id as unknown as EntityId;
+    await createAssignedTask('Task with failed resume', workerId, {
+      sessionId: 'stale-session-789',
+      worktree: '/worktrees/resume-fail-eve/task',
+      branch: 'agent/resume-fail-eve/task-branch',
+    });
+
+    // Mock resumeSession to throw (simulating stale session ID)
+    (sessionManager.resumeSession as ReturnType<typeof mock>).mockImplementation(async () => {
+      throw new Error('Session not found: stale-session-789');
+    });
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.processed).toBe(1);
+    // Should have tried resume first
+    expect(sessionManager.resumeSession).toHaveBeenCalled();
+    // Then fallen back to startSession
+    expect(sessionManager.startSession).toHaveBeenCalledWith(
+      workerId,
+      expect.objectContaining({
+        workingDirectory: '/worktrees/resume-fail-eve/task',
+      })
+    );
+  });
+
+  test('does not recover tasks in REVIEW status', async () => {
+    const worker = await createTestWorker('review-frank');
+    const workerId = worker.id as unknown as EntityId;
+
+    // Create a task in REVIEW status (should be handled by merge stewards, not recovery)
+    const task = await createTask({
+      title: 'Task in review',
+      createdBy: systemEntity,
+      status: TaskStatus.REVIEW,
+      assignee: workerId,
+    });
+    await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId });
+
+    const result = await daemon.recoverOrphanedAssignments();
+
+    expect(result.processed).toBe(0);
   });
 });
 

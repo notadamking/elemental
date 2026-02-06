@@ -39,7 +39,7 @@ import type { WorktreeManager, CreateWorktreeResult } from '../git/worktree-mana
 import type { TaskAssignmentService } from './task-assignment-service.js';
 import type { StewardScheduler } from './steward-scheduler.js';
 import type { WorkerMetadata, StewardMetadata } from '../types/agent.js';
-import { getOrchestratorTaskMeta } from '../types/task-meta.js';
+import { getOrchestratorTaskMeta, updateOrchestratorTaskMeta } from '../types/task-meta.js';
 
 // ============================================================================
 // Constants
@@ -110,6 +110,14 @@ export interface DispatchDaemonConfig {
   readonly workflowTaskPollEnabled?: boolean;
 
   /**
+   * Whether orphan recovery polling is enabled.
+   * Detects workers with assigned tasks but no active session after a restart
+   * and re-spawns sessions to continue the work.
+   * Default: true
+   */
+  readonly orphanRecoveryEnabled?: boolean;
+
+  /**
    * Maximum session duration in ms before the daemon terminates it.
    * Prevents stuck workers from blocking their slot indefinitely.
    * Default: 0 (disabled).
@@ -134,7 +142,7 @@ export interface DispatchDaemonConfig {
  */
 export interface PollResult {
   /** The poll type */
-  readonly pollType: 'worker-availability' | 'inbox' | 'steward-trigger' | 'workflow-task';
+  readonly pollType: 'worker-availability' | 'inbox' | 'steward-trigger' | 'workflow-task' | 'orphan-recovery';
   /** Timestamp when the poll started */
   readonly startedAt: string;
   /** Duration of the poll in milliseconds */
@@ -156,6 +164,7 @@ interface NormalizedConfig {
   inboxPollEnabled: boolean;
   stewardTriggerPollEnabled: boolean;
   workflowTaskPollEnabled: boolean;
+  orphanRecoveryEnabled: boolean;
   maxSessionDurationMs: number;
   onSessionStarted?: OnSessionStartedCallback;
   projectRoot: string;
@@ -222,6 +231,13 @@ export interface DispatchDaemon {
    * Assigns workflow tasks to available stewards.
    */
   pollWorkflowTasks(): Promise<PollResult>;
+
+  /**
+   * Manually triggers orphan recovery polling.
+   * Detects workers with assigned tasks but no active session
+   * and re-spawns sessions to continue the work.
+   */
+  recoverOrphanedAssignments(): Promise<PollResult>;
 
   // ----------------------------------------
   // Configuration
@@ -327,6 +343,18 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
     } catch (error) {
       console.error('[dispatch-daemon] Failed to reconcile on startup:', error);
+    }
+
+    // Recover orphaned task assignments (workers with tasks but no session after restart)
+    if (this.config.orphanRecoveryEnabled) {
+      try {
+        const result = await this.recoverOrphanedAssignments();
+        if (result.processed > 0) {
+          console.log(`[dispatch-daemon] Startup: recovered ${result.processed} orphaned task assignment(s)`);
+        }
+      } catch (error) {
+        console.error('[dispatch-daemon] Failed to recover orphaned assignments on startup:', error);
+      }
     }
 
     // Start the main poll loop
@@ -693,6 +721,71 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     return result;
   }
 
+  async recoverOrphanedAssignments(): Promise<PollResult> {
+    const startedAt = new Date().toISOString();
+    const startTime = Date.now();
+    let processed = 0;
+    let errors = 0;
+    const errorMessages: string[] = [];
+
+    this.emitter.emit('poll:start', 'orphan-recovery');
+
+    try {
+      // 1. Get all ephemeral workers
+      const workers = await this.agentRegistry.listAgents({
+        role: 'worker',
+        workerMode: 'ephemeral',
+      });
+
+      for (const worker of workers) {
+        const workerId = asEntityId(worker.id);
+
+        // 2. Skip if worker has an active session
+        const session = this.sessionManager.getActiveSession(workerId);
+        if (session) continue;
+
+        // 3. Check if worker has assigned tasks (OPEN or IN_PROGRESS only, not REVIEW)
+        const workerTasks = await this.taskAssignment.getAgentTasks(workerId, {
+          taskStatus: [TaskStatus.OPEN, TaskStatus.IN_PROGRESS],
+        });
+        if (workerTasks.length === 0) continue;
+
+        // 4. Recover the first orphaned task
+        const taskAssignment = workerTasks[0];
+        try {
+          await this.recoverOrphanedTask(worker, taskAssignment.task, taskAssignment.orchestratorMeta);
+          processed++;
+        } catch (error) {
+          errors++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errorMessages.push(`Worker ${worker.name}: ${errorMessage}`);
+          console.error(`[dispatch-daemon] Error recovering orphaned task for worker ${worker.name}:`, error);
+        }
+      }
+
+      if (processed > 0) {
+        console.log(`[dispatch-daemon] Recovered ${processed} orphaned task assignment(s)`);
+      }
+    } catch (error) {
+      errors++;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errorMessages.push(errorMessage);
+      console.error('[dispatch-daemon] Error in recoverOrphanedAssignments:', error);
+    }
+
+    const result: PollResult = {
+      pollType: 'orphan-recovery',
+      startedAt,
+      durationMs: Date.now() - startTime,
+      processed,
+      errors,
+      errorMessages: errorMessages.length > 0 ? errorMessages : undefined,
+    };
+
+    this.emitter.emit('poll:complete', result);
+    return result;
+  }
+
   // ----------------------------------------
   // Configuration
   // ----------------------------------------
@@ -759,6 +852,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       inboxPollEnabled: config?.inboxPollEnabled ?? true,
       stewardTriggerPollEnabled: config?.stewardTriggerPollEnabled ?? true,
       workflowTaskPollEnabled: config?.workflowTaskPollEnabled ?? true,
+      orphanRecoveryEnabled: config?.orphanRecoveryEnabled ?? true,
       maxSessionDurationMs: config?.maxSessionDurationMs ?? 0,
       onSessionStarted: config?.onSessionStarted,
       projectRoot: config?.projectRoot ?? process.cwd(),
@@ -772,6 +866,13 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     if (this.polling) return;
     this.polling = true;
     try {
+      // Recover orphaned assignments first — workers with tasks but no session
+      // (e.g. from mid-cycle crashes). Runs before availability polling so
+      // orphans are handled before they'd be skipped.
+      if (this.config.orphanRecoveryEnabled) {
+        await this.recoverOrphanedAssignments();
+      }
+
       // Reap stale sessions before polling for availability
       await this.reapStaleSessions();
 
@@ -828,6 +929,98 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         }
       }
     }
+  }
+
+  /**
+   * Recovers a single orphaned task by re-spawning a session for the worker.
+   * Tries to resume the previous Claude session first (preserves context),
+   * falls back to a fresh spawn if no sessionId or resume fails.
+   */
+  private async recoverOrphanedTask(
+    worker: AgentEntity,
+    task: Task,
+    taskMeta: import('../types/task-meta.js').OrchestratorTaskMeta | undefined
+  ): Promise<void> {
+    const workerId = asEntityId(worker.id);
+
+    // 1. Resolve worktree — reuse existing or create new
+    let worktreePath = taskMeta?.worktree ?? taskMeta?.handoffWorktree;
+    let branch = taskMeta?.branch ?? taskMeta?.handoffBranch;
+
+    if (worktreePath) {
+      const exists = await this.worktreeManager.worktreeExists(worktreePath);
+      if (!exists) {
+        const worktreeResult = await this.createWorktreeForTask(worker, task);
+        worktreePath = worktreeResult.path;
+        branch = worktreeResult.branch;
+
+        // Update task metadata with new worktree info
+        await this.api.update(task.id, {
+          metadata: updateOrchestratorTaskMeta(
+            task.metadata as Record<string, unknown> | undefined,
+            { worktree: worktreePath, branch }
+          ),
+        });
+      }
+    } else {
+      const worktreeResult = await this.createWorktreeForTask(worker, task);
+      worktreePath = worktreeResult.path;
+      branch = worktreeResult.branch;
+
+      await this.api.update(task.id, {
+        metadata: updateOrchestratorTaskMeta(
+          task.metadata as Record<string, unknown> | undefined,
+          { worktree: worktreePath, branch }
+        ),
+      });
+    }
+
+    // 2. Try resume first if we have a previous session ID
+    const previousSessionId = taskMeta?.sessionId;
+    if (previousSessionId) {
+      try {
+        const { session, events } = await this.sessionManager.resumeSession(workerId, {
+          claudeSessionId: previousSessionId,
+          workingDirectory: worktreePath,
+          worktree: worktreePath,
+          checkReadyQueue: false,
+          resumePrompt: [
+            'Your previous session was interrupted by a server restart.',
+            `You are still assigned to task ${task.id}: "${task.title}".`,
+            'Please continue working on this task from where you left off.',
+          ].join('\n'),
+        });
+
+        if (this.config.onSessionStarted) {
+          this.config.onSessionStarted(session, events, workerId, `[resumed session for task ${task.id}]`);
+        }
+
+        this.emitter.emit('agent:spawned', workerId, worktreePath);
+        console.log(`[dispatch-daemon] Resumed session for orphaned task ${task.id} on worker ${worker.name}`);
+        return;
+      } catch (error) {
+        console.warn(
+          `[dispatch-daemon] Failed to resume session ${previousSessionId} for worker ${worker.name}, falling back to fresh spawn:`,
+          error
+        );
+      }
+    }
+
+    // 3. Fall back to fresh spawn
+    const initialPrompt = await this.buildTaskPrompt(task, workerId);
+
+    const { session, events } = await this.sessionManager.startSession(workerId, {
+      workingDirectory: worktreePath,
+      worktree: worktreePath,
+      initialPrompt,
+    });
+
+    if (this.config.onSessionStarted) {
+      this.config.onSessionStarted(session, events, workerId, initialPrompt);
+    }
+
+    this.emitter.emit('agent:spawned', workerId, worktreePath);
+    console.log(`[dispatch-daemon] Spawned fresh session for orphaned task ${task.id} on worker ${worker.name}`);
   }
 
   /**
@@ -1079,10 +1272,11 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     parts.push(
       '',
       '### Instructions',
-      '1. Review the PR at the URL above (if available) or check the branch directly.',
-      '2. Run tests on the branch to verify the changes.',
-      `3. If tests pass and the code meets acceptance criteria: merge the PR and run \`el task close ${task.id}\`.`,
-      `4. If issues are found: create a fix task with \`el task create-fix ${task.id} --reason "description of the issue"\`.`,
+      `1. Signal that you are starting review: run \`el task review-start ${task.id}\`.`,
+      '2. Review the PR at the URL above (if available) or check the branch directly.',
+      '3. Run tests on the branch to verify the changes.',
+      `4. If tests pass and the code meets acceptance criteria: merge the PR and run \`el task close ${task.id}\`.`,
+      `5. If issues are found: create a fix task with \`el task create-fix ${task.id} --reason "description of the issue"\`.`,
     );
 
     return parts.join('\n');
