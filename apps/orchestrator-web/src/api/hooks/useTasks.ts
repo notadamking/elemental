@@ -180,7 +180,7 @@ export function useCreateTask() {
   });
 }
 
-interface UpdateTaskInput {
+export interface UpdateTaskInput {
   taskId: string;
   title?: string;
   description?: string | null;

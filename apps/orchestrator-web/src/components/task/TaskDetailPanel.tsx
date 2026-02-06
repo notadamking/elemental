@@ -43,6 +43,7 @@ import {
   useRemoveAttachment,
   useDocumentsForAttachment,
   type AttachedDocument,
+  type UpdateTaskInput,
 } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
@@ -98,7 +99,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const canStart = task?.status === 'open' && task?.assignee;
   const canComplete = task?.status === 'in_progress';
 
-  const handleUpdate = async (updates: Partial<Task>) => {
+  const handleUpdate = async (updates: Omit<UpdateTaskInput, 'taskId'>) => {
     if (!task) return;
     try {
       await updateTask.mutateAsync({ taskId: task.id, ...updates });
@@ -272,7 +273,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
             <AssigneeDropdown
               value={task.assignee}
               workers={workers}
-              onSave={(assignee) => handleUpdate({ assignee: assignee ?? undefined })}
+              onSave={(assignee) => handleUpdate({ assignee: assignee ?? null })}
               isUpdating={updateTask.isPending && editingField === 'assignee'}
             />
           </MetadataField>
@@ -290,7 +291,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           <MetadataField label="Deadline" icon={<Calendar className="w-3 h-3" />}>
             <DeadlineInput
               value={task.deadline}
-              onSave={(deadline) => handleUpdate({ deadline: deadline ?? undefined })}
+              onSave={(deadline) => handleUpdate({ deadline: deadline ?? null })}
               isUpdating={updateTask.isPending && editingField === 'deadline'}
             />
           </MetadataField>
@@ -307,7 +308,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         {/* Description */}
         <EditableDescription
           value={description}
-          onSave={(newDescription) => handleUpdate({ description: newDescription ?? undefined })}
+          onSave={(newDescription) => handleUpdate({ description: newDescription ?? null })}
           isUpdating={updateTask.isPending && editingField === 'description'}
           onEdit={() => setEditingField('description')}
         />
