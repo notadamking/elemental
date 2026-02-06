@@ -359,14 +359,19 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       // Click maximize on first pane
       await page.getByTestId('pane-maximize-btn').first().click();
 
-      // Grid should now show single pane
-      await expect(page.getByTestId('workspace-grid')).toHaveAttribute('data-preset', 'single');
+      // Grid should now show single pane (pane-count=1)
+      await expect(page.getByTestId('workspace-grid')).toHaveAttribute('data-pane-count', '1');
+      // Only one pane should be visible (the maximized one)
+      await expect(page.getByTestId('workspace-pane-pane-test')).toBeVisible();
+      await expect(page.getByTestId('workspace-pane-pane-test-2')).not.toBeVisible();
 
       // Click restore (same button)
       await page.getByTestId('pane-maximize-btn').click();
 
-      // Should be back to original layout
+      // Should be back to original layout with both panes visible
+      await expect(page.getByTestId('workspace-grid')).toHaveAttribute('data-pane-count', '2');
       await expect(page.getByTestId('workspace-pane-pane-test')).toBeVisible();
+      await expect(page.getByTestId('workspace-pane-pane-test-2')).toBeVisible();
     });
 
     test('pane has close button', async ({ page }) => {
