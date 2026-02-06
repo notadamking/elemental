@@ -5,7 +5,7 @@
  * Badge components are from @elemental/ui/domain.
  */
 
-import { GitBranch, GitMerge, AlertTriangle, User, Play, CheckCircle2 } from 'lucide-react';
+import { GitBranch, GitMerge, AlertTriangle, Bot, User, Play, CheckCircle2 } from 'lucide-react';
 import type { Task, Agent } from '../../api/types';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge } from '@elemental/ui/domain';
 import { TaskActionsDropdown } from './TaskActionsDropdown';
@@ -61,6 +61,12 @@ export function TaskRow({
             status={task.status}
             mergeStatus={orchestratorMeta?.mergeStatus}
           />
+          {task.status === 'review' && (orchestratorMeta?.mergeStatus === 'testing' || orchestratorMeta?.mergeStatus === 'merging') && (
+            <span className="inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400" title="Steward reviewing">
+              <Bot className="w-3.5 h-3.5 animate-pulse" />
+              Reviewing
+            </span>
+          )}
           {task.status === 'closed' && orchestratorMeta?.mergeStatus === 'merged' && (
             <span className="inline-flex items-center gap-0.5 text-xs text-green-600 dark:text-green-400">
               <GitMerge className="w-3.5 h-3.5" />

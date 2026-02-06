@@ -180,6 +180,12 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
             <TaskStatusBadge status={task.status} mergeStatus={orchestratorMeta?.mergeStatus} />
+            {task.status === 'review' && (orchestratorMeta?.mergeStatus === 'testing' || orchestratorMeta?.mergeStatus === 'merging') && (
+              <span className="inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400" title="Steward reviewing">
+                <Bot className="w-3.5 h-3.5 animate-pulse" />
+                Reviewing
+              </span>
+            )}
             <TaskPriorityBadge priority={task.priority} />
             <TaskTypeBadge taskType={task.taskType} />
           </div>
