@@ -375,7 +375,11 @@ test.describe('TB-O25a: Notification System', () => {
 
   test.describe('Connection Status', () => {
     test('shows offline indicator when SSE not connected', async ({ page }) => {
-      // Navigate without the server running SSE (it will fail to connect)
+      // Block SSE endpoint to simulate offline state
+      await page.route('**/api/events**', (route) => {
+        route.abort('connectionrefused');
+      });
+
       await page.goto('/');
 
       await page.getByTestId('notification-bell').click();

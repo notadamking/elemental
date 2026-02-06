@@ -115,8 +115,8 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
 
       // Preset options should be visible
       await expect(page.getByTestId('layout-preset-single')).toBeVisible();
-      await expect(page.getByTestId('layout-preset-split-vertical')).toBeVisible();
-      await expect(page.getByTestId('layout-preset-split-horizontal')).toBeVisible();
+      await expect(page.getByTestId('layout-preset-columns')).toBeVisible();
+      await expect(page.getByTestId('layout-preset-rows')).toBeVisible();
       await expect(page.getByTestId('layout-preset-grid')).toBeVisible();
     });
 
@@ -126,8 +126,8 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       // Open layout menu
       await page.getByTestId('workspaces-layout-btn').click();
 
-      // Select split-vertical
-      await page.getByTestId('layout-preset-split-vertical').click();
+      // Select columns
+      await page.getByTestId('layout-preset-columns').click();
 
       // Menu should close
       await expect(page.getByTestId('layout-menu')).not.toBeVisible();
@@ -171,7 +171,7 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
 
       // Set a specific layout
       await page.getByTestId('workspaces-layout-btn').click();
-      await page.getByTestId('layout-preset-split-horizontal').click();
+      await page.getByTestId('layout-preset-rows').click();
 
       // Reload page
       await page.reload();
@@ -277,13 +277,87 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
     });
 
     test('pane has maximize button', async ({ page }) => {
+      // First switch to a multi-pane layout where maximize is visible
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'columns', // Use columns preset so maximize button is visible
+          panes: [
+            {
+              id: 'pane-test',
+              agentId: 'test-agent-1',
+              agentName: 'Test Agent',
+              agentRole: 'worker',
+              workerMode: 'ephemeral',
+              paneType: 'stream',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-test-2',
+              agentId: 'test-agent-2',
+              agentName: 'Test Agent 2',
+              agentRole: 'worker',
+              workerMode: 'ephemeral',
+              paneType: 'stream',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+          ],
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+      await page.reload();
+
       // Maximize button should be visible
-      await expect(page.getByTestId('pane-maximize-btn')).toBeVisible();
+      await expect(page.getByTestId('pane-maximize-btn').first()).toBeVisible();
     });
 
     test('can maximize and restore pane', async ({ page }) => {
-      // Click maximize
-      await page.getByTestId('pane-maximize-btn').click();
+      // First switch to a multi-pane layout where maximize is visible
+      await page.evaluate(() => {
+        const mockLayout = {
+          id: 'test-layout',
+          name: 'Test',
+          preset: 'columns', // Use columns preset
+          panes: [
+            {
+              id: 'pane-test',
+              agentId: 'test-agent-1',
+              agentName: 'Test Agent',
+              agentRole: 'worker',
+              workerMode: 'ephemeral',
+              paneType: 'stream',
+              status: 'disconnected',
+              position: 0,
+              weight: 1,
+            },
+            {
+              id: 'pane-test-2',
+              agentId: 'test-agent-2',
+              agentName: 'Test Agent 2',
+              agentRole: 'worker',
+              workerMode: 'ephemeral',
+              paneType: 'stream',
+              status: 'disconnected',
+              position: 1,
+              weight: 1,
+            },
+          ],
+          createdAt: Date.now(),
+          modifiedAt: Date.now(),
+        };
+        localStorage.setItem('elemental-active-workspace-layout', JSON.stringify(mockLayout));
+      });
+      await page.reload();
+
+      // Click maximize on first pane
+      await page.getByTestId('pane-maximize-btn').first().click();
 
       // Grid should now show single pane
       await expect(page.getByTestId('workspace-grid')).toHaveAttribute('data-preset', 'single');
@@ -469,7 +543,7 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
         const mockLayout = {
           id: 'test-layout',
           name: 'Test',
-          preset: 'split-vertical',
+          preset: 'columns',
           panes: [
             {
               id: 'pane-1',
@@ -513,8 +587,8 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
     });
 
     test('grid uses correct preset', async ({ page }) => {
-      // Grid should have split-vertical preset
-      await expect(page.getByTestId('workspace-grid')).toHaveAttribute('data-preset', 'split-vertical');
+      // Grid should have columns preset
+      await expect(page.getByTestId('workspace-grid')).toHaveAttribute('data-preset', 'columns');
     });
 
     test('can close one pane while keeping others', async ({ page }) => {
@@ -578,7 +652,7 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
         const mockLayout = {
           id: 'test-layout',
           name: 'Test',
-          preset: 'split-vertical',
+          preset: 'columns',
           panes: [
             {
               id: 'pane-1',
@@ -634,7 +708,7 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
         const mockLayout = {
           id: 'test-layout',
           name: 'Test',
-          preset: 'split-vertical',
+          preset: 'columns',
           panes: [
             {
               id: 'pane-1',
@@ -675,21 +749,21 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
 
       // Grid should have correct preset
       const grid = page.getByTestId('workspace-grid');
-      await expect(grid).toHaveAttribute('data-preset', 'split-vertical');
+      await expect(grid).toHaveAttribute('data-preset', 'columns');
       await expect(grid).toHaveAttribute('data-pane-count', '2');
     });
   });
 
   test.describe('Resize handles', () => {
-    test('displays horizontal resize handle between columns in split-vertical layout', async ({ page }) => {
+    test('displays horizontal resize handle between columns in columns layout', async ({ page }) => {
       await page.goto('/workspaces');
 
-      // Set up a layout with two panes in split-vertical
+      // Set up a layout with two panes in columns
       await page.evaluate(() => {
         const mockLayout = {
           id: 'test-layout',
           name: 'Test',
-          preset: 'split-vertical',
+          preset: 'columns',
           panes: [
             {
               id: 'pane-1',
@@ -728,13 +802,15 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
 
       await page.reload();
 
-      // Should be in split-vertical layout
+      // Should be in columns layout
       const grid = page.getByTestId('workspace-grid');
-      await expect(grid).toHaveAttribute('data-preset', 'split-vertical');
+      await expect(grid).toHaveAttribute('data-preset', 'columns');
 
-      // Check for horizontal resize handle
-      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
-      await expect(horizontalHandle).toBeVisible();
+      // Check for resize handle (Separator element with cursor-col-resize)
+      const horizontalHandle = grid.locator('[data-panel-group-id] > [data-resize-handle-active]').or(
+        grid.locator('.cursor-col-resize')
+      );
+      await expect(horizontalHandle.first()).toBeVisible();
     });
 
     test('displays vertical resize handle between rows in grid layout', async ({ page }) => {
@@ -799,9 +875,9 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       const grid = page.getByTestId('workspace-grid');
       await expect(grid).toHaveAttribute('data-preset', 'grid');
 
-      // Check for vertical resize handle (between row 0 and row 1)
-      const verticalHandle = page.getByTestId('resize-handle-vertical-0');
-      await expect(verticalHandle).toBeVisible();
+      // Check for vertical resize handle (Separator element with cursor-row-resize)
+      const verticalHandle = grid.locator('.cursor-row-resize');
+      await expect(verticalHandle.first()).toBeVisible();
     });
 
     test('resize handle has correct cursor style', async ({ page }) => {
@@ -812,7 +888,7 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
         const mockLayout = {
           id: 'test-layout',
           name: 'Test',
-          preset: 'split-vertical',
+          preset: 'columns',
           panes: [
             {
               id: 'pane-1',
@@ -852,8 +928,10 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       await page.reload();
 
       // Check horizontal handle has col-resize cursor class
-      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
-      await expect(horizontalHandle).toHaveClass(/cursor-col-resize/);
+      const grid = page.getByTestId('workspace-grid');
+      const horizontalHandle = grid.locator('.cursor-col-resize');
+      await expect(horizontalHandle.first()).toBeVisible();
+      await expect(horizontalHandle.first()).toHaveClass(/cursor-col-resize/);
     });
 
     test('can resize both horizontal and vertical dividers sequentially', async ({ page }) => {
@@ -918,9 +996,9 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
       const grid = page.getByTestId('workspace-grid');
       await expect(grid).toBeVisible();
 
-      // Check for both resize handles
-      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
-      const verticalHandle = page.getByTestId('resize-handle-vertical-0');
+      // Check for resize handles (using CSS class selectors)
+      const horizontalHandle = grid.locator('.cursor-col-resize').first();
+      const verticalHandle = grid.locator('.cursor-row-resize').first();
       await expect(horizontalHandle).toBeVisible({ timeout: 5000 });
       await expect(verticalHandle).toBeVisible({ timeout: 5000 });
 
@@ -973,7 +1051,7 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
         const mockLayout = {
           id: 'test-layout',
           name: 'Test',
-          preset: 'split-vertical',
+          preset: 'columns',
           panes: [
             {
               id: 'pane-1',
@@ -1012,16 +1090,18 @@ test.describe('TB-O17a: Terminal Multiplexer (Workspaces Page)', () => {
 
       await page.reload();
 
+      const grid = page.getByTestId('workspace-grid');
+
       // Resize handle should be visible initially
-      const horizontalHandle = page.getByTestId('resize-handle-horizontal-0');
+      const horizontalHandle = grid.locator('.cursor-col-resize').first();
       await expect(horizontalHandle).toBeVisible();
 
       // Maximize a pane
-      const maximizeBtn = page.getByTestId('workspace-pane-pane-1').getByTestId('pane-maximize-btn');
+      const maximizeBtn = page.getByTestId('pane-maximize-btn').first();
       await maximizeBtn.click();
 
       // Resize handle should no longer be visible (not in DOM when maximized)
-      await expect(horizontalHandle).not.toBeVisible();
+      await expect(grid.locator('.cursor-col-resize')).toHaveCount(0);
     });
   });
 });
