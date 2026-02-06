@@ -13,53 +13,28 @@ import { useQuery } from '@tanstack/react-query';
 import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
 import {
   FileCode,
-  Folder,
-  FolderOpen,
-  ChevronRight,
-  ChevronDown,
   Loader2,
   AlertCircle,
-  FileText,
   FolderInput,
   X,
   RefreshCw,
   HardDrive,
   Database,
-  Settings,
-  FileJson,
-  FileType,
   Braces,
 } from 'lucide-react';
 import { PageHeader } from '../../components/shared/PageHeader';
+import { EditorFileTree, type FileTreeNodeData, type FileSource } from '../../components/editor/EditorFileTree';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
-import { useWorkspace, type FileSystemEntry } from '../../contexts';
+import { useWorkspace } from '../../contexts';
 import type { Document } from '../../api/hooks/useAllElements';
 import {
   getMonacoLanguageFromContentType,
-  isCodeFile,
-  isConfigFile,
-  isDataFile,
   detectLanguageFromFilename,
 } from '../../lib/language-detection';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-/** Source of file tree data */
-type FileSource = 'workspace' | 'documents';
-
-/** File tree node type (unified for both sources) */
-interface FileTreeNode {
-  id: string;
-  name: string;
-  type: 'file' | 'folder';
-  children?: FileTreeNode[];
-  /** For documents mode */
-  document?: Document;
-  /** For workspace mode */
-  fsEntry?: FileSystemEntry;
-}
 
 /** Currently opened file state */
 interface OpenFile {
@@ -206,131 +181,6 @@ function configureMonaco(monaco: Monaco): void {
 }
 
 // ============================================================================
-// Build file tree from different sources
-// ============================================================================
-
-function buildTreeFromDocuments(documents: Document[]): FileTreeNode[] {
-  return documents.map((doc) => ({
-    id: doc.id,
-    name: doc.title || 'Untitled',
-    type: 'file' as const,
-    document: doc,
-  }));
-}
-
-function buildTreeFromWorkspace(entries: FileSystemEntry[]): FileTreeNode[] {
-  const mapEntry = (entry: FileSystemEntry): FileTreeNode => ({
-    id: entry.id,
-    name: entry.name,
-    type: entry.type === 'directory' ? 'folder' : 'file',
-    children: entry.children?.map(mapEntry),
-    fsEntry: entry,
-  });
-
-  return entries.map(mapEntry);
-}
-
-// ============================================================================
-// File tree components
-// ============================================================================
-
-interface FileTreeItemProps {
-  node: FileTreeNode;
-  level?: number;
-  selectedId: string | null;
-  expandedFolders: Set<string>;
-  onSelect: (node: FileTreeNode) => void;
-  onToggleFolder: (id: string) => void;
-}
-
-function FileTreeItem({
-  node,
-  level = 0,
-  selectedId,
-  expandedFolders,
-  onSelect,
-  onToggleFolder,
-}: FileTreeItemProps) {
-  const isSelected = selectedId === node.id;
-  const isExpanded = expandedFolders.has(node.id);
-  const isFolder = node.type === 'folder';
-
-  const handleClick = () => {
-    if (isFolder) {
-      onToggleFolder(node.id);
-    } else {
-      onSelect(node);
-    }
-  };
-
-  // Use language detection for better icon categorization
-  const fileIsCode = !isFolder && isCodeFile(node.name);
-  const fileIsConfig = !isFolder && isConfigFile(node.name);
-  const fileIsData = !isFolder && isDataFile(node.name);
-
-  // Select icon based on file type
-  const getFileIcon = () => {
-    if (isFolder) {
-      return isExpanded ? FolderOpen : Folder;
-    }
-    if (fileIsCode) return FileCode;
-    if (fileIsConfig) return Settings;
-    if (fileIsData) {
-      // Special icons for specific data types
-      if (node.name.endsWith('.json') || node.name.endsWith('.jsonc')) return FileJson;
-      return FileType;
-    }
-    return FileText;
-  };
-
-  const Icon = getFileIcon();
-
-  return (
-    <div data-testid={`file-tree-item-${node.id}`}>
-      <button
-        onClick={handleClick}
-        className={`
-          w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors
-          ${isSelected
-            ? 'bg-[var(--color-primary)] text-white'
-            : 'text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
-          }
-        `}
-        style={{ paddingLeft: `${8 + level * 16}px` }}
-        data-testid={`file-tree-button-${node.id}`}
-      >
-        {isFolder && (
-          <span className="flex-shrink-0">
-            {isExpanded ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
-          </span>
-        )}
-        <Icon className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-white' : 'text-[var(--color-text-secondary)]'}`} />
-        <span className="truncate">{node.name}</span>
-      </button>
-      {isFolder && isExpanded && node.children && (
-        <div>
-          {node.children.map((child) => (
-            <FileTreeItem
-              key={child.id}
-              node={child}
-              level={level + 1}
-              selectedId={selectedId}
-              expandedFolders={expandedFolders}
-              onSelect={onSelect}
-              onToggleFolder={onToggleFolder}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
 // Empty state component
 // ============================================================================
 
@@ -406,7 +256,6 @@ function SourceToggle({ source, onSourceChange, isWorkspaceOpen, workspaceName }
 
 export function FileEditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [openFile, setOpenFile] = useState<OpenFile | null>(null);
   const [fileSource, setFileSource] = useState<FileSource>('workspace');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
@@ -436,14 +285,6 @@ export function FileEditorPage() {
     fileSource === 'documents' ? selectedId : null
   );
 
-  // Build file tree based on source
-  const fileTree = useMemo(() => {
-    if (fileSource === 'workspace') {
-      return buildTreeFromWorkspace(workspaceEntries);
-    }
-    return buildTreeFromDocuments(documents);
-  }, [fileSource, workspaceEntries, documents]);
-
   // Update open file when document content loads
   useEffect(() => {
     if (fileSource === 'documents' && selectedDocument && selectedId) {
@@ -458,10 +299,10 @@ export function FileEditorPage() {
     }
   }, [fileSource, selectedDocument, selectedId]);
 
-  // Handle file/folder selection
-  const handleSelect = useCallback(
-    async (node: FileTreeNode) => {
-      if (node.type === 'folder') return;
+  // Handle file selection from tree
+  const handleSelectFile = useCallback(
+    async (node: FileTreeNodeData) => {
+      if (node.nodeType === 'folder') return;
 
       setSelectedId(node.id);
       setFileError(null);
@@ -491,19 +332,6 @@ export function FileEditorPage() {
     [fileSource, readFile]
   );
 
-  // Handle folder toggle
-  const handleToggleFolder = useCallback((id: string) => {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
   // Handle source change
   const handleSourceChange = useCallback((source: FileSource) => {
     setFileSource(source);
@@ -517,6 +345,11 @@ export function FileEditorPage() {
   const isContentLoading = fileSource === 'documents' ? docContentLoading : isLoadingFile;
   const hasTreeError = fileSource === 'workspace' ? !!workspaceError : documentsError;
   const hasContentError = fileSource === 'documents' ? docContentError : !!fileError;
+
+  // Check if tree is empty
+  const isTreeEmpty = fileSource === 'workspace'
+    ? workspaceEntries.length === 0
+    : documents.length === 0;
 
   // Get subtitle based on state
   const subtitle = useMemo(() => {
@@ -605,7 +438,7 @@ export function FileEditorPage() {
           </div>
 
           {/* File tree */}
-          <div className="flex-1 overflow-y-auto p-2" data-testid="editor-file-tree">
+          <div className="flex-1 flex flex-col overflow-hidden" data-testid="editor-file-tree-container">
             {isTreeLoading ? (
               <div className="flex items-center justify-center py-8" data-testid="editor-loading-tree">
                 <Loader2 className="w-5 h-5 animate-spin text-[var(--color-text-muted)]" />
@@ -617,7 +450,7 @@ export function FileEditorPage() {
                   {fileSource === 'workspace' ? workspaceError : 'Failed to load documents'}
                 </p>
               </div>
-            ) : fileTree.length === 0 ? (
+            ) : isTreeEmpty ? (
               <div className="text-center py-8" data-testid="editor-empty-tree">
                 {fileSource === 'workspace' && !isWorkspaceOpen ? (
                   <div className="space-y-2">
@@ -643,16 +476,13 @@ export function FileEditorPage() {
                 )}
               </div>
             ) : (
-              fileTree.map((node) => (
-                <FileTreeItem
-                  key={node.id}
-                  node={node}
-                  selectedId={selectedId}
-                  expandedFolders={expandedFolders}
-                  onSelect={handleSelect}
-                  onToggleFolder={handleToggleFolder}
-                />
-              ))
+              <EditorFileTree
+                workspaceEntries={workspaceEntries}
+                documents={documents}
+                source={fileSource}
+                selectedId={selectedId}
+                onSelectFile={handleSelectFile}
+              />
             )}
           </div>
         </div>
