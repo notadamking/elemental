@@ -694,5 +694,96 @@ export function createTaskRoutes(services: Services) {
     }
   });
 
+  // ============================================================================
+  // Task Dependencies Endpoints
+  // ============================================================================
+
+  // Blocking dependency types that prevent a task from proceeding
+  const BLOCKING_DEPENDENCY_TYPES = ['blocks', 'parent-child', 'awaits'];
+
+  // GET /api/tasks/:id/dependency-tasks - Get hydrated dependency info for UI display
+  app.get('/api/tasks/:id/dependency-tasks', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+
+      // Verify task exists
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      // Get tasks that block this task (blockedBy)
+      const dependencies = await api.getDependencies(taskId);
+      const blockingDeps = dependencies.filter(
+        (dep) => dep.blockedId === taskId && BLOCKING_DEPENDENCY_TYPES.includes(dep.type)
+      );
+
+      // Get tasks that this task blocks (blocks)
+      const dependents = await api.getDependents(taskId);
+      const blockedDeps = dependents.filter(
+        (dep) => dep.blockerId === taskId && BLOCKING_DEPENDENCY_TYPES.includes(dep.type)
+      );
+
+      // Hydrate task details for blockedBy
+      const blockedBy = await Promise.all(
+        blockingDeps.map(async (dep) => {
+          const blockerTask = await api.get<Task>(dep.blockerId as ElementId);
+          if (blockerTask && blockerTask.type === ElementType.TASK) {
+            return {
+              dependencyType: dep.type,
+              task: {
+                id: blockerTask.id,
+                title: blockerTask.title,
+                status: blockerTask.status,
+                priority: blockerTask.priority,
+              },
+            };
+          }
+          return null;
+        })
+      );
+
+      // Hydrate task details for blocks
+      const blocks = await Promise.all(
+        blockedDeps.map(async (dep) => {
+          const blockedTask = await api.get<Task>(dep.blockedId as ElementId);
+          if (blockedTask && blockedTask.type === ElementType.TASK) {
+            return {
+              dependencyType: dep.type,
+              task: {
+                id: blockedTask.id,
+                title: blockedTask.title,
+                status: blockedTask.status,
+                priority: blockedTask.priority,
+              },
+            };
+          }
+          return null;
+        })
+      );
+
+      // Filter out nulls
+      const filteredBlockedBy = blockedBy.filter(Boolean);
+      const filteredBlocks = blocks.filter(Boolean);
+
+      // Calculate progress (resolved = closed blockers)
+      const resolvedCount = filteredBlockedBy.filter((dep) => {
+        return dep?.task?.status === TaskStatus.CLOSED;
+      }).length;
+
+      return c.json({
+        blockedBy: filteredBlockedBy,
+        blocks: filteredBlocks,
+        progress: {
+          resolved: resolvedCount,
+          total: filteredBlockedBy.length,
+        },
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to get task dependencies:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   return app;
 }

@@ -47,12 +47,14 @@ import {
 } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge, MergeStatusBadge } from './index';
+import { TaskDependencySection } from './TaskDependencySection';
 import { MarkdownContent } from '../shared/MarkdownContent';
 import type { Task, Agent, Priority, TaskStatus, Complexity } from '../../api/types';
 
 interface TaskDetailPanelProps {
   taskId: string;
   onClose: () => void;
+  onNavigateToTask?: (taskId: string) => void;
 }
 
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
@@ -80,7 +82,7 @@ const COMPLEXITY_OPTIONS: { value: number; label: string }[] = [
   { value: 5, label: 'Very Complex' },
 ];
 
-export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ taskId, onClose, onNavigateToTask }: TaskDetailPanelProps) {
   const { data, isLoading, error } = useTask(taskId);
   const { data: agentsData } = useAgents('worker');
   const updateTask = useUpdateTask();
@@ -321,6 +323,12 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
         {/* Attachments */}
         <AttachmentsSection taskId={task.id} />
+
+        {/* Dependencies */}
+        <TaskDependencySection
+          taskId={task.id}
+          onNavigateToTask={onNavigateToTask}
+        />
 
         {/* Orchestrator Metadata Section */}
         {orchestratorMeta && (

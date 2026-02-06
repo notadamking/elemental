@@ -553,7 +553,7 @@ export function TasksPage() {
           />
           {/* Panel */}
           <div className="absolute right-0 top-0 h-full w-full max-w-lg bg-[var(--color-surface)] shadow-xl border-l border-[var(--color-border)] animate-slide-in-right">
-            <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} />
+            <TaskDetailPanel taskId={selectedTaskId} onClose={handleCloseDetail} onNavigateToTask={handleSelectTask} />
           </div>
         </div>
       )}

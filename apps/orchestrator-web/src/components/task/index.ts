@@ -30,6 +30,7 @@ export { TaskCard } from './TaskCard';
 export { TaskRow } from './TaskRow';
 export { TaskDetailPanel } from './TaskDetailPanel';
 export { CreateTaskModal } from './CreateTaskModal';
+export { TaskDependencySection } from './TaskDependencySection';
 
 // New enhanced task components
 export { SortByDropdown } from './SortByDropdown';

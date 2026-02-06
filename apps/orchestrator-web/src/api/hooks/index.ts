@@ -1,5 +1,6 @@
 export * from './useAgents';
 export * from './useTasks';
+export * from './useTaskDependencies';
 export * from './useActivity';
 export * from './useNotifications';
 export * from './useRealtimeEvents';
