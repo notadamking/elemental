@@ -34,3 +34,18 @@ export {
   formatKeyBinding,
   getAllShortcuts,
 } from './keyboard';
+
+// Language detection for Monaco editor
+export {
+  type MonacoLanguage,
+  type FileCategory,
+  type LanguageInfo,
+  detectLanguageFromFilename,
+  detectLanguageFromContentType,
+  getMonacoLanguage,
+  getMonacoLanguageFromContentType,
+  getFileCategory,
+  isCodeFile,
+  isConfigFile,
+  isDataFile,
+} from './language-detection';
