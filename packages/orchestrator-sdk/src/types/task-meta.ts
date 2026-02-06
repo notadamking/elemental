@@ -105,6 +105,29 @@ export interface OrchestratorTaskMeta {
 
   /** History of all handoffs for this task */
   readonly handoffHistory?: HandoffHistoryEntry[];
+
+  // ----------------------------------------
+  // Branch Sync Information (for merge steward review)
+  // ----------------------------------------
+
+  /** Result of the most recent branch sync with master */
+  readonly lastSyncResult?: SyncResultMeta;
+}
+
+/**
+ * Metadata about a branch sync operation result
+ */
+export interface SyncResultMeta {
+  /** Whether the sync succeeded without conflicts */
+  readonly success: boolean;
+  /** List of conflicted file paths (if any) */
+  readonly conflicts?: string[];
+  /** Error message (if sync failed for non-conflict reasons) */
+  readonly error?: string;
+  /** Human-readable message */
+  readonly message: string;
+  /** When the sync was performed */
+  readonly syncedAt: Timestamp;
 }
 
 // ============================================================================

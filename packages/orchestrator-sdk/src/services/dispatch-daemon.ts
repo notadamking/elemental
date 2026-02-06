@@ -36,6 +36,7 @@ import { getAgentMetadata } from './agent-registry.js';
 import type { SessionManager, SessionRecord } from '../runtime/session-manager.js';
 import type { DispatchService, DispatchOptions } from './dispatch-service.js';
 import type { WorktreeManager, CreateWorktreeResult } from '../git/worktree-manager.js';
+import type { SyncResult } from '../cli/commands/task.js';
 import type { TaskAssignmentService } from './task-assignment-service.js';
 import type { StewardScheduler } from './steward-scheduler.js';
 import type { WorkerMetadata, StewardMetadata } from '../types/agent.js';
@@ -1430,8 +1431,18 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   /**
    * Builds the initial prompt for a merge steward session.
    * Includes the steward role prompt (steward-merge.md) followed by task context.
+   *
+   * @param task - The task being reviewed
+   * @param stewardId - The steward's entity ID
+   * @param stewardFocus - The steward's focus area (merge or health)
+   * @param syncResult - Optional result from pre-spawn branch sync
    */
-  private async buildStewardPrompt(task: Task, stewardId: EntityId, stewardFocus: 'merge' | 'health' = 'merge'): Promise<string> {
+  private async buildStewardPrompt(
+    task: Task,
+    stewardId: EntityId,
+    stewardFocus: 'merge' | 'health' = 'merge',
+    syncResult?: SyncResult
+  ): Promise<string> {
     const parts: string[] = [];
 
     // Load and include the steward role prompt
@@ -1478,6 +1489,34 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       parts.push(`**Priority:** ${task.priority}`);
     }
 
+    // Include sync status section if sync was attempted
+    if (syncResult) {
+      parts.push('', '## Sync Status', '');
+      parts.push('The branch was synced with master before your review.', '');
+
+      if (syncResult.success) {
+        parts.push('**Result**: SUCCESS');
+        parts.push('');
+        parts.push('Branch is up-to-date with master. `git diff origin/master..HEAD` will show only this task\'s changes.');
+      } else if (syncResult.conflicts && syncResult.conflicts.length > 0) {
+        parts.push('**Result**: CONFLICTS');
+        parts.push('');
+        parts.push('**Conflicted files**:');
+        for (const file of syncResult.conflicts) {
+          parts.push(`- ${file}`);
+        }
+        parts.push('');
+        parts.push('**Your first step is to resolve these conflicts before reviewing.**');
+        parts.push('See the conflict resolution guidance in your operating instructions.');
+      } else {
+        parts.push('**Result**: ERROR');
+        parts.push('');
+        parts.push(`**Error**: ${syncResult.error ?? syncResult.message}`);
+        parts.push('');
+        parts.push('You may need to manually sync the branch with `el task sync ' + task.id + '`.');
+      }
+    }
+
     // Fetch and include the description content
     if (task.descriptionRef) {
       try {
@@ -1510,14 +1549,12 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
   /**
    * Spawns a merge steward session for a task in REVIEW status.
+   * Syncs the branch with master before spawning to ensure clean diffs.
    */
   private async spawnMergeStewardForTask(steward: AgentEntity, task: Task): Promise<void> {
     const stewardId = asEntityId(steward.id);
     const meta = getAgentMetadata(steward) as StewardMetadata | undefined;
     const stewardFocus = meta?.stewardFocus ?? 'merge';
-
-    // Build the steward prompt with full context
-    const initialPrompt = await this.buildStewardPrompt(task, stewardId, stewardFocus as 'merge' | 'health');
 
     // Get task metadata for worktree path
     const taskMeta = task.metadata as Record<string, unknown> | undefined;
@@ -1532,6 +1569,33 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         worktreePath = undefined;
       }
     }
+
+    // Phase 1: Sync branch with master before spawning steward
+    // This ensures `git diff origin/master..HEAD` shows only the task's changes
+    let syncResult: SyncResult | undefined;
+    if (worktreePath) {
+      console.log(`[dispatch-daemon] Syncing task ${task.id} branch before steward spawn...`);
+      syncResult = await this.syncTaskBranch(task);
+
+      // Store sync result in task metadata for audit trail
+      await this.api.update<Task>(task.id, {
+        metadata: updateOrchestratorTaskMeta(
+          task.metadata as Record<string, unknown> | undefined,
+          {
+            lastSyncResult: {
+              success: syncResult.success,
+              conflicts: syncResult.conflicts,
+              error: syncResult.error,
+              message: syncResult.message,
+              syncedAt: new Date().toISOString(),
+            },
+          }
+        ),
+      });
+    }
+
+    // Build the steward prompt with full context including sync result
+    const initialPrompt = await this.buildStewardPrompt(task, stewardId, stewardFocus as 'merge' | 'health', syncResult);
 
     const workingDirectory = worktreePath ?? this.config.projectRoot;
 
@@ -1904,6 +1968,138 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
     }
     return `[MESSAGE RECEIVED FROM ${senderId}]: ${content}`;
+  }
+
+  /**
+   * Syncs a task's branch with the main branch before steward review.
+   *
+   * This ensures that when a merge steward reviews a PR, the diff against
+   * master only shows the task's actual changes (not other merged work).
+   *
+   * @param task - The task to sync
+   * @returns SyncResult with success/conflicts/error status
+   */
+  private async syncTaskBranch(task: Task): Promise<SyncResult> {
+    const taskMeta = task.metadata as Record<string, unknown> | undefined;
+    const orchestratorMeta = taskMeta?.orchestrator as Record<string, unknown> | undefined;
+    const worktreePath = orchestratorMeta?.worktree as string | undefined;
+    const branch = orchestratorMeta?.branch as string | undefined;
+
+    // Check for worktree path
+    if (!worktreePath) {
+      return {
+        success: false,
+        error: 'No worktree path found in task metadata',
+        message: 'Task has no worktree path - cannot sync',
+      };
+    }
+
+    // Verify worktree exists
+    const worktreeExists = await this.worktreeManager.worktreeExists(worktreePath);
+    if (!worktreeExists) {
+      return {
+        success: false,
+        error: `Worktree does not exist: ${worktreePath}`,
+        message: `Worktree not found at ${worktreePath}`,
+        worktreePath,
+        branch,
+      };
+    }
+
+    // Import node modules for git operations
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const path = await import('node:path');
+    const execFileAsync = promisify(execFile);
+
+    // Resolve full worktree path
+    const workspaceRoot = this.worktreeManager.getWorkspaceRoot();
+    const fullWorktreePath = path.isAbsolute(worktreePath)
+      ? worktreePath
+      : path.join(workspaceRoot, worktreePath);
+
+    // Fetch from origin
+    try {
+      await execFileAsync('git', ['fetch', 'origin'], {
+        cwd: fullWorktreePath,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+    } catch (fetchError) {
+      return {
+        success: false,
+        error: `Failed to fetch from origin: ${(fetchError as Error).message}`,
+        message: 'Git fetch failed',
+        worktreePath,
+        branch,
+      };
+    }
+
+    // Get default branch
+    const defaultBranch = await this.worktreeManager.getDefaultBranch();
+    const remoteBranch = `origin/${defaultBranch}`;
+
+    // Attempt to merge
+    try {
+      await execFileAsync('git', ['merge', remoteBranch, '--no-edit'], {
+        cwd: fullWorktreePath,
+        encoding: 'utf8',
+        timeout: 120_000,
+      });
+
+      // Merge succeeded
+      console.log(`[dispatch-daemon] Synced task ${task.id} branch with ${remoteBranch}`);
+      return {
+        success: true,
+        message: `Branch synced with ${remoteBranch}`,
+        worktreePath,
+        branch,
+      };
+    } catch (mergeError) {
+      // Check for merge conflicts
+      try {
+        const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain'], {
+          cwd: fullWorktreePath,
+          encoding: 'utf8',
+        });
+
+        // Parse conflicted files (UU, AA, DD, AU, UA, DU, UD)
+        const conflictPatterns = /^(UU|AA|DD|AU|UA|DU|UD)\s+(.+)$/gm;
+        const conflicts: string[] = [];
+        let match;
+        while ((match = conflictPatterns.exec(statusOutput)) !== null) {
+          conflicts.push(match[2]);
+        }
+
+        if (conflicts.length > 0) {
+          console.log(`[dispatch-daemon] Merge conflicts detected for task ${task.id}: ${conflicts.join(', ')}`);
+          return {
+            success: false,
+            conflicts,
+            message: `Merge conflicts detected in ${conflicts.length} file(s)`,
+            worktreePath,
+            branch,
+          };
+        }
+
+        // Some other merge error
+        return {
+          success: false,
+          error: (mergeError as Error).message,
+          message: 'Merge failed (not due to conflicts)',
+          worktreePath,
+          branch,
+        };
+      } catch {
+        return {
+          success: false,
+          error: (mergeError as Error).message,
+          message: 'Merge failed',
+          worktreePath,
+          branch,
+        };
+      }
+    }
   }
 }
 

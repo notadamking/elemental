@@ -6,6 +6,7 @@
  * - task complete <task-id>: Complete a task and optionally create a PR
  * - task merge <task-id>: Mark a task as merged and close it
  * - task reject <task-id>: Mark a task merge as failed and reopen it
+ * - task sync <task-id>: Sync a task branch with the main branch
  */
 
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elemental/sdk/cli';
@@ -570,6 +571,275 @@ Examples:
 };
 
 // ============================================================================
+// Task Sync Command
+// ============================================================================
+
+/**
+ * Result of a branch sync operation
+ */
+export interface SyncResult {
+  /** Whether the sync succeeded without conflicts */
+  success: boolean;
+  /** List of conflicted file paths (if any) */
+  conflicts?: string[];
+  /** Error message (if sync failed for non-conflict reasons) */
+  error?: string;
+  /** Human-readable message */
+  message: string;
+  /** The worktree path used */
+  worktreePath?: string;
+  /** The branch that was synced */
+  branch?: string;
+}
+
+async function taskSyncHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [taskId] = args;
+
+  if (!taskId) {
+    return failure('Usage: el task sync <task-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = await createOrchestratorApi(options);
+  if (error || !api) {
+    return failure(error ?? 'Failed to create API', ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    // 1. Get task and its metadata
+    const task = await api.get<Task>(taskId as ElementId);
+    if (!task) {
+      return failure(`Task not found: ${taskId}`, ExitCode.GENERAL_ERROR);
+    }
+
+    // 2. Extract worktree and branch from task metadata
+    const taskMeta = task.metadata as Record<string, unknown> | undefined;
+    const orchestratorMeta = taskMeta?.orchestrator as Record<string, unknown> | undefined;
+    const worktreePath = orchestratorMeta?.worktree as string | undefined;
+    const branch = orchestratorMeta?.branch as string | undefined;
+
+    if (!worktreePath) {
+      const syncResult: SyncResult = {
+        success: false,
+        error: 'No worktree path found in task metadata',
+        message: 'Task has no worktree path - cannot sync',
+      };
+      const mode = getOutputMode(options);
+      if (mode === 'json') {
+        return success(syncResult);
+      }
+      return failure(syncResult.message, ExitCode.GENERAL_ERROR);
+    }
+
+    // 3. Check if worktree exists
+    const { findElementalDir } = await import('@elemental/sdk');
+    const { createWorktreeManager } = await import('../../git/worktree-manager.js');
+
+    const elementalDir = findElementalDir(process.cwd());
+    if (!elementalDir) {
+      return failure('No .elemental directory found. Run "el init" first.', ExitCode.GENERAL_ERROR);
+    }
+
+    // Get workspace root (parent of .elemental)
+    const path = await import('node:path');
+    const workspaceRoot = path.dirname(elementalDir);
+
+    const worktreeManager = createWorktreeManager({ workspaceRoot });
+    await worktreeManager.initWorkspace();
+
+    const worktreeExists = await worktreeManager.worktreeExists(worktreePath);
+    if (!worktreeExists) {
+      const syncResult: SyncResult = {
+        success: false,
+        error: `Worktree does not exist: ${worktreePath}`,
+        message: `Worktree not found at ${worktreePath}`,
+        worktreePath,
+        branch,
+      };
+      const mode = getOutputMode(options);
+      if (mode === 'json') {
+        return success(syncResult);
+      }
+      return failure(syncResult.message, ExitCode.GENERAL_ERROR);
+    }
+
+    // 4. Run git fetch and merge in the worktree
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execFileAsync = promisify(execFile);
+
+    // Resolve full worktree path
+    const fullWorktreePath = path.isAbsolute(worktreePath)
+      ? worktreePath
+      : path.join(workspaceRoot, worktreePath);
+
+    // Fetch from origin
+    try {
+      await execFileAsync('git', ['fetch', 'origin'], {
+        cwd: fullWorktreePath,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+    } catch (fetchError) {
+      const syncResult: SyncResult = {
+        success: false,
+        error: `Failed to fetch from origin: ${(fetchError as Error).message}`,
+        message: 'Git fetch failed',
+        worktreePath,
+        branch,
+      };
+      const mode = getOutputMode(options);
+      if (mode === 'json') {
+        return success(syncResult);
+      }
+      return failure(syncResult.message, ExitCode.GENERAL_ERROR);
+    }
+
+    // Detect the default branch (main or master)
+    const defaultBranch = await worktreeManager.getDefaultBranch();
+    const remoteBranch = `origin/${defaultBranch}`;
+
+    // Attempt to merge
+    try {
+      await execFileAsync('git', ['merge', remoteBranch, '--no-edit'], {
+        cwd: fullWorktreePath,
+        encoding: 'utf8',
+        timeout: 120_000,
+      });
+
+      // Merge succeeded
+      const syncResult: SyncResult = {
+        success: true,
+        message: `Branch synced with ${remoteBranch}`,
+        worktreePath,
+        branch,
+      };
+
+      const mode = getOutputMode(options);
+      if (mode === 'json') {
+        return success(syncResult);
+      }
+      if (mode === 'quiet') {
+        return success('synced');
+      }
+      return success(syncResult, `✓ Branch synced with ${remoteBranch}`);
+    } catch (mergeError) {
+      // Check for merge conflicts
+      try {
+        const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain'], {
+          cwd: fullWorktreePath,
+          encoding: 'utf8',
+        });
+
+        // Parse conflicted files (lines starting with UU, AA, DD, AU, UA, DU, UD)
+        const conflictPatterns = /^(UU|AA|DD|AU|UA|DU|UD)\s+(.+)$/gm;
+        const conflicts: string[] = [];
+        let match;
+        while ((match = conflictPatterns.exec(statusOutput)) !== null) {
+          conflicts.push(match[2]);
+        }
+
+        if (conflicts.length > 0) {
+          const syncResult: SyncResult = {
+            success: false,
+            conflicts,
+            message: `Merge conflicts detected in ${conflicts.length} file(s)`,
+            worktreePath,
+            branch,
+          };
+
+          const mode = getOutputMode(options);
+          if (mode === 'json') {
+            return success(syncResult);
+          }
+          if (mode === 'quiet') {
+            return success(conflicts.join('\n'));
+          }
+
+          const lines = [
+            `⚠ Merge conflicts detected in ${conflicts.length} file(s):`,
+            ...conflicts.map(f => `  - ${f}`),
+            '',
+            'Resolve conflicts, then commit the resolution.',
+          ];
+          return success(syncResult, lines.join('\n'));
+        }
+
+        // Some other merge error (not conflicts)
+        const syncResult: SyncResult = {
+          success: false,
+          error: (mergeError as Error).message,
+          message: 'Merge failed (not due to conflicts)',
+          worktreePath,
+          branch,
+        };
+
+        const mode = getOutputMode(options);
+        if (mode === 'json') {
+          return success(syncResult);
+        }
+        return failure(syncResult.message, ExitCode.GENERAL_ERROR);
+      } catch {
+        // Failed to check status
+        const syncResult: SyncResult = {
+          success: false,
+          error: (mergeError as Error).message,
+          message: 'Merge failed',
+          worktreePath,
+          branch,
+        };
+
+        const mode = getOutputMode(options);
+        if (mode === 'json') {
+          return success(syncResult);
+        }
+        return failure(syncResult.message, ExitCode.GENERAL_ERROR);
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to sync task branch: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const taskSyncCommand: Command = {
+  name: 'sync',
+  description: 'Sync a task branch with the main branch',
+  usage: 'el task sync <task-id>',
+  help: `Sync a task's branch with the main branch (master/main).
+
+This command:
+1. Looks up the task's worktree path and branch from metadata
+2. Runs \`git fetch origin\` in the worktree
+3. Attempts \`git merge origin/main\` (or origin/master)
+4. Reports success, conflicts, or errors
+
+This is typically run by the dispatch daemon before spawning a merge steward,
+or by the steward during review if master advances.
+
+Arguments:
+  task-id    Task identifier to sync
+
+Output (JSON mode):
+  {
+    "success": true/false,
+    "conflicts": ["file1.ts", "file2.ts"],  // if conflicts
+    "error": "message",                      // if error
+    "message": "human-readable status",
+    "worktreePath": "/path/to/worktree",
+    "branch": "agent/bob/el-123-feature"
+  }
+
+Examples:
+  el task sync el-abc123
+  el task sync el-abc123 --json`,
+  options: [],
+  handler: taskSyncHandler as Command['handler'],
+};
+
+// ============================================================================
 // Main Task Command
 // ============================================================================
 
@@ -584,17 +854,20 @@ Subcommands:
   complete       Complete a task and optionally create a merge request
   merge          Mark a task as merged and close it
   reject         Mark a task merge as failed and reopen it
+  sync           Sync a task branch with the main branch
 
 Examples:
   el task handoff el-abc123 --message "Need help with frontend"
   el task complete el-abc123 --summary "Implemented feature"
   el task merge el-abc123
-  el task reject el-abc123 --reason "Tests failed"`,
+  el task reject el-abc123 --reason "Tests failed"
+  el task sync el-abc123`,
   subcommands: {
     handoff: taskHandoffCommand,
     complete: taskCompleteCommand,
     merge: taskMergeCommand,
     reject: taskRejectCommand,
+    sync: taskSyncCommand,
   },
   handler: taskHandoffCommand.handler, // Default to handoff
   options: [],
