@@ -221,17 +221,17 @@ test.describe('TB-O25c: Settings Page', () => {
     test('displays command palette shortcut', async ({ page }) => {
       await page.goto('/settings');
 
-      await expect(page.getByTestId('shortcut-command-palette')).toBeVisible();
+      await expect(page.getByTestId('shortcut-row-action.commandPalette')).toBeVisible();
       // Check for the keyboard shortcut text
-      await expect(page.getByTestId('shortcut-command-palette').locator('kbd')).toContainText('K');
+      await expect(page.getByTestId('shortcut-row-action.commandPalette').locator('kbd')).toContainText('K');
     });
 
     test('displays all expected shortcuts', async ({ page }) => {
       await page.goto('/settings');
 
-      await expect(page.getByTestId('shortcut-command-palette')).toBeVisible();
-      await expect(page.getByTestId('shortcut-toggle-sidebar')).toBeVisible();
-      await expect(page.getByTestId('shortcut-toggle-director-panel')).toBeVisible();
+      await expect(page.getByTestId('shortcut-row-action.commandPalette')).toBeVisible();
+      await expect(page.getByTestId('shortcut-row-action.toggleSidebar')).toBeVisible();
+      await expect(page.getByTestId('shortcut-row-action.toggleDirector')).toBeVisible();
     });
   });
 

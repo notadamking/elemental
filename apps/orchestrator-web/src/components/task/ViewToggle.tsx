@@ -17,7 +17,7 @@ export function ViewToggle({ view, onViewChange }: ViewToggleProps) {
   return (
     <div
       className="flex items-center bg-[var(--color-surface-elevated)] rounded-md p-0.5 border border-[var(--color-border)]"
-      data-testid="view-toggle"
+      data-testid="tasks-view-toggle"
     >
       <button
         onClick={() => onViewChange('list')}
@@ -26,7 +26,7 @@ export function ViewToggle({ view, onViewChange }: ViewToggleProps) {
             ? 'bg-[var(--color-primary)] text-white shadow-sm'
             : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
         }`}
-        data-testid="view-toggle-list"
+        data-testid="tasks-view-list"
         aria-label="List view (V L)"
         title="List view (V L)"
       >
@@ -40,7 +40,7 @@ export function ViewToggle({ view, onViewChange }: ViewToggleProps) {
             ? 'bg-[var(--color-primary)] text-white shadow-sm'
             : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]'
         }`}
-        data-testid="view-toggle-kanban"
+        data-testid="tasks-view-kanban"
         aria-label="Kanban view (V K)"
         title="Kanban view (V K)"
       >

@@ -51,10 +51,12 @@ function CustomResizeHandle({
   orientation,
   onSwap,
   swapTestId,
+  testId,
 }: {
   orientation: 'horizontal' | 'vertical';
   onSwap?: () => void;
   swapTestId?: string;
+  testId?: string;
 }) {
   const isHorizontal = orientation === 'horizontal';
   const SwapIcon = isHorizontal ? ArrowLeftRight : ArrowUpDown;
@@ -154,6 +156,7 @@ function CustomResizeHandle({
         hover:bg-[var(--color-primary-muted)]
         transition-colors duration-150
       `}
+      data-testid={testId}
     >
       {/* Visual indicator line - only shown when no swap button */}
       {!onSwap && (
