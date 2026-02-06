@@ -667,10 +667,12 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         mergeStatus: ['pending'],
       });
 
-      // Filter out tasks that already have a merge steward assigned
-      // (defense-in-depth: mergeStatus should already be 'testing', but guard
-      // against races where metadata update hasn't persisted yet)
-      const unclaimedReviewTasks = reviewTasks.filter((ta) => !ta.orchestratorMeta?.assignedAgent);
+      // Filter to tasks not already claimed by a steward.
+      // We check task.assignee rather than orchestratorMeta.assignedAgent because
+      // assignedAgent retains the original worker's ID after completeTask() clears
+      // the top-level assignee. A steward claim sets task.assignee to the steward ID
+      // (in spawnMergeStewardForTask), so an unset assignee means no steward has it.
+      const unclaimedReviewTasks = reviewTasks.filter((ta) => !ta.task.assignee);
 
       for (const steward of mergeStewards) {
         if (unclaimedReviewTasks.length === 0) break;
@@ -890,14 +892,20 @@ export class DispatchDaemonImpl implements DispatchDaemon {
             continue;
           }
 
-          // Move back to REVIEW with incremented reconciliation count
+          // Move back to REVIEW with incremented reconciliation count.
+          // Clear assignee so steward dispatch sees it as unclaimed.
+          // Reset mergeStatus to 'pending' for a clean steward pickup.
           await this.api.update<Task>(task.id, {
             status: TaskStatus.REVIEW,
+            assignee: undefined,
             closedAt: undefined,
             closeReason: undefined,
             metadata: updateOrchestratorTaskMeta(
               task.metadata as Record<string, unknown> | undefined,
-              { reconciliationCount: currentCount + 1 }
+              {
+                reconciliationCount: currentCount + 1,
+                mergeStatus: 'pending' as const,
+              }
             ),
           });
 

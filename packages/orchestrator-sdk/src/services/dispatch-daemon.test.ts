@@ -706,17 +706,33 @@ describe('pollWorkflowTasks - merge steward dispatch', () => {
     expect(result2.processed).toBe(0);
   });
 
-  test('skips REVIEW tasks already assigned to a steward', async () => {
+  test('dispatches REVIEW task even when assignedAgent is set (worker ID from completion)', async () => {
     await createTestSteward('merge-steward-2');
 
-    // Create a REVIEW task that already has assignedAgent and mergeStatus: 'testing'
-    await createReviewTask('Already assigned review task', {
-      assignedAgent: 'some-other-steward' as EntityId,
-      mergeStatus: 'testing',
+    // Simulate a task completed by a worker: assignedAgent is the worker, but
+    // top-level assignee is cleared by completeTask(). This should NOT block dispatch.
+    await createReviewTask('Task completed by worker', {
+      assignedAgent: 'some-worker-id' as EntityId,
     });
 
     const result = await daemon.pollWorkflowTasks();
-    // mergeStatus filter should exclude 'testing' tasks; assignedAgent filter is defense-in-depth
+    expect(result.processed).toBe(1);
+  });
+
+  test('skips REVIEW tasks already assigned to a steward', async () => {
+    await createTestSteward('merge-steward-2b');
+
+    // Create a REVIEW task with top-level assignee set (steward claimed it)
+    // and mergeStatus: 'testing'
+    const task = await createReviewTask('Already assigned review task', {
+      assignedAgent: 'some-other-steward' as EntityId,
+      mergeStatus: 'testing',
+    });
+    // Set top-level assignee to simulate steward claim
+    await api.update<Task>(task.id, { assignee: 'some-other-steward' as EntityId });
+
+    const result = await daemon.pollWorkflowTasks();
+    // mergeStatus filter excludes 'testing'; assignee filter is defense-in-depth
     expect(result.processed).toBe(0);
   });
 
