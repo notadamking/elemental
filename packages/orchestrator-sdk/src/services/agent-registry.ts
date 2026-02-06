@@ -200,6 +200,11 @@ export interface AgentRegistry {
     updates: { name?: string }
   ): Promise<AgentEntity>;
 
+  /**
+   * Deletes an agent and its associated channel
+   */
+  deleteAgent(entityId: EntityId): Promise<void>;
+
   // ----------------------------------------
   // Agent Channel Operations (TB-O7a)
   // ----------------------------------------
@@ -487,6 +492,29 @@ export class AgentRegistryImpl implements AgentRegistry {
     const updated = await this.api.update<Entity>(asElementId(entityId), updateData as Partial<Entity>);
 
     return updated as AgentEntity;
+  }
+
+  async deleteAgent(entityId: EntityId): Promise<void> {
+    const agent = await this.getAgent(entityId);
+    if (!agent) {
+      throw new Error(`Agent not found: ${entityId}`);
+    }
+
+    // Get the agent's channel ID from metadata
+    const meta = getAgentMetadata(agent);
+    const channelId = meta?.channelId;
+
+    // Delete the agent's channel if it exists
+    if (channelId) {
+      try {
+        await this.api.delete(asElementId(channelId));
+      } catch {
+        // Best-effort channel deletion - continue even if it fails
+      }
+    }
+
+    // Delete the agent entity
+    await this.api.delete(asElementId(entityId));
   }
 
   // ----------------------------------------

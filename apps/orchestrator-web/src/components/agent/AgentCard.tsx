@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Pencil, Inbox } from 'lucide-react';
+import { Play, Square, RefreshCw, Terminal, MoreVertical, Clock, GitBranch, Pencil, Inbox, Trash2 } from 'lucide-react';
 import type { Agent, WorkerMetadata, StewardMetadata, SessionStatus } from '../../api/types';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { AgentRoleBadge } from './AgentRoleBadge';
@@ -21,6 +21,7 @@ interface AgentCardProps {
   onRestart?: () => void;
   onOpenTerminal?: () => void;
   onRename?: () => void;
+  onDelete?: () => void;
   isStarting?: boolean;
   isStopping?: boolean;
 }
@@ -33,6 +34,7 @@ export function AgentCard({
   onRestart,
   onOpenTerminal,
   onRename,
+  onDelete,
   isStarting,
   isStopping,
 }: AgentCardProps) {
@@ -131,6 +133,21 @@ export function AgentCard({
               >
                 <Pencil className="w-3.5 h-3.5" />
                 Rename agent
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete?.();
+                }}
+                className="
+                  w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm
+                  text-[var(--color-danger)]
+                  hover:bg-[var(--color-surface-hover)]
+                "
+                data-testid={`agent-delete-${agent.id}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete agent
               </button>
             </div>
           )}

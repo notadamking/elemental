@@ -9,9 +9,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { Users, Plus, Search, Crown, Wrench, Shield, Loader2, AlertCircle, RefreshCw, Network } from 'lucide-react';
 import { getCurrentBinding, formatKeyBinding } from '../../lib/keyboard';
-import { useAgentsByRole, useStartAgentSession, useStopAgentSession, useDirector, useSessions } from '../../api/hooks/useAgents';
+import { useAgentsByRole, useStartAgentSession, useStopAgentSession, useDeleteAgent, useDirector, useSessions } from '../../api/hooks/useAgents';
 import { useTasks } from '../../api/hooks/useTasks';
-import { AgentCard, CreateAgentDialog, RenameAgentDialog, StartAgentDialog } from '../../components/agent';
+import { AgentCard, CreateAgentDialog, DeleteAgentDialog, RenameAgentDialog, StartAgentDialog } from '../../components/agent';
 import { AgentWorkspaceGraph } from '../../components/agent-graph';
 import type { Agent, SessionStatus, AgentRole, StewardFocus } from '../../api/types';
 
@@ -46,6 +46,10 @@ export function AgentsPage() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameAgent, setRenameAgent] = useState<{ id: string; name: string } | null>(null);
 
+  // Delete Agent Dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteAgentInfo, setDeleteAgentInfo] = useState<{ id: string; name: string } | null>(null);
+
   // Start Agent Dialog state (for ephemeral workers)
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [startDialogAgent, setStartDialogAgent] = useState<{ id: string; name: string } | null>(null);
@@ -71,6 +75,7 @@ export function AgentsPage() {
 
   const startSession = useStartAgentSession();
   const stopSession = useStopAgentSession();
+  const deleteAgent = useDeleteAgent();
 
   // Get Director session status from dedicated hook (polls for updates)
   const { hasActiveSession: directorHasActiveSession } = useDirector();
@@ -247,6 +252,27 @@ export function AgentsPage() {
     setRenameAgent(null);
   };
 
+  // Delete Agent Dialog handlers
+  const openDeleteDialog = (agent: { id: string; name: string }) => {
+    setDeleteAgentInfo(agent);
+    setDeleteDialogOpen(true);
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setDeleteAgentInfo(null);
+  };
+
+  const handleDeleteAgent = async () => {
+    if (!deleteAgentInfo) return;
+    try {
+      await deleteAgent.mutateAsync({ agentId: deleteAgentInfo.id });
+      closeDeleteDialog();
+    } catch {
+      // Error handled by mutation state
+    }
+  };
+
   // Count agents by tab
   const agentCount = (director ? 1 : 0) + ephemeralWorkers.length + persistentWorkers.length;
   const stewardCount = stewards.length;
@@ -396,6 +422,7 @@ export function AgentsPage() {
           onStop={handleStopAgent}
           onOpenTerminal={handleOpenTerminal}
           onRename={openRenameDialog}
+          onDelete={openDeleteDialog}
           pendingStart={pendingStart}
           pendingStop={pendingStop}
           onCreateAgent={() => openCreateDialog()}
@@ -408,6 +435,7 @@ export function AgentsPage() {
           onStop={handleStopAgent}
           onOpenTerminal={handleOpenTerminal}
           onRename={openRenameDialog}
+          onDelete={openDeleteDialog}
           pendingStart={pendingStart}
           pendingStop={pendingStop}
           onCreateSteward={() => openCreateDialog('steward')}
@@ -447,6 +475,17 @@ export function AgentsPage() {
           isStarting={pendingStart.has(startDialogAgent.id)}
         />
       )}
+
+      {/* Delete Agent Dialog */}
+      {deleteAgentInfo && (
+        <DeleteAgentDialog
+          isOpen={deleteDialogOpen}
+          onClose={closeDeleteDialog}
+          agentName={deleteAgentInfo.name}
+          onConfirm={handleDeleteAgent}
+          isDeleting={deleteAgent.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -465,6 +504,7 @@ interface AgentsTabProps {
   onStop: (agentId: string) => void;
   onOpenTerminal: (agentId: string) => void;
   onRename: (agent: { id: string; name: string }) => void;
+  onDelete: (agent: { id: string; name: string }) => void;
   pendingStart: Set<string>;
   pendingStop: Set<string>;
   onCreateAgent: () => void;
@@ -481,6 +521,7 @@ function AgentsTab({
   onStop,
   onOpenTerminal,
   onRename,
+  onDelete,
   pendingStart,
   pendingStop,
   onCreateAgent,
@@ -517,6 +558,7 @@ function AgentsTab({
             onStop={() => onStop(director.id)}
             onOpenTerminal={onOpenDirectorPanel}
             onRename={() => onRename({ id: director.id, name: director.name })}
+            onDelete={() => onDelete({ id: director.id, name: director.name })}
             isStarting={pendingStart.has(director.id)}
             isStopping={pendingStop.has(director.id)}
           />
@@ -541,6 +583,7 @@ function AgentsTab({
                 onStop={() => onStop(agent.id)}
                 onOpenTerminal={() => onOpenTerminal(agent.id)}
                 onRename={() => onRename({ id: agent.id, name: agent.name })}
+                onDelete={() => onDelete({ id: agent.id, name: agent.name })}
                 isStarting={pendingStart.has(agent.id)}
                 isStopping={pendingStop.has(agent.id)}
               />
@@ -567,6 +610,7 @@ function AgentsTab({
                 onStop={() => onStop(agent.id)}
                 onOpenTerminal={() => onOpenTerminal(agent.id)}
                 onRename={() => onRename({ id: agent.id, name: agent.name })}
+                onDelete={() => onDelete({ id: agent.id, name: agent.name })}
                 isStarting={pendingStart.has(agent.id)}
                 isStopping={pendingStop.has(agent.id)}
               />
@@ -588,13 +632,14 @@ interface StewardsTabProps {
   onStop: (agentId: string) => void;
   onOpenTerminal: (agentId: string) => void;
   onRename: (agent: { id: string; name: string }) => void;
+  onDelete: (agent: { id: string; name: string }) => void;
   pendingStart: Set<string>;
   pendingStop: Set<string>;
   onCreateSteward: () => void;
   getActiveSessionStatus: (agentId: string) => SessionStatus | undefined;
 }
 
-function StewardsTab({ stewards, onStart, onStop, onOpenTerminal, onRename, pendingStart, pendingStop, onCreateSteward, getActiveSessionStatus }: StewardsTabProps) {
+function StewardsTab({ stewards, onStart, onStop, onOpenTerminal, onRename, onDelete, pendingStart, pendingStop, onCreateSteward, getActiveSessionStatus }: StewardsTabProps) {
   if (stewards.length === 0) {
     return (
       <EmptyState
@@ -646,6 +691,7 @@ function StewardsTab({ stewards, onStart, onStop, onOpenTerminal, onRename, pend
                 onStop={() => onStop(agent.id)}
                 onOpenTerminal={() => onOpenTerminal(agent.id)}
                 onRename={() => onRename({ id: agent.id, name: agent.name })}
+                onDelete={() => onDelete({ id: agent.id, name: agent.name })}
                 isStarting={pendingStart.has(agent.id)}
                 isStopping={pendingStop.has(agent.id)}
               />

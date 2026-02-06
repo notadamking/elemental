@@ -3,6 +3,8 @@ export { AgentStatusBadge } from './AgentStatusBadge';
 export { AgentRoleBadge } from './AgentRoleBadge';
 export { CreateAgentDialog } from './CreateAgentDialog';
 export type { CreateAgentDialogProps } from './CreateAgentDialog';
+export { DeleteAgentDialog } from './DeleteAgentDialog';
+export type { DeleteAgentDialogProps } from './DeleteAgentDialog';
 export { RenameAgentDialog } from './RenameAgentDialog';
 export type { RenameAgentDialogProps } from './RenameAgentDialog';
 export { StartAgentDialog } from './StartAgentDialog';

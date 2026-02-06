@@ -276,6 +276,30 @@ export function createAgentRoutes(services: Services) {
     }
   });
 
+  // DELETE /api/agents/:id
+  app.delete('/api/agents/:id', async (c) => {
+    try {
+      const agentId = c.req.param('id') as EntityId;
+
+      const agent = await agentRegistry.getAgent(agentId);
+      if (!agent) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } }, 404);
+      }
+
+      // Check if agent has an active session
+      const activeSession = sessionManager.getActiveSession(agentId);
+      if (activeSession) {
+        return c.json({ error: { code: 'AGENT_BUSY', message: 'Cannot delete agent with active session. Stop the agent first.' } }, 409);
+      }
+
+      await agentRegistry.deleteAgent(agentId);
+      return c.json({ success: true });
+    } catch (error) {
+      console.error('[orchestrator] Failed to delete agent:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
   // GET /api/agents/:id/status
   app.get('/api/agents/:id/status', async (c) => {
     try {

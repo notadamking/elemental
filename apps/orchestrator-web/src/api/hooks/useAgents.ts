@@ -312,3 +312,19 @@ export function useRenameAgent() {
     },
   });
 }
+
+/**
+ * Hook to delete an agent
+ */
+export function useDeleteAgent() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean }, Error, { agentId: string }>({
+    mutationFn: async ({ agentId }) => {
+      return fetchApi(`/agents/${agentId}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+    },
+  });
+}
