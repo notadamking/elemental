@@ -62,6 +62,9 @@ export interface OrchestratorTaskMeta {
   /** Last test result */
   readonly lastTestResult?: TestResult;
 
+  /** Number of times this task has been reconciled from a closed-but-unmerged state */
+  readonly reconciliationCount?: number;
+
   // ----------------------------------------
   // Handoff Context (for task continuation)
   // ----------------------------------------

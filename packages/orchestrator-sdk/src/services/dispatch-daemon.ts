@@ -118,6 +118,21 @@ export interface DispatchDaemonConfig {
   readonly orphanRecoveryEnabled?: boolean;
 
   /**
+   * Whether closed-but-unmerged task reconciliation is enabled.
+   * Detects tasks with status=CLOSED but mergeStatus not 'merged'
+   * and moves them back to REVIEW so merge stewards can pick them up.
+   * Default: true
+   */
+  readonly closedUnmergedReconciliationEnabled?: boolean;
+
+  /**
+   * Grace period in ms before a closed-but-unmerged task is reconciled.
+   * Prevents racing with in-progress close+merge sequences.
+   * Default: 120000 (2 minutes)
+   */
+  readonly closedUnmergedGracePeriodMs?: number;
+
+  /**
    * Maximum session duration in ms before the daemon terminates it.
    * Prevents stuck workers from blocking their slot indefinitely.
    * Default: 0 (disabled).
@@ -142,7 +157,7 @@ export interface DispatchDaemonConfig {
  */
 export interface PollResult {
   /** The poll type */
-  readonly pollType: 'worker-availability' | 'inbox' | 'steward-trigger' | 'workflow-task' | 'orphan-recovery';
+  readonly pollType: 'worker-availability' | 'inbox' | 'steward-trigger' | 'workflow-task' | 'orphan-recovery' | 'closed-unmerged-reconciliation';
   /** Timestamp when the poll started */
   readonly startedAt: string;
   /** Duration of the poll in milliseconds */
@@ -165,6 +180,8 @@ interface NormalizedConfig {
   stewardTriggerPollEnabled: boolean;
   workflowTaskPollEnabled: boolean;
   orphanRecoveryEnabled: boolean;
+  closedUnmergedReconciliationEnabled: boolean;
+  closedUnmergedGracePeriodMs: number;
   maxSessionDurationMs: number;
   onSessionStarted?: OnSessionStartedCallback;
   projectRoot: string;
@@ -238,6 +255,13 @@ export interface DispatchDaemon {
    * and re-spawns sessions to continue the work.
    */
   recoverOrphanedAssignments(): Promise<PollResult>;
+
+  /**
+   * Manually triggers closed-but-unmerged task reconciliation.
+   * Detects tasks with status=CLOSED but mergeStatus not 'merged'
+   * and moves them back to REVIEW so merge stewards can pick them up.
+   */
+  reconcileClosedUnmergedTasks(): Promise<PollResult>;
 
   // ----------------------------------------
   // Configuration
@@ -822,6 +846,96 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     return result;
   }
 
+  async reconcileClosedUnmergedTasks(): Promise<PollResult> {
+    const startedAt = new Date().toISOString();
+    const startTime = Date.now();
+    let processed = 0;
+    let errors = 0;
+    const errorMessages: string[] = [];
+
+    this.emitter.emit('poll:start', 'closed-unmerged-reconciliation');
+
+    try {
+      // Find tasks that are CLOSED but have a non-merged mergeStatus
+      const stuckTasks = await this.taskAssignment.listAssignments({
+        taskStatus: [TaskStatus.CLOSED],
+        mergeStatus: ['pending', 'testing', 'merging', 'conflict', 'test_failed', 'failed'],
+      });
+
+      const now = Date.now();
+
+      for (const assignment of stuckTasks) {
+        try {
+          const { task, orchestratorMeta } = assignment;
+
+          // Skip tasks without orchestrator metadata (not managed by orchestrator)
+          if (!orchestratorMeta) continue;
+
+          // Grace period: skip if closedAt is within the grace period
+          if (task.closedAt) {
+            const closedAtMs = typeof task.closedAt === 'number'
+              ? task.closedAt
+              : new Date(task.closedAt).getTime();
+            if (now - closedAtMs < this.config.closedUnmergedGracePeriodMs) {
+              continue;
+            }
+          }
+
+          // Safety valve: skip if already reconciled 3+ times (prevents infinite loops)
+          const currentCount = orchestratorMeta.reconciliationCount ?? 0;
+          if (currentCount >= 3) {
+            console.warn(
+              `[dispatch-daemon] Task ${task.id} has been reconciled ${currentCount} times, skipping (safety valve)`
+            );
+            continue;
+          }
+
+          // Move back to REVIEW with incremented reconciliation count
+          await this.api.update<Task>(task.id, {
+            status: TaskStatus.REVIEW,
+            closedAt: undefined,
+            closeReason: undefined,
+            metadata: updateOrchestratorTaskMeta(
+              task.metadata as Record<string, unknown> | undefined,
+              { reconciliationCount: currentCount + 1 }
+            ),
+          });
+
+          processed++;
+          console.log(
+            `[dispatch-daemon] Reconciled closed-but-unmerged task ${task.id} (mergeStatus=${orchestratorMeta.mergeStatus}, attempt=${currentCount + 1})`
+          );
+        } catch (error) {
+          errors++;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errorMessages.push(`Task ${assignment.taskId}: ${errorMessage}`);
+          console.error(`[dispatch-daemon] Error reconciling task ${assignment.taskId}:`, error);
+        }
+      }
+
+      if (processed > 0) {
+        console.log(`[dispatch-daemon] Reconciled ${processed} closed-but-unmerged task(s)`);
+      }
+    } catch (error) {
+      errors++;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errorMessages.push(errorMessage);
+      console.error('[dispatch-daemon] Error in reconcileClosedUnmergedTasks:', error);
+    }
+
+    const result: PollResult = {
+      pollType: 'closed-unmerged-reconciliation',
+      startedAt,
+      durationMs: Date.now() - startTime,
+      processed,
+      errors,
+      errorMessages: errorMessages.length > 0 ? errorMessages : undefined,
+    };
+
+    this.emitter.emit('poll:complete', result);
+    return result;
+  }
+
   // ----------------------------------------
   // Configuration
   // ----------------------------------------
@@ -889,6 +1003,8 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       stewardTriggerPollEnabled: config?.stewardTriggerPollEnabled ?? true,
       workflowTaskPollEnabled: config?.workflowTaskPollEnabled ?? true,
       orphanRecoveryEnabled: config?.orphanRecoveryEnabled ?? true,
+      closedUnmergedReconciliationEnabled: config?.closedUnmergedReconciliationEnabled ?? true,
+      closedUnmergedGracePeriodMs: config?.closedUnmergedGracePeriodMs ?? 120_000,
       maxSessionDurationMs: config?.maxSessionDurationMs ?? 0,
       onSessionStarted: config?.onSessionStarted,
       projectRoot: config?.projectRoot ?? process.cwd(),
@@ -929,6 +1045,13 @@ export class DispatchDaemonImpl implements DispatchDaemon {
 
       if (this.config.workflowTaskPollEnabled) {
         await this.pollWorkflowTasks();
+      }
+
+      // Reconcile closed-but-unmerged tasks after workflow polling so
+      // reconciled tasks get picked up on the next cycle, giving a clean
+      // state transition.
+      if (this.config.closedUnmergedReconciliationEnabled) {
+        await this.reconcileClosedUnmergedTasks();
       }
     } finally {
       this.polling = false;

@@ -293,7 +293,7 @@ daemon.updateConfig({ pollIntervalMs: 10000 });
 
 ### Polling Loops
 
-The daemon runs five polling loops:
+The daemon runs six polling loops:
 
 | Loop | Purpose |
 |------|---------|
@@ -302,6 +302,7 @@ The daemon runs five polling loops:
 | **Inbox Polling** | Deliver messages to agents and spawn sessions when needed |
 | **Steward Triggers** | Check for triggered conditions and create workflows from playbooks |
 | **Workflow Tasks** | Assign workflow tasks to available stewards |
+| **Closed-Unmerged Reconciliation** | Detect CLOSED tasks with non-merged mergeStatus and move them back to REVIEW |
 
 ### Worker Dispatch Behavior
 
@@ -372,6 +373,24 @@ Spawns a headless agent session in a read-only worktree (see `WorktreeManager.cr
 #### `buildTriagePrompt(context)`
 
 Constructs the prompt for a triage session using the `message-triage.md` prompt template. Includes the messages to evaluate and any relevant project context.
+
+### Closed-Unmerged Reconciliation Behavior
+
+Tasks can end up with `status=CLOSED` but `mergeStatus` not `'merged'` (e.g. when `el close` is run on a REVIEW task, or from race conditions between CLI commands and steward processing). These tasks are stuck: hidden from the task list (closed) and invisible to merge stewards (they only query `status=REVIEW`).
+
+The reconciliation poll detects and recovers these stuck tasks:
+
+1. Query for tasks with `status=CLOSED` and `mergeStatus` in `['pending', 'testing', 'merging', 'conflict', 'test_failed', 'failed']`
+2. For each stuck task:
+   - **Grace period:** Skip if `closedAt` is within `closedUnmergedGracePeriodMs` (default: 120s) to avoid racing with in-progress close+merge sequences
+   - **Safety valve:** Skip and warn if `reconciliationCount >= 3` to prevent infinite loops
+   - Move task back to REVIEW status, clear `closedAt` and `closeReason`, increment `reconciliationCount` in metadata
+
+**Configuration:**
+- `closedUnmergedReconciliationEnabled` — enable/disable (default: `true`)
+- `closedUnmergedGracePeriodMs` — grace period before reconciliation (default: `120000`)
+
+**Execution Timing:** Runs after `pollWorkflowTasks()` so reconciled tasks are picked up on the next cycle.
 
 ---
 

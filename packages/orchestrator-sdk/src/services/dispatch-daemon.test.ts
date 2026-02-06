@@ -908,6 +908,211 @@ describe('recoverOrphanedAssignments - merge steward recovery', () => {
   });
 });
 
+describe('reconcileClosedUnmergedTasks', () => {
+  let api: ElementalAPI;
+  let inboxService: InboxService;
+  let agentRegistry: AgentRegistry;
+  let taskAssignment: TaskAssignmentService;
+  let dispatchService: DispatchService;
+  let sessionManager: SessionManager;
+  let worktreeManager: WorktreeManager;
+  let stewardScheduler: StewardScheduler;
+  let daemon: DispatchDaemon;
+  let testDbPath: string;
+  let systemEntity: EntityId;
+
+  beforeEach(async () => {
+    testDbPath = `/tmp/dispatch-daemon-reconcile-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
+    const storage = createStorage({ path: testDbPath, create: true });
+    initializeSchema(storage);
+
+    api = createElementalAPI(storage);
+    inboxService = createInboxService(storage);
+    agentRegistry = createAgentRegistry(api);
+    taskAssignment = createTaskAssignmentService(api);
+    dispatchService = createDispatchService(api, taskAssignment, agentRegistry);
+    sessionManager = createMockSessionManager();
+    worktreeManager = createMockWorktreeManager();
+    stewardScheduler = createMockStewardScheduler();
+
+    const { createEntity, EntityTypeValue } = await import('@elemental/core');
+    const entity = await createEntity({
+      name: 'test-system',
+      entityType: EntityTypeValue.SYSTEM,
+      createdBy: 'system:test' as EntityId,
+    });
+    const saved = await api.create(entity as unknown as Record<string, unknown> & { createdBy: EntityId });
+    systemEntity = saved.id as unknown as EntityId;
+
+    const config: DispatchDaemonConfig = {
+      pollIntervalMs: 100,
+      workerAvailabilityPollEnabled: false,
+      inboxPollEnabled: false,
+      stewardTriggerPollEnabled: false,
+      workflowTaskPollEnabled: false,
+      orphanRecoveryEnabled: false,
+      closedUnmergedReconciliationEnabled: true,
+      closedUnmergedGracePeriodMs: 120_000,
+    };
+
+    daemon = createDispatchDaemon(
+      api,
+      agentRegistry,
+      sessionManager,
+      dispatchService,
+      worktreeManager,
+      taskAssignment,
+      stewardScheduler,
+      inboxService,
+      config
+    );
+  });
+
+  afterEach(async () => {
+    await daemon.stop();
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+  });
+
+  /** Creates a CLOSED task with orchestrator metadata including mergeStatus */
+  async function createClosedUnmergedTask(
+    title: string,
+    opts?: {
+      mergeStatus?: string;
+      closedAt?: string;
+      reconciliationCount?: number;
+      noOrchestratorMeta?: boolean;
+    }
+  ): Promise<Task> {
+    const task = await createTask({
+      title,
+      createdBy: systemEntity,
+      status: TaskStatus.CLOSED,
+    });
+    const saved = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as Task;
+
+    // Set closedAt to simulate a task that was closed some time ago
+    const closedAt = opts?.closedAt ?? new Date(Date.now() - 300_000).toISOString(); // 5 minutes ago by default
+
+    const updates: Record<string, unknown> = {
+      closedAt,
+      closeReason: 'test close',
+    };
+
+    if (!opts?.noOrchestratorMeta) {
+      updates.metadata = updateOrchestratorTaskMeta(undefined, {
+        mergeStatus: (opts?.mergeStatus ?? 'pending') as import('../types/task-meta.js').MergeStatus,
+        branch: 'agent/worker/task-branch',
+        reconciliationCount: opts?.reconciliationCount,
+      });
+    }
+
+    await api.update<Task>(saved.id, updates);
+    return (await api.get<Task>(saved.id))!;
+  }
+
+  test('reconciles a closed task with mergeStatus=pending past the grace period', async () => {
+    const task = await createClosedUnmergedTask('Stuck pending task');
+
+    const result = await daemon.reconcileClosedUnmergedTasks();
+
+    expect(result.pollType).toBe('closed-unmerged-reconciliation');
+    expect(result.processed).toBe(1);
+    expect(result.errors).toBe(0);
+
+    // Verify task was moved back to REVIEW
+    const updatedTask = await api.get<Task>(task.id);
+    expect(updatedTask!.status).toBe(TaskStatus.REVIEW);
+  });
+
+  test('skips tasks within the grace period (closed recently)', async () => {
+    // Close the task just now (within grace period of 120s)
+    await createClosedUnmergedTask('Recently closed task', {
+      closedAt: new Date().toISOString(),
+    });
+
+    const result = await daemon.reconcileClosedUnmergedTasks();
+
+    expect(result.processed).toBe(0);
+  });
+
+  test('skips tasks with mergeStatus=merged (properly closed)', async () => {
+    await createClosedUnmergedTask('Properly merged task', {
+      mergeStatus: 'merged',
+    });
+
+    const result = await daemon.reconcileClosedUnmergedTasks();
+
+    // merged tasks are NOT queried (filter excludes them), so processed=0
+    expect(result.processed).toBe(0);
+  });
+
+  test('skips tasks with no orchestrator metadata', async () => {
+    await createClosedUnmergedTask('Task without orch meta', {
+      noOrchestratorMeta: true,
+    });
+
+    const result = await daemon.reconcileClosedUnmergedTasks();
+
+    // No orchestrator metadata means it won't have a mergeStatus to match the filter,
+    // so it won't be returned by listAssignments. Even if it were, the code skips it.
+    expect(result.processed).toBe(0);
+  });
+
+  test('increments reconciliationCount in metadata', async () => {
+    const task = await createClosedUnmergedTask('Task to count reconciliation', {
+      reconciliationCount: 1,
+    });
+
+    await daemon.reconcileClosedUnmergedTasks();
+
+    const updatedTask = await api.get<Task>(task.id);
+    const meta = getOrchestratorTaskMeta(updatedTask!.metadata as Record<string, unknown> | undefined);
+    expect(meta!.reconciliationCount).toBe(2);
+  });
+
+  test('stops reconciling after 3 attempts (safety valve)', async () => {
+    const task = await createClosedUnmergedTask('Task at safety limit', {
+      reconciliationCount: 3,
+    });
+
+    const result = await daemon.reconcileClosedUnmergedTasks();
+
+    expect(result.processed).toBe(0);
+
+    // Task should still be CLOSED
+    const updatedTask = await api.get<Task>(task.id);
+    expect(updatedTask!.status).toBe(TaskStatus.CLOSED);
+  });
+
+  test('clears closedAt and closeReason on reconciled tasks', async () => {
+    const task = await createClosedUnmergedTask('Task to clear close fields');
+
+    await daemon.reconcileClosedUnmergedTasks();
+
+    const updatedTask = await api.get<Task>(task.id);
+    expect(updatedTask!.closedAt).toBeUndefined();
+    expect(updatedTask!.closeReason).toBeUndefined();
+  });
+
+  test('disabled via closedUnmergedReconciliationEnabled: false', async () => {
+    // Reconfigure daemon with reconciliation disabled
+    daemon.updateConfig({ closedUnmergedReconciliationEnabled: false });
+
+    const task = await createClosedUnmergedTask('Task that should not be reconciled');
+
+    // The config flag only affects the poll cycle, not direct calls.
+    // Verify the config is set correctly.
+    const config = daemon.getConfig();
+    expect(config.closedUnmergedReconciliationEnabled).toBe(false);
+
+    // Task should remain CLOSED since the poll cycle won't call reconciliation
+    const updatedTask = await api.get<Task>(task.id);
+    expect(updatedTask!.status).toBe(TaskStatus.CLOSED);
+  });
+});
+
 describe('E2E Orchestration Flow', () => {
   // This test demonstrates the full orchestration flow
   // In a real E2E test, you would use actual Claude Code sessions

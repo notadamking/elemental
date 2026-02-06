@@ -259,6 +259,23 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
 
 **Configuration:** Controlled by `orphanRecoveryEnabled` config option (default: `true`).
 
+### Closed-Unmerged Reconciliation Polling
+
+**Purpose:** Recover tasks stuck with `status=CLOSED` but `mergeStatus` not `'merged'`.
+
+**Background:** Tasks can reach CLOSED status without being merged (e.g. when `el close` is run on a REVIEW task, or from race conditions between CLI commands and steward processing). These tasks are invisible to both the task list and merge stewards.
+
+**Process:**
+1. Query for tasks with `status=CLOSED` and non-merged `mergeStatus` (`pending`, `testing`, `merging`, `conflict`, `test_failed`, `failed`)
+2. For each stuck task:
+   - Skip if `closedAt` is within the grace period (default: 120s) — prevents racing with in-progress close+merge sequences
+   - Skip if `reconciliationCount >= 3` — safety valve to prevent infinite loops
+   - Move task back to REVIEW status, clear `closedAt`/`closeReason`, increment `reconciliationCount`
+
+**Execution Timing:** Runs after Workflow Task Polling so reconciled tasks are picked up on the next poll cycle.
+
+**Configuration:** Controlled by `closedUnmergedReconciliationEnabled` (default: `true`) and `closedUnmergedGracePeriodMs` (default: `120000`).
+
 ---
 
 ## Message Triage
