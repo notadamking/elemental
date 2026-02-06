@@ -13,9 +13,10 @@ import type {
   OrchestratorTaskMeta,
 } from '@elemental/orchestrator-sdk';
 
-export function formatTaskResponse(task: Task) {
+export function formatTaskResponse(task: Task, hydratedDescription?: string | null) {
   const meta = (task.metadata as { orchestrator?: OrchestratorTaskMeta })?.orchestrator;
-  const description = (task.metadata as { description?: string })?.description;
+  // Use hydrated description from descriptionRef, or fall back to metadata.description
+  const description = hydratedDescription ?? (task.metadata as { description?: string })?.description;
 
   return {
     id: task.id,

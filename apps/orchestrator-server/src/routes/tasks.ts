@@ -5,11 +5,37 @@
  */
 
 import { Hono } from 'hono';
-import type { EntityId, ElementId, Task } from '@elemental/core';
+import type { EntityId, ElementId, Task, Document } from '@elemental/core';
 import { createTask, TaskStatus, ElementType, Priority, Complexity } from '@elemental/core';
 import type { OrchestratorTaskMeta } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { formatTaskResponse } from '../formatters.js';
+import type { ElementalAPI } from '@elemental/sdk';
+
+/**
+ * Hydrate the description from descriptionRef if it exists
+ */
+async function hydrateTaskDescription(task: Task, api: ElementalAPI): Promise<string | null> {
+  if (task.descriptionRef) {
+    try {
+      const doc = await api.get<Document>(task.descriptionRef as unknown as ElementId);
+      if (doc && doc.type === 'document') {
+        return doc.content;
+      }
+    } catch {
+      // Document not found or error - fall back to null
+    }
+  }
+  return null;
+}
+
+/**
+ * Format a task response with hydrated description
+ */
+async function formatTaskWithDescription(task: Task, api: ElementalAPI) {
+  const hydratedDescription = await hydrateTaskDescription(task, api);
+  return formatTaskResponse(task, hydratedDescription);
+}
 
 export function createTaskRoutes(services: Services) {
   const { api, agentRegistry, taskAssignmentService, dispatchService, workerTaskService } = services;
@@ -36,7 +62,7 @@ export function createTaskRoutes(services: Services) {
       if (unassignedParam === 'true') {
         const unassignedTasks = await taskAssignmentService.getUnassignedTasks();
         const filtered = filterBySearch(unassignedTasks);
-        return c.json({ tasks: filtered.slice(0, limit).map(formatTaskResponse) });
+        return c.json({ tasks: filtered.slice(0, limit).map((t) => formatTaskResponse(t)) });
       }
 
       if (assigneeParam) {
@@ -46,7 +72,7 @@ export function createTaskRoutes(services: Services) {
           ? agentTasks.filter((t) => t.status === TaskStatus[statusParam.toUpperCase() as keyof typeof TaskStatus])
           : agentTasks;
         filtered = filterBySearch(filtered);
-        return c.json({ tasks: filtered.slice(0, limit).map(formatTaskResponse) });
+        return c.json({ tasks: filtered.slice(0, limit).map((t) => formatTaskResponse(t)) });
       }
 
       const allElements = await api.list({ type: ElementType.TASK, limit: 1000 }); // Fetch more for search filtering
@@ -59,7 +85,7 @@ export function createTaskRoutes(services: Services) {
       }
       filtered = filterBySearch(filtered);
 
-      return c.json({ tasks: filtered.slice(0, limit).map(formatTaskResponse) });
+      return c.json({ tasks: filtered.slice(0, limit).map((t) => formatTaskResponse(t)) });
     } catch (error) {
       console.error('[orchestrator] Failed to list tasks:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
@@ -74,7 +100,7 @@ export function createTaskRoutes(services: Services) {
       const limit = limitParam ? parseInt(limitParam, 10) : 100;
 
       const tasks = await taskAssignmentService.getUnassignedTasks();
-      return c.json({ tasks: tasks.slice(0, limit).map(formatTaskResponse) });
+      return c.json({ tasks: tasks.slice(0, limit).map((t) => formatTaskResponse(t)) });
     } catch (error) {
       console.error('[orchestrator] Failed to list unassigned tasks:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
@@ -248,7 +274,9 @@ export function createTaskRoutes(services: Services) {
         }
       }
 
-      return c.json({ task: formatTaskResponse(task), assignment: assignmentInfo });
+      // Hydrate description from descriptionRef if it exists
+      const formattedTask = await formatTaskWithDescription(task, api);
+      return c.json({ task: formattedTask, assignment: assignmentInfo });
     } catch (error) {
       console.error('[orchestrator] Failed to get task:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
