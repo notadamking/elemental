@@ -1204,15 +1204,25 @@ export class DispatchDaemonImpl implements DispatchDaemon {
   ): Promise<void> {
     const stewardId = asEntityId(steward.id);
 
-    // 1. Try resume first if we have a previous session ID
+    // 1. Resolve worktree — verify it still exists
+    let worktreePath = taskMeta?.worktree;
+    if (worktreePath) {
+      const exists = await this.worktreeManager.worktreeExists(worktreePath);
+      if (!exists) {
+        console.warn(`[dispatch-daemon] Worktree ${worktreePath} no longer exists for steward task ${task.id}, using project root`);
+        worktreePath = undefined;
+      }
+    }
+    const workingDirectory = worktreePath ?? this.config.projectRoot;
+
+    // 2. Try resume first if we have a previous session ID
     const previousSessionId = taskMeta?.sessionId;
     if (previousSessionId) {
       try {
-        const workingDirectory = taskMeta?.worktree ?? this.config.projectRoot;
         const { session, events } = await this.sessionManager.resumeSession(stewardId, {
           claudeSessionId: previousSessionId,
           workingDirectory,
-          worktree: taskMeta?.worktree,
+          worktree: worktreePath,
           checkReadyQueue: false,
           resumePrompt: [
             'Your previous session was interrupted by a server restart.',
@@ -1224,7 +1234,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
         if (this.config.onSessionStarted) {
           this.config.onSessionStarted(session, events, stewardId, `[resumed steward session for task ${task.id}]`);
         }
-        this.emitter.emit('agent:spawned', stewardId, taskMeta?.worktree);
+        this.emitter.emit('agent:spawned', stewardId, worktreePath);
         console.log(`[dispatch-daemon] Resumed steward session for orphaned task ${task.id} on ${steward.name}`);
         return;
       } catch (error) {
@@ -1235,7 +1245,7 @@ export class DispatchDaemonImpl implements DispatchDaemon {
       }
     }
 
-    // 2. Fall back to fresh spawn (spawnMergeStewardForTask handles metadata update)
+    // 3. Fall back to fresh spawn (spawnMergeStewardForTask handles metadata update)
     await this.spawnMergeStewardForTask(steward, task);
     console.log(`[dispatch-daemon] Spawned fresh steward session for orphaned task ${task.id} on ${steward.name}`);
   }
