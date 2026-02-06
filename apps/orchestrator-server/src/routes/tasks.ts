@@ -501,6 +501,7 @@ export function createTaskRoutes(services: Services) {
     try {
       const taskId = c.req.param('id') as ElementId;
       const url = new URL(c.req.url);
+      const workerIdParam = url.searchParams.get('workerId');
       const additionalInstructions = url.searchParams.get('additionalInstructions') ?? undefined;
 
       const task = await api.get<Task>(taskId);
@@ -508,8 +509,17 @@ export function createTaskRoutes(services: Services) {
         return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
       }
 
+      // Use workerId from query param, or fall back to task assignee
+      const workerId = (workerIdParam as EntityId) || task.assignee;
+      if (!workerId) {
+        return c.json(
+          { error: { code: 'BAD_REQUEST', message: 'workerId query parameter required when task has no assignee' } },
+          400
+        );
+      }
+
       const context = await workerTaskService.getTaskContext(taskId);
-      const prompt = await workerTaskService.buildTaskContextPrompt(taskId, additionalInstructions);
+      const prompt = await workerTaskService.buildTaskContextPrompt(taskId, workerId, additionalInstructions);
 
       return c.json({ task: { id: task.id, title: task.title }, context, prompt });
     } catch (error) {
