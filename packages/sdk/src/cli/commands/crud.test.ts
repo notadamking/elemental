@@ -1073,3 +1073,89 @@ describe('create command with --plan option', () => {
     expect(tasks.some((t) => t.id === taskId)).toBe(true);
   });
 });
+
+// ============================================================================
+// Create with --description Option Tests
+// ============================================================================
+
+describe('create command with --description option', () => {
+  test('creates task with description document', async () => {
+    const taskOpts = createTestOptions({
+      title: 'Task with Description',
+      description: 'This is the task description content',
+    } as GlobalOptions & { title: string; description: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+
+    expect(taskResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(taskResult.data).toBeDefined();
+    const task = taskResult.data as { id: string; descriptionRef?: string };
+    expect(task.id).toMatch(/^el-/);
+    expect(task.descriptionRef).toBeDefined();
+    expect(task.descriptionRef).toMatch(/^el-/);
+  });
+
+  test('creates task without description when not provided', async () => {
+    const taskOpts = createTestOptions({
+      title: 'Task without Description',
+    } as GlobalOptions & { title: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+
+    expect(taskResult.exitCode).toBe(ExitCode.SUCCESS);
+    const task = taskResult.data as { id: string; descriptionRef?: string };
+    expect(task.descriptionRef).toBeUndefined();
+  });
+
+  test('creates task with description and other options', async () => {
+    const taskOpts = createTestOptions({
+      title: 'Full Task with Description',
+      description: 'Detailed description of the task',
+      priority: '1',
+      complexity: '3',
+      type: 'feature',
+      tag: ['important'],
+    } as GlobalOptions & {
+      title: string;
+      description: string;
+      priority: string;
+      complexity: string;
+      type: string;
+      tag: string[];
+    });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+
+    expect(taskResult.exitCode).toBe(ExitCode.SUCCESS);
+    const task = taskResult.data as {
+      id: string;
+      descriptionRef?: string;
+      priority: number;
+      complexity: number;
+      taskType: string;
+      tags: string[];
+    };
+    expect(task.descriptionRef).toBeDefined();
+    expect(task.priority).toBe(1);
+    expect(task.complexity).toBe(3);
+    expect(task.taskType).toBe('feature');
+    expect(task.tags).toContain('important');
+  });
+
+  test('description document can be retrieved via show', async () => {
+    const taskOpts = createTestOptions({
+      title: 'Task to Show Description',
+      description: 'Description content to verify',
+    } as GlobalOptions & { title: string; description: string });
+    const taskResult = await createCommand.handler(['task'], taskOpts);
+    const task = taskResult.data as { id: string; descriptionRef: string };
+
+    // Show the description document
+    const showOpts = createTestOptions();
+    const showResult = await showCommand.handler([task.descriptionRef], showOpts);
+
+    expect(showResult.exitCode).toBe(ExitCode.SUCCESS);
+    const doc = showResult.data as { id: string; content: string; contentType: string; type: string };
+    expect(doc.id).toBe(task.descriptionRef);
+    expect(doc.content).toBe('Description content to verify');
+    expect(doc.contentType).toBe('markdown');
+    expect(doc.type).toBe('document');
+  });
+});

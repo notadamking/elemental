@@ -49,6 +49,9 @@ bun packages/sdk/src/bin/el.ts
 # Create task
 el create task --title "Fix bug" --priority 2 --type bug
 
+# Create task with description (creates a linked document)
+el create task --title "Add login" -d "Implement OAuth login with Google and GitHub providers"
+
 # List tasks
 el list task --status open
 
@@ -737,6 +740,7 @@ el list task --status open --json | jq '.[] | .title'
 ```bash
 # Create and assign a task
 el create task --title "Implement auth" --priority 2 --type feature
+el create task --title "Fix bug" -d "Steps to reproduce: 1. Login 2. Click settings"
 el assign abc123 worker-1
 
 # Add blocking dependency
