@@ -404,8 +404,8 @@ test.describe('TB-O22: Steward Configuration UI', () => {
       await page.goto('/agents');
       await page.getByTestId('agents-create').click();
 
-      // Skills input should not be visible
-      await expect(page.getByTestId('agent-skills')).not.toBeVisible();
+      // Max tasks input should not be visible when collapsed
+      await expect(page.getByTestId('agent-max-tasks')).not.toBeVisible();
     });
 
     test('can expand capabilities section', async ({ page }) => {
@@ -415,9 +415,7 @@ test.describe('TB-O22: Steward Configuration UI', () => {
       // Click to expand
       await page.getByTestId('toggle-capabilities').click();
 
-      // Skills input should now be visible
-      await expect(page.getByTestId('agent-skills')).toBeVisible();
-      await expect(page.getByTestId('agent-languages')).toBeVisible();
+      // Capabilities inputs should now be visible
       await expect(page.getByTestId('agent-max-tasks')).toBeVisible();
       await expect(page.getByTestId('agent-tags')).toBeVisible();
     });
@@ -428,14 +426,10 @@ test.describe('TB-O22: Steward Configuration UI', () => {
       await page.getByTestId('toggle-capabilities').click();
 
       // Fill in capabilities
-      await page.getByTestId('agent-skills').fill('frontend, testing');
-      await page.getByTestId('agent-languages').fill('typescript, python');
       await page.getByTestId('agent-max-tasks').fill('3');
       await page.getByTestId('agent-tags').fill('team-alpha');
 
       // Verify values
-      await expect(page.getByTestId('agent-skills')).toHaveValue('frontend, testing');
-      await expect(page.getByTestId('agent-languages')).toHaveValue('typescript, python');
       await expect(page.getByTestId('agent-max-tasks')).toHaveValue('3');
       await expect(page.getByTestId('agent-tags')).toHaveValue('team-alpha');
     });
