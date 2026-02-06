@@ -9,7 +9,19 @@
  * - Actions
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+
+/**
+ * Helper to open the command palette via keyboard shortcut.
+ * Waits for the page to be fully loaded (trigger button visible) before pressing the shortcut.
+ * Uses Control+k which works cross-platform (the hook handles both metaKey and ctrlKey).
+ */
+async function openCommandPaletteWithKeyboard(page: Page) {
+  // Wait for the trigger button to be visible, indicating the component is mounted
+  // and the keyboard event listener is registered
+  await page.waitForSelector('[data-testid="command-palette-trigger"]', { state: 'attached' });
+  await page.keyboard.press('Control+k');
+}
 
 test.describe('TB-O25b: Command Palette', () => {
   test.beforeEach(async ({ page }) => {
@@ -19,7 +31,7 @@ test.describe('TB-O25b: Command Palette', () => {
   test.describe('Opening and Closing', () => {
     test('opens with Cmd+K (or Ctrl+K on non-Mac)', async ({ page }) => {
       // Open with keyboard shortcut
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-palette')).toBeVisible();
     });
 
@@ -30,7 +42,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('closes with Escape key', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-palette')).toBeVisible();
 
       await page.keyboard.press('Escape');
@@ -38,7 +50,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('closes when clicking backdrop', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-palette')).toBeVisible();
 
       await page.getByTestId('command-palette-backdrop').click({ force: true });
@@ -47,35 +59,35 @@ test.describe('TB-O25b: Command Palette', () => {
 
     test('toggles open/close with Cmd+K', async ({ page }) => {
       // Open
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-palette')).toBeVisible();
 
       // Close
-      await page.keyboard.press('Meta+k');
+      await page.keyboard.press('Control+k');
       await expect(page.getByTestId('command-palette')).not.toBeVisible();
 
       // Open again
-      await page.keyboard.press('Meta+k');
+      await page.keyboard.press('Control+k');
       await expect(page.getByTestId('command-palette')).toBeVisible();
     });
   });
 
   test.describe('Search Input', () => {
     test('has a search input that is focused when opened', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
       await expect(input).toBeVisible();
       await expect(input).toBeFocused();
     });
 
     test('shows placeholder text', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
       await expect(input).toHaveAttribute('placeholder', 'Type a command or search...');
     });
 
     test('clears search when closing and reopening', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       // Type something
@@ -86,39 +98,39 @@ test.describe('TB-O25b: Command Palette', () => {
       await page.keyboard.press('Escape');
 
       // Reopen - should be cleared
-      await page.keyboard.press('Meta+k');
+      await page.keyboard.press('Control+k');
       await expect(input).toHaveValue('');
     });
   });
 
   test.describe('Command Groups', () => {
     test('displays navigation group', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-group-navigation')).toBeVisible();
     });
 
     test('displays tasks group', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-group-tasks')).toBeVisible();
     });
 
     test('displays agents group', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-group-agents')).toBeVisible();
     });
 
     test('displays workflows group', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-group-workflows')).toBeVisible();
     });
 
     test('displays actions group', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-group-actions')).toBeVisible();
     });
 
     test('displays settings group', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       await expect(page.getByTestId('command-group-settings')).toBeVisible();
     });
   });
@@ -126,7 +138,7 @@ test.describe('TB-O25b: Command Palette', () => {
   test.describe('Navigation Commands', () => {
     test('navigates to Activity page', async ({ page }) => {
       await page.goto('/settings');
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-activity').click();
 
@@ -135,7 +147,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('navigates to Tasks page', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-tasks').click();
 
@@ -143,7 +155,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('navigates to Agents page', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-agents').click();
 
@@ -151,7 +163,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('navigates to Stewards tab', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-stewards').click();
 
@@ -159,7 +171,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('navigates to Workspaces page', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-workspaces').click();
 
@@ -167,7 +179,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('navigates to Workflows page', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-workflows').click();
 
@@ -175,7 +187,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('navigates to Metrics page', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-metrics').click();
 
@@ -183,7 +195,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('navigates to Settings page', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       await page.getByTestId('command-item-nav-settings').click();
 
@@ -193,7 +205,7 @@ test.describe('TB-O25b: Command Palette', () => {
 
   test.describe('Fuzzy Search', () => {
     test('filters commands when typing', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       // Type "task" - should show task-related commands
@@ -208,7 +220,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('searches by keywords', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       // Type "home" - should match Activity (which has "home" as keyword)
@@ -218,7 +230,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('searches by description', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       // Type "terminal" - should match workspaces description
@@ -229,7 +241,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('shows "No results found" for non-matching search', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       await input.fill('xyznonexistent123');
@@ -238,7 +250,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('clears filter when search is cleared', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       // Filter
@@ -256,7 +268,7 @@ test.describe('TB-O25b: Command Palette', () => {
 
   test.describe('Keyboard Navigation', () => {
     test('can navigate with arrow keys', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       // First item should be selected by default
       const firstItem = page.getByTestId('command-item-nav-activity');
@@ -271,7 +283,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('can select with Enter key', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       // Navigate to tasks
       await page.keyboard.press('ArrowDown');
@@ -281,7 +293,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('maintains selection at top when pressing up', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       // First item should be selected
       const firstItem = page.getByTestId('command-item-nav-activity');
@@ -297,7 +309,7 @@ test.describe('TB-O25b: Command Palette', () => {
 
   test.describe('Theme Commands', () => {
     test('switches to light theme', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       await input.fill('light theme');
@@ -309,7 +321,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('switches to dark theme', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
       const input = page.getByTestId('command-palette-input');
 
       await input.fill('dark theme');
@@ -323,7 +335,7 @@ test.describe('TB-O25b: Command Palette', () => {
 
   test.describe('UI Elements', () => {
     test('displays ESC hint in header', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       // Should show ESC keyboard hint
       const dialog = page.getByTestId('command-palette-dialog');
@@ -331,7 +343,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('displays keyboard hints in footer', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       const dialog = page.getByTestId('command-palette-dialog');
 
@@ -341,7 +353,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('displays shortcuts for commands', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       // Activity has shortcut G A
       const activityItem = page.getByTestId('command-item-nav-activity');
@@ -353,7 +365,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('displays icons for commands', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       // Each command item should have an icon container
       const activityItem = page.getByTestId('command-item-nav-activity');
@@ -362,7 +374,7 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('displays descriptions for commands', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       const activityItem = page.getByTestId('command-item-nav-activity');
       await expect(activityItem.getByText('View real-time activity feed')).toBeVisible();
@@ -371,7 +383,7 @@ test.describe('TB-O25b: Command Palette', () => {
 
   test.describe('Accessibility', () => {
     test('has proper role and structure', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      await openCommandPaletteWithKeyboard(page);
 
       // Command palette root should be visible
       const palette = page.getByTestId('command-palette');
@@ -401,7 +413,15 @@ test.describe('TB-O25b: Command Palette', () => {
     });
 
     test('can still open with keyboard shortcut on mobile', async ({ page }) => {
-      await page.keyboard.press('Meta+k');
+      // On mobile, the trigger button is not visible, but we still need to wait
+      // for the component to be mounted before pressing the keyboard shortcut.
+      // Wait for any element in the AppShell to be visible.
+      await page.waitForSelector('[data-testid="sidebar"]', { state: 'attached', timeout: 5000 }).catch(() => {
+        // Sidebar might not be visible on mobile, so wait for any stable element
+      });
+      // Give the React app time to fully mount the event listeners
+      await page.waitForTimeout(100);
+      await page.keyboard.press('Control+k');
       await expect(page.getByTestId('command-palette')).toBeVisible();
     });
   });
