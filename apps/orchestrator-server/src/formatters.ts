@@ -32,20 +32,22 @@ export function formatTaskResponse(task: Task) {
     tags: task.tags,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
-    orchestrator: meta
-      ? {
-          branch: meta.branch,
-          worktree: meta.worktree,
-          sessionId: meta.sessionId,
-          assignedAgent: meta.assignedAgent,
-          startedAt: meta.startedAt,
-          completedAt: meta.completedAt,
-          mergeStatus: meta.mergeStatus,
-          mergedAt: meta.mergedAt,
-          lastTestResult: meta.lastTestResult,
-          testRunCount: meta.testRunCount,
-        }
-      : null,
+    metadata: {
+      orchestrator: meta
+        ? {
+            branch: meta.branch,
+            worktree: meta.worktree,
+            sessionId: meta.sessionId,
+            assignedAgent: meta.assignedAgent,
+            startedAt: meta.startedAt,
+            completedAt: meta.completedAt,
+            mergeStatus: meta.mergeStatus,
+            mergedAt: meta.mergedAt,
+            lastTestResult: meta.lastTestResult,
+            testRunCount: meta.testRunCount,
+          }
+        : undefined,
+    },
   };
 }
 

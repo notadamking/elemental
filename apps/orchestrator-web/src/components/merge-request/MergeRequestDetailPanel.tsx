@@ -4,12 +4,11 @@
  * Sections:
  * - Header: Back/close buttons, title
  * - Status badge (large, prominent)
- * - Quick actions (Merge, Run Tests, etc.)
+ * - Task info (title, status, priority, description)
  * - Git info (branch, PR, agent)
  * - Test results (progress bar, counts)
  * - Timeline (completed, tests started, etc.)
- * - Conflicts section (if any)
- * - Error section (if any)
+ * - Merge failure section (if any)
  */
 
 import {
@@ -24,11 +23,11 @@ import {
   AlertCircle,
   FileCode,
   AlertTriangle,
+  ClipboardList,
 } from 'lucide-react';
 import { useMergeRequest } from '../../api/hooks/useMergeRequests';
 import { useAgents } from '../../api/hooks/useAgents';
-import { MergeStatusBadge } from '../task';
-import { MergeRequestActions } from './MergeRequestActions';
+import { MergeStatusBadge, TaskStatusBadge, TaskPriorityBadge } from '../task';
 import { TestResultsDisplay } from './TestResultsDisplay';
 import { getMergeStatusColor } from '../../api/hooks/useMergeRequests';
 
@@ -125,19 +124,45 @@ export function MergeRequestDetailPanel({
           <p className="text-xs text-[var(--color-text-tertiary)] font-mono">{task.id}</p>
         </div>
 
-        {/* Actions Section */}
+        {/* Task Section */}
         <div className="mb-6 p-4 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)]">
-          <h4 className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-3">
-            Actions
+          <h4 className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-3 flex items-center gap-2">
+            <ClipboardList className="w-3.5 h-3.5" />
+            Task
           </h4>
-          <MergeRequestActions
-            task={task}
-            onViewMergeRequest={
-              orchestratorMeta?.mergeRequestUrl
-                ? () => window.open(orchestratorMeta.mergeRequestUrl, '_blank', 'noopener,noreferrer')
-                : undefined
-            }
-          />
+          <div className="space-y-3">
+            {/* Title */}
+            <div>
+              <span className="text-xs text-[var(--color-text-tertiary)]">Title</span>
+              <p className="text-sm font-medium text-[var(--color-text)] mt-0.5">{task.title}</p>
+            </div>
+
+            {/* Status & Priority row */}
+            <div className="flex items-center gap-4">
+              <div>
+                <span className="text-xs text-[var(--color-text-tertiary)]">Status</span>
+                <div className="mt-0.5">
+                  <TaskStatusBadge status={task.status} />
+                </div>
+              </div>
+              <div>
+                <span className="text-xs text-[var(--color-text-tertiary)]">Priority</span>
+                <div className="mt-0.5">
+                  <TaskPriorityBadge priority={task.priority} />
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            {task.description && (
+              <div>
+                <span className="text-xs text-[var(--color-text-tertiary)]">Description</span>
+                <p className="text-sm text-[var(--color-text)] mt-0.5 whitespace-pre-wrap line-clamp-4">
+                  {task.description}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Git Info Section */}
@@ -270,17 +295,6 @@ export function MergeRequestDetailPanel({
           </div>
         </div>
 
-        {/* Description */}
-        {task.description && (
-          <div className="mb-6 p-4 bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)]">
-            <h4 className="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wide mb-3">
-              Description
-            </h4>
-            <p className="text-sm text-[var(--color-text)] whitespace-pre-wrap">
-              {task.description}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
