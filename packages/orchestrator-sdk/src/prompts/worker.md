@@ -208,7 +208,7 @@ el task handoff <task-id> --message "..."
 el create task --title "..." --blocks <other-task-id> --plan "Existing Plan Name"
 
 # Communication
-el inbox list --unread
+el inbox <Worker ID>
 el msg send --from <Worker ID> --to <Director ID> --content "..."
 
 # Git workflow (use commitlint-style prefixes)
