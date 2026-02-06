@@ -6,7 +6,7 @@ import { Toaster } from 'sonner';
 import { router } from './router';
 import { TooltipProvider } from './components/ui/Tooltip';
 import { DataPreloader } from './components/shared/DataPreloader';
-import { CurrentUserProvider } from './contexts';
+import { CurrentUserProvider, WorkspaceProvider } from './contexts';
 import './index.css';
 
 // Initialize theme before React renders to prevent flash of wrong theme
@@ -44,17 +44,19 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <CurrentUserProvider>
-        <TooltipProvider>
-          <DataPreloader>
-            <RouterProvider router={router} />
-          </DataPreloader>
-          <Toaster
-            position="bottom-right"
-            duration={5000}
-            richColors
-            closeButton
-          />
-        </TooltipProvider>
+        <WorkspaceProvider>
+          <TooltipProvider>
+            <DataPreloader>
+              <RouterProvider router={router} />
+            </DataPreloader>
+            <Toaster
+              position="bottom-right"
+              duration={5000}
+              richColors
+              closeButton
+            />
+          </TooltipProvider>
+        </WorkspaceProvider>
       </CurrentUserProvider>
     </QueryClientProvider>
   </StrictMode>
