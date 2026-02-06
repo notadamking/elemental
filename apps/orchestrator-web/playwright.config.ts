@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { resolve } from 'path';
+
+const projectRoot = resolve(__dirname, '../..');
+const testDbPath = resolve(projectRoot, '.elemental-test/elemental.db');
 
 export default defineConfig({
   testDir: './tests',
@@ -7,6 +11,8 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'list',
+  globalSetup: './tests/global-setup.ts',
+  globalTeardown: './tests/global-teardown.ts',
   use: {
     baseURL: 'http://localhost:5174',
     trace: 'on-first-retry',
@@ -17,9 +23,16 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    port: 5174,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: `ELEMENTAL_DB_PATH=${testDbPath} DAEMON_AUTO_START=false tsx ${resolve(projectRoot, 'apps/orchestrator-server/src/index.ts')}`,
+      port: 3457,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: 'npm run dev',
+      port: 5174,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 });

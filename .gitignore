@@ -15,6 +15,9 @@ bun.lockb
 # Elemental workspace (local data, created by `el init`)
 .elemental/
 
+# Elemental test workspace (created by Playwright tests)
+.elemental-test/
+
 # Local development files
 prompt.md
 
