@@ -1510,9 +1510,17 @@ export class DispatchDaemonImpl implements DispatchDaemon {
     // Get task metadata for worktree path
     const taskMeta = task.metadata as Record<string, unknown> | undefined;
     const orchestratorMeta = taskMeta?.orchestrator as Record<string, unknown> | undefined;
-    const worktreePath = orchestratorMeta?.worktree as string | undefined;
+    let worktreePath = orchestratorMeta?.worktree as string | undefined;
 
-    // Use the task's worktree if available, otherwise use project root
+    // Verify the worktree still exists; fall back to project root if cleaned up
+    if (worktreePath) {
+      const exists = await this.worktreeManager.worktreeExists(worktreePath);
+      if (!exists) {
+        console.warn(`[dispatch-daemon] Worktree ${worktreePath} no longer exists for task ${task.id}, using project root`);
+        worktreePath = undefined;
+      }
+    }
+
     const workingDirectory = worktreePath ?? this.config.projectRoot;
 
     // Start the steward session
