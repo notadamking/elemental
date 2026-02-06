@@ -45,3 +45,15 @@ export type { UseDeepLinkOptions, UseDeepLinkResult } from './useDeepLink';
 
 // Paginated data hook
 export { usePaginatedData } from './usePaginatedData';
+
+// File System Access hook
+export {
+  useFileSystemAccess,
+  isFileSystemAccessSupported,
+} from './useFileSystemAccess';
+export type {
+  FileSystemEntry,
+  FileReadResult,
+  FileSystemAccessState,
+  UseFileSystemAccessReturn,
+} from './useFileSystemAccess';
