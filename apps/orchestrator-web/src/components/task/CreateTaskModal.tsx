@@ -70,9 +70,13 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, defaultToBacklog =
     }
   }, [isOpen]);
 
-  // Reset form when modal closes
+  // Reset form when modal closes, set backlog state when opening
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      // When opening, set the backlog checkbox based on prop
+      setAddToBacklog(defaultToBacklog);
+    } else {
+      // When closing, reset all form fields
       setTitle('');
       setDescription('');
       setPriority(3);
@@ -80,7 +84,7 @@ export function CreateTaskModal({ isOpen, onClose, onSuccess, defaultToBacklog =
       setTaskType('task');
       setAssignee('');
       setTags([]);
-      setAddToBacklog(defaultToBacklog);
+      setAddToBacklog(false);
       createTask.reset();
     }
   }, [isOpen, defaultToBacklog]);

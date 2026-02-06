@@ -73,6 +73,8 @@ const tasksRoute = createRoute({
       status: typeof search.status === 'string' ? search.status : undefined,
       assignee: typeof search.assignee === 'string' ? search.assignee : undefined,
       showClosed: search.showClosed === true || search.showClosed === 'true' ? true : undefined,
+      action: typeof search.action === 'string' ? search.action : undefined,
+      backlog: search.backlog === true || search.backlog === 'true' ? true : undefined,
     };
   },
 });

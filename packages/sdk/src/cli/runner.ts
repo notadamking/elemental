@@ -264,6 +264,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { inboxCommand } = await import('./commands/inbox.js');
   const { completionCommand } = await import('./commands/completion.js');
   const { aliasCommand } = await import('./commands/alias.js');
+  const { installCommand } = await import('./commands/install.js');
 
   registerCommand(initCommand);
   registerCommand(resetCommand);
@@ -329,6 +330,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
 
   // Alias command
   registerCommand(aliasCommand);
+
+  // Install command
+  registerCommand(installCommand);
 
   // Command aliases
   registerAlias('add', 'create');    // Common CRUD alias

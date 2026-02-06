@@ -93,6 +93,7 @@ export function TasksPage() {
     assignee?: string;
     action?: string;
     showClosed?: boolean;
+    backlog?: boolean;
   };
   const navigate = useNavigate();
 
@@ -117,17 +118,19 @@ export function TasksPage() {
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createWithBacklog, setCreateWithBacklog] = useState(false);
   const selectedTaskId = search.selected;
 
   // Bulk selection state
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
-  // Handle ?action=create from global keyboard shortcuts
+  // Handle ?action=create and ?backlog=true from global keyboard shortcuts
   useEffect(() => {
-    if (search.action === 'create') {
+    if (search.action === 'create' || search.backlog) {
+      setCreateWithBacklog(search.backlog === true);
       setIsCreateModalOpen(true);
-      // Clear the action param
+      // Clear the action and backlog params
       navigate({
         to: '/tasks',
         search: {
@@ -137,11 +140,13 @@ export function TasksPage() {
           status: search.status,
           assignee: search.assignee,
           showClosed: search.showClosed,
+          action: undefined,
+          backlog: undefined,
         },
         replace: true,
       });
     }
-  }, [search.action, search.selected, search.page, search.limit, search.status, search.assignee, search.showClosed, navigate]);
+  }, [search.action, search.backlog, search.selected, search.page, search.limit, search.status, search.assignee, search.showClosed, navigate]);
 
   // Track pending operations
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
@@ -329,6 +334,8 @@ export function TasksPage() {
         status: tab === 'all' ? undefined : tab,
         assignee: search.assignee,
         showClosed: search.showClosed,
+        action: undefined,
+        backlog: undefined,
       },
     });
   };
@@ -344,6 +351,8 @@ export function TasksPage() {
           status: search.status,
           assignee: search.assignee,
           showClosed: show || undefined,
+          action: undefined,
+          backlog: undefined,
         },
       });
     },
@@ -360,6 +369,8 @@ export function TasksPage() {
         status: search.status,
         assignee: search.assignee,
         showClosed: search.showClosed,
+        action: undefined,
+        backlog: undefined,
       },
     });
   };
@@ -374,6 +385,8 @@ export function TasksPage() {
         status: search.status,
         assignee: search.assignee,
         showClosed: search.showClosed,
+        action: undefined,
+        backlog: undefined,
       },
     });
   };
@@ -388,6 +401,8 @@ export function TasksPage() {
         status: search.status,
         assignee: search.assignee,
         showClosed: search.showClosed,
+        action: undefined,
+        backlog: undefined,
       },
     });
   };
@@ -402,6 +417,8 @@ export function TasksPage() {
         status: search.status,
         assignee: search.assignee,
         showClosed: search.showClosed,
+        action: undefined,
+        backlog: undefined,
       },
     });
   };
@@ -544,8 +561,12 @@ export function TasksPage() {
       {/* Create Task Modal */}
       <CreateTaskModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setCreateWithBacklog(false);
+        }}
         onSuccess={(taskId) => handleSelectTask(taskId)}
+        defaultToBacklog={createWithBacklog}
       />
 
       {/* Task Detail Panel - Slide-over */}
