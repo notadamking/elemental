@@ -15,35 +15,35 @@ bun packages/sdk/src/bin/el.ts
 
 ## Global Flags
 
-| Flag | Description |
-|------|-------------|
-| `--help, -h` | Show help |
-| `--json` | Output as JSON |
-| `--quiet, -q` | Minimal output |
-| `--verbose, -v` | Verbose output |
-| `--actor <name>` | Specify acting entity |
-| `--from, -f <name>` | Alias for `--actor` |
-| `--db <path>` | Override database path |
+| Flag                | Description            |
+| ------------------- | ---------------------- |
+| `--help, -h`        | Show help              |
+| `--json`            | Output as JSON         |
+| `--quiet, -q`       | Minimal output         |
+| `--verbose, -v`     | Verbose output         |
+| `--actor <name>`    | Specify acting entity  |
+| `--from, -f <name>` | Alias for `--actor`    |
+| `--db <path>`       | Override database path |
 
 ## Basic Commands
 
-| Command | Description |
-|---------|-------------|
-| `el init` | Initialize .elemental directory |
-| `el help` | Show help |
-| `el version` | Show version |
-| `el stats` | Show statistics |
-| `el whoami` | Show current actor |
+| Command      | Description                     |
+| ------------ | ------------------------------- |
+| `el init`    | Initialize .elemental directory |
+| `el help`    | Show help                       |
+| `el version` | Show version                    |
+| `el stats`   | Show statistics                 |
+| `el whoami`  | Show current actor              |
 
 ## CRUD Commands
 
-| Command | Description |
-|---------|-------------|
-| `el create <type>` | Create element |
-| `el list <type>` | List elements |
-| `el show <id>` | Show element details |
-| `el update <id>` | Update element |
-| `el delete <id>` | Delete element |
+| Command            | Description          |
+| ------------------ | -------------------- |
+| `el create <type>` | Create element       |
+| `el list <type>`   | List elements        |
+| `el show <id>`     | Show element details |
+| `el update <id>`   | Update element       |
+| `el delete <id>`   | Delete element       |
 
 ```bash
 # Create task
@@ -64,16 +64,16 @@ el delete abc123
 
 ## Task Commands
 
-| Command | Description |
-|---------|-------------|
-| `el ready` | List ready (unblocked, open) tasks |
-| `el blocked` | List blocked tasks |
-| `el close <id>` | Close task |
-| `el reopen <id>` | Reopen task |
-| `el assign <task> <entity>` | Assign task |
-| `el defer <id>` | Defer task |
-| `el undefer <id>` | Remove deferral |
-| `el task describe <id>` | Set or show task description |
+| Command                     | Description                        |
+| --------------------------- | ---------------------------------- |
+| `el ready`                  | List ready (unblocked, open) tasks |
+| `el blocked`                | List blocked tasks                 |
+| `el close <id>`             | Close task                         |
+| `el reopen <id>`            | Reopen task                        |
+| `el assign <task> <entity>` | Assign task                        |
+| `el defer <id>`             | Defer task                         |
+| `el undefer <id>`           | Remove deferral                    |
+| `el task describe <id>`     | Set or show task description       |
 
 ```bash
 # List ready tasks
@@ -97,12 +97,12 @@ el task describe el-abc123 --show
 
 Set or show a task's description. Descriptions are stored as versioned documents.
 
-| Option | Description |
-|--------|-------------|
-| `-c, --content <text>` | Description content (inline) |
-| `-f, --file <path>` | Read description from file |
-| `-s, --show` | Show current description instead of setting |
-| `-a, --append` | Append to existing description instead of replacing |
+| Option                 | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `-c, --content <text>` | Description content (inline)                        |
+| `-f, --file <path>`    | Read description from file                          |
+| `-s, --show`           | Show current description instead of setting         |
+| `-a, --append`         | Append to existing description instead of replacing |
 
 ```bash
 # Set description inline
@@ -121,11 +121,11 @@ el task describe el-abc123 -a -f additional-notes.md
 
 ## Dependency Commands
 
-| Command | Description |
-|---------|-------------|
-| `el dep add` | Add dependency |
-| `el dep remove` | Remove dependency |
-| `el dep list <id>` | List dependencies |
+| Command            | Description          |
+| ------------------ | -------------------- |
+| `el dep add`       | Add dependency       |
+| `el dep remove`    | Remove dependency    |
+| `el dep list <id>` | List dependencies    |
 | `el dep tree <id>` | Show dependency tree |
 
 ```bash
@@ -149,29 +149,29 @@ el dep tree abc123
 
 ## Entity Commands
 
-| Command | Description |
-|---------|-------------|
-| `el entity register <name>` | Register new entity |
-| `el entity list` | List entities |
-| `el entity set-manager <entity> <manager>` | Set manager |
-| `el entity clear-manager <entity>` | Clear manager |
-| `el entity reports <manager>` | Get direct reports |
-| `el entity chain <entity>` | Get management chain |
+| Command                                    | Description          |
+| ------------------------------------------ | -------------------- |
+| `el entity register <name>`                | Register new entity  |
+| `el entity list`                           | List entities        |
+| `el entity set-manager <entity> <manager>` | Set manager          |
+| `el entity clear-manager <entity>`         | Clear manager        |
+| `el entity reports <manager>`              | Get direct reports   |
+| `el entity chain <entity>`                 | Get management chain |
 
 ## Document Commands
 
-| Command | Description |
-|---------|-------------|
-| `el doc create` | Create document |
-| `el doc list` | List documents |
-| `el doc search <query>` | Full-text search documents |
-| `el doc show <id>` | Show document |
-| `el doc update <id>` | Update document content (creates new version) |
-| `el doc history <id>` | Show version history |
-| `el doc rollback <id> <version>` | Rollback to version |
-| `el doc archive <id>` | Archive document |
-| `el doc unarchive <id>` | Unarchive document |
-| `el doc reindex` | Reindex documents for FTS5 search |
+| Command                          | Description                                   |
+| -------------------------------- | --------------------------------------------- |
+| `el doc create`                  | Create document                               |
+| `el doc list`                    | List documents                                |
+| `el doc search <query>`          | Full-text search documents                    |
+| `el doc show <id>`               | Show document                                 |
+| `el doc update <id>`             | Update document content (creates new version) |
+| `el doc history <id>`            | Show version history                          |
+| `el doc rollback <id> <version>` | Rollback to version                           |
+| `el doc archive <id>`            | Archive document                              |
+| `el doc unarchive <id>`          | Unarchive document                            |
+| `el doc reindex`                 | Reindex documents for FTS5 search             |
 
 ```bash
 # Create document with category
@@ -204,10 +204,10 @@ el doc reindex
 
 Update a document's content, creating a new version. Documents are versioned - each update preserves history.
 
-| Option | Description |
-|--------|-------------|
-| `-c, --content <text>` | New content (inline) |
-| `-f, --file <path>` | Read new content from file |
+| Option                 | Description                |
+| ---------------------- | -------------------------- |
+| `-c, --content <text>` | New content (inline)       |
+| `-f, --file <path>`    | Read new content from file |
 
 ```bash
 el doc update el-doc123 --content "New content here"
@@ -216,11 +216,11 @@ el doc update el-doc123 --file path/to/updated.md
 
 ## Embeddings Commands
 
-| Command | Description |
-|---------|-------------|
-| `el embeddings install` | Install local embedding model |
-| `el embeddings status` | Show embedding model status |
-| `el embeddings reindex` | Rebuild document embeddings |
+| Command                        | Description                    |
+| ------------------------------ | ------------------------------ |
+| `el embeddings install`        | Install local embedding model  |
+| `el embeddings status`         | Show embedding model status    |
+| `el embeddings reindex`        | Rebuild document embeddings    |
 | `el embeddings search <query>` | Semantic search over documents |
 
 ```bash
@@ -239,30 +239,30 @@ el embeddings search "authentication flow"
 
 ## Plan Commands
 
-| Command | Description |
-|---------|-------------|
-| `el plan create` | Create plan |
-| `el plan list` | List plans |
-| `el plan show <id>` | Show plan details |
-| `el plan activate <id>` | Activate plan |
-| `el plan complete <id>` | Mark completed |
-| `el plan cancel <id>` | Cancel plan |
-| `el plan add-task <id> <task>` | Add task to plan |
-| `el plan remove-task <id> <task>` | Remove task |
-| `el plan tasks <id>` | List tasks in plan |
+| Command                           | Description        |
+| --------------------------------- | ------------------ |
+| `el plan create`                  | Create plan        |
+| `el plan list`                    | List plans         |
+| `el plan show <id>`               | Show plan details  |
+| `el plan activate <id>`           | Activate plan      |
+| `el plan complete <id>`           | Mark completed     |
+| `el plan cancel <id>`             | Cancel plan        |
+| `el plan add-task <id> <task>`    | Add task to plan   |
+| `el plan remove-task <id> <task>` | Remove task        |
+| `el plan tasks <id>`              | List tasks in plan |
 
 ## Workflow Commands
 
-| Command | Description |
-|---------|-------------|
+| Command                       | Description               |
+| ----------------------------- | ------------------------- |
 | `el workflow pour <playbook>` | Instantiate from playbook |
-| `el workflow list` | List workflows |
-| `el workflow show <id>` | Show details |
-| `el workflow tasks <id>` | List tasks |
-| `el workflow progress <id>` | Show progress |
-| `el workflow burn <id>` | Delete ephemeral |
-| `el workflow squash <id>` | Promote to durable |
-| `el workflow gc` | Garbage collect |
+| `el workflow list`            | List workflows            |
+| `el workflow show <id>`       | Show details              |
+| `el workflow tasks <id>`      | List tasks                |
+| `el workflow progress <id>`   | Show progress             |
+| `el workflow burn <id>`       | Delete ephemeral          |
+| `el workflow squash <id>`     | Promote to durable        |
+| `el workflow gc`              | Garbage collect           |
 
 ```bash
 # Instantiate workflow
@@ -274,32 +274,32 @@ el workflow gc --days 14
 
 ## Inbox Commands
 
-| Command | Description |
-|---------|-------------|
-| `el inbox list` | List inbox items |
-| `el inbox read <id>` | Mark as read |
-| `el inbox read-all` | Mark all as read |
-| `el inbox unread <id>` | Mark as unread |
-| `el inbox archive <id>` | Archive item |
-| `el inbox count` | Count unread |
+| Command                 | Description             |
+| ----------------------- | ----------------------- |
+| `el inbox <agent-id>`   | List unread inbox items |
+| `el inbox read <id>`    | Mark as read            |
+| `el inbox read-all`     | Mark all as read        |
+| `el inbox unread <id>`  | Mark as unread          |
+| `el inbox archive <id>` | Archive item            |
+| `el inbox count`        | Count unread            |
 
 ## Channel Commands
 
-| Command | Description |
-|---------|-------------|
-| `el channel create` | Create channel (`--description, -D` to set description) |
-| `el channel list` | List channels |
-| `el channel join <id>` | Join channel |
-| `el channel leave <id>` | Leave channel |
-| `el channel members <id>` | List members |
-| `el channel add <ch> <entity>` | Add member |
-| `el channel remove <ch> <entity>` | Remove member |
-| `el channel merge` | Merge two channels |
+| Command                           | Description                                             |
+| --------------------------------- | ------------------------------------------------------- |
+| `el channel create`               | Create channel (`--description, -D` to set description) |
+| `el channel list`                 | List channels                                           |
+| `el channel join <id>`            | Join channel                                            |
+| `el channel leave <id>`           | Leave channel                                           |
+| `el channel members <id>`         | List members                                            |
+| `el channel add <ch> <entity>`    | Add member                                              |
+| `el channel remove <ch> <entity>` | Remove member                                           |
+| `el channel merge`                | Merge two channels                                      |
 
 #### channel create
 
-| Option | Description |
-|--------|-------------|
+| Option                     | Description                              |
+| -------------------------- | ---------------------------------------- |
 | `-D, --description <text>` | Plain string description for the channel |
 
 ```bash
@@ -314,10 +314,10 @@ Merge all messages from a source channel into a target channel. Both channels mu
 el channel merge --source <id> --target <id> [--name <new-name>]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `-s, --source <id>` | Source channel ID (required) |
-| `-t, --target <id>` | Target channel ID (required) |
+| Option                  | Description                              |
+| ----------------------- | ---------------------------------------- |
+| `-s, --source <id>`     | Source channel ID (required)             |
+| `-t, --target <id>`     | Target channel ID (required)             |
 | `-n, --name <new-name>` | Optional new name for the merged channel |
 
 ```bash
@@ -330,25 +330,25 @@ el channel merge -s el-ch111 -t el-ch222 --name "combined-channel"
 
 ## Message Commands
 
-| Command | Description |
-|---------|-------------|
-| `el msg send` | Send message to channel, entity, or as reply |
-| `el msg reply <id>` | Reply to a message (shorthand for send --reply-to) |
-| `el msg thread <id>` | View thread messages |
-| `el msg list` | List messages |
+| Command              | Description                                        |
+| -------------------- | -------------------------------------------------- |
+| `el msg send`        | Send message to channel, entity, or as reply       |
+| `el msg reply <id>`  | Reply to a message (shorthand for send --reply-to) |
+| `el msg thread <id>` | View thread messages                               |
+| `el msg list`        | List messages                                      |
 
 #### msg send
 
-| Option | Description |
-|--------|-------------|
-| `-c, --channel <id>` | Channel to send to |
-| `-T, --to <entity>` | Entity to send DM to (finds or creates DM channel) |
-| `-r, --replyTo <msg>` | Message ID to reply to (auto-sets channel, thread, swaps sender/recipient in DM) |
-| `-m, --content <text>` | Message content |
-| `--file <path>` | Read content from file |
-| `-t, --thread <id>` | Reply to message (creates thread) |
-| `-a, --attachment <id>` | Attach document (can be repeated) |
-| `--tag <tag>` | Add tag (can be repeated) |
+| Option                  | Description                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `-c, --channel <id>`    | Channel to send to                                                               |
+| `-T, --to <entity>`     | Entity to send DM to (finds or creates DM channel)                               |
+| `-r, --replyTo <msg>`   | Message ID to reply to (auto-sets channel, thread, swaps sender/recipient in DM) |
+| `-m, --content <text>`  | Message content                                                                  |
+| `--file <path>`         | Read content from file                                                           |
+| `-t, --thread <id>`     | Reply to message (creates thread)                                                |
+| `-a, --attachment <id>` | Attach document (can be repeated)                                                |
+| `--tag <tag>`           | Add tag (can be repeated)                                                        |
 
 ```bash
 # Send to channel
@@ -368,12 +368,12 @@ el msg send --reply-to el-msg789 -m "Reply to your message"
 
 Shorthand for `el msg send --reply-to`. Automatically sets channel and thread from the replied-to message. In DM channels, sender/recipient are swapped unless `--from` is specified.
 
-| Option | Description |
-|--------|-------------|
-| `-m, --content <text>` | Message content |
-| `--file <path>` | Read content from file |
+| Option                  | Description                       |
+| ----------------------- | --------------------------------- |
+| `-m, --content <text>`  | Message content                   |
+| `--file <path>`         | Read content from file            |
 | `-a, --attachment <id>` | Attach document (can be repeated) |
-| `--tag <tag>` | Add tag (can be repeated) |
+| `--tag <tag>`           | Add tag (can be repeated)         |
 
 ```bash
 el msg reply el-msg123 --content "Thanks for the update!"
@@ -382,30 +382,30 @@ el --from bot msg reply el-msg123 -m "Automated response"
 
 ## Team Commands
 
-| Command | Description |
-|---------|-------------|
-| `el team create` | Create team |
-| `el team list` | List teams |
-| `el team add <team> <entity>` | Add member |
+| Command                          | Description   |
+| -------------------------------- | ------------- |
+| `el team create`                 | Create team   |
+| `el team list`                   | List teams    |
+| `el team add <team> <entity>`    | Add member    |
 | `el team remove <team> <entity>` | Remove member |
-| `el team members <id>` | List members |
+| `el team members <id>`           | List members  |
 
 ## Playbook Commands
 
-| Command | Description |
-|---------|-------------|
-| `el playbook list` | List playbooks |
-| `el playbook show <name>` | Show details |
-| `el playbook validate <file>` | Validate |
-| `el playbook create <file>` | Create new |
+| Command                       | Description    |
+| ----------------------------- | -------------- |
+| `el playbook list`            | List playbooks |
+| `el playbook show <name>`     | Show details   |
+| `el playbook validate <file>` | Validate       |
+| `el playbook create <file>`   | Create new     |
 
 ## Sync Commands
 
-| Command | Description |
-|---------|-------------|
-| `el export` | Export to JSONL |
+| Command            | Description       |
+| ------------------ | ----------------- |
+| `el export`        | Export to JSONL   |
 | `el import <file>` | Import from JSONL |
-| `el status` | Show sync status |
+| `el status`        | Show sync status  |
 
 ```bash
 # Export dirty elements
@@ -423,12 +423,12 @@ el import backup.jsonl --force
 
 ## Config Commands
 
-| Command | Description |
-|---------|-------------|
-| `el config show [key]` | Show config |
-| `el config set <path> <value>` | Set value |
-| `el config unset <path>` | Remove key |
-| `el config edit` | Open in editor |
+| Command                        | Description    |
+| ------------------------------ | -------------- |
+| `el config show [key]`         | Show config    |
+| `el config set <path> <value>` | Set value      |
+| `el config unset <path>`       | Remove key     |
+| `el config edit`               | Open in editor |
 
 ```bash
 el config show
@@ -439,21 +439,21 @@ el config unset actor
 
 ## Identity Commands
 
-| Command | Description |
-|---------|-------------|
-| `el identity whoami` | Show current identity |
-| `el identity keygen` | Generate keypair |
-| `el identity sign <data>` | Sign data |
-| `el identity verify <sig> <data>` | Verify signature |
-| `el identity hash <data>` | Compute hash |
-| `el identity mode [mode]` | Show/set mode |
+| Command                           | Description           |
+| --------------------------------- | --------------------- |
+| `el identity whoami`              | Show current identity |
+| `el identity keygen`              | Generate keypair      |
+| `el identity sign <data>`         | Sign data             |
+| `el identity verify <sig> <data>` | Verify signature      |
+| `el identity hash <data>`         | Compute hash          |
+| `el identity mode [mode]`         | Show/set mode         |
 
 ## Admin Commands
 
-| Command | Description |
-|---------|-------------|
-| `el doctor` | Database health check |
-| `el migrate` | Run migrations |
+| Command      | Description           |
+| ------------ | --------------------- |
+| `el doctor`  | Database health check |
+| `el migrate` | Run migrations        |
 
 ```bash
 # Health check
@@ -501,14 +501,14 @@ A plugin must export a `cliPlugin` object:
 
 ```typescript
 // my-plugin/src/index.ts
-import type { CLIPlugin } from '@elemental/sdk/cli';
+import type { CLIPlugin } from "@elemental/sdk/cli";
 
 export const cliPlugin: CLIPlugin = {
-  name: 'my-plugin',
-  version: '1.0.0',
+  name: "my-plugin",
+  version: "1.0.0",
   commands: [myCommand],
   aliases: {
-    'shortcut': 'my-command subcommand',
+    shortcut: "my-command subcommand",
   },
 };
 ```
@@ -527,27 +527,27 @@ These commands are provided by `@elemental/orchestrator-sdk`:
 
 ### Agent Commands
 
-| Command | Description |
-|---------|-------------|
-| `el agent list` | List registered agents |
-| `el agent show <id>` | Show agent details |
-| `el agent register <name>` | Register a new agent |
-| `el agent start <id>` | Start a Claude Code process for an agent |
-| `el agent stop <id>` | Stop an agent session |
-| `el agent stream <id>` | Get agent channel for streaming |
+| Command                    | Description                              |
+| -------------------------- | ---------------------------------------- |
+| `el agent list`            | List registered agents                   |
+| `el agent show <id>`       | Show agent details                       |
+| `el agent register <name>` | Register a new agent                     |
+| `el agent start <id>`      | Start a Claude Code process for an agent |
+| `el agent stop <id>`       | Stop an agent session                    |
+| `el agent stream <id>`     | Get agent channel for streaming          |
 
 #### agent list
 
 List registered agents with optional filters.
 
-| Option | Description |
-|--------|-------------|
-| `-r, --role <role>` | Filter by role: director, worker, steward |
-| `-s, --status <status>` | Filter by session status: idle, running, suspended, terminated |
-| `-m, --workerMode <mode>` | Filter by worker mode: ephemeral, persistent |
-| `-f, --focus <focus>` | Filter by steward focus: merge, health, reminder, ops |
-| `--reportsTo <id>` | Filter by manager entity ID |
-| `--hasSession` | Filter to agents with active sessions |
+| Option                    | Description                                                    |
+| ------------------------- | -------------------------------------------------------------- |
+| `-r, --role <role>`       | Filter by role: director, worker, steward                      |
+| `-s, --status <status>`   | Filter by session status: idle, running, suspended, terminated |
+| `-m, --workerMode <mode>` | Filter by worker mode: ephemeral, persistent                   |
+| `-f, --focus <focus>`     | Filter by steward focus: merge, health, reminder, ops          |
+| `--reportsTo <id>`        | Filter by manager entity ID                                    |
+| `--hasSession`            | Filter to agents with active sessions                          |
 
 ```bash
 el agent list
@@ -562,16 +562,16 @@ el agent list --hasSession
 
 Register a new orchestrator agent.
 
-| Option | Description |
-|--------|-------------|
-| `-r, --role <role>` | Agent role: director, worker, steward (required) |
-| `-m, --mode <mode>` | Worker mode: ephemeral, persistent (default: ephemeral) |
-| `-f, --focus <focus>` | Steward focus: merge, health, reminder, ops |
-| `-t, --maxTasks <n>` | Maximum concurrent tasks (default: 1) |
-| `--tags <tags>` | Comma-separated tags |
-| `--reportsTo <id>` | Manager entity ID (for workers/stewards) |
-| `--roleDef <id>` | Role definition document ID |
-| `--trigger <cron>` | Steward cron trigger (e.g., "0 2 * * *") |
+| Option                | Description                                             |
+| --------------------- | ------------------------------------------------------- |
+| `-r, --role <role>`   | Agent role: director, worker, steward (required)        |
+| `-m, --mode <mode>`   | Worker mode: ephemeral, persistent (default: ephemeral) |
+| `-f, --focus <focus>` | Steward focus: merge, health, reminder, ops             |
+| `-t, --maxTasks <n>`  | Maximum concurrent tasks (default: 1)                   |
+| `--tags <tags>`       | Comma-separated tags                                    |
+| `--reportsTo <id>`    | Manager entity ID (for workers/stewards)                |
+| `--roleDef <id>`      | Role definition document ID                             |
+| `--trigger <cron>`    | Steward cron trigger (e.g., "0 2 \* \* \*")             |
 
 ```bash
 el agent register MyWorker --role worker --mode ephemeral
@@ -586,18 +586,18 @@ el agent register DailyChecker --role steward --focus health --trigger "0 9 * * 
 
 Start a Claude Code process for an agent.
 
-| Option | Description |
-|--------|-------------|
-| `-p, --prompt <text>` | Initial prompt to send to the agent |
-| `-m, --mode <mode>` | Start mode: headless, interactive |
-| `-r, --resume <id>` | Resume a previous Claude session |
-| `-w, --workdir <path>` | Working directory for the agent |
-| `--cols <n>` | Terminal columns for interactive mode (default: 120) |
-| `--rows <n>` | Terminal rows for interactive mode (default: 30) |
-| `--timeout <ms>` | Timeout in milliseconds (default: 120000) |
-| `-e, --env <KEY=VALUE>` | Environment variable to set |
-| `-t, --taskId <id>` | Task ID to assign to this agent |
-| `--stream` | Stream agent output after starting |
+| Option                  | Description                                          |
+| ----------------------- | ---------------------------------------------------- |
+| `-p, --prompt <text>`   | Initial prompt to send to the agent                  |
+| `-m, --mode <mode>`     | Start mode: headless, interactive                    |
+| `-r, --resume <id>`     | Resume a previous Claude session                     |
+| `-w, --workdir <path>`  | Working directory for the agent                      |
+| `--cols <n>`            | Terminal columns for interactive mode (default: 120) |
+| `--rows <n>`            | Terminal rows for interactive mode (default: 30)     |
+| `--timeout <ms>`        | Timeout in milliseconds (default: 120000)            |
+| `-e, --env <KEY=VALUE>` | Environment variable to set                          |
+| `-t, --taskId <id>`     | Task ID to assign to this agent                      |
+| `--stream`              | Stream agent output after starting                   |
 
 ```bash
 el agent start el-abc123
@@ -615,11 +615,11 @@ el agent start el-abc123 --stream
 
 Stop an agent session.
 
-| Option | Description |
-|--------|-------------|
-| `-g, --graceful` | Graceful shutdown (default: true) |
-| `--no-graceful` | Force immediate shutdown |
-| `-r, --reason <text>` | Reason for stopping the agent |
+| Option                | Description                       |
+| --------------------- | --------------------------------- |
+| `-g, --graceful`      | Graceful shutdown (default: true) |
+| `--no-graceful`       | Force immediate shutdown          |
+| `-r, --reason <text>` | Reason for stopping the agent     |
 
 ```bash
 el agent stop el-abc123
@@ -637,17 +637,17 @@ el agent stream el-abc123
 
 ### Dispatch Commands
 
-| Command | Description |
-|---------|-------------|
-| `el dispatch <task> <agent>` | Dispatch task to specific agent |
-| `el dispatch smart <task>` | Smart dispatch to best available agent |
+| Command                      | Description                            |
+| ---------------------------- | -------------------------------------- |
+| `el dispatch <task> <agent>` | Dispatch task to specific agent        |
+| `el dispatch smart <task>`   | Smart dispatch to best available agent |
 
-| Option | Description |
-|--------|-------------|
-| `-b, --branch <name>` | Git branch to assign |
-| `-w, --worktree <path>` | Git worktree path |
-| `-s, --session <id>` | Session ID (for dispatch) |
-| `-m, --markAsStarted` | Mark the task as started after dispatch |
+| Option                  | Description                             |
+| ----------------------- | --------------------------------------- |
+| `-b, --branch <name>`   | Git branch to assign                    |
+| `-w, --worktree <path>` | Git worktree path                       |
+| `-s, --session <id>`    | Session ID (for dispatch)               |
+| `-m, --markAsStarted`   | Mark the task as started after dispatch |
 
 ```bash
 # Dispatch task to specific agent
@@ -668,19 +668,19 @@ el dispatch smart el-task123 --branch feature/task
 
 ### Orchestrator Task Commands
 
-| Command | Description |
-|---------|-------------|
-| `el task handoff <id>` | Hand off task to another agent |
+| Command                 | Description                            |
+| ----------------------- | -------------------------------------- |
+| `el task handoff <id>`  | Hand off task to another agent         |
 | `el task complete <id>` | Complete task and create merge request |
-| `el task merge <id>` | Mark task as merged and close it |
-| `el task reject <id>` | Mark merge as failed and reopen task |
+| `el task merge <id>`    | Mark task as merged and close it       |
+| `el task reject <id>`   | Mark merge as failed and reopen task   |
 
 #### task merge
 
 Mark a task as merged and close it.
 
-| Option | Description |
-|--------|-------------|
+| Option                 | Description          |
+| ---------------------- | -------------------- |
 | `-s, --summary <text>` | Summary of the merge |
 
 ```bash
@@ -692,9 +692,9 @@ el task merge el-abc123 --summary "All tests passing"
 
 Mark a task merge as failed and reopen it.
 
-| Option | Description |
-|--------|-------------|
-| `-r, --reason <text>` | Reason for rejection (required) |
+| Option                 | Description                     |
+| ---------------------- | ------------------------------- |
+| `-r, --reason <text>`  | Reason for rejection (required) |
 | `-m, --message <text>` | Handoff message for next worker |
 
 ```bash
@@ -716,13 +716,13 @@ el show a1b2
 
 ## Priority Values
 
-| Value | Level |
-|-------|-------|
-| 1 | Critical |
-| 2 | High |
-| 3 | Medium |
-| 4 | Low |
-| 5 | Minimal |
+| Value | Level    |
+| ----- | -------- |
+| 1     | Critical |
+| 2     | High     |
+| 3     | Medium   |
+| 4     | Low      |
+| 5     | Minimal  |
 
 ## JSON Output
 

@@ -5,6 +5,7 @@ Guide for customizing the built-in agent role prompts.
 ## Overview
 
 The prompts system supports:
+
 - Built-in prompts for each role (director, worker, steward)
 - Project-level overrides in `.elemental/prompts/`
 - Task context composition
@@ -67,11 +68,13 @@ Built-in prompts follow this structure:
 You are a worker agent in the Elemental orchestration system.
 
 ## Your Responsibilities
+
 - Execute assigned tasks
 - Report progress and blockers
 - Request help when stuck
 
 ## Who You Report To
+
 - Director agent
 ```
 
@@ -80,11 +83,11 @@ You are a worker agent in the Elemental orchestration system.
 ```markdown
 ## System Overview
 
-| Role | Owns | Reports To |
-|------|------|------------|
-| Director | Plans, priorities, coordination | Human |
-| Worker | Task execution | Director |
-| Steward | Maintenance, cleanup | Director |
+| Role     | Owns                            | Reports To |
+| -------- | ------------------------------- | ---------- |
+| Director | Plans, priorities, coordination | Human      |
+| Worker   | Task execution                  | Director   |
+| Steward  | Maintenance, cleanup            | Director   |
 ```
 
 ### 3. Core Workflows
@@ -93,12 +96,14 @@ You are a worker agent in the Elemental orchestration system.
 ## Core Workflows
 
 ### Starting Your Day
-1. Check inbox for new assignments: `el inbox list`
+
+1. Check inbox for new assignments: `el inbox <agent-id>`
 2. Review assigned tasks: `el ready`
 3. Pick highest priority task
 4. Mark as in-progress and begin work
 
 ### Completing a Task
+
 1. Verify requirements met
 2. Run tests
 3. Update task: `el close <id> --reason "Completed"`
@@ -111,12 +116,14 @@ You are a worker agent in the Elemental orchestration system.
 ## Decision Making
 
 ### When to ask for help
+
 - Blocked for more than 30 minutes
 - Requirements unclear
 - Need access or permissions
 - Unexpected technical challenges
 
 ### When to proceed independently
+
 - Clear requirements
 - Within your skill set
 - Standard patterns apply
@@ -127,12 +134,12 @@ You are a worker agent in the Elemental orchestration system.
 ```markdown
 ## CLI Commands
 
-| Command | Purpose |
-|---------|---------|
-| `el ready` | List ready tasks |
-| `el blocked` | List blocked tasks |
-| `el close <id>` | Close task |
-| `el inbox list` | Check messages |
+| Command               | Purpose            |
+| --------------------- | ------------------ |
+| `el ready`            | List ready tasks   |
+| `el blocked`          | List blocked tasks |
+| `el close <id>`       | Close task         |
+| `el inbox <agent-id>` | Check messages     |
 ```
 
 ## Loading Custom Prompts
@@ -140,21 +147,21 @@ You are a worker agent in the Elemental orchestration system.
 ### In Code
 
 ```typescript
-import { loadRolePrompt, buildAgentPrompt } from '@elemental/orchestrator-sdk';
+import { loadRolePrompt, buildAgentPrompt } from "@elemental/orchestrator-sdk";
 
 // Load prompt (checks project overrides first)
-const result = loadRolePrompt('worker', undefined, {
+const result = loadRolePrompt("worker", undefined, {
   projectRoot: process.cwd(),
 });
 
-console.log(result?.source);  // Path to override or 'built-in'
-console.log(result?.prompt);  // The prompt content
+console.log(result?.source); // Path to override or 'built-in'
+console.log(result?.prompt); // The prompt content
 
 // Build complete prompt with task context
 const prompt = buildAgentPrompt({
-  role: 'worker',
-  taskContext: 'Implement OAuth login for the user authentication system.',
-  additionalInstructions: 'Focus on security best practices.',
+  role: "worker",
+  taskContext: "Implement OAuth login for the user authentication system.",
+  additionalInstructions: "Focus on security best practices.",
   projectRoot: process.cwd(),
 });
 ```
@@ -163,14 +170,14 @@ const prompt = buildAgentPrompt({
 
 ```typescript
 // Stewards combine base + focus
-const mergePrompt = loadRolePrompt('steward', 'merge', {
+const mergePrompt = loadRolePrompt("steward", "merge", {
   projectRoot: process.cwd(),
 });
 
 // Can override just base, just focus, or both
 // Result shows which parts came from where:
-console.log(mergePrompt?.baseSource);   // 'built-in' or override path
-console.log(mergePrompt?.focusSource);  // 'built-in' or override path
+console.log(mergePrompt?.baseSource); // 'built-in' or override path
+console.log(mergePrompt?.focusSource); // 'built-in' or override path
 ```
 
 ## Best Practices
@@ -178,6 +185,7 @@ console.log(mergePrompt?.focusSource);  // 'built-in' or override path
 ### Keep Prompts Concise
 
 Built-in prompts are additive to Claude Code's system prompt. Focus on:
+
 - Role-specific responsibilities
 - Decision-making guidelines
 - Key CLI commands
@@ -191,14 +199,14 @@ Instead of bloating the main prompt, use `AgentBehaviors` in role definitions:
 
 ```typescript
 const roleDef = await roleDefService.createRoleDefinition({
-  role: 'worker',
-  name: 'Frontend Worker',
-  systemPrompt: 'Base prompt here...',
+  role: "worker",
+  name: "Frontend Worker",
+  systemPrompt: "Base prompt here...",
   behaviors: {
-    onStartup: 'Check git status and pull latest changes.',
-    onTaskAssigned: 'Read the full task description before starting.',
-    onStuck: 'Try breaking into smaller steps. Ask for help after 30 min.',
-    onError: 'Capture full error, check logs, then report to director.',
+    onStartup: "Check git status and pull latest changes.",
+    onTaskAssigned: "Read the full task description before starting.",
+    onStuck: "Try breaking into smaller steps. Ask for help after 30 min.",
+    onError: "Capture full error, check logs, then report to director.",
   },
 });
 ```
@@ -233,17 +241,20 @@ You are a worker agent in the Elemental orchestration system.
 ## Project Context
 
 This project uses:
+
 - TypeScript with strict mode
 - React 18 with hooks
 - TanStack Query for data fetching
 - Tailwind CSS for styling
 
 Follow these conventions:
+
 - Use functional components only
 - Prefer named exports
 - Write tests for all new code
 
 ## Your Responsibilities
+
 ...
 ```
 
@@ -253,6 +264,7 @@ Follow these conventions:
 ## Security Guidelines
 
 Before any code change:
+
 1. Check for credential exposure
 2. Validate all user inputs
 3. Use parameterized queries
@@ -267,11 +279,13 @@ Flag any security concerns to director immediately.
 ## Communication
 
 ### Slack Channels
+
 - #dev-general - General updates
 - #blockers - Report blockers
 - #standup - Daily async standup
 
 ### When to Escalate
+
 - Security issues → Director + #security
 - Production issues → Director + on-call
 - Unclear requirements → Product owner
@@ -280,23 +294,27 @@ Flag any security concerns to director immediately.
 ## Checking Prompt Sources
 
 ```typescript
-import { loadRolePrompt, listBuiltInPrompts, hasBuiltInPrompt } from '@elemental/orchestrator-sdk';
+import {
+  loadRolePrompt,
+  listBuiltInPrompts,
+  hasBuiltInPrompt,
+} from "@elemental/orchestrator-sdk";
 
 // List all built-in prompts
 const files = listBuiltInPrompts();
 // ['director.md', 'worker.md', 'steward-base.md', ...]
 
 // Check if built-in exists
-hasBuiltInPrompt('worker');           // true
-hasBuiltInPrompt('steward', 'merge'); // true
+hasBuiltInPrompt("worker"); // true
+hasBuiltInPrompt("steward", "merge"); // true
 
 // Load and check source
-const result = loadRolePrompt('worker', undefined, {
+const result = loadRolePrompt("worker", undefined, {
   projectRoot: process.cwd(),
 });
 
-if (result?.source === 'built-in') {
-  console.log('Using built-in prompt');
+if (result?.source === "built-in") {
+  console.log("Using built-in prompt");
 } else {
   console.log(`Using override from: ${result?.source}`);
 }
@@ -315,11 +333,11 @@ if (result?.source === 'built-in') {
 
 ```typescript
 // For stewards, both base and focus are loaded:
-const result = loadRolePrompt('steward', 'merge', { projectRoot });
+const result = loadRolePrompt("steward", "merge", { projectRoot });
 
 // Check what loaded:
-console.log('Base:', result?.baseSource);
-console.log('Focus:', result?.focusSource);
+console.log("Base:", result?.baseSource);
+console.log("Focus:", result?.focusSource);
 
 // If base is overridden but focus isn't, you get:
 // baseSource: '/project/.elemental/prompts/steward-base.md'
@@ -329,6 +347,7 @@ console.log('Focus:', result?.focusSource);
 ### Prompt Too Long
 
 If the combined prompt is too long:
+
 1. Move details to task context instead
 2. Use behaviors for event-specific instructions
 3. Link to external documentation
