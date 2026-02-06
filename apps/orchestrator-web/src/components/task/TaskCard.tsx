@@ -5,7 +5,7 @@
  * Badge components are from @elemental/ui/domain.
  */
 
-import { GitBranch, User, Clock, Calendar, MoreHorizontal, Play, CheckCircle2 } from 'lucide-react';
+import { GitBranch, GitMerge, AlertTriangle, User, Clock, Calendar, MoreHorizontal, Play, CheckCircle2 } from 'lucide-react';
 import type { Task, Agent } from '../../api/types';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge } from '@elemental/ui/domain';
 
@@ -66,6 +66,17 @@ export function TaskCard({
           status={task.status}
           mergeStatus={orchestratorMeta?.mergeStatus}
         />
+        {task.status === 'closed' && orchestratorMeta?.mergeStatus === 'merged' && (
+          <span className="inline-flex items-center gap-0.5 text-xs text-green-600 dark:text-green-400">
+            <GitMerge className="w-3.5 h-3.5" />
+            Merged
+          </span>
+        )}
+        {task.status === 'closed' && orchestratorMeta?.mergeStatus && orchestratorMeta.mergeStatus !== 'merged' && (
+          <span className="inline-flex items-center text-orange-500 dark:text-orange-400" title="Closed but not merged">
+            <AlertTriangle className="w-3.5 h-3.5" />
+          </span>
+        )}
         <TaskPriorityBadge priority={task.priority} />
         <TaskTypeBadge taskType={task.taskType} />
       </div>

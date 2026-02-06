@@ -25,8 +25,8 @@ import {
 /**
  * TaskStatusBadge - Displays task status with color coding
  *
- * Supports both regular task status and merge status for orchestrator tasks.
- * When a task is closed with a pending merge status, it shows the merge status instead.
+ * Always shows the task's actual status. Merge status indicators are handled
+ * separately by the consuming components (TaskRow, TaskCard).
  */
 
 export interface TaskStatusBadgeProps {
@@ -37,21 +37,8 @@ export interface TaskStatusBadgeProps {
 
 export function TaskStatusBadge({
   status,
-  mergeStatus,
   className = '',
 }: TaskStatusBadgeProps): React.ReactElement {
-  // Show merge status for closed tasks with pending merge
-  if (status === 'closed' && mergeStatus && mergeStatus !== 'merged') {
-    return (
-      <span
-        className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded-full ${getMergeStatusColor(mergeStatus)} ${className}`}
-        data-testid="task-merge-status-badge"
-      >
-        {getMergeStatusDisplayName(mergeStatus)}
-      </span>
-    );
-  }
-
   return (
     <span
       className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(status)} ${className}`}
