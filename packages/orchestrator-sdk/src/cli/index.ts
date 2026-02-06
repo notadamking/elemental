@@ -11,4 +11,4 @@ export { cliPlugin } from './plugin.js';
 export { agentCommand, agentListCommand, agentShowCommand, agentRegisterCommand, agentStartCommand, agentStopCommand, agentStreamCommand } from './commands/agent.js';
 export { daemonCommand, daemonStartCommand, daemonStopCommand, daemonStatusCommand } from './commands/daemon.js';
 export { dispatchCommand } from './commands/dispatch.js';
-export { taskCommand, taskHandoffCommand, taskCompleteCommand } from './commands/task.js';
+export { taskCommand, taskHandoffCommand, taskCompleteCommand, taskReviewStartCommand } from './commands/task.js';

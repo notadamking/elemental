@@ -6,6 +6,7 @@
  * - task complete <task-id>: Complete a task and optionally create a PR
  * - task merge <task-id>: Mark a task as merged and close it
  * - task reject <task-id>: Mark a task merge as failed and reopen it
+ * - task review-start <task-id>: Mark a task as being actively reviewed
  */
 
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '@elemental/sdk/cli';
@@ -457,6 +458,68 @@ Examples:
 };
 
 // ============================================================================
+// Task Review-Start Command
+// ============================================================================
+
+async function taskReviewStartHandler(
+  args: string[],
+  options: GlobalOptions
+): Promise<CommandResult> {
+  const [taskId] = args;
+
+  if (!taskId) {
+    return failure('Usage: el task review-start <task-id>', ExitCode.INVALID_ARGUMENTS);
+  }
+
+  const { api, error } = await createOrchestratorApi(options);
+  if (error || !api) {
+    return failure(error ?? 'Failed to create API', ExitCode.GENERAL_ERROR);
+  }
+
+  try {
+    await api.updateTaskOrchestratorMeta(taskId as ElementId, {
+      mergeStatus: 'testing',
+    });
+
+    const mode = getOutputMode(options);
+
+    if (mode === 'json') {
+      return success({ taskId, mergeStatus: 'testing' });
+    }
+
+    if (mode === 'quiet') {
+      return success(taskId);
+    }
+
+    return success(
+      { taskId, mergeStatus: 'testing' },
+      `Started review for task ${taskId}\n  Merge Status: testing`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failure(`Failed to start review: ${message}`, ExitCode.GENERAL_ERROR);
+  }
+}
+
+export const taskReviewStartCommand: Command = {
+  name: 'review-start',
+  description: 'Mark a task as being actively reviewed by a steward',
+  usage: 'el task review-start <task-id>',
+  help: `Mark a task as being actively reviewed by a merge steward.
+
+This command sets the task's merge status to "testing", which signals
+to the UI that a steward is currently reviewing the task.
+
+Arguments:
+  task-id    Task identifier to mark as under review
+
+Examples:
+  el task review-start el-abc123`,
+  options: [],
+  handler: taskReviewStartHandler as Command['handler'],
+};
+
+// ============================================================================
 // Task Reject Command
 // ============================================================================
 
@@ -580,21 +643,24 @@ export const taskCommand: Command = {
   help: `Orchestrator task management commands.
 
 Subcommands:
-  handoff   Hand off a task to another agent
-  complete  Complete a task and optionally create a merge request
-  merge     Mark a task as merged and close it
-  reject    Mark a task merge as failed and reopen it
+  handoff        Hand off a task to another agent
+  complete       Complete a task and optionally create a merge request
+  merge          Mark a task as merged and close it
+  reject         Mark a task merge as failed and reopen it
+  review-start   Mark a task as being actively reviewed by a steward
 
 Examples:
   el task handoff el-abc123 --message "Need help with frontend"
   el task complete el-abc123 --summary "Implemented feature"
   el task merge el-abc123
-  el task reject el-abc123 --reason "Tests failed"`,
+  el task reject el-abc123 --reason "Tests failed"
+  el task review-start el-abc123`,
   subcommands: {
     handoff: taskHandoffCommand,
     complete: taskCompleteCommand,
     merge: taskMergeCommand,
     reject: taskRejectCommand,
+    'review-start': taskReviewStartCommand,
   },
   handler: taskHandoffCommand.handler, // Default to handoff
   options: [],
