@@ -26,6 +26,8 @@ import {
   GitMerge,
   ChevronDown,
   ChevronRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useTasksByStatus, useStartTask, useCompleteTask, useUpdateTask } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
@@ -84,8 +86,12 @@ export function TasksPage() {
     status?: string;
     assignee?: string;
     action?: string;
+    showClosed?: boolean;
   };
   const navigate = useNavigate();
+
+  // Show closed toggle state from URL
+  const showClosed = search.showClosed ?? false;
 
   // View and sort preferences (persisted in localStorage)
   const [viewMode, setViewModeState] = useState<ViewMode>(() => getStoredViewMode());
@@ -120,11 +126,12 @@ export function TasksPage() {
           limit: search.limit ?? DEFAULT_PAGE_SIZE,
           status: search.status,
           assignee: search.assignee,
+          showClosed: search.showClosed,
         },
         replace: true,
       });
     }
-  }, [search.action, search.selected, search.page, search.limit, search.status, search.assignee, navigate]);
+  }, [search.action, search.selected, search.page, search.limit, search.status, search.assignee, search.showClosed, navigate]);
 
   // Track pending operations
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
@@ -255,10 +262,10 @@ export function TasksPage() {
         tasks = awaitingMerge;
         break;
       default:
-        tasks = allTasks.filter((t) => t.status !== 'tombstone');
+        tasks = allTasks.filter((t) => t.status !== 'tombstone' && (showClosed || t.status !== 'closed'));
     }
     return tasks;
-  }, [currentTab, allTasks, unassigned, assigned, inProgress, done, awaitingMerge]);
+  }, [currentTab, allTasks, unassigned, assigned, inProgress, done, awaitingMerge, showClosed]);
 
   // Apply filters and search
   const filteredTasks = useMemo(() => {
@@ -305,9 +312,27 @@ export function TasksPage() {
         limit: search.limit ?? DEFAULT_PAGE_SIZE,
         status: tab === 'all' ? undefined : tab,
         assignee: search.assignee,
+        showClosed: search.showClosed,
       },
     });
   };
+
+  const setShowClosed = useCallback(
+    (show: boolean) => {
+      navigate({
+        to: '/tasks',
+        search: {
+          selected: search.selected,
+          page: search.page ?? 1,
+          limit: search.limit ?? DEFAULT_PAGE_SIZE,
+          status: search.status,
+          assignee: search.assignee,
+          showClosed: show || undefined,
+        },
+      });
+    },
+    [navigate, search.selected, search.page, search.limit, search.status, search.assignee]
+  );
 
   const setPage = (page: number) => {
     navigate({
@@ -318,6 +343,7 @@ export function TasksPage() {
         limit: search.limit ?? DEFAULT_PAGE_SIZE,
         status: search.status,
         assignee: search.assignee,
+        showClosed: search.showClosed,
       },
     });
   };
@@ -331,6 +357,7 @@ export function TasksPage() {
         limit,
         status: search.status,
         assignee: search.assignee,
+        showClosed: search.showClosed,
       },
     });
   };
@@ -344,6 +371,7 @@ export function TasksPage() {
         limit: search.limit ?? DEFAULT_PAGE_SIZE,
         status: search.status,
         assignee: search.assignee,
+        showClosed: search.showClosed,
       },
     });
   };
@@ -357,6 +385,7 @@ export function TasksPage() {
         limit: search.limit ?? DEFAULT_PAGE_SIZE,
         status: search.status,
         assignee: search.assignee,
+        showClosed: search.showClosed,
       },
     });
   };
@@ -416,13 +445,16 @@ export function TasksPage() {
 
   // Tab counts
   const counts = {
-    all: allTasks.filter((t) => t.status !== 'tombstone').length,
+    all: allTasks.filter((t) => t.status !== 'tombstone' && (showClosed || t.status !== 'closed')).length,
     unassigned: unassigned.length,
     assigned: assigned.length,
     in_progress: inProgress.length,
     done: done.length,
     awaiting_merge: awaitingMerge.length,
   };
+
+  // Count of closed tasks for the toggle badge
+  const closedCount = allTasks.filter((t) => t.status === 'closed').length;
 
   return (
     <div className="space-y-4 animate-fade-in" data-testid="tasks-page">
@@ -523,7 +555,7 @@ export function TasksPage() {
 
       {/* Tabs (list view only - kanban has columns for same purpose) */}
       {viewMode === 'list' && (
-        <div className="border-b border-[var(--color-border)] overflow-x-auto">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] overflow-x-auto">
           <nav className="flex gap-1 min-w-max" aria-label="Tabs">
             <TabButton
               label="All"
@@ -574,6 +606,27 @@ export function TasksPage() {
               onClick={() => setTab('awaiting_merge')}
             />
           </nav>
+
+          {/* Show Closed Toggle */}
+          <button
+            onClick={() => setShowClosed(!showClosed)}
+            className={`
+              flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md ml-4 mb-1
+              transition-all duration-150 ease-out border
+              ${showClosed
+                ? 'bg-[var(--color-success-muted)] text-[var(--color-success)] border-[var(--color-success)]'
+                : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-surface-hover)]'
+              }
+            `}
+            data-testid="toggle-show-closed"
+          >
+            {showClosed ? (
+              <Eye className="w-4 h-4" />
+            ) : (
+              <EyeOff className="w-4 h-4" />
+            )}
+            <span>Closed ({closedCount})</span>
+          </button>
         </div>
       )}
 

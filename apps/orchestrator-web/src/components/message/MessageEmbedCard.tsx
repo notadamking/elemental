@@ -100,7 +100,7 @@ export function TaskEmbedCard({ taskId }: TaskEmbedCardProps) {
   return (
     <Link
       to="/tasks"
-      search={{ selected: taskId, page: 1, limit: 25, status: undefined, assignee: undefined }}
+      search={{ selected: taskId, page: 1, limit: 25, status: undefined, assignee: undefined, showClosed: undefined }}
       data-testid={`task-embed-${taskId}`}
       className="inline-flex items-center gap-2 px-2 py-1 bg-gray-50 rounded border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors text-sm group max-w-[400px]"
     >
