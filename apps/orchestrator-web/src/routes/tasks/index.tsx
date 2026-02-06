@@ -28,6 +28,9 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useTasksByStatus, useStartTask, useCompleteTask, useUpdateTask } from '../../api/hooks/useTasks';
 import { useAgents } from '../../api/hooks/useAgents';
@@ -443,6 +446,23 @@ export function TasksPage() {
     });
   };
 
+  // Handler for clickable sort headers
+  const handleSortChange = useCallback(
+    (field: SortField) => {
+      if (field === sortField) {
+        // Toggle direction if clicking the same field
+        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        // Set new field with sensible default direction
+        setSortField(field);
+        // Use desc for updated_at and priority, asc for everything else
+        const defaultDesc = field === 'updated_at' || field === 'priority';
+        setSortDirection(defaultDesc ? 'desc' : 'asc');
+      }
+    },
+    [sortField, sortDirection, setSortField, setSortDirection]
+  );
+
   // Tab counts
   const counts = {
     all: allTasks.filter((t) => t.status !== 'tombstone' && (showClosed || t.status !== 'closed')).length,
@@ -667,6 +687,9 @@ export function TasksPage() {
             collapsedGroups={collapsedGroups}
             onToggleCollapse={toggleGroupCollapse}
             searchQuery={searchQuery}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSortChange={handleSortChange}
           />
           <Pagination
             currentPage={currentPage}
@@ -731,6 +754,48 @@ function TabButton({ label, value, current, count, icon: Icon, onClick }: TabBut
 }
 
 // ============================================================================
+// Sortable Header Component
+// ============================================================================
+
+interface SortableHeaderProps {
+  label: string;
+  field: SortField;
+  currentSortField: SortField;
+  currentSortDirection: SortDirection;
+  onSortChange: (field: SortField) => void;
+}
+
+function SortableHeader({
+  label,
+  field,
+  currentSortField,
+  currentSortDirection,
+  onSortChange,
+}: SortableHeaderProps) {
+  const isActive = currentSortField === field;
+
+  return (
+    <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+      <button
+        onClick={() => onSortChange(field)}
+        className="flex items-center gap-1 cursor-pointer hover:text-[var(--color-text)] transition-colors group"
+      >
+        <span>{label}</span>
+        {isActive ? (
+          currentSortDirection === 'asc' ? (
+            <ArrowUp className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+          ) : (
+            <ArrowDown className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+          )
+        ) : (
+          <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50 transition-opacity" />
+        )}
+      </button>
+    </th>
+  );
+}
+
+// ============================================================================
 // List View with Grouping
 // ============================================================================
 
@@ -745,6 +810,9 @@ interface TaskListViewProps {
   collapsedGroups: Set<string>;
   onToggleCollapse: (groupKey: string) => void;
   searchQuery: string;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSortChange: (field: SortField) => void;
 }
 
 function TaskListView({
@@ -758,6 +826,9 @@ function TaskListView({
   collapsedGroups,
   onToggleCollapse,
   searchQuery,
+  sortField,
+  sortDirection,
+  onSortChange,
 }: TaskListViewProps) {
   const showGroups = groups.length > 1 || (groups.length === 1 && groups[0].key !== 'all');
 
@@ -767,27 +838,51 @@ function TaskListView({
         <table className="w-full" data-testid="tasks-table">
           <thead className="bg-[var(--color-surface-elevated)]">
             <tr className="border-b border-[var(--color-border)]">
-              <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
-                Task
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
-                Priority
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
-                Type
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
-                Assignee
-              </th>
+              <SortableHeader
+                label="Task"
+                field="title"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label="Status"
+                field="status"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label="Priority"
+                field="priority"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label="Type"
+                field="taskType"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSortChange={onSortChange}
+              />
+              <SortableHeader
+                label="Assignee"
+                field="assignee"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSortChange={onSortChange}
+              />
               <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
                 Branch
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
-                Updated
-              </th>
+              <SortableHeader
+                label="Updated"
+                field="updated_at"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSortChange={onSortChange}
+              />
               <th className="px-4 py-3 text-right text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
                 Actions
               </th>
