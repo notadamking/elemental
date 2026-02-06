@@ -49,8 +49,6 @@ export function createTaskRoutes(services: Services) {
       const assigneeParam = url.searchParams.get('assignee');
       const unassignedParam = url.searchParams.get('unassigned');
       const searchParam = url.searchParams.get('search');
-      const limitParam = url.searchParams.get('limit');
-      const limit = limitParam ? parseInt(limitParam, 10) : 100;
 
       // Helper to filter tasks by search query (case-insensitive title match)
       const filterBySearch = (taskList: Task[]): Task[] => {
@@ -62,7 +60,7 @@ export function createTaskRoutes(services: Services) {
       if (unassignedParam === 'true') {
         const unassignedTasks = await taskAssignmentService.getUnassignedTasks();
         const filtered = filterBySearch(unassignedTasks);
-        return c.json({ tasks: filtered.slice(0, limit).map((t) => formatTaskResponse(t)) });
+        return c.json({ tasks: filtered.map((t) => formatTaskResponse(t)) });
       }
 
       if (assigneeParam) {
@@ -72,10 +70,10 @@ export function createTaskRoutes(services: Services) {
           ? agentTasks.filter((t) => t.status === TaskStatus[statusParam.toUpperCase() as keyof typeof TaskStatus])
           : agentTasks;
         filtered = filterBySearch(filtered);
-        return c.json({ tasks: filtered.slice(0, limit).map((t) => formatTaskResponse(t)) });
+        return c.json({ tasks: filtered.map((t) => formatTaskResponse(t)) });
       }
 
-      const allElements = await api.list({ type: ElementType.TASK, limit: 1000 }); // Fetch more for search filtering
+      const allElements = await api.list({ type: ElementType.TASK });
       const tasks = allElements.filter((e): e is Task => e.type === ElementType.TASK);
       // Filter out tombstoned (deleted) tasks
       let filtered = tasks.filter((t) => t.status !== TaskStatus.TOMBSTONE);
@@ -85,7 +83,7 @@ export function createTaskRoutes(services: Services) {
       }
       filtered = filterBySearch(filtered);
 
-      return c.json({ tasks: filtered.slice(0, limit).map((t) => formatTaskResponse(t)) });
+      return c.json({ tasks: filtered.map((t) => formatTaskResponse(t)) });
     } catch (error) {
       console.error('[orchestrator] Failed to list tasks:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
@@ -95,12 +93,8 @@ export function createTaskRoutes(services: Services) {
   // GET /api/tasks/unassigned
   app.get('/api/tasks/unassigned', async (c) => {
     try {
-      const url = new URL(c.req.url);
-      const limitParam = url.searchParams.get('limit');
-      const limit = limitParam ? parseInt(limitParam, 10) : 100;
-
       const tasks = await taskAssignmentService.getUnassignedTasks();
-      return c.json({ tasks: tasks.slice(0, limit).map((t) => formatTaskResponse(t)) });
+      return c.json({ tasks: tasks.map((t) => formatTaskResponse(t)) });
     } catch (error) {
       console.error('[orchestrator] Failed to list unassigned tasks:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
