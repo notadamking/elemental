@@ -18,7 +18,6 @@ import {
   AlertCircle,
   FileText,
 } from 'lucide-react';
-import { PageHeader } from '../../components/shared/PageHeader';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
 import type { Document } from '../../api/hooks/useAllElements';
 
@@ -246,14 +245,20 @@ export function FileEditorPage() {
 
   return (
     <div className="h-full flex flex-col space-y-6 animate-fade-in" data-testid="file-editor-page">
-      {/* Header */}
-      <PageHeader
-        title="Editor"
-        icon={FileCode}
-        iconColor="text-purple-500"
-        subtitle={selectedDocument ? selectedDocument.title : 'Read-only file viewer'}
-        testId="editor-header"
-      />
+      {/* Page header */}
+      <div className="flex items-center justify-between" data-testid="editor-header">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-[var(--color-primary-muted)]">
+            <FileCode className="w-5 h-5 text-[var(--color-primary)]" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-[var(--color-text)]">Editor</h1>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              {selectedDocument ? selectedDocument.title : 'Read-only file viewer'}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]" data-testid="editor-main-content">
