@@ -57,3 +57,18 @@ export type {
   FileSystemAccessState,
   UseFileSystemAccessReturn,
 } from './useFileSystemAccess';
+
+// File Content Search hook
+export {
+  useFileContentSearch,
+  SEARCH_DEBOUNCE_DELAY as FILE_SEARCH_DEBOUNCE_DELAY,
+  MAX_MATCHES_PER_FILE,
+  MAX_TOTAL_MATCHES,
+} from './useFileContentSearch';
+export type {
+  FileMatch,
+  FileSearchResult,
+  FileContentSearchState,
+  FileContentSearchOptions,
+  UseFileContentSearchReturn,
+} from './useFileContentSearch';

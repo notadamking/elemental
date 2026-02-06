@@ -11,7 +11,7 @@ import { DirectorPanel } from './DirectorPanel';
 import { UserSelector } from './UserSelector';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationCenter } from '../notification';
-import { CommandPalette, useCommandPalette, QuickFileOpen, useQuickFileOpen } from '../command';
+import { CommandPalette, useCommandPalette, QuickFileOpen, useQuickFileOpen, FileContentSearch, useFileContentSearchShortcut } from '../command';
 import { useQuery } from '@tanstack/react-query';
 import { useNotifications } from '../../api/hooks/useNotifications';
 import { useGlobalKeyboardShortcuts } from '../../hooks';
@@ -344,6 +344,9 @@ export function AppShell() {
   // Quick file open (Ctrl/Cmd+P)
   const { open: quickFileOpenOpen, setOpen: setQuickFileOpenOpen } = useQuickFileOpen();
 
+  // File content search (Cmd/Ctrl+Shift+F)
+  const { open: fileContentSearchOpen, setOpen: setFileContentSearchOpen } = useFileContentSearchShortcut();
+
   // Toggle sidebar (works for both mobile drawer and desktop sidebar)
   const toggleSidebar = useCallback(() => {
     if (isMobile) {
@@ -529,6 +532,12 @@ export function AppShell() {
       <QuickFileOpen
         open={quickFileOpenOpen}
         onOpenChange={setQuickFileOpenOpen}
+      />
+
+      {/* File Content Search (Cmd+Shift+F) */}
+      <FileContentSearch
+        open={fileContentSearchOpen}
+        onOpenChange={setFileContentSearchOpen}
       />
     </div>
   );
