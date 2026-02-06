@@ -1406,7 +1406,31 @@ test.describe('TB-O32: Workflows Page', () => {
       });
 
       test('shows advanced options with ephemeral toggle', async ({ page }) => {
-        await page.route('**/api/playbooks', async (route) => {
+        // Route for individual playbook detail - must be registered first for specificity
+        await page.route('**/api/playbooks/pb-1', async (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              playbook: {
+                id: 'pb-1',
+                type: 'playbook',
+                name: 'test_playbook',
+                title: 'Test Playbook',
+                version: 1,
+                steps: [{ id: 'step-1', title: 'Step 1' }],
+                variables: [],
+                tags: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                createdBy: 'system',
+              },
+            }),
+          });
+        });
+
+        // Route for playbooks list (use exact URL pattern to avoid matching detail endpoint)
+        await page.route(/\/api\/playbooks(\?.*)?$/, async (route) => {
           route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -1431,38 +1455,21 @@ test.describe('TB-O32: Workflows Page', () => {
           });
         });
 
-        await page.route('**/api/playbooks/pb-1', async (route) => {
-          route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              playbook: {
-                id: 'pb-1',
-                type: 'playbook',
-                name: 'test_playbook',
-                title: 'Test Playbook',
-                version: 1,
-                steps: [{ id: 'step-1', title: 'Step 1' }],
-                variables: [],
-                tags: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                createdBy: 'system',
-              },
-            }),
-          });
-        });
-
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
         await page.getByTestId('playbook-pour-pb-1').click();
-        await page.waitForTimeout(300);
 
-        // Click to expand advanced options
-        await page.getByTestId('toggle-advanced').click();
+        // Wait for the Pour dialog to be visible
+        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
 
-        // Ephemeral checkbox should be visible
+        // Wait for the playbook detail to load (workflow title input appears when playbook data is available)
+        await expect(page.getByTestId('pour-title-input')).toBeVisible({ timeout: 5000 });
+
+        // Click to expand advanced options - the summary element has cursor:pointer
+        await page.getByText('Advanced options').click();
+
+        // Ephemeral checkbox should be visible after expanding
         await expect(page.getByTestId('ephemeral-checkbox')).toBeVisible();
         await expect(page.getByText('Ephemeral workflow', { exact: true })).toBeVisible();
         await expect(page.getByText('Ephemeral workflows are automatically cleaned up after completion')).toBeVisible();
@@ -2582,10 +2589,18 @@ steps:
   - id: step_1
     title: "Imported Step"`;
 
-        await page.getByTestId('yaml-import-textarea').fill(yamlContent);
+        const textarea = page.getByTestId('yaml-import-textarea');
+        await textarea.fill(yamlContent);
+        // Wait for React state to update
+        await expect(textarea).toHaveValue(yamlContent);
+
         await page.getByTestId('yaml-import-confirm').click();
 
-        // Should switch to steps tab and show imported content
+        // After import, the tab switches to 'steps' and the name/title should be populated
+        // Wait for the tab to switch (steps tab becomes active)
+        await expect(page.getByTestId('tab-steps')).toHaveAttribute('class', /text-\[var\(--color-primary\)\]/);
+
+        // Should show imported content
         await expect(page.getByTestId('playbook-name-input')).toHaveValue('imported_playbook');
         await expect(page.getByTestId('playbook-title-input')).toHaveValue('Imported Playbook');
       });
