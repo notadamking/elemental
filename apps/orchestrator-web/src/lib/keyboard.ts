@@ -150,6 +150,11 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutDefinition> = {
     description: 'Refresh Activity',
     category: 'actions',
   },
+  'action.quickFileOpen': {
+    keys: 'Cmd+P',
+    description: 'Quick File Open',
+    category: 'actions',
+  },
 };
 
 // Re-export getCustomShortcuts for use in settings
