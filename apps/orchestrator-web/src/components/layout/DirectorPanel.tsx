@@ -11,6 +11,7 @@ import {
   Play,
   Square,
   RefreshCw,
+  RotateCcw,
   Maximize2,
   AlertCircle,
   CirclePause,
@@ -144,6 +145,16 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
     }
   }, [director?.id, stopSession]);
 
+  const handleRestartSession = useCallback(async () => {
+    if (!director?.id) return;
+    try {
+      await stopSession.mutateAsync({ agentId: director.id, graceful: true });
+      await startSession.mutateAsync({ agentId: director.id });
+    } catch (err) {
+      console.error('Failed to restart director session:', err);
+    }
+  }, [director?.id, stopSession, startSession]);
+
   const handleTerminalStatusChange = useCallback((newStatus: TerminalStatus) => {
     setTerminalStatus(newStatus);
   }, []);
@@ -220,21 +231,38 @@ export function DirectorPanel({ collapsed = false, onToggle, onOpenInWorkspaces 
                   </button>
                 </Tooltip>
               ) : (
-                <Tooltip content="Stop Director Session" side="bottom">
-                  <button
-                    onClick={handleStopSession}
-                    disabled={stopSession.isPending}
-                    className="p-1.5 rounded-md text-[var(--color-danger)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 disabled:opacity-50"
-                    aria-label="Stop Director Session"
-                    data-testid="director-stop-session"
-                  >
-                    {stopSession.isPending ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Square className="w-4 h-4" />
-                    )}
-                  </button>
-                </Tooltip>
+                <>
+                  <Tooltip content="Restart Director Session" side="bottom">
+                    <button
+                      onClick={handleRestartSession}
+                      disabled={stopSession.isPending || startSession.isPending}
+                      className="p-1.5 rounded-md text-[var(--color-warning)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 disabled:opacity-50"
+                      aria-label="Restart Director Session"
+                      data-testid="director-restart-session"
+                    >
+                      {(stopSession.isPending || startSession.isPending) ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-4 h-4" />
+                      )}
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Stop Director Session" side="bottom">
+                    <button
+                      onClick={handleStopSession}
+                      disabled={stopSession.isPending}
+                      className="p-1.5 rounded-md text-[var(--color-danger)] hover:bg-[var(--color-surface-hover)] transition-colors duration-150 disabled:opacity-50"
+                      aria-label="Stop Director Session"
+                      data-testid="director-stop-session"
+                    >
+                      {stopSession.isPending ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </Tooltip>
+                </>
               )}
             </>
           )}
