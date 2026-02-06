@@ -44,7 +44,7 @@ export function TaskStatusBadge({
   if (status === 'closed' && mergeStatus && mergeStatus !== 'merged') {
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${getMergeStatusColor(mergeStatus)} ${className}`}
+        className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded-full ${getMergeStatusColor(mergeStatus)} ${className}`}
         data-testid="task-merge-status-badge"
       >
         {getMergeStatusDisplayName(mergeStatus)}
@@ -54,7 +54,7 @@ export function TaskStatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(status)} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(status)} ${className}`}
       data-testid="task-status-badge"
     >
       {getStatusDisplayName(status)}
@@ -177,7 +177,7 @@ export function MergeStatusBadge({
 }: MergeStatusBadgeProps): React.ReactElement {
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${getMergeStatusColor(status)} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 text-xs font-medium rounded-full ${getMergeStatusColor(status)} ${className}`}
       data-testid="merge-status-badge"
     >
       {getMergeStatusDisplayName(status)}
