@@ -163,12 +163,18 @@ const channels = await api.searchChannels('channel-name');
 
 ## Task-Specific Operations
 
-### Ready tasks (unblocked, open)
+### Ready tasks (unblocked, open, not in draft plans)
 
 ```typescript
 const ready = await api.ready();
 const readyIncludingEphemeral = await api.ready({ includeEphemeral: true });
 ```
+
+**`ready()` excludes:**
+- Blocked tasks (via blocked cache)
+- Tasks in draft plans (plan status = 'draft')
+- Future-scheduled tasks (scheduledFor > now)
+- Ephemeral workflow tasks (unless `includeEphemeral: true`)
 
 ### Blocked tasks
 

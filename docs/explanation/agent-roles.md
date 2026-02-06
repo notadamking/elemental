@@ -284,10 +284,23 @@ const available = workers.filter(a => a.status === 'active');
 
 Tasks are assigned through the Dispatch Daemon, which handles all task dispatch logic:
 
-1. **Director creates tasks** with priorities and dependencies
-2. **Dispatch Daemon polls** for unassigned tasks and available workers
-3. **Daemon assigns** highest priority task to next available ephemeral worker
-4. **Worker spawns** in isolated worktree and receives task via dispatch message
+1. **Director creates plan** in draft status (default)
+2. **Director creates tasks** with priorities within the plan
+3. **Director sets dependencies** between tasks
+4. **Director activates plan** — tasks become dispatchable
+5. **Dispatch Daemon polls** for ready, unassigned tasks via `api.ready()`
+6. **Daemon assigns** highest priority task to next available ephemeral worker
+7. **Worker spawns** in isolated worktree and receives task via dispatch message
+
+**Important:** Tasks in draft plans are NOT dispatched. This prevents race conditions where the daemon assigns tasks before dependencies are set. Directors should always use plans when creating tasks with dependencies:
+
+```bash
+el plan create --title "Feature X"                    # Draft by default
+el create task --plan "Feature X" --title "Task 1"
+el create task --plan "Feature X" --title "Task 2"
+el dep add el-task2 el-task1 --type blocks           # Set dependencies
+el plan activate <plan-id>                            # NOW tasks dispatch
+```
 
 ```typescript
 import { createTaskAssignmentService } from '@elemental/orchestrator-sdk';

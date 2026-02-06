@@ -164,6 +164,8 @@ Common pitfalls and their solutions, organized by severity and category.
 - **Tasks cannot be double-assigned** — `assignToAgent` throws if the task is already assigned to a different agent
 - **`DispatchDaemonConfig.projectRoot`** enables project-level prompt overrides for triage sessions (defaults to `process.cwd()`)
 - **`updateConfig()` restarts the poll interval** if `pollIntervalMs` changes — other config changes take effect immediately since they're checked inside `runPollCycle`
+- **Tasks in draft plans are NOT dispatched** — `api.ready()` excludes tasks whose parent plan has `status: 'draft'`. Use draft plans when creating tasks with dependencies, then `el plan activate` to enable dispatch. Without this, the daemon may assign tasks before dependencies are set.
+- **Dispatch daemon uses `api.ready()`** — not raw task queries. This ensures blocked, draft-plan, and future-scheduled tasks are never dispatched.
 
 ## Identity
 

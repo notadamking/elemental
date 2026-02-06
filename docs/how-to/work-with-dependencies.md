@@ -358,6 +358,29 @@ await api.addDependency({
 });
 ```
 
+## Best Practices
+
+### Use Draft Plans for Tasks with Dependencies
+
+When creating multiple tasks with dependencies, **always use a draft plan** to prevent the dispatch daemon from assigning tasks before dependencies are set:
+
+```bash
+# 1. Create plan (defaults to draft)
+el plan create --title "Feature X"
+
+# 2. Create tasks (not dispatchable yet)
+el create task --plan "Feature X" --title "Backend API"
+el create task --plan "Feature X" --title "Frontend UI"
+
+# 3. Set dependencies
+el dep add el-frontend el-backend --type blocks
+
+# 4. Activate plan (tasks become dispatchable)
+el plan activate <plan-id>
+```
+
+Without this workflow, the dispatch daemon (which polls every 5 seconds) may assign tasks to workers before you finish setting up dependencies.
+
 ## Gotchas
 
 1. **`blocked` is computed** - Never set `status: 'blocked'` directly
@@ -366,3 +389,4 @@ await api.addDependency({
 4. **`relates-to` is normalized** - Query both directions
 5. **Parent-child doesn't block plans** - Tasks in plan don't wait for plan status
 6. **Cascade delete** - Deleting element removes its dependencies
+7. **Draft plans gate dispatch** - Tasks in draft plans are excluded from `api.ready()` and won't be dispatched

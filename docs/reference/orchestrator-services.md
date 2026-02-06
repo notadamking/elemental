@@ -306,10 +306,18 @@ The daemon runs four concurrent polling loops:
 
 1. Find ephemeral workers without an active session
 2. For each available worker:
-   - Query for highest priority unassigned task
-   - Assign task to worker
+   - Query for ready, unassigned tasks via `api.ready()`
+   - Assign highest priority task to worker
    - Send dispatch message to worker's inbox
    - Spawn worker in task worktree
+
+**Note:** The daemon uses `api.ready()` which filters out:
+- Blocked tasks (via blocked cache)
+- Tasks in draft plans (plan status = 'draft')
+- Future-scheduled tasks
+- Ephemeral workflow tasks
+
+This ensures tasks are only dispatched when they're truly ready to be worked on.
 
 ### Inbox Dispatch Behavior
 

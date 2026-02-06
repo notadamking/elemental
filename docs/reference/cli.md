@@ -242,17 +242,38 @@ el embeddings search "authentication flow"
 
 ## Plan Commands
 
-| Command                           | Description        |
-| --------------------------------- | ------------------ |
-| `el plan create`                  | Create plan        |
-| `el plan list`                    | List plans         |
-| `el plan show <id>`               | Show plan details  |
-| `el plan activate <id>`           | Activate plan      |
-| `el plan complete <id>`           | Mark completed     |
-| `el plan cancel <id>`             | Cancel plan        |
-| `el plan add-task <id> <task>`    | Add task to plan   |
-| `el plan remove-task <id> <task>` | Remove task        |
-| `el plan tasks <id>`              | List tasks in plan |
+| Command                           | Description                       |
+| --------------------------------- | --------------------------------- |
+| `el plan create`                  | Create plan (defaults to draft)   |
+| `el plan list`                    | List plans                        |
+| `el plan show <id>`               | Show plan details                 |
+| `el plan activate <id>`           | Activate plan (enables dispatch)  |
+| `el plan complete <id>`           | Mark completed                    |
+| `el plan cancel <id>`             | Cancel plan                       |
+| `el plan add-task <id> <task>`    | Add task to plan                  |
+| `el plan remove-task <id> <task>` | Remove task                       |
+| `el plan tasks <id>`              | List tasks in plan                |
+
+### Draft Plan Workflow
+
+Plans default to `draft` status. **Tasks in draft plans are NOT dispatchable** — the dispatch daemon will not assign them to workers. This prevents premature dispatch before dependencies are set.
+
+```bash
+# 1. Create plan (defaults to draft)
+el plan create --title "Feature X"
+
+# 2. Create tasks in the plan (not yet dispatchable)
+el create task --title "Task 1" --plan "Feature X"
+el create task --title "Task 2" --plan "Feature X"
+
+# 3. Set dependencies between tasks
+el dep add el-task2 el-task1 --type blocks
+
+# 4. Activate plan (tasks become dispatchable)
+el plan activate <plan-id>
+```
+
+**Important:** Always use plans when creating tasks with dependencies to avoid race conditions with the dispatch daemon.
 
 ## Workflow Commands
 
