@@ -236,6 +236,29 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
    - Assign highest priority workflow task
    - Send dispatch message to steward's inbox
 
+### Orphan Recovery Polling
+
+**Purpose:** Recover workers with assigned tasks but no active session after a server restart.
+
+**Background:** When the orchestrator server restarts while ephemeral workers are mid-task:
+1. `reconcileOnStartup()` resets agent `sessionStatus` from `'running'` to `'idle'`
+2. Task assignments persist: `task.assignee` is still set, `task.status` is still `IN_PROGRESS`
+3. Without recovery, `pollWorkerAvailability()` would skip these workers because they already have assigned tasks
+
+**Process:**
+1. Find all ephemeral workers without an active session
+2. For each worker, check if they have assigned tasks (OPEN or IN_PROGRESS)
+3. For workers with orphaned assignments:
+   - **Try resume first:** If a previous `sessionId` exists in task metadata, attempt to resume that Claude session with a prompt explaining the restart
+   - **Fall back to fresh spawn:** If no sessionId or resume fails, spawn a fresh session with the full task prompt
+4. Reuse existing worktree if available; create new worktree if the original was cleaned up
+
+**Execution Timing:**
+- Runs immediately after `reconcileOnStartup()` during daemon startup
+- Runs at the start of each poll cycle, before other polling loops
+
+**Configuration:** Controlled by `orphanRecoveryEnabled` config option (default: `true`).
+
 ---
 
 ## Message Triage

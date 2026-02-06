@@ -293,10 +293,11 @@ daemon.updateConfig({ pollIntervalMs: 10000 });
 
 ### Polling Loops
 
-The daemon runs four concurrent polling loops:
+The daemon runs five polling loops:
 
 | Loop | Purpose |
 |------|---------|
+| **Orphan Recovery** | Detect workers with assigned tasks but no active session; resume or respawn to continue work |
 | **Worker Availability** | Find available ephemeral workers and assign highest priority unassigned tasks |
 | **Inbox Polling** | Deliver messages to agents and spawn sessions when needed |
 | **Steward Triggers** | Check for triggered conditions and create workflows from playbooks |
@@ -318,6 +319,21 @@ The daemon runs four concurrent polling loops:
 - Ephemeral workflow tasks
 
 This ensures tasks are only dispatched when they're truly ready to be worked on.
+
+### Orphan Recovery Behavior
+
+The daemon recovers orphaned task assignments on startup and at the start of each poll cycle:
+
+1. Find ephemeral workers without an active session
+2. Check if worker has assigned tasks (OPEN or IN_PROGRESS status)
+3. For each orphaned assignment:
+   - **Resume session:** If `sessionId` exists in task metadata, try `sessionManager.resumeSession()` with a restart notification prompt
+   - **Fresh spawn:** If no sessionId or resume fails, call `sessionManager.startSession()` with the full task prompt
+4. Reuse existing worktree/branch from task metadata if available; create new if missing
+
+**Configuration:** Set `orphanRecoveryEnabled: false` to disable (default: `true`).
+
+**Note:** REVIEW status tasks are not recovered by this mechanism — they are handled by merge steward dispatch in `pollWorkflowTasks()`.
 
 ### Inbox Dispatch Behavior
 

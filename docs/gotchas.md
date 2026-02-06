@@ -166,6 +166,9 @@ Common pitfalls and their solutions, organized by severity and category.
 - **`updateConfig()` restarts the poll interval** if `pollIntervalMs` changes — other config changes take effect immediately since they're checked inside `runPollCycle`
 - **Tasks in draft plans are NOT dispatched** — `api.ready()` excludes tasks whose parent plan has `status: 'draft'`. Use draft plans when creating tasks with dependencies, then `el plan activate` to enable dispatch. Without this, the daemon may assign tasks before dependencies are set.
 - **Dispatch daemon uses `api.ready()`** — not raw task queries. This ensures blocked, draft-plan, and future-scheduled tasks are never dispatched.
+- **Orphan recovery runs on startup and at each poll cycle start** — workers with assigned tasks but no active session (e.g., after a server restart) are automatically re-spawned to continue work. Configure with `orphanRecoveryEnabled` (default: `true`).
+- **Resume preserves context** — orphan recovery tries to resume the previous Claude session first using the `sessionId` stored in task metadata, which preserves conversation history. Falls back to fresh spawn if unavailable or resume fails.
+- **Orphan recovery only handles OPEN/IN_PROGRESS tasks** — REVIEW tasks are handled by merge steward dispatch, not the worker orphan recovery mechanism.
 
 ## Identity
 
