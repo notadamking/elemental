@@ -13,6 +13,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
+import { getMonacoLanguage } from '../lib/language-detection';
 
 // ============================================================================
 // Types
@@ -115,104 +116,8 @@ export function isFileSystemAccessSupported(): boolean {
 // File Language Detection
 // ============================================================================
 
-/**
- * Detect language from filename extension
- */
-function detectLanguage(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-
-  const extMap: Record<string, string> = {
-    js: 'javascript',
-    jsx: 'javascript',
-    mjs: 'javascript',
-    cjs: 'javascript',
-    ts: 'typescript',
-    tsx: 'typescript',
-    mts: 'typescript',
-    cts: 'typescript',
-    json: 'json',
-    jsonc: 'json',
-    json5: 'json',
-    md: 'markdown',
-    mdx: 'markdown',
-    html: 'html',
-    htm: 'html',
-    css: 'css',
-    scss: 'scss',
-    sass: 'scss',
-    less: 'less',
-    py: 'python',
-    pyw: 'python',
-    pyx: 'python',
-    yaml: 'yaml',
-    yml: 'yaml',
-    xml: 'xml',
-    svg: 'xml',
-    sql: 'sql',
-    sh: 'shell',
-    bash: 'shell',
-    zsh: 'shell',
-    fish: 'shell',
-    ps1: 'powershell',
-    go: 'go',
-    rs: 'rust',
-    java: 'java',
-    kt: 'kotlin',
-    kts: 'kotlin',
-    c: 'c',
-    cpp: 'cpp',
-    cc: 'cpp',
-    cxx: 'cpp',
-    h: 'c',
-    hpp: 'cpp',
-    hxx: 'cpp',
-    cs: 'csharp',
-    php: 'php',
-    rb: 'ruby',
-    swift: 'swift',
-    r: 'r',
-    R: 'r',
-    lua: 'lua',
-    pl: 'perl',
-    pm: 'perl',
-    ex: 'elixir',
-    exs: 'elixir',
-    erl: 'erlang',
-    hrl: 'erlang',
-    clj: 'clojure',
-    cljs: 'clojure',
-    scala: 'scala',
-    vue: 'vue',
-    svelte: 'svelte',
-    astro: 'astro',
-    graphql: 'graphql',
-    gql: 'graphql',
-    dockerfile: 'dockerfile',
-    toml: 'toml',
-    ini: 'ini',
-    conf: 'ini',
-    cfg: 'ini',
-    env: 'dotenv',
-    gitignore: 'ignore',
-    dockerignore: 'ignore',
-    makefile: 'makefile',
-    cmake: 'cmake',
-  };
-
-  // Handle special filenames
-  const lowerName = filename.toLowerCase();
-  if (lowerName === 'dockerfile' || lowerName.startsWith('dockerfile.')) {
-    return 'dockerfile';
-  }
-  if (lowerName === 'makefile' || lowerName === 'gnumakefile') {
-    return 'makefile';
-  }
-  if (lowerName.endsWith('.d.ts')) {
-    return 'typescript';
-  }
-
-  return extMap[ext] || 'plaintext';
-}
+// Language detection is now handled by the shared utility in lib/language-detection.ts
+// We import getMonacoLanguage from there for consistent language detection across the app
 
 // ============================================================================
 // Helper to check if path should be ignored
@@ -488,7 +393,7 @@ export function useFileSystemAccess(): UseFileSystemAccessReturn {
         path: entry.path,
         size: file.size,
         lastModified: file.lastModified,
-        language: detectLanguage(file.name),
+        language: getMonacoLanguage(file.name),
       };
     } catch (error) {
       throw new Error(
@@ -517,7 +422,7 @@ export function useFileSystemAccess(): UseFileSystemAccessReturn {
           path,
           size: file.size,
           lastModified: file.lastModified,
-          language: detectLanguage(file.name),
+          language: getMonacoLanguage(file.name),
         };
       } catch {
         return null;

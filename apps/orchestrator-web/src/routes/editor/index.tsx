@@ -8,9 +8,9 @@
  * 2. Documents mode: Browse documents from the API document library
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Editor from '@monaco-editor/react';
+import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
 import {
   FileCode,
   Folder,
@@ -25,11 +25,22 @@ import {
   RefreshCw,
   HardDrive,
   Database,
+  Settings,
+  FileJson,
+  FileType,
+  Braces,
 } from 'lucide-react';
 import { PageHeader } from '../../components/shared/PageHeader';
 import { useAllDocuments } from '../../api/hooks/useAllElements';
 import { useWorkspace, type FileSystemEntry } from '../../contexts';
 import type { Document } from '../../api/hooks/useAllElements';
+import {
+  getMonacoLanguageFromContentType,
+  isCodeFile,
+  isConfigFile,
+  isDataFile,
+  detectLanguageFromFilename,
+} from '../../lib/language-detection';
 
 // ============================================================================
 // Types
@@ -80,76 +91,118 @@ function useDocumentContent(documentId: string | null) {
 }
 
 // ============================================================================
-// Language detection
+// Language detection (using shared utilities)
 // ============================================================================
 
 function getLanguageFromDocument(doc: Document | null): string {
   if (!doc) return 'plaintext';
-
-  const contentType = doc.contentType?.toLowerCase() || '';
-  const title = doc.title?.toLowerCase() || '';
-
-  // Check content type first
-  if (contentType.includes('javascript') || contentType === 'js') return 'javascript';
-  if (contentType.includes('typescript') || contentType === 'ts') return 'typescript';
-  if (contentType.includes('json')) return 'json';
-  if (contentType.includes('markdown') || contentType === 'md') return 'markdown';
-  if (contentType.includes('html')) return 'html';
-  if (contentType.includes('css')) return 'css';
-  if (contentType.includes('python') || contentType === 'py') return 'python';
-  if (contentType.includes('yaml') || contentType.includes('yml')) return 'yaml';
-  if (contentType.includes('xml')) return 'xml';
-  if (contentType.includes('sql')) return 'sql';
-  if (contentType.includes('shell') || contentType.includes('bash') || contentType === 'sh') return 'shell';
-
-  // Fallback to file extension from title
-  return getLanguageFromFilename(title);
+  return getMonacoLanguageFromContentType(doc.contentType, doc.title);
 }
 
-function getLanguageFromFilename(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  const extMap: Record<string, string> = {
-    js: 'javascript',
-    jsx: 'javascript',
-    mjs: 'javascript',
-    cjs: 'javascript',
-    ts: 'typescript',
-    tsx: 'typescript',
-    mts: 'typescript',
-    cts: 'typescript',
-    json: 'json',
-    md: 'markdown',
-    mdx: 'markdown',
-    html: 'html',
-    htm: 'html',
-    css: 'css',
-    scss: 'scss',
-    less: 'less',
-    py: 'python',
-    yaml: 'yaml',
-    yml: 'yaml',
-    xml: 'xml',
-    sql: 'sql',
-    sh: 'shell',
-    bash: 'shell',
-    zsh: 'shell',
-    go: 'go',
-    rs: 'rust',
-    java: 'java',
-    c: 'c',
-    cpp: 'cpp',
-    h: 'c',
-    hpp: 'cpp',
-    cs: 'csharp',
-    php: 'php',
-    rb: 'ruby',
-    swift: 'swift',
-    kt: 'kotlin',
-    vue: 'vue',
-    svelte: 'svelte',
-  };
+// ============================================================================
+// Monaco configuration for enhanced syntax/semantic highlighting
+// ============================================================================
 
-  return extMap[ext] || 'plaintext';
+/**
+ * Configure Monaco editor instance for enhanced highlighting
+ */
+function configureMonaco(monaco: Monaco): void {
+  // Define custom theme with enhanced semantic token colors
+  monaco.editor.defineTheme('elemental-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      // Enhanced syntax highlighting rules
+      { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },
+      { token: 'keyword', foreground: 'C586C0' },
+      { token: 'keyword.control', foreground: 'C586C0' },
+      { token: 'keyword.operator', foreground: 'C586C0' },
+      { token: 'string', foreground: 'CE9178' },
+      { token: 'string.escape', foreground: 'D7BA7D' },
+      { token: 'number', foreground: 'B5CEA8' },
+      { token: 'regexp', foreground: 'D16969' },
+      { token: 'type', foreground: '4EC9B0' },
+      { token: 'type.identifier', foreground: '4EC9B0' },
+      { token: 'class', foreground: '4EC9B0' },
+      { token: 'interface', foreground: '4EC9B0', fontStyle: 'italic' },
+      { token: 'enum', foreground: '4EC9B0' },
+      { token: 'typeParameter', foreground: '4EC9B0', fontStyle: 'italic' },
+      { token: 'function', foreground: 'DCDCAA' },
+      { token: 'function.declaration', foreground: 'DCDCAA' },
+      { token: 'method', foreground: 'DCDCAA' },
+      { token: 'variable', foreground: '9CDCFE' },
+      { token: 'variable.readonly', foreground: '4FC1FF' },
+      { token: 'variable.constant', foreground: '4FC1FF' },
+      { token: 'parameter', foreground: '9CDCFE', fontStyle: 'italic' },
+      { token: 'property', foreground: '9CDCFE' },
+      { token: 'namespace', foreground: '4EC9B0' },
+      { token: 'decorator', foreground: 'DCDCAA' },
+      { token: 'tag', foreground: '569CD6' },
+      { token: 'attribute.name', foreground: '9CDCFE' },
+      { token: 'attribute.value', foreground: 'CE9178' },
+      // JSX/TSX specific
+      { token: 'tag.tsx', foreground: '4EC9B0' },
+      { token: 'tag.jsx', foreground: '4EC9B0' },
+      // JSON
+      { token: 'string.key.json', foreground: '9CDCFE' },
+      { token: 'string.value.json', foreground: 'CE9178' },
+      // Markdown
+      { token: 'markup.heading', foreground: '569CD6', fontStyle: 'bold' },
+      { token: 'markup.bold', fontStyle: 'bold' },
+      { token: 'markup.italic', fontStyle: 'italic' },
+      { token: 'markup.inline.raw', foreground: 'CE9178' },
+      // Shell
+      { token: 'variable.shell', foreground: '9CDCFE' },
+    ],
+    colors: {
+      'editor.background': '#1a1a2e',
+      'editor.foreground': '#d4d4d4',
+      'editor.lineHighlightBackground': '#2a2a4e',
+      'editor.selectionBackground': '#264f78',
+      'editorCursor.foreground': '#aeafad',
+      'editorWhitespace.foreground': '#3b3b5b',
+      'editorLineNumber.foreground': '#5a5a8a',
+      'editorLineNumber.activeForeground': '#c6c6c6',
+      'editor.inactiveSelectionBackground': '#3a3d41',
+      'editorIndentGuide.background1': '#404060',
+      'editorIndentGuide.activeBackground1': '#707090',
+    },
+  });
+
+  // Configure TypeScript/JavaScript for better semantic tokens
+  monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+    noSemanticValidation: false,
+    noSyntaxValidation: false,
+  });
+
+  monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+    target: monaco.languages.typescript.ScriptTarget.Latest,
+    allowNonTsExtensions: true,
+    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    module: monaco.languages.typescript.ModuleKind.ESNext,
+    noEmit: true,
+    esModuleInterop: true,
+    jsx: monaco.languages.typescript.JsxEmit.React,
+    reactNamespace: 'React',
+    allowJs: true,
+    typeRoots: ['node_modules/@types'],
+  });
+
+  monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+    noSemanticValidation: false,
+    noSyntaxValidation: false,
+  });
+
+  monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+    target: monaco.languages.typescript.ScriptTarget.Latest,
+    allowNonTsExtensions: true,
+    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    module: monaco.languages.typescript.ModuleKind.ESNext,
+    noEmit: true,
+    esModuleInterop: true,
+    jsx: monaco.languages.typescript.JsxEmit.React,
+    allowJs: true,
+  });
 }
 
 // ============================================================================
@@ -210,17 +263,27 @@ function FileTreeItem({
     }
   };
 
-  const isCodeFile =
-    node.document?.contentType?.includes('code') ||
-    node.name.match(/\.(tsx?|jsx?|json|py|go|rs|java|c|cpp|h|hpp|sh|bash|yml|yaml|xml|sql|html|css|scss|less|md|vue|svelte)$/i);
+  // Use language detection for better icon categorization
+  const fileIsCode = !isFolder && isCodeFile(node.name);
+  const fileIsConfig = !isFolder && isConfigFile(node.name);
+  const fileIsData = !isFolder && isDataFile(node.name);
 
-  const Icon = isFolder
-    ? isExpanded
-      ? FolderOpen
-      : Folder
-    : isCodeFile
-      ? FileCode
-      : FileText;
+  // Select icon based on file type
+  const getFileIcon = () => {
+    if (isFolder) {
+      return isExpanded ? FolderOpen : Folder;
+    }
+    if (fileIsCode) return FileCode;
+    if (fileIsConfig) return Settings;
+    if (fileIsData) {
+      // Special icons for specific data types
+      if (node.name.endsWith('.json') || node.name.endsWith('.jsonc')) return FileJson;
+      return FileType;
+    }
+    return FileText;
+  };
+
+  const Icon = getFileIcon();
 
   return (
     <div data-testid={`file-tree-item-${node.id}`}>
@@ -348,6 +411,8 @@ export function FileEditorPage() {
   const [fileSource, setFileSource] = useState<FileSource>('workspace');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isMonacoReady, setIsMonacoReady] = useState(false);
+  const monacoRef = useRef<Monaco | null>(null);
 
   // Workspace state from context
   const {
@@ -460,6 +525,18 @@ export function FileEditorPage() {
     if (fileSource === 'documents') return 'Document library';
     return 'Open a workspace or select a document';
   }, [openFile, fileSource, isWorkspaceOpen, workspaceName]);
+
+  // Handle Monaco editor mount - configure once
+  const handleEditorDidMount: OnMount = useCallback((_editor, monaco) => {
+    monacoRef.current = monaco;
+    if (!isMonacoReady) {
+      configureMonaco(monaco);
+      setIsMonacoReady(true);
+    }
+  }, [isMonacoReady]);
+
+  // Get language info for display
+  const languageInfo = openFile ? detectLanguageFromFilename(openFile.name) : null;
 
   return (
     <div className="h-full flex flex-col space-y-6 animate-fade-in" data-testid="file-editor-page">
@@ -597,27 +674,74 @@ export function FileEditorPage() {
               </p>
             </div>
           ) : openFile ? (
-            <Editor
-              height="100%"
-              language={openFile.language}
-              value={openFile.content}
-              theme="vs-dark"
-              options={{
-                readOnly: true,
-                minimap: { enabled: true },
-                fontSize: 14,
-                lineNumbers: 'on',
-                scrollBeyondLastLine: false,
-                wordWrap: 'on',
-                automaticLayout: true,
-                padding: { top: 16 },
-              }}
-              loading={
-                <div className="flex items-center justify-center h-full" data-testid="editor-monaco-loading">
-                  <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)]" />
+            <>
+              {/* Language indicator bar */}
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
+                <div className="flex items-center gap-2">
+                  <Braces className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                  <span className="text-xs font-medium text-[var(--color-text-secondary)]">
+                    {languageInfo?.displayName || 'Plain Text'}
+                  </span>
                 </div>
-              }
-            />
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Read Only
+                </span>
+              </div>
+              <Editor
+                height="100%"
+                language={openFile.language}
+                value={openFile.content}
+                theme={isMonacoReady ? 'elemental-dark' : 'vs-dark'}
+                onMount={handleEditorDidMount}
+                options={{
+                  readOnly: true,
+                  minimap: {
+                    enabled: true,
+                    scale: 1,
+                    showSlider: 'mouseover',
+                    renderCharacters: false,
+                  },
+                  fontSize: 14,
+                  fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+                  fontLigatures: true,
+                  lineNumbers: 'on',
+                  scrollBeyondLastLine: false,
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  padding: { top: 16, bottom: 16 },
+                  // Enhanced syntax highlighting options
+                  renderWhitespace: 'selection',
+                  bracketPairColorization: { enabled: true },
+                  guides: {
+                    bracketPairs: true,
+                    indentation: true,
+                    highlightActiveIndentation: true,
+                  },
+                  // Semantic highlighting
+                  'semanticHighlighting.enabled': true,
+                  // Smooth scrolling and cursor
+                  smoothScrolling: true,
+                  cursorBlinking: 'smooth',
+                  cursorSmoothCaretAnimation: 'on',
+                  // Code folding
+                  folding: true,
+                  foldingStrategy: 'indentation',
+                  showFoldingControls: 'mouseover',
+                  // Hover and suggestions (disabled for read-only)
+                  hover: { enabled: true, delay: 500 },
+                  quickSuggestions: false,
+                  suggestOnTriggerCharacters: false,
+                  // Selection highlighting
+                  occurrencesHighlight: 'singleFile',
+                  selectionHighlight: true,
+                }}
+                loading={
+                  <div className="flex items-center justify-center h-full" data-testid="editor-monaco-loading">
+                    <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-muted)]" />
+                  </div>
+                }
+              />
+            </>
           ) : null}
         </div>
       </div>
