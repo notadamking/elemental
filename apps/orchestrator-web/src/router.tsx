@@ -18,6 +18,7 @@ import { InboxPage } from './routes/inbox';
 import { MessagesPage } from './routes/messages';
 import { DocumentsPage } from './routes/documents';
 import { MergeRequestsPage } from './routes/merge-requests';
+import { FileEditorPage } from './routes/editor';
 
 /**
  * Root layout component that conditionally renders AppShell or plain Outlet
@@ -204,6 +205,13 @@ const mergeRequestsRoute = createRoute({
   },
 });
 
+// Editor route
+const editorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/editor',
+  component: FileEditorPage,
+});
+
 // Popout routes - these render without AppShell via the RootLayout conditional
 const popoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -241,6 +249,7 @@ const routeTree = rootRoute.addChildren([
   messagesRoute,
   documentsRoute,
   mergeRequestsRoute,
+  editorRoute,
   popoutRoute.addChildren([
     popoutTerminalRoute,
   ]),
