@@ -158,6 +158,22 @@ export async function initializeServices(): Promise<Services> {
         content: initialPrompt,
         isError: false,
       });
+
+      // Auto-terminate sessions when they emit a 'result' event
+      // This handles ephemeral worker sessions completing their tasks
+      const onResultEvent = (event: { type: string }) => {
+        if (event.type === 'result') {
+          console.log(`[orchestrator] Session ${session.id} emitted result, auto-terminating`);
+          sessionManager.stopSession(session.id, {
+            graceful: true,
+            reason: 'Completed with result',
+          }).catch(() => {
+            // Session may already be terminated - ignore errors
+          });
+          events.off('event', onResultEvent);
+        }
+      };
+      events.on('event', onResultEvent);
     };
 
     dispatchDaemon = createDispatchDaemon(

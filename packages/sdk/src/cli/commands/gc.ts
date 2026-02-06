@@ -14,8 +14,6 @@ import { getFormatter, getOutputMode } from '../formatter.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import { createElementalAPI } from '../../api/elemental-api.js';
 import type { ElementalAPI } from '../../api/types.js';
-import type { Task } from '@elemental/core';
-import { TaskStatus } from '@elemental/core';
 import type { Workflow } from '@elemental/core';
 
 // ============================================================================
@@ -113,9 +111,6 @@ async function gcTasksHandler(
   }
 
   try {
-    const mode = getOutputMode(options);
-    const formatter = getFormatter(mode);
-
     // Parse age option (in days)
     const ageDays = options.age ? parseFloat(options.age) : DEFAULT_GC_AGE_DAYS;
     if (isNaN(ageDays) || ageDays < 0) {
@@ -131,66 +126,19 @@ async function gcTasksHandler(
 
     const dryRun = !!options['dry-run'];
 
-    // If dry run, show what would be deleted first
-    if (dryRun) {
-      // Get eligible tasks without deleting
-      const allTasks = await api.list<Task>({ type: 'task' });
-      const eligibleTasks = allTasks.filter(task => {
-        // Must be ephemeral
-        if (!task.ephemeral) return false;
-        // Must be in terminal state
-        if (task.status !== TaskStatus.CLOSED && task.status !== TaskStatus.TOMBSTONE) return false;
-        // Check age
-        const finishedTime = task.status === TaskStatus.CLOSED
-          ? (task.closedAt ? new Date(task.closedAt).getTime() : 0)
-          : (task.deletedAt ? new Date(task.deletedAt).getTime() : 0);
-        return Date.now() - finishedTime >= maxAgeMs;
-      });
-
-      // Apply limit for display
-      const toShow = limit ? eligibleTasks.slice(0, limit) : eligibleTasks;
-
-      if (toShow.length === 0) {
-        return success({ wouldDelete: [], count: 0 }, 'No tasks eligible for garbage collection');
-      }
-
-      if (mode === 'json') {
-        return success({
-          wouldDelete: toShow.map(t => t.id),
-          count: toShow.length,
-        });
-      }
-
-      if (mode === 'quiet') {
-        return success(toShow.map(t => t.id).join('\n'));
-      }
-
-      const headers = ['ID', 'TITLE', 'STATUS', 'FINISHED'];
-      const rows = toShow.map(t => [
-        t.id,
-        t.title.length > 40 ? t.title.substring(0, 37) + '...' : t.title,
-        t.status,
-        t.status === TaskStatus.CLOSED
-          ? (t.closedAt ? t.closedAt.split('T')[0] : '-')
-          : (t.deletedAt ? t.deletedAt.split('T')[0] : '-'),
-      ]);
-
-      const table = formatter.table(headers, rows);
-      return success(
-        { wouldDelete: toShow.map(t => t.id), count: toShow.length },
-        `Would delete ${toShow.length} task(s):\n${table}`
-      );
-    }
-
-    // Actually run garbage collection
+    // Task GC is now a no-op - tasks no longer have an ephemeral property.
+    // Only workflows can be ephemeral, and their tasks are GC'd via garbageCollectWorkflows().
     const gcResult = await api.garbageCollectTasks({
       maxAgeMs,
-      dryRun: false,
+      dryRun,
       limit,
     });
 
     if (gcResult.tasksDeleted === 0) {
-      return success({ deleted: 0 }, 'No tasks eligible for garbage collection');
+      return success(
+        { deleted: 0 },
+        'No tasks eligible for garbage collection (tasks are now GC\'d via their parent workflows)'
+      );
     }
 
     return success(
@@ -205,15 +153,15 @@ async function gcTasksHandler(
 
 const gcTasksCommand: Command = {
   name: 'tasks',
-  description: 'Garbage collect old ephemeral tasks',
+  description: 'Garbage collect old tasks (deprecated - use "el gc workflows" instead)',
   usage: 'el gc tasks [options]',
-  help: `Delete old ephemeral tasks that have reached a terminal state.
+  help: `Garbage collect old tasks.
 
-Tasks are eligible for garbage collection if they are:
-- Ephemeral (not durable)
-- In a terminal state (closed or tombstone)
-- Older than the specified age
-- Not belonging to a workflow (workflow tasks should be GC'd via 'el gc workflows')
+NOTE: This command is now a no-op. Tasks no longer have an ephemeral property.
+Only workflows can be ephemeral, and their child tasks are garbage collected
+automatically when you run 'el gc workflows'.
+
+Use 'el gc workflows' to garbage collect ephemeral workflows and their tasks.
 
 Options:
   -a, --age <days>   Maximum age in days (default: ${DEFAULT_GC_AGE_DAYS})
@@ -221,10 +169,8 @@ Options:
       --dry-run      Show what would be deleted without deleting
 
 Examples:
-  el gc tasks
-  el gc tasks --age 7
-  el gc tasks --dry-run
-  el gc tasks --limit 100`,
+  el gc workflows          # Recommended: GC workflows and their tasks
+  el gc tasks              # No-op, kept for backwards compatibility`,
   options: gcTasksOptions,
   handler: gcTasksHandler as Command['handler'],
 };

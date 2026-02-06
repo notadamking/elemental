@@ -27,6 +27,7 @@ async function createTaskAssignmentService(options: GlobalOptions): Promise<{
   try {
     const { createStorage, initializeSchema, findElementalDir } = await import('@elemental/sdk');
     const { createTaskAssignmentService: createService } = await import('../../services/task-assignment-service.js');
+    const { createLocalMergeProvider } = await import('../../services/merge-request-provider.js');
     const { ElementalAPIImpl } = await import('@elemental/sdk');
 
     const elementalDir = findElementalDir(process.cwd());
@@ -41,7 +42,8 @@ async function createTaskAssignmentService(options: GlobalOptions): Promise<{
     const backend = createStorage({ path: dbPath, create: true });
     initializeSchema(backend);
     const api = new ElementalAPIImpl(backend);
-    const service = createService(api);
+    const mergeProvider = createLocalMergeProvider();
+    const service = createService(api, mergeProvider);
 
     return { service };
   } catch (err) {
@@ -336,9 +338,10 @@ export const taskCompleteCommand: Command = {
   help: `Complete a task and optionally create a merge request.
 
 This command:
-1. Marks the task as closed
-2. Records completion time and optional summary
-3. Creates a merge request for the task branch (unless --no-mr)
+1. Sets the task status to 'review' (awaiting merge)
+2. Clears the task assignee
+3. Records completion time and optional summary
+4. Creates a merge request for the task branch (if a provider is configured)
 
 Arguments:
   task-id    Task identifier to complete

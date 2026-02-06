@@ -44,7 +44,6 @@ function createMockTask(overrides: Partial<Task> = {}): Task {
     createdAt: createTimestamp(),
     updatedAt: createTimestamp(),
     version: 1,
-    ephemeral: false,
     metadata: {
       description: 'A test task for unit testing',
     },

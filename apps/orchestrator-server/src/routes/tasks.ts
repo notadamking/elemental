@@ -144,7 +144,6 @@ export function createTaskRoutes(services: Services) {
         assignee: body.assignee ? (body.assignee as EntityId) : undefined,
         tags: body.tags,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-        ephemeral: body.ephemeral,
         createdBy,
       });
 

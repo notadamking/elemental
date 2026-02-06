@@ -123,8 +123,6 @@ export interface AssignmentFilter {
   assignmentStatus?: AssignmentStatus | AssignmentStatus[];
   /** Filter by merge status */
   mergeStatus?: MergeStatus | MergeStatus[];
-  /** Include ephemeral tasks */
-  includeEphemeral?: boolean;
 }
 
 /**
@@ -495,7 +493,7 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       metaUpdates.lastCommitHash = options.commitHash;
     }
 
-    // PR creation is REQUIRED - task completion fails if PR can't be created
+    // PR creation is attempted when a provider is configured and not explicitly disabled
     let mergeRequestUrl: string | undefined;
     let mergeRequestId: number | undefined;
 
@@ -518,13 +516,9 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
       metaUpdates.mergeRequestUrl = mergeRequestUrl;
       metaUpdates.mergeRequestId = mergeRequestId;
       metaUpdates.mergeRequestProvider = this.mergeRequestProvider.name;
-    } else if (branch && options?.createMergeRequest !== false) {
-      // Branch exists but no provider configured - fail task completion
-      throw new Error(
-        `PR creation required but no merge request provider configured. ` +
-        `Cannot complete task ${taskId} without creating a PR for branch ${branch}.`
-      );
     }
+    // When no provider is configured, skip PR creation but still complete the task.
+    // The merge steward can create PRs later if needed.
 
     const newMeta = updateOrchestratorTaskMeta(
       task.metadata as Record<string, unknown> | undefined,
@@ -726,9 +720,8 @@ export class TaskAssignmentServiceImpl implements TaskAssignmentService {
 
   async listAssignments(filter?: AssignmentFilter): Promise<TaskAssignment[]> {
     // Build task filter from assignment filter
-    const taskFilter: { type: 'task'; includeEphemeral?: boolean; status?: TaskStatus | TaskStatus[]; assignee?: EntityId } = {
+    const taskFilter: { type: 'task'; status?: TaskStatus | TaskStatus[]; assignee?: EntityId } = {
       type: 'task' as const,
-      includeEphemeral: filter?.includeEphemeral,
     };
 
     if (filter?.taskStatus) {

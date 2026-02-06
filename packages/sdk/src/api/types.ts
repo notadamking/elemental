@@ -120,7 +120,10 @@ export interface TaskFilter extends ElementFilter {
   hasDeadline?: boolean;
   /** Filter tasks with deadline before this timestamp */
   deadlineBefore?: Timestamp;
-  /** Include ephemeral tasks (workflow tasks) */
+  /**
+   * Include tasks belonging to ephemeral workflows.
+   * By default, tasks from ephemeral workflows are excluded from ready() queries.
+   */
   includeEphemeral?: boolean;
 }
 

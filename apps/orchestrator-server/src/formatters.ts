@@ -29,7 +29,6 @@ export function formatTaskResponse(task: Task) {
     owner: task.owner,
     deadline: task.deadline,
     scheduledFor: task.scheduledFor,
-    ephemeral: task.ephemeral,
     tags: task.tags,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,

@@ -235,10 +235,6 @@ export interface Task extends Element {
   // External Integration
   /** URL or ID in external system */
   externalRef?: string;
-
-  // Execution Mode
-  /** If true, not synced to JSONL (ephemeral storage only) */
-  ephemeral: boolean;
 }
 
 /**
@@ -483,7 +479,6 @@ export function isTask(value: unknown): value is Task {
   if (!isValidPriority(obj.priority)) return false;
   if (!isValidComplexity(obj.complexity)) return false;
   if (!isValidTaskType(obj.taskType)) return false;
-  if (typeof obj.ephemeral !== 'boolean') return false;
 
   // Check optional properties have correct types when present
   if (obj.descriptionRef !== undefined && typeof obj.descriptionRef !== 'string')
@@ -578,14 +573,6 @@ export function validateTask(value: unknown): Task {
   validateComplexity(obj.complexity);
   validateTaskType(obj.taskType);
 
-  if (typeof obj.ephemeral !== 'boolean') {
-    throw new ValidationError(
-      'Task ephemeral must be a boolean',
-      ErrorCode.INVALID_INPUT,
-      { field: 'ephemeral', value: obj.ephemeral, expected: 'boolean' }
-    );
-  }
-
   // Validate optional text fields
   validateOptionalText(obj.acceptanceCriteria, 'acceptanceCriteria', MAX_ACCEPTANCE_CRITERIA_LENGTH);
   validateOptionalText(obj.closeReason, 'closeReason', MAX_CLOSE_REASON_LENGTH);
@@ -630,8 +617,6 @@ export interface CreateTaskInput {
   scheduledFor?: Timestamp;
   /** Optional: URL or ID in external system */
   externalRef?: string;
-  /** Optional: Whether this is an ephemeral task (default: false) */
-  ephemeral?: boolean;
   /** Optional: tags */
   tags?: string[];
   /** Optional: metadata */
@@ -676,9 +661,6 @@ export async function createTask(
   // Use provided ID or generate one using title
   const id = input.id ?? await generateId({ identifier: title, createdBy: input.createdBy }, config);
 
-  // Handle ephemeral flag (default: false)
-  const ephemeral = input.ephemeral ?? false;
-
   const task: Task = {
     id,
     type: ElementType.TASK,
@@ -692,7 +674,6 @@ export async function createTask(
     priority,
     complexity,
     taskType,
-    ephemeral,
     ...(input.descriptionRef !== undefined && { descriptionRef: input.descriptionRef }),
     ...(acceptanceCriteria !== undefined && { acceptanceCriteria }),
     ...(input.assignee !== undefined && { assignee: input.assignee }),
@@ -795,29 +776,6 @@ export function softDeleteTask(task: Task, input: DeleteTaskInput): Task {
       MAX_DELETE_REASON_LENGTH
     ),
     updatedAt: now,
-  };
-}
-
-/**
- * Promotes an ephemeral task to durable (begin syncing)
- * Parallel to workflow's squashWorkflow() function
- *
- * @param task - The ephemeral task to promote
- * @returns The promoted task (now durable)
- */
-export function promoteTask(task: Task): Task {
-  if (!task.ephemeral) {
-    throw new ValidationError(
-      'Task is already durable',
-      ErrorCode.INVALID_STATUS,
-      { field: 'ephemeral', value: task.ephemeral }
-    );
-  }
-
-  return {
-    ...task,
-    ephemeral: false,
-    updatedAt: createTimestamp(),
   };
 }
 
@@ -1019,69 +977,3 @@ export function sortByDeadline<T extends Task>(tasks: T[]): T[] {
   });
 }
 
-// ============================================================================
-// Ephemeral Task Functions
-// ============================================================================
-
-/**
- * Checks if a task is ephemeral
- */
-export function isEphemeralTask(task: Task): boolean {
-  return task.ephemeral;
-}
-
-/**
- * Checks if a task is durable (not ephemeral)
- */
-export function isDurableTask(task: Task): boolean {
-  return !task.ephemeral;
-}
-
-/**
- * Filter tasks that are ephemeral
- */
-export function filterEphemeralTasks<T extends Task>(tasks: T[]): T[] {
-  return tasks.filter((t) => t.ephemeral);
-}
-
-/**
- * Filter tasks that are durable (not ephemeral)
- */
-export function filterDurableTasks<T extends Task>(tasks: T[]): T[] {
-  return tasks.filter((t) => !t.ephemeral);
-}
-
-/**
- * Checks if a task is eligible for garbage collection
- * A task can be GC'd if it's ephemeral and in a terminal state (closed or tombstone)
- */
-export function isTaskEligibleForGarbageCollection(task: Task): boolean {
-  return task.ephemeral && (task.status === TaskStatus.CLOSED || task.status === TaskStatus.TOMBSTONE);
-}
-
-/**
- * Filter tasks eligible for garbage collection
- */
-export function filterTasksEligibleForGarbageCollection<T extends Task>(tasks: T[]): T[] {
-  return tasks.filter(isTaskEligibleForGarbageCollection);
-}
-
-/**
- * Filter tasks eligible for garbage collection by age
- * @param tasks - Tasks to filter
- * @param maxAgeMs - Maximum age in milliseconds since closure
- */
-export function filterTaskGarbageCollectionByAge<T extends Task>(
-  tasks: T[],
-  maxAgeMs: number
-): T[] {
-  const now = Date.now();
-  return tasks.filter((t) => {
-    if (!isTaskEligibleForGarbageCollection(t)) return false;
-    // Use closedAt for closed tasks, deletedAt for tombstoned tasks
-    const finishedTime = t.status === TaskStatus.CLOSED
-      ? (t.closedAt ? new Date(t.closedAt).getTime() : 0)
-      : (t.deletedAt ? new Date(t.deletedAt).getTime() : 0);
-    return now - finishedTime >= maxAgeMs;
-  });
-}

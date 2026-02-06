@@ -44,8 +44,6 @@ import {
   createTimestamp,
   isTask,
   TaskStatus as TaskStatusEnum,
-  filterTaskGarbageCollectionByAge,
-  isTaskEligibleForGarbageCollection,
   isPlan,
   PlanStatus as PlanStatusEnum,
   calculatePlanProgress,
@@ -2442,29 +2440,27 @@ export class ElementalAPIImpl implements ElementalAPI {
       ).map((r) => r.element_id)
     );
 
-    // Get ephemeral workflow IDs if we need to filter them out
-    let ephemeralTaskIds = new Set<string>();
-    if (filter?.includeEphemeral !== true) {
-      // Find all ephemeral workflows
-      const workflows = await this.list<Workflow>({ type: 'workflow' });
-      const ephemeralWorkflowIds = new Set(
-        workflows.filter((w) => w.ephemeral).map((w) => w.id)
-      );
+    // Get tasks that are children of ephemeral workflows (to exclude from ready list)
+    // Find all ephemeral workflows
+    const workflows = await this.list<Workflow>({ type: 'workflow' });
+    const ephemeralWorkflowIds = new Set(
+      workflows.filter((w) => w.ephemeral).map((w) => w.id)
+    );
 
-      // Find all tasks that are children of ephemeral workflows
-      if (ephemeralWorkflowIds.size > 0) {
-        const deps = await this.getAllDependencies();
-        for (const dep of deps) {
-          if (dep.type === 'parent-child' && ephemeralWorkflowIds.has(dep.blockerId)) {
-            ephemeralTaskIds.add(dep.blockedId);
-          }
+    // Find all tasks that are children of ephemeral workflows
+    let ephemeralTaskIds = new Set<string>();
+    if (ephemeralWorkflowIds.size > 0) {
+      const deps = await this.getAllDependencies();
+      for (const dep of deps) {
+        if (dep.type === 'parent-child' && ephemeralWorkflowIds.has(dep.blockerId)) {
+          ephemeralTaskIds.add(dep.blockedId);
         }
       }
     }
 
-    // Filter out scheduled-for-future tasks and ephemeral tasks
+    // Filter out scheduled-for-future tasks and tasks from ephemeral workflows
     const now = new Date();
-    const includeEphemeral = filter?.includeEphemeral === true;
+    const includeEphemeral = filter?.includeEphemeral ?? false;
     const readyTasks = tasks.filter((task) => {
       // Not blocked
       if (blockedIds.has(task.id)) {
@@ -2474,12 +2470,9 @@ export class ElementalAPIImpl implements ElementalAPI {
       if (task.scheduledFor && new Date(task.scheduledFor) > now) {
         return false;
       }
-      // Not ephemeral (unless includeEphemeral is true)
-      // Check both direct ephemeral flag and workflow-child ephemeral status
-      if (!includeEphemeral) {
-        if (task.ephemeral || ephemeralTaskIds.has(task.id)) {
-          return false;
-        }
+      // Not a child of an ephemeral workflow (unless includeEphemeral is true)
+      if (!includeEphemeral && ephemeralTaskIds.has(task.id)) {
+        return false;
       }
       return true;
     });
@@ -3978,82 +3971,15 @@ export class ElementalAPIImpl implements ElementalAPI {
     return result;
   }
 
-  async garbageCollectTasks(options: TaskGarbageCollectionOptions): Promise<TaskGarbageCollectionResult> {
-    const result: TaskGarbageCollectionResult = {
+  async garbageCollectTasks(_options: TaskGarbageCollectionOptions): Promise<TaskGarbageCollectionResult> {
+    // Tasks no longer have an ephemeral property - only workflows can be ephemeral.
+    // Tasks belonging to ephemeral workflows are garbage collected via garbageCollectWorkflows().
+    // This method is now a no-op for backwards compatibility.
+    return {
       tasksDeleted: 0,
       dependenciesDeleted: 0,
       deletedTaskIds: [],
     };
-
-    // Find all tasks (including tombstoned ones for GC)
-    const allTasks = await this.list<Task>({ type: 'task', includeDeleted: true });
-
-    // Filter to ephemeral tasks in terminal state that are old enough
-    const eligibleTasks = filterTaskGarbageCollectionByAge(allTasks, options.maxAgeMs);
-
-    // Exclude tasks that belong to workflows (they should be GC'd via garbageCollectWorkflows)
-    const allDependencies = await this.getAllDependencies();
-    const tasksInWorkflows = new Set<ElementId>();
-    for (const dep of allDependencies) {
-      if (dep.type === 'parent-child') {
-        // Tasks with a parent-child relationship where target is a workflow
-        // The blockedId is the task, blockerId is the workflow
-        tasksInWorkflows.add(dep.blockedId);
-      }
-    }
-
-    const standaloneTasks = eligibleTasks.filter(task => !tasksInWorkflows.has(task.id));
-
-    // Apply limit if specified
-    const toDelete = options.limit ? standaloneTasks.slice(0, options.limit) : standaloneTasks;
-
-    // If dry run, just return what would be deleted
-    if (options.dryRun) {
-      for (const task of toDelete) {
-        result.deletedTaskIds.push(task.id);
-        result.tasksDeleted++;
-
-        // Count dependencies that would be deleted
-        for (const dep of allDependencies) {
-          if (dep.blockedId === task.id || dep.blockerId === task.id) {
-            result.dependenciesDeleted++;
-          }
-        }
-      }
-      return result;
-    }
-
-    // Actually delete
-    for (const task of toDelete) {
-      // Find and count dependencies to delete
-      const taskDeps = allDependencies.filter(
-        dep => dep.blockedId === task.id || dep.blockerId === task.id
-      );
-
-      // Delete dependencies first
-      for (const dep of taskDeps) {
-        try {
-          await this.removeDependency(dep.blockedId, dep.blockerId, dep.type);
-        } catch {
-          // Ignore errors for dependencies that don't exist
-        }
-      }
-
-      // Hard delete the task via SQL
-      try {
-        this.backend.run('DELETE FROM elements WHERE id = ?', [task.id]);
-        this.backend.run('DELETE FROM tags WHERE element_id = ?', [task.id]);
-        this.backend.run('DELETE FROM events WHERE element_id = ?', [task.id]);
-
-        result.tasksDeleted++;
-        result.dependenciesDeleted += taskDeps.length;
-        result.deletedTaskIds.push(task.id);
-      } catch {
-        // Ignore errors for tasks that don't exist
-      }
-    }
-
-    return result;
   }
 
   async getTasksInWorkflow(workflowId: ElementId, filter?: TaskFilter): Promise<Task[]> {
