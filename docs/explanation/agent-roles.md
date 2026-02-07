@@ -372,6 +372,22 @@ Each agent has a dedicated channel for receiving messages. The Dispatch Daemon r
 3. Deregister from AgentRegistry
 4. Clean up session
 
+## Agent Naming Conventions
+
+When creating agents through the UI, names are auto-populated following these conventions:
+
+| Agent Type | Naming Pattern | Examples |
+|------------|----------------|----------|
+| Director | `director` | `director` |
+| Ephemeral Worker | `e-worker-{n}` | `e-worker-1`, `e-worker-2` |
+| Persistent Worker | `p-worker-{n}` | `p-worker-1`, `p-worker-2` |
+| Merge Steward | `m-steward-{n}` | `m-steward-1`, `m-steward-2` |
+| Health Steward | `h-steward-{n}` | `h-steward-1`, `h-steward-2` |
+| Reminder Steward | `r-steward-{n}` | `r-steward-1`, `r-steward-2` |
+| Ops Steward | `o-steward-{n}` | `o-steward-1`, `o-steward-2` |
+
+The sequential number is calculated based on existing agents of the same type. Auto-generated names are editable before submission.
+
 ## Best Practices
 
 ### For Directors

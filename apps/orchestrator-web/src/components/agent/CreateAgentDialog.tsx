@@ -9,7 +9,7 @@
  * TB-O22: Steward Configuration UI
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
   Bot,
@@ -29,8 +29,9 @@ import type {
   StewardFocus,
   StewardTrigger,
   CreateAgentInput,
+  Agent,
 } from '../../api/types';
-import { useCreateAgent } from '../../api/hooks/useAgents';
+import { useCreateAgent, useAgents } from '../../api/hooks/useAgents';
 
 export interface CreateAgentDialogProps {
   isOpen: boolean;
@@ -92,6 +93,59 @@ const workerModeOptions: Record<WorkerMode, { label: string; description: string
   },
 };
 
+/**
+ * Generate a suggested name for a new agent based on role, mode, and focus.
+ *
+ * Naming conventions:
+ * - Director: "director" (only one allowed)
+ * - Ephemeral workers: "e-worker-1", "e-worker-2", etc.
+ * - Persistent workers: "p-worker-1", "p-worker-2", etc.
+ * - Merge stewards: "m-steward-1", "m-steward-2", etc.
+ * - Health stewards: "h-steward-1", "h-steward-2", etc.
+ * - Reminder stewards: "r-steward-1", "r-steward-2", etc.
+ * - Ops stewards: "o-steward-1", "o-steward-2", etc.
+ */
+function generateAgentName(
+  role: AgentRole,
+  workerMode: WorkerMode,
+  stewardFocus: StewardFocus,
+  existingAgents: Agent[]
+): string {
+  if (role === 'director') {
+    return 'director';
+  }
+
+  // Determine prefix based on role and mode/focus
+  let prefix: string;
+  let baseName: string;
+
+  if (role === 'worker') {
+    prefix = workerMode === 'ephemeral' ? 'e-worker' : 'p-worker';
+    baseName = prefix;
+  } else {
+    // Steward - use first letter of focus
+    const focusPrefix = stewardFocus.charAt(0); // m, h, r, o
+    prefix = `${focusPrefix}-steward`;
+    baseName = prefix;
+  }
+
+  // Find existing agents with matching prefix pattern
+  const pattern = new RegExp(`^${prefix}-(\\d+)$`);
+  let maxNumber = 0;
+
+  for (const agent of existingAgents) {
+    const match = agent.name.match(pattern);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNumber) {
+        maxNumber = num;
+      }
+    }
+  }
+
+  return `${baseName}-${maxNumber + 1}`;
+}
+
 interface FormState {
   name: string;
   role: AgentRole;
@@ -124,6 +178,10 @@ export function CreateAgentDialog({
   hasDirector = false,
   onSuccess,
 }: CreateAgentDialogProps) {
+  // Fetch existing agents to determine sequential naming
+  const { data: agentsData } = useAgents();
+  const existingAgents = useMemo(() => agentsData?.agents ?? [], [agentsData?.agents]);
+
   const [form, setForm] = useState<FormState>({
     ...defaultState,
     role: initialRole ?? 'steward',
@@ -131,6 +189,29 @@ export function CreateAgentDialog({
   });
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Track whether user has manually edited the name
+  const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
+
+  // Generate suggested name based on current role/mode/focus
+  const generateSuggestedName = useCallback(() => {
+    return generateAgentName(form.role, form.workerMode, form.stewardFocus, existingAgents);
+  }, [form.role, form.workerMode, form.stewardFocus, existingAgents]);
+
+  // Auto-fill name when dialog opens or when role/mode/focus changes
+  useEffect(() => {
+    if (isOpen && !nameManuallyEdited) {
+      const suggestedName = generateSuggestedName();
+      setForm(prev => ({ ...prev, name: suggestedName }));
+    }
+  }, [isOpen, generateSuggestedName, nameManuallyEdited]);
+
+  // Reset manual edit flag when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setNameManuallyEdited(false);
+    }
+  }, [isOpen]);
 
   const createAgent = useCreateAgent();
 
@@ -143,6 +224,7 @@ export function CreateAgentDialog({
       stewardFocus: initialStewardFocus ?? 'merge',
     });
     setError(null);
+    setNameManuallyEdited(false);
     onClose();
   };
 
@@ -327,7 +409,10 @@ export function CreateAgentDialog({
                 id="agent-name"
                 type="text"
                 value={form.name}
-                onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+                onChange={e => {
+                  setNameManuallyEdited(true);
+                  setForm(prev => ({ ...prev, name: e.target.value }));
+                }}
                 placeholder={`e.g., ${form.role === 'steward' ? 'Merge Bot' : form.role === 'worker' ? 'Alice' : 'Director'}`}
                 className="
                   w-full px-3 py-2
