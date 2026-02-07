@@ -48,10 +48,12 @@ Common pitfalls and their solutions, organized by severity and category.
 
 ## Worktree and Module Resolution
 
-- **Fresh worktrees require `turbo build --force`** - Turbo's shared cache may restore outputs to the wrong worktree. Use `--force` to ensure builds run in the current worktree.
+- **pnpm symlinks work correctly in worktrees** - Workspace package symlinks (e.g., `node_modules/@elemental/core -> ../../../core`) use relative paths that resolve correctly within the worktree. The issue is NOT symlink resolution.
+- **Fresh worktrees require `turbo build --force`** - Git worktrees share source code but NOT build artifacts (`dist/` folders). Turbo's shared cache may restore outputs to the wrong worktree. Use `--force` to ensure builds run in the current worktree.
+- **`ERR_MODULE_NOT_FOUND` or `ERR_PACKAGE_PATH_NOT_EXPORTED` in worktrees** - These errors occur when workspace packages lack `dist/` folders. Node.js tries to resolve `./dist/index.js` from package.json exports but the file doesn't exist. Run `turbo run build --force` to rebuild in the current worktree.
 - **Package exports include `bun` condition** - Workspace packages (`@elemental/core`, `@elemental/storage`, etc.) export source files under the `bun` condition. Bun runtime and tsx with `--conditions=bun` can import directly from TypeScript without building.
-- **tsx works without dist in some cases** - tsx 4.x recognizes the `bun` condition, allowing imports from source files. However, running plain `node` requires built `dist` folders.
-- **`ERR_MODULE_NOT_FOUND` in worktrees** - If you see module not found errors for `@elemental/*` packages, run `turbo run build --force` to rebuild in the current worktree.
+- **tsx works without dist in some cases** - tsx 4.x recognizes the `bun` condition, allowing imports from source files. However, running plain `node` or tools like vitest require built `dist` folders.
+- **Post-worktree setup** - After creating a worktree, run: `pnpm install && turbo run build --force`
 
 ## Documents
 
