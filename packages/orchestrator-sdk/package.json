@@ -8,28 +8,41 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./types": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/types/index.js"
+      "bun": "./src/types/index.ts",
+      "import": "./dist/types/index.js",
+      "default": "./dist/types/index.js"
     },
     "./services": {
       "types": "./dist/services/index.d.ts",
-      "import": "./dist/services/index.js"
+      "bun": "./src/services/index.ts",
+      "import": "./dist/services/index.js",
+      "default": "./dist/services/index.js"
     },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
-      "import": "./dist/runtime/index.js"
+      "bun": "./src/runtime/index.ts",
+      "import": "./dist/runtime/index.js",
+      "default": "./dist/runtime/index.js"
     },
     "./git": {
       "types": "./dist/git/index.d.ts",
-      "import": "./dist/git/index.js"
+      "bun": "./src/git/index.ts",
+      "import": "./dist/git/index.js",
+      "default": "./dist/git/index.js"
     },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.js"
-    }
+      "bun": "./src/testing/index.ts",
+      "import": "./dist/testing/index.js",
+      "default": "./dist/testing/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsc && cp src/prompts/*.md dist/prompts/",
