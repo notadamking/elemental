@@ -538,6 +538,130 @@ describe('reopen command', () => {
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toBe(taskId);
   });
+
+  test('clears assignee on reopen', async () => {
+    const taskId = await createTestTask('Assigned Reopen Task');
+
+    // Assign and then close
+    await assignCommand.handler([taskId, 'agent-1'], createTestOptions());
+    await closeCommand.handler([taskId], createTestOptions());
+
+    // Reopen
+    const result = await reopenCommand.handler([taskId], createTestOptions({ json: true }));
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+    const data = result.data as { assignee?: string };
+    expect(data.assignee).toBeUndefined();
+  });
+
+  test('clears orchestrator metadata on reopen', async () => {
+    const taskId = await createTestTask('Meta Reopen Task');
+
+    // Manually set orchestrator metadata via direct API
+    const { api, backend } = createTestAPI();
+    try {
+      const task = await api.get(taskId as ElementId);
+      if (task) {
+        await api.update(taskId as ElementId, {
+          metadata: {
+            orchestrator: {
+              branch: 'agent/bob/task-123',
+              worktree: '/tmp/worktrees/bob',
+              mergeStatus: 'merged',
+              mergedAt: '2024-01-01T00:00:00Z',
+              assignedAgent: 'agent-bob',
+              sessionId: 'session-123',
+              startedAt: '2024-01-01T00:00:00Z',
+              completedAt: '2024-01-01T01:00:00Z',
+              completionSummary: 'Done',
+              lastCommitHash: 'abc123',
+              testRunCount: 3,
+              lastTestResult: { passed: true },
+              reconciliationCount: 0,
+            },
+          },
+        });
+      }
+    } finally {
+      backend.close();
+    }
+
+    // Close and reopen
+    await closeCommand.handler([taskId], createTestOptions());
+    const result = await reopenCommand.handler([taskId], createTestOptions({ json: true }));
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+
+    const data = result.data as { metadata?: { orchestrator?: Record<string, unknown> } };
+    const meta = data.metadata?.orchestrator;
+    expect(meta).toBeDefined();
+    // Preserved fields
+    expect(meta?.branch).toBe('agent/bob/task-123');
+    expect(meta?.worktree).toBe('/tmp/worktrees/bob');
+    // Cleared fields
+    expect(meta?.mergeStatus).toBeUndefined();
+    expect(meta?.mergedAt).toBeUndefined();
+    expect(meta?.assignedAgent).toBeUndefined();
+    expect(meta?.sessionId).toBeUndefined();
+    expect(meta?.startedAt).toBeUndefined();
+    expect(meta?.completedAt).toBeUndefined();
+    expect(meta?.completionSummary).toBeUndefined();
+    expect(meta?.lastCommitHash).toBeUndefined();
+    expect(meta?.testRunCount).toBeUndefined();
+    expect(meta?.lastTestResult).toBeUndefined();
+    // Incremented
+    expect(meta?.reconciliationCount).toBe(1);
+  });
+
+  test('appends message to description document on reopen', async () => {
+    const taskId = await createTestTask('Message Reopen Task');
+
+    // Set a description first
+    await describeCommand.handler(
+      [taskId],
+      createTestOptions({ content: 'Original task description' })
+    );
+
+    // Close the task
+    await closeCommand.handler([taskId], createTestOptions());
+
+    // Reopen with message
+    const result = await reopenCommand.handler(
+      [taskId],
+      createTestOptions({ message: 'Work was incomplete' })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Verify description was appended
+    const showResult = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ show: true, json: true })
+    );
+    const descData = showResult.data as { content: string };
+    expect(descData.content).toContain('Original task description');
+    expect(descData.content).toContain('**Re-opened** — Task was closed but incomplete. Message: Work was incomplete');
+  });
+
+  test('reopen with message creates description document when none exists', async () => {
+    const taskId = await createTestTask('No Desc Reopen Task');
+
+    // Close the task (no description set)
+    await closeCommand.handler([taskId], createTestOptions());
+
+    // Reopen with message
+    const result = await reopenCommand.handler(
+      [taskId],
+      createTestOptions({ message: 'Some reason' })
+    );
+    expect(result.exitCode).toBe(ExitCode.SUCCESS);
+
+    // Verify description document was created with the reopen message
+    const showResult = await describeCommand.handler(
+      [taskId],
+      createTestOptions({ show: true, json: true })
+    );
+    expect(showResult.exitCode).toBe(ExitCode.SUCCESS);
+    const descData = showResult.data as { content: string };
+    expect(descData.content).toContain('**Re-opened** — Task was closed but incomplete. Message: Some reason');
+  });
 });
 
 // ============================================================================

@@ -574,14 +574,27 @@ Examples:
 // Reopen Command
 // ============================================================================
 
+interface ReopenOptions {
+  message?: string;
+}
+
+const reopenOptions: CommandOption[] = [
+  {
+    name: 'message',
+    short: 'm',
+    description: 'Message to append to the task description explaining why it was reopened',
+    hasValue: true,
+  },
+];
+
 async function reopenHandler(
   args: string[],
-  options: GlobalOptions
+  options: GlobalOptions & ReopenOptions
 ): Promise<CommandResult> {
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el reopen <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el reopen <id> [--message "reason"]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -605,28 +618,91 @@ async function reopenHandler(
       return failure(`Task is not closed (status: ${task.status})`, ExitCode.VALIDATION);
     }
 
-    // Update the task
+    // Update status to OPEN (clears closedAt)
     const updated = updateTaskStatus(task, {
       status: TaskStatus.OPEN,
     });
+
+    // Clear assignee and closeReason
+    updated.assignee = undefined;
+    updated.closeReason = undefined;
+
+    // Clear orchestrator metadata fields while preserving branch/worktree/handoff info
+    const orchestratorMeta = (updated.metadata as Record<string, unknown> | undefined)?.orchestrator as Record<string, unknown> | undefined;
+    if (orchestratorMeta) {
+      const reconciliationCount = (orchestratorMeta.reconciliationCount as number | undefined) ?? 0;
+      const clearedMeta = {
+        ...orchestratorMeta,
+        mergeStatus: undefined,
+        mergedAt: undefined,
+        mergeFailureReason: undefined,
+        assignedAgent: undefined,
+        sessionId: undefined,
+        startedAt: undefined,
+        completedAt: undefined,
+        completionSummary: undefined,
+        lastCommitHash: undefined,
+        testRunCount: undefined,
+        lastTestResult: undefined,
+        lastSyncResult: undefined,
+        reconciliationCount: reconciliationCount + 1,
+      };
+      (updated as Task & { metadata: Record<string, unknown> }).metadata = {
+        ...(updated.metadata as Record<string, unknown>),
+        orchestrator: clearedMeta,
+      };
+    }
 
     // Save the update with optimistic concurrency control
     await api.update<Task>(id as ElementId, updated, {
       expectedUpdatedAt: task.updatedAt,
     });
 
+    // If message provided, append to or create description document
+    if (options.message) {
+      const reopenLine = `**Re-opened** — Task was closed but incomplete. Message: ${options.message}`;
+      if (task.descriptionRef) {
+        try {
+          const doc = await api.get<Document>(task.descriptionRef as unknown as ElementId);
+          if (doc) {
+            await api.update<Document>(task.descriptionRef as unknown as ElementId, {
+              content: doc.content + '\n\n' + reopenLine,
+            } as Partial<Document>);
+          }
+        } catch {
+          // Non-fatal: message is still shown in output
+        }
+      } else {
+        const actor = options.actor as EntityId | undefined;
+        const newDoc = await createDocument({
+          content: reopenLine,
+          contentType: ContentType.MARKDOWN,
+          createdBy: actor ?? ('operator' as EntityId),
+        });
+        const created = await api.create(newDoc as unknown as Document & Record<string, unknown>);
+        await api.update<Task>(
+          id as ElementId,
+          { descriptionRef: created.id as DocumentId },
+          { actor }
+        );
+      }
+    }
+
+    // Re-fetch task to get latest state (including any descriptionRef changes)
+    const finalTask = await api.get<Task>(id as ElementId);
+
     // Format output based on mode
     const mode = getOutputMode(options);
 
     if (mode === 'json') {
-      return success(updated);
+      return success(finalTask ?? updated);
     }
 
     if (mode === 'quiet') {
       return success(updated.id);
     }
 
-    return success(updated, `Reopened task ${id}`);
+    return success(finalTask ?? updated, `Reopened task ${id}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to reopen task: ${message}`, ExitCode.GENERAL_ERROR);
@@ -636,15 +712,19 @@ async function reopenHandler(
 export const reopenCommand: Command = {
   name: 'reopen',
   description: 'Reopen a closed task',
-  usage: 'el reopen <id>',
-  help: `Reopen a previously closed task.
+  usage: 'el reopen <id> [--message "reason"]',
+  help: `Reopen a previously closed task, clearing assignment and merge metadata.
 
 Arguments:
   id    Task identifier (e.g., el-abc123)
 
+Options:
+  -m, --message   Message to append to the task description
+
 Examples:
-  el reopen el-abc123`,
-  options: [],
+  el reopen el-abc123
+  el reopen el-abc123 --message "Work was incomplete, needs fixes"`,
+  options: reopenOptions,
   handler: reopenHandler as Command['handler'],
 };
 

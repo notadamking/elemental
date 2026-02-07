@@ -5,7 +5,7 @@
  * Badge components are from @elemental/ui/domain.
  */
 
-import { GitBranch, GitMerge, AlertTriangle, Bot, User, Play, CheckCircle2 } from 'lucide-react';
+import { GitBranch, GitMerge, AlertTriangle, Bot, User, Play, CheckCircle2, RotateCcw } from 'lucide-react';
 import type { Task } from '../../api/types';
 import { TaskStatusBadge, TaskPriorityBadge, TaskTypeBadge } from '@elemental/ui/domain';
 import { TaskActionsDropdown } from './TaskActionsDropdown';
@@ -15,9 +15,11 @@ interface TaskRowProps {
   assigneeName?: string;
   onStart?: () => void;
   onComplete?: () => void;
+  onReopen?: () => void;
   onClick?: () => void;
   isStarting?: boolean;
   isCompleting?: boolean;
+  isReopening?: boolean;
   /** Pre-rendered title with search highlights */
   highlightedTitle?: React.ReactNode;
   /** Whether the row checkbox is checked */
@@ -31,9 +33,11 @@ export function TaskRow({
   assigneeName,
   onStart,
   onComplete,
+  onReopen,
   onClick,
   isStarting,
   isCompleting,
+  isReopening,
   highlightedTitle,
   isSelected,
   onToggleSelect,
@@ -41,6 +45,7 @@ export function TaskRow({
   const orchestratorMeta = task.metadata?.orchestrator;
   const canStart = task.status === 'open' && task.assignee;
   const canComplete = task.status === 'in_progress';
+  const canReopen = task.status === 'closed';
 
   return (
     <tr
@@ -174,6 +179,20 @@ export function TaskRow({
               data-testid="task-row-complete"
             >
               <CheckCircle2 className="w-4 h-4" />
+            </button>
+          )}
+          {canReopen && onReopen && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onReopen();
+              }}
+              disabled={isReopening}
+              className="p-1.5 text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded disabled:opacity-50 transition-colors"
+              title="Reopen task"
+              data-testid="task-row-reopen"
+            >
+              <RotateCcw className="w-4 h-4" />
             </button>
           )}
           <TaskActionsDropdown task={task} />

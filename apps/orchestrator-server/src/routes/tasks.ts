@@ -5,9 +5,10 @@
  */
 
 import { Hono } from 'hono';
-import type { EntityId, ElementId, Task, Document } from '@elemental/core';
-import { createTask, TaskStatus, ElementType, Priority, Complexity } from '@elemental/core';
+import type { EntityId, ElementId, Task, Document, DocumentId } from '@elemental/core';
+import { createTask, createDocument, TaskStatus, ElementType, Priority, Complexity, ContentType, updateTaskStatus } from '@elemental/core';
 import type { OrchestratorTaskMeta } from '@elemental/orchestrator-sdk';
+import { updateOrchestratorTaskMeta } from '@elemental/orchestrator-sdk';
 import type { Services } from '../services.js';
 import { formatTaskResponse } from '../formatters.js';
 import type { ElementalAPI } from '@elemental/sdk';
@@ -541,6 +542,95 @@ export function createTaskRoutes(services: Services) {
       });
     } catch (error) {
       console.error('[orchestrator] Failed to complete task:', error);
+      return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
+    }
+  });
+
+  // POST /api/tasks/:id/reopen
+  app.post('/api/tasks/:id/reopen', async (c) => {
+    try {
+      const taskId = c.req.param('id') as ElementId;
+      const body = (await c.req.json().catch(() => ({}))) as {
+        message?: string;
+      };
+
+      const task = await api.get<Task>(taskId);
+      if (!task || task.type !== ElementType.TASK) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }, 404);
+      }
+
+      if (task.status !== TaskStatus.CLOSED) {
+        return c.json(
+          { error: { code: 'BAD_REQUEST', message: `Task is not closed (status: ${task.status})` } },
+          400
+        );
+      }
+
+      // Update status to OPEN (clears closedAt)
+      const updated = updateTaskStatus(task, { status: TaskStatus.OPEN });
+
+      // Clear assignee and closeReason
+      updated.assignee = undefined;
+      updated.closeReason = undefined;
+
+      // Clear orchestrator metadata fields while preserving branch/worktree/handoff info
+      const existingMeta = (updated.metadata as Record<string, unknown> | undefined)?.orchestrator as OrchestratorTaskMeta | undefined;
+      if (existingMeta) {
+        const reconciliationCount = existingMeta.reconciliationCount ?? 0;
+        updated.metadata = updateOrchestratorTaskMeta(updated.metadata as Record<string, unknown>, {
+          mergeStatus: undefined,
+          mergedAt: undefined,
+          mergeFailureReason: undefined,
+          assignedAgent: undefined,
+          sessionId: undefined,
+          startedAt: undefined,
+          completedAt: undefined,
+          completionSummary: undefined,
+          lastCommitHash: undefined,
+          testRunCount: undefined,
+          lastTestResult: undefined,
+          lastSyncResult: undefined,
+          reconciliationCount: reconciliationCount + 1,
+        });
+      }
+
+      // Save the update
+      await api.update<Task>(taskId, updated, {
+        expectedUpdatedAt: task.updatedAt,
+      });
+
+      // If message provided, append to or create description document
+      if (body.message) {
+        const reopenLine = `**Re-opened** — Task was closed but incomplete. Message: ${body.message}`;
+        if (task.descriptionRef) {
+          const doc = await api.get<Document>(task.descriptionRef as unknown as ElementId);
+          if (doc) {
+            await api.update<Document>(task.descriptionRef as unknown as ElementId, {
+              content: doc.content + '\n\n' + reopenLine,
+            } as Partial<Document>);
+          }
+        } else {
+          const newDoc = await createDocument({
+            content: reopenLine,
+            contentType: ContentType.MARKDOWN,
+            createdBy: 'orchestrator' as EntityId,
+          });
+          const created = await api.create(newDoc as unknown as Document & Record<string, unknown>);
+          await api.update<Task>(taskId, { descriptionRef: created.id as unknown as DocumentId });
+        }
+      }
+
+      // Re-fetch the task to get the latest state (including any descriptionRef changes)
+      const finalTask = await api.get<Task>(taskId);
+      const hydratedDescription = await hydrateTaskDescription(finalTask!, api);
+
+      return c.json({
+        success: true,
+        task: formatTaskResponse(finalTask!, hydratedDescription),
+        reopenedAt: finalTask!.updatedAt,
+      });
+    } catch (error) {
+      console.error('[orchestrator] Failed to reopen task:', error);
       return c.json({ error: { code: 'INTERNAL_ERROR', message: String(error) } }, 500);
     }
   });

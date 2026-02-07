@@ -35,11 +35,12 @@ import {
   AlertTriangle,
   X,
 } from 'lucide-react';
-import { useTasksByStatus, useStartTask, useCompleteTask, useUpdateTask, useBulkDeleteTasks } from '../../api/hooks/useTasks';
+import { useTasksByStatus, useStartTask, useCompleteTask, useReopenTask, useUpdateTask, useBulkDeleteTasks } from '../../api/hooks/useTasks';
 import { useAllEntities } from '../../api/hooks/useAllElements';
 import {
   TaskRow,
   TaskDetailPanel,
+  ReopenDialog,
   CreateTaskModal,
   SortByDropdown,
   GroupByDropdown,
@@ -151,6 +152,8 @@ export function TasksPage() {
   // Track pending operations
   const [pendingStart, setPendingStart] = useState<Set<string>>(new Set());
   const [pendingComplete, setPendingComplete] = useState<Set<string>>(new Set());
+  const [pendingReopen, setPendingReopen] = useState<Set<string>>(new Set());
+  const [reopenDialogTaskId, setReopenDialogTaskId] = useState<string | null>(null);
 
   // Collapsed groups state
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -183,6 +186,7 @@ export function TasksPage() {
   // Mutations
   const startTaskMutation = useStartTask();
   const completeTaskMutation = useCompleteTask();
+  const reopenTaskMutation = useReopenTask();
   const updateTaskMutation = useUpdateTask();
   const bulkDeleteMutation = useBulkDeleteTasks();
 
@@ -450,6 +454,26 @@ export function TasksPage() {
     }
   };
 
+  const handleReopenTask = (taskId: string) => {
+    setReopenDialogTaskId(taskId);
+  };
+
+  const handleConfirmReopen = async (message?: string) => {
+    if (!reopenDialogTaskId) return;
+    const taskId = reopenDialogTaskId;
+    setReopenDialogTaskId(null);
+    setPendingReopen((prev) => new Set(prev).add(taskId));
+    try {
+      await reopenTaskMutation.mutateAsync({ taskId, message });
+    } finally {
+      setPendingReopen((prev) => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }
+  };
+
   const handleUpdateTask = async (taskId: string, updates: { status?: string; assignee?: string | null }) => {
     const updatePayload: Parameters<typeof updateTaskMutation.mutateAsync>[0] = { taskId };
     if (updates.status !== undefined) {
@@ -569,6 +593,16 @@ export function TasksPage() {
         onSuccess={(taskId) => handleSelectTask(taskId)}
         defaultToBacklog={createWithBacklog}
       />
+
+      {/* Reopen Dialog (from row action) */}
+      {reopenDialogTaskId && (
+        <ReopenDialog
+          taskTitle={allTasks.find((t) => t.id === reopenDialogTaskId)?.title ?? reopenDialogTaskId}
+          onConfirm={handleConfirmReopen}
+          onCancel={() => setReopenDialogTaskId(null)}
+          isReopening={reopenTaskMutation.isPending}
+        />
+      )}
 
       {/* Task Detail Panel - Slide-over */}
       {selectedTaskId && (
@@ -859,9 +893,11 @@ export function TasksPage() {
             entityNameMap={entityNameMap}
             onStart={handleStartTask}
             onComplete={handleCompleteTask}
+            onReopen={handleReopenTask}
             onSelectTask={handleSelectTask}
             pendingStart={pendingStart}
             pendingComplete={pendingComplete}
+            pendingReopen={pendingReopen}
             collapsedGroups={collapsedGroups}
             onToggleCollapse={toggleGroupCollapse}
             searchQuery={searchQuery}
@@ -987,9 +1023,11 @@ interface TaskListViewProps {
   entityNameMap: Map<string, string>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
+  onReopen: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
   pendingStart: Set<string>;
   pendingComplete: Set<string>;
+  pendingReopen: Set<string>;
   collapsedGroups: Set<string>;
   onToggleCollapse: (groupKey: string) => void;
   searchQuery: string;
@@ -1008,9 +1046,11 @@ function TaskListView({
   entityNameMap,
   onStart,
   onComplete,
+  onReopen,
   onSelectTask,
   pendingStart,
   pendingComplete,
+  pendingReopen,
   collapsedGroups,
   onToggleCollapse,
   searchQuery,
@@ -1100,9 +1140,11 @@ function TaskListView({
                 entityNameMap={entityNameMap}
                 onStart={onStart}
                 onComplete={onComplete}
+                onReopen={onReopen}
                 onSelectTask={onSelectTask}
                 pendingStart={pendingStart}
                 pendingComplete={pendingComplete}
+                pendingReopen={pendingReopen}
                 showHeader={showGroups}
                 isCollapsed={collapsedGroups.has(group.key)}
                 onToggleCollapse={() => onToggleCollapse(group.key)}
@@ -1123,9 +1165,11 @@ interface GroupSectionProps {
   entityNameMap: Map<string, string>;
   onStart: (taskId: string) => void;
   onComplete: (taskId: string) => void;
+  onReopen: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
   pendingStart: Set<string>;
   pendingComplete: Set<string>;
+  pendingReopen: Set<string>;
   showHeader: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -1139,9 +1183,11 @@ function GroupSection({
   entityNameMap,
   onStart,
   onComplete,
+  onReopen,
   onSelectTask,
   pendingStart,
   pendingComplete,
+  pendingReopen,
   showHeader,
   isCollapsed,
   onToggleCollapse,
@@ -1183,9 +1229,11 @@ function GroupSection({
               assigneeName={task.assignee ? entityNameMap.get(task.assignee) : undefined}
               onStart={() => onStart(task.id)}
               onComplete={() => onComplete(task.id)}
+              onReopen={() => onReopen(task.id)}
               onClick={() => onSelectTask(task.id)}
               isStarting={pendingStart.has(task.id)}
               isCompleting={pendingComplete.has(task.id)}
+              isReopening={pendingReopen.has(task.id)}
               highlightedTitle={matchInfo?.indices ? highlightMatches(task.title, matchInfo.indices) : undefined}
               isSelected={selectedTaskIds.has(task.id)}
               onToggleSelect={onToggleSelect}

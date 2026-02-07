@@ -277,6 +277,26 @@ export function useCompleteTask() {
 }
 
 /**
+ * Hook to reopen a closed task
+ */
+export function useReopenTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<TaskResponse, Error, { taskId: string; message?: string }>({
+    mutationFn: async ({ taskId, message }) => {
+      return fetchApi<TaskResponse>(`/tasks/${taskId}/reopen`, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      });
+    },
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    },
+  });
+}
+
+/**
  * Hook to delete a task (soft-delete)
  */
 export function useDeleteTask() {

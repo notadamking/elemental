@@ -21,7 +21,8 @@ import {
   type TaskAssignmentService,
   type DispatchService,
 } from '@elemental/orchestrator-sdk';
-import { createTask, TaskStatus, Priority, Complexity, type Task } from '@elemental/core';
+import { createTask, TaskStatus, Priority, Complexity, type Task, createDocument, ContentType, type Document, type DocumentId, updateTaskStatus } from '@elemental/core';
+import type { ElementId } from '@elemental/core';
 
 // Test services
 let api: ElementalAPI;
@@ -290,6 +291,57 @@ describe('Task Assignment Service Integration', () => {
 });
 
 describe('Dispatch Service Integration', () => {
+  test('reopen closed task with message creates description when none exists', async () => {
+    // Create a task with no description
+    const task = await createTask({
+      title: 'Task without description',
+      createdBy: systemEntity,
+      priority: Priority.MEDIUM,
+      complexity: Complexity.MEDIUM,
+    });
+    const savedTask = await api.create(task as unknown as Record<string, unknown> & { createdBy: EntityId }) as unknown as Task;
+
+    // Close the task
+    const closed = updateTaskStatus(savedTask, { status: TaskStatus.CLOSED });
+    await api.update<Task>(savedTask.id as unknown as ElementId, closed, {
+      expectedUpdatedAt: savedTask.updatedAt,
+    });
+
+    // Verify no descriptionRef
+    const closedTask = await api.get<Task>(savedTask.id as unknown as ElementId);
+    expect(closedTask!.descriptionRef).toBeUndefined();
+
+    // Simulate what the reopen endpoint does: create description doc
+    const reopenLine = '**Re-opened** — Task was closed but incomplete. Message: Fix this please';
+
+    const newDoc = await createDocument({
+      content: reopenLine,
+      contentType: ContentType.MARKDOWN,
+      createdBy: 'orchestrator' as EntityId,
+    });
+    expect(newDoc.content).toBe(reopenLine);
+
+    const created = await api.create(newDoc as unknown as Document & Record<string, unknown>);
+    expect(created.id).toBeDefined();
+
+    // Read back the created document to verify content is persisted
+    const readDoc = await api.get<Document>(created.id as unknown as ElementId);
+    expect(readDoc).toBeDefined();
+    expect(readDoc!.content).toBe(reopenLine);
+
+    // Set descriptionRef on the task
+    await api.update<Task>(savedTask.id as unknown as ElementId, { descriptionRef: created.id as unknown as DocumentId });
+
+    // Re-read the task and verify descriptionRef is set
+    const reopenedTask = await api.get<Task>(savedTask.id as unknown as ElementId);
+    expect(reopenedTask!.descriptionRef as unknown).toBe(created.id);
+
+    // Hydrate description: read the document via descriptionRef
+    const descDoc = await api.get<Document>(reopenedTask!.descriptionRef as unknown as ElementId);
+    expect(descDoc).toBeDefined();
+    expect(descDoc!.content).toBe(reopenLine);
+  });
+
   test('should dispatch task to agent with notification', async () => {
     // Register a worker
     const worker = await agentRegistry.registerAgent({
