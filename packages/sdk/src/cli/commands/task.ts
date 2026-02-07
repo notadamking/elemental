@@ -542,7 +542,7 @@ async function closeHandler(
 
     if (mode === 'json') {
       return success({
-        task: updated,
+        ...updated,
         planAutoCompleted: planAutoCompleteResult.completed,
         planId: planAutoCompleteResult.planId,
       });
