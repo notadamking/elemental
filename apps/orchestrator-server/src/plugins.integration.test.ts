@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { spawn, type Subprocess } from 'bun';
+import { spawn, spawnSync, type Subprocess } from 'bun';
 import { resolve, dirname } from 'node:path';
 
 // Test configuration
@@ -22,18 +22,41 @@ let serverProcess: Subprocess<'ignore', 'pipe', 'pipe'> | null = null;
 // Server Lifecycle
 // ============================================================================
 
-async function startServer(): Promise<void> {
-  const serverPath = resolve(dirname(import.meta.path), 'index.ts');
-  const projectRoot = resolve(dirname(import.meta.path), '../../..');
+/**
+ * Get the main repository root, handling worktrees correctly.
+ * When running from a worktree, module resolution needs to happen from the main repo
+ * where node_modules is installed.
+ */
+function getMainRepoRoot(): string {
+  try {
+    // git rev-parse --git-common-dir gives the path to the main .git directory
+    const result = spawnSync(['git', 'rev-parse', '--git-common-dir']);
+    if (result.exitCode === 0) {
+      const gitCommonDir = result.stdout.toString().trim();
+      // If .git is a file (worktree), gitCommonDir points to the main repo's .git
+      // Return the parent directory of .git
+      return resolve(gitCommonDir, '..');
+    }
+  } catch {
+    // Fall through to default behavior
+  }
+  // Fallback: assume we're at the project root relative to this file
+  return resolve(dirname(import.meta.path), '../../..');
+}
 
-  // Start the server
+async function startServer(): Promise<void> {
+  // Get the main repo root where node_modules exists
+  // This is critical for worktrees which don't have their own node_modules
+  const mainRepoRoot = getMainRepoRoot();
+  const serverPath = resolve(mainRepoRoot, 'apps/orchestrator-server/src/index.ts');
   serverProcess = spawn({
     cmd: ['bun', 'run', serverPath],
+    cwd: mainRepoRoot,
     env: {
       ...process.env,
       PORT: String(TEST_PORT),
       // Use a test database
-      ELEMENTAL_DB_PATH: resolve(projectRoot, '.elemental/test-plugin-api.db'),
+      ELEMENTAL_DB_PATH: resolve(mainRepoRoot, '.elemental/test-plugin-api.db'),
     },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -53,6 +76,14 @@ async function startServer(): Promise<void> {
     }
     await Bun.sleep(100);
     retries--;
+  }
+
+  // Read server output to help diagnose startup failures
+  if (serverProcess) {
+    const stdout = await new Response(serverProcess.stdout).text();
+    const stderr = await new Response(serverProcess.stderr).text();
+    console.error('[test] Server stdout:', stdout);
+    console.error('[test] Server stderr:', stderr);
   }
   throw new Error('Server failed to start');
 }
