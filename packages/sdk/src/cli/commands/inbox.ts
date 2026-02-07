@@ -21,9 +21,9 @@ import { createInboxService, type InboxService } from '../../services/inbox.js';
 import { InboxStatus, type InboxItem, type InboxFilter } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
 import type { StorageBackend } from '@elemental/storage';
-import type { Entity } from '@elemental/core';
+import type { Entity, Document } from '@elemental/core';
 import type { ElementId, EntityId } from '@elemental/core';
-import type { Message } from '@elemental/core';
+import type { Message, HydratedMessage } from '@elemental/core';
 import { getValue, loadConfig } from '../../config/index.js';
 
 // ============================================================================
@@ -127,6 +127,7 @@ interface InboxListOptions extends GlobalOptions {
   all?: boolean;
   status?: string;
   limit?: string;
+  full?: boolean;
 }
 
 const inboxListOptions: CommandOption[] = [
@@ -146,6 +147,11 @@ const inboxListOptions: CommandOption[] = [
     short: 'n',
     description: 'Maximum number of items to return',
     hasValue: true,
+  },
+  {
+    name: 'full',
+    short: 'F',
+    description: 'Show complete message content instead of truncated preview',
   },
 ];
 
@@ -208,29 +214,56 @@ async function inboxListHandler(
     const mode = getOutputMode(options);
     const formatter = getFormatter(mode);
 
+    if (items.length === 0) {
+      const statusText = options.status || (options.all ? 'any' : 'unread');
+      if (mode === 'json') {
+        return success(items);
+      }
+      if (mode === 'quiet') {
+        return success('');
+      }
+      return success(items, `No ${statusText} inbox items for ${entity.name}`);
+    }
+
+    // Fetch message content for each inbox item
+    const showFullContent = options.full;
+    const itemsWithContent: Array<InboxItem & { content?: string }> = [];
+
+    for (const item of items) {
+      // Get the message associated with this inbox item
+      const message = await api.get<HydratedMessage>(item.messageId as unknown as ElementId, {
+        hydrate: { content: true }
+      });
+      itemsWithContent.push({
+        ...item,
+        content: message?.content,
+      });
+    }
+
     if (mode === 'json') {
-      return success(items);
+      return success(itemsWithContent);
     }
 
     if (mode === 'quiet') {
       return success(items.map((i) => i.id).join('\n'));
     }
 
-    if (items.length === 0) {
-      const statusText = options.status || (options.all ? 'any' : 'unread');
-      return success(items, `No ${statusText} inbox items for ${entity.name}`);
-    }
-
     // Human-readable table output
-    // Try to get message details for preview
-    const headers = ['ID', 'STATUS', 'SOURCE', 'CHANNEL', 'CREATED'];
-    const rows = items.map((item) => {
+    const headers = ['ID', 'STATUS', 'SOURCE', 'CONTENT', 'CREATED'];
+    const rows = itemsWithContent.map((item) => {
       const statusIcon = getStatusIcon(item.status);
+      const content = item.content ?? '';
+      // Truncate content to ~80 chars by default, show full if --full/--verbose
+      const displayContent = showFullContent
+        ? content
+        : (content.length > 80 ? content.substring(0, 77) + '...' : content);
+      // Replace newlines with spaces for table display
+      const singleLineContent = displayContent.replace(/\n/g, ' ');
       return [
         item.id,
         `${statusIcon} ${item.status}`,
         item.sourceType,
-        item.channelId,
+        singleLineContent,
         formatTimestamp(item.createdAt),
       ];
     });
@@ -238,7 +271,7 @@ async function inboxListHandler(
     const table = formatter.table(headers, rows);
     const summary = `\n${items.length} inbox item(s) for ${entity.name}`;
 
-    return success(items, table + summary);
+    return success(itemsWithContent, table + summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return failure(`Failed to get inbox: ${message}`, ExitCode.GENERAL_ERROR);
@@ -271,9 +304,11 @@ Options:
   -a, --all              Include read and archived items (default: unread only)
   -s, --status <status>  Filter by status: unread, read, or archived
   -n, --limit <n>        Maximum number of items to return
+  -F, --full             Show complete message content instead of truncated preview
 
 Examples:
   el inbox alice
+  el inbox alice --full
   el inbox alice --all
   el inbox alice --status read
   el inbox el-abc123 --limit 10`,
@@ -616,10 +651,12 @@ Options for list:
   -a, --all              Include read and archived items
   -s, --status <status>  Filter by status: unread, read, archived
   -n, --limit <n>        Maximum number of items
+  -F, --full             Show complete message content
 
 Examples:
   el inbox alice
   el inbox alice --all
+  el inbox alice --full
   el inbox read inbox-abc123
   el inbox read-all alice
   el inbox count alice`,
