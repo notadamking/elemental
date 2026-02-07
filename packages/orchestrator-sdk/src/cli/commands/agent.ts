@@ -96,7 +96,11 @@ async function streamSpawnedSession(
     };
 
     const onExit = (code: number | null, signal: string | null) => {
-      console.log(`\n[Session exited with code ${code}, signal ${signal}]`);
+      // User-friendly message for normal exit, show exit code for debugging on errors
+      const exitMessage = code === 0
+        ? 'The agent has stopped the session'
+        : `The agent session ended unexpectedly (exit code ${code})${signal ? ` (signal: ${signal})` : ''}`;
+      console.log(`\n[${exitMessage}]`);
       cleanup();
       resolve();
     };

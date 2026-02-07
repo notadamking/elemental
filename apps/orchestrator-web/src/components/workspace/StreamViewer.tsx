@@ -735,11 +735,15 @@ export function StreamViewer({
       eventSource.addEventListener('agent_exit', (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data);
+          // User-friendly message for normal exit, show exit code for debugging on errors
+          const exitMessage = data.code === 0
+            ? 'The agent has stopped the session'
+            : `The agent session ended unexpectedly (exit code ${data.code})${data.signal ? ` (signal: ${data.signal})` : ''}`;
           const exitEvent: StreamEvent = {
             id: `exit-${Date.now()}`,
             type: 'system',
             timestamp: Date.now(),
-            content: `Session exited with code ${data.code}${data.signal ? ` (signal: ${data.signal})` : ''}`,
+            content: exitMessage,
           };
           setEvents(prev => [...prev, exitEvent]);
         } catch (err) {
