@@ -42,6 +42,7 @@ export interface WorkspaceGridProps {
   onEndDrag: () => void;
   onSwapSections?: () => void;
   onSwapPanes?: (paneId1: PaneId, paneId2: PaneId) => void;
+  onSwap2x2Rows?: () => void;
 }
 
 /**
@@ -359,6 +360,7 @@ export function WorkspaceGrid({
   onEndDrag,
   onSwapSections,
   onSwapPanes,
+  onSwap2x2Rows,
 }: WorkspaceGridProps) {
   const [maximizedPane, setMaximizedPane] = useState<PaneId | null>(null);
 
@@ -406,6 +408,12 @@ export function WorkspaceGrid({
     onSwapSections?.();
     setRefreshTrigger(t => t + 1);
   }, [onSwapSections]);
+
+  // Wrap onSwap2x2Rows to trigger refresh after swap
+  const handleSwap2x2Rows = useCallback(() => {
+    onSwap2x2Rows?.();
+    setRefreshTrigger(t => t + 1);
+  }, [onSwap2x2Rows]);
 
   // Handle layout changes (panel resizes) to trigger refresh
   const handleLayoutChange = useCallback(() => {
@@ -709,6 +717,11 @@ export function WorkspaceGrid({
 
   // For vertical stacking (single row with multiple columns or multiple rows)
   if (layoutConfig.orientation === 'vertical') {
+    // Check if this is a 2x2 grid (exactly 2 rows, each with exactly 2 panes)
+    const is2x2Grid = layoutConfig.rows.length === 2 &&
+                       layoutConfig.rows[0].length === 2 &&
+                       layoutConfig.rows[1].length === 2;
+
     // Multiple rows, each potentially with multiple columns
     return (
       <div
@@ -724,11 +737,16 @@ export function WorkspaceGrid({
                 <CustomResizeHandle
                   orientation="vertical"
                   onSwap={
-                    onSwapPanes && layoutConfig.rows[rowIndex - 1].length === 1 && rowIndices.length === 1
-                      ? () => handleSwapPanes(visiblePanes[layoutConfig.rows[rowIndex - 1][0]].id, visiblePanes[rowIndices[0]].id)
-                      : undefined
+                    // For 2x2 grid, enable vertical swap between rows (swap both pane pairs)
+                    is2x2Grid && onSwap2x2Rows
+                      ? handleSwap2x2Rows
+                      // For other layouts, only enable swap when both rows have single panes
+                      : onSwapPanes && layoutConfig.rows[rowIndex - 1].length === 1 && rowIndices.length === 1
+                        ? () => handleSwapPanes(visiblePanes[layoutConfig.rows[rowIndex - 1][0]].id, visiblePanes[rowIndices[0]].id)
+                        : undefined
                   }
                   swapTestId={`swap-row-${rowIndex - 1}-${rowIndex}-btn`}
+                  testId={is2x2Grid ? 'vertical-resize-handle' : undefined}
                 />
               )}
               <Panel id={`row-${rowIndex}`} defaultSize={100 / layoutConfig.rows.length} minSize={10}>
