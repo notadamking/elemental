@@ -120,10 +120,12 @@ export interface CreateWorktreeOptions {
 export interface RemoveWorktreeOptions {
   /** Force removal even if there are uncommitted changes */
   readonly force?: boolean;
-  /** Also delete the branch */
+  /** Also delete the branch (local) */
   readonly deleteBranch?: boolean;
   /** Force delete branch even if not fully merged */
   readonly forceBranchDelete?: boolean;
+  /** Also delete the remote branch (requires deleteBranch to be true) */
+  readonly deleteRemoteBranch?: boolean;
 }
 
 /**
@@ -596,6 +598,18 @@ export class WorktreeManagerImpl implements WorktreeManager {
 
       // Delete branch if requested
       if (options?.deleteBranch && worktree.branch) {
+        // Delete remote branch first if requested
+        if (options.deleteRemoteBranch) {
+          try {
+            await this.execGit(['push', 'origin', '--delete', worktree.branch]);
+          } catch {
+            // Remote branch might not exist or push access denied
+            // Log warning but continue with local branch deletion
+            console.warn(`[worktree-manager] Failed to delete remote branch origin/${worktree.branch}`);
+          }
+        }
+
+        // Delete local branch
         const deleteArgs = ['branch'];
         if (options.forceBranchDelete) {
           deleteArgs.push('-D');

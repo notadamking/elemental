@@ -587,3 +587,109 @@ const worktreePath = await worktreeManager.createReadOnlyWorktree(agentName, pur
 - Does not create a new Git branch (unlike standard worktree creation)
 - Suitable for triage sessions that only need to read the codebase
 - The worktree should be cleaned up when the session exits
+
+---
+
+## MergeStewardService
+
+**File:** `services/merge-steward-service.ts`
+
+Handles automated merging of completed task branches. All merge operations run in a **temporary worktree** to avoid corrupting the main repository's HEAD.
+
+```typescript
+import { createMergeStewardService } from '@elemental/orchestrator-sdk';
+
+const mergeSteward = createMergeStewardService(
+  api,
+  taskAssignmentService,
+  dispatchService,
+  agentRegistry,
+  {
+    workspaceRoot: '/project',
+    mergeStrategy: 'squash',  // 'squash' (default) or 'merge'
+    autoPushAfterMerge: true, // Push to remote after merge (default: true)
+    autoCleanup: true,        // Remove task worktree after merge (default: true)
+    deleteBranchAfterMerge: true, // Delete branch after merge (default: true)
+  },
+  worktreeManager  // Optional
+);
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `workspaceRoot` | `string` | *required* | Workspace root directory (git repo) |
+| `mergeStrategy` | `'squash' \| 'merge'` | `'squash'` | Merge strategy to use |
+| `autoPushAfterMerge` | `boolean` | `true` | Push target branch to remote after merge |
+| `autoCleanup` | `boolean` | `true` | Remove task worktree after successful merge |
+| `deleteBranchAfterMerge` | `boolean` | `true` | Delete source branch (local + remote) after merge |
+| `testCommand` | `string` | `'npm test'` | Command to run tests |
+| `testTimeoutMs` | `number` | `300000` | Test timeout in milliseconds |
+| `autoMerge` | `boolean` | `true` | Automatically merge when tests pass |
+| `targetBranch` | `string` | *auto-detect* | Branch to merge into |
+
+### Merge Strategy
+
+**Squash Merge (default):**
+- Creates a temporary worktree on the target branch (`.elemental/.worktrees/_merge-<taskId>`)
+- Runs `git merge --squash` and `git commit` in the temp worktree
+- Commit message format: `{task title} ({task ID})`
+- Pushes to remote from the temp worktree, then syncs local target branch
+- Cleans up the temp worktree in a `finally` block
+
+**Standard Merge:**
+- Creates a temporary worktree on the target branch
+- Creates a merge commit preserving branch history
+- Commit message format: `Merge branch '{branch}' (Task: {task ID})`
+- Pushes to remote from the temp worktree, then syncs local target branch
+- Cleans up the temp worktree in a `finally` block
+
+### Worktree Safety
+
+The `attemptMerge()` method uses `execGitSafe()` for all git operations within the merge flow. This helper rejects any command where the working directory resolves to the main workspace root, preventing accidental HEAD corruption. Only worktree creation/removal and the post-push local sync intentionally operate on the main repo.
+
+### Methods
+
+```typescript
+// Process a single task for merge
+const result = await mergeSteward.processTask(taskId, {
+  skipTests: false,
+  forceMerge: false,
+  mergeCommitMessage: 'Custom message',
+});
+
+// Process all pending tasks
+const batchResult = await mergeSteward.processAllPending();
+
+// Run tests on a task's branch
+const testResult = await mergeSteward.runTests(taskId);
+
+// Attempt to merge a task's branch
+const mergeResult = await mergeSteward.attemptMerge(taskId, 'Custom commit message');
+
+// Create a fix task for failed merge/tests
+const fixTaskId = await mergeSteward.createFixTask(taskId, {
+  type: 'test_failure',  // 'test_failure' | 'merge_conflict' | 'general'
+  errorDetails: 'Test output...',
+  affectedFiles: ['src/file.ts'],
+});
+
+// Cleanup after successful merge
+await mergeSteward.cleanupAfterMerge(taskId, true);
+
+// Update merge status
+await mergeSteward.updateMergeStatus(taskId, 'merged', {
+  testResult: { passed: true, completedAt: timestamp },
+});
+```
+
+### Auto-Cleanup Behavior
+
+After a successful merge:
+1. **Temp worktree removal:** The temporary merge worktree is always removed in a `finally` block
+2. **Task worktree removal:** Removes the task's worktree directory
+3. **Local branch deletion:** Deletes the local source branch
+4. **Remote branch deletion:** Pushes deletion to remote (`git push origin --delete`)
+
+All cleanup operations are best-effort and log warnings on failure without blocking the merge result.

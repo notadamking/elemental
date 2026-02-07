@@ -518,8 +518,40 @@ When a task is completed:
    - Verify task requirements met
    - Run automated checks
 3. **Resolution:**
-   - **Approve:** Merge branch, delete worktree/branch
+   - **Approve:** Squash-merge branch in a temporary worktree, auto-push to remote, sync local target branch, delete task worktree and branch (local + remote)
    - **Request changes:** Create handoff with review comments, referencing original worktree
+
+### Merge Strategy
+
+The Merge Steward uses **squash merge** by default, combining all commits from the task branch into a single commit on the target branch. The squash commit message includes the task title and ID for traceability.
+
+All merge operations run in a **temporary worktree** (`.elemental/.worktrees/_merge-<taskId>`) to avoid corrupting the main repository's HEAD. The main repo is never checked out or modified during the merge — only the temporary worktree is used for git merge/commit/push operations. A safety guard (`execGitSafe`) rejects any git operation that accidentally targets the main repo instead of the worktree. After the merge completes (or fails), the temporary worktree is always cleaned up in a `finally` block.
+
+**Configuration options** (via `MergeStewardConfig`):
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `mergeStrategy` | `'squash'` | Merge strategy: `'squash'` (single commit) or `'merge'` (preserve history) |
+| `autoPushAfterMerge` | `true` | Push target branch to remote after successful merge |
+| `autoCleanup` | `true` | Clean up task worktree after successful merge |
+| `deleteBranchAfterMerge` | `true` | Delete source branch (local and remote) after merge |
+
+**Squash merge behavior:**
+1. Create temporary worktree on target branch: `git worktree add <tmpdir> <target>`
+2. Run `git merge --squash <source-branch>` in temp worktree
+3. Create a single commit with message: `<task-title> (<task-id>)` in temp worktree
+4. Auto-push to remote from temp worktree (if enabled)
+5. Sync local target branch with remote (best-effort fast-forward)
+6. Remove temporary worktree
+7. Delete source branch (local and remote) and task worktree
+
+**Standard merge behavior** (when `mergeStrategy: 'merge'`):
+1. Create temporary worktree on target branch: `git worktree add <tmpdir> <target>`
+2. Run `git merge --no-ff -m "<message>" <source-branch>` in temp worktree
+3. Auto-push to remote from temp worktree (if enabled)
+4. Sync local target branch with remote (best-effort fast-forward)
+5. Remove temporary worktree
+6. Delete source branch and task worktree (if enabled)
 
 ---
 

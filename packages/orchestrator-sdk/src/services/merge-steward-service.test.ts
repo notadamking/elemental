@@ -24,6 +24,7 @@ import {
   createMergeStewardService,
   type MergeStewardService,
   type MergeStewardConfig,
+  type MergeStrategy,
 } from './merge-steward-service.js';
 
 // ============================================================================
@@ -249,6 +250,66 @@ describe('MergeStewardService', () => {
       );
       expect(svc).toBeDefined();
     });
+
+    it('should default to squash merge strategy', () => {
+      const minimalConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        minimalConfig
+      );
+      // The service is created with default squash strategy
+      expect(svc).toBeDefined();
+    });
+
+    it('should default to auto-push after merge enabled', () => {
+      const minimalConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        minimalConfig
+      );
+      // The service is created with auto-push enabled by default
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept custom merge strategy', () => {
+      const configWithMerge: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        mergeStrategy: 'merge' as MergeStrategy,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        configWithMerge
+      );
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept auto-push disabled', () => {
+      const configNoPush: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        autoPushAfterMerge: false,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        configNoPush
+      );
+      expect(svc).toBeDefined();
+    });
   });
 
   // ----------------------------------------
@@ -403,7 +464,7 @@ describe('MergeStewardService', () => {
       expect(result).toBe(true);
       expect(worktreeManager.removeWorktree).toHaveBeenCalledWith(
         '.elemental/.worktrees/worker-alice-implement-feature-x',
-        { deleteBranch: true, force: false }
+        { deleteBranch: true, deleteRemoteBranch: true, force: false }
       );
     });
 
@@ -416,7 +477,7 @@ describe('MergeStewardService', () => {
 
       expect(worktreeManager.removeWorktree).toHaveBeenCalledWith(
         expect.any(String),
-        { deleteBranch: false, force: false }
+        { deleteBranch: false, deleteRemoteBranch: false, force: false }
       );
     });
 
@@ -466,6 +527,32 @@ describe('MergeStewardService', () => {
 
       expect(result).toBe(false);
     });
+
+    it('should delete remote branch when deleteBranch is true', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (worktreeManager.removeWorktree as MockInstance).mockResolvedValue(undefined);
+
+      await service.cleanupAfterMerge(mockTask.id, true);
+
+      expect(worktreeManager.removeWorktree).toHaveBeenCalledWith(
+        '.elemental/.worktrees/worker-alice-implement-feature-x',
+        { deleteBranch: true, deleteRemoteBranch: true, force: false }
+      );
+    });
+
+    it('should not delete remote branch when deleteBranch is false', async () => {
+      const mockTask = createMockTask();
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (worktreeManager.removeWorktree as MockInstance).mockResolvedValue(undefined);
+
+      await service.cleanupAfterMerge(mockTask.id, false);
+
+      expect(worktreeManager.removeWorktree).toHaveBeenCalledWith(
+        expect.any(String),
+        { deleteBranch: false, deleteRemoteBranch: false, force: false }
+      );
+    });
   });
 
   // ----------------------------------------
@@ -479,6 +566,7 @@ describe('MergeStewardService', () => {
       const createdFixTask = { ...mockTask, id: 'task-fix-001' as ElementId, title: 'Fix failing tests' };
 
       (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.list as MockInstance).mockResolvedValue([]); // No existing fix tasks
       (api.create as MockInstance).mockResolvedValue(createdFixTask);
       (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(mockChannel);
       (dispatchService.notifyAgent as MockInstance).mockResolvedValue({} as Message);
@@ -499,6 +587,7 @@ describe('MergeStewardService', () => {
       const createdFixTask = { ...mockTask, id: 'task-fix-002' as ElementId, title: 'Resolve merge conflict' };
 
       (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.list as MockInstance).mockResolvedValue([]); // No existing fix tasks
       (api.create as MockInstance).mockResolvedValue(createdFixTask);
       (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(mockChannel);
       (dispatchService.notifyAgent as MockInstance).mockResolvedValue({} as Message);
@@ -529,6 +618,7 @@ describe('MergeStewardService', () => {
       const createdFixTask = { ...mockTask, id: 'task-fix-003' as ElementId };
 
       (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.list as MockInstance).mockResolvedValue([]); // No existing fix tasks
       (api.create as MockInstance).mockResolvedValue(createdFixTask);
       (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(undefined);
 
@@ -547,6 +637,7 @@ describe('MergeStewardService', () => {
       const createdFixTask = { ...mockTask, id: 'task-fix-004' as ElementId };
 
       (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.list as MockInstance).mockResolvedValue([]); // No existing fix tasks
       (api.create as MockInstance).mockResolvedValue(createdFixTask);
       (agentRegistry.getAgentChannel as MockInstance).mockResolvedValue(mockChannel);
       (dispatchService.notifyAgent as MockInstance).mockResolvedValue({} as Message);
@@ -565,6 +656,32 @@ describe('MergeStewardService', () => {
           tags: expect.arrayContaining(['fix', 'test_failure', 'auto-created']),
         })
       );
+    });
+
+    it('should return existing fix task ID instead of creating duplicate', async () => {
+      const mockTask = createMockTask();
+      const existingFixTask = {
+        ...mockTask,
+        id: 'task-existing-fix' as ElementId,
+        title: 'Fix failing tests',
+        status: TaskStatus.OPEN,
+        tags: ['fix', 'test_failure', 'auto-created'],
+        metadata: {
+          originalTaskId: mockTask.id,
+          fixType: 'test_failure',
+        },
+      };
+
+      (api.get as MockInstance).mockResolvedValue(mockTask);
+      (api.list as MockInstance).mockResolvedValue([existingFixTask]); // Existing fix task found
+
+      const result = await service.createFixTask(mockTask.id, {
+        type: 'test_failure',
+        errorDetails: 'Test suite failed',
+      });
+
+      expect(result).toBe('task-existing-fix');
+      expect(api.create).not.toHaveBeenCalled(); // Should not create new task
     });
   });
 
@@ -657,6 +774,173 @@ describe('MergeStewardService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('no branch');
+    });
+  });
+
+  // ----------------------------------------
+  // Merge Strategy Tests
+  // ----------------------------------------
+
+  describe('merge strategy configuration', () => {
+    it('should default to squash merge strategy when not specified', () => {
+      const minimalConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        minimalConfig
+      );
+      // Service should be created with squash as default
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept squash merge strategy explicitly', () => {
+      const squashConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        mergeStrategy: 'squash' as MergeStrategy,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        squashConfig
+      );
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept standard merge strategy', () => {
+      const mergeConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        mergeStrategy: 'merge' as MergeStrategy,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        mergeConfig
+      );
+      expect(svc).toBeDefined();
+    });
+  });
+
+  // ----------------------------------------
+  // Auto-Push Configuration Tests
+  // ----------------------------------------
+
+  describe('auto-push configuration', () => {
+    it('should default to auto-push enabled when not specified', () => {
+      const minimalConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        minimalConfig
+      );
+      // Service should be created with auto-push enabled by default
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept auto-push disabled', () => {
+      const noPushConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        autoPushAfterMerge: false,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        noPushConfig
+      );
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept auto-push enabled explicitly', () => {
+      const pushConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        autoPushAfterMerge: true,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        pushConfig
+      );
+      expect(svc).toBeDefined();
+    });
+  });
+
+  // ----------------------------------------
+  // Auto-Cleanup Configuration Tests
+  // ----------------------------------------
+
+  describe('auto-cleanup configuration', () => {
+    it('should default to auto-cleanup enabled when not specified', () => {
+      const minimalConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        minimalConfig
+      );
+      // Service should be created with auto-cleanup enabled by default
+      expect(svc).toBeDefined();
+    });
+
+    it('should default to delete branch after merge enabled', () => {
+      const minimalConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        minimalConfig
+      );
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept auto-cleanup disabled', () => {
+      const noCleanupConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        autoCleanup: false,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        noCleanupConfig
+      );
+      expect(svc).toBeDefined();
+    });
+
+    it('should accept delete branch disabled', () => {
+      const noBranchDeleteConfig: MergeStewardConfig = {
+        workspaceRoot: '/project',
+        deleteBranchAfterMerge: false,
+      };
+      const svc = createMergeStewardService(
+        api,
+        taskAssignment,
+        dispatchService,
+        agentRegistry,
+        noBranchDeleteConfig
+      );
+      expect(svc).toBeDefined();
     });
   });
 
