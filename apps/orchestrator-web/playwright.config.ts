@@ -6,6 +6,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '../..');
 const testDbPath = resolve(projectRoot, '.elemental-test/elemental.db');
 
+// Use dedicated test ports to avoid conflicts with development servers
+const testApiPort = 3458;
+const testWebPort = 5175;
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -16,7 +20,7 @@ export default defineConfig({
   globalSetup: './tests/global-setup.ts',
   globalTeardown: './tests/global-teardown.ts',
   use: {
-    baseURL: 'http://localhost:5174',
+    baseURL: `http://localhost:${testWebPort}`,
     trace: 'on-first-retry',
   },
   projects: [
@@ -27,13 +31,13 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `ELEMENTAL_DB_PATH=${testDbPath} DAEMON_AUTO_START=false tsx ${resolve(projectRoot, 'apps/orchestrator-server/src/index.ts')}`,
-      port: 3457,
+      command: `ELEMENTAL_DB_PATH=${testDbPath} DAEMON_AUTO_START=false PORT=${testApiPort} tsx ${resolve(projectRoot, 'apps/orchestrator-server/src/index.ts')}`,
+      port: testApiPort,
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: 'npm run dev',
-      port: 5174,
+      command: `VITE_API_PORT=${testApiPort} npm run dev -- --port ${testWebPort}`,
+      port: testWebPort,
       reuseExistingServer: !process.env.CI,
     },
   ],
