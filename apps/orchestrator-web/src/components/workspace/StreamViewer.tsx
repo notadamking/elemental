@@ -113,7 +113,7 @@ function StreamEventCard({
   return (
     <div
       className={`
-        mb-2 rounded-md border overflow-hidden
+        mb-1 rounded border overflow-hidden
         ${colors.bg} ${colors.border}
         ${isLast ? 'animate-fade-in' : ''}
       `}
@@ -122,7 +122,7 @@ function StreamEventCard({
       {/* Event header */}
       <div
         className={`
-          flex items-center gap-2 px-3 py-1.5 cursor-pointer
+          flex items-center gap-1.5 px-2 py-1 cursor-pointer
           ${colors.text}
         `}
         onClick={() => setIsExpanded(!isExpanded)}
@@ -130,47 +130,47 @@ function StreamEventCard({
         {/* Expand/collapse icon */}
         {event.content || event.toolInput || event.toolOutput ? (
           isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+            <ChevronDown className="w-3 h-3 flex-shrink-0" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+            <ChevronRight className="w-3 h-3 flex-shrink-0" />
           )
         ) : (
-          <div className="w-3.5 h-3.5 flex-shrink-0" />
+          <div className="w-3 h-3 flex-shrink-0" />
         )}
 
         {/* Event type icon */}
-        <Icon className="w-4 h-4 flex-shrink-0" />
+        <Icon className="w-3.5 h-3.5 flex-shrink-0" />
 
         {/* Event type label */}
-        <span className="text-xs font-semibold uppercase tracking-wide flex-shrink-0">
+        <span className="text-[10px] font-semibold uppercase tracking-wide flex-shrink-0">
           {event.type.replace('_', ' ')}
         </span>
 
         {/* Tool name (for tool events) */}
         {event.toolName && (
-          <span className="text-xs font-mono opacity-75 truncate">
+          <span className="text-[10px] font-mono opacity-75 truncate">
             {event.toolName}
           </span>
         )}
 
         {/* Timestamp */}
-        <span className="ml-auto text-xs opacity-50 flex-shrink-0">
+        <span className="ml-auto text-[10px] opacity-50 flex-shrink-0">
           {time}
         </span>
       </div>
 
       {/* Event content */}
       {isExpanded && hasEventContent(event) && (
-        <div className="px-3 py-2 border-t border-[var(--color-border)]/30">
+        <div className="px-2 py-1.5 border-t border-[var(--color-border)]/30">
           {/* Assistant/User message content */}
           {event.content != null && event.content !== '' && (
             (event.type === 'assistant' || event.type === 'user') ? (
               <MarkdownContent
                 content={event.content}
-                className="text-sm text-[var(--color-text)]"
+                className="text-xs text-[var(--color-text)]"
               />
             ) : (
-              <div className="text-sm whitespace-pre-wrap break-words text-[var(--color-text)]">
+              <div className="text-xs whitespace-pre-wrap break-words text-[var(--color-text)]">
                 {event.content}
               </div>
             )
@@ -178,12 +178,12 @@ function StreamEventCard({
 
           {/* Tool input */}
           {event.toolInput != null && (
-            <div className="mt-2">
-              <div className="text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            <div className="mt-1.5">
+              <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mb-0.5">
                 Input:
               </div>
               <pre className="
-                text-xs font-mono p-2 rounded
+                text-[10px] font-mono p-1.5 rounded
                 bg-[var(--color-bg-secondary)]
                 text-[var(--color-text-secondary)]
                 overflow-x-auto
@@ -197,20 +197,135 @@ function StreamEventCard({
 
           {/* Tool output */}
           {event.toolOutput && (
-            <div className="mt-2">
-              <div className="text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+            <div className="mt-1.5">
+              <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mb-0.5">
                 Output:
               </div>
               <pre className="
-                text-xs font-mono p-2 rounded
+                text-[10px] font-mono p-1.5 rounded
                 bg-[var(--color-bg-secondary)]
                 text-[var(--color-text-secondary)]
-                overflow-x-auto max-h-48 overflow-y-auto
+                overflow-x-auto max-h-36 overflow-y-auto
               ">
                 {event.toolOutput}
               </pre>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Type for grouped display items */
+type DisplayItem =
+  | { type: 'single'; event: StreamEvent }
+  | { type: 'tool-group'; events: StreamEvent[] };
+
+/** Group consecutive tool_use and tool_result events */
+function groupEvents(events: StreamEvent[]): DisplayItem[] {
+  const items: DisplayItem[] = [];
+  let currentToolGroup: StreamEvent[] = [];
+
+  const flushToolGroup = () => {
+    if (currentToolGroup.length > 0) {
+      if (currentToolGroup.length === 1) {
+        // Single tool event - don't group
+        items.push({ type: 'single', event: currentToolGroup[0] });
+      } else {
+        // Multiple consecutive tool events - group them
+        items.push({ type: 'tool-group', events: [...currentToolGroup] });
+      }
+      currentToolGroup = [];
+    }
+  };
+
+  for (const event of events) {
+    if (event.type === 'tool_use' || event.type === 'tool_result') {
+      currentToolGroup.push(event);
+    } else {
+      flushToolGroup();
+      items.push({ type: 'single', event });
+    }
+  }
+
+  flushToolGroup();
+  return items;
+}
+
+/** Accordion for grouped tool calls */
+function ToolCallGroupCard({
+  events,
+  isLast,
+}: {
+  events: StreamEvent[];
+  isLast: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const colors = eventColors.tool_use;
+
+  // Count tool_use events (each tool_use represents one tool call)
+  const toolUseCount = events.filter(e => e.type === 'tool_use').length;
+  const toolResultCount = events.filter(e => e.type === 'tool_result').length;
+
+  // Get unique tool names
+  const toolNames = [...new Set(events.filter(e => e.toolName).map(e => e.toolName))];
+  const toolNameSummary = toolNames.length > 3
+    ? `${toolNames.slice(0, 3).join(', ')}...`
+    : toolNames.join(', ');
+
+  return (
+    <div
+      className={`
+        mb-1 rounded border overflow-hidden
+        ${colors.bg} ${colors.border}
+        ${isLast ? 'animate-fade-in' : ''}
+      `}
+      data-testid="tool-call-group"
+    >
+      {/* Group header */}
+      <div
+        className={`
+          flex items-center gap-1.5 px-2 py-1 cursor-pointer
+          ${colors.text}
+        `}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-3 h-3 flex-shrink-0" />
+        ) : (
+          <ChevronRight className="w-3 h-3 flex-shrink-0" />
+        )}
+
+        <Wrench className="w-3.5 h-3.5 flex-shrink-0" />
+
+        <span className="text-[10px] font-semibold uppercase tracking-wide flex-shrink-0">
+          {toolUseCount} tool call{toolUseCount !== 1 ? 's' : ''}
+        </span>
+
+        {toolNameSummary && (
+          <span className="text-[10px] font-mono opacity-75 truncate">
+            ({toolNameSummary})
+          </span>
+        )}
+
+        {toolResultCount > 0 && (
+          <span className="text-[10px] opacity-60 flex-shrink-0">
+            • {toolResultCount} result{toolResultCount !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Expanded content: individual tool events */}
+      {isExpanded && (
+        <div className="px-1.5 py-1 border-t border-[var(--color-border)]/30 space-y-1">
+          {events.map((event, idx) => (
+            <StreamEventCard
+              key={event.id}
+              event={event}
+              isLast={isLast && idx === events.length - 1}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -968,13 +1083,25 @@ export function StreamViewer({
           </div>
         ) : (
           <>
-            {events.map((event, index) => (
-              <StreamEventCard
-                key={event.id}
-                event={event}
-                isLast={index === events.length - 1 && !isWorking}
-              />
-            ))}
+            {groupEvents(events).map((item, index, arr) => {
+              const isLastItem = index === arr.length - 1 && !isWorking;
+              if (item.type === 'tool-group') {
+                return (
+                  <ToolCallGroupCard
+                    key={`group-${item.events[0].id}`}
+                    events={item.events}
+                    isLast={isLastItem}
+                  />
+                );
+              }
+              return (
+                <StreamEventCard
+                  key={item.event.id}
+                  event={item.event}
+                  isLast={isLastItem}
+                />
+              );
+            })}
             {/* Working indicator */}
             {isWorking && status === 'connected' && (
               <div
