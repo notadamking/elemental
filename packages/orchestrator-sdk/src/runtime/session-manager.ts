@@ -969,7 +969,9 @@ export class SessionManagerImpl implements SessionManager {
         await this.spawner.writeToPty(sessionId, formattedMessage);
         // Wait for the terminal to process the pasted content before sending Enter.
         // The carriage return must be sent as a separate message to ensure proper submission.
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // A longer delay (1500ms) is needed to ensure large messages are fully received
+        // by the PTY before the Enter key is sent.
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         await this.spawner.writeToPty(sessionId, '\r');
       } else {
         await this.spawner.sendInput(sessionId, formattedMessage);
