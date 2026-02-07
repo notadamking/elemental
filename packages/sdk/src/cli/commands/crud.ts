@@ -121,7 +121,7 @@ interface CreateOptions {
   description?: string;
 }
 
-const createOptions: CommandOption[] = [
+export const createOptions: CommandOption[] = [
   {
     name: 'title',
     short: 't',
@@ -176,7 +176,7 @@ const createOptions: CommandOption[] = [
   },
 ];
 
-async function createHandler(
+export async function createHandler(
   args: string[],
   options: GlobalOptions & CreateOptions
 ): Promise<CommandResult> {
@@ -184,7 +184,7 @@ async function createHandler(
   const [elementType] = args;
 
   if (!elementType) {
-    return failure('Usage: el create <type> [options]\n\nTypes: task', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task create [options]\n\nUse "el task create --help" for options.', ExitCode.INVALID_ARGUMENTS);
   }
 
   // Currently only support task creation
@@ -366,7 +366,7 @@ interface ListOptions {
   offset?: string;
 }
 
-const listOptions: CommandOption[] = [
+export const listOptions: CommandOption[] = [
   {
     name: 'type',
     short: 't',
@@ -411,7 +411,7 @@ const listOptions: CommandOption[] = [
   },
 ];
 
-async function listHandler(
+export async function listHandler(
   args: string[],
   options: GlobalOptions & ListOptions
 ): Promise<CommandResult> {
@@ -565,7 +565,7 @@ interface ShowOptions {
   'events-limit'?: string;
 }
 
-const showOptions: CommandOption[] = [
+export const showOptions: CommandOption[] = [
   {
     name: 'events',
     short: 'e',
@@ -579,7 +579,7 @@ const showOptions: CommandOption[] = [
   },
 ];
 
-async function showHandler(
+export async function showHandler(
   args: string[],
   options: GlobalOptions & ShowOptions
 ): Promise<CommandResult> {
@@ -744,7 +744,7 @@ interface UpdateOptions {
   'remove-tag'?: string[];
 }
 
-const updateOptions: CommandOption[] = [
+export const updateOptions: CommandOption[] = [
   {
     name: 'title',
     short: 't',
@@ -795,7 +795,7 @@ const updateOptions: CommandOption[] = [
   },
 ];
 
-async function updateHandler(
+export async function updateHandler(
   args: string[],
   options: GlobalOptions & UpdateOptions
 ): Promise<CommandResult> {
@@ -983,7 +983,7 @@ interface DeleteOptions {
   force?: boolean;
 }
 
-const deleteOptions: CommandOption[] = [
+export const deleteOptions: CommandOption[] = [
   {
     name: 'reason',
     short: 'r',
@@ -997,7 +997,7 @@ const deleteOptions: CommandOption[] = [
   },
 ];
 
-async function deleteHandler(
+export async function deleteHandler(
   args: string[],
   options: GlobalOptions & DeleteOptions
 ): Promise<CommandResult> {

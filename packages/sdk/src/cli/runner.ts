@@ -12,6 +12,7 @@ import { getCommandHelp } from './commands/help.js';
 import type { PluginsConfig } from './plugin-types.js';
 import { discoverPlugins, logPluginWarnings } from './plugin-loader.js';
 import { registerAllPlugins, logConflictWarnings } from './plugin-registry.js';
+import { suggestCommands } from './suggest.js';
 
 // ============================================================================
 // Command Registry
@@ -67,6 +68,7 @@ export function getAllAliases(): Map<string, string> {
 function resolveCommand(commandPath: string[]): {
   command: Command | undefined;
   args: string[];
+  subcommandSuggestion?: string;
 } {
   if (commandPath.length === 0) {
     return { command: undefined, args: [] };
@@ -83,6 +85,7 @@ function resolveCommand(commandPath: string[]): {
 
   // Resolve subcommands
   let args = rest;
+  let subcommandSuggestion: string | undefined;
   while (args.length > 0 && command && command.subcommands) {
     const subName = args[0];
     const subCommand: Command | undefined = command.subcommands[subName];
@@ -90,11 +93,19 @@ function resolveCommand(commandPath: string[]): {
       command = subCommand;
       args = args.slice(1);
     } else {
+      // Check if the unmatched arg looks like a subcommand attempt (not an option or ID)
+      if (!subName.startsWith('-') && !subName.startsWith('el-') && command.subcommands) {
+        const subNames = Object.keys(command.subcommands);
+        const suggestions = suggestCommands(subName, subNames);
+        if (suggestions.length > 0) {
+          subcommandSuggestion = `Unknown subcommand: ${subName}\n\nDid you mean?\n${suggestions.map(s => `  ${s}`).join('\n')}\n\nRun "el ${command.name} --help" to see available subcommands.`;
+        }
+      }
       break;
     }
   }
 
-  return { command, args };
+  return { command, args, subcommandSuggestion };
 }
 
 // ============================================================================
@@ -148,13 +159,24 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   // Resolve command
-  const { command } = resolveCommand(commandPath);
+  const { command, subcommandSuggestion } = resolveCommand(commandPath);
 
   if (!command) {
-    const result = failure(
-      `Unknown command: ${commandPath.join(' ')}`,
-      ExitCode.INVALID_ARGUMENTS
-    );
+    const input = commandPath[0];
+    const allCommandNames = Array.from(commands.keys());
+    const suggestions = suggestCommands(input, allCommandNames);
+    let msg = `Unknown command: ${input}`;
+    if (suggestions.length > 0) {
+      msg += `\n\nDid you mean?\n${suggestions.map(s => `  ${s}`).join('\n')}`;
+    }
+    msg += '\n\nRun "el --help" to see available commands.';
+    const result = failure(msg, ExitCode.INVALID_ARGUMENTS);
+    return outputResult(result, options);
+  }
+
+  // Show subcommand suggestion if available
+  if (subcommandSuggestion) {
+    const result = failure(subcommandSuggestion, ExitCode.INVALID_ARGUMENTS);
     return outputResult(result, options);
   }
 
@@ -232,7 +254,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   const { resetCommand } = await import('./commands/reset.js');
   const { configCommand } = await import('./commands/config.js');
   const { helpCommand, versionCommand } = await import('./commands/help.js');
-  const { createCommand, listCommand, showCommand, updateCommand, deleteCommand } = await import('./commands/crud.js');
+  const { showCommand, updateCommand, deleteCommand } = await import('./commands/crud.js');
   const {
     readyCommand,
     blockedCommand,
@@ -271,8 +293,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(configCommand);
   registerCommand(helpCommand);
   registerCommand(versionCommand);
-  registerCommand(createCommand);
-  registerCommand(listCommand);
   registerCommand(showCommand);
   registerCommand(updateCommand);
   registerCommand(deleteCommand);
@@ -335,18 +355,17 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<neve
   registerCommand(installCommand);
 
   // Command aliases
-  registerAlias('add', 'create');    // Common CRUD alias
-  registerAlias('new', 'create');    // Alternative create alias
   registerAlias('rm', 'delete');     // Common shell convention
   registerAlias('remove', 'delete'); // Alternative delete alias
-  registerAlias('ls', 'list');       // Common shell convention
   registerAlias('s', 'show');        // Short form
   registerAlias('get', 'show');      // Alternative show alias
   registerAlias('todo', 'ready');    // User-friendly alias
   registerAlias('tasks', 'ready');   // User-friendly alias
   registerAlias('done', 'close');    // User-friendly alias
-  registerAlias('complete', 'close'); // Alternative close alias
   registerAlias('st', 'status');     // Short form for sync status
+  registerAlias('dep', 'dependency'); // Short form
+  registerAlias('msg', 'message');   // Short form
+  registerAlias('doc', 'document');  // Short form
 
   // ============================================================================
   // Plugin Loading

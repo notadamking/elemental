@@ -94,12 +94,12 @@ bun test --watch      # Watch mode
 ### CLI Usage
 
 ```bash
-el ready              # List ready tasks
-el blocked            # List blocked tasks
+el task ready         # List ready tasks
+el task blocked       # List blocked tasks
 el show <id>          # Show element details
-el create task --title "..." --priority 3 --type feature
-el dep add --type=blocks <blocked-id> <blocker-id>
-el close <id> --reason "..."
+el task create --title "..." --priority 3 --type feature
+el dependency add --type=blocks <blocked-id> <blocker-id>
+el task close <id> --reason "..."
 el stats              # View progress stats
 ```
 
@@ -119,12 +119,12 @@ bun run --filter @elemental/orchestrator-web dev     # Orchestrator UI (port 517
 See `docs/GOTCHAS.md` for the complete list. **Top 10 for agents:**
 
 1. **`blocked` is computed** - Never set `status: 'blocked'` directly; it's derived from dependencies
-2. **`blocks` direction** - `el dep add --type=blocks A B` means A is blocked BY B (B completes first)
+2. **`blocks` direction** - `el dependency add --type=blocks A B` means A is blocked BY B (B completes first)
 3. **Messages need `contentRef`** - `sendDirectMessage()` requires a `DocumentId`, not raw text
 4. **`sortByEffectivePriority()` mutates** - Returns same array reference, modifies in place
 5. **SQLite is cache** - JSONL is the source of truth; SQLite can be rebuilt
 6. **No auto cycle detection** - `api.addDependency()` doesn't check cycles; use `DependencyService.detectCycle()`
-7. **FTS not indexed on import** - After `el import`, run `el doc reindex` to rebuild search index
+7. **FTS not indexed on import** - After `el import`, run `el document reindex` to rebuild search index
 8. **`relates-to` is bidirectional** - Query both directions: `getDependencies()` AND `getDependents()`
 9. **Closed/tombstone always wins** - In merge conflicts, these statuses take precedence
 10. **Server ports** - Platform: 3456, Orchestrator: 3457 (not 3000)

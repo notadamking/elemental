@@ -8,9 +8,9 @@ Review each message below and take appropriate action. You should process ALL me
 
 For each message, choose one of the following:
 
-1. **Respond** — Send a reply using `el msg send --reply-to {Message ID} --content "..."`
+1. **Respond** — Send a reply using `el message send --reply-to {Message ID} --content "..."`
 2. **Create Task** — If the message requests work, create a task with `el task create`
-3. **Escalate** — Forward to the director if you cannot handle it, using `el msg send --from <Worker ID> --to <Director ID> --content "..."`
+3. **Escalate** — Forward to the director if you cannot handle it, using `el message send --from <Worker ID> --to <Director ID> --content "..."`
 4. **Investigate** — Read files or gather context before deciding (but do NOT edit files in this session)
 5. **Acknowledge** — Send a brief acknowledgment if no other action is needed
 6. **Skip** — No action needed (e.g., FYI messages, notifications)

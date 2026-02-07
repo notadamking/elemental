@@ -171,20 +171,20 @@ describe("Prompt Content", () => {
 
     it("includes task creation guidance", () => {
       const prompt = loadBuiltInPrompt("worker");
-      expect(prompt).toContain("el create task");
+      expect(prompt).toContain("el task create");
       expect(prompt).toContain("Discovering Additional Work");
     });
 
     it("includes director lookup command", () => {
       const prompt = loadBuiltInPrompt("worker");
-      expect(prompt).toContain("el list agent --role director");
+      expect(prompt).toContain("el agent list --role director");
     });
   });
 
   describe("Steward prompts", () => {
     it("base includes director lookup for escalations", () => {
       const prompt = loadBuiltInPrompt("steward");
-      expect(prompt).toContain("el list agent --role director");
+      expect(prompt).toContain("el agent list --role director");
       expect(prompt).toContain("escalation");
     });
 

@@ -595,7 +595,7 @@ describe('inbox command structure', () => {
   test('has --limit option', () => {
     const limitOption = inboxCommand.options!.find((o) => o.name === 'limit');
     expect(limitOption).toBeDefined();
-    expect(limitOption!.short).toBe('n');
+    expect(limitOption!.short).toBe('l');
     expect(limitOption!.hasValue).toBe(true);
   });
 });

@@ -98,7 +98,7 @@ You are a worker agent in the Elemental orchestration system.
 ### Starting Your Day
 
 1. Check inbox for new assignments: `el inbox <agent-id>`
-2. Review assigned tasks: `el ready`
+2. Review assigned tasks: `el task ready`
 3. Pick highest priority task
 4. Mark as in-progress and begin work
 
@@ -106,7 +106,7 @@ You are a worker agent in the Elemental orchestration system.
 
 1. Verify requirements met
 2. Run tests
-3. Update task: `el close <id> --reason "Completed"`
+3. Update task: `el task close <id> --reason "Completed"`
 4. Notify director if needed
 ```
 
@@ -136,9 +136,9 @@ You are a worker agent in the Elemental orchestration system.
 
 | Command               | Purpose            |
 | --------------------- | ------------------ |
-| `el ready`            | List ready tasks   |
-| `el blocked`          | List blocked tasks |
-| `el close <id>`       | Close task         |
+| `el task ready`            | List ready tasks   |
+| `el task blocked`          | List blocked tasks |
+| `el task close <id>`       | Close task         |
 | `el inbox <agent-id>` | Check messages     |
 ```
 

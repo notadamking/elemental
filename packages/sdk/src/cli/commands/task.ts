@@ -34,6 +34,19 @@ import type { ElementId, EntityId } from '@elemental/core';
 import { existsSync as fileExists, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ElementalAPI, TaskFilter, BlockedTask } from '../../api/types.js';
+import {
+  createHandler,
+  createOptions,
+  listHandler,
+  listOptions,
+  showHandler,
+  showOptions,
+  updateHandler,
+  updateOptions,
+  deleteHandler,
+  deleteOptions,
+} from './crud.js';
+import { suggestCommands } from '../suggest.js';
 
 // ============================================================================
 // Constants
@@ -490,7 +503,7 @@ async function closeHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el close <id> [--reason "reason"]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task close <id> [--reason "reason"]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -594,7 +607,7 @@ async function reopenHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el reopen <id> [--message "reason"]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task reopen <id> [--message "reason"]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -751,7 +764,7 @@ async function assignHandler(
   const [id, assignee] = args;
 
   if (!id) {
-    return failure('Usage: el assign <id> [assignee] [--unassign]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task assign <id> [assignee] [--unassign]', ExitCode.INVALID_ARGUMENTS);
   }
 
   if (!assignee && !options.unassign) {
@@ -848,7 +861,7 @@ async function deferHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el defer <id> [--until date]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task defer <id> [--until date]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -951,7 +964,7 @@ async function undeferHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el undefer <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task undefer <id>', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -1052,7 +1065,6 @@ const describeOptions: CommandOption[] = [
   },
   {
     name: 'append',
-    short: 'a',
     description: 'Append to existing description instead of replacing',
   },
 ];
@@ -1214,7 +1226,7 @@ Options:
   -c, --content <text>  Description content (inline)
   -f, --file <path>     Read description from file
   -s, --show            Show current description instead of setting it
-  -a, --append          Append to existing description instead of replacing
+      --append          Append to existing description instead of replacing
 
 Examples:
   el task describe el-abc123 --content "Implement the login feature"
@@ -1283,7 +1295,7 @@ async function activateHandler(
   }
 }
 
-const activateCommand: Command = {
+export const activateCommand: Command = {
   name: 'activate',
   description: 'Move a task from backlog to open',
   usage: 'el task activate <id>',
@@ -1299,41 +1311,203 @@ Examples:
 };
 
 // ============================================================================
+// CRUD Wrapper Commands (delegate to crud.ts handlers with 'task' pre-filled)
+// ============================================================================
+
+const taskCreateCommand: Command = {
+  name: 'create',
+  description: 'Create a new task',
+  usage: 'el task create [options]',
+  help: `Create a new task.
+
+Options:
+  -t, --title <text>      Task title (required)
+  -d, --description <text> Task description (creates a linked document)
+  -p, --priority <1-5>    Priority (1=critical, 5=minimal, default=3)
+  -c, --complexity <1-5>  Complexity (1=trivial, 5=very complex, default=3)
+      --type <type>       Task type: bug, feature, task, chore
+  -a, --assignee <id>     Assignee entity ID
+      --tag <tag>         Add a tag (can be repeated)
+      --plan <id|name>    Plan to attach this task to
+
+Examples:
+  el task create --title "Fix login bug" --priority 1 --type bug
+  el task create -t "Add dark mode" --tag ui --tag feature
+  el task create -t "Implement feature X" --plan "My Plan"`,
+  options: createOptions,
+  handler: ((args: string[], options: GlobalOptions) =>
+    createHandler(['task', ...args], options)) as Command['handler'],
+};
+
+const taskListCommand: Command = {
+  name: 'list',
+  description: 'List tasks',
+  usage: 'el task list [options]',
+  help: `List tasks with optional filtering.
+
+Options:
+  -s, --status <status> Filter by status
+  -p, --priority <1-5>  Filter by priority
+  -a, --assignee <id>   Filter by assignee
+      --tag <tag>       Filter by tag (can be repeated)
+  -l, --limit <n>       Maximum results (default: 50)
+  -o, --offset <n>      Skip first n results
+
+Examples:
+  el task list
+  el task list --status open
+  el task list --priority 1 --status in_progress`,
+  options: listOptions,
+  handler: ((args: string[], options: GlobalOptions) =>
+    listHandler(['task', ...args], options)) as Command['handler'],
+};
+
+const taskShowCommand: Command = {
+  name: 'show',
+  description: 'Show task details',
+  usage: 'el task show <id> [options]',
+  help: `Show detailed information about a task.
+
+Arguments:
+  id    Task identifier (e.g., el-abc123)
+
+Options:
+  -e, --events            Include recent events/history
+      --events-limit <n>  Maximum events to show (default: 10)
+
+Examples:
+  el task show el-abc123
+  el task show el-abc123 --events`,
+  options: showOptions,
+  handler: showHandler as Command['handler'],
+};
+
+const taskUpdateCommand: Command = {
+  name: 'update',
+  description: 'Update a task',
+  usage: 'el task update <id> [options]',
+  help: `Update fields on an existing task.
+
+Arguments:
+  id    Task identifier (e.g., el-abc123)
+
+Options:
+  -t, --title <text>       New title
+  -p, --priority <1-5>     New priority
+  -c, --complexity <1-5>   New complexity
+  -s, --status <status>    New status (open, in_progress, closed, deferred)
+  -a, --assignee <id>      New assignee (empty string to unassign)
+      --tag <tag>          Replace all tags
+      --add-tag <tag>      Add a tag
+      --remove-tag <tag>   Remove a tag
+
+Examples:
+  el task update el-abc123 --title "New Title"
+  el task update el-abc123 --priority 1 --status in_progress`,
+  options: updateOptions,
+  handler: updateHandler as Command['handler'],
+};
+
+const taskDeleteCommand: Command = {
+  name: 'delete',
+  description: 'Delete a task',
+  usage: 'el task delete <id> [options]',
+  help: `Soft-delete a task.
+
+Arguments:
+  id    Task identifier (e.g., el-abc123)
+
+Options:
+  -r, --reason <text>    Deletion reason
+  -f, --force            Skip confirmation
+
+Examples:
+  el task delete el-abc123
+  el task delete el-abc123 --reason "Duplicate entry"`,
+  options: deleteOptions,
+  handler: deleteHandler as Command['handler'],
+};
+
+// ============================================================================
 // Task Root Command
 // ============================================================================
 
+const allTaskSubcommands: Record<string, Command> = {
+  // CRUD
+  create: taskCreateCommand,
+  list: taskListCommand,
+  show: taskShowCommand,
+  update: taskUpdateCommand,
+  delete: taskDeleteCommand,
+  // Status
+  ready: readyCommand,
+  blocked: blockedCommand,
+  backlog: backlogCommand,
+  close: closeCommand,
+  reopen: reopenCommand,
+  // Assignment
+  assign: assignCommand,
+  // Scheduling
+  defer: deferCommand,
+  undefer: undeferCommand,
+  // Description
+  describe: describeCommand,
+  activate: activateCommand,
+};
+
 export const taskCommand: Command = {
   name: 'task',
-  description: 'Task-specific operations',
+  description: 'Task management',
   usage: 'el task <subcommand> [options]',
-  help: `Task-specific operations.
+  help: `Task management - create, list, and manage tasks.
 
-Subcommands:
-  describe    Set or show task description
+CRUD:
+  create      Create a new task
+  list        List tasks
+  show        Show task details
+  update      Update a task
+  delete      Delete a task
+
+Status:
+  ready       List tasks ready for work
+  blocked     List blocked tasks with reasons
+  backlog     List backlog tasks
+  close       Close a task
+  reopen      Reopen a closed task
   activate    Move a task from backlog to open
 
-Note: Common task operations are available as top-level commands:
-  el ready      List tasks ready for work
-  el blocked    List blocked tasks
-  el backlog    List backlog tasks
-  el close      Close a task
-  el reopen     Reopen a closed task
-  el assign     Assign a task
-  el defer      Defer a task
-  el undefer    Remove deferral
+Assignment:
+  assign      Assign a task to an entity
+
+Scheduling:
+  defer       Defer a task
+  undefer     Remove deferral from a task
+
+Description:
+  describe    Set or show task description
 
 Examples:
-  el task describe el-abc123 --content "Description text"
-  el task describe el-abc123 --show
-  el task activate el-abc123`,
-  subcommands: {
-    describe: describeCommand,
-    activate: activateCommand,
-  },
-  handler: async (_args, _options): Promise<CommandResult> => {
-    return failure(
-      'Usage: el task <subcommand>. Use "el task --help" for available subcommands.',
-      ExitCode.INVALID_ARGUMENTS
-    );
+  el task create --title "Fix login bug" --priority 1
+  el task list --status open
+  el task ready
+  el task close el-abc123
+  el task describe el-abc123 --show`,
+  subcommands: allTaskSubcommands,
+  handler: async (args, _options): Promise<CommandResult> => {
+    if (args.length === 0) {
+      return failure(
+        'Usage: el task <subcommand>. Use "el task --help" for available subcommands.',
+        ExitCode.INVALID_ARGUMENTS
+      );
+    }
+    // Show "did you mean?" for unknown subcommands
+    const subNames = Object.keys(allTaskSubcommands);
+    const suggestions = suggestCommands(args[0], subNames);
+    let msg = `Unknown subcommand: ${args[0]}`;
+    if (suggestions.length > 0) {
+      msg += `\n\nDid you mean?\n${suggestions.map(s => `  ${s}`).join('\n')}`;
+    }
+    msg += '\n\nRun "el task --help" to see available subcommands.';
+    return failure(msg, ExitCode.INVALID_ARGUMENTS);
   },
 };

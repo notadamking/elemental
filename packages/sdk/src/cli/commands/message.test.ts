@@ -527,9 +527,9 @@ describe('msg thread command', () => {
 // Message Command Structure Tests
 // ============================================================================
 
-describe('msg command structure', () => {
+describe('message command structure', () => {
   test('has correct name', () => {
-    expect(messageCommand.name).toBe('msg');
+    expect(messageCommand.name).toBe('message');
   });
 
   test('has description', () => {
@@ -539,7 +539,7 @@ describe('msg command structure', () => {
 
   test('has usage', () => {
     expect(messageCommand.usage).toBeDefined();
-    expect(messageCommand.usage).toContain('msg');
+    expect(messageCommand.usage).toContain('message');
   });
 
   test('has help text', () => {

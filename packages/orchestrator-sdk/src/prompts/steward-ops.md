@@ -25,5 +25,5 @@ el worktree list --orphaned
 el worktree remove worktree-path
 
 # Stale work detection
-el list task --status in_progress --no-activity-since 24h
+el task list --status in_progress --no-activity-since 24h
 ```

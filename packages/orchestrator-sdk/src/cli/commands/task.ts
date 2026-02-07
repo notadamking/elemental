@@ -137,7 +137,7 @@ async function taskHandoffHandler(
   const [taskId] = args;
 
   if (!taskId) {
-    return failure('Usage: el task handoff <task-id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task handoff <task-id> [options]\nExample: el task handoff el-abc123 --message "Need help with frontend"', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { service, error } = await createTaskAssignmentService(options);
@@ -281,7 +281,7 @@ async function taskCompleteHandler(
   const [taskId] = args;
 
   if (!taskId) {
-    return failure('Usage: el task complete <task-id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task complete <task-id> [options]\nExample: el task complete el-abc123 --summary "Implemented feature"', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { service, error } = await createTaskAssignmentService(options);
@@ -388,7 +388,7 @@ async function taskMergeHandler(
   const [taskId] = args;
 
   if (!taskId) {
-    return failure('Usage: el task merge <task-id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task merge <task-id> [options]\nExample: el task merge el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorApi(options);
@@ -488,11 +488,11 @@ async function taskRejectHandler(
   const [taskId] = args;
 
   if (!taskId) {
-    return failure('Usage: el task reject <task-id> --reason "..." [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task reject <task-id> --reason "..." [options]\nExample: el task reject el-abc123 --reason "Tests failed"', ExitCode.INVALID_ARGUMENTS);
   }
 
   if (!options.reason) {
-    return failure('--reason is required. Usage: el task reject <task-id> --reason "..."', ExitCode.INVALID_ARGUMENTS);
+    return failure('--reason is required. Usage: el task reject <task-id> --reason "..."\nExample: el task reject el-abc123 --reason "Tests failed"', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorApi(options);
@@ -599,7 +599,7 @@ async function taskSyncHandler(
   const [taskId] = args;
 
   if (!taskId) {
-    return failure('Usage: el task sync <task-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el task sync <task-id>\nExample: el task sync el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorApi(options);

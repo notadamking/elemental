@@ -93,7 +93,7 @@ You are a **Merge Steward**. You review and merge completed work into the main b
 
 ```bash
 # Find PRs awaiting review
-el list task --status pr_pending
+el task list --status pr_pending
 
 # Review PR
 gh pr view <pr-number>
@@ -118,7 +118,7 @@ el task reject <task-id> --reason "Tests failed" --message "Review feedback: ...
 el task handoff <task-id> --message "Review feedback: ..."
 
 # Report pre-existing issues to the Director
-el msg send --from <Steward ID> --to <Director ID> --content "Found pre-existing issue during review of <task-id>: <description>. Please create a task to address this."
+el message send --from <Steward ID> --to <Director ID> --content "Found pre-existing issue during review of <task-id>: <description>. Please create a task to address this."
 
 # Close your workflow task
 el task complete <workflow-task-id>

@@ -144,7 +144,7 @@ const inboxListOptions: CommandOption[] = [
   },
   {
     name: 'limit',
-    short: 'n',
+    short: 'l',
     description: 'Maximum number of items to return',
     hasValue: true,
   },
@@ -161,7 +161,7 @@ async function inboxListHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el inbox <entity> [options]',
+      'Usage: el inbox <entity> [options]\nExample: el inbox alice',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -326,7 +326,7 @@ async function inboxReadHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el inbox read <item-id>',
+      'Usage: el inbox read <item-id>\nExample: el inbox read inbox-abc123',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -386,7 +386,7 @@ async function inboxReadAllHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el inbox read-all <entity>',
+      'Usage: el inbox read-all <entity>\nExample: el inbox read-all alice',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -450,7 +450,7 @@ async function inboxUnreadHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el inbox unread <item-id>',
+      'Usage: el inbox unread <item-id>\nExample: el inbox unread inbox-abc123',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -510,7 +510,7 @@ async function inboxArchiveHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el inbox archive <item-id>',
+      'Usage: el inbox archive <item-id>\nExample: el inbox archive inbox-abc123',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -570,7 +570,7 @@ async function inboxCountHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el inbox count <entity>',
+      'Usage: el inbox count <entity>\nExample: el inbox count alice',
       ExitCode.INVALID_ARGUMENTS
     );
   }

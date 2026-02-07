@@ -352,7 +352,7 @@ async function planShowHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el plan show <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el plan show <id>\nExample: el plan show el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -456,7 +456,7 @@ async function planActivateHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el plan activate <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el plan activate <id>\nExample: el plan activate el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -521,7 +521,7 @@ async function planCompleteHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el plan complete <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el plan complete <id>\nExample: el plan complete el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -604,7 +604,7 @@ async function planCancelHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el plan cancel <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el plan cancel <id>\nExample: el plan cancel el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -683,7 +683,7 @@ async function planAddTaskHandler(
   const [planId, taskId] = args;
 
   if (!planId || !taskId) {
-    return failure('Usage: el plan add-task <plan-id> <task-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el plan add-task <plan-id> <task-id>\nExample: el plan add-task el-plan123 el-task456', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -752,7 +752,7 @@ async function planRemoveTaskHandler(
   const [planId, taskId] = args;
 
   if (!planId || !taskId) {
-    return failure('Usage: el plan remove-task <plan-id> <task-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el plan remove-task <plan-id> <task-id>\nExample: el plan remove-task el-plan123 el-task456', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -817,7 +817,7 @@ async function planTasksHandler(
   const [planId] = args;
 
   if (!planId) {
-    return failure('Usage: el plan tasks <plan-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el plan tasks <plan-id>\nExample: el plan tasks el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);

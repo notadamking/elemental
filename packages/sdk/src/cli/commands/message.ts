@@ -368,7 +368,7 @@ async function msgSendHandler(
 const msgSendCommand: Command = {
   name: 'send',
   description: 'Send a message to a channel or entity',
-  usage: 'el msg send (--channel <id> | --to <entity> | --reply-to <msg>) --content <text> | --file <path> [options]',
+  usage: 'el message send (--channel <id> | --to <entity> | --reply-to <msg>) --content <text> | --file <path> [options]',
   help: `Send a message to a channel, entity (DM), or as a reply.
 
 Options:
@@ -385,12 +385,12 @@ When using --to, a DM channel is found or created between you and the target ent
 When using --reply-to in a DM channel, sender/recipient are automatically swapped.
 
 Examples:
-  el msg send --channel el-abc123 --content "Hello!"
-  el msg send --to el-user456 -m "Direct message"
-  el msg send --reply-to el-msg789 -m "Reply to your message"
+  el message send --channel el-abc123 --content "Hello!"
+  el message send --to el-user456 -m "Direct message"
+  el message send --reply-to el-msg789 -m "Reply to your message"
   el --from agent-1 msg send --to agent-2 -m "Message from agent-1"
-  el msg send -c el-abc123 --file message.txt
-  el msg send -c el-abc123 -m "Reply" --thread el-msg456`,
+  el message send -c el-abc123 --file message.txt
+  el message send -c el-abc123 -m "Reply" --thread el-msg456`,
   options: msgSendOptions,
   handler: msgSendHandler as Command['handler'],
 };
@@ -419,7 +419,7 @@ async function msgThreadHandler(
   const [messageId] = args;
 
   if (!messageId) {
-    return failure('Usage: el msg thread <message-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el message thread <message-id>\nExample: el message thread el-msg123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -507,7 +507,7 @@ async function msgThreadHandler(
 const msgThreadCommand: Command = {
   name: 'thread',
   description: 'View thread messages',
-  usage: 'el msg thread <message-id> [options]',
+  usage: 'el message thread <message-id> [options]',
   help: `View a message thread (root message and all replies).
 
 Arguments:
@@ -517,8 +517,8 @@ Options:
   -l, --limit <n>   Maximum messages to show
 
 Examples:
-  el msg thread el-msg123
-  el msg thread el-msg123 --limit 10`,
+  el message thread el-msg123
+  el message thread el-msg123 --limit 10`,
   options: msgThreadOptions,
   handler: msgThreadHandler as Command['handler'],
 };
@@ -666,7 +666,7 @@ async function msgListHandler(
 const msgListCommand: Command = {
   name: 'list',
   description: 'List messages in a channel',
-  usage: 'el msg list --channel <id> [options]',
+  usage: 'el message list --channel <id> [options]',
   help: `List messages in a channel.
 
 Options:
@@ -676,9 +676,9 @@ Options:
   -r, --rootOnly       Show only root messages (no replies)
 
 Examples:
-  el msg list --channel el-abc123
-  el msg list -c el-abc123 --sender el-user456
-  el msg list -c el-abc123 --rootOnly --limit 20`,
+  el message list --channel el-abc123
+  el message list -c el-abc123 --sender el-user456
+  el message list -c el-abc123 --rootOnly --limit 20`,
   options: msgListOptions,
   handler: msgListHandler as Command['handler'],
 };
@@ -728,7 +728,7 @@ async function msgReplyHandler(
   const [messageId] = args;
 
   if (!messageId) {
-    return failure('Usage: el msg reply <message-id> --content <text> | --file <path>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el message reply <message-id> --content <text> | --file <path>\nExample: el message reply el-msg123 --content "Thanks!"', ExitCode.INVALID_ARGUMENTS);
   }
 
   // Delegate to send handler with --reply-to set
@@ -741,10 +741,10 @@ async function msgReplyHandler(
 const msgReplyCommand: Command = {
   name: 'reply',
   description: 'Reply to a message (shorthand for send --reply-to)',
-  usage: 'el msg reply <message-id> --content <text> | --file <path> [options]',
+  usage: 'el message reply <message-id> --content <text> | --file <path> [options]',
   help: `Reply to a message.
 
-This is a shorthand for "el msg send --reply-to <message-id>".
+This is a shorthand for "el message send --reply-to <message-id>".
 It automatically sets the channel and thread from the replied-to message.
 In DM channels, sender/recipient are automatically swapped unless --from is specified.
 
@@ -761,8 +761,8 @@ Use --from (or --actor) to override the sender:
   el --from agent-1 msg reply el-msg123 -m "Reply as agent-1"
 
 Examples:
-  el msg reply el-msg123 --content "Thanks for the update!"
-  el msg reply el-msg123 --file response.txt
+  el message reply el-msg123 --content "Thanks for the update!"
+  el message reply el-msg123 --file response.txt
   el --from bot msg reply el-msg123 -m "Automated response"`,
   options: msgReplyOptions,
   handler: msgReplyHandler as Command['handler'],
@@ -773,9 +773,9 @@ Examples:
 // ============================================================================
 
 export const messageCommand: Command = {
-  name: 'msg',
+  name: 'message',
   description: 'Send and manage messages',
-  usage: 'el msg <subcommand> [options]',
+  usage: 'el message <subcommand> [options]',
   help: `Send and manage messages in channels.
 
 Messages are immutable - once sent, they cannot be edited or deleted.
@@ -788,11 +788,11 @@ Subcommands:
   thread   View a message thread
 
 Examples:
-  el msg send --channel el-abc123 --content "Hello!"
-  el msg send --to el-user456 -m "Direct message"
-  el msg reply el-msg789 -m "Reply to your message"
-  el msg list --channel el-abc123
-  el msg thread el-msg456`,
+  el message send --channel el-abc123 --content "Hello!"
+  el message send --to el-user456 -m "Direct message"
+  el message reply el-msg789 -m "Reply to your message"
+  el message list --channel el-abc123
+  el message thread el-msg456`,
   subcommands: {
     send: msgSendCommand,
     reply: msgReplyCommand,
@@ -802,12 +802,12 @@ Examples:
   handler: async (args, _options): Promise<CommandResult> => {
     if (args.length === 0) {
       return failure(
-        `Usage: el msg <subcommand>. Use 'el msg --help' for available subcommands.`,
+        `Usage: el message <subcommand>. Use 'el message --help' for available subcommands.`,
         ExitCode.INVALID_ARGUMENTS
       );
     }
     return failure(
-      `Unknown subcommand: ${args[0]}. Use 'el msg --help' for available subcommands.`,
+      `Unknown subcommand: ${args[0]}. Use 'el message --help' for available subcommands.`,
       ExitCode.INVALID_ARGUMENTS
     );
   },

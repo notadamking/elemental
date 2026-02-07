@@ -192,12 +192,12 @@ describe('Type interfaces', () => {
 
   it('should allow creating ParsedCommandLine', () => {
     const parsed: ParsedCommandLine = {
-      command: ['dep', 'add'],
+      command: ['dependency', 'add'],
       args: ['el-abc', 'el-xyz'],
       options: { ...DEFAULT_GLOBAL_OPTIONS },
       commandOptions: { type: 'blocks' },
     };
-    expect(parsed.command).toEqual(['dep', 'add']);
+    expect(parsed.command).toEqual(['dependency', 'add']);
     expect(parsed.args).toEqual(['el-abc', 'el-xyz']);
     expect(parsed.commandOptions.type).toBe('blocks');
   });

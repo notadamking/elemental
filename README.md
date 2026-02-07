@@ -83,22 +83,22 @@ cd packages/sdk && pnpm link --global
 el init
 
 # Create a task
-el create task --title "Implement user authentication"
+el task create --title "Implement user authentication"
 
 # List tasks
-el list task
+el task list
 
 # View ready tasks (no blockers)
-el ready
+el task ready
 
 # Update task status
 el update el-abc123 --status in_progress
 
 # Add a dependency
-el dep add el-task1 blocks el-task2
+el dependency add el-task1 blocks el-task2
 
 # View dependency tree
-el dep tree el-task1
+el dependency tree el-task1
 
 # Export to JSONL for Git sync
 el export
@@ -270,8 +270,8 @@ el stats             # Show workspace statistics
 <summary><strong>Element Operations</strong></summary>
 
 ```bash
-el create <type>     # Create element (task, document, entity)
-el list [type]       # List elements with filtering
+el task create       # Create a task
+el task list         # List tasks with filtering
 el show <id>         # Show element details
 el update <id>       # Update element fields
 el delete <id>       # Soft-delete an element
@@ -283,13 +283,13 @@ el delete <id>       # Soft-delete an element
 <summary><strong>Task Commands</strong></summary>
 
 ```bash
-el ready             # List ready tasks
-el blocked           # List blocked tasks with reasons
-el close <id>        # Close a task
-el reopen <id>       # Reopen a closed task
-el assign <id> <ent> # Assign task to entity
-el defer <id>        # Defer a task
-el undefer <id>      # Remove deferral
+el task ready             # List ready tasks
+el task blocked           # List blocked tasks with reasons
+el task close <id>        # Close a task
+el task reopen <id>       # Reopen a closed task
+el task assign <id> <ent> # Assign task to entity
+el task defer <id>        # Defer a task
+el task undefer <id>      # Remove deferral
 ```
 
 </details>
@@ -298,10 +298,10 @@ el undefer <id>      # Remove deferral
 <summary><strong>Dependency Commands</strong></summary>
 
 ```bash
-el dep add <src> <type> <tgt>    # Add dependency
-el dep remove <src> <type> <tgt> # Remove dependency
-el dep list <id>                 # List dependencies
-el dep tree <id>                 # Show dependency tree
+el dependency add <src> <type> <tgt>    # Add dependency
+el dependency remove <src> <type> <tgt> # Remove dependency
+el dependency list <id>                 # List dependencies
+el dependency tree <id>                 # Show dependency tree
 ```
 
 </details>

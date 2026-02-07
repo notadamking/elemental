@@ -198,7 +198,7 @@ async function teamAddHandler(
   const [teamId, entityId] = args;
 
   if (!teamId || !entityId) {
-    return failure('Usage: el team add <team-id> <entity-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el team add <team-id> <entity-id>\nExample: el team add el-team123 el-user456', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -273,7 +273,7 @@ async function teamRemoveHandler(
   const [teamId, entityId] = args;
 
   if (!teamId || !entityId) {
-    return failure('Usage: el team remove <team-id> <entity-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el team remove <team-id> <entity-id>\nExample: el team remove el-team123 el-user456', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -359,7 +359,7 @@ async function teamDeleteHandler(
   const [teamId] = args;
 
   if (!teamId) {
-    return failure('Usage: el team delete <team-id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el team delete <team-id> [options]\nExample: el team delete el-team123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -554,7 +554,7 @@ async function teamMembersHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el team members <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el team members <id>\nExample: el team members el-team123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);

@@ -196,8 +196,8 @@ You are a {role} agent in the Elemental system.
 
 | Command | Purpose |
 |---------|---------|
-| `el ready` | List ready tasks |
-| `el close <id>` | Close task |
+| `el task ready` | List ready tasks |
+| `el task close <id>` | Close task |
 ```
 
 ## Notable Prompt Sections

@@ -95,7 +95,7 @@ async function entityRegisterHandler(
   options: RegisterOptions
 ): Promise<CommandResult> {
   if (args.length === 0) {
-    return failure('Usage: el entity register <name> [--type <type>]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el entity register <name> [--type <type>]\nExample: el entity register claude --type agent', ExitCode.INVALID_ARGUMENTS);
   }
 
   const name = args[0];
@@ -293,7 +293,7 @@ const listOptions: CommandOption[] = [
   },
   {
     name: 'limit',
-    short: 'n',
+    short: 'l',
     description: 'Maximum number of entities to return',
     hasValue: true,
   },
@@ -329,7 +329,7 @@ async function setManagerHandler(
 ): Promise<CommandResult> {
   if (args.length < 2) {
     return failure(
-      'Usage: el entity set-manager <entity> <manager>',
+      'Usage: el entity set-manager <entity> <manager>\nExample: el entity set-manager alice bob',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -425,7 +425,7 @@ async function clearManagerHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el entity clear-manager <entity>',
+      'Usage: el entity clear-manager <entity>\nExample: el entity clear-manager alice',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -500,7 +500,7 @@ async function reportsHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el entity reports <manager>',
+      'Usage: el entity reports <manager>\nExample: el entity reports bob',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -584,7 +584,7 @@ async function chainHandler(
 ): Promise<CommandResult> {
   if (args.length < 1) {
     return failure(
-      'Usage: el entity chain <entity>',
+      'Usage: el entity chain <entity>\nExample: el entity chain alice',
       ExitCode.INVALID_ARGUMENTS
     );
   }

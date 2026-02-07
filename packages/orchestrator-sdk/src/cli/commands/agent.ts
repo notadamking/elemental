@@ -326,7 +326,7 @@ async function agentShowHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el agent show <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent show <id>\nExample: el agent show el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);
@@ -460,7 +460,7 @@ async function agentRegisterHandler(
   const [name] = args;
 
   if (!name) {
-    return failure('Usage: el agent register <name> --role <role> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent register <name> --role <role> [options]\nExample: el agent register MyWorker --role worker', ExitCode.INVALID_ARGUMENTS);
   }
 
   if (!options.role) {
@@ -634,7 +634,7 @@ async function agentStopHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el agent stop <id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent stop <id> [options]\nExample: el agent stop el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);
@@ -714,7 +714,7 @@ async function agentStreamHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el agent stream <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent stream <id>\nExample: el agent stream el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);
@@ -841,7 +841,7 @@ async function agentStartHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el agent start <id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el agent start <id> [options]\nExample: el agent start el-abc123 --prompt "Begin working"', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);

@@ -91,7 +91,7 @@ interface HistoryOptions {
 const historyOptions: CommandOption[] = [
   {
     name: 'limit',
-    short: 'n',
+    short: 'l',
     description: 'Maximum number of events to show (default: 50)',
     hasValue: true,
   },

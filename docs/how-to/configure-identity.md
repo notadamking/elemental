@@ -29,7 +29,7 @@ await api.create({
 
 ```bash
 # CLI uses --actor flag
-el create task --title "My Task" --actor my-agent
+el task create --title "My Task" --actor my-agent
 ```
 
 ## Setting Up Cryptographic Mode

@@ -110,7 +110,7 @@ async function depAddHandler(
 
   if (!blockedId || !blockerId) {
     return failure(
-      'Usage: el dep add <blocked> <blocker> --type <type>\n\nExample: el dep add el-task1 el-task2 --type blocks',
+      'Usage: el dependency add <blocked> <blocker> --type <type>\n\nExample: el dependency add el-task1 el-task2 --type blocks',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -208,7 +208,7 @@ async function depAddHandler(
 export const depAddCommand: Command = {
   name: 'add',
   description: 'Add a dependency between elements',
-  usage: 'el dep add <blocked> <blocker> --type <type> [options]',
+  usage: 'el dependency add <blocked> <blocker> --type <type> [options]',
   help: `Add a dependency between two elements.
 
 Arguments:
@@ -242,9 +242,9 @@ Dependency Types:
     replies-to   Thread parent reference
 
 Examples:
-  el dep add el-task1 el-task2 --type blocks
-  el dep add el-doc1 el-doc2 --type references
-  el dep add el-task el-entity --type assigned-to`,
+  el dependency add el-task1 el-task2 --type blocks
+  el dependency add el-doc1 el-doc2 --type references
+  el dependency add el-task el-entity --type assigned-to`,
   options: depAddOptions,
   handler: depAddHandler as Command['handler'],
 };
@@ -275,7 +275,7 @@ async function depRemoveHandler(
 
   if (!blockedId || !blockerId) {
     return failure(
-      'Usage: el dep remove <blocked> <blocker> --type <type>',
+      'Usage: el dependency remove <blocked> <blocker> --type <type>\nExample: el dependency remove el-task1 el-task2 --type blocks',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -336,7 +336,7 @@ async function depRemoveHandler(
 export const depRemoveCommand: Command = {
   name: 'remove',
   description: 'Remove a dependency between elements',
-  usage: 'el dep remove <blocked> <blocker> --type <type>',
+  usage: 'el dependency remove <blocked> <blocker> --type <type>',
   help: `Remove a dependency between two elements.
 
 Arguments:
@@ -347,7 +347,7 @@ Options:
   -t, --type <type>    Dependency type (required)
 
 Examples:
-  el dep remove el-task1 el-task2 --type blocks`,
+  el dependency remove el-task1 el-task2 --type blocks`,
   options: depRemoveOptions,
   handler: depRemoveHandler as Command['handler'],
 };
@@ -385,7 +385,7 @@ async function depListHandler(
 
   if (!id) {
     return failure(
-      'Usage: el dep list <id> [options]',
+      'Usage: el dependency list <id> [options]\nExample: el dependency list el-task1',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -492,7 +492,7 @@ async function depListHandler(
 export const depListCommand: Command = {
   name: 'list',
   description: 'List dependencies of an element',
-  usage: 'el dep list <id> [options]',
+  usage: 'el dependency list <id> [options]',
   help: `List dependencies of an element.
 
 Arguments:
@@ -508,10 +508,10 @@ Directions:
   both   Show both directions (default)
 
 Examples:
-  el dep list el-task1
-  el dep list el-task1 --type blocks
-  el dep list el-task1 --direction out
-  el dep list el-task1 -d in -t parent-child`,
+  el dependency list el-task1
+  el dependency list el-task1 --type blocks
+  el dependency list el-task1 --direction out
+  el dependency list el-task1 -d in -t parent-child`,
   options: depListOptions,
   handler: depListHandler as Command['handler'],
 };
@@ -577,7 +577,7 @@ async function depTreeHandler(
 
   if (!id) {
     return failure(
-      'Usage: el dep tree <id> [options]',
+      'Usage: el dependency tree <id> [options]\nExample: el dependency tree el-task1',
       ExitCode.INVALID_ARGUMENTS
     );
   }
@@ -679,7 +679,7 @@ async function depTreeHandler(
 export const depTreeCommand: Command = {
   name: 'tree',
   description: 'Show dependency tree for an element',
-  usage: 'el dep tree <id> [options]',
+  usage: 'el dependency tree <id> [options]',
   help: `Show the dependency tree for an element.
 
 Arguments:
@@ -693,9 +693,9 @@ The tree shows both:
   - Dependents: Elements that depend on this element (upstream)
 
 Examples:
-  el dep tree el-task1
-  el dep tree el-task1 --depth 3
-  el dep tree el-task1 --json`,
+  el dependency tree el-task1
+  el dependency tree el-task1 --depth 3
+  el dependency tree el-task1 --json`,
   options: depTreeOptions,
   handler: depTreeHandler as Command['handler'],
 };
@@ -705,9 +705,9 @@ Examples:
 // ============================================================================
 
 export const depCommand: Command = {
-  name: 'dep',
+  name: 'dependency',
   description: 'Manage dependencies between elements',
-  usage: 'el dep <subcommand> [options]',
+  usage: 'el dependency <subcommand> [options]',
   help: `Manage dependencies between elements.
 
 Subcommands:
@@ -717,12 +717,12 @@ Subcommands:
   tree     Show dependency tree for an element
 
 Examples:
-  el dep add el-task1 el-task2 --type blocks
-  el dep remove el-task1 el-task2 --type blocks
-  el dep list el-task1
-  el dep tree el-task1
+  el dependency add el-task1 el-task2 --type blocks
+  el dependency remove el-task1 el-task2 --type blocks
+  el dependency list el-task1
+  el dependency tree el-task1
 
-Use "el dep <subcommand> --help" for more information.`,
+Use "el dependency <subcommand> --help" for more information.`,
   options: [],
   handler: depListHandler as Command['handler'], // Default to list when just "el dep <id>" is used
   subcommands: {

@@ -25,7 +25,7 @@ You are spawned with a specific task. Read the task, understand acceptance crite
 If requirements are unclear, **ask before starting**:
 
 ```bash
-el msg send --from <Worker ID> --to <Director ID> --content "Task ID: <taskId> | Question about task..."
+el message send --from <Worker ID> --to <Director ID> --content "Task ID: <taskId> | Question about task..."
 ```
 
 ALWAYS include the relevant Task ID in any messages sent for clarification, and set --from to your Worker ID.
@@ -69,7 +69,7 @@ If you find work outside your task scope:
 ```bash
 # Create a new task — don't expand your scope silently
 # If the current task is within a plan, assign the new task to the same plan
-el create task --title "Add CSRF protection" --plan "Current Task Plan"
+el task create --title "Add CSRF protection" --plan "Current Task Plan"
 ```
 
 Continue your current task. The new task will be assigned separately.
@@ -173,7 +173,7 @@ Use the `el` CLI for all messaging:
 el channel list
 
 # Prefer existing channels over creating new ones.
-el msg send --from <Worker ID> --channel <channel-id> --content "Your observation here"
+el message send --from <Worker ID> --channel <channel-id> --content "Your observation here"
 
 # When you must create a channel (no suitable channel exists), always include a description:
 el channel create --name <name> --description "Purpose of this channel"
@@ -192,7 +192,7 @@ Do not let observations block your current task. Report what you notice and cont
 
 ```bash
 # Find director
-el list agent --role director
+el agent list --role director
 
 # Task status
 el show task-id
@@ -205,11 +205,11 @@ el task complete <task-id>
 el task handoff <task-id> --message "..."
 
 # Create discovered work
-el create task --title "..." --blocks <other-task-id> --plan "Existing Plan Name"
+el task create --title "..." --blocks <other-task-id> --plan "Existing Plan Name"
 
 # Communication
 el inbox <Worker ID>
-el msg send --from <Worker ID> --to <Director ID> --content "..."
+el message send --from <Worker ID> --to <Director ID> --content "..."
 
 # Git workflow (use commitlint-style prefixes)
 git add <files>

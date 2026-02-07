@@ -288,7 +288,7 @@ async function channelJoinHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el channel join <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el channel join <id>\nExample: el channel join el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -369,7 +369,7 @@ async function channelLeaveHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el channel leave <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el channel leave <id>\nExample: el channel leave el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -567,7 +567,7 @@ async function channelMembersHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el channel members <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el channel members <id>\nExample: el channel members el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -647,7 +647,7 @@ async function channelAddHandler(
   const [id, entityId] = args;
 
   if (!id || !entityId) {
-    return failure('Usage: el channel add <channel-id> <entity-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el channel add <channel-id> <entity-id>\nExample: el channel add el-abc123 el-user456', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -713,7 +713,7 @@ async function channelRemoveHandler(
   const [id, entityId] = args;
 
   if (!id || !entityId) {
-    return failure('Usage: el channel remove <channel-id> <entity-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el channel remove <channel-id> <entity-id>\nExample: el channel remove el-abc123 el-user456', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -784,7 +784,7 @@ async function channelMergeHandler(
   const newName = (options as Record<string, unknown>).name as string | undefined;
 
   if (!sourceId || !targetId) {
-    return failure('Usage: el channel merge --source <id> --target <id> [--name <new-name>]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el channel merge --source <id> --target <id> [--name <new-name>]\nExample: el channel merge --source el-abc123 --target el-def456', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);

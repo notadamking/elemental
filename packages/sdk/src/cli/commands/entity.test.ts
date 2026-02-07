@@ -438,7 +438,7 @@ describe('entity list command structure', () => {
   test('has --limit option', () => {
     const limitOption = entityListCommand.options!.find((o) => o.name === 'limit');
     expect(limitOption).toBeDefined();
-    expect(limitOption!.short).toBe('n');
+    expect(limitOption!.short).toBe('l');
   });
 });
 

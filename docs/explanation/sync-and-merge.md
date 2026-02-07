@@ -259,7 +259,7 @@ The JSONL format enables Git-based collaboration:
 
 ```bash
 # Developer A creates a task
-el create task --title "Fix bug"
+el task create --title "Fix bug"
 el sync export
 
 git add .elemental/

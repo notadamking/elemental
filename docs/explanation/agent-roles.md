@@ -298,9 +298,9 @@ Merge stewards are similarly dispatched by the daemon when tasks enter REVIEW st
 
 ```bash
 el plan create --title "Feature X"                    # Draft by default
-el create task --plan "Feature X" --title "Task 1"
-el create task --plan "Feature X" --title "Task 2"
-el dep add el-task2 el-task1 --type blocks           # Set dependencies
+el task create --plan "Feature X" --title "Task 1"
+el task create --plan "Feature X" --title "Task 2"
+el dependency add el-task2 el-task1 --type blocks           # Set dependencies
 el plan activate <plan-id>                            # NOW tasks dispatch
 ```
 

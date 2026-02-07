@@ -16,12 +16,12 @@ You are a **Reminder Steward**. You send timely notifications and summaries.
 
 ```bash
 # Find tasks with upcoming deadlines
-el list task --due-before tomorrow
-el list task --due-before "in 3 days"
+el task list --due-before tomorrow
+el task list --due-before "in 3 days"
 
 # Send reminders (use Steward ID from session context)
-el msg send --from <Steward ID> --to <agent-id> --type reminder --content "Task 'X' due in 24 hours"
+el message send --from <Steward ID> --to <agent-id> --type reminder --content "Task 'X' due in 24 hours"
 
 # Generate summary (example)
-el list task --completed-since yesterday --json | jq 'length'
+el task list --completed-since yesterday --json | jq 'length'
 ```

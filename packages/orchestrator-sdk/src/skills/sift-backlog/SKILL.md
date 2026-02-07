@@ -9,7 +9,7 @@ Triage backlog tasks: prioritize, group into plans, set dependencies, and activa
 
 ## Overview
 
-1. List backlog tasks (`el backlog`)
+1. List backlog tasks (`el task backlog`)
 2. Clarify and enrich each task (titles, descriptions)
 3. Identify groupings and create draft plans
 4. Add tasks to plans and set dependencies
@@ -21,7 +21,7 @@ Triage backlog tasks: prioritize, group into plans, set dependencies, and activa
 ### Step 1: List Backlog Tasks
 
 ```bash
-el backlog
+el task backlog
 ```
 
 ### Step 2: Clarify and Enrich Tasks
@@ -91,7 +91,7 @@ el plan add-task el-abc123 el-task2
 Use `blocks` dependency when one task must complete before another can start.
 
 ```bash
-el dep add <blocked-id> <blocker-id> --type blocks
+el dependency add <blocked-id> <blocker-id> --type blocks
 ```
 
 **Semantics:** The first ID is blocked BY the second ID. The blocker must complete first.
@@ -99,7 +99,7 @@ el dep add <blocked-id> <blocker-id> --type blocks
 **Example:** Task 2 can't start until Task 1 completes:
 
 ```bash
-el dep add el-task2 el-task1 --type blocks
+el dependency add el-task2 el-task1 --type blocks
 ```
 
 ### Step 6: Update Priorities
@@ -137,13 +137,13 @@ el update <id> --status open
 **Close obsolete tasks:**
 
 ```bash
-el close <id> --reason "Won't do: <reason>"
+el task close <id> --reason "Won't do: <reason>"
 ```
 
 **Defer tasks:**
 
 ```bash
-el defer <id> --until <date>
+el task defer <id> --until <date>
 ```
 
 **View existing plans:**

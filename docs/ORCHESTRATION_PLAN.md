@@ -263,7 +263,7 @@ The Dispatch Daemon is a continuously running process that coordinates task assi
 
 **Purpose:** Recover tasks stuck with `status=CLOSED` but `mergeStatus` not `'merged'`.
 
-**Background:** Tasks can reach CLOSED status without being merged (e.g. when `el close` is run on a REVIEW task, or from race conditions between CLI commands and steward processing). While these tasks appear in the **Awaiting Merge** section of the web UI (alongside `REVIEW` status tasks), they are invisible to merge stewards which only query for `status=REVIEW`.
+**Background:** Tasks can reach CLOSED status without being merged (e.g. when `el task close` is run on a REVIEW task, or from race conditions between CLI commands and steward processing). While these tasks appear in the **Awaiting Merge** section of the web UI (alongside `REVIEW` status tasks), they are invisible to merge stewards which only query for `status=REVIEW`.
 
 **Process:**
 1. Query for tasks with `status=CLOSED` and non-merged `mergeStatus` (`pending`, `testing`, `merging`, `conflict`, `test_failed`, `failed`)

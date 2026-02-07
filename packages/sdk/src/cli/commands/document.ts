@@ -219,7 +219,7 @@ async function docCreateHandler(
 const docCreateCommand: Command = {
   name: 'create',
   description: 'Create a new document',
-  usage: 'el doc create --content <text> | --file <path> [options]',
+  usage: 'el document create --content <text> | --file <path> [options]',
   help: `Create a new document.
 
 Options:
@@ -230,10 +230,10 @@ Options:
       --tag <tag>           Add tag (can be repeated)
 
 Examples:
-  el doc create --content "Hello world"
-  el doc create --file README.md --type markdown
-  el doc create --file spec.md --type markdown --category spec
-  el doc create -c '{"key": "value"}' -t json --tag config`,
+  el document create --content "Hello world"
+  el document create --file README.md --type markdown
+  el document create --file spec.md --type markdown --category spec
+  el document create -c '{"key": "value"}' -t json --tag config`,
   options: docCreateOptions,
   handler: docCreateHandler as Command['handler'],
 };
@@ -388,7 +388,7 @@ function formatSize(bytes: number): string {
 const docListCommand: Command = {
   name: 'list',
   description: 'List documents',
-  usage: 'el doc list [options]',
+  usage: 'el document list [options]',
   help: `List documents (active only by default).
 
 Options:
@@ -399,12 +399,12 @@ Options:
   -a, --all                  Include archived documents
 
 Examples:
-  el doc list
-  el doc list --type markdown
-  el doc list --category spec
-  el doc list --status archived
-  el doc list --all
-  el doc list --limit 10`,
+  el document list
+  el document list --type markdown
+  el document list --category spec
+  el document list --status archived
+  el document list --all
+  el document list --limit 10`,
   options: docListOptions,
   handler: docListHandler as Command['handler'],
 };
@@ -433,7 +433,7 @@ async function docHistoryHandler(
   const [docId] = args;
 
   if (!docId) {
-    return failure('Usage: el doc history <document-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document history <document-id>', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -507,7 +507,7 @@ async function docHistoryHandler(
 const docHistoryCommand: Command = {
   name: 'history',
   description: 'Show document version history',
-  usage: 'el doc history <document-id> [options]',
+  usage: 'el document history <document-id> [options]',
   help: `Show the version history of a document.
 
 Arguments:
@@ -517,8 +517,8 @@ Options:
   -l, --limit <n>  Maximum versions to show
 
 Examples:
-  el doc history el-doc123
-  el doc history el-doc123 --limit 5`,
+  el document history el-doc123
+  el document history el-doc123 --limit 5`,
   options: docHistoryOptions,
   handler: docHistoryHandler as Command['handler'],
 };
@@ -534,7 +534,7 @@ async function docRollbackHandler(
   const [docId, versionStr] = args;
 
   if (!docId || !versionStr) {
-    return failure('Usage: el doc rollback <document-id> <version>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document rollback <document-id> <version>', ExitCode.INVALID_ARGUMENTS);
   }
 
   const version = parseInt(versionStr, 10);
@@ -601,7 +601,7 @@ async function docRollbackHandler(
 const docRollbackCommand: Command = {
   name: 'rollback',
   description: 'Rollback document to a previous version',
-  usage: 'el doc rollback <document-id> <version>',
+  usage: 'el document rollback <document-id> <version>',
   help: `Rollback a document to a previous version.
 
 This creates a new version with the content from the specified version.
@@ -612,7 +612,7 @@ Arguments:
   version       Version number to rollback to
 
 Examples:
-  el doc rollback el-doc123 2`,
+  el document rollback el-doc123 2`,
   handler: docRollbackHandler as Command['handler'],
 };
 
@@ -647,7 +647,7 @@ async function docUpdateHandler(
   const [docId] = args;
 
   if (!docId) {
-    return failure('Usage: el doc update <document-id> --content <text> | --file <path>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document update <document-id> --content <text> | --file <path>', ExitCode.INVALID_ARGUMENTS);
   }
 
   // Must specify either --content or --file
@@ -719,11 +719,11 @@ async function docUpdateHandler(
 const docUpdateCommand: Command = {
   name: 'update',
   description: 'Update document content',
-  usage: 'el doc update <document-id> --content <text> | --file <path>',
+  usage: 'el document update <document-id> --content <text> | --file <path>',
   help: `Update a document's content, creating a new version.
 
 Documents are versioned - each update creates a new version while preserving
-the history. Use 'el doc history' to view versions and 'el doc rollback' to
+the history. Use 'el document history' to view versions and 'el document rollback' to
 revert to a previous version.
 
 Arguments:
@@ -734,9 +734,9 @@ Options:
   -f, --file <path>     Read new content from file
 
 Examples:
-  el doc update el-doc123 --content "Updated content"
-  el doc update el-doc123 --file updated-spec.md
-  el doc update el-doc123 -c "Quick fix"`,
+  el document update el-doc123 --content "Updated content"
+  el document update el-doc123 --file updated-spec.md
+  el document update el-doc123 -c "Quick fix"`,
   options: docUpdateOptions,
   handler: docUpdateHandler as Command['handler'],
 };
@@ -765,7 +765,7 @@ async function docShowHandler(
   const [docId] = args;
 
   if (!docId) {
-    return failure('Usage: el doc show <document-id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document show <document-id> [options]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -831,7 +831,7 @@ async function docShowHandler(
 const docShowCommand: Command = {
   name: 'show',
   description: 'Show document details',
-  usage: 'el doc show <document-id> [options]',
+  usage: 'el document show <document-id> [options]',
   help: `Show document details and content.
 
 Arguments:
@@ -841,9 +841,9 @@ Options:
   -V, --docVersion <n>  Show specific version
 
 Examples:
-  el doc show el-doc123
-  el doc show el-doc123 --docVersion 2
-  el doc show el-doc123 --quiet  # Output content only`,
+  el document show el-doc123
+  el document show el-doc123 --docVersion 2
+  el document show el-doc123 --quiet  # Output content only`,
   options: docShowOptions,
   handler: docShowHandler as Command['handler'],
 };
@@ -859,7 +859,7 @@ async function docArchiveHandler(
   const [docId] = args;
 
   if (!docId) {
-    return failure('Usage: el doc archive <document-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document archive <document-id>', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -892,14 +892,14 @@ async function docArchiveHandler(
 const docArchiveCommand: Command = {
   name: 'archive',
   description: 'Archive a document',
-  usage: 'el doc archive <document-id>',
+  usage: 'el document archive <document-id>',
   help: `Archive a document. Archived documents are hidden from default list/search.
 
 Arguments:
   document-id   Document identifier
 
 Examples:
-  el doc archive el-doc123`,
+  el document archive el-doc123`,
   handler: docArchiveHandler as Command['handler'],
 };
 
@@ -934,7 +934,7 @@ async function docDeleteHandler(
   const [docId] = args;
 
   if (!docId) {
-    return failure('Usage: el doc delete <document-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document delete <document-id>', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -981,7 +981,7 @@ async function docDeleteHandler(
 const docDeleteCommand: Command = {
   name: 'delete',
   description: 'Delete a document (soft-delete)',
-  usage: 'el doc delete <document-id> [options]',
+  usage: 'el document delete <document-id> [options]',
   help: `Delete a document (soft-delete via tombstone).
 
 Arguments:
@@ -992,9 +992,9 @@ Options:
   -f, --force          Skip confirmation
 
 Examples:
-  el doc delete el-doc123
-  el doc delete el-doc123 --reason "outdated"
-  el doc delete el-doc123 --force`,
+  el document delete el-doc123
+  el document delete el-doc123 --reason "outdated"
+  el document delete el-doc123 --force`,
   options: docDeleteOptions,
   handler: docDeleteHandler as Command['handler'],
 };
@@ -1010,7 +1010,7 @@ async function docUnarchiveHandler(
   const [docId] = args;
 
   if (!docId) {
-    return failure('Usage: el doc unarchive <document-id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el document unarchive <document-id>', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -1043,14 +1043,14 @@ async function docUnarchiveHandler(
 const docUnarchiveCommand: Command = {
   name: 'unarchive',
   description: 'Unarchive a document',
-  usage: 'el doc unarchive <document-id>',
+  usage: 'el document unarchive <document-id>',
   help: `Unarchive a document, making it visible in default list/search again.
 
 Arguments:
   document-id   Document identifier
 
 Examples:
-  el doc unarchive el-doc123`,
+  el document unarchive el-doc123`,
   handler: docUnarchiveHandler as Command['handler'],
 };
 
@@ -1088,7 +1088,7 @@ async function docSearchHandler(
   options: GlobalOptions & DocSearchOptions
 ): Promise<CommandResult> {
   if (args.length === 0) {
-    return failure('Search query is required. Usage: el doc search <query>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Search query is required. Usage: el document search <query>', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -1172,7 +1172,7 @@ async function docSearchHandler(
 const docSearchCommand: Command = {
   name: 'search',
   description: 'Full-text search documents',
-  usage: 'el doc search <query> [options]',
+  usage: 'el document search <query> [options]',
   help: `Full-text search documents using FTS5 with BM25 ranking.
 
 Arguments:
@@ -1184,9 +1184,9 @@ Options:
       --status <status>      Filter by status (active, archived)
 
 Examples:
-  el doc search "API authentication"
-  el doc search "migration" --category spec
-  el doc search "config" --limit 5`,
+  el document search "API authentication"
+  el document search "migration" --category spec
+  el document search "config" --limit 5`,
   options: docSearchOptions,
   handler: docSearchHandler as Command['handler'],
 };
@@ -1223,7 +1223,7 @@ async function docReindexHandler(
 const docReindexCommand: Command = {
   name: 'reindex',
   description: 'Rebuild full-text search index',
-  usage: 'el doc reindex',
+  usage: 'el document reindex',
   help: `Rebuild the FTS5 full-text search index for all documents.
 
 Iterates all documents (including archived) and re-indexes them
@@ -1231,7 +1231,7 @@ in the FTS5 virtual table. Use this after migration or if search
 results seem stale.
 
 Examples:
-  el doc reindex`,
+  el document reindex`,
   handler: docReindexHandler as Command['handler'],
 };
 
@@ -1240,9 +1240,9 @@ Examples:
 // ============================================================================
 
 export const documentCommand: Command = {
-  name: 'doc',
+  name: 'document',
   description: 'Manage documents (versioned content)',
-  usage: 'el doc <subcommand> [options]',
+  usage: 'el document <subcommand> [options]',
   help: `Manage documents - versioned content storage.
 
 Documents store content with automatic versioning. Each update creates
@@ -1262,21 +1262,21 @@ Subcommands:
   reindex     Rebuild full-text search index
 
 Examples:
-  el doc create --content "Hello world"
-  el doc create --file notes.md --type markdown --category spec
-  el doc list
-  el doc list --category reference --all
-  el doc search "API authentication"
-  el doc search "migration" --category spec
-  el doc show el-doc123
-  el doc update el-doc123 --content "New content"
-  el doc update el-doc123 --file updated.md
-  el doc history el-doc123
-  el doc rollback el-doc123 2
-  el doc archive el-doc123
-  el doc unarchive el-doc123
-  el doc delete el-doc123
-  el doc reindex`,
+  el document create --content "Hello world"
+  el document create --file notes.md --type markdown --category spec
+  el document list
+  el document list --category reference --all
+  el document search "API authentication"
+  el document search "migration" --category spec
+  el document show el-doc123
+  el document update el-doc123 --content "New content"
+  el document update el-doc123 --file updated.md
+  el document history el-doc123
+  el document rollback el-doc123 2
+  el document archive el-doc123
+  el document unarchive el-doc123
+  el document delete el-doc123
+  el document reindex`,
   subcommands: {
     create: docCreateCommand,
     list: docListCommand,
@@ -1296,7 +1296,7 @@ Examples:
       return docListHandler(args, options);
     }
     return failure(
-      `Unknown subcommand: ${args[0]}. Use 'el doc --help' for available subcommands.`,
+      `Unknown subcommand: ${args[0]}. Use 'el document --help' for available subcommands.`,
       ExitCode.INVALID_ARGUMENTS
     );
   },

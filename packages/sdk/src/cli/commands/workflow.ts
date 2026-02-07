@@ -131,7 +131,7 @@ async function workflowPourHandler(
   const [playbookNameOrId] = args;
 
   if (!playbookNameOrId) {
-    return failure('Usage: el workflow pour <playbook> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el workflow pour <playbook> [options]\nExample: el workflow pour deploy --var env=prod', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options, true);
@@ -365,7 +365,7 @@ async function workflowShowHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el workflow show <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el workflow show <id>\nExample: el workflow show el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -492,7 +492,7 @@ async function workflowTasksHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el workflow tasks <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el workflow tasks <id>\nExample: el workflow tasks el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -599,7 +599,7 @@ async function workflowProgressHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el workflow progress <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el workflow progress <id>\nExample: el workflow progress el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -691,7 +691,7 @@ async function workflowBurnHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el workflow burn <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el workflow burn <id>\nExample: el workflow burn el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -771,7 +771,7 @@ async function workflowSquashHandler(
   const [id] = args;
 
   if (!id) {
-    return failure('Usage: el workflow squash <id>', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el workflow squash <id>\nExample: el workflow squash el-abc123', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);

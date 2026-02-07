@@ -60,13 +60,13 @@ await api.addDependency({
 ```bash
 # Add blocking dependency
 # A is blocked BY B (B must complete first)
-el dep add --type=blocks A B
+el dependency add --type=blocks A B
 
 # Add parent-child
-el dep add --type=parent-child task-1 plan-1
+el dependency add --type=parent-child task-1 plan-1
 
 # Add relates-to
-el dep add --type=relates-to doc-1 doc-2
+el dependency add --type=relates-to doc-1 doc-2
 ```
 
 ## Removing Dependencies
@@ -80,7 +80,7 @@ await api.removeDependency(blockedId, blockerId, 'blocks');
 ### CLI
 
 ```bash
-el dep remove A B --type=blocks
+el dependency remove A B --type=blocks
 ```
 
 ## Querying Dependencies
@@ -104,16 +104,16 @@ const blockedBy = await api.getDependents(elementId, ['blocks']);
 
 ```bash
 # Outgoing
-el dep list task-1 --direction out
+el dependency list task-1 --direction out
 
 # Incoming
-el dep list task-1 --direction in
+el dependency list task-1 --direction in
 
 # Both
-el dep list task-1 --direction both
+el dependency list task-1 --direction both
 
 # With type filter
-el dep list task-1 --type blocks
+el dependency list task-1 --type blocks
 ```
 
 ### Dependency Tree
@@ -123,7 +123,7 @@ const tree = await api.getDependencyTree(elementId);
 ```
 
 ```bash
-el dep tree task-1
+el dependency tree task-1
 ```
 
 ## Understanding Blocking
@@ -369,11 +369,11 @@ When creating multiple tasks with dependencies, **always use a draft plan** to p
 el plan create --title "Feature X"
 
 # 2. Create tasks (not dispatchable yet)
-el create task --plan "Feature X" --title "Backend API"
-el create task --plan "Feature X" --title "Frontend UI"
+el task create --plan "Feature X" --title "Backend API"
+el task create --plan "Feature X" --title "Frontend UI"
 
 # 3. Set dependencies
-el dep add el-frontend el-backend --type blocks
+el dependency add el-frontend el-backend --type blocks
 
 # 4. Activate plan (tasks become dispatchable)
 el plan activate <plan-id>

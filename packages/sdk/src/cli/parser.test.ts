@@ -41,8 +41,8 @@ describe('parseArgs', () => {
     });
 
     it('should parse command with multiple arguments', () => {
-      const result = parseArgs(['dep', 'add', 'el-abc', 'el-xyz']);
-      expect(result.command).toEqual(['dep', 'add']);
+      const result = parseArgs(['dependency', 'add', 'el-abc', 'el-xyz']);
+      expect(result.command).toEqual(['dependency', 'add']);
       expect(result.args).toEqual(['el-abc', 'el-xyz']);
     });
   });

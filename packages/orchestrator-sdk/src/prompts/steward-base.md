@@ -43,10 +43,10 @@ Your **Steward ID** and **Director ID** are provided in the task assignment sect
 
 ```bash
 # Status checks
-el list task --status done --merge-status pending
-el list agent --role worker --session-status running
+el task list --status done --merge-status pending
+el agent list --role worker --session-status running
 
 # Communication (use Steward ID and Director ID from session context)
-el msg send --from <Steward ID> --to <Director ID> --content "..."
-el msg send --from <Steward ID> --to <other-agent-id> --content "..."
+el message send --from <Steward ID> --to <Director ID> --content "..."
+el message send --from <Steward ID> --to <other-agent-id> --content "..."
 ```

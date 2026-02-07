@@ -39,21 +39,21 @@ bun packages/sdk/src/bin/el.ts
 
 | Command            | Description          |
 | ------------------ | -------------------- |
-| `el create <type>` | Create element       |
-| `el list <type>`   | List elements        |
+| `el task create`   | Create task          |
+| `el task list`     | List tasks           |
 | `el show <id>`     | Show element details |
 | `el update <id>`   | Update element       |
 | `el delete <id>`   | Delete element       |
 
 ```bash
 # Create task
-el create task --title "Fix bug" --priority 2 --type bug
+el task create --title "Fix bug" --priority 2 --type bug
 
 # Create task with description (creates a linked document)
-el create task --title "Add login" -d "Implement OAuth login with Google and GitHub providers"
+el task create --title "Add login" -d "Implement OAuth login with Google and GitHub providers"
 
 # List tasks
-el list task --status open
+el task list --status open
 
 # Show element
 el show abc123
@@ -67,26 +67,26 @@ el delete abc123
 
 ## Task Commands
 
-| Command                     | Description                        |
-| --------------------------- | ---------------------------------- |
-| `el ready`                  | List ready (unblocked, open) tasks |
-| `el blocked`                | List blocked tasks                 |
-| `el close <id>`             | Close task                         |
-| `el reopen <id>`            | Reopen task                        |
-| `el assign <task> <entity>` | Assign task                        |
-| `el defer <id>`             | Defer task                         |
-| `el undefer <id>`           | Remove deferral                    |
-| `el task describe <id>`     | Set or show task description       |
+| Command                          | Description                        |
+| -------------------------------- | ---------------------------------- |
+| `el task ready`                  | List ready (unblocked, open) tasks |
+| `el task blocked`                | List blocked tasks                 |
+| `el task close <id>`             | Close task                         |
+| `el task reopen <id>`            | Reopen task                        |
+| `el task assign <task> <entity>` | Assign task                        |
+| `el task defer <id>`             | Defer task                         |
+| `el task undefer <id>`           | Remove deferral                    |
+| `el task describe <id>`          | Set or show task description       |
 
 ```bash
 # List ready tasks
-el ready
+el task ready
 
 # Close with reason
-el close abc123 --reason "Fixed in commit xyz"
+el task close abc123 --reason "Fixed in commit xyz"
 
 # Assign task
-el assign abc123 worker-1
+el task assign abc123 worker-1
 
 # Set task description
 el task describe el-abc123 --content "Implement login feature"
@@ -124,31 +124,31 @@ el task describe el-abc123 -a -f additional-notes.md
 
 ## Dependency Commands
 
-| Command            | Description          |
-| ------------------ | -------------------- |
-| `el dep add`       | Add dependency       |
-| `el dep remove`    | Remove dependency    |
-| `el dep list <id>` | List dependencies    |
-| `el dep tree <id>` | Show dependency tree |
+| Command                   | Description          |
+| ------------------------- | -------------------- |
+| `el dependency add`       | Add dependency       |
+| `el dependency remove`    | Remove dependency    |
+| `el dependency list <id>` | List dependencies    |
+| `el dependency tree <id>` | Show dependency tree |
 
 ```bash
 # Add blocking dependency
 # A is blocked BY B (B must complete first)
-el dep add --type=blocks A B
+el dependency add --type=blocks A B
 
 # Remove dependency
-el dep remove A B --type=blocks
+el dependency remove A B --type=blocks
 
 # List dependencies
-el dep list abc123 --direction out    # Outgoing
-el dep list abc123 --direction in     # Incoming
-el dep list abc123 --direction both   # Both
+el dependency list abc123 --direction out    # Outgoing
+el dependency list abc123 --direction in     # Incoming
+el dependency list abc123 --direction both   # Both
 
 # Show tree
-el dep tree abc123
+el dependency tree abc123
 ```
 
-**Semantics:** `el dep add --type=blocks A B` means A (blocked) is blocked BY B (blocker).
+**Semantics:** `el dependency add --type=blocks A B` means A (blocked) is blocked BY B (blocker).
 
 ## Entity Commands
 
@@ -163,47 +163,47 @@ el dep tree abc123
 
 ## Document Commands
 
-| Command                          | Description                                   |
-| -------------------------------- | --------------------------------------------- |
-| `el doc create`                  | Create document                               |
-| `el doc list`                    | List documents                                |
-| `el doc search <query>`          | Full-text search documents                    |
-| `el doc show <id>`               | Show document                                 |
-| `el doc update <id>`             | Update document content (creates new version) |
-| `el doc history <id>`            | Show version history                          |
-| `el doc rollback <id> <version>` | Rollback to version                           |
-| `el doc archive <id>`            | Archive document                              |
-| `el doc unarchive <id>`          | Unarchive document                            |
-| `el doc reindex`                 | Reindex documents for FTS5 search             |
+| Command                               | Description                                   |
+| ------------------------------------- | --------------------------------------------- |
+| `el document create`                  | Create document                               |
+| `el document list`                    | List documents                                |
+| `el document search <query>`          | Full-text search documents                    |
+| `el document show <id>`               | Show document                                 |
+| `el document update <id>`             | Update document content (creates new version) |
+| `el document history <id>`            | Show version history                          |
+| `el document rollback <id> <version>` | Rollback to version                           |
+| `el document archive <id>`            | Archive document                              |
+| `el document unarchive <id>`          | Unarchive document                            |
+| `el document reindex`                 | Reindex documents for FTS5 search             |
 
 ```bash
 # Create document with category
-el doc create --title "API Spec" --category spec
+el document create --title "API Spec" --category spec
 
 # List documents (active only by default)
-el doc list
-el doc list --category spec
-el doc list --status archived
-el doc list --all                    # Include archived
+el document list
+el document list --category spec
+el document list --status archived
+el document list --all                    # Include archived
 
 # Full-text search documents
-el doc search "API authentication"
-el doc search "migration" --category spec
-el doc search "config" --limit 5
+el document search "API authentication"
+el document search "migration" --category spec
+el document search "config" --limit 5
 
 # Update document content (creates new version)
-el doc update el-doc123 --content "Updated content"
-el doc update el-doc123 --file updated-spec.md
+el document update el-doc123 --content "Updated content"
+el document update el-doc123 --file updated-spec.md
 
 # Archive / unarchive
-el doc archive abc123
-el doc unarchive abc123
+el document archive abc123
+el document unarchive abc123
 
 # Reindex FTS5
-el doc reindex
+el document reindex
 ```
 
-#### doc update
+#### document update
 
 Update a document's content, creating a new version. Documents are versioned - each update preserves history.
 
@@ -213,8 +213,8 @@ Update a document's content, creating a new version. Documents are versioned - e
 | `-f, --file <path>`    | Read new content from file |
 
 ```bash
-el doc update el-doc123 --content "New content here"
-el doc update el-doc123 --file path/to/updated.md
+el document update el-doc123 --content "New content here"
+el document update el-doc123 --file path/to/updated.md
 ```
 
 ## Embeddings Commands
@@ -263,11 +263,11 @@ Plans default to `draft` status. **Tasks in draft plans are NOT dispatchable** â
 el plan create --title "Feature X"
 
 # 2. Create tasks in the plan (not yet dispatchable)
-el create task --title "Task 1" --plan "Feature X"
-el create task --title "Task 2" --plan "Feature X"
+el task create --title "Task 1" --plan "Feature X"
+el task create --title "Task 2" --plan "Feature X"
 
 # 3. Set dependencies between tasks
-el dep add el-task2 el-task1 --type blocks
+el dependency add el-task2 el-task1 --type blocks
 
 # 4. Activate plan (tasks become dispatchable)
 el plan activate <plan-id>
@@ -380,14 +380,14 @@ el channel merge -s el-ch111 -t el-ch222 --name "combined-channel"
 
 ## Message Commands
 
-| Command              | Description                                        |
-| -------------------- | -------------------------------------------------- |
-| `el msg send`        | Send message to channel, entity, or as reply       |
-| `el msg reply <id>`  | Reply to a message (shorthand for send --reply-to) |
-| `el msg thread <id>` | View thread messages                               |
-| `el msg list`        | List messages                                      |
+| Command                  | Description                                        |
+| ------------------------ | -------------------------------------------------- |
+| `el message send`        | Send message to channel, entity, or as reply       |
+| `el message reply <id>`  | Reply to a message (shorthand for send --reply-to) |
+| `el message thread <id>` | View thread messages                               |
+| `el message list`        | List messages                                      |
 
-#### msg send
+#### message send
 
 | Option                  | Description                                                                      |
 | ----------------------- | -------------------------------------------------------------------------------- |
@@ -402,21 +402,21 @@ el channel merge -s el-ch111 -t el-ch222 --name "combined-channel"
 
 ```bash
 # Send to channel
-el msg send --channel el-abc123 --content "Hello!"
+el message send --channel el-abc123 --content "Hello!"
 
 # Send DM to entity (finds or creates DM channel)
-el msg send --to el-user456 -m "Direct message"
+el message send --to el-user456 -m "Direct message"
 
 # Send DM with explicit sender
-el --from agent-1 msg send --to agent-2 -m "Message from agent-1"
+el --from agent-1 message send --to agent-2 -m "Message from agent-1"
 
 # Reply to a message (auto-swaps sender/recipient in DM)
-el msg send --reply-to el-msg789 -m "Reply to your message"
+el message send --reply-to el-msg789 -m "Reply to your message"
 ```
 
-#### msg reply
+#### message reply
 
-Shorthand for `el msg send --reply-to`. Automatically sets channel and thread from the replied-to message. In DM channels, sender/recipient are swapped unless `--from` is specified.
+Shorthand for `el message send --reply-to`. Automatically sets channel and thread from the replied-to message. In DM channels, sender/recipient are swapped unless `--from` is specified.
 
 | Option                  | Description                       |
 | ----------------------- | --------------------------------- |
@@ -426,8 +426,8 @@ Shorthand for `el msg send --reply-to`. Automatically sets channel and thread fr
 | `--tag <tag>`           | Add tag (can be repeated)         |
 
 ```bash
-el msg reply el-msg123 --content "Thanks for the update!"
-el --from bot msg reply el-msg123 -m "Automated response"
+el message reply el-msg123 --content "Thanks for the update!"
+el --from bot message reply el-msg123 -m "Automated response"
 ```
 
 ## Team Commands
@@ -779,25 +779,25 @@ el show a1b2
 Use `--json` for machine-readable output:
 
 ```bash
-el list task --status open --json | jq '.[] | .title'
+el task list --status open --json | jq '.[] | .title'
 ```
 
 ## Examples
 
 ```bash
 # Create and assign a task
-el create task --title "Implement auth" --priority 2 --type feature
-el create task --title "Fix bug" -d "Steps to reproduce: 1. Login 2. Click settings"
-el assign abc123 worker-1
+el task create --title "Implement auth" --priority 2 --type feature
+el task create --title "Fix bug" -d "Steps to reproduce: 1. Login 2. Click settings"
+el task assign abc123 worker-1
 
 # Add blocking dependency
-el dep add --type=blocks task1 task2
+el dependency add --type=blocks task1 task2
 
 # Check ready tasks
-el ready
+el task ready
 
 # Close with reason
-el close abc123 --reason "Completed"
+el task close abc123 --reason "Completed"
 
 # Export changes
 el export

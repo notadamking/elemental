@@ -89,7 +89,7 @@ async function dispatchHandler(
   const [taskId, agentId] = args;
 
   if (!taskId || !agentId) {
-    return failure('Usage: el dispatch <task-id> <agent-id> [options]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el dispatch <task-id> <agent-id> [options]\nExample: el dispatch el-abc123 el-agent1', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = await createOrchestratorClient(options);
