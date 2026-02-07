@@ -513,13 +513,14 @@ describe('Query API Performance', () => {
   describe('Search Performance', () => {
     beforeEach(async () => {
       // Pre-populate with documents for search testing
-      // Use UUID in content to guarantee unique IDs
+      // Use UUID prefix in content to guarantee unique IDs for hash-based generation
       for (let i = 0; i < DATASET_SIZES.medium; i++) {
         const keyword = i % 2 === 0 ? 'Important' : 'Regular';
         const uniqueId = crypto.randomUUID();
+        // Place UUID at the start of content so it falls within the first 50 chars used for ID generation
         const doc = await createDocument({
           contentType: ContentType.MARKDOWN,
-          content: `# ${keyword} Document ${uniqueId}\n\nThis is a ${keyword.toLowerCase()} test document for performance testing.`,
+          content: `${uniqueId} # ${keyword} Document\n\nThis is a ${keyword.toLowerCase()} test document for performance testing.`,
           createdBy: mockEntityId,
         });
         await api.create(toCreateInput(doc));

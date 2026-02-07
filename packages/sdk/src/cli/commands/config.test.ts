@@ -39,7 +39,13 @@ function writeTestConfig(content: string): void {
 // Setup / Teardown
 // ============================================================================
 
+let originalElementalRoot: string | undefined;
+
 beforeEach(() => {
+  // Save and clear ELEMENTAL_ROOT to prevent config discovery from using parent workspace
+  originalElementalRoot = process.env.ELEMENTAL_ROOT;
+  delete process.env.ELEMENTAL_ROOT;
+
   // Create test workspace
   if (existsSync(TEST_DIR)) {
     rmSync(TEST_DIR, { recursive: true });
@@ -69,6 +75,13 @@ afterEach(() => {
     rmSync(TEST_DIR, { recursive: true });
   }
   clearConfigCache();
+
+  // Restore ELEMENTAL_ROOT
+  if (originalElementalRoot !== undefined) {
+    process.env.ELEMENTAL_ROOT = originalElementalRoot;
+  } else {
+    delete process.env.ELEMENTAL_ROOT;
+  }
 });
 
 // ============================================================================
