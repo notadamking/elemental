@@ -4,4 +4,4 @@
  * @module
  */
 
-export { XTerminal, type XTerminalProps, type TerminalStatus } from './XTerminal';
+export { XTerminal, type XTerminalProps, type TerminalStatus, type XTerminalHandle } from './XTerminal';
