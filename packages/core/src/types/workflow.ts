@@ -619,12 +619,11 @@ export function updateWorkflowStatus(workflow: Workflow, input: UpdateWorkflowSt
 
 /**
  * Promotes an ephemeral workflow to durable (begin syncing)
- * This is the "squash" operation
  *
  * @param workflow - The ephemeral workflow to promote
  * @returns The promoted workflow (now durable)
  */
-export function squashWorkflow(workflow: Workflow): Workflow {
+export function promoteWorkflow(workflow: Workflow): Workflow {
   if (!workflow.ephemeral) {
     throw new ValidationError(
       'Workflow is already durable',

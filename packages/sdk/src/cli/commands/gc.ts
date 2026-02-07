@@ -6,70 +6,20 @@
  * - gc workflows: Garbage collect old ephemeral workflows
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import type { ElementalAPI } from '../../api/types.js';
 import type { Workflow } from '@elemental/core';
+import { suggestCommands } from '../suggest.js';
+import { createAPI } from '../db.js';
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
 const DEFAULT_GC_AGE_DAYS = 1; // 24 hours
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-// ============================================================================
-// Database Helper
-// ============================================================================
-
-/**
- * Resolves database path from options or default location
- */
-function resolveDatabasePath(options: GlobalOptions): string | null {
-  if (options.db) {
-    return options.db;
-  }
-
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    return join(elementalDir, DEFAULT_DB_NAME);
-  }
-
-  return null;
-}
-
-/**
- * Creates an API instance from options
- */
-function createAPI(options: GlobalOptions): { api: ElementalAPI; error?: string } {
-  const dbPath = resolveDatabasePath(options);
-  if (!dbPath) {
-    return {
-      api: null as unknown as ElementalAPI,
-      error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
-    };
-  }
-
-  try {
-    const backend = createStorage({ path: dbPath, create: true });
-    initializeSchema(backend);
-    return { api: createElementalAPI(backend) };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      api: null as unknown as ElementalAPI,
-      error: `Failed to open database: ${message}`,
-    };
-  }
-}
 
 // ============================================================================
 // GC Tasks Command
@@ -364,9 +314,14 @@ Examples:
         ExitCode.INVALID_ARGUMENTS
       );
     }
-    return failure(
-      `Unknown subcommand: ${args[0]}. Use 'el gc --help' for available subcommands.`,
-      ExitCode.INVALID_ARGUMENTS
-    );
+    // Show "did you mean?" for unknown subcommands
+    const subNames = Object.keys(gcCommand.subcommands!);
+    const suggestions = suggestCommands(args[0], subNames);
+    let msg = `Unknown subcommand: ${args[0]}`;
+    if (suggestions.length > 0) {
+      msg += `\n\nDid you mean?\n${suggestions.map(s => `  ${s}`).join('\n')}`;
+    }
+    msg += '\n\nRun "el gc --help" to see available subcommands.';
+    return failure(msg, ExitCode.INVALID_ARGUMENTS);
   },
 };

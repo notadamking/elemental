@@ -148,7 +148,7 @@ test.describe('TB-O32: Workflows Page', () => {
       await expect(page.getByText('1 variables')).toBeVisible();
     });
 
-    test('playbook card has Pour Workflow button', async ({ page }) => {
+    test('playbook card has Create Workflow button', async ({ page }) => {
       // Mock playbooks response
       await page.route('**/api/playbooks*', async (route) => {
         route.fulfill({
@@ -178,10 +178,10 @@ test.describe('TB-O32: Workflows Page', () => {
       await page.goto('/workflows');
       await page.waitForTimeout(500);
 
-      // Check for Pour Workflow button
-      const pourButton = page.getByTestId('playbook-pour-pb-1');
-      await expect(pourButton).toBeVisible();
-      await expect(pourButton).toContainText('Pour Workflow');
+      // Check for Create Workflow button
+      const createButton = page.getByTestId('playbook-create-pb-1');
+      await expect(createButton).toBeVisible();
+      await expect(createButton).toContainText('Create Workflow');
     });
 
     test('search filters playbooks by name and title', async ({ page }) => {
@@ -686,9 +686,9 @@ test.describe('TB-O32: Workflows Page', () => {
     });
   });
 
-  test.describe('TB-O34: Pour Workflow Template', () => {
-    test.describe('Pour Modal', () => {
-      test('clicking Pour button opens the modal', async ({ page }) => {
+  test.describe('TB-O34: Create Workflow Template', () => {
+    test.describe('Create Modal', () => {
+      test('clicking Create button opens the modal', async ({ page }) => {
         // Mock playbook response
         await page.route('**/api/playbooks', async (route) => {
           route.fulfill({
@@ -741,12 +741,12 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        // Click Pour button
-        await page.getByTestId('playbook-pour-pb-1').click();
+        // Click Create button
+        await page.getByTestId('playbook-create-pb-1').click();
 
         // Modal should be visible
-        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Pour Workflow' })).toBeVisible();
+        await expect(page.getByTestId('create-workflow-dialog')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Create Workflow' })).toBeVisible();
       });
 
       test('modal displays playbook info', async ({ page }) => {
@@ -812,11 +812,11 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Check playbook info is displayed in the modal
-        const modal = page.getByTestId('pour-workflow-dialog');
+        const modal = page.getByTestId('create-workflow-dialog');
         // Check the playbook title (using first() to avoid ambiguity from picker)
         await expect(modal.getByText('Deploy Playbook').first()).toBeVisible();
         await expect(modal.getByText(/3 steps/)).toBeVisible();
@@ -873,11 +873,11 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Check workflow title input
-        const titleInput = page.getByTestId('pour-title-input');
+        const titleInput = page.getByTestId('create-title-input');
         await expect(titleInput).toBeVisible();
         // Placeholder shows the playbook title (user can customize the workflow name)
         await expect(titleInput).toHaveAttribute('placeholder', 'Test Playbook');
@@ -942,11 +942,11 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Check variable inputs in the modal
-        const modal = page.getByTestId('pour-workflow-dialog');
+        const modal = page.getByTestId('create-workflow-dialog');
         // Variables section shows as text, not heading
         await expect(modal.getByText('Variables')).toBeVisible();
         await expect(modal.getByText('environment').first()).toBeVisible();
@@ -1015,7 +1015,7 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Check steps preview
@@ -1077,16 +1077,16 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
-        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
+        await expect(page.getByTestId('create-workflow-dialog')).toBeVisible();
 
         // Click close button
-        await page.getByTestId('pour-workflow-close').click();
+        await page.getByTestId('create-workflow-close').click();
 
         // Modal should be hidden
-        await expect(page.getByTestId('pour-workflow-dialog')).not.toBeVisible();
+        await expect(page.getByTestId('create-workflow-dialog')).not.toBeVisible();
       });
 
       test('modal can be closed with cancel button', async ({ page }) => {
@@ -1140,14 +1140,14 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Click cancel button
-        await page.getByTestId('pour-cancel-button').click();
+        await page.getByTestId('create-cancel-button').click();
 
         // Modal should be hidden
-        await expect(page.getByTestId('pour-workflow-dialog')).not.toBeVisible();
+        await expect(page.getByTestId('create-workflow-dialog')).not.toBeVisible();
       });
 
       test('submit button is enabled when no required variables', async ({ page }) => {
@@ -1201,13 +1201,13 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Submit button should be enabled
-        const submitButton = page.getByTestId('pour-submit-button');
+        const submitButton = page.getByTestId('create-submit-button');
         await expect(submitButton).toBeEnabled();
-        await expect(submitButton).toContainText('Pour Workflow');
+        await expect(submitButton).toContainText('Create Workflow');
       });
 
       test('submitting creates workflow and switches to active tab', async ({ page }) => {
@@ -1260,7 +1260,7 @@ test.describe('TB-O32: Workflows Page', () => {
           }
         });
 
-        await page.route('**/api/playbooks/pb-1/pour', async (route) => {
+        await page.route('**/api/playbooks/pb-1/create', async (route) => {
           route.fulfill({
             status: 201,
             contentType: 'application/json',
@@ -1273,7 +1273,7 @@ test.describe('TB-O32: Workflows Page', () => {
                 playbookId: 'pb-1',
                 ephemeral: false,
                 variables: {},
-                tags: ['poured'],
+                tags: ['created'],
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 createdBy: 'system',
@@ -1296,7 +1296,7 @@ test.describe('TB-O32: Workflows Page', () => {
                   playbookId: 'pb-1',
                   ephemeral: false,
                   variables: {},
-                  tags: ['poured'],
+                  tags: ['created'],
                   createdAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                   createdBy: 'system',
@@ -1310,23 +1310,23 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Submit the form
-        await page.getByTestId('pour-submit-button').click();
+        await page.getByTestId('create-submit-button').click();
 
         // Wait for modal to close and tab to switch
         await page.waitForTimeout(500);
 
         // Modal should be closed
-        await expect(page.getByTestId('pour-workflow-dialog')).not.toBeVisible();
+        await expect(page.getByTestId('create-workflow-dialog')).not.toBeVisible();
 
         // Should be on active tab
         await expect(page).toHaveURL(/tab=active/);
       });
 
-      test('shows error message when pour fails', async ({ page }) => {
+      test('shows error message when create fails', async ({ page }) => {
         await page.route('**/api/playbooks', async (route) => {
           route.fulfill({
             status: 200,
@@ -1376,12 +1376,12 @@ test.describe('TB-O32: Workflows Page', () => {
           }
         });
 
-        await page.route('**/api/playbooks/pb-1/pour', async (route) => {
+        await page.route('**/api/playbooks/pb-1/create', async (route) => {
           route.fulfill({
             status: 500,
             contentType: 'application/json',
             body: JSON.stringify({
-              error: { code: 'POUR_ERROR', message: 'Database connection failed' },
+              error: { code: 'CREATE_ERROR', message: 'Database connection failed' },
             }),
           });
         });
@@ -1389,11 +1389,11 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
         await page.waitForTimeout(300);
 
         // Submit the form
-        await page.getByTestId('pour-submit-button').click();
+        await page.getByTestId('create-submit-button').click();
 
         // Wait for error
         await page.waitForTimeout(500);
@@ -1402,7 +1402,7 @@ test.describe('TB-O32: Workflows Page', () => {
         await expect(page.getByText('Database connection failed')).toBeVisible();
 
         // Modal should still be open
-        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
+        await expect(page.getByTestId('create-workflow-dialog')).toBeVisible();
       });
 
       test('shows advanced options with ephemeral toggle', async ({ page }) => {
@@ -1458,13 +1458,13 @@ test.describe('TB-O32: Workflows Page', () => {
         await page.goto('/workflows');
         await page.waitForTimeout(500);
 
-        await page.getByTestId('playbook-pour-pb-1').click();
+        await page.getByTestId('playbook-create-pb-1').click();
 
-        // Wait for the Pour dialog to be visible
-        await expect(page.getByTestId('pour-workflow-dialog')).toBeVisible();
+        // Wait for the Create dialog to be visible
+        await expect(page.getByTestId('create-workflow-dialog')).toBeVisible();
 
         // Wait for the playbook detail to load (workflow title input appears when playbook data is available)
-        await expect(page.getByTestId('pour-title-input')).toBeVisible({ timeout: 5000 });
+        await expect(page.getByTestId('create-title-input')).toBeVisible({ timeout: 5000 });
 
         // Click to expand advanced options - the summary element has cursor:pointer
         await page.getByText('Advanced options').click();

@@ -26,8 +26,8 @@ import { formatDate, formatRelativeTime } from '../utils';
 import {
   useWorkflowDetail,
   useUpdateWorkflow,
-  useBurnWorkflow,
-  useSquashWorkflow,
+  useDeleteEphemeralWorkflow,
+  usePromoteWorkflow,
 } from '../hooks';
 import { StatusBadge } from './StatusBadge';
 import { ProgressBar } from './ProgressBar';
@@ -83,12 +83,12 @@ export function WorkflowDetailPanel({
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
-  const [showBurnConfirm, setShowBurnConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Mutations
   const updateWorkflow = useUpdateWorkflow();
-  const burnWorkflow = useBurnWorkflow();
-  const squashWorkflow = useSquashWorkflow();
+  const deleteEphemeral = useDeleteEphemeralWorkflow();
+  const promoteWorkflow = usePromoteWorkflow();
 
   // Initialize edited title when workflow loads
   useEffect(() => {
@@ -100,7 +100,7 @@ export function WorkflowDetailPanel({
   // Exit edit mode when workflow changes
   useEffect(() => {
     setIsEditMode(false);
-    setShowBurnConfirm(false);
+    setShowDeleteConfirm(false);
   }, [workflowId]);
 
   const handleSaveTitle = useCallback(async () => {
@@ -135,22 +135,22 @@ export function WorkflowDetailPanel({
     }
   }, [workflow, workflowId, updateWorkflow]);
 
-  const handleBurn = useCallback(async () => {
+  const handleDeleteEphemeral = useCallback(async () => {
     try {
-      await burnWorkflow.mutateAsync({ workflowId });
+      await deleteEphemeral.mutateAsync({ workflowId });
       onClose();
     } catch (err) {
-      console.error('Failed to burn workflow:', err);
+      console.error('Failed to delete workflow:', err);
     }
-  }, [workflowId, burnWorkflow, onClose]);
+  }, [workflowId, deleteEphemeral, onClose]);
 
-  const handleSquash = useCallback(async () => {
+  const handlePromote = useCallback(async () => {
     try {
-      await squashWorkflow.mutateAsync({ workflowId });
+      await promoteWorkflow.mutateAsync({ workflowId });
     } catch (err) {
-      console.error('Failed to squash workflow:', err);
+      console.error('Failed to promote workflow:', err);
     }
-  }, [workflowId, squashWorkflow]);
+  }, [workflowId, promoteWorkflow]);
 
   if (isLoading) {
     return (
@@ -301,27 +301,27 @@ export function WorkflowDetailPanel({
       {/* Ephemeral Workflow Actions */}
       {workflow.ephemeral && (
         <div className="flex gap-2 p-4 border-b border-gray-200 dark:border-[var(--color-border)] bg-yellow-50 dark:bg-yellow-900/20">
-          {showBurnConfirm ? (
+          {showDeleteConfirm ? (
             <div className="flex-1 flex items-center gap-2">
               <span className="text-sm text-red-600 dark:text-red-400 font-medium">
                 Delete this workflow and all its tasks?
               </span>
               <button
-                data-testid="burn-confirm-btn"
-                onClick={handleBurn}
-                disabled={burnWorkflow.isPending}
+                data-testid="delete-confirm-btn"
+                onClick={handleDeleteEphemeral}
+                disabled={deleteEphemeral.isPending}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded disabled:opacity-50"
               >
-                {burnWorkflow.isPending ? (
+                {deleteEphemeral.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Flame className="w-4 h-4" />
                 )}
-                Confirm Burn
+                Confirm Delete
               </button>
               <button
-                data-testid="burn-cancel-btn"
-                onClick={() => setShowBurnConfirm(false)}
+                data-testid="delete-cancel-btn"
+                onClick={() => setShowDeleteConfirm(false)}
                 className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
               >
                 Cancel
@@ -330,25 +330,25 @@ export function WorkflowDetailPanel({
           ) : (
             <>
               <button
-                data-testid="squash-btn"
-                onClick={handleSquash}
-                disabled={squashWorkflow.isPending}
+                data-testid="promote-btn"
+                onClick={handlePromote}
+                disabled={promoteWorkflow.isPending}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded disabled:opacity-50"
               >
-                {squashWorkflow.isPending ? (
+                {promoteWorkflow.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Archive className="w-4 h-4" />
                 )}
-                Squash (Make Durable)
+                Promote (Make Durable)
               </button>
               <button
-                data-testid="burn-btn"
-                onClick={() => setShowBurnConfirm(true)}
+                data-testid="delete-btn"
+                onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
               >
                 <Flame className="w-4 h-4" />
-                Burn
+                Delete
               </button>
             </>
           )}
@@ -385,7 +385,7 @@ export function WorkflowDetailPanel({
               </div>
               <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
                 Workflows must have at least one task. This task cannot be deleted.
-                Use &apos;Burn&apos; to delete the entire workflow if needed.
+                Use &apos;Delete&apos; to remove the entire workflow if needed.
               </p>
             </div>
           )}

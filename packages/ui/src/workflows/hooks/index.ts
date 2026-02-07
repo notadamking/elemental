@@ -19,8 +19,8 @@ export {
   useStartWorkflow,
   useCancelWorkflow,
   useDeleteWorkflow,
-  useBurnWorkflow,
-  useSquashWorkflow,
+  useDeleteEphemeralWorkflow,
+  usePromoteWorkflow,
   // Playbook queries
   usePlaybooks,
   usePlaybook,
@@ -28,5 +28,5 @@ export {
   useCreatePlaybook,
   useUpdatePlaybook,
   useDeletePlaybook,
-  usePourPlaybook,
+  useCreateFromPlaybook,
 } from './useWorkflowApi';

@@ -240,27 +240,27 @@ test.describe('TB148: Responsive Workflows Page', () => {
       await expect(desktopListView).not.toBeVisible();
     });
 
-    test('should show floating action button for pour workflow on mobile', async ({ page }) => {
+    test('should show floating action button for create workflow on mobile', async ({ page }) => {
       // FAB should be visible
-      const fab = page.getByTestId('mobile-pour-workflow-fab');
+      const fab = page.getByTestId('mobile-create-workflow-fab');
       await expect(fab).toBeVisible();
 
-      // Regular pour button should not be visible
-      const pourButton = page.getByTestId('pour-workflow-button');
-      await expect(pourButton).not.toBeVisible();
+      // Regular create button should not be visible
+      const createButton = page.getByTestId('create-workflow-button');
+      await expect(createButton).not.toBeVisible();
     });
 
-    test('should open full-screen pour modal when FAB is clicked', async ({ page }) => {
+    test('should open full-screen create modal when FAB is clicked', async ({ page }) => {
       // Click FAB
-      const fab = page.getByTestId('mobile-pour-workflow-fab');
+      const fab = page.getByTestId('mobile-create-workflow-fab');
       await fab.click();
 
-      // Pour modal should be visible
-      const pourModal = page.getByTestId('pour-workflow-modal');
-      await expect(pourModal).toBeVisible();
+      // Create modal should be visible
+      const createModal = page.getByTestId('create-workflow-modal');
+      await expect(createModal).toBeVisible();
 
       // Title input should be visible
-      await expect(page.getByTestId('pour-title-input')).toBeVisible();
+      await expect(page.getByTestId('create-title-input')).toBeVisible();
     });
   });
 
@@ -280,13 +280,13 @@ test.describe('TB148: Responsive Workflows Page', () => {
       await expect(mobileListView).not.toBeVisible();
     });
 
-    test('should show pour workflow button on tablet', async ({ page }) => {
-      // Pour button should be visible
-      const pourButton = page.getByTestId('pour-workflow-button');
-      await expect(pourButton).toBeVisible();
+    test('should show create workflow button on tablet', async ({ page }) => {
+      // Create button should be visible
+      const createButton = page.getByTestId('create-workflow-button');
+      await expect(createButton).toBeVisible();
 
       // FAB should not be visible
-      const fab = page.getByTestId('mobile-pour-workflow-fab');
+      const fab = page.getByTestId('mobile-create-workflow-fab');
       await expect(fab).not.toBeVisible();
     });
   });
@@ -313,13 +313,13 @@ test.describe('TB148: Responsive Workflows Page', () => {
       await expect(mobileListView).not.toBeVisible();
     });
 
-    test('should show pour workflow button on desktop', async ({ page }) => {
-      // Pour button should be visible
-      const pourButton = page.getByTestId('pour-workflow-button');
-      await expect(pourButton).toBeVisible();
+    test('should show create workflow button on desktop', async ({ page }) => {
+      // Create button should be visible
+      const createButton = page.getByTestId('create-workflow-button');
+      await expect(createButton).toBeVisible();
 
       // FAB should not be visible
-      const fab = page.getByTestId('mobile-pour-workflow-fab');
+      const fab = page.getByTestId('mobile-create-workflow-fab');
       await expect(fab).not.toBeVisible();
     });
   });
@@ -332,15 +332,15 @@ test.describe('TB148: Responsive Workflows Page', () => {
       await waitForResponsiveUpdate(page);
 
       // Verify desktop layout
-      await expect(page.getByTestId('pour-workflow-button')).toBeVisible();
+      await expect(page.getByTestId('create-workflow-button')).toBeVisible();
 
       // Resize to mobile
       await setViewport(page, 'xs');
       await waitForResponsiveUpdate(page, 300);
 
       // Verify mobile layout
-      await expect(page.getByTestId('mobile-pour-workflow-fab')).toBeVisible();
-      await expect(page.getByTestId('pour-workflow-button')).not.toBeVisible();
+      await expect(page.getByTestId('mobile-create-workflow-fab')).toBeVisible();
+      await expect(page.getByTestId('create-workflow-button')).not.toBeVisible();
     });
   });
 });

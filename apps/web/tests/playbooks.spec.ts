@@ -51,43 +51,43 @@ test.describe('TB26: Playbook Browser', () => {
   });
 
   // ============================================================================
-  // UI Tests - Pour Modal with Playbook Browser
+  // UI Tests - Create Modal with Playbook Browser
   // ============================================================================
 
-  test('pour modal opens and shows mode toggle', async ({ page }) => {
+  test('create modal opens and shows mode toggle', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    // Open pour modal
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    // Open create modal
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Check mode toggle exists
     await expect(page.getByTestId('mode-quick')).toBeVisible();
     await expect(page.getByTestId('mode-playbook')).toBeVisible();
   });
 
-  test('quick mode is default and shows quick create form', async ({ page }) => {
+  test('quick mode is default and shows quick workflow create form', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Quick mode should be active
     await expect(page.getByTestId('mode-quick')).toHaveClass(/bg-white/);
 
-    // Quick create inputs should be visible
-    await expect(page.getByTestId('pour-title-input')).toBeVisible();
-    await expect(page.getByTestId('pour-playbook-input')).toBeVisible();
+    // Quick workflow create inputs should be visible
+    await expect(page.getByTestId('create-title-input')).toBeVisible();
+    await expect(page.getByTestId('create-playbook-input')).toBeVisible();
   });
 
   test('switching to playbook mode shows playbook picker', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Switch to playbook mode
     await page.getByTestId('mode-playbook').click();
@@ -114,8 +114,8 @@ test.describe('TB26: Playbook Browser', () => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Switch to playbook mode
     await page.getByTestId('mode-playbook').click();
@@ -143,8 +143,8 @@ test.describe('TB26: Playbook Browser', () => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Switch to playbook mode
     await page.getByTestId('mode-playbook').click();
@@ -187,8 +187,8 @@ test.describe('TB26: Playbook Browser', () => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Switch to playbook mode and select the playbook
     await page.getByTestId('mode-playbook').click();
@@ -199,7 +199,7 @@ test.describe('TB26: Playbook Browser', () => {
     await expect(page.getByTestId('variable-input-form')).toBeVisible({ timeout: 5000 });
   });
 
-  test('quick mode pouring creates workflow', async ({ page }) => {
+  test('quick mode creating workflow works', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
@@ -208,20 +208,20 @@ test.describe('TB26: Playbook Browser', () => {
     const beforeWorkflows = await beforeResponse.json();
     const beforeCount = beforeWorkflows.length;
 
-    // Open pour modal
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    // Open create modal
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Fill in quick mode form
     const timestamp = Date.now();
-    await page.getByTestId('pour-title-input').fill(`E2E Quick Workflow ${timestamp}`);
-    await page.getByTestId('pour-playbook-input').fill(`Quick Test ${timestamp}`);
+    await page.getByTestId('create-title-input').fill(`E2E Quick Workflow ${timestamp}`);
+    await page.getByTestId('create-playbook-input').fill(`Quick Test ${timestamp}`);
 
     // Submit
-    await page.getByTestId('pour-submit-button').click();
+    await page.getByTestId('create-submit-button').click();
 
     // Modal should close
-    await expect(page.getByTestId('pour-workflow-modal')).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('create-workflow-modal')).not.toBeVisible({ timeout: 10000 });
 
     // Verify workflow was created
     const afterResponse = await page.request.get('/api/workflows');
@@ -233,14 +233,14 @@ test.describe('TB26: Playbook Browser', () => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Switch to playbook mode without selecting a playbook
     await page.getByTestId('mode-playbook').click();
 
     // Submit button should be disabled
-    await expect(page.getByTestId('pour-submit-button')).toBeDisabled();
+    await expect(page.getByTestId('create-submit-button')).toBeDisabled();
   });
 
   test('pouring from playbook creates workflow with playbook steps', async ({ page }) => {
@@ -261,9 +261,9 @@ test.describe('TB26: Playbook Browser', () => {
     const beforeWorkflows = await beforeResponse.json();
     const beforeCount = beforeWorkflows.length;
 
-    // Open pour modal
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    // Open create modal
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Switch to playbook mode and select first playbook
     await page.getByTestId('mode-playbook').click();
@@ -275,13 +275,13 @@ test.describe('TB26: Playbook Browser', () => {
 
     // Fill in title
     const timestamp = Date.now();
-    await page.getByTestId('pour-title-input').fill(`E2E Playbook Workflow ${timestamp}`);
+    await page.getByTestId('create-title-input').fill(`E2E Playbook Workflow ${timestamp}`);
 
     // Submit
-    await page.getByTestId('pour-submit-button').click();
+    await page.getByTestId('create-submit-button').click();
 
     // Modal should close
-    await expect(page.getByTestId('pour-workflow-modal')).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('create-workflow-modal')).not.toBeVisible({ timeout: 10000 });
 
     // Verify workflow was created
     const afterResponse = await page.request.get('/api/workflows');
@@ -302,8 +302,8 @@ test.describe('TB26: Playbook Browser', () => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Switch to playbook mode
     await page.getByTestId('mode-playbook').click();
@@ -313,7 +313,7 @@ test.describe('TB26: Playbook Browser', () => {
     await expect(page.getByTestId('playbook-picker-dropdown')).toBeVisible({ timeout: 5000 });
 
     // Click outside (on the modal background but not on the dropdown)
-    await page.getByTestId('pour-title-input').click();
+    await page.getByTestId('create-title-input').click();
 
     // Note: This test may need adjustment based on click-outside behavior
     // The dropdown should close when we interact with other elements

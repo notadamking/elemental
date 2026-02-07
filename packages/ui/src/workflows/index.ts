@@ -48,12 +48,12 @@ export {
   useUpdateWorkflow,
   useCancelWorkflow,
   useDeleteWorkflow,
-  useBurnWorkflow,
-  useSquashWorkflow,
+  useDeleteEphemeralWorkflow,
+  usePromoteWorkflow,
   useCreatePlaybook,
   useUpdatePlaybook,
   useDeletePlaybook,
-  usePourPlaybook,
+  useCreateFromPlaybook,
 } from './hooks';
 
 // Components
@@ -68,7 +68,7 @@ export {
   WorkflowDetailPanel,
   PlaybookCard,
   WorkflowCard,
-  PourWorkflowModal,
+  CreateWorkflowModal,
   WorkflowEditorModal,
   WorkflowProgressDashboard,
 } from './components';

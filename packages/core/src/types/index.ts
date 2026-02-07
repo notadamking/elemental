@@ -379,28 +379,28 @@ export {
   validateChannelId as validateChannelChannelId,
 } from './channel.js';
 
-// Workflow pouring exports
+// Workflow creation exports
 export {
   // Types
-  type PourWorkflowInput,
+  type CreateWorkflowFromPlaybookInput,
   type CreatedTask,
-  type PourWorkflowResult,
+  type CreateWorkflowFromPlaybookResult,
   type TaskCreator,
-  type PourOptions,
+  type CreateWorkflowOptions,
   // Auto-status detection
   shouldAutoComplete,
   shouldAutoFail,
   shouldAutoStart,
   computeWorkflowStatus,
-  // Pouring functions
-  pourWorkflow,
-  validatePour,
-} from './workflow-pour.js';
+  // Creation functions
+  createWorkflowFromPlaybook,
+  validateCreateWorkflow,
+} from './workflow-create.js';
 
 // Workflow operations exports
 export {
   // Types
-  type BurnWorkflowResult as WorkflowBurnResult,
+  type DeleteWorkflowResult as WorkflowDeleteResult,
   type GarbageCollectionResult as WorkflowGCResult,
   type GarbageCollectionOptions as WorkflowGCOptions,
   type EphemeralFilterResult,
@@ -414,9 +414,9 @@ export {
   // GC helpers
   getGarbageCollectionCandidates,
   prepareGarbageCollection,
-  // Burn helpers
-  canBurnWorkflow,
-  prepareBurnWorkflow,
+  // Delete helpers
+  canDeleteWorkflow,
+  prepareDeleteWorkflow,
 } from './workflow-ops.js';
 
 // Inbox exports

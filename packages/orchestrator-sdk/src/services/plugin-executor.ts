@@ -228,7 +228,7 @@ export const GcEphemeralTasksPlugin: CommandPlugin = {
   type: 'command',
   name: 'gc-ephemeral-tasks',
   description: 'Garbage collect old ephemeral tasks (older than 24 hours)',
-  command: 'el gc tasks --age 1',
+  command: 'el gc workflows --age 1',
   timeout: 60000, // 1 minute
   continueOnError: true,
   tags: ['gc', 'cleanup', 'maintenance'],
@@ -270,7 +270,7 @@ export const HealthCheckAgentsPlugin: CommandPlugin = {
   name: 'health-check-agents',
   description: 'Check health status of all registered agents',
   // Uses the el CLI to list agents and check their status
-  command: 'el entity list --tag agent --output json',
+  command: 'el agent list --json',
   timeout: 30000, // 30 seconds
   continueOnError: true,
   tags: ['health', 'agents', 'monitoring'],
@@ -533,7 +533,7 @@ export class PluginExecutorImpl implements PluginExecutor {
       }
 
       // For now, we'll just report that the playbook was found
-      // Full playbook execution would require the pour workflow system
+      // Full playbook execution would require the create workflow system
       return {
         pluginName: plugin.name,
         pluginType: 'playbook',

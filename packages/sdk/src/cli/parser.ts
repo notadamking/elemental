@@ -40,7 +40,7 @@ export function unescapeShellArtifacts(value: string): string {
 const GLOBAL_OPTIONS: Record<string, { short?: string; hasValue?: boolean; key: keyof GlobalOptions }> = {
   '--db': { hasValue: true, key: 'db' },
   '--actor': { hasValue: true, key: 'actor' },
-  '--from': { short: '-f', hasValue: true, key: 'actor' }, // Alias for --actor
+  '--from': { hasValue: true, key: 'actor' }, // Alias for --actor
   '--sign-key': { hasValue: true, key: 'signKey' },
   '--sign-key-file': { hasValue: true, key: 'signKeyFile' },
   '--json': { key: 'json' },

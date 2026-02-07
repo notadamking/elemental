@@ -24,9 +24,9 @@ const SUBCOMMAND_HINTS: Record<string, string> = {
   dependency: 'add, remove, list, tree',
   message: 'send, reply, list, thread',
   document: 'create, list, search, ...',
-  channel: 'create, list, delete, ...',
-  workflow: 'create, list, run, ...',
-  entity: 'create, list, show, ...',
+  channel: 'create, list, join, ...',
+  workflow: 'create, list, promote, ...',
+  entity: 'register, list, reports, ...',
   team: 'create, list, ...',
   library: 'create, list, ...',
   inbox: 'list, read, archive, ...',
@@ -34,7 +34,7 @@ const SUBCOMMAND_HINTS: Record<string, string> = {
 
 // Built-in command categories for display
 const COMMAND_CATEGORIES: Record<string, string[]> = {
-  'Core': ['show', 'update', 'delete'],
+  'Elements': ['show', 'update', 'delete', 'history'],
   'Tasks': ['task'],
   'Planning': ['plan', 'workflow', 'playbook'],
   'Dependencies': ['dependency'],
@@ -42,8 +42,8 @@ const COMMAND_CATEGORIES: Record<string, string[]> = {
   'Knowledge': ['document', 'library', 'embeddings'],
   'Organization': ['entity', 'team'],
   'Sync': ['sync', 'export', 'import', 'status'],
-  'System': ['init', 'reset', 'config', 'identity', 'whoami'],
-  'Admin': ['stats', 'doctor', 'migrate', 'gc', 'history'],
+  'System': ['init', 'reset', 'config', 'identity', 'whoami', 'stats'],
+  'Admin': ['doctor', 'migrate', 'gc'],
   'Shell': ['completion', 'alias', 'install', 'help', 'version'],
 };
 
@@ -186,7 +186,10 @@ export function getCommandHelp(command: Command): string {
 
   if (command.subcommands) {
     lines.push('', 'Subcommands:');
+    const seen = new Set<Command>();
     for (const [name, sub] of Object.entries(command.subcommands)) {
+      if (seen.has(sub)) continue; // skip aliases
+      seen.add(sub);
       lines.push(`  ${name.padEnd(20)} ${sub.description}`);
     }
   }

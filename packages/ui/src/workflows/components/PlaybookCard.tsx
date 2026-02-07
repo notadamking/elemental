@@ -10,14 +10,14 @@ import type { Playbook } from '../types';
 
 interface PlaybookCardProps {
   playbook: Playbook;
-  onPour: (playbookId: string) => void;
+  onCreate: (playbookId: string) => void;
   onEdit?: (playbookId: string) => void;
   onDelete?: (playbookId: string) => void;
 }
 
 export function PlaybookCard({
   playbook,
-  onPour,
+  onCreate,
   onEdit,
   onDelete,
 }: PlaybookCardProps) {
@@ -50,13 +50,13 @@ export function PlaybookCard({
             <div className="absolute right-0 mt-1 w-40 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md shadow-lg z-10">
               <button
                 onClick={() => {
-                  onPour(playbook.id);
+                  onCreate(playbook.id);
                   setShowMenu(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
               >
                 <Play className="w-4 h-4" />
-                Pour Workflow
+                Create Workflow
               </button>
               {onEdit && (
                 <button
@@ -101,12 +101,12 @@ export function PlaybookCard({
 
       <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
         <button
-          onClick={() => onPour(playbook.id)}
+          onClick={() => onCreate(playbook.id)}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--color-primary)] rounded-md hover:bg-[var(--color-primary-hover)] transition-colors duration-150"
-          data-testid={`playbook-pour-${playbook.id}`}
+          data-testid={`playbook-create-${playbook.id}`}
         >
           <Play className="w-4 h-4" />
-          Pour Workflow
+          Create Workflow
         </button>
       </div>
     </div>

@@ -5,75 +5,13 @@
  * - history: Show event timeline for an element
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getOutputMode, formatEventsTable, formatTimeline, type EventData } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import type { ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
 import type { EventFilter, EventType } from '@elemental/core';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Resolves the database path from options or environment
- */
-function resolveDatabasePath(options: GlobalOptions): string | null {
-  // Priority: --db flag > ELEMENTAL_DB env > .elemental/elemental.db
-  if (options.db) {
-    return options.db;
-  }
-
-  if (process.env.ELEMENTAL_DB) {
-    return process.env.ELEMENTAL_DB;
-  }
-
-  // Walk up to find .elemental directory
-  let dir = process.cwd();
-  while (dir !== '/') {
-    const elementalPath = join(dir, ELEMENTAL_DIR, DEFAULT_DB_NAME);
-    if (existsSync(join(dir, ELEMENTAL_DIR))) {
-      // Check if the database file exists
-      if (existsSync(elementalPath)) {
-        return elementalPath;
-      }
-      return null; // .elemental dir exists but no db
-    }
-    dir = join(dir, '..');
-  }
-
-  return null;
-}
-
-/**
- * Creates an API instance from options
- */
-function createAPI(options: GlobalOptions): { api: ElementalAPI; error?: undefined } | { api?: undefined; error: string } {
-  const dbPath = resolveDatabasePath(options);
-  if (!dbPath) {
-    return { error: 'No database found. Run "el init" to create a workspace, or specify --db.' };
-  }
-
-  if (!existsSync(dbPath)) {
-    return { error: `Database not found at: ${dbPath}` };
-  }
-
-  const backend = createStorage({ path: dbPath });
-  initializeSchema(backend);
-  return { api: createElementalAPI(backend) };
-}
+import { createAPI } from '../db.js';
 
 // ============================================================================
 // History Command

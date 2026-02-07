@@ -125,7 +125,7 @@ test.describe('TB153: Responsive Modals & Dialogs', () => {
     });
   });
 
-  test.describe('PourWorkflowModal', () => {
+  test.describe('CreateWorkflowModal', () => {
     test.describe('Desktop Viewport', () => {
       test.beforeEach(async ({ page }) => {
         await setViewport(page, '2xl');
@@ -134,13 +134,13 @@ test.describe('TB153: Responsive Modals & Dialogs', () => {
       });
 
       test('should show centered modal on desktop', async ({ page }) => {
-        // Click pour workflow button
-        const pourButton = page.getByTestId('pour-workflow-button');
-        await expect(pourButton).toBeVisible();
-        await pourButton.click();
+        // Click create workflow button
+        const createButton = page.getByTestId('create-workflow-button');
+        await expect(createButton).toBeVisible();
+        await createButton.click();
 
         // Modal should be visible
-        const modal = page.getByTestId('pour-workflow-modal');
+        const modal = page.getByTestId('create-workflow-modal');
         await expect(modal).toBeVisible();
       });
     });

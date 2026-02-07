@@ -741,7 +741,7 @@ app.delete('/api/tasks/:id', async (c) => {
             return c.json({
               error: {
                 code: 'LAST_TASK',
-                message: "Cannot delete the last task in a workflow. Workflows must have at least one task. Use 'Burn' to delete the entire workflow."
+                message: "Cannot delete the last task in a workflow. Workflows must have at least one task. Use 'el workflow delete' to delete the entire workflow."
               }
             }, 400);
           }
@@ -2522,7 +2522,7 @@ app.get('/api/workflows/:id/can-delete-task/:taskId', async (c) => {
     if (isLastTask) {
       return c.json({
         canDelete: false,
-        reason: "Cannot delete the last task in a workflow. Workflows must have at least one task. Use 'Burn' to delete the entire workflow.",
+        reason: "Cannot delete the last task in a workflow. Workflows must have at least one task. Use 'el workflow delete' to delete the entire workflow.",
         isLastTask: true
       });
     }
@@ -2647,7 +2647,7 @@ app.post('/api/workflows', async (c) => {
   }
 });
 
-app.post('/api/workflows/pour', async (c) => {
+app.post('/api/workflows/instantiate', async (c) => {
   try {
     const body = await c.req.json();
 
@@ -2666,12 +2666,12 @@ app.post('/api/workflows/pour', async (c) => {
       return c.json({
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Cannot pour workflow: playbook has no steps defined. Workflows must have at least one task.'
+          message: 'Cannot instantiate workflow: playbook has no steps defined. Workflows must have at least one task.'
         }
       }, 400);
     }
 
-    // Build pour input
+    // Build instantiation input
     const pourInput: PourWorkflowInput = {
       playbook: body.playbook as Playbook,
       variables: body.variables || {},
@@ -2682,7 +2682,7 @@ app.post('/api/workflows/pour', async (c) => {
       metadata: body.metadata || {},
     };
 
-    // Pour the workflow
+    // Instantiate the workflow from playbook
     const result = await pourWorkflow(pourInput);
 
     // TB122: Verify at least one task was created (steps may have been filtered by conditions)
@@ -2690,7 +2690,7 @@ app.post('/api/workflows/pour', async (c) => {
       return c.json({
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Cannot pour workflow: all playbook steps were filtered by conditions. At least one task must be created.'
+          message: 'Cannot instantiate workflow: all playbook steps were filtered by conditions. At least one task must be created.'
         }
       }, 400);
     }
@@ -2720,8 +2720,8 @@ app.post('/api/workflows/pour', async (c) => {
     if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
     }
-    console.error('[elemental] Failed to pour workflow:', error);
-    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to pour workflow' } }, 500);
+    console.error('[elemental] Failed to instantiate workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to instantiate workflow' } }, 500);
   }
 });
 
@@ -2778,8 +2778,8 @@ app.patch('/api/workflows/:id', async (c) => {
   }
 });
 
-// Burn workflow (delete ephemeral workflow and all its tasks)
-app.delete('/api/workflows/:id/burn', async (c) => {
+// Delete workflow (delete ephemeral workflow and all its tasks)
+app.delete('/api/workflows/:id', async (c) => {
   try {
     const id = c.req.param('id') as ElementId;
     const url = new URL(c.req.url);
@@ -2799,12 +2799,12 @@ app.delete('/api/workflows/:id/burn', async (c) => {
       return c.json({
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Cannot burn durable workflow. Use force=true to override.',
+          message: 'Cannot delete durable workflow. Use force=true to override.',
         },
       }, 400);
     }
 
-    // Burn the workflow
+    // Delete the workflow and its tasks
     const result = await api.burnWorkflow(id);
 
     return c.json(result);
@@ -2812,13 +2812,13 @@ app.delete('/api/workflows/:id/burn', async (c) => {
     if ((error as { code?: string }).code === 'NOT_FOUND') {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Workflow not found' } }, 404);
     }
-    console.error('[elemental] Failed to burn workflow:', error);
-    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to burn workflow' } }, 500);
+    console.error('[elemental] Failed to delete workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete workflow' } }, 500);
   }
 });
 
-// Squash workflow (promote ephemeral to durable)
-app.post('/api/workflows/:id/squash', async (c) => {
+// Promote workflow (promote ephemeral to durable)
+app.post('/api/workflows/:id/promote', async (c) => {
   try {
     const id = c.req.param('id') as ElementId;
 
@@ -2841,7 +2841,7 @@ app.post('/api/workflows/:id/squash', async (c) => {
       }, 400);
     }
 
-    // Squash (promote to durable) by setting ephemeral to false
+    // Promote to durable by setting ephemeral to false
     const updated = await api.update(id, { ephemeral: false } as unknown as Partial<Element>);
 
     return c.json(updated);
@@ -2852,8 +2852,8 @@ app.post('/api/workflows/:id/squash', async (c) => {
     if ((error as { code?: string }).code === 'VALIDATION_ERROR') {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: (error as Error).message } }, 400);
     }
-    console.error('[elemental] Failed to squash workflow:', error);
-    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to squash workflow' } }, 500);
+    console.error('[elemental] Failed to promote workflow:', error);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to promote workflow' } }, 500);
   }
 });
 

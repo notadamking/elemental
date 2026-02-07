@@ -15,35 +15,17 @@ import { getOutputMode } from '../formatter.js';
 import { createStorage, initializeSchema } from '@elemental/storage';
 import { createSyncService } from '../../sync/service.js';
 import type { ExportResult, ImportResult } from '../../sync/types.js';
+import { resolveDatabasePath, ELEMENTAL_DIR, DEFAULT_DB_NAME } from '../db.js';
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
 const DEFAULT_SYNC_DIR = 'sync';
 
 // ============================================================================
 // Database Helper
 // ============================================================================
-
-/**
- * Resolves database path from options or default location
- */
-function resolveDatabasePath(options: GlobalOptions): string | null {
-  if (options.db) {
-    return options.db;
-  }
-
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    return join(elementalDir, DEFAULT_DB_NAME);
-  }
-
-  return null;
-}
 
 /**
  * Creates a SyncService instance from options

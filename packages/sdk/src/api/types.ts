@@ -416,18 +416,18 @@ export interface BulkOperationResult {
 // ============================================================================
 
 /**
- * Options for burning a workflow
+ * Options for deleting a workflow
  */
 export interface BurnWorkflowOptions {
-  /** Actor performing the burn operation */
+  /** Actor performing the delete operation */
   actor?: EntityId;
 }
 
 /**
- * Result of burning a workflow
+ * Result of deleting a workflow
  */
 export interface BurnWorkflowResult {
-  /** ID of the workflow that was burned */
+  /** ID of the workflow that was deleted */
   workflowId: ElementId;
   /** Number of tasks that were deleted */
   tasksDeleted: number;
@@ -1426,10 +1426,10 @@ export interface ElementalAPI {
   // --------------------------------------------------------------------------
 
   /**
-   * Burn a workflow and all its child tasks.
+   * Delete a workflow and all its child tasks.
    * This is a hard delete that removes the workflow, all its tasks, and their dependencies.
    *
-   * @param workflowId - The workflow to burn
+   * @param workflowId - The workflow to delete
    * @param options - Operation options including actor
    * @returns Result with counts of deleted elements
    * @throws NotFoundError if workflow doesn't exist

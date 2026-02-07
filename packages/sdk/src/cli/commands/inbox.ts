@@ -10,13 +10,9 @@
  * - inbox count: Get unread count
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode, formatTimestamp } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import { createInboxService, type InboxService } from '../../services/inbox.js';
 import { InboxStatus, type InboxItem, type InboxFilter } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
@@ -25,34 +21,11 @@ import type { Entity, Document } from '@elemental/core';
 import type { ElementId, EntityId } from '@elemental/core';
 import type { Message, HydratedMessage } from '@elemental/core';
 import { getValue, loadConfig } from '../../config/index.js';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
+import { createAPI } from '../db.js';
 
 // ============================================================================
 // Database Helper
 // ============================================================================
-
-/**
- * Resolves database path from options or default location
- */
-function resolveDatabasePath(options: GlobalOptions): string | null {
-  if (options.db) {
-    return options.db;
-  }
-
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    return join(elementalDir, DEFAULT_DB_NAME);
-  }
-
-  return null;
-}
 
 interface APIAndBackend {
   api: ElementalAPI;
@@ -65,31 +38,18 @@ interface APIAndBackend {
  * Creates an API instance and InboxService from options
  */
 function createAPIAndInboxService(options: GlobalOptions): APIAndBackend {
-  const dbPath = resolveDatabasePath(options);
-  if (!dbPath) {
+  const { api, backend, error } = createAPI(options);
+  if (error) {
     return {
       api: null as unknown as ElementalAPI,
       inboxService: null as unknown as InboxService,
       backend: null as unknown as StorageBackend,
-      error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
+      error,
     };
   }
 
-  try {
-    const backend = createStorage({ path: dbPath, create: true });
-    initializeSchema(backend);
-    const api = createElementalAPI(backend);
-    const inboxService = createInboxService(backend);
-    return { api, inboxService, backend };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      api: null as unknown as ElementalAPI,
-      inboxService: null as unknown as InboxService,
-      backend: null as unknown as StorageBackend,
-      error: `Failed to open database: ${message}`,
-    };
-  }
+  const inboxService = createInboxService(backend);
+  return { api, inboxService, backend };
 }
 
 /**

@@ -9,12 +9,10 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import {
   createDocument,
   ContentType,
@@ -28,65 +26,8 @@ import {
 } from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
-import { OPERATOR_ENTITY_ID } from './init.js';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
-const DEFAULT_ACTOR = OPERATOR_ENTITY_ID;
-
-// ============================================================================
-// Database Helper
-// ============================================================================
-
-function resolveDatabasePath(options: GlobalOptions, requireExists: boolean = true): string | null {
-  if (options.db) {
-    if (requireExists && !existsSync(options.db)) {
-      return null;
-    }
-    return options.db;
-  }
-
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    const dbPath = join(elementalDir, DEFAULT_DB_NAME);
-    if (requireExists && !existsSync(dbPath)) {
-      return null;
-    }
-    return dbPath;
-  }
-
-  return null;
-}
-
-function resolveActor(options: GlobalOptions): EntityId {
-  return (options.actor ?? DEFAULT_ACTOR) as EntityId;
-}
-
-function createAPI(options: GlobalOptions, createDb: boolean = false): { api: ElementalAPI; error?: string } {
-  const dbPath = resolveDatabasePath(options, !createDb);
-  if (!dbPath) {
-    return {
-      api: null as unknown as ElementalAPI,
-      error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
-    };
-  }
-
-  try {
-    const backend = createStorage({ path: dbPath, create: true });
-    initializeSchema(backend);
-    return { api: createElementalAPI(backend) };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      api: null as unknown as ElementalAPI,
-      error: `Failed to open database: ${message}`,
-    };
-  }
-}
+import { suggestCommands } from '../suggest.js';
+import { resolveActor, createAPI } from '../db.js';
 
 // ============================================================================
 // Document Create Command
@@ -1289,15 +1230,29 @@ Examples:
     unarchive: docUnarchiveCommand,
     delete: docDeleteCommand,
     reindex: docReindexCommand,
+    // Aliases (hidden from --help via dedup in getCommandHelp)
+    new: docCreateCommand,
+    add: docCreateCommand,
+    ls: docListCommand,
+    rm: docDeleteCommand,
+    get: docShowCommand,
+    view: docShowCommand,
+    edit: docUpdateCommand,
+    find: docSearchCommand,
   },
   handler: async (args, options): Promise<CommandResult> => {
     // Default to list if no subcommand
     if (args.length === 0) {
       return docListHandler(args, options);
     }
-    return failure(
-      `Unknown subcommand: ${args[0]}. Use 'el document --help' for available subcommands.`,
-      ExitCode.INVALID_ARGUMENTS
-    );
+    // Show "did you mean?" for unknown subcommands
+    const subNames = Object.keys(documentCommand.subcommands!);
+    const suggestions = suggestCommands(args[0], subNames);
+    let msg = `Unknown subcommand: ${args[0]}`;
+    if (suggestions.length > 0) {
+      msg += `\n\nDid you mean?\n${suggestions.map(s => `  ${s}`).join('\n')}`;
+    }
+    msg += '\n\nRun "el document --help" to see available subcommands.';
+    return failure(msg, ExitCode.INVALID_ARGUMENTS);
   },
 };

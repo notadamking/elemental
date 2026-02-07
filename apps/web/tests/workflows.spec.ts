@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('TB25: Workflow List + Pour', () => {
+test.describe('TB25: Workflow List + Create', () => {
   // ============================================================================
   // API Endpoint Tests
   // ============================================================================
@@ -151,7 +151,7 @@ test.describe('TB25: Workflow List + Pour', () => {
     expect(created.initialTask.id).toBeDefined();
 
     // Cleanup
-    await page.request.delete(`/api/workflows/${created.id}/burn?force=true`);
+    await page.request.delete(`/api/workflows/${created.id}/delete?force=true`);
   });
 
   test('POST /api/workflows validates required fields', async ({ page }) => {
@@ -168,7 +168,7 @@ test.describe('TB25: Workflow List + Pour', () => {
     expect(response2.status()).toBe(400);
   });
 
-  test('POST /api/workflows/pour creates workflow from playbook', async ({ page }) => {
+  test('POST /api/workflows/create creates workflow from playbook', async ({ page }) => {
     const playbook = {
       name: 'Test Playbook',
       version: '1.0.0',
@@ -179,11 +179,11 @@ test.describe('TB25: Workflow List + Pour', () => {
       ],
     };
 
-    const response = await page.request.post('/api/workflows/pour', {
+    const response = await page.request.post('/api/workflows/create', {
       data: {
         playbook,
         createdBy: 'test-user',
-        title: `Poured Workflow ${Date.now()}`,
+        title: `Created Workflow ${Date.now()}`,
       },
     });
 
@@ -197,15 +197,15 @@ test.describe('TB25: Workflow List + Pour', () => {
     expect(result.tasks.length).toBe(2);
   });
 
-  test('POST /api/workflows/pour validates required fields', async ({ page }) => {
+  test('POST /api/workflows/create validates required fields', async ({ page }) => {
     // Missing playbook
-    const response1 = await page.request.post('/api/workflows/pour', {
+    const response1 = await page.request.post('/api/workflows/create', {
       data: { createdBy: 'test-user' },
     });
     expect(response1.status()).toBe(400);
 
     // Missing createdBy
-    const response2 = await page.request.post('/api/workflows/pour', {
+    const response2 = await page.request.post('/api/workflows/create', {
       data: { playbook: { name: 'Test', version: '1.0.0', variables: [], steps: [] } },
     });
     expect(response2.status()).toBe(400);
@@ -236,7 +236,7 @@ test.describe('TB25: Workflow List + Pour', () => {
     expect(updated.status).toBe('running');
 
     // Cleanup
-    await page.request.delete(`/api/workflows/${workflow.id}/burn?force=true`);
+    await page.request.delete(`/api/workflows/${workflow.id}/delete?force=true`);
   });
 
   test('PATCH /api/workflows/:id validates status values', async ({ page }) => {
@@ -285,41 +285,41 @@ test.describe('TB25: Workflow List + Pour', () => {
     await expect(page.getByTestId('workflow-status-filter-completed')).toBeVisible();
   });
 
-  test('workflows page shows pour workflow button', async ({ page }) => {
+  test('workflows page shows create workflow button', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByTestId('pour-workflow-button')).toBeVisible();
+    await expect(page.getByTestId('create-workflow-button')).toBeVisible();
   });
 
-  test('clicking pour workflow button opens modal', async ({ page }) => {
+  test('clicking create workflow button opens modal', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
   });
 
-  test('pour workflow modal has input fields', async ({ page }) => {
+  test('create workflow modal has input fields', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
-    await expect(page.getByTestId('pour-title-input')).toBeVisible();
-    await expect(page.getByTestId('pour-playbook-input')).toBeVisible();
-    await expect(page.getByTestId('pour-submit-button')).toBeVisible();
+    await expect(page.getByTestId('create-title-input')).toBeVisible();
+    await expect(page.getByTestId('create-playbook-input')).toBeVisible();
+    await expect(page.getByTestId('create-submit-button')).toBeVisible();
   });
 
-  test('pour workflow modal can be closed', async ({ page }) => {
+  test('create workflow modal can be closed', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
-    await page.getByTestId('pour-modal-close').click();
-    await expect(page.getByTestId('pour-workflow-modal')).not.toBeVisible({ timeout: 5000 });
+    await page.getByTestId('create-modal-close').click();
+    await expect(page.getByTestId('create-workflow-modal')).not.toBeVisible({ timeout: 5000 });
   });
 
   test('clicking status filter changes filter', async ({ page }) => {
@@ -447,7 +447,7 @@ test.describe('TB25: Workflow List + Pour', () => {
     expect(page.url()).toContain('/workflows');
   });
 
-  test('pouring a workflow creates it and shows in list', async ({ page }) => {
+  test('creating a workflow shows it in list', async ({ page }) => {
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
 
@@ -456,21 +456,21 @@ test.describe('TB25: Workflow List + Pour', () => {
     const beforeWorkflows = await beforeResponse.json();
     const beforeCount = beforeWorkflows.length;
 
-    // Open pour modal
-    await page.getByTestId('pour-workflow-button').click();
-    await expect(page.getByTestId('pour-workflow-modal')).toBeVisible({ timeout: 5000 });
+    // Open create modal
+    await page.getByTestId('create-workflow-button').click();
+    await expect(page.getByTestId('create-workflow-modal')).toBeVisible({ timeout: 5000 });
 
     // Fill in the form
     const timestamp = Date.now();
     const workflowTitle = `E2E Test Workflow ${timestamp}`;
-    await page.getByTestId('pour-title-input').fill(workflowTitle);
-    await page.getByTestId('pour-playbook-input').fill(`Test Playbook ${timestamp}`);
+    await page.getByTestId('create-title-input').fill(workflowTitle);
+    await page.getByTestId('create-playbook-input').fill(`Test Playbook ${timestamp}`);
 
     // Submit
-    await page.getByTestId('pour-submit-button').click();
+    await page.getByTestId('create-submit-button').click();
 
     // Modal should close
-    await expect(page.getByTestId('pour-workflow-modal')).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('create-workflow-modal')).not.toBeVisible({ timeout: 10000 });
 
     // Verify via API that workflow was created
     const afterResponse = await page.request.get('/api/workflows');
@@ -483,7 +483,7 @@ test.describe('TB25: Workflow List + Pour', () => {
 
     // Cleanup
     if (created) {
-      await page.request.delete(`/api/workflows/${created.id}/burn?force=true`);
+      await page.request.delete(`/api/workflows/${created.id}/delete?force=true`);
     }
   });
 });
@@ -494,32 +494,32 @@ test.describe('TB25: Workflow List + Pour', () => {
 
 test.describe('TB48: Edit Workflow', () => {
   // ============================================================================
-  // API Endpoint Tests - Burn
+  // API Endpoint Tests - Delete
   // ============================================================================
 
-  test('DELETE /api/workflows/:id/burn burns ephemeral workflow', async ({ page }) => {
-    // First pour an ephemeral workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+  test('DELETE /api/workflows/:id/delete deletes ephemeral workflow', async ({ page }) => {
+    // First create an ephemeral workflow
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
-          name: 'Test Burn Playbook',
+          name: 'Test Delete Playbook',
           version: '1.0.0',
           variables: [],
           steps: [{ id: 'step-1', title: 'Step 1', priority: 3 }],
         },
         createdBy: 'test-user',
-        title: `Burn Test Workflow ${Date.now()}`,
+        title: `Delete Test Workflow ${Date.now()}`,
         ephemeral: true,
       },
     });
-    expect(pourResponse.status()).toBe(201);
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    expect(createResponse.status()).toBe(201);
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
-    // Burn the workflow
-    const burnResponse = await page.request.delete(`/api/workflows/${workflow.id}/burn`);
-    expect(burnResponse.ok()).toBe(true);
-    const result = await burnResponse.json();
+    // Delete the workflow
+    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}/delete`);
+    expect(deleteResponse.ok()).toBe(true);
+    const result = await deleteResponse.json();
     expect(result.workflowId).toBe(workflow.id);
 
     // Verify workflow no longer exists
@@ -527,9 +527,9 @@ test.describe('TB48: Edit Workflow', () => {
     expect(getResponse.status()).toBe(404);
   });
 
-  test('DELETE /api/workflows/:id/burn returns 400 for durable workflow without force', async ({ page }) => {
-    // First pour a durable workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+  test('DELETE /api/workflows/:id/delete returns 400 for durable workflow without force', async ({ page }) => {
+    // First create a durable workflow
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
           name: 'Test Durable Playbook',
@@ -542,80 +542,80 @@ test.describe('TB48: Edit Workflow', () => {
         ephemeral: false,
       },
     });
-    expect(pourResponse.status()).toBe(201);
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    expect(createResponse.status()).toBe(201);
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
-    // Try to burn without force - should fail
-    const burnResponse = await page.request.delete(`/api/workflows/${workflow.id}/burn`);
-    expect(burnResponse.status()).toBe(400);
-    const body = await burnResponse.json();
+    // Try to delete without force - should fail
+    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}/delete`);
+    expect(deleteResponse.status()).toBe(400);
+    const body = await deleteResponse.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  test('DELETE /api/workflows/:id/burn with force=true works for durable workflow', async ({ page }) => {
-    // First pour a durable workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+  test('DELETE /api/workflows/:id/delete with force=true works for durable workflow', async ({ page }) => {
+    // First create a durable workflow
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
-          name: 'Test Force Burn Playbook',
+          name: 'Test Force Delete Playbook',
           version: '1.0.0',
           variables: [],
           steps: [{ id: 'step-1', title: 'Step 1', priority: 3 }],
         },
         createdBy: 'test-user',
-        title: `Force Burn Test Workflow ${Date.now()}`,
+        title: `Force Delete Test Workflow ${Date.now()}`,
         ephemeral: false,
       },
     });
-    expect(pourResponse.status()).toBe(201);
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    expect(createResponse.status()).toBe(201);
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
-    // Burn with force flag
-    const burnResponse = await page.request.delete(`/api/workflows/${workflow.id}/burn?force=true`);
-    expect(burnResponse.ok()).toBe(true);
+    // Delete with force flag
+    const deleteResponse = await page.request.delete(`/api/workflows/${workflow.id}/delete?force=true`);
+    expect(deleteResponse.ok()).toBe(true);
   });
 
-  test('DELETE /api/workflows/:id/burn returns 404 for non-existent workflow', async ({ page }) => {
-    const response = await page.request.delete('/api/workflows/el-invalid999/burn');
+  test('DELETE /api/workflows/:id/delete returns 404 for non-existent workflow', async ({ page }) => {
+    const response = await page.request.delete('/api/workflows/el-invalid999/delete');
     expect(response.status()).toBe(404);
   });
 
   // ============================================================================
-  // API Endpoint Tests - Squash
+  // API Endpoint Tests - Promote
   // ============================================================================
 
-  test('POST /api/workflows/:id/squash promotes ephemeral to durable', async ({ page }) => {
-    // First pour an ephemeral workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+  test('POST /api/workflows/:id/promote promotes ephemeral to durable', async ({ page }) => {
+    // First create an ephemeral workflow
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
-          name: 'Test Squash Playbook',
+          name: 'Test Promote Playbook',
           version: '1.0.0',
           variables: [],
           steps: [{ id: 'step-1', title: 'Step 1', priority: 3 }],
         },
         createdBy: 'test-user',
-        title: `Squash Test Workflow ${Date.now()}`,
+        title: `Promote Test Workflow ${Date.now()}`,
         ephemeral: true,
       },
     });
-    expect(pourResponse.status()).toBe(201);
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    expect(createResponse.status()).toBe(201);
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
     expect(workflow.ephemeral).toBe(true);
 
-    // Squash the workflow
-    const squashResponse = await page.request.post(`/api/workflows/${workflow.id}/squash`);
-    expect(squashResponse.ok()).toBe(true);
-    const updated = await squashResponse.json();
+    // Promote the workflow
+    const promoteResponse = await page.request.post(`/api/workflows/${workflow.id}/promote`);
+    expect(promoteResponse.ok()).toBe(true);
+    const updated = await promoteResponse.json();
     expect(updated.ephemeral).toBe(false);
   });
 
-  test('POST /api/workflows/:id/squash returns 400 for already durable workflow', async ({ page }) => {
-    // First pour a durable workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+  test('POST /api/workflows/:id/promote returns 400 for already durable workflow', async ({ page }) => {
+    // First create a durable workflow
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
           name: 'Test Already Durable Playbook',
@@ -628,19 +628,19 @@ test.describe('TB48: Edit Workflow', () => {
         ephemeral: false,
       },
     });
-    expect(pourResponse.status()).toBe(201);
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    expect(createResponse.status()).toBe(201);
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
-    // Try to squash - should fail
-    const squashResponse = await page.request.post(`/api/workflows/${workflow.id}/squash`);
-    expect(squashResponse.status()).toBe(400);
-    const body = await squashResponse.json();
+    // Try to promote - should fail
+    const promoteResponse = await page.request.post(`/api/workflows/${workflow.id}/promote`);
+    expect(promoteResponse.status()).toBe(400);
+    const body = await promoteResponse.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  test('POST /api/workflows/:id/squash returns 404 for non-existent workflow', async ({ page }) => {
-    const response = await page.request.post('/api/workflows/el-invalid999/squash');
+  test('POST /api/workflows/:id/promote returns 404 for non-existent workflow', async ({ page }) => {
+    const response = await page.request.post('/api/workflows/el-invalid999/promote');
     expect(response.status()).toBe(404);
   });
 
@@ -697,7 +697,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('editing title and saving updates the workflow', async ({ page }) => {
     // Create a workflow to edit
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
           name: 'Test Edit Title Playbook',
@@ -710,8 +710,8 @@ test.describe('TB48: Edit Workflow', () => {
         ephemeral: false,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -739,7 +739,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('pending workflow shows Start and Cancel buttons', async ({ page }) => {
     // Create a pending workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
           name: 'Test Status Workflow',
@@ -752,8 +752,8 @@ test.describe('TB48: Edit Workflow', () => {
         ephemeral: false,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -769,7 +769,7 @@ test.describe('TB48: Edit Workflow', () => {
 
   test('clicking Start changes workflow status to running', async ({ page }) => {
     // Create a pending workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
           name: 'Test Start Workflow',
@@ -782,8 +782,8 @@ test.describe('TB48: Edit Workflow', () => {
         ephemeral: false,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -804,9 +804,9 @@ test.describe('TB48: Edit Workflow', () => {
   // UI Tests - Ephemeral Workflow Actions
   // ============================================================================
 
-  test('ephemeral workflow shows Squash and Burn buttons', async ({ page }) => {
+  test('ephemeral workflow shows Promote and Delete buttons', async ({ page }) => {
     // Create an ephemeral workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
           name: 'Test Ephemeral Buttons',
@@ -819,8 +819,8 @@ test.describe('TB48: Edit Workflow', () => {
         ephemeral: true,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -832,28 +832,28 @@ test.describe('TB48: Edit Workflow', () => {
     // Should show ephemeral badge
     await expect(page.getByTestId('ephemeral-badge')).toBeVisible();
 
-    // Should show Squash and Burn buttons
-    await expect(page.getByTestId('squash-btn')).toBeVisible();
-    await expect(page.getByTestId('burn-btn')).toBeVisible();
+    // Should show Promote and Delete buttons
+    await expect(page.getByTestId('promote-btn')).toBeVisible();
+    await expect(page.getByTestId('delete-btn')).toBeVisible();
   });
 
-  test('clicking Squash button makes workflow durable', async ({ page }) => {
+  test('clicking Promote button makes workflow durable', async ({ page }) => {
     // Create an ephemeral workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
-          name: 'Test Squash UI',
+          name: 'Test Promote UI',
           version: '1.0.0',
           variables: [],
           steps: [{ id: 'step-1', title: 'Step 1', priority: 3 }],
         },
         createdBy: 'test-user',
-        title: `Squash UI Workflow ${Date.now()}`,
+        title: `Promote UI Workflow ${Date.now()}`,
         ephemeral: true,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -862,31 +862,31 @@ test.describe('TB48: Edit Workflow', () => {
     await page.getByTestId(`workflow-item-${workflow.id}`).click();
     await expect(page.getByTestId('workflow-detail-panel')).toBeVisible({ timeout: 5000 });
 
-    // Click Squash button
-    await page.getByTestId('squash-btn').click();
+    // Click Promote button
+    await page.getByTestId('promote-btn').click();
 
     // Ephemeral badge should disappear and buttons should be hidden
     await expect(page.getByTestId('ephemeral-badge')).not.toBeVisible({ timeout: 5000 });
-    await expect(page.getByTestId('squash-btn')).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('promote-btn')).not.toBeVisible({ timeout: 5000 });
   });
 
-  test('clicking Burn button shows confirmation', async ({ page }) => {
+  test('clicking Delete button shows confirmation', async ({ page }) => {
     // Create an ephemeral workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
-          name: 'Test Burn Confirm',
+          name: 'Test Delete Confirm',
           version: '1.0.0',
           variables: [],
           steps: [{ id: 'step-1', title: 'Step 1', priority: 3 }],
         },
         createdBy: 'test-user',
-        title: `Burn Confirm Workflow ${Date.now()}`,
+        title: `Delete Confirm Workflow ${Date.now()}`,
         ephemeral: true,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -895,31 +895,31 @@ test.describe('TB48: Edit Workflow', () => {
     await page.getByTestId(`workflow-item-${workflow.id}`).click();
     await expect(page.getByTestId('workflow-detail-panel')).toBeVisible({ timeout: 5000 });
 
-    // Click Burn button
-    await page.getByTestId('burn-btn').click();
+    // Click Delete button
+    await page.getByTestId('delete-btn').click();
 
     // Should show confirmation
-    await expect(page.getByTestId('burn-confirm-btn')).toBeVisible();
-    await expect(page.getByTestId('burn-cancel-btn')).toBeVisible();
+    await expect(page.getByTestId('delete-confirm-btn')).toBeVisible();
+    await expect(page.getByTestId('delete-cancel-btn')).toBeVisible();
   });
 
-  test('confirming Burn deletes the workflow', async ({ page }) => {
+  test('confirming Delete deletes the workflow', async ({ page }) => {
     // Create an ephemeral workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
-          name: 'Test Burn Delete',
+          name: 'Test Delete Workflow',
           version: '1.0.0',
           variables: [],
           steps: [{ id: 'step-1', title: 'Step 1', priority: 3 }],
         },
         createdBy: 'test-user',
-        title: `Burn Delete Workflow ${Date.now()}`,
+        title: `Delete Workflow ${Date.now()}`,
         ephemeral: true,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -928,9 +928,9 @@ test.describe('TB48: Edit Workflow', () => {
     await page.getByTestId(`workflow-item-${workflow.id}`).click();
     await expect(page.getByTestId('workflow-detail-panel')).toBeVisible({ timeout: 5000 });
 
-    // Click Burn button then confirm
-    await page.getByTestId('burn-btn').click();
-    await page.getByTestId('burn-confirm-btn').click();
+    // Click Delete button then confirm
+    await page.getByTestId('delete-btn').click();
+    await page.getByTestId('delete-confirm-btn').click();
 
     // Panel should close (workflow deleted)
     await expect(page.getByTestId('workflow-detail-panel')).not.toBeVisible({ timeout: 5000 });
@@ -940,9 +940,9 @@ test.describe('TB48: Edit Workflow', () => {
     expect(getResponse.status()).toBe(404);
   });
 
-  test('durable workflow does not show Squash/Burn buttons', async ({ page }) => {
+  test('durable workflow does not show Promote/Delete buttons', async ({ page }) => {
     // Create a durable workflow
-    const pourResponse = await page.request.post('/api/workflows/pour', {
+    const createResponse = await page.request.post('/api/workflows/create', {
       data: {
         playbook: {
           name: 'Test Durable No Buttons',
@@ -955,8 +955,8 @@ test.describe('TB48: Edit Workflow', () => {
         ephemeral: false,
       },
     });
-    const pourResult = await pourResponse.json();
-    const workflow = pourResult.workflow;
+    const createResult = await createResponse.json();
+    const workflow = createResult.workflow;
 
     await page.goto('/workflows');
     await expect(page.getByTestId('workflows-page')).toBeVisible({ timeout: 10000 });
@@ -967,7 +967,7 @@ test.describe('TB48: Edit Workflow', () => {
 
     // Should NOT show ephemeral badge or buttons
     await expect(page.getByTestId('ephemeral-badge')).not.toBeVisible();
-    await expect(page.getByTestId('squash-btn')).not.toBeVisible();
-    await expect(page.getByTestId('burn-btn')).not.toBeVisible();
+    await expect(page.getByTestId('promote-btn')).not.toBeVisible();
+    await expect(page.getByTestId('delete-btn')).not.toBeVisible();
   });
 });

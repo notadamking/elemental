@@ -1,7 +1,7 @@
 /**
- * Workflow Pouring - Instantiate workflows from playbooks
+ * Workflow Creation - Instantiate workflows from playbooks
  *
- * "Pouring" is the process of instantiating a workflow from a playbook:
+ * "Creating" is the process of instantiating a workflow from a playbook:
  * 1. Load playbook definition
  * 2. Resolve inheritance chain (if extends)
  * 3. Collect and validate variables
@@ -42,14 +42,14 @@ import { generateChildId } from '../id/generator.js';
 // ============================================================================
 
 /**
- * Input for pouring a workflow from a playbook
+ * Input for creating a workflow from a playbook
  */
-export interface PourWorkflowInput {
-  /** The playbook to pour from */
+export interface CreateWorkflowFromPlaybookInput {
+  /** The playbook to create from */
   playbook: Playbook;
-  /** Variable values to use during pouring */
+  /** Variable values to use during creation */
   variables: Record<string, unknown>;
-  /** Entity performing the pour operation */
+  /** Entity performing the create operation */
   createdBy: EntityId;
   /** Optional: Custom workflow title (defaults to playbook title) */
   title?: string;
@@ -74,9 +74,9 @@ export interface CreatedTask {
 }
 
 /**
- * Result of pouring a workflow
+ * Result of creating a workflow from a playbook
  */
-export interface PourWorkflowResult {
+export interface CreateWorkflowFromPlaybookResult {
   /** The created workflow */
   workflow: Workflow;
   /** The created tasks */
@@ -85,7 +85,7 @@ export interface PourWorkflowResult {
   blocksDependencies: Dependency[];
   /** Parent-child dependencies (tasks are children of workflow) */
   parentChildDependencies: Dependency[];
-  /** Resolved variables used during pouring */
+  /** Resolved variables used during creation */
   resolvedVariables: ResolvedVariables;
   /** Steps that were filtered out by conditions */
   skippedSteps: string[];
@@ -100,9 +100,9 @@ export type TaskCreator = (
 ) => Promise<Task>;
 
 /**
- * Options for pour operation
+ * Options for create workflow operation
  */
-export interface PourOptions {
+export interface CreateWorkflowOptions {
   /** ID generator configuration */
   idConfig?: IdGeneratorConfig;
   /** Custom task creator (for testing) */
@@ -214,16 +214,16 @@ export function computeWorkflowStatus(
 }
 
 // ============================================================================
-// Pouring Implementation
+// Creation Implementation
 // ============================================================================
 
 /**
- * Validates pour input before processing
+ * Validates create workflow input before processing
  */
-function validatePourInput(input: PourWorkflowInput): void {
+function validateCreateInput(input: CreateWorkflowFromPlaybookInput): void {
   if (!input.playbook) {
     throw new ValidationError(
-      'Playbook is required for pouring',
+      'Playbook is required for creating workflow',
       ErrorCode.MISSING_REQUIRED_FIELD,
       { field: 'playbook' }
     );
@@ -231,7 +231,7 @@ function validatePourInput(input: PourWorkflowInput): void {
 
   if (!input.createdBy) {
     throw new ValidationError(
-      'createdBy is required for pouring',
+      'createdBy is required for creating workflow',
       ErrorCode.MISSING_REQUIRED_FIELD,
       { field: 'createdBy' }
     );
@@ -255,7 +255,7 @@ async function createTaskFromStep(
   workflowId: ElementId,
   taskIndex: number,
   createdBy: EntityId,
-  options: PourOptions
+  options: CreateWorkflowOptions
 ): Promise<Task> {
   // Substitute variables in title
   const title = substituteVariables(step.title, resolvedVariables, false);
@@ -358,7 +358,7 @@ function createParentChildDependencies(
 }
 
 /**
- * Pours a workflow from a playbook.
+ * Creates a workflow from a playbook.
  *
  * This is the main entry point for workflow instantiation. It:
  * 1. Resolves playbook inheritance (if any)
@@ -368,18 +368,18 @@ function createParentChildDependencies(
  * 5. Creates tasks for each included step
  * 6. Wires up dependencies
  *
- * @param input - Pour configuration
- * @param options - Optional pour options
+ * @param input - Creation configuration
+ * @param options - Optional creation options
  * @returns The result containing workflow, tasks, and dependencies
  * @throws ValidationError if input is invalid
  * @throws NotFoundError if parent playbook not found
  */
-export async function pourWorkflow(
-  input: PourWorkflowInput,
-  options: PourOptions = {}
-): Promise<PourWorkflowResult> {
+export async function createWorkflowFromPlaybook(
+  input: CreateWorkflowFromPlaybookInput,
+  options: CreateWorkflowOptions = {}
+): Promise<CreateWorkflowFromPlaybookResult> {
   // Validate input
-  validatePourInput(input);
+  validateCreateInput(input);
 
   const { playbook, variables, createdBy, ephemeral = false, playbookLoader } = input;
 
@@ -458,7 +458,7 @@ export async function pourWorkflow(
 }
 
 /**
- * Validates that a playbook can be poured with the given variables.
+ * Validates that a playbook can be used to create a workflow with the given variables.
  * Does not create any elements - just validates.
  *
  * @param playbook - The playbook to validate
@@ -466,7 +466,7 @@ export async function pourWorkflow(
  * @param playbookLoader - Optional loader for inheritance
  * @returns Validation result with resolved variables and steps
  */
-export async function validatePour(
+export async function validateCreateWorkflow(
   playbook: Playbook,
   variables: Record<string, unknown>,
   playbookLoader?: PlaybookLoader

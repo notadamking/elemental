@@ -4,7 +4,7 @@
  * Tests for the playbook-specific CLI commands:
  * - playbook list: List playbooks
  * - playbook show: Show playbook details
- * - playbook validate: Validate playbook structure and pour-time variables
+ * - playbook validate: Validate playbook structure and create-time variables
  * - playbook create: Create a new playbook
  */
 
@@ -247,7 +247,7 @@ describe('playbook validate command', () => {
     expect((result.data as { valid: boolean }).valid).toBe(true);
   });
 
-  test('detects circular inheritance during base validation (without --pour)', async () => {
+  test('detects circular inheritance during base validation (without --create)', async () => {
     // Create playbooks that form a cycle: A -> B -> A
     const { api } = createTestAPI();
     const playbookA = await createPlaybook({
@@ -270,7 +270,7 @@ describe('playbook validate command', () => {
     });
     await api.create(playbookB as unknown as Element & Record<string, unknown>);
 
-    // Validate should detect the cycle even without --pour flag
+    // Validate should detect the cycle even without --create flag
     const result = await playbookCommand.subcommands!.validate.handler(
       ['cycle_a'],
       createTestOptions()
@@ -285,10 +285,10 @@ describe('playbook validate command', () => {
 });
 
 // ============================================================================
-// Pour-time Validation Tests
+// Create-time Validation Tests
 // ============================================================================
 
-describe('playbook validate command with pour-time validation', () => {
+describe('playbook validate command with create-time validation', () => {
   test('validates required variables are provided', async () => {
     await createTestPlaybookInDb({
       name: 'needs_vars',
@@ -304,7 +304,7 @@ describe('playbook validate command with pour-time validation', () => {
     // Without providing required variable
     const result = await playbookCommand.subcommands!.validate.handler(
       ['needs_vars'],
-      createTestOptions({ pour: true })
+      createTestOptions({ create: true })
     );
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
@@ -380,7 +380,7 @@ describe('playbook validate command with pour-time validation', () => {
 
     const result = await playbookCommand.subcommands!.validate.handler(
       ['optional_vars'],
-      createTestOptions({ pour: true })
+      createTestOptions({ create: true })
     );
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
@@ -405,7 +405,7 @@ describe('playbook validate command with pour-time validation', () => {
 
     const result = await playbookCommand.subcommands!.validate.handler(
       ['conditional'],
-      createTestOptions({ pour: true })
+      createTestOptions({ create: true })
     );
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
@@ -792,24 +792,24 @@ describe('playbook lifecycle E2E', () => {
     expect(validateStructureResult.exitCode).toBe(ExitCode.SUCCESS);
     expect((validateStructureResult.data as { valid: boolean }).valid).toBe(true);
 
-    // 5. Validate pour-time (without required variable - should fail)
-    const validatePourFailResult = await playbookCommand.subcommands!.validate.handler(
+    // 5. Validate create-time (without required variable - should fail)
+    const validateCreateFailResult = await playbookCommand.subcommands!.validate.handler(
       ['e2e_deploy'],
-      createTestOptions({ pour: true })
+      createTestOptions({ create: true })
     );
-    expect(validatePourFailResult.exitCode).toBe(ExitCode.SUCCESS);
-    expect((validatePourFailResult.data as { valid: boolean }).valid).toBe(false);
+    expect(validateCreateFailResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validateCreateFailResult.data as { valid: boolean }).valid).toBe(false);
 
-    // 6. Validate pour-time (with required variable - should pass)
-    const validatePourSuccessResult = await playbookCommand.subcommands!.validate.handler(
+    // 6. Validate create-time (with required variable - should pass)
+    const validateCreateSuccessResult = await playbookCommand.subcommands!.validate.handler(
       ['e2e_deploy'],
       createTestOptions({ var: 'env=production' })
     );
-    expect(validatePourSuccessResult.exitCode).toBe(ExitCode.SUCCESS);
-    expect((validatePourSuccessResult.data as { valid: boolean }).valid).toBe(true);
+    expect(validateCreateSuccessResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((validateCreateSuccessResult.data as { valid: boolean }).valid).toBe(true);
 
-    // Verify pour validation shows correct resolved values
-    const pourValidation = (validatePourSuccessResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    // Verify create-time validation shows correct resolved values
+    const pourValidation = (validateCreateSuccessResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
     expect(pourValidation.resolvedVariables).toEqual({
       env: 'production',
       version: '1.0.0',
@@ -861,7 +861,7 @@ describe('playbook lifecycle E2E', () => {
     // 4. Validate child with parent variables (env is required from parent)
     const validateResult = await playbookCommand.subcommands!.validate.handler(
       ['extended_deploy'],
-      createTestOptions({ pour: true })
+      createTestOptions({ create: true })
     );
     expect(validateResult.exitCode).toBe(ExitCode.SUCCESS);
     // Should fail because 'environment' is required from parent but not provided
@@ -904,7 +904,7 @@ describe('playbook lifecycle E2E', () => {
     // Validate with default (runIntegration=false) - integration tests should be skipped
     const validateDefaultResult = await playbookCommand.subcommands!.validate.handler(
       ['conditional_pipeline'],
-      createTestOptions({ pour: true })
+      createTestOptions({ create: true })
     );
     expect(validateDefaultResult.exitCode).toBe(ExitCode.SUCCESS);
     const pourValidation1 = (validateDefaultResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
@@ -1032,14 +1032,14 @@ describe('playbook lifecycle E2E', () => {
     expect(validateResult.exitCode).toBe(ExitCode.SUCCESS);
     expect((validateResult.data as { valid: boolean }).valid).toBe(true);
 
-    // Validate pour (no variables needed)
-    const pourValidateResult = await playbookCommand.subcommands!.validate.handler(
+    // Validate create-time (no variables needed)
+    const createValidateResult = await playbookCommand.subcommands!.validate.handler(
       ['dependency_chain'],
-      createTestOptions({ pour: true })
+      createTestOptions({ create: true })
     );
-    expect(pourValidateResult.exitCode).toBe(ExitCode.SUCCESS);
-    expect((pourValidateResult.data as { valid: boolean }).valid).toBe(true);
-    const pourValidation = (pourValidateResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
+    expect(createValidateResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect((createValidateResult.data as { valid: boolean }).valid).toBe(true);
+    const pourValidation = (createValidateResult.data as Record<string, unknown>).pourValidation as Record<string, unknown>;
     expect((pourValidation.includedSteps as string[])).toHaveLength(5);
     expect((pourValidation.skippedSteps as string[])).toHaveLength(0);
   });

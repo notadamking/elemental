@@ -1,7 +1,7 @@
 /**
- * @elemental/ui Pour Workflow Modal
+ * @elemental/ui Create Workflow Modal
  *
- * Modal for instantiating a workflow from a playbook template.
+ * Modal for creating a workflow from a playbook template.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -14,13 +14,13 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { PlaybookVariable, PlaybookStep } from '../types';
-import { usePlaybooks, usePlaybook, usePourPlaybook } from '../hooks';
+import { usePlaybooks, usePlaybook, useCreateFromPlaybook } from '../hooks';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface PourWorkflowModalProps {
+export interface CreateWorkflowModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** Pre-selected playbook ID (optional) */
@@ -225,12 +225,12 @@ function PlaybookPicker({
 // Main Component
 // ============================================================================
 
-export function PourWorkflowModal({
+export function CreateWorkflowModal({
   isOpen,
   onClose,
   playbookId: initialPlaybookId,
   onSuccess,
-}: PourWorkflowModalProps) {
+}: CreateWorkflowModalProps) {
   // Form state
   const [title, setTitle] = useState('');
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(
@@ -248,7 +248,7 @@ export function PourWorkflowModal({
   const playbook = playbookResponse?.playbook;
 
   // Mutation
-  const pourPlaybook = usePourPlaybook();
+  const createFromPlaybook = useCreateFromPlaybook();
 
   // Update selected playbook when initialPlaybookId changes
   useEffect(() => {
@@ -282,7 +282,7 @@ export function PourWorkflowModal({
       setVariables({});
       setEphemeral(true);
       setError(null);
-      pourPlaybook.reset();
+      createFromPlaybook.reset();
     }
   }, [isOpen, initialPlaybookId]);
 
@@ -302,7 +302,7 @@ export function PourWorkflowModal({
     return errors;
   }, [playbook, variables]);
 
-  const canPour = validationErrors.length === 0 && !pourPlaybook.isPending;
+  const canCreate = validationErrors.length === 0 && !createFromPlaybook.isPending;
 
   // Handlers
   const handleVariableChange = useCallback((name: string, value: unknown) => {
@@ -318,7 +318,7 @@ export function PourWorkflowModal({
     }
 
     try {
-      const result = await pourPlaybook.mutateAsync({
+      const result = await createFromPlaybook.mutateAsync({
         playbookId: selectedPlaybookId,
         title: title || playbook.title,
         variables,
@@ -334,12 +334,12 @@ export function PourWorkflowModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50" data-testid="pour-workflow-container">
+    <div className="fixed inset-0 z-50" data-testid="create-workflow-container">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 animate-fade-in"
         onClick={onClose}
-        data-testid="pour-workflow-backdrop"
+        data-testid="create-workflow-backdrop"
       />
 
       {/* Dialog */}
@@ -355,9 +355,9 @@ export function PourWorkflowModal({
             flex flex-col
           "
           style={{ pointerEvents: 'auto' }}
-          data-testid="pour-workflow-dialog"
+          data-testid="create-workflow-dialog"
           role="dialog"
-          aria-labelledby="pour-workflow-title"
+          aria-labelledby="create-workflow-title"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -365,27 +365,27 @@ export function PourWorkflowModal({
             <div className="flex items-center gap-2">
               <Play className="w-5 h-5 text-[var(--color-primary)]" />
               <h2
-                id="pour-workflow-title"
+                id="create-workflow-title"
                 className="text-lg font-semibold text-[var(--color-text)]"
               >
-                Pour Workflow
+                Create Workflow
               </h2>
             </div>
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
               aria-label="Close dialog"
-              data-testid="pour-workflow-close"
+              data-testid="create-workflow-close"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Error message */}
-          {(error || pourPlaybook.error) && (
+          {(error || createFromPlaybook.error) && (
             <div className="mx-4 mt-4 flex items-center gap-2 px-3 py-2 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {error || pourPlaybook.error?.message || 'An error occurred'}
+              {error || createFromPlaybook.error?.message || 'An error occurred'}
             </div>
           )}
 
@@ -421,7 +421,7 @@ export function PourWorkflowModal({
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder={playbook.title}
                     className="w-full px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
-                    data-testid="pour-title-input"
+                    data-testid="create-title-input"
                   />
                 </div>
 
@@ -506,17 +506,17 @@ export function PourWorkflowModal({
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded-lg transition-colors"
-              data-testid="pour-cancel-button"
+              data-testid="create-cancel-button"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!canPour}
+              disabled={!canCreate}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-              data-testid="pour-submit-button"
+              data-testid="create-submit-button"
             >
-              {pourPlaybook.isPending ? (
+              {createFromPlaybook.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Creating...
@@ -524,7 +524,7 @@ export function PourWorkflowModal({
               ) : (
                 <>
                   <Play className="w-4 h-4" />
-                  Pour Workflow
+                  Create Workflow
                 </>
               )}
             </button>

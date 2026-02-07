@@ -11,13 +11,9 @@
  * - undefer: Remove deferral from a task
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import {
   TaskStatus,
   TaskTypeValue,
@@ -47,59 +43,7 @@ import {
   deleteOptions,
 } from './crud.js';
 import { suggestCommands } from '../suggest.js';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
-
-// ============================================================================
-// Database Helper
-// ============================================================================
-
-/**
- * Resolves database path from options or default location
- */
-function resolveDatabasePath(options: GlobalOptions): string | null {
-  if (options.db) {
-    return options.db;
-  }
-
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    return join(elementalDir, DEFAULT_DB_NAME);
-  }
-
-  return null;
-}
-
-/**
- * Creates an API instance from options
- */
-function createAPI(options: GlobalOptions): { api: ElementalAPI; error?: string } {
-  const dbPath = resolveDatabasePath(options);
-  if (!dbPath) {
-    return {
-      api: null as unknown as ElementalAPI,
-      error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
-    };
-  }
-
-  try {
-    const backend = createStorage({ path: dbPath, create: true });
-    initializeSchema(backend);
-    return { api: createElementalAPI(backend) };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      api: null as unknown as ElementalAPI,
-      error: `Failed to open database: ${message}`,
-    };
-  }
-}
+import { createAPI } from '../db.js';
 
 // ============================================================================
 // Ready Command
@@ -1453,6 +1397,14 @@ const allTaskSubcommands: Record<string, Command> = {
   // Description
   describe: describeCommand,
   activate: activateCommand,
+  // Aliases (hidden from --help via dedup in getCommandHelp)
+  new: taskCreateCommand,
+  add: taskCreateCommand,
+  ls: taskListCommand,
+  rm: taskDeleteCommand,
+  get: taskShowCommand,
+  view: taskShowCommand,
+  edit: taskUpdateCommand,
 };
 
 export const taskCommand: Command = {

@@ -2,11 +2,11 @@
  * Workflow Commands Integration Tests
  *
  * Tests for the workflow CLI commands:
- * - workflow pour: Instantiate a playbook into a workflow
+ * - workflow create: Instantiate a playbook into a workflow
  * - workflow list: List workflows
  * - workflow show: Show workflow details
- * - workflow burn: Delete ephemeral workflow
- * - workflow squash: Promote ephemeral to durable
+ * - workflow delete: Delete ephemeral workflow
+ * - workflow promote: Promote ephemeral to durable
  * - workflow gc: Garbage collect old ephemeral workflows
  */
 
@@ -47,9 +47,9 @@ async function createTestWorkflow(
   playbookName: string,
   extra: Record<string, unknown> = {}
 ): Promise<string> {
-  const pourSubCmd = workflowCommand.subcommands!['pour'];
+  const createSubCmd = workflowCommand.subcommands!['create'];
   const options = createTestOptions({ ...extra });
-  const result = await pourSubCmd.handler([playbookName], options);
+  const result = await createSubCmd.handler([playbookName], options);
   return (result.data as { id: string }).id;
 }
 
@@ -71,15 +71,15 @@ afterEach(() => {
 });
 
 // ============================================================================
-// Workflow Pour Command Tests
+// Workflow Create Command Tests
 // ============================================================================
 
-describe('workflow pour command', () => {
-  const pourSubCmd = workflowCommand.subcommands!['pour'];
+describe('workflow create command', () => {
+  const createSubCmd = workflowCommand.subcommands!['create'];
 
   test('creates a workflow from playbook name', async () => {
     const options = createTestOptions();
-    const result = await pourSubCmd.handler(['deploy'], options);
+    const result = await createSubCmd.handler(['deploy'], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.data).toBeDefined();
@@ -94,7 +94,7 @@ describe('workflow pour command', () => {
 
   test('creates ephemeral workflow with --ephemeral flag', async () => {
     const options = createTestOptions({ ephemeral: true });
-    const result = await pourSubCmd.handler(['deploy'], options);
+    const result = await createSubCmd.handler(['deploy'], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const workflow = result.data as Workflow;
@@ -103,7 +103,7 @@ describe('workflow pour command', () => {
 
   test('creates workflow with custom title', async () => {
     const options = createTestOptions({ title: 'Custom Title' });
-    const result = await pourSubCmd.handler(['deploy'], options);
+    const result = await createSubCmd.handler(['deploy'], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const workflow = result.data as Workflow;
@@ -112,7 +112,7 @@ describe('workflow pour command', () => {
 
   test('creates workflow with variables', async () => {
     const options = createTestOptions({ var: ['env=prod', 'version=1.0'] });
-    const result = await pourSubCmd.handler(['deploy'], options);
+    const result = await createSubCmd.handler(['deploy'], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     const workflow = result.data as Workflow;
@@ -122,7 +122,7 @@ describe('workflow pour command', () => {
 
   test('fails without playbook name', async () => {
     const options = createTestOptions();
-    const result = await pourSubCmd.handler([], options);
+    const result = await createSubCmd.handler([], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('Usage');
@@ -130,7 +130,7 @@ describe('workflow pour command', () => {
 
   test('fails with invalid variable format', async () => {
     const options = createTestOptions({ var: 'invalidformat' });
-    const result = await pourSubCmd.handler(['deploy'], options);
+    const result = await createSubCmd.handler(['deploy'], options);
 
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
     expect(result.error).toContain('Invalid variable format');
@@ -273,23 +273,23 @@ describe('workflow show command', () => {
 });
 
 // ============================================================================
-// Workflow Burn Command Tests
+// Workflow Delete Command Tests
 // ============================================================================
 
-describe('workflow burn command', () => {
-  const burnSubCmd = workflowCommand.subcommands!['burn'];
+describe('workflow delete command', () => {
+  const deleteSubCmd = workflowCommand.subcommands!['delete'];
   const showSubCmd = workflowCommand.subcommands!['show'];
 
-  test('burns an ephemeral workflow', async () => {
+  test('deletes an ephemeral workflow', async () => {
     const workflowId = await createTestWorkflow('ephemeral', { ephemeral: true });
 
     const options = createTestOptions();
-    const result = await burnSubCmd.handler([workflowId], options);
+    const result = await deleteSubCmd.handler([workflowId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
-    expect(result.message).toContain('Burned');
+    expect(result.message).toContain('Deleted');
 
-    // After burn, the workflow is completely deleted and not accessible
+    // After delete, the workflow is completely deleted and not accessible
     const showResult = await showSubCmd.handler([workflowId], createTestOptions({ json: true }));
     expect(showResult.exitCode).toBe(ExitCode.NOT_FOUND);
   });
@@ -298,7 +298,7 @@ describe('workflow burn command', () => {
     const workflowId = await createTestWorkflow('durable');
 
     const options = createTestOptions();
-    const result = await burnSubCmd.handler([workflowId], options);
+    const result = await deleteSubCmd.handler([workflowId], options);
 
     expect(result.exitCode).toBe(ExitCode.VALIDATION);
     expect(result.error).toContain('durable');
@@ -306,7 +306,7 @@ describe('workflow burn command', () => {
 
   test('fails without id', async () => {
     const options = createTestOptions();
-    const result = await burnSubCmd.handler([], options);
+    const result = await deleteSubCmd.handler([], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('Usage');
@@ -323,8 +323,8 @@ describe('workflow burn command', () => {
     const deleteResult = await deleteCommand.handler([workflowId], createTestOptions({ force: true }));
     expect(deleteResult.exitCode).toBe(ExitCode.SUCCESS);
 
-    // Try to burn the tombstoned workflow - should fail with NOT_FOUND
-    const result = await burnSubCmd.handler([workflowId], createTestOptions());
+    // Try to delete the tombstoned workflow - should fail with NOT_FOUND
+    const result = await deleteSubCmd.handler([workflowId], createTestOptions());
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error).toContain('Workflow not found');
@@ -332,18 +332,18 @@ describe('workflow burn command', () => {
 });
 
 // ============================================================================
-// Workflow Squash Command Tests
+// Workflow Promote Command Tests
 // ============================================================================
 
-describe('workflow squash command', () => {
-  const squashSubCmd = workflowCommand.subcommands!['squash'];
+describe('workflow promote command', () => {
+  const promoteSubCmd = workflowCommand.subcommands!['promote'];
   const showSubCmd = workflowCommand.subcommands!['show'];
 
-  test('squashes an ephemeral workflow to durable', async () => {
+  test('promotes an ephemeral workflow to durable', async () => {
     const workflowId = await createTestWorkflow('ephemeral', { ephemeral: true });
 
     const options = createTestOptions();
-    const result = await squashSubCmd.handler([workflowId], options);
+    const result = await promoteSubCmd.handler([workflowId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.message).toContain('Promoted');
@@ -358,7 +358,7 @@ describe('workflow squash command', () => {
     const workflowId = await createTestWorkflow('durable');
 
     const options = createTestOptions();
-    const result = await squashSubCmd.handler([workflowId], options);
+    const result = await promoteSubCmd.handler([workflowId], options);
 
     expect(result.exitCode).toBe(ExitCode.SUCCESS);
     expect(result.message).toContain('already durable');
@@ -366,7 +366,7 @@ describe('workflow squash command', () => {
 
   test('fails without id', async () => {
     const options = createTestOptions();
-    const result = await squashSubCmd.handler([], options);
+    const result = await promoteSubCmd.handler([], options);
 
     expect(result.exitCode).toBe(ExitCode.INVALID_ARGUMENTS);
     expect(result.error).toContain('Usage');
@@ -383,8 +383,8 @@ describe('workflow squash command', () => {
     const deleteResult = await deleteCommand.handler([workflowId], createTestOptions({ force: true }));
     expect(deleteResult.exitCode).toBe(ExitCode.SUCCESS);
 
-    // Try to squash the tombstoned workflow - should fail with NOT_FOUND
-    const result = await squashSubCmd.handler([workflowId], createTestOptions());
+    // Try to promote the tombstoned workflow - should fail with NOT_FOUND
+    const result = await promoteSubCmd.handler([workflowId], createTestOptions());
 
     expect(result.exitCode).toBe(ExitCode.NOT_FOUND);
     expect(result.error).toContain('Workflow not found');
@@ -473,22 +473,22 @@ describe('workflow root command', () => {
 // ============================================================================
 
 describe('workflow lifecycle scenarios', () => {
-  const pourSubCmd = workflowCommand.subcommands!['pour'];
+  const createSubCmd = workflowCommand.subcommands!['create'];
   const showSubCmd = workflowCommand.subcommands!['show'];
   const listSubCmd = workflowCommand.subcommands!['list'];
   const tasksSubCmd = workflowCommand.subcommands!['tasks'];
   const progressSubCmd = workflowCommand.subcommands!['progress'];
-  const burnSubCmd = workflowCommand.subcommands!['burn'];
-  const squashSubCmd = workflowCommand.subcommands!['squash'];
+  const deleteSubCmd = workflowCommand.subcommands!['delete'];
+  const promoteSubCmd = workflowCommand.subcommands!['promote'];
 
-  test('complete workflow lifecycle: pour → view → tasks → progress → update status', async () => {
-    // 1. Pour a workflow
-    const pourResult = await pourSubCmd.handler(['deployment-pipeline'], createTestOptions({
+  test('complete workflow lifecycle: create → view → tasks → progress → update status', async () => {
+    // 1. Create a workflow
+    const createResult = await createSubCmd.handler(['deployment-pipeline'], createTestOptions({
       title: 'Production Deployment',
       var: ['env=production'],
     }));
-    expect(pourResult.exitCode).toBe(ExitCode.SUCCESS);
-    const workflow = pourResult.data as Workflow;
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const workflow = createResult.data as Workflow;
     expect(workflow.title).toBe('Production Deployment');
     expect(workflow.status).toBe(WorkflowStatus.PENDING);
 
@@ -502,7 +502,7 @@ describe('workflow lifecycle scenarios', () => {
     expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
     expect((listResult.data as Workflow[]).map(w => w.id)).toContain(workflow.id);
 
-    // 4. Check tasks (workflow poured without steps has no tasks)
+    // 4. Check tasks (workflow created without steps has no tasks)
     const tasksResult = await tasksSubCmd.handler([workflow.id as string], createTestOptions({ json: true }));
     expect(tasksResult.exitCode).toBe(ExitCode.SUCCESS);
     // Empty workflow has no tasks
@@ -516,14 +516,14 @@ describe('workflow lifecycle scenarios', () => {
     expect(progress.completionPercentage).toBe(0);
   });
 
-  test('ephemeral workflow lifecycle: pour → work → burn', async () => {
+  test('ephemeral workflow lifecycle: create → work → delete', async () => {
     // 1. Create ephemeral workflow
-    const pourResult = await pourSubCmd.handler(['test-workflow'], createTestOptions({
+    const createResult = await createSubCmd.handler(['test-workflow'], createTestOptions({
       ephemeral: true,
       title: 'Ephemeral Test',
     }));
-    expect(pourResult.exitCode).toBe(ExitCode.SUCCESS);
-    const workflow = pourResult.data as Workflow;
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const workflow = createResult.data as Workflow;
     expect(workflow.ephemeral).toBe(true);
 
     // 2. Verify it appears in list with ephemeral filter
@@ -531,31 +531,31 @@ describe('workflow lifecycle scenarios', () => {
     expect(listResult.exitCode).toBe(ExitCode.SUCCESS);
     expect((listResult.data as Workflow[]).map(w => w.id)).toContain(workflow.id);
 
-    // 3. Burn the ephemeral workflow
-    const burnResult = await burnSubCmd.handler([workflow.id as string], createTestOptions());
-    expect(burnResult.exitCode).toBe(ExitCode.SUCCESS);
-    expect(burnResult.message).toContain('Burned');
+    // 3. Delete the ephemeral workflow
+    const deleteResult = await deleteSubCmd.handler([workflow.id as string], createTestOptions());
+    expect(deleteResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(deleteResult.message).toContain('Deleted');
 
-    // 4. Verify workflow is no longer accessible (burned)
+    // 4. Verify workflow is no longer accessible (deleted)
     const showResult = await showSubCmd.handler([workflow.id as string], createTestOptions());
-    // After burn, showing the workflow returns NOT_FOUND since it's deleted
+    // After delete, showing the workflow returns NOT_FOUND since it's deleted
     expect(showResult.exitCode).toBe(ExitCode.NOT_FOUND);
   });
 
-  test('ephemeral to durable promotion: pour → squash → verify durable', async () => {
+  test('ephemeral to durable promotion: create → promote → verify durable', async () => {
     // 1. Create ephemeral workflow
-    const pourResult = await pourSubCmd.handler(['promotable-workflow'], createTestOptions({
+    const createResult = await createSubCmd.handler(['promotable-workflow'], createTestOptions({
       ephemeral: true,
       title: 'Promotable Workflow',
     }));
-    expect(pourResult.exitCode).toBe(ExitCode.SUCCESS);
-    const workflow = pourResult.data as Workflow;
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const workflow = createResult.data as Workflow;
     expect(workflow.ephemeral).toBe(true);
 
-    // 2. Squash (promote) to durable
-    const squashResult = await squashSubCmd.handler([workflow.id as string], createTestOptions());
-    expect(squashResult.exitCode).toBe(ExitCode.SUCCESS);
-    expect(squashResult.message).toContain('Promoted');
+    // 2. Promote to durable
+    const promoteResult = await promoteSubCmd.handler([workflow.id as string], createTestOptions());
+    expect(promoteResult.exitCode).toBe(ExitCode.SUCCESS);
+    expect(promoteResult.message).toContain('Promoted');
 
     // 3. Verify workflow is now durable
     const showResult = await showSubCmd.handler([workflow.id as string], createTestOptions({ json: true }));
@@ -568,14 +568,14 @@ describe('workflow lifecycle scenarios', () => {
     expect((listResult.data as Workflow[]).map(w => w.id)).toContain(workflow.id);
   });
 
-  test('workflow variables lifecycle: pour with vars → verify stored', async () => {
-    // 1. Pour with multiple variables
-    const pourResult = await pourSubCmd.handler(['parameterized-workflow'], createTestOptions({
+  test('workflow variables lifecycle: create with vars → verify stored', async () => {
+    // 1. Create with multiple variables
+    const createResult = await createSubCmd.handler(['parameterized-workflow'], createTestOptions({
       title: 'Variable Test',
       var: ['env=staging', 'version=2.0.0', 'region=us-west-2'],
     }));
-    expect(pourResult.exitCode).toBe(ExitCode.SUCCESS);
-    const workflow = pourResult.data as Workflow;
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const workflow = createResult.data as Workflow;
 
     // 2. Verify variables are stored
     expect(workflow.variables).toBeDefined();
@@ -590,11 +590,11 @@ describe('workflow lifecycle scenarios', () => {
     expect(retrievedWorkflow.variables.env).toBe('staging');
   });
 
-  test('multiple workflows lifecycle: pour multiple → list → filter', async () => {
+  test('multiple workflows lifecycle: create multiple → list → filter', async () => {
     // 1. Create multiple workflows with different properties
-    await pourSubCmd.handler(['wf-a'], createTestOptions({ title: 'Workflow A' }));
-    await pourSubCmd.handler(['wf-b'], createTestOptions({ title: 'Workflow B', ephemeral: true }));
-    await pourSubCmd.handler(['wf-c'], createTestOptions({ title: 'Workflow C' }));
+    await createSubCmd.handler(['wf-a'], createTestOptions({ title: 'Workflow A' }));
+    await createSubCmd.handler(['wf-b'], createTestOptions({ title: 'Workflow B', ephemeral: true }));
+    await createSubCmd.handler(['wf-c'], createTestOptions({ title: 'Workflow C' }));
 
     // 2. List all workflows
     let listResult = await listSubCmd.handler([], createTestOptions());
@@ -622,14 +622,14 @@ describe('workflow lifecycle scenarios', () => {
 
   test('error handling: operations on non-existent workflow', async () => {
     // Create a workflow first so the database exists
-    await pourSubCmd.handler(['setup-workflow'], createTestOptions({ title: 'Setup' }));
+    await createSubCmd.handler(['setup-workflow'], createTestOptions({ title: 'Setup' }));
     const fakeId = 'el-nonexistent';
 
     // Show non-existent workflow
     const showResult = await showSubCmd.handler([fakeId], createTestOptions());
     expect(showResult.exitCode).toBe(ExitCode.NOT_FOUND);
 
-    // Tasks/progress/burn/squash for non-existent workflow return GENERAL_ERROR
+    // Tasks/progress/delete/promote for non-existent workflow return GENERAL_ERROR
     // because they catch errors and return generic failure (could be improved)
     const tasksResult = await tasksSubCmd.handler([fakeId], createTestOptions());
     expect(tasksResult.exitCode).toBe(ExitCode.GENERAL_ERROR);
@@ -637,20 +637,20 @@ describe('workflow lifecycle scenarios', () => {
     const progressResult = await progressSubCmd.handler([fakeId], createTestOptions());
     expect(progressResult.exitCode).toBe(ExitCode.GENERAL_ERROR);
 
-    const burnResult = await burnSubCmd.handler([fakeId], createTestOptions());
-    expect(burnResult.exitCode).toBe(ExitCode.NOT_FOUND);
+    const deleteResult = await deleteSubCmd.handler([fakeId], createTestOptions());
+    expect(deleteResult.exitCode).toBe(ExitCode.NOT_FOUND);
 
-    const squashResult = await squashSubCmd.handler([fakeId], createTestOptions());
-    expect(squashResult.exitCode).toBe(ExitCode.NOT_FOUND);
+    const promoteResult = await promoteSubCmd.handler([fakeId], createTestOptions());
+    expect(promoteResult.exitCode).toBe(ExitCode.NOT_FOUND);
   });
 
   test('workflow status transitions via API', async () => {
     // 1. Create workflow (starts in PENDING)
-    const pourResult = await pourSubCmd.handler(['status-test'], createTestOptions({
+    const createResult = await createSubCmd.handler(['status-test'], createTestOptions({
       title: 'Status Transition Test',
     }));
-    expect(pourResult.exitCode).toBe(ExitCode.SUCCESS);
-    const workflow = pourResult.data as Workflow;
+    expect(createResult.exitCode).toBe(ExitCode.SUCCESS);
+    const workflow = createResult.data as Workflow;
     expect(workflow.status).toBe(WorkflowStatus.PENDING);
 
     // 2. Manually update status via API
@@ -679,12 +679,12 @@ describe('workflow lifecycle scenarios', () => {
 // ============================================================================
 
 describe('workflow garbage collection scenarios', () => {
-  const pourSubCmd = workflowCommand.subcommands!['pour'];
+  const createSubCmd = workflowCommand.subcommands!['create'];
   const gcSubCmd = workflowCommand.subcommands!['gc'];
 
   test('garbage collection respects age threshold', async () => {
     // Create an ephemeral workflow
-    await pourSubCmd.handler(['gc-test'], createTestOptions({
+    await createSubCmd.handler(['gc-test'], createTestOptions({
       ephemeral: true,
       title: 'GC Test Workflow',
     }));
@@ -697,7 +697,7 @@ describe('workflow garbage collection scenarios', () => {
 
   test('garbage collection dry-run mode', async () => {
     // Create an ephemeral workflow
-    await pourSubCmd.handler(['dry-run-test'], createTestOptions({
+    await createSubCmd.handler(['dry-run-test'], createTestOptions({
       ephemeral: true,
       title: 'Dry Run Test',
     }));
@@ -710,10 +710,10 @@ describe('workflow garbage collection scenarios', () => {
 
   test('durable workflows are not affected by GC', async () => {
     // Create a durable workflow
-    const pourResult = await pourSubCmd.handler(['durable-gc-test'], createTestOptions({
+    const createResult = await createSubCmd.handler(['durable-gc-test'], createTestOptions({
       title: 'Durable Workflow',
     }));
-    const workflow = pourResult.data as Workflow;
+    const workflow = createResult.data as Workflow;
     expect(workflow.ephemeral).toBe(false);
 
     // Run GC

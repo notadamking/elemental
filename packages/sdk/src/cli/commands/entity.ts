@@ -6,13 +6,9 @@
  * - entity list: List all registered entities
  */
 
-import { existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getOutputMode } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import { createEntity, EntityTypeValue, type Entity, type CreateEntityInput } from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
@@ -20,54 +16,7 @@ import { getFormatter } from '../formatter.js';
 import { ValidationError, ConflictError } from '@elemental/core';
 import { getValue, loadConfig } from '../../config/index.js';
 import { isValidPublicKey } from '../../systems/identity.js';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
-
-// ============================================================================
-// Database Helper
-// ============================================================================
-
-/**
- * Resolves database path from options or default location
- */
-function resolveDatabasePath(options: GlobalOptions): string | null {
-  if (options.db) {
-    return options.db;
-  }
-
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    return join(elementalDir, DEFAULT_DB_NAME);
-  }
-
-  return null;
-}
-
-/**
- * Creates API instance with database connection
- */
-async function createAPI(options: GlobalOptions): Promise<ElementalAPI | null> {
-  const dbPath = resolveDatabasePath(options);
-  if (!dbPath) {
-    return null;
-  }
-
-  // Ensure directory exists
-  const dir = dirname(dbPath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-
-  const backend = createStorage({ path: dbPath, create: true });
-  initializeSchema(backend);
-  return createElementalAPI(backend);
-}
+import { createAPI as createSharedAPI } from '../db.js';
 
 /**
  * Get the current actor from options or config
@@ -111,12 +60,9 @@ async function entityRegisterHandler(
   }
 
   try {
-    const api = await createAPI(options);
-    if (!api) {
-      return failure(
-        'No workspace found. Run "el init" to initialize a workspace.',
-        ExitCode.NOT_FOUND
-      );
+    const { api, error: dbError } = createSharedAPI(options, true);
+    if (dbError) {
+      return failure(dbError, ExitCode.NOT_FOUND);
     }
 
     const actor = getActor(options);
@@ -206,12 +152,9 @@ async function entityListHandler(
   options: ListOptions
 ): Promise<CommandResult> {
   try {
-    const api = await createAPI(options);
-    if (!api) {
-      return failure(
-        'No workspace found. Run "el init" to initialize a workspace.',
-        ExitCode.NOT_FOUND
-      );
+    const { api, error: dbError } = createSharedAPI(options, true);
+    if (dbError) {
+      return failure(dbError, ExitCode.NOT_FOUND);
     }
 
     // Build filter
@@ -337,12 +280,9 @@ async function setManagerHandler(
   const [entityArg, managerArg] = args;
 
   try {
-    const api = await createAPI(options);
-    if (!api) {
-      return failure(
-        'No workspace found. Run "el init" to initialize a workspace.',
-        ExitCode.NOT_FOUND
-      );
+    const { api, error: dbError } = createSharedAPI(options, true);
+    if (dbError) {
+      return failure(dbError, ExitCode.NOT_FOUND);
     }
 
     // Resolve entity
@@ -433,12 +373,9 @@ async function clearManagerHandler(
   const [entityArg] = args;
 
   try {
-    const api = await createAPI(options);
-    if (!api) {
-      return failure(
-        'No workspace found. Run "el init" to initialize a workspace.',
-        ExitCode.NOT_FOUND
-      );
+    const { api, error: dbError } = createSharedAPI(options, true);
+    if (dbError) {
+      return failure(dbError, ExitCode.NOT_FOUND);
     }
 
     // Resolve entity
@@ -508,12 +445,9 @@ async function reportsHandler(
   const [managerArg] = args;
 
   try {
-    const api = await createAPI(options);
-    if (!api) {
-      return failure(
-        'No workspace found. Run "el init" to initialize a workspace.',
-        ExitCode.NOT_FOUND
-      );
+    const { api, error: dbError } = createSharedAPI(options, true);
+    if (dbError) {
+      return failure(dbError, ExitCode.NOT_FOUND);
     }
 
     // Resolve manager
@@ -592,12 +526,9 @@ async function chainHandler(
   const [entityArg] = args;
 
   try {
-    const api = await createAPI(options);
-    if (!api) {
-      return failure(
-        'No workspace found. Run "el init" to initialize a workspace.',
-        ExitCode.NOT_FOUND
-      );
+    const { api, error: dbError } = createSharedAPI(options, true);
+    if (dbError) {
+      return failure(dbError, ExitCode.NOT_FOUND);
     }
 
     // Resolve entity
@@ -723,7 +654,9 @@ Examples:
   el entity list --type human
   el entity set-manager alice bob
   el entity reports bob
-  el entity chain alice`,
+  el entity chain alice
+
+Note: Use 'el show <id>', 'el update <id>', 'el delete <id>' for any element.`,
   handler: async (args: string[], options: GlobalOptions): Promise<CommandResult> => {
     // Default to list if no subcommand
     return entityListHandler(args, options as ListOptions);
@@ -735,5 +668,8 @@ Examples:
     'clear-manager': clearManagerCommand,
     reports: reportsCommand,
     chain: chainCommand,
+    // Aliases (hidden from --help via dedup in getCommandHelp)
+    ls: entityListCommand,
+    create: entityRegisterCommand,
   },
 };

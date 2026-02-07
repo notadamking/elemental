@@ -300,14 +300,14 @@ export function useDeleteWorkflow() {
 }
 
 /**
- * Hook to burn (delete) an ephemeral workflow and all its tasks
+ * Hook to delete an ephemeral workflow and all its tasks
  */
-export function useBurnWorkflow() {
+export function useDeleteEphemeralWorkflow() {
   const queryClient = useQueryClient();
 
   return useMutation<{ success: boolean }, Error, { workflowId: string; force?: boolean }>({
     mutationFn: async ({ workflowId, force = false }) => {
-      const url = force ? `/workflows/${workflowId}/burn?force=true` : `/workflows/${workflowId}/burn`;
+      const url = force ? `/workflows/${workflowId}?force=true` : `/workflows/${workflowId}`;
       return fetchApi(url, {
         method: 'DELETE',
       });
@@ -319,14 +319,14 @@ export function useBurnWorkflow() {
 }
 
 /**
- * Hook to squash an ephemeral workflow (make it durable)
+ * Hook to promote an ephemeral workflow (make it durable)
  */
-export function useSquashWorkflow() {
+export function usePromoteWorkflow() {
   const queryClient = useQueryClient();
 
   return useMutation<WorkflowResponse, Error, { workflowId: string }>({
     mutationFn: async ({ workflowId }) => {
-      return fetchApi<WorkflowResponse>(`/workflows/${workflowId}/squash`, {
+      return fetchApi<WorkflowResponse>(`/workflows/${workflowId}/promote`, {
         method: 'POST',
       });
     },
@@ -472,7 +472,7 @@ export function useDeletePlaybook() {
   });
 }
 
-interface PourPlaybookInput {
+interface CreateFromPlaybookInput {
   playbookId: string;
   title?: string;
   variables?: Record<string, unknown>;
@@ -480,16 +480,16 @@ interface PourPlaybookInput {
 }
 
 /**
- * Hook to pour a playbook (instantiate as a workflow)
+ * Hook to create a workflow from a playbook template
  */
-export function usePourPlaybook() {
+export function useCreateFromPlaybook() {
   const queryClient = useQueryClient();
 
-  return useMutation<WorkflowResponse, Error, PourPlaybookInput>({
+  return useMutation<WorkflowResponse, Error, CreateFromPlaybookInput>({
     mutationFn: async ({ playbookId, ...input }) => {
-      return fetchApi<WorkflowResponse>(`/playbooks/${playbookId}/pour`, {
+      return fetchApi<WorkflowResponse>('/workflows', {
         method: 'POST',
-        body: JSON.stringify(input),
+        body: JSON.stringify({ playbookId, ...input }),
       });
     },
     onSuccess: () => {

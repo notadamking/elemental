@@ -11,7 +11,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { keyboardManager, getCurrentBinding, SHORTCUTS_CHANGED_EVENT } from '../lib/keyboard';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
-import { PourWorkflowModal } from '@elemental/ui/workflows';
+import { CreateWorkflowModal } from '@elemental/ui/workflows';
 import { CreateEntityModal } from '../components/entity/CreateEntityModal';
 import { CreateTeamModal } from '../components/team/CreateTeamModal';
 import { CreateDocumentModal } from '../components/document/CreateDocumentModal';
@@ -24,8 +24,6 @@ interface GlobalQuickActionsContextValue {
   openCreateBacklogTaskModal: () => void;
   /** Open the create workflow modal */
   openCreateWorkflowModal: () => void;
-  /** @deprecated Use openCreateWorkflowModal instead */
-  openPourWorkflowModal: () => void;
   /** Open the create entity modal */
   openCreateEntityModal: () => void;
   /** Open the create team modal */
@@ -40,8 +38,6 @@ interface GlobalQuickActionsContextValue {
   isCreateBacklogTaskModalOpen: boolean;
   /** Whether the create workflow modal is open */
   isCreateWorkflowModalOpen: boolean;
-  /** @deprecated Use isCreateWorkflowModalOpen instead */
-  isPourWorkflowModalOpen: boolean;
   /** Whether the create entity modal is open */
   isCreateEntityModalOpen: boolean;
   /** Whether the create team modal is open */
@@ -288,7 +284,6 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     openCreateTaskModal,
     openCreateBacklogTaskModal,
     openCreateWorkflowModal,
-    openPourWorkflowModal: openCreateWorkflowModal, // deprecated alias
     openCreateEntityModal,
     openCreateTeamModal,
     openCreateDocumentModal,
@@ -296,7 +291,6 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
     isCreateTaskModalOpen,
     isCreateBacklogTaskModalOpen,
     isCreateWorkflowModalOpen,
-    isPourWorkflowModalOpen: isCreateWorkflowModalOpen, // deprecated alias
     isCreateEntityModalOpen,
     isCreateTeamModalOpen,
     isCreateDocumentModalOpen,
@@ -323,7 +317,7 @@ export function GlobalQuickActionsProvider({ children }: GlobalQuickActionsProvi
       />
 
       {/* Global Create Workflow Modal */}
-      <PourWorkflowModal
+      <CreateWorkflowModal
         isOpen={isCreateWorkflowModalOpen}
         onClose={() => setIsCreateWorkflowModalOpen(false)}
         onSuccess={handleWorkflowCreated}

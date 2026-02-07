@@ -4,73 +4,10 @@
  * Displays various statistics about the Elemental workspace.
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import type { ElementalAPI } from '../../api/types.js';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
-
-// ============================================================================
-// Database Helper
-// ============================================================================
-
-/**
- * Resolves database path from options or default location
- */
-function resolveDatabasePath(options: GlobalOptions, requireExists: boolean = true): string | null {
-  if (options.db) {
-    if (requireExists && !existsSync(options.db)) {
-      return null;
-    }
-    return options.db;
-  }
-
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    const dbPath = join(elementalDir, DEFAULT_DB_NAME);
-    if (requireExists && !existsSync(dbPath)) {
-      return null;
-    }
-    return dbPath;
-  }
-
-  return null;
-}
-
-/**
- * Creates an API instance from options
- */
-function createAPI(options: GlobalOptions): { api: ElementalAPI; error?: string } {
-  const dbPath = resolveDatabasePath(options);
-  if (!dbPath) {
-    return {
-      api: null as unknown as ElementalAPI,
-      error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
-    };
-  }
-
-  try {
-    const backend = createStorage({ path: dbPath, create: true });
-    initializeSchema(backend);
-    return { api: createElementalAPI(backend) };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      api: null as unknown as ElementalAPI,
-      error: `Failed to open database: ${message}`,
-    };
-  }
-}
+import { createAPI } from '../db.js';
 
 // ============================================================================
 // Stats Handler

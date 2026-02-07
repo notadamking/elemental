@@ -183,7 +183,7 @@ export function CommandPalette() {
       action: () => navigate({ to: '/workflows' }),
       shortcut: 'G W',
       group: 'Work',
-      keywords: ['automation', 'pour', 'playbook'],
+      keywords: ['automation', 'create', 'playbook'],
     },
     {
       id: 'nav-dependencies',

@@ -8,13 +8,9 @@
  * - playbook create: Create a new playbook
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Command, GlobalOptions, CommandResult, CommandOption } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
 import { getFormatter, getOutputMode } from '../formatter.js';
-import { createStorage, initializeSchema } from '@elemental/storage';
-import { createElementalAPI } from '../../api/elemental-api.js';
 import {
   createPlaybook,
   validatePlaybook,
@@ -29,68 +25,11 @@ import {
   VariableType,
   type PlaybookLoader,
 } from '@elemental/core';
-import { validatePour } from '@elemental/core';
+import { validateCreateWorkflow } from '@elemental/core';
 import type { Element, ElementId, EntityId } from '@elemental/core';
 import type { ElementalAPI } from '../../api/types.js';
-import { OPERATOR_ENTITY_ID } from './init.js';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
-const DEFAULT_ACTOR = OPERATOR_ENTITY_ID;
-
-// ============================================================================
-// Database Helper
-// ============================================================================
-
-function resolveDatabasePath(options: GlobalOptions, requireExists: boolean = true): string | null {
-  if (options.db) {
-    if (requireExists && !existsSync(options.db)) {
-      return null;
-    }
-    return options.db;
-  }
-
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    const dbPath = join(elementalDir, DEFAULT_DB_NAME);
-    if (requireExists && !existsSync(dbPath)) {
-      return null;
-    }
-    return dbPath;
-  }
-
-  return null;
-}
-
-function resolveActor(options: GlobalOptions): EntityId {
-  return (options.actor ?? DEFAULT_ACTOR) as EntityId;
-}
-
-function createAPI(options: GlobalOptions, createDb: boolean = false): { api: ElementalAPI; error?: string } {
-  const dbPath = resolveDatabasePath(options, !createDb);
-  if (!dbPath) {
-    return {
-      api: null as unknown as ElementalAPI,
-      error: 'No database found. Run "el init" to initialize a workspace, or specify --db path',
-    };
-  }
-
-  try {
-    const backend = createStorage({ path: dbPath, create: true });
-    initializeSchema(backend);
-    return { api: createElementalAPI(backend) };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      api: null as unknown as ElementalAPI,
-      error: `Failed to open database: ${message}`,
-    };
-  }
-}
+import { suggestCommands } from '../suggest.js';
+import { resolveActor, createAPI } from '../db.js';
 
 // ============================================================================
 // Playbook List Command
@@ -332,20 +271,20 @@ Examples:
 
 interface PlaybookValidateOptions {
   var?: string | string[];
-  pour?: boolean;
+  create?: boolean;
 }
 
 const playbookValidateOptions: CommandOption[] = [
   {
     name: 'var',
-    description: 'Set variable for pour-time validation (name=value, can be repeated)',
+    description: 'Set variable for create-time validation (name=value, can be repeated)',
     hasValue: true,
     array: true,
   },
   {
-    name: 'pour',
-    short: 'p',
-    description: 'Perform pour-time validation (validates variables can be resolved)',
+    name: 'create',
+    short: 'c',
+    description: 'Perform create-time validation (validates variables can be resolved)',
     hasValue: false,
   },
 ];
@@ -392,7 +331,7 @@ async function playbookValidateHandler(
   const [nameOrId] = args;
 
   if (!nameOrId) {
-    return failure('Usage: el playbook validate <name|id> [--var name=value] [--pour]', ExitCode.INVALID_ARGUMENTS);
+    return failure('Usage: el playbook validate <name|id> [--var name=value] [--create]', ExitCode.INVALID_ARGUMENTS);
   }
 
   const { api, error } = createAPI(options);
@@ -492,7 +431,7 @@ async function playbookValidateHandler(
       }
     }
 
-    // Check for circular inheritance (always, not just pour-time)
+    // Check for circular inheritance (always, not just create-time)
     if (playbook.extends && playbook.extends.length > 0) {
       const allPlaybooks = await api.list<Playbook>({ type: 'playbook' });
       const playbookLoader: PlaybookLoader = (name: string) => {
@@ -507,11 +446,11 @@ async function playbookValidateHandler(
       }
     }
 
-    // Pour-time validation - run if --pour flag is set or if --var is provided
-    const shouldDoPourValidation = options.pour || options.var;
-    let pourResult: Awaited<ReturnType<typeof validatePour>> | undefined;
+    // Create-time validation - run if --create flag is set or if --var is provided
+    const shouldDoCreateValidation = options.create || options.var;
+    let createValidationResult: Awaited<ReturnType<typeof validateCreateWorkflow>> | undefined;
 
-    if (shouldDoPourValidation) {
+    if (shouldDoCreateValidation) {
       // Parse provided variables
       let providedVars: Record<string, unknown> = {};
       try {
@@ -527,11 +466,11 @@ async function playbookValidateHandler(
         return allPlaybooks.find((p) => p.name.toLowerCase() === name.toLowerCase());
       };
 
-      // Validate pour
-      pourResult = await validatePour(playbook, providedVars, playbookLoader);
+      // Validate create-time variables
+      createValidationResult = await validateCreateWorkflow(playbook, providedVars, playbookLoader);
 
-      if (!pourResult.valid) {
-        issues.push(`Pour-time: ${pourResult.error}`);
+      if (!createValidationResult.valid) {
+        issues.push(`Create-time: ${createValidationResult.error}`);
       }
     }
 
@@ -544,17 +483,17 @@ async function playbookValidateHandler(
       playbook: { id: playbook.id, name: playbook.name },
     };
 
-    // Add pour-time validation details if performed
-    if (shouldDoPourValidation && pourResult) {
+    // Add create-time validation details if performed
+    if (shouldDoCreateValidation && createValidationResult) {
       jsonResult.pourValidation = {
         performed: true,
-        valid: pourResult.valid,
-        ...(pourResult.valid && {
-          resolvedVariables: pourResult.resolvedVariables,
-          includedSteps: pourResult.includedSteps?.map((s) => s.id),
-          skippedSteps: pourResult.skippedSteps,
+        valid: createValidationResult.valid,
+        ...(createValidationResult.valid && {
+          resolvedVariables: createValidationResult.resolvedVariables,
+          includedSteps: createValidationResult.includedSteps?.map((s) => s.id),
+          skippedSteps: createValidationResult.skippedSteps,
         }),
-        ...(pourResult.error && { error: pourResult.error }),
+        ...(createValidationResult.error && { error: createValidationResult.error }),
       };
     }
 
@@ -572,15 +511,15 @@ async function playbookValidateHandler(
     if (issues.length === 0) {
       output = `Playbook '${playbook.name}' is valid`;
 
-      // Add pour-time details if validation was performed
-      if (shouldDoPourValidation && pourResult?.valid) {
-        output += '\n\n--- Pour-time Validation ---';
+      // Add create-time details if validation was performed
+      if (shouldDoCreateValidation && createValidationResult?.valid) {
+        output += '\n\n--- Create-time Validation ---';
         output += '\nVariables resolved successfully';
-        if (pourResult.includedSteps && pourResult.includedSteps.length > 0) {
-          output += `\nIncluded steps: ${pourResult.includedSteps.map((s) => s.id).join(', ')}`;
+        if (createValidationResult.includedSteps && createValidationResult.includedSteps.length > 0) {
+          output += `\nIncluded steps: ${createValidationResult.includedSteps.map((s) => s.id).join(', ')}`;
         }
-        if (pourResult.skippedSteps && pourResult.skippedSteps.length > 0) {
-          output += `\nSkipped steps: ${pourResult.skippedSteps.join(', ')}`;
+        if (createValidationResult.skippedSteps && createValidationResult.skippedSteps.length > 0) {
+          output += `\nSkipped steps: ${createValidationResult.skippedSteps.join(', ')}`;
         }
       }
     } else {
@@ -597,9 +536,9 @@ async function playbookValidateHandler(
 
 const playbookValidateCommand: Command = {
   name: 'validate',
-  description: 'Validate playbook structure and pour-time variables',
-  usage: 'el playbook validate <name|id> [--var name=value] [--pour]',
-  help: `Validate a playbook's structure and optionally test pour-time variable resolution.
+  description: 'Validate playbook structure and create-time variables',
+  usage: 'el playbook validate <name|id> [--var name=value] [--create]',
+  help: `Validate a playbook's structure and optionally test create-time variable resolution.
 
 Structure Checks:
 - Required fields are present
@@ -608,7 +547,7 @@ Structure Checks:
 - Variables used in templates are defined
 - No circular dependencies
 
-Pour-time Checks (with --pour or --var):
+Create-time Checks (with --create or --var):
 - All required variables are provided
 - Variable values match their declared types
 - Enum values are within allowed list
@@ -619,12 +558,12 @@ Arguments:
   name|id    Playbook name or identifier
 
 Options:
-      --var <name=value>  Set variable for pour-time validation (can be repeated)
-  -p, --pour              Perform pour-time validation
+      --var <name=value>  Set variable for create-time validation (can be repeated)
+  -c, --create            Perform create-time validation
 
 Examples:
   el playbook validate deploy
-  el playbook validate deploy --pour
+  el playbook validate deploy --create
   el playbook validate deploy --var env=production --var debug=true
   el playbook validate el-abc123 --var version=1.0.0`,
   options: playbookValidateOptions,
@@ -901,7 +840,7 @@ export const playbookCommand: Command = {
   help: `Manage playbooks - templates for creating workflows.
 
 Playbooks define reusable sequences of tasks with variables, conditions,
-and dependencies. They can be instantiated as workflows using 'el workflow pour'.
+and dependencies. They can be instantiated as workflows using 'el workflow create'.
 
 Subcommands:
   list       List playbooks
@@ -919,15 +858,26 @@ Examples:
     show: playbookShowCommand,
     validate: playbookValidateCommand,
     create: playbookCreateCommand,
+    // Aliases (hidden from --help via dedup in getCommandHelp)
+    new: playbookCreateCommand,
+    add: playbookCreateCommand,
+    ls: playbookListCommand,
+    get: playbookShowCommand,
+    view: playbookShowCommand,
   },
   handler: async (args, options): Promise<CommandResult> => {
     // Default to list if no subcommand
     if (args.length === 0) {
       return playbookListHandler(args, options);
     }
-    return failure(
-      `Unknown subcommand: ${args[0]}. Use 'el playbook --help' for available subcommands.`,
-      ExitCode.INVALID_ARGUMENTS
-    );
+    // Show "did you mean?" for unknown subcommands
+    const subNames = Object.keys(playbookCommand.subcommands!);
+    const suggestions = suggestCommands(args[0], subNames);
+    let msg = `Unknown subcommand: ${args[0]}`;
+    if (suggestions.length > 0) {
+      msg += `\n\nDid you mean?\n${suggestions.map(s => `  ${s}`).join('\n')}`;
+    }
+    msg += '\n\nRun "el playbook --help" to see available subcommands.';
+    return failure(msg, ExitCode.INVALID_ARGUMENTS);
   },
 };

@@ -93,7 +93,7 @@ You are a **Merge Steward**. You review and merge completed work into the main b
 
 ```bash
 # Find PRs awaiting review
-el task list --status pr_pending
+el task list --status review
 
 # Review PR
 gh pr view <pr-number>
@@ -108,7 +108,7 @@ el task sync <task-id>
 
 # Approve and merge
 gh pr merge <pr-number> --merge
-el worktree remove <worktree-path>
+git worktree remove <worktree-path>
 el task merge <task-id>
 
 # Request changes — reject and reopen for another worker

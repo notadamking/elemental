@@ -20,41 +20,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   MIGRATIONS,
 } from '@elemental/storage';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const ELEMENTAL_DIR = '.elemental';
-const DEFAULT_DB_NAME = 'elemental.db';
-
-// ============================================================================
-// Database Helper
-// ============================================================================
-
-/**
- * Resolves database path from options or default location
- */
-function resolveDatabasePath(options: GlobalOptions, requireExists: boolean = true): string | null {
-  if (options.db) {
-    if (requireExists && !existsSync(options.db)) {
-      return null;
-    }
-    return options.db;
-  }
-
-  // Look for .elemental directory
-  const elementalDir = join(process.cwd(), ELEMENTAL_DIR);
-  if (existsSync(elementalDir)) {
-    const dbPath = join(elementalDir, DEFAULT_DB_NAME);
-    if (requireExists && !existsSync(dbPath)) {
-      return null;
-    }
-    return dbPath;
-  }
-
-  return null;
-}
+import { resolveDatabasePath, ELEMENTAL_DIR, DEFAULT_DB_NAME } from '../db.js';
 
 // ============================================================================
 // Doctor Command

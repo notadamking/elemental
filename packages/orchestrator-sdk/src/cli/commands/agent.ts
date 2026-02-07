@@ -1026,6 +1026,11 @@ Examples:
     start: agentStartCommand,
     stop: agentStopCommand,
     stream: agentStreamCommand,
+    // Aliases (hidden from --help via dedup in getCommandHelp)
+    create: agentRegisterCommand,
+    ls: agentListCommand,
+    get: agentShowCommand,
+    view: agentShowCommand,
   },
   handler: agentListCommand.handler, // Default to list
   options: [],

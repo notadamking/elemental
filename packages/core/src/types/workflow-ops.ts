@@ -2,7 +2,7 @@
  * Workflow Operations - Ephemeral support and task-workflow linking
  *
  * Operations for managing workflows and their associated tasks:
- * - Burn: Delete a workflow and all its child tasks
+ * - Delete: Delete a workflow and all its child tasks
  * - Garbage Collection: Clean up old ephemeral workflows
  * - Ephemeral filtering: Identify workflows/tasks to exclude from export
  */
@@ -19,10 +19,10 @@ import { DependencyType } from './dependency.js';
 // ============================================================================
 
 /**
- * Result of a burn operation
+ * Result of a delete operation
  */
-export interface BurnWorkflowResult {
-  /** ID of the workflow that was burned */
+export interface DeleteWorkflowResult {
+  /** ID of the workflow that was deleted */
   workflowId: ElementId;
   /** Number of tasks that were deleted */
   tasksDeleted: number;
@@ -288,37 +288,37 @@ export function prepareGarbageCollection(
 }
 
 // ============================================================================
-// Burn Operation Helpers
+// Delete Operation Helpers
 // ============================================================================
 
 /**
- * Validates that a workflow can be burned.
+ * Validates that a workflow can be deleted.
  *
  * @param workflow - The workflow to validate
- * @returns Whether the workflow can be burned
+ * @returns Whether the workflow can be deleted
  */
-export function canBurnWorkflow(workflow: Workflow): {
-  canBurn: boolean;
+export function canDeleteWorkflow(workflow: Workflow): {
+  canDelete: boolean;
   reason?: string;
 } {
-  // Any workflow can be burned, but we may want to warn about non-ephemeral
+  // Any workflow can be deleted, but we may want to warn about non-ephemeral
   return {
-    canBurn: true,
+    canDelete: true,
     reason: workflow.ephemeral
       ? undefined
-      : 'Warning: Burning a durable workflow will permanently delete it and its tasks',
+      : 'Warning: Deleting a durable workflow will permanently delete it and its tasks',
   };
 }
 
 /**
- * Prepares data for burning a workflow.
+ * Prepares data for deleting a workflow.
  * Returns all the elements that need to be deleted.
  *
- * @param workflow - The workflow to burn
+ * @param workflow - The workflow to delete
  * @param dependencies - All dependencies
- * @returns Prepared burn data
+ * @returns Prepared delete data
  */
-export function prepareBurnWorkflow(
+export function prepareDeleteWorkflow(
   workflow: Workflow,
   dependencies: Dependency[]
 ): {

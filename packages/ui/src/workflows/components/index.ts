@@ -14,6 +14,6 @@ export { WorkflowTaskList } from './WorkflowTaskList';
 export { WorkflowDetailPanel } from './WorkflowDetailPanel';
 export { PlaybookCard } from './PlaybookCard';
 export { WorkflowCard } from './WorkflowCard';
-export { PourWorkflowModal } from './PourWorkflowModal';
+export { CreateWorkflowModal } from './CreateWorkflowModal';
 export { WorkflowEditorModal } from './WorkflowEditorModal';
 export { WorkflowProgressDashboard } from './WorkflowProgressDashboard';

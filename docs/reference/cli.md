@@ -22,7 +22,7 @@ bun packages/sdk/src/bin/el.ts
 | `--quiet, -q`       | Minimal output         |
 | `--verbose, -v`     | Verbose output         |
 | `--actor <name>`    | Specify acting entity  |
-| `--from, -f <name>` | Alias for `--actor`    |
+| `--from <name>`     | Alias for `--actor`    |
 | `--db <path>`       | Override database path |
 
 ## Basic Commands
@@ -277,23 +277,23 @@ el plan activate <plan-id>
 
 ## Workflow Commands
 
-| Command                       | Description               |
-| ----------------------------- | ------------------------- |
-| `el workflow pour <playbook>` | Instantiate from playbook |
-| `el workflow list`            | List workflows            |
-| `el workflow show <id>`       | Show details              |
-| `el workflow tasks <id>`      | List tasks                |
-| `el workflow progress <id>`   | Show progress             |
-| `el workflow burn <id>`       | Delete ephemeral          |
-| `el workflow squash <id>`     | Promote to durable        |
-| `el workflow gc`              | Garbage collect           |
+| Command                         | Description               |
+| ------------------------------- | ------------------------- |
+| `el workflow create <playbook>` | Instantiate from playbook |
+| `el workflow list`              | List workflows            |
+| `el workflow show <id>`         | Show details              |
+| `el workflow tasks <id>`        | List tasks                |
+| `el workflow progress <id>`     | Show progress             |
+| `el workflow delete <id>`       | Delete ephemeral          |
+| `el workflow promote <id>`      | Promote to durable        |
+| `el workflow gc`                | Garbage collect           |
 
 ```bash
 # Instantiate workflow
-el workflow pour my-playbook --var name=value
+el workflow create my-playbook --var name=value
 
 # Garbage collect (default 7 days)
-el workflow gc --days 14
+el workflow gc --age 14
 ```
 
 ## Inbox Commands

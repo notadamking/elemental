@@ -34,7 +34,7 @@ export function DashboardPage() {
   const health = useHealth();
 
   // Use global quick actions for C T and C W shortcuts
-  const { openCreateTaskModal, openPourWorkflowModal } = useGlobalQuickActions();
+  const { openCreateTaskModal, openCreateWorkflowModal } = useGlobalQuickActions();
 
   return (
     <div data-testid="dashboard-page">
@@ -51,7 +51,7 @@ export function DashboardPage() {
       {/* Quick Actions */}
       <QuickActions
         onCreateTask={openCreateTaskModal}
-        onPourWorkflow={openPourWorkflowModal}
+        onCreateWorkflow={openCreateWorkflowModal}
       />
 
       {/* Dashboard Charts */}

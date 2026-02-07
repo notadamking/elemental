@@ -22,7 +22,7 @@ import {
   DependencyType,
   createPlaybook,
   VariableType,
-  pourWorkflow,
+  createWorkflowFromPlaybook,
   computeWorkflowStatus,
 } from '@elemental/core';
 
@@ -541,10 +541,10 @@ describe('Workflow Query Integration', () => {
   });
 
   // ==========================================================================
-  // Full Pour Flow Integration Tests
+  // Full Create Flow Integration Tests
   // ==========================================================================
 
-  describe('Full Pour Flow Integration', () => {
+  describe('Full Create Flow Integration', () => {
     /**
      * Helper to create a test playbook
      */
@@ -562,21 +562,21 @@ describe('Workflow Query Integration', () => {
     }
 
     /**
-     * Helper to persist pour result to database
+     * Helper to persist create result to database
      */
-    async function persistPourResult(
-      pourResult: Awaited<ReturnType<typeof pourWorkflow>>
+    async function persistCreateResult(
+      createResult: Awaited<ReturnType<typeof createWorkflowFromPlaybook>>
     ): Promise<void> {
       // Create workflow
-      await api.create(toCreateInput(pourResult.workflow));
+      await api.create(toCreateInput(createResult.workflow));
 
       // Create tasks
-      for (const { task } of pourResult.tasks) {
+      for (const { task } of createResult.tasks) {
         await api.create(toCreateInput(task));
       }
 
       // Create parent-child dependencies
-      for (const dep of pourResult.parentChildDependencies) {
+      for (const dep of createResult.parentChildDependencies) {
         await api.addDependency({
           blockedId: dep.blockedId,
           blockerId: dep.blockerId,
@@ -584,9 +584,9 @@ describe('Workflow Query Integration', () => {
         });
       }
 
-      // Create blocks dependencies - pourWorkflow uses correct semantics:
+      // Create blocks dependencies - createWorkflowFromPlaybook uses correct semantics:
       // blockerId=blocker, blockedId=blocked (blocked waits for blocker to close)
-      for (const dep of pourResult.blocksDependencies) {
+      for (const dep of createResult.blocksDependencies) {
         await api.addDependency({
           blockerId: dep.blockerId,  // blocker task
           blockedId: dep.blockedId,  // blocked task (waits for blocker)
@@ -595,7 +595,7 @@ describe('Workflow Query Integration', () => {
       }
     }
 
-    it('should pour workflow with steps and persist to database', async () => {
+    it('should create workflow with steps and persist to database', async () => {
       const playbook = await createTestPlaybook({
         title: 'Deployment Pipeline',
         steps: [
@@ -605,28 +605,28 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Verify workflow was created
-      const workflow = await api.get(pourResult.workflow.id);
+      const workflow = await api.get(createResult.workflow.id);
       expect(workflow.type).toBe('workflow');
       expect(workflow.title).toBe('Deployment Pipeline');
 
       // Verify all tasks were created
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(3);
       expect(tasks.map((t) => t.title)).toContain('Setup Environment');
       expect(tasks.map((t) => t.title)).toContain('Build Application');
       expect(tasks.map((t) => t.title)).toContain('Run Tests');
     });
 
-    it('should pour workflow with dependencies and verify blocked/ready tasks', async () => {
+    it('should create workflow with dependencies and verify blocked/ready tasks', async () => {
       const playbook = await createTestPlaybook({
         title: 'Sequential Pipeline',
         steps: [
@@ -637,33 +637,33 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Verify dependency chain
-      expect(pourResult.blocksDependencies).toHaveLength(3);
+      expect(createResult.blocksDependencies).toHaveLength(3);
 
       // Update workflow to COMPLETED so tasks aren't blocked by parent-child dependency
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
 
       // Get ready tasks - only 'setup' should be ready (others blocked by step dependencies)
-      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      const readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       expect(readyTasks).toHaveLength(1);
       expect(readyTasks[0].title).toBe('Setup');
 
       // Get progress
-      const progress = await api.getWorkflowProgress(pourResult.workflow.id);
+      const progress = await api.getWorkflowProgress(createResult.workflow.id);
       expect(progress.totalTasks).toBe(4);
       expect(progress.readyTasks).toBe(1);
       expect(progress.blockedTasks).toBe(3);
     });
 
-    it('should pour workflow with variables and verify substitution in persisted data', async () => {
+    it('should create workflow with variables and verify substitution in persisted data', async () => {
       const playbook = await createTestPlaybook({
         title: 'Deploy {{environment}}',
         variables: [
@@ -675,27 +675,27 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: { environment: 'production', version: '2.0.0' },
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Verify workflow title has substitution
-      const workflow = await api.get(pourResult.workflow.id);
+      const workflow = await api.get(createResult.workflow.id);
       expect(workflow.title).toBe('Deploy production');
 
       // Verify task title has substitution
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks[0].title).toBe('Deploy 2.0.0 to production');
 
       // Verify variables stored in workflow
       expect((workflow as Workflow).variables).toEqual({ environment: 'production', version: '2.0.0' });
     });
 
-    it('should pour workflow with conditions and verify filtered steps are not persisted', async () => {
+    it('should create workflow with conditions and verify filtered steps are not persisted', async () => {
       const playbook = await createTestPlaybook({
         title: 'Conditional Pipeline',
         variables: [
@@ -710,19 +710,19 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: { runTests: true, runLint: false },
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Verify skipped steps
-      expect(pourResult.skippedSteps).toEqual(['lint']);
+      expect(createResult.skippedSteps).toEqual(['lint']);
 
       // Verify only non-skipped tasks were created
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(3);
       expect(tasks.map((t) => t.title)).toContain('Build');
       expect(tasks.map((t) => t.title)).toContain('Run Tests');
@@ -730,38 +730,38 @@ describe('Workflow Query Integration', () => {
       expect(tasks.map((t) => t.title)).not.toContain('Run Linting');
     });
 
-    it('should pour ephemeral workflow and verify ephemeral filtering', async () => {
+    it('should create ephemeral workflow and verify ephemeral filtering', async () => {
       const playbook = await createTestPlaybook({
         title: 'Ephemeral Test',
         steps: [{ id: 'step1', title: 'Ephemeral Task' }],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
         ephemeral: true,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Verify workflow is ephemeral
-      const workflow = await api.get(pourResult.workflow.id) as Workflow;
+      const workflow = await api.get(createResult.workflow.id) as Workflow;
       expect(workflow.ephemeral).toBe(true);
 
       // Update workflow status to COMPLETED so tasks aren't blocked by parent-child
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
 
       // Ephemeral tasks should not appear in regular ready() query
       const readyTasks = await api.ready();
-      expect(readyTasks.map((t) => t.id)).not.toContain(pourResult.tasks[0].task.id);
+      expect(readyTasks.map((t) => t.id)).not.toContain(createResult.tasks[0].task.id);
 
       // But should appear with includeEphemeral flag
       const allReadyTasks = await api.ready({ includeEphemeral: true });
-      expect(allReadyTasks.map((t) => t.id)).toContain(pourResult.tasks[0].task.id);
+      expect(allReadyTasks.map((t) => t.id)).toContain(createResult.tasks[0].task.id);
     });
 
-    it('should pour workflow and verify hierarchical task IDs', async () => {
+    it('should create workflow and verify hierarchical task IDs', async () => {
       const playbook = await createTestPlaybook({
         title: 'Hierarchical IDs Test',
         steps: [
@@ -771,29 +771,29 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Verify hierarchical IDs
-      const workflowId = pourResult.workflow.id;
-      expect(pourResult.tasks[0].task.id).toBe(`${workflowId}.1`);
-      expect(pourResult.tasks[1].task.id).toBe(`${workflowId}.2`);
-      expect(pourResult.tasks[2].task.id).toBe(`${workflowId}.3`);
+      const workflowId = createResult.workflow.id;
+      expect(createResult.tasks[0].task.id).toBe(`${workflowId}.1`);
+      expect(createResult.tasks[1].task.id).toBe(`${workflowId}.2`);
+      expect(createResult.tasks[2].task.id).toBe(`${workflowId}.3`);
 
       // Verify tasks are queryable by their hierarchical IDs
-      for (const { task } of pourResult.tasks) {
+      for (const { task } of createResult.tasks) {
         const retrieved = await api.get(task.id);
         expect(retrieved).toBeDefined();
         expect(retrieved.id).toBe(task.id);
       }
     });
 
-    it('should pour workflow with task priority and complexity from steps', async () => {
+    it('should create workflow with task priority and complexity from steps', async () => {
       const playbook = await createTestPlaybook({
         title: 'Priority Test',
         steps: [
@@ -803,19 +803,19 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Update workflow status to COMPLETED so tasks aren't blocked by parent-child
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
 
       // Verify priority and complexity were set
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
 
       const criticalTask = tasks.find((t) => t.title === 'Critical Task');
       expect(criticalTask?.priority).toBe(1);
@@ -830,12 +830,12 @@ describe('Workflow Query Integration', () => {
       expect(minimalTask?.complexity).toBe(1);
 
       // Verify priority ordering in ready tasks
-      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      const readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       // Should be sorted by priority (lower number = higher priority)
       expect(readyTasks[0].title).toBe('Critical Task');
     });
 
-    it('should pour workflow and track workflow status through task completion', async () => {
+    it('should create workflow and track workflow status through task completion', async () => {
       const playbook = await createTestPlaybook({
         title: 'Status Tracking Test',
         steps: [
@@ -844,26 +844,26 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Initial status should be pending
-      let workflow = (await api.get(pourResult.workflow.id)) as Workflow;
+      let workflow = (await api.get(createResult.workflow.id)) as Workflow;
       expect(workflow.status).toBe(WorkflowStatus.PENDING);
 
       // Get task IDs
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
 
       // Start first task (in_progress)
       await api.update(tasks[0].id, { status: TaskStatus.IN_PROGRESS });
 
       // Compute workflow status - should be RUNNING
-      const tasksAfterStart = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasksAfterStart = await api.getTasksInWorkflow(createResult.workflow.id);
       let computedStatus = computeWorkflowStatus(workflow, tasksAfterStart);
       expect(computedStatus).toBe(WorkflowStatus.RUNNING);
 
@@ -871,19 +871,19 @@ describe('Workflow Query Integration', () => {
       await api.update(tasks[0].id, { status: TaskStatus.CLOSED });
 
       // Update workflow to running status
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.RUNNING });
-      workflow = (await api.get(pourResult.workflow.id)) as Workflow;
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.RUNNING });
+      workflow = (await api.get(createResult.workflow.id)) as Workflow;
 
       // Close second task
       await api.update(tasks[1].id, { status: TaskStatus.CLOSED });
 
       // Compute workflow status - should now be COMPLETED
-      const tasksAfterComplete = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasksAfterComplete = await api.getTasksInWorkflow(createResult.workflow.id);
       computedStatus = computeWorkflowStatus(workflow, tasksAfterComplete);
       expect(computedStatus).toBe(WorkflowStatus.COMPLETED);
     });
 
-    it('should pour workflow with parallel tasks (diamond dependency pattern)', async () => {
+    it('should create workflow with parallel tasks (diamond dependency pattern)', async () => {
       // Diamond pattern: start -> parallel1, parallel2 -> end
       const playbook = await createTestPlaybook({
         title: 'Diamond Pattern',
@@ -895,55 +895,55 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Verify dependencies (should have 4: start->p1, start->p2, p1->end, p2->end)
-      expect(pourResult.blocksDependencies).toHaveLength(4);
+      expect(createResult.blocksDependencies).toHaveLength(4);
 
       // Update workflow to COMPLETED so tasks aren't blocked by parent-child
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
 
       // Initially only 'start' should be ready
-      let readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      let readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       expect(readyTasks).toHaveLength(1);
       expect(readyTasks[0].title).toBe('Start');
 
       // Close 'start' task
-      const startTask = pourResult.tasks.find((t) => t.stepId === 'start')!;
+      const startTask = createResult.tasks.find((t) => t.stepId === 'start')!;
       await api.update(startTask.task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
 
       // Now both parallel tasks should be ready
-      readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       expect(readyTasks).toHaveLength(2);
       expect(readyTasks.map((t) => t.title)).toContain('Parallel Task 1');
       expect(readyTasks.map((t) => t.title)).toContain('Parallel Task 2');
 
       // Close one parallel task
-      const parallel1 = pourResult.tasks.find((t) => t.stepId === 'parallel1')!;
+      const parallel1 = createResult.tasks.find((t) => t.stepId === 'parallel1')!;
       await api.update(parallel1.task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
 
       // 'end' should still be blocked
-      readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       expect(readyTasks).toHaveLength(1);
       expect(readyTasks[0].title).toBe('Parallel Task 2');
 
       // Close other parallel task
-      const parallel2 = pourResult.tasks.find((t) => t.stepId === 'parallel2')!;
+      const parallel2 = createResult.tasks.find((t) => t.stepId === 'parallel2')!;
       await api.update(parallel2.task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
 
       // Now 'end' should be ready
-      readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       expect(readyTasks).toHaveLength(1);
       expect(readyTasks[0].title).toBe('End');
     });
 
-    it('should pour workflow with assignee from step', async () => {
+    it('should create workflow with assignee from step', async () => {
       const playbook = await createTestPlaybook({
         title: 'Assigned Tasks',
         variables: [
@@ -955,15 +955,15 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: { reviewer: 'user:senior-dev' },
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
 
       const devTask = tasks.find((t) => t.title === 'Development');
       expect(devTask?.assignee).toBe('user:developer');
@@ -972,13 +972,13 @@ describe('Workflow Query Integration', () => {
       expect(reviewTask?.assignee).toBe('user:senior-dev');
     });
 
-    it('should pour workflow with tags and metadata', async () => {
+    it('should create workflow with tags and metadata', async () => {
       const playbook = await createTestPlaybook({
         title: 'Tagged Workflow',
         steps: [{ id: 'step1', title: 'Task' }],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
@@ -986,9 +986,9 @@ describe('Workflow Query Integration', () => {
         metadata: { region: 'us-east-1', team: 'platform' },
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
-      const workflow = (await api.get(pourResult.workflow.id)) as Workflow;
+      const workflow = (await api.get(createResult.workflow.id)) as Workflow;
       expect(workflow.tags).toEqual(['deployment', 'production', 'v2-release']);
       expect(workflow.metadata).toEqual({ region: 'us-east-1', team: 'platform' });
     });
@@ -1004,24 +1004,24 @@ describe('Workflow Query Integration', () => {
         ],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      await persistPourResult(pourResult);
+      await persistCreateResult(createResult);
 
       // Update workflow to COMPLETED so we can modify task statuses freely
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
 
       // Set different statuses: 2 closed, 1 open, 1 in_progress
-      await api.update(pourResult.tasks[0].task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
-      await api.update(pourResult.tasks[1].task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
-      await api.update(pourResult.tasks[2].task.id, { status: TaskStatus.IN_PROGRESS } as Partial<Task>);
+      await api.update(createResult.tasks[0].task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
+      await api.update(createResult.tasks[1].task.id, { status: TaskStatus.CLOSED } as Partial<Task>);
+      await api.update(createResult.tasks[2].task.id, { status: TaskStatus.IN_PROGRESS } as Partial<Task>);
       // Task 4 stays open
 
-      const progress = await api.getWorkflowProgress(pourResult.workflow.id);
+      const progress = await api.getWorkflowProgress(createResult.workflow.id);
       expect(progress.totalTasks).toBe(4);
       expect(progress.completionPercentage).toBe(50); // 2/4
       expect(progress.statusCounts.closed).toBe(2);
@@ -1052,21 +1052,21 @@ describe('Workflow Query Integration', () => {
     }
 
     /**
-     * Helper to persist pour result to database (duplicated for this describe block)
+     * Helper to persist create result to database (duplicated for this describe block)
      */
-    async function persistPourResultWithInheritance(
-      pourResult: Awaited<ReturnType<typeof pourWorkflow>>
+    async function persistCreateResultWithInheritance(
+      createResult: Awaited<ReturnType<typeof createWorkflowFromPlaybook>>
     ): Promise<void> {
       // Create workflow
-      await api.create(toCreateInput(pourResult.workflow));
+      await api.create(toCreateInput(createResult.workflow));
 
       // Create tasks
-      for (const { task } of pourResult.tasks) {
+      for (const { task } of createResult.tasks) {
         await api.create(toCreateInput(task));
       }
 
       // Create parent-child dependencies
-      for (const dep of pourResult.parentChildDependencies) {
+      for (const dep of createResult.parentChildDependencies) {
         await api.addDependency({
           blockedId: dep.blockedId,
           blockerId: dep.blockerId,
@@ -1074,9 +1074,9 @@ describe('Workflow Query Integration', () => {
         });
       }
 
-      // Create blocks dependencies - pourWorkflow uses correct semantics:
+      // Create blocks dependencies - createWorkflowFromPlaybook uses correct semantics:
       // blockerId=blocker, blockedId=blocked (blocked waits for blocker to close)
-      for (const dep of pourResult.blocksDependencies) {
+      for (const dep of createResult.blocksDependencies) {
         await api.addDependency({
           blockerId: dep.blockerId,  // blocker task
           blockedId: dep.blockedId,  // blocked task (waits for blocker)
@@ -1092,7 +1092,7 @@ describe('Workflow Query Integration', () => {
       return (name: string) => playbooks.find(p => p.name.toLowerCase() === name.toLowerCase());
     }
 
-    it('should pour workflow with inherited steps from parent playbook', async () => {
+    it('should create workflow with inherited steps from parent playbook', async () => {
       // Create parent playbook with base steps
       const parentPlaybook = await createTestPlaybookWithInheritance({
         name: 'base_pipeline',
@@ -1108,7 +1108,7 @@ describe('Workflow Query Integration', () => {
 
       // Create child playbook that extends parent and adds more steps
       // Note: dependsOn can only reference steps in the same playbook at creation time
-      // Cross-inheritance dependencies are validated during pour/resolution
+      // Cross-inheritance dependencies are validated during create/resolution
       const childPlaybook = await createTestPlaybookWithInheritance({
         name: 'extended_pipeline',
         title: 'Extended Pipeline for {{environment}}',
@@ -1124,20 +1124,20 @@ describe('Workflow Query Integration', () => {
 
       const loader = createTestLoader([parentPlaybook, childPlaybook]);
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook: childPlaybook,
         variables: { environment: 'production' },
         createdBy: mockEntityId,
         playbookLoader: loader,
       });
 
-      await persistPourResultWithInheritance(pourResult);
+      await persistCreateResultWithInheritance(createResult);
 
       // Verify workflow title was substituted
-      expect(pourResult.workflow.title).toBe('Extended Pipeline for production');
+      expect(createResult.workflow.title).toBe('Extended Pipeline for production');
 
       // Verify all 4 steps were created (2 from parent + 2 from child)
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(4);
       expect(tasks.map(t => t.title)).toContain('Setup Environment');
       expect(tasks.map(t => t.title)).toContain('Build');
@@ -1145,11 +1145,11 @@ describe('Workflow Query Integration', () => {
       expect(tasks.map(t => t.title)).toContain('Deploy to production');
 
       // Verify variables from both playbooks were resolved
-      expect(pourResult.resolvedVariables.environment).toBe('production');
-      expect(pourResult.resolvedVariables.region).toBe('us-east-1');
+      expect(createResult.resolvedVariables.environment).toBe('production');
+      expect(createResult.resolvedVariables.region).toBe('us-east-1');
     });
 
-    it('should pour workflow where child overrides parent variables and steps', async () => {
+    it('should create workflow where child overrides parent variables and steps', async () => {
       // Parent playbook with a step and variable
       const parentPlaybook = await createTestPlaybookWithInheritance({
         name: 'parent_deploy',
@@ -1177,26 +1177,26 @@ describe('Workflow Query Integration', () => {
 
       const loader = createTestLoader([parentPlaybook, childPlaybook]);
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook: childPlaybook,
         variables: {},
         createdBy: mockEntityId,
         playbookLoader: loader,
       });
 
-      await persistPourResultWithInheritance(pourResult);
+      await persistCreateResultWithInheritance(createResult);
 
       // Should only have 1 task (child overrides parent's step with same ID)
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(1);
       expect(tasks[0].title).toBe('Deploy version 2.0.0 with hotfix');
       expect(tasks[0].priority).toBe(1);
 
       // Child's default should be used
-      expect(pourResult.resolvedVariables.version).toBe('2.0.0');
+      expect(createResult.resolvedVariables.version).toBe('2.0.0');
     });
 
-    it('should pour workflow with deep inheritance chain (grandparent → parent → child)', async () => {
+    it('should create workflow with deep inheritance chain (grandparent → parent → child)', async () => {
       const grandparentPlaybook = await createTestPlaybookWithInheritance({
         name: 'grandparent',
         title: 'Grandparent',
@@ -1234,36 +1234,36 @@ describe('Workflow Query Integration', () => {
 
       const loader = createTestLoader([grandparentPlaybook, parentPlaybook, childPlaybook]);
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook: childPlaybook,
         variables: {},
         createdBy: mockEntityId,
         playbookLoader: loader,
       });
 
-      await persistPourResultWithInheritance(pourResult);
+      await persistCreateResultWithInheritance(createResult);
 
       // Verify all 3 steps from the inheritance chain
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(3);
       expect(tasks.map(t => t.title)).toContain('Initialize');
       expect(tasks.map(t => t.title)).toContain('Middle Step');
       expect(tasks.map(t => t.title)).toContain('Final Step');
 
       // Verify all variables from inheritance chain
-      expect(pourResult.resolvedVariables.base_var).toBe('gp_value');
-      expect(pourResult.resolvedVariables.parent_var).toBe(42);
-      expect(pourResult.resolvedVariables.child_var).toBe(true);
+      expect(createResult.resolvedVariables.base_var).toBe('gp_value');
+      expect(createResult.resolvedVariables.parent_var).toBe(42);
+      expect(createResult.resolvedVariables.child_var).toBe(true);
 
       // Update workflow to COMPLETED so tasks aren't blocked by parent-child
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
 
       // All 3 tasks should be ready since there are no inter-step dependencies
-      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      const readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       expect(readyTasks).toHaveLength(3);
     });
 
-    it('should pour workflow with diamond inheritance pattern', async () => {
+    it('should create workflow with diamond inheritance pattern', async () => {
       // Diamond: base → [mixin1, mixin2] → child
       const basePlaybook = await createTestPlaybookWithInheritance({
         name: 'base',
@@ -1311,17 +1311,17 @@ describe('Workflow Query Integration', () => {
 
       const loader = createTestLoader([basePlaybook, mixin1Playbook, mixin2Playbook, childPlaybook]);
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook: childPlaybook,
         variables: {},
         createdBy: mockEntityId,
         playbookLoader: loader,
       });
 
-      await persistPourResultWithInheritance(pourResult);
+      await persistCreateResultWithInheritance(createResult);
 
       // Verify all 4 steps (base once + mixin1 + mixin2 + child)
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(4);
       expect(tasks.map(t => t.title)).toContain('Base Step');
       expect(tasks.map(t => t.title)).toContain('Mixin 1 Step');
@@ -1329,10 +1329,10 @@ describe('Workflow Query Integration', () => {
       expect(tasks.map(t => t.title)).toContain('Child Step');
 
       // mixin2 comes after mixin1, so its override should win
-      expect(pourResult.resolvedVariables.shared).toBe('mixin2');
+      expect(createResult.resolvedVariables.shared).toBe('mixin2');
     });
 
-    it('should pour workflow with inherited conditions that filter steps', async () => {
+    it('should create workflow with inherited conditions that filter steps', async () => {
       const parentPlaybook = await createTestPlaybookWithInheritance({
         name: 'conditional_parent',
         title: 'Conditional Parent',
@@ -1356,27 +1356,27 @@ describe('Workflow Query Integration', () => {
 
       const loader = createTestLoader([parentPlaybook, childPlaybook]);
 
-      // Pour with includeOptional = false (default)
-      const pourResult = await pourWorkflow({
+      // Create with includeOptional = false (default)
+      const createResult = await createWorkflowFromPlaybook({
         playbook: childPlaybook,
         variables: {},
         createdBy: mockEntityId,
         playbookLoader: loader,
       });
 
-      await persistPourResultWithInheritance(pourResult);
+      await persistCreateResultWithInheritance(createResult);
 
       // Should have 2 tasks (always + child_step), optional should be skipped
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(2);
       expect(tasks.map(t => t.title)).toContain('Always Run');
       expect(tasks.map(t => t.title)).toContain('Child Step');
       expect(tasks.map(t => t.title)).not.toContain('Optional Step');
 
-      expect(pourResult.skippedSteps).toContain('optional');
+      expect(createResult.skippedSteps).toContain('optional');
     });
 
-    it('should pour workflow with steps from both parent and child', async () => {
+    it('should create workflow with steps from both parent and child', async () => {
       // Test simpler case: parent and child each have their own steps
       const parentPlaybook = await createTestPlaybookWithInheritance({
         name: 'dep_parent',
@@ -1397,30 +1397,30 @@ describe('Workflow Query Integration', () => {
 
       const loader = createTestLoader([parentPlaybook, childPlaybook]);
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook: childPlaybook,
         variables: {},
         createdBy: mockEntityId,
         playbookLoader: loader,
       });
 
-      await persistPourResultWithInheritance(pourResult);
+      await persistCreateResultWithInheritance(createResult);
 
       // Verify both steps were created
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(2);
       expect(tasks.map(t => t.title)).toContain('Parent Step');
       expect(tasks.map(t => t.title)).toContain('Child Step');
 
       // Update workflow to COMPLETED so tasks aren't blocked by parent-child
-      await api.update(pourResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
+      await api.update(createResult.workflow.id, { status: WorkflowStatus.COMPLETED } as Partial<Workflow>);
 
       // Both steps should be ready (no inter-step dependencies)
-      const readyTasks = await api.getReadyTasksInWorkflow(pourResult.workflow.id);
+      const readyTasks = await api.getReadyTasksInWorkflow(createResult.workflow.id);
       expect(readyTasks).toHaveLength(2);
     });
 
-    it('should pour workflow with inherited assignee variable substitution', async () => {
+    it('should create workflow with inherited assignee variable substitution', async () => {
       const parentPlaybook = await createTestPlaybookWithInheritance({
         name: 'assignee_parent',
         title: 'Assignee Parent',
@@ -1444,16 +1444,16 @@ describe('Workflow Query Integration', () => {
 
       const loader = createTestLoader([parentPlaybook, childPlaybook]);
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook: childPlaybook,
         variables: {},
         createdBy: mockEntityId,
         playbookLoader: loader,
       });
 
-      await persistPourResultWithInheritance(pourResult);
+      await persistCreateResultWithInheritance(createResult);
 
-      const tasks = await api.getTasksInWorkflow(pourResult.workflow.id);
+      const tasks = await api.getTasksInWorkflow(createResult.workflow.id);
       expect(tasks).toHaveLength(1);
       expect(tasks[0].assignee).toBe('user:team-lead');
     });
@@ -1661,7 +1661,7 @@ describe('Workflow Query Integration', () => {
       await expect(api.getOrderedTasksInWorkflow(task.id)).rejects.toThrow('is not a workflow');
     });
 
-    it('should handle poured workflow with sequential dependencies', async () => {
+    it('should handle created workflow with sequential dependencies', async () => {
       const playbook = await createPlaybook({
         name: 'sequential_pipeline',
         title: 'Sequential Pipeline',
@@ -1675,27 +1675,27 @@ describe('Workflow Query Integration', () => {
         variables: [],
       });
 
-      const pourResult = await pourWorkflow({
+      const createResult = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: mockEntityId,
       });
 
-      // Persist the pour result
-      await api.create(toCreateInput(pourResult.workflow));
-      for (const { task } of pourResult.tasks) {
+      // Persist the create result
+      await api.create(toCreateInput(createResult.workflow));
+      for (const { task } of createResult.tasks) {
         await api.create(toCreateInput(task));
       }
-      for (const dep of pourResult.parentChildDependencies) {
+      for (const dep of createResult.parentChildDependencies) {
         await api.addDependency({
           blockedId: dep.blockedId,
           blockerId: dep.blockerId,
           type: dep.type,
         });
       }
-      // Blocks dependencies: pourWorkflow uses correct semantics
+      // Blocks dependencies: createWorkflowFromPlaybook uses correct semantics
       // blockerId=blocker, blockedId=blocked (blocked waits for blocker to close)
-      for (const dep of pourResult.blocksDependencies) {
+      for (const dep of createResult.blocksDependencies) {
         await api.addDependency({
           blockerId: dep.blockerId,  // blocker task
           blockedId: dep.blockedId,  // blocked task (waits for blocker)
@@ -1703,7 +1703,7 @@ describe('Workflow Query Integration', () => {
         });
       }
 
-      const orderedTasks = await api.getOrderedTasksInWorkflow(pourResult.workflow.id);
+      const orderedTasks = await api.getOrderedTasksInWorkflow(createResult.workflow.id);
       expect(orderedTasks).toHaveLength(4);
 
       // Verify the order matches the step sequence

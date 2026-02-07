@@ -604,12 +604,12 @@ export function createWorkflowRoutes(services: Services) {
   });
 
   /**
-   * POST /api/playbooks/:id/pour - Instantiate a playbook as a workflow
+   * POST /api/playbooks/:id/instantiate - Instantiate a playbook as a workflow
    * Creates a new workflow and its associated tasks from the playbook template
    *
-   * TB-O34: Pour Workflow Template
+   * TB-O34: Instantiate Workflow from Playbook
    */
-  app.post('/api/playbooks/:id/pour', async (c) => {
+  app.post('/api/playbooks/:id/instantiate', async (c) => {
     try {
       const playbookId = c.req.param('id') as PlaybookId;
       const body = await c.req.json().catch(() => ({}));
@@ -624,15 +624,15 @@ export function createWorkflowRoutes(services: Services) {
       const systemEntity = await api.lookupEntityByName('system');
       const createdBy = (systemEntity?.id ?? 'system') as EntityId;
 
-      // Use the pourWorkflow function from @elemental/core to create
-      // workflow, tasks, and dependencies
+      // Use pourWorkflow from @elemental/core to instantiate
+      // workflow, tasks, and dependencies from playbook
       const pourResult = await pourWorkflow({
         playbook,
         variables: providedVariables ?? {},
         createdBy,
         title: customTitle,
         ephemeral: ephemeral ?? false,
-        tags: [...playbook.tags, 'poured'],
+        tags: [...playbook.tags, 'instantiated'],
       });
 
       // Save the workflow
@@ -664,7 +664,7 @@ export function createWorkflowRoutes(services: Services) {
       }
 
       console.log(
-        `[workflows] Poured playbook ${playbook.name}: workflow=${savedWorkflow.id}, tasks=${savedTasks.length}, dependencies=${allDependencies.length}, skipped=${pourResult.skippedSteps.length}`
+        `[workflows] Instantiated playbook ${playbook.name}: workflow=${savedWorkflow.id}, tasks=${savedTasks.length}, dependencies=${allDependencies.length}, skipped=${pourResult.skippedSteps.length}`
       );
 
       const response: WorkflowResponse = {
@@ -673,8 +673,8 @@ export function createWorkflowRoutes(services: Services) {
 
       return c.json(response, 201);
     } catch (error) {
-      console.error('[workflows] Error pouring playbook:', error);
-      return c.json({ error: { code: 'POUR_ERROR', message: String(error) } }, 500);
+      console.error('[workflows] Error instantiating playbook:', error);
+      return c.json({ error: { code: 'INSTANTIATE_ERROR', message: String(error) } }, 500);
     }
   });
 

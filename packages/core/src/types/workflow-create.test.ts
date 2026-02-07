@@ -1,7 +1,7 @@
 /**
- * Tests for Workflow Pouring
+ * Tests for Workflow Creation
  *
- * Tests the workflow instantiation ("pouring") functionality including:
+ * Tests the workflow instantiation ("creation from playbook") functionality including:
  * - Auto-completion/failure detection
  * - Playbook loading and inheritance resolution
  * - Variable resolution and condition evaluation
@@ -22,11 +22,11 @@ import {
   shouldAutoFail,
   shouldAutoStart,
   computeWorkflowStatus,
-  pourWorkflow,
-  validatePour,
-  type PourWorkflowInput,
-  type PourOptions,
-} from './workflow-pour.js';
+  createWorkflowFromPlaybook,
+  validateCreateWorkflow,
+  type CreateWorkflowFromPlaybookInput,
+  type CreateWorkflowOptions,
+} from './workflow-create.js';
 
 // ============================================================================
 // Test Fixtures
@@ -309,14 +309,14 @@ describe('computeWorkflowStatus', () => {
 });
 
 // ============================================================================
-// pourWorkflow Tests
+// createWorkflowFromPlaybook Tests
 // ============================================================================
 
-describe('pourWorkflow', () => {
+describe('createWorkflowFromPlaybook', () => {
   describe('validation', () => {
     it('should throw when playbook is missing', async () => {
       await expect(
-        pourWorkflow({
+        createWorkflowFromPlaybook({
           playbook: null as unknown as Playbook,
           variables: {},
           createdBy: TEST_ENTITY,
@@ -327,7 +327,7 @@ describe('pourWorkflow', () => {
     it('should throw when createdBy is missing', async () => {
       const playbook = await createTestPlaybook();
       await expect(
-        pourWorkflow({
+        createWorkflowFromPlaybook({
           playbook,
           variables: {},
           createdBy: '' as EntityId,
@@ -338,7 +338,7 @@ describe('pourWorkflow', () => {
     it('should throw when variables is not an object', async () => {
       const playbook = await createTestPlaybook();
       await expect(
-        pourWorkflow({
+        createWorkflowFromPlaybook({
           playbook,
           variables: 'invalid' as unknown as Record<string, unknown>,
           createdBy: TEST_ENTITY,
@@ -347,13 +347,13 @@ describe('pourWorkflow', () => {
     });
   });
 
-  describe('basic pouring', () => {
+  describe('basic creation', () => {
     it('should create workflow with no steps', async () => {
       const playbook = await createTestPlaybook({
         title: 'Empty Playbook',
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -374,7 +374,7 @@ describe('pourWorkflow', () => {
         title: 'Original Title',
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -387,7 +387,7 @@ describe('pourWorkflow', () => {
     it('should create ephemeral workflow when specified', async () => {
       const playbook = await createTestPlaybook();
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -400,7 +400,7 @@ describe('pourWorkflow', () => {
     it('should apply tags and metadata', async () => {
       const playbook = await createTestPlaybook();
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -423,7 +423,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -443,7 +443,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -461,7 +461,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -476,7 +476,7 @@ describe('pourWorkflow', () => {
         steps: [{ id: 'step1', title: 'Step' }],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -491,7 +491,7 @@ describe('pourWorkflow', () => {
         steps: [{ id: 'step1', title: 'Step', taskType: 'bug' }],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -508,7 +508,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -530,7 +530,7 @@ describe('pourWorkflow', () => {
         steps: [{ id: 'step1', title: 'Task: {{taskName}}' }],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: { taskName: 'My Important Task' },
         createdBy: TEST_ENTITY,
@@ -547,7 +547,7 @@ describe('pourWorkflow', () => {
         steps: [{ id: 'step1', title: 'Deploy version {{version}}' }],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -565,7 +565,7 @@ describe('pourWorkflow', () => {
       });
 
       await expect(
-        pourWorkflow({
+        createWorkflowFromPlaybook({
           playbook,
           variables: {},
           createdBy: TEST_ENTITY,
@@ -582,7 +582,7 @@ describe('pourWorkflow', () => {
         steps: [],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: { project: 'Elemental' },
         createdBy: TEST_ENTITY,
@@ -600,7 +600,7 @@ describe('pourWorkflow', () => {
         steps: [],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: { env: 'production' },
         createdBy: TEST_ENTITY,
@@ -623,7 +623,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -645,7 +645,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: { includeOptional: true },
         createdBy: TEST_ENTITY,
@@ -666,7 +666,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: { skipCleanup: true },
         createdBy: TEST_ENTITY,
@@ -687,7 +687,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: { env: 'staging' },
         createdBy: TEST_ENTITY,
@@ -708,7 +708,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -739,7 +739,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -760,7 +760,7 @@ describe('pourWorkflow', () => {
         ],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -778,7 +778,7 @@ describe('pourWorkflow', () => {
         steps: [{ id: 'step1', title: 'Step', assignee: 'entity-alice' }],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -795,7 +795,7 @@ describe('pourWorkflow', () => {
         steps: [{ id: 'step1', title: 'Step', assignee: '{{assignTo}}' }],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: { assignTo: 'entity-bob' },
         createdBy: TEST_ENTITY,
@@ -812,7 +812,7 @@ describe('pourWorkflow', () => {
         steps: [{ id: 'step1', title: 'Step', assignee: '{{assignTo}}' }],
       });
 
-      const result = await pourWorkflow({
+      const result = await createWorkflowFromPlaybook({
         playbook,
         variables: {},
         createdBy: TEST_ENTITY,
@@ -824,10 +824,10 @@ describe('pourWorkflow', () => {
 });
 
 // ============================================================================
-// validatePour Tests
+// validateCreateWorkflow Tests
 // ============================================================================
 
-describe('validatePour', () => {
+describe('validateCreateWorkflow', () => {
   it('should return valid=true for valid input', async () => {
     const playbook = await createTestPlaybook({
       variables: [
@@ -836,7 +836,7 @@ describe('validatePour', () => {
       steps: [{ id: 'step1', title: 'Hello {{name}}' }],
     });
 
-    const result = await validatePour(playbook, { name: 'World' });
+    const result = await validateCreateWorkflow(playbook, { name: 'World' });
 
     expect(result.valid).toBe(true);
     expect(result.resolvedVariables).toEqual({ name: 'World' });
@@ -853,7 +853,7 @@ describe('validatePour', () => {
       steps: [],
     });
 
-    const result = await validatePour(playbook, {});
+    const result = await validateCreateWorkflow(playbook, {});
 
     expect(result.valid).toBe(false);
     expect(result.error).toContain("Required variable 'required' was not provided");
@@ -870,7 +870,7 @@ describe('validatePour', () => {
       ],
     });
 
-    const result = await validatePour(playbook, {});
+    const result = await validateCreateWorkflow(playbook, {});
 
     expect(result.valid).toBe(true);
     expect(result.includedSteps).toHaveLength(1);
@@ -882,7 +882,7 @@ describe('validatePour', () => {
       steps: [{ id: 'step1', title: 'Use {{undefined_var}}' }],
     });
 
-    const result = await validatePour(playbook, {});
+    const result = await validateCreateWorkflow(playbook, {});
 
     expect(result.valid).toBe(false);
     expect(result.error).toContain('Unresolved variable');

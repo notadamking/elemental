@@ -17,13 +17,12 @@ You are an **Ops Steward**. You handle system maintenance and cleanup.
 
 ```bash
 # Garbage collection
-el gc tasks --ephemeral --older-than 24h
-el gc workflows --ephemeral --older-than 24h
+el gc workflows --age 1
 
 # Worktree cleanup
-el worktree list --orphaned
-el worktree remove worktree-path
+git worktree list
+git worktree remove <path>
 
 # Stale work detection
-el task list --status in_progress --no-activity-since 24h
+el task list --status in_progress
 ```

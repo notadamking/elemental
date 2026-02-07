@@ -3,7 +3,7 @@
  * Templates tab shows playbooks, Active tab shows running workflows
  *
  * TB-O33: Visual Workflow Editor
- * TB-O34: Pour Workflow Template
+ * TB-O34: Create Workflow from Template
  * TB-O35: Workflow Progress Dashboard
  */
 
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import {
   // Components
-  PourWorkflowModal,
+  CreateWorkflowModal,
   WorkflowEditorModal,
   WorkflowProgressDashboard,
   PlaybookCard,
@@ -45,8 +45,8 @@ export function WorkflowsPage() {
   const selectedWorkflowId = search.selected;
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Pour modal state
-  const [pourModalOpen, setPourModalOpen] = useState(false);
+  // Create workflow modal state
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null);
 
   // Editor modal state (TB-O33)
@@ -126,12 +126,12 @@ export function WorkflowsPage() {
     navigate({ to: '/workflows', search: { selected: search.selected, tab } });
   };
 
-  const handlePourPlaybook = (playbookId: string) => {
+  const handleCreateFromPlaybook = (playbookId: string) => {
     setSelectedPlaybookId(playbookId);
-    setPourModalOpen(true);
+    setCreateModalOpen(true);
   };
 
-  const handlePourSuccess = (workflow: { id: string; title: string }) => {
+  const handleCreateSuccess = (workflow: { id: string; title: string }) => {
     console.log('Workflow created:', workflow.id, workflow.title);
     // Switch to Active tab to show the new workflow
     setTab('active');
@@ -357,7 +357,7 @@ export function WorkflowsPage() {
               <p className="mt-1 text-sm text-[var(--color-text-secondary)] text-center max-w-md">
                 {searchQuery
                   ? 'Try adjusting your search query.'
-                  : 'Create workflow templates to define reusable sequences of tasks. Templates can be "poured" to create active workflows.'}
+                  : 'Create workflow templates to define reusable sequences of tasks. Templates can be used to create active workflows.'}
               </p>
               {!searchQuery && (
                 <div className="mt-4">
@@ -378,7 +378,7 @@ export function WorkflowsPage() {
                 <PlaybookCard
                   key={playbook.id}
                   playbook={playbook}
-                  onPour={handlePourPlaybook}
+                  onPour={handleCreateFromPlaybook}
                   onEdit={handleEditPlaybook}
                 />
               ))}
@@ -399,7 +399,7 @@ export function WorkflowsPage() {
               <p className="mt-1 text-sm text-[var(--color-text-secondary)] text-center max-w-md">
                 {searchQuery
                   ? 'Try adjusting your search query.'
-                  : 'Pour a template to create a new workflow, or create an ad-hoc workflow.'}
+                  : 'Use a template to create a new workflow, or create an ad-hoc workflow.'}
               </p>
               {!searchQuery && (
                 <div className="mt-4">
@@ -464,15 +464,15 @@ export function WorkflowsPage() {
         </>
       )}
 
-      {/* Pour Workflow Modal */}
-      <PourWorkflowModal
-        isOpen={pourModalOpen}
+      {/* Create Workflow Modal */}
+      <CreateWorkflowModal
+        isOpen={createModalOpen}
         onClose={() => {
-          setPourModalOpen(false);
+          setCreateModalOpen(false);
           setSelectedPlaybookId(null);
         }}
         playbookId={selectedPlaybookId}
-        onSuccess={handlePourSuccess}
+        onSuccess={handleCreateSuccess}
       />
 
       {/* Workflow Editor Modal (TB-O33) */}

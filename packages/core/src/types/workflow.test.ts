@@ -29,7 +29,7 @@ import {
   createWorkflow,
   CreateWorkflowInput,
   updateWorkflowStatus,
-  squashWorkflow,
+  promoteWorkflow,
   isTerminal,
   isPending,
   isRunning,
@@ -734,18 +734,18 @@ describe('updateWorkflowStatus', () => {
   });
 });
 
-describe('squashWorkflow', () => {
+describe('promoteWorkflow', () => {
   test('promotes ephemeral workflow to durable', () => {
     const workflow = createTestWorkflow({ ephemeral: true });
-    const squashed = squashWorkflow(workflow);
+    const promoted = promoteWorkflow(workflow);
 
-    expect(squashed.ephemeral).toBe(false);
-    expect(squashed.updatedAt).not.toBe(workflow.updatedAt);
+    expect(promoted.ephemeral).toBe(false);
+    expect(promoted.updatedAt).not.toBe(workflow.updatedAt);
   });
 
   test('throws for already durable workflow', () => {
     const workflow = createTestWorkflow({ ephemeral: false });
-    expect(() => squashWorkflow(workflow)).toThrow(ValidationError);
+    expect(() => promoteWorkflow(workflow)).toThrow(ValidationError);
   });
 });
 

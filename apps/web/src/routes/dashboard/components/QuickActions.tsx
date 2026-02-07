@@ -10,10 +10,10 @@ import { getCurrentBinding } from '../../../lib/keyboard';
 
 interface QuickActionsProps {
   onCreateTask: () => void;
-  onPourWorkflow: () => void;
+  onCreateWorkflow: () => void;
 }
 
-export function QuickActions({ onCreateTask, onPourWorkflow }: QuickActionsProps) {
+export function QuickActions({ onCreateTask, onCreateWorkflow }: QuickActionsProps) {
   // Track shortcut changes to update badges
   useShortcutVersion();
 
@@ -31,9 +31,9 @@ export function QuickActions({ onCreateTask, onPourWorkflow }: QuickActionsProps
           <kbd className="ml-1 text-xs bg-blue-800/50 text-white px-1 py-0.5 rounded">{getCurrentBinding('action.createTask')}</kbd>
         </button>
         <button
-          onClick={onPourWorkflow}
+          onClick={onCreateWorkflow}
           className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
-          data-testid="quick-action-pour-workflow"
+          data-testid="quick-action-create-workflow"
         >
           <Zap className="w-4 h-4" />
           Create Workflow

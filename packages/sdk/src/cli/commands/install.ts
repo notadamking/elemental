@@ -10,6 +10,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Command, GlobalOptions, CommandResult } from '../types.js';
 import { success, failure, ExitCode } from '../types.js';
+import { suggestCommands } from '../suggest.js';
 
 // ============================================================================
 // Constants
@@ -236,9 +237,14 @@ Examples:
         ExitCode.INVALID_ARGUMENTS
       );
     }
-    return failure(
-      `Unknown subcommand: ${args[0]}. Use 'el install --help' for available subcommands.`,
-      ExitCode.INVALID_ARGUMENTS
-    );
+    // Show "did you mean?" for unknown subcommands
+    const subNames = Object.keys(installCommand.subcommands!);
+    const suggestions = suggestCommands(args[0], subNames);
+    let msg = `Unknown subcommand: ${args[0]}`;
+    if (suggestions.length > 0) {
+      msg += `\n\nDid you mean?\n${suggestions.map(s => `  ${s}`).join('\n')}`;
+    }
+    msg += '\n\nRun "el install --help" to see available subcommands.';
+    return failure(msg, ExitCode.INVALID_ARGUMENTS);
   },
 };

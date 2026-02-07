@@ -288,7 +288,7 @@ type WorkflowStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelle
 
 **Related files:**
 - `types/workflow-ops.ts` - Ephemeral workflow operations
-- `types/workflow-pour.ts` - Instantiate from playbook
+- `types/workflow-create.ts` - Instantiate from playbook
 
 ### Channel
 
